@@ -97,7 +97,8 @@ cmd_screenshot() {
         esac
     fi
     if [[ -z "$output" ]]; then
-        output="/tmp/chromebook-screenshot.${format:0:3}"
+        local ext="png"; [[ "$format" == "jpeg" ]] && ext="jpg"
+        output="/tmp/chromebook-screenshot.$ext"
     fi
 
     ensure_client
