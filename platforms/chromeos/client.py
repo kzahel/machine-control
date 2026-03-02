@@ -548,6 +548,24 @@ def cmd_desktop_click(msg):
         return {"error": f"desktop_click failed: {e}"}
 
 
+def cmd_desktop_action(msg):
+    try:
+        import cdp
+        pattern = msg.get("pattern")
+        if not pattern:
+            return {"error": "desktop_action requires 'pattern'"}
+        action = msg.get("action")
+        if not action:
+            return {"error": "desktop_action requires 'action'"}
+        role = msg.get("role")
+        value = msg.get("value")
+        nth = msg.get("nth", 1)
+        result = cdp.desktop_action(pattern, action, value=value, role=role, nth=nth)
+        return {"ok": True, "result": result}
+    except Exception as e:
+        return {"error": f"desktop_action failed: {e}"}
+
+
 COMMANDS = {
     "ping": cmd_ping,
     "tap": cmd_tap,
@@ -565,6 +583,7 @@ COMMANDS = {
     "desktop_tree": cmd_desktop_tree,
     "desktop_find": cmd_desktop_find,
     "desktop_click": cmd_desktop_click,
+    "desktop_action": cmd_desktop_action,
 }
 
 

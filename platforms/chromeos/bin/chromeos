@@ -20,6 +20,9 @@
 #   desktop-tree [--depth N]  Full desktop accessibility tree (system UI)
 #   desktop-find <pat> [--role R]  Find desktop elements by name
 #   desktop-click <pat> [--role R] Click desktop element via doDefault()
+#   desktop-action <pat> <action> [--value V] [--role R] [--nth N]  Perform action on desktop element
+#   deploy-ext <dir> [--name NAME] [--reload [EXT_ID]]  Deploy extension to Chromebook
+#   install-apk <file> [--keep]  Install Android APK on Chromebook
 #   shell               Interactive SSH session
 #   help                Show this help
 
@@ -28,7 +31,7 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SSH_HOST="${CHROMEBOOK_HOST:-chromeos-testbed}"
 CLIENT_PATH="${CHROMEOS_CLIENT_PATH:-/mnt/stateful_partition/c2/client.py}"
-REMOTE_PATH_SETUP="export PATH=/bin:/usr/bin:/usr/local/bin:\$PATH"
+REMOTE_PATH_SETUP="export PATH=/bin:/usr/bin:/usr/local/bin:/usr/sbin:/sbin:\$PATH"
 SSH_OPTS=(-o ControlMaster=auto -o "ControlPath=/tmp/chromeos-ssh-%C" -o ControlPersist=300)
 
 # Send a JSON command to client.py on the Chromebook
@@ -405,6 +408,17 @@ for m in r['matches']:
     loc = m.get('location')
     if loc:
         parts.append(f\"at ({loc['center_x']:.0f},{loc['center_y']:.0f}) {loc['width']:.0f}x{loc['height']:.0f}\")
+    if 'valueForRange' in m:
+        vr = f\"value={m['valueForRange']}\"
+        if 'minValueForRange' in m:
+            vr += f\" min={m['minValueForRange']}\"
+        if 'maxValueForRange' in m:
+            vr += f\" max={m['maxValueForRange']}\"
+        parts.append(vr)
+    if 'checked' in m:
+        parts.append(f\"checked={m['checked']}\")
+    if 'value' in m:
+        parts.append(f\"value=\\\"{m['value']}\\\"\")
     print(' '.join(parts))
 print(f\"---\n{r['count']} matches\", file=sys.stderr)
 "
@@ -449,6 +463,62 @@ print(f\"Clicked [{c['role']}] \\\"{c['name']}\\\"{pos}\")
 "
 }
 
+cmd_desktop_action() {
+    if [ $# -lt 2 ]; then
+        echo "Usage: chromeos desktop-action <pattern> <action> [--value V] [--role R] [--nth N]" >&2
+        echo "  Actions: doDefault, focus, increment, decrement, setValue," >&2
+        echo "           showContextMenu, scrollForward, scrollBackward, longClick" >&2
+        exit 1
+    fi
+    local pattern="$1" action="$2"
+    shift 2
+    local role="" value="" nth=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --role) role="$2"; shift 2 ;;
+            --value) value="$2"; shift 2 ;;
+            --nth) nth="$2"; shift 2 ;;
+            *) echo "Unknown option: $1" >&2; exit 1 ;;
+        esac
+    done
+    ensure_client
+
+    local json_cmd
+    json_cmd=$(python3 -c "
+import json, sys
+cmd = {'cmd': 'desktop_action', 'pattern': sys.argv[1], 'action': sys.argv[2]}
+if sys.argv[3]: cmd['role'] = sys.argv[3]
+if sys.argv[4]: cmd['value'] = sys.argv[4]
+if sys.argv[5]: cmd['nth'] = int(sys.argv[5])
+print(json.dumps(cmd))
+" "$pattern" "$action" "$role" "$value" "$nth")
+
+    local response
+    response=$(send_cmd "$json_cmd")
+    echo "$response" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+if 'error' in r:
+    print(r['error'], file=sys.stderr)
+    sys.exit(1)
+res = r['result']
+loc = res.get('location')
+pos = f\" at ({loc['x']:.0f},{loc['y']:.0f})\" if loc else ''
+parts = [f\"[{res['role']}] \\\"{res['name']}\\\"{pos}\", f\"action={res['action']}\"]
+if 'valueForRange' in res:
+    parts.append(f\"value={res['valueForRange']}\")
+    if 'minValueForRange' in res:
+        parts.append(f\"min={res['minValueForRange']}\")
+    if 'maxValueForRange' in res:
+        parts.append(f\"max={res['maxValueForRange']}\")
+if 'checked' in res:
+    parts.append(f\"checked={res['checked']}\")
+if 'value' in res:
+    parts.append(f\"value=\\\"{res['value']}\\\"\")
+print(' '.join(parts))
+"
+}
+
 cmd_deploy_ext() {
     local dir="" name="" reload="" ext_id=""
     while [[ $# -gt 0 ]]; do
@@ -478,12 +548,20 @@ cmd_deploy_ext() {
     local dest="/home/chronos/user/MyFiles/Downloads/$name"
 
     echo "Deploying extension to $SSH_HOST:$dest/"
-    ssh "${SSH_OPTS[@]}" "$SSH_HOST" "mkdir -p '$dest'" 2>/dev/null
-    rsync -av --delete \
-        --exclude='.git' \
-        --exclude='node_modules' \
-        -e "ssh ${SSH_OPTS[*]}" \
-        "$dir/" "$SSH_HOST:$dest/"
+    ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; mkdir -p '$dest'" 2>/dev/null
+    # rsync may not be available on ChromeOS — fall back to scp
+    if ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; which rsync" &>/dev/null; then
+        rsync -av --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --rsync-path="$REMOTE_PATH_SETUP; rsync" \
+            -e "ssh ${SSH_OPTS[*]}" \
+            "$dir/" "$SSH_HOST:$dest/"
+    else
+        # Clean dest and scp files (excluding .git and node_modules)
+        ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; rm -rf '$dest'/*" 2>/dev/null
+        scp -r "${SSH_OPTS[@]}" "$dir/"* "$SSH_HOST:$dest/" 2>/dev/null
+    fi
 
     if [[ -n "$reload" ]]; then
         local cdp_port="${CDP_PORT:-9222}"
@@ -547,21 +625,28 @@ cmd_install_apk() {
     scp "${SSH_OPTS[@]}" "$apk" "$SSH_HOST:$dest/$filename"
 
     echo "Installing APK..."
-    if ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; which android-sh" &>/dev/null; then
+    # Prefer adb (avoids android-sh SELinux issues)
+    if ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; which adb" &>/dev/null; then
         ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
-            "$REMOTE_PATH_SETUP; android-sh -c 'pm install -r -t /sdcard/Download/$filename'" 2>/dev/null
+            "$REMOTE_PATH_SETUP; adb install -r -t '$dest/$filename'" 2>&1
         local rc=$?
-        if [[ $rc -eq 0 && -z "$keep" ]]; then
-            ssh "${SSH_OPTS[@]}" "$SSH_HOST" "rm -f '$dest/$filename'" 2>/dev/null
-        fi
-        if [[ $rc -eq 0 ]]; then
-            echo "Done! APK installed."
-        else
-            echo "Install failed (rc=$rc). APK is at $dest/$filename — try installing from Files app." >&2
-            exit 1
-        fi
+    elif ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; which android-sh" &>/dev/null; then
+        ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
+            "$REMOTE_PATH_SETUP; android-sh -c 'pm install -r -t /sdcard/Download/$filename'" 2>&1
+        local rc=$?
     else
-        echo "android-sh not found. APK copied to $dest/$filename — install from Files app."
+        echo "Neither adb nor android-sh found. APK copied to $dest/$filename — install from Files app."
+        return 0
+    fi
+
+    if [[ $rc -eq 0 && -z "$keep" ]]; then
+        ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; rm -f '$dest/$filename'" 2>/dev/null
+    fi
+    if [[ $rc -eq 0 ]]; then
+        echo "Done! APK installed."
+    else
+        echo "Install failed (rc=$rc). APK is at $dest/$filename — try installing from Files app." >&2
+        exit 1
     fi
 }
 
@@ -594,6 +679,9 @@ case "$cmd" in
     desktop-tree) cmd_desktop_tree "$@" ;;
     desktop-find) cmd_desktop_find "$@" ;;
     desktop-click) cmd_desktop_click "$@" ;;
+    desktop-action) cmd_desktop_action "$@" ;;
+    deploy-ext)   cmd_deploy_ext "$@" ;;
+    install-apk)  cmd_install_apk "$@" ;;
     shell)        cmd_shell "$@" ;;
     help|--help|-h) cmd_help ;;
     *)

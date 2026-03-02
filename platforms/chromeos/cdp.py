@@ -499,6 +499,20 @@ def _js_escape(s):
     return s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
 
 
+def _eval_js_result(result, func_name):
+    """Extract value from Runtime.evaluate result, raising on JS exceptions."""
+    exc = result.get("exceptionDetails")
+    if exc:
+        msg = exc.get("exception", {}).get("description", exc.get("text", "Unknown error"))
+        raise RuntimeError(f"{func_name} failed: {msg}")
+    val = result.get("result", {}).get("value")
+    if val is None:
+        raise RuntimeError(f"{func_name} failed: no result value")
+    if isinstance(val, str):
+        return json.loads(val)
+    return val
+
+
 def desktop_tree(max_depth=None, port=CDP_PORT):
     """Get the full desktop accessibility tree via chrome.automation.
 
@@ -547,14 +561,7 @@ new Promise((resolve, reject) => {{
                           expression=js,
                           awaitPromise=True,
                           returnByValue=True)
-        val = result.get("result", {}).get("value")
-        if val is None:
-            exc = result.get("exceptionDetails", {})
-            msg = exc.get("exception", {}).get("description", "Unknown error")
-            raise RuntimeError(f"desktop_tree failed: {msg}")
-        if isinstance(val, str):
-            return json.loads(val)
-        return val
+        return _eval_js_result(result, "desktop_tree")
     finally:
         cdp.close()
 
@@ -592,6 +599,11 @@ new Promise((resolve, reject) => {{
                          center_x: loc.left + loc.width / 2,
                          center_y: loc.top + loc.height / 2}};
         }}
+        if (node.valueForRange !== undefined) m.valueForRange = node.valueForRange;
+        if (node.minValueForRange !== undefined) m.minValueForRange = node.minValueForRange;
+        if (node.maxValueForRange !== undefined) m.maxValueForRange = node.maxValueForRange;
+        if (node.checked) m.checked = node.checked;
+        if (node.value) m.value = node.value;
         matches.push(m);
       }}
       for (const child of (node.children || [])) {{
@@ -610,14 +622,7 @@ new Promise((resolve, reject) => {{
                           expression=js,
                           awaitPromise=True,
                           returnByValue=True)
-        val = result.get("result", {}).get("value")
-        if val is None:
-            exc = result.get("exceptionDetails", {})
-            msg = exc.get("exception", {}).get("description", "Unknown error")
-            raise RuntimeError(f"desktop_find failed: {msg}")
-        if isinstance(val, str):
-            return json.loads(val)
-        return val
+        return _eval_js_result(result, "desktop_find")
     finally:
         cdp.close()
 
@@ -666,13 +671,85 @@ new Promise((resolve, reject) => {{
                           expression=js,
                           awaitPromise=True,
                           returnByValue=True)
-        val = result.get("result", {}).get("value")
-        if val is None:
-            exc = result.get("exceptionDetails", {})
-            msg = exc.get("exception", {}).get("description", "Unknown error")
-            raise RuntimeError(f"desktop_click failed: {msg}")
-        if isinstance(val, str):
-            return json.loads(val)
-        return val
+        return _eval_js_result(result, "desktop_click")
+    finally:
+        cdp.close()
+
+
+_VALID_ACTIONS = {
+    "doDefault", "focus", "increment", "decrement", "showContextMenu",
+    "scrollForward", "scrollBackward", "longClick",
+}
+
+
+def desktop_action(pattern, action, value=None, role=None, nth=1, port=CDP_PORT):
+    """Perform an action on a desktop node found by name pattern.
+
+    Supported actions: doDefault, focus, increment, decrement, setValue,
+    showContextMenu, scrollForward, scrollBackward, longClick.
+
+    For setValue, pass the desired value. For sliders, returns updated
+    valueForRange after the action. Use nth to select which match (1-based).
+    """
+    if action == "setValue":
+        if value is None:
+            raise ValueError("setValue requires a value")
+        action_js = f"target.setValue('{_js_escape(str(value))}');"
+    elif action in _VALID_ACTIONS:
+        action_js = f"target.{action}();"
+    else:
+        raise ValueError(f"Unknown action: {action}. Valid: {', '.join(sorted(_VALID_ACTIONS | {'setValue'}))}")
+
+    role_js = f"'{_js_escape(role)}'" if role else "null"
+    nth_js = max(1, int(nth))
+    js = f"""
+new Promise((resolve, reject) => {{
+  chrome.automation.getDesktop((root) => {{
+    if (!root) {{ reject(new Error('No desktop root')); return; }}
+    const re = new RegExp('{_js_escape(pattern)}', 'i');
+    const role = {role_js};
+    const nth = {nth_js};
+    let count = 0;
+    function search(node) {{
+      const name = node.name || '';
+      const nodeRole = node.role || '';
+      if (re.test(name) && (!role || nodeRole === role)) {{
+        count++;
+        if (count === nth) return node;
+      }}
+      for (const child of (node.children || [])) {{
+        const found = search(child);
+        if (found) return found;
+      }}
+      return null;
+    }}
+    const target = search(root);
+    if (!target) {{ reject(new Error('No match for pattern: {_js_escape(pattern)} (nth={nth_js})')); return; }}
+    {action_js}
+    const loc = target.location;
+    const r = {{
+      name: target.name || '',
+      role: target.role || '',
+      action: '{_js_escape(action)}',
+      location: loc ? {{x: loc.left, y: loc.top,
+                        width: loc.width, height: loc.height}} : null
+    }};
+    if (target.valueForRange !== undefined) r.valueForRange = target.valueForRange;
+    if (target.minValueForRange !== undefined) r.minValueForRange = target.minValueForRange;
+    if (target.maxValueForRange !== undefined) r.maxValueForRange = target.maxValueForRange;
+    if (target.checked) r.checked = target.checked;
+    if (target.value) r.value = target.value;
+    resolve(r);
+  }});
+}})
+"""
+    ws_url = _find_automation_target(port)
+    cdp = CDP(ws_url)
+    try:
+        result = cdp.call("Runtime.evaluate",
+                          expression=js,
+                          awaitPromise=True,
+                          returnByValue=True)
+        return _eval_js_result(result, "desktop_action")
     finally:
         cdp.close()

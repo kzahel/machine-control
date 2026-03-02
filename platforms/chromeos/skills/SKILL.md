@@ -21,6 +21,8 @@ chromeos tap X Y             # Tap at raw touchscreen coordinates
 chromeos type "text"         # Type text
 chromeos shortcut ctrl t     # Keyboard shortcut (handles modifier remapping)
 chromeos info                # Device info (touch_max, keyboard layout)
+chromeos deploy-ext <dir> [--name NAME] [--reload [EXT_ID]]  # Deploy extension
+chromeos install-apk <file.apk> [--keep]                     # Install Android APK
 chromeos shell               # Interactive SSH session
 ```
 
@@ -73,6 +75,28 @@ chromeos fix-devtools      # Will tell you if rootfs verification needs removal
 ```bash
 chromeos screenshot                        # Saves to /tmp/chromebook-screenshot.png
 chromeos screenshot ~/Desktop/screen.png   # Custom output path
+```
+
+### Deploying Extensions
+
+```bash
+# Build your extension first (project-specific), then deploy the output directory
+chromeos deploy-ext dist/ --name myapp-extension
+
+# Deploy and reload via CDP (requires SSH tunnel: ssh -NL 9222:127.0.0.1:9222 chromeos-testbed)
+chromeos deploy-ext dist/ --name myapp-extension --reload abcdefghijklmnopabcdefghijklmnop
+
+# First time: load unpacked extension at chrome://extensions from ~/Downloads/myapp-extension/
+```
+
+### Installing Android APKs
+
+```bash
+# Build your APK first, then install
+chromeos install-apk app/build/outputs/apk/debug/app-debug.apk
+
+# Keep APK in Downloads after install (default: cleaned up)
+chromeos install-apk app-debug.apk --keep
 ```
 
 ### Input Injection
