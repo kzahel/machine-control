@@ -15,9 +15,11 @@ Two capture backends:
 Based on Chromium's screen-capture-utils (C++ EGL approach).
 
 Usage:
-    python3 drm_screenshot.py [output.png]
-    python3 drm_screenshot.py --base64    # output base64 to stdout
-    python3 drm_screenshot.py --diag      # print diagnostic info
+    python3 drm_screenshot.py [output.png]           # save PNG
+    python3 drm_screenshot.py --jpeg [output.jpg]    # save JPEG (smaller, faster)
+    python3 drm_screenshot.py --stdout --jpeg        # raw JPEG bytes to stdout
+    python3 drm_screenshot.py --base64               # base64 PNG to stdout
+    python3 drm_screenshot.py --diag                 # diagnostic info
 
 Requires: libdrm.so, libgbm.so (both present on ChromeOS)
 Optional: libEGL.so, libGLESv2.so (for EGL capture, present on ChromeOS)
@@ -30,8 +32,8 @@ import sys
 import zlib
 from ctypes import (
     CDLL, CFUNCTYPE, POINTER, Structure, byref, c_char, c_char_p, c_float,
-    c_int, c_size_t, c_uint, c_ulonglong, c_ushort, c_void_p, c_voidp,
-    cast, create_string_buffer, string_at,
+    c_int, c_size_t, c_uint, c_ulong, c_ulonglong, c_ushort, c_void_p,
+    c_voidp, cast, create_string_buffer, string_at,
 )
 
 # ── DRM constants ──
@@ -818,6 +820,72 @@ def encode_png(width, height, rgb_rows):
             chunk(b"IEND", b""))
 
 
+# ── TurboJPEG JPEG encoder ──
+
+_tj_lib = None
+_tj_loaded = False
+
+def _load_turbojpeg():
+    """Load libturbojpeg.so. Returns CDLL or None."""
+    global _tj_lib, _tj_loaded
+    if _tj_loaded:
+        return _tj_lib
+    _tj_loaded = True
+    for name in ("libturbojpeg.so", "libturbojpeg.so.0"):
+        try:
+            lib = CDLL(name)
+            lib.tjInitCompress.argtypes = []
+            lib.tjInitCompress.restype = c_void_p
+            lib.tjCompress2.argtypes = [
+                c_void_p, c_void_p, c_int, c_int, c_int, c_int,
+                POINTER(c_void_p), POINTER(c_ulong), c_int, c_int, c_int,
+            ]
+            lib.tjCompress2.restype = c_int
+            lib.tjFree.argtypes = [c_void_p]
+            lib.tjFree.restype = None
+            lib.tjDestroy.argtypes = [c_void_p]
+            lib.tjDestroy.restype = c_int
+            _tj_lib = lib
+            return lib
+        except OSError:
+            continue
+    return None
+
+
+def encode_jpeg(width, height, rgb_rows, quality=80):
+    """Encode RGB row data as JPEG via libturbojpeg. Returns bytes or None."""
+    tj = _load_turbojpeg()
+    if tj is None:
+        return None
+    handle = tj.tjInitCompress()
+    if not handle:
+        return None
+    try:
+        rgb_data = b"".join(rgb_rows)
+        src = (c_char * len(rgb_data)).from_buffer_copy(rgb_data)
+        jpeg_buf = c_void_p(0)
+        jpeg_size = c_ulong(0)
+        TJPF_RGB = 0
+        TJSAMP_420 = 2
+        rv = tj.tjCompress2(
+            handle, src,
+            c_int(width), c_int(width * 3), c_int(height),
+            c_int(TJPF_RGB),
+            byref(jpeg_buf), byref(jpeg_size),
+            c_int(TJSAMP_420), c_int(quality), c_int(0),
+        )
+        if rv != 0:
+            return None
+        result = bytes(string_at(jpeg_buf, jpeg_size.value))
+        return result
+    except Exception:
+        return None
+    finally:
+        if jpeg_buf.value:
+            tj.tjFree(jpeg_buf)
+        tj.tjDestroy(handle)
+
+
 # ── Diagnostics ──
 
 def run_diag():
@@ -878,8 +946,8 @@ def run_diag():
 
 # ── Main ──
 
-def _capture_with(drm_lib, cards, capture_fn):
-    """Try capture_fn(drm_lib, fd, crtc) on each card. Returns PNG bytes."""
+def _capture_raw(drm_lib, cards, capture_fn):
+    """Try capture_fn(drm_lib, fd, crtc) on each card. Returns (w, h, rows)."""
     last_error = None
     for card in cards:
         path = os.path.join("/dev/dri", card)
@@ -890,23 +958,26 @@ def _capture_with(drm_lib, cards, capture_fn):
         try:
             crtc = find_active_crtc(drm_lib, fd)
             if crtc:
-                w, h, rows = capture_fn(drm_lib, fd, crtc)
-                return encode_png(w, h, rows)
+                return capture_fn(drm_lib, fd, crtc)
         except Exception as e:
             last_error = e
         finally:
             os.close(fd)
     if last_error:
         raise last_error
-    return None
+    raise RuntimeError("No active CRTC found on any DRM device")
 
 
-def drm_screenshot(method=None):
-    """Take a DRM screenshot. method: 'egl', 'gbm', or None (try egl then gbm).
-    Returns PNG bytes or raises RuntimeError."""
+def _capture_with(drm_lib, cards, capture_fn):
+    """Try capture_fn(drm_lib, fd, crtc) on each card. Returns PNG bytes."""
+    w, h, rows = _capture_raw(drm_lib, cards, capture_fn)
+    return encode_png(w, h, rows)
+
+
+def _drm_setup_and_fns():
+    """Common setup: load DRM, enumerate cards, define capture functions."""
     drm_lib = _load_drm()
     _setup_drm(drm_lib)
-
     cards = sorted(f for f in os.listdir("/dev/dri") if f.startswith("card"))
     if not cards:
         raise RuntimeError("No DRM devices found in /dev/dri/")
@@ -922,30 +993,32 @@ def drm_screenshot(method=None):
         gbm_lib = _load_gbm()
         return capture_framebuffer(drm_lib, gbm_lib, fd, crtc)
 
+    return drm_lib, cards, egl_fn, gbm_fn
+
+
+def _capture_by_method(method=None):
+    """Capture raw RGB rows. Returns (w, h, rows). Raises on failure."""
+    drm_lib, cards, egl_fn, gbm_fn = _drm_setup_and_fns()
+
     if method == "egl":
-        result = _capture_with(drm_lib, cards, egl_fn)
-        if result:
-            return result
-        raise RuntimeError("EGL capture failed on all DRM devices")
+        return _capture_raw(drm_lib, cards, egl_fn)
 
     if method == "gbm":
-        result = _capture_with(drm_lib, cards, gbm_fn)
-        if result:
-            return result
-        raise RuntimeError("GBM capture failed on all DRM devices")
+        return _capture_raw(drm_lib, cards, gbm_fn)
 
     # Auto: try EGL first, fall back to GBM
     try:
-        result = _capture_with(drm_lib, cards, egl_fn)
-        if result:
-            return result
+        return _capture_raw(drm_lib, cards, egl_fn)
     except Exception:
         pass
+    return _capture_raw(drm_lib, cards, gbm_fn)
 
-    result = _capture_with(drm_lib, cards, gbm_fn)
-    if result:
-        return result
-    raise RuntimeError("No active CRTC found on any DRM device")
+
+def drm_screenshot(method=None):
+    """Take a DRM screenshot. method: 'egl', 'gbm', or None (try egl then gbm).
+    Returns PNG bytes or raises RuntimeError."""
+    w, h, rows = _capture_by_method(method)
+    return encode_png(w, h, rows)
 
 
 def drm_screenshot_base64(method=None):
@@ -953,13 +1026,34 @@ def drm_screenshot_base64(method=None):
     return base64.b64encode(drm_screenshot(method=method)).decode("ascii")
 
 
+def drm_screenshot_jpeg(method=None, quality=80):
+    """Take a DRM screenshot as JPEG (PNG fallback). Returns (bytes, fmt)."""
+    w, h, rows = _capture_by_method(method)
+    jpeg = encode_jpeg(w, h, rows, quality=quality)
+    if jpeg is not None:
+        return jpeg, "jpeg"
+    return encode_png(w, h, rows), "png"
+
+
+def drm_screenshot_jpeg_base64(method=None, quality=80):
+    """Take a DRM screenshot as JPEG. Returns (base64_string, fmt)."""
+    data, fmt = drm_screenshot_jpeg(method=method, quality=quality)
+    return base64.b64encode(data).decode("ascii"), fmt
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="DRM/GBM/EGL screenshot capture")
     parser.add_argument("output", nargs="?", default=None,
-                        help="Output PNG file path (default: stdout base64)")
+                        help="Output file path (default: stdout)")
     parser.add_argument("--method", choices=["egl", "gbm"],
                         help="Capture method (default: try egl then gbm)")
+    parser.add_argument("--stdout", action="store_true",
+                        help="Write raw image bytes to stdout")
+    parser.add_argument("--jpeg", action="store_true",
+                        help="Encode as JPEG (default: PNG)")
+    parser.add_argument("-q", "--quality", type=int, default=80,
+                        help="JPEG quality 1-100 (default: 80)")
     parser.add_argument("--base64", action="store_true",
                         help="Output base64 to stdout")
     parser.add_argument("--diag", action="store_true",
@@ -971,14 +1065,22 @@ if __name__ == "__main__":
         sys.exit(0)
 
     try:
-        png = drm_screenshot(method=args.method)
+        if args.jpeg:
+            data, fmt = drm_screenshot_jpeg(method=args.method, quality=args.quality)
+        else:
+            data = drm_screenshot(method=args.method)
+            fmt = "png"
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    if args.output and not args.base64:
+    if args.stdout:
+        sys.stdout.buffer.write(data)
+    elif args.base64:
+        sys.stdout.write(base64.b64encode(data).decode("ascii"))
+    elif args.output:
         with open(args.output, "wb") as f:
-            f.write(png)
-        print(f"{args.output} ({len(png)} bytes)")
+            f.write(data)
+        print(f"{args.output} ({len(data)} bytes, {fmt})")
     else:
-        sys.stdout.write(base64.b64encode(png).decode("ascii"))
+        sys.stdout.buffer.write(data)

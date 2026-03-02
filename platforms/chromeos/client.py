@@ -390,29 +390,46 @@ def cmd_type(msg):
     return {"ok": True}
 
 
+def _drm_screenshot_b64(method, fmt, quality):
+    """Helper: capture via DRM, return dict with image/method/format."""
+    from drm_screenshot import drm_screenshot_base64, drm_screenshot_jpeg_base64
+    if fmt == "jpeg":
+        b64, actual_fmt = drm_screenshot_jpeg_base64(method=method, quality=quality)
+        return {"image": b64, "method": method, "format": actual_fmt}
+    return {"image": drm_screenshot_base64(method=method), "method": method, "format": "png"}
+
+
 def cmd_screenshot(msg):
     method = msg.get("method")  # "egl", "gbm", "keyboard", or None (auto)
+    fmt = msg.get("format", "jpeg")  # "jpeg" (default) or "png"
+    quality = msg.get("quality", 80)
 
-    # Explicit EGL or GBM request
+    # Explicit method request
     if method in ("egl", "gbm"):
         try:
-            from drm_screenshot import drm_screenshot_base64
-            return {"image": drm_screenshot_base64(method=method), "method": method}
+            return _drm_screenshot_b64(method, fmt, quality)
         except Exception as e:
             return {"error": f"{method} capture failed: {e}"}
 
-    # Keyboard shortcut (preferred when user session exists — clean render)
-    if method == "keyboard" or (method is None and os.path.isdir(SCREENSHOT_DIR)):
+    if method == "keyboard":
         image_data = take_screenshot()
         if image_data:
-            return {"image": image_data, "method": "keyboard"}
-        if method == "keyboard":
-            return {"error": "Keyboard screenshot failed: no file created"}
+            return {"image": image_data, "method": "keyboard", "format": "png"}
+        return {"error": "Keyboard screenshot failed: no file created"}
 
-    # DRM fallback (no user session, or keyboard failed in auto mode)
+    # Default: EGL, fall back to keyboard, then GBM
     try:
-        from drm_screenshot import drm_screenshot_base64
-        return {"image": drm_screenshot_base64(), "method": "drm"}
+        return _drm_screenshot_b64("egl", fmt, quality)
+    except Exception:
+        pass
+
+    if os.path.isdir(SCREENSHOT_DIR):
+        image_data = take_screenshot()
+        if image_data:
+            return {"image": image_data, "method": "keyboard", "format": "png"}
+
+    try:
+        return _drm_screenshot_b64("gbm", fmt, quality)
     except Exception as e:
         return {"error": f"Screenshot failed: {e}"}
 
@@ -494,6 +511,42 @@ def cmd_click(msg):
         return {"error": f"click failed: {e}"}
 
 
+def cmd_desktop_tree(msg):
+    try:
+        import cdp
+        depth = msg.get("depth")
+        tree = cdp.desktop_tree(max_depth=depth)
+        return {"tree": tree}
+    except Exception as e:
+        return {"error": f"desktop_tree failed: {e}"}
+
+
+def cmd_desktop_find(msg):
+    try:
+        import cdp
+        pattern = msg.get("pattern")
+        if not pattern:
+            return {"error": "desktop_find requires 'pattern'"}
+        role = msg.get("role")
+        matches = cdp.desktop_find(pattern, role=role)
+        return {"matches": matches, "count": len(matches)}
+    except Exception as e:
+        return {"error": f"desktop_find failed: {e}"}
+
+
+def cmd_desktop_click(msg):
+    try:
+        import cdp
+        pattern = msg.get("pattern")
+        if not pattern:
+            return {"error": "desktop_click requires 'pattern'"}
+        role = msg.get("role")
+        result = cdp.desktop_click(pattern, role=role)
+        return {"ok": True, "clicked": result}
+    except Exception as e:
+        return {"error": f"desktop_click failed: {e}"}
+
+
 COMMANDS = {
     "ping": cmd_ping,
     "tap": cmd_tap,
@@ -508,6 +561,9 @@ COMMANDS = {
     "axtree": cmd_axtree,
     "find": cmd_find,
     "click": cmd_click,
+    "desktop_tree": cmd_desktop_tree,
+    "desktop_find": cmd_desktop_find,
+    "desktop_click": cmd_desktop_click,
 }
 
 

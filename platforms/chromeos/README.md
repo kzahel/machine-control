@@ -52,45 +52,31 @@ bin/chromeos doctor
 
 ## After a Reboot
 
-Rebooting kills sshd and resets the firewall. From your dev machine, try:
-
-```bash
-bin/chromeos fix-ssh
-```
-
-If that fails (SSH isn't up yet), fix it manually from the Chromebook:
+Rebooting kills sshd and resets the firewall. SSH must be restarted manually from the Chromebook:
 
 1. Switch to VT2: **Ctrl+Alt+F2**
 2. Log in as `chronos` (with your dev password)
 3. Become root and start sshd:
    ```bash
    sudo -i
-   cd /mnt/stateful_partition/etc/ssh
-   bash start_sshd.sh
+   cd /mnt/stateful_partition/etc/ssh && bash start_sshd.sh
    ```
 4. Switch back to GUI: **Ctrl+Alt+F1**
 
 If `start_sshd.sh` doesn't exist, the device needs re-bootstrapping (see Initial Setup step 3).
 
+> `bin/chromeos fix-ssh` will attempt to restart sshd over SSH, but since SSH is down after a reboot, it just prints the instructions above.
+
 ## After a ChromeOS Update
 
-Updates re-enable rootfs verification and reset `/etc/chrome_dev.conf`, which breaks remote debugging. SSH should still work after running `fix-ssh`.
+Updates re-enable rootfs verification and reset `/etc/chrome_dev.conf`, which breaks remote debugging.
 
 1. Fix SSH first (see "After a Reboot" above)
-2. Try the automated fix:
+2. Run the automated fix:
    ```bash
    bin/chromeos fix-devtools
    ```
-3. If that fails because rootfs is read-only, fix manually from VT2:
-   ```bash
-   sudo -i
-   /usr/share/vboot/bin/make_dev_ssd.sh --remove_rootfs_verification --partitions 4
-   reboot
-   ```
-4. After reboot, start sshd again (see "After a Reboot"), then:
-   ```bash
-   bin/chromeos fix-devtools
-   ```
+   If rootfs is read-only, it will remove rootfs verification over SSH, reboot the device, and prompt you to restart SSH from VT2 before re-running `fix-devtools`.
 
 ## Usage
 

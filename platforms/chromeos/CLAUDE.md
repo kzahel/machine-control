@@ -17,6 +17,14 @@ Key commands: `doctor`, `fix-ssh`, `fix-devtools`, `screenshot`, `tap`, `type`, 
 - SSH host `chromeos-testbed` configured in `~/.ssh/config` (port 2223, root user)
 - Chromebook in developer mode with SSH bootstrapped (see `scripts/bootstrap.sh`)
 
+## SSH to Chromebook
+
+Always set PATH when running commands via SSH. ChromeOS has a minimal default PATH that's missing standard locations:
+
+```bash
+ssh chromeos-testbed "export PATH=/bin:/usr/bin:/usr/local/bin:\$PATH; <command>"
+```
+
 ## Architecture
 
 ```
