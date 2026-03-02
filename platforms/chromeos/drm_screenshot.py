@@ -938,8 +938,10 @@ def egl_capture_composited(drm_lib, egl, gl, fd, crtc):
                     gl.glUniform2fv(uvs_loc, 4, uvs)
 
                     # Viewport from CRTC destination rect
+                    # UVs already flip the texture (top-of-screen at GL bottom)
+                    # so GL Y == screen Y — no additional Y-flip needed.
                     gl.glViewport(plane_info["crtc_x"],
-                                  height - plane_info["crtc_y"] - plane_info["crtc_h"],
+                                  plane_info["crtc_y"],
                                   plane_info["crtc_w"], plane_info["crtc_h"])
 
                     image_target_tex(GL_TEXTURE_EXTERNAL_OES, image)
