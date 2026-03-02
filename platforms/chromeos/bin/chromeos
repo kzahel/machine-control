@@ -8,7 +8,7 @@
 #   fix-ssh             Restart sshd after reboot
 #   fix-devtools        Re-enable --remote-debugging-port=9222
 #   deploy              Deploy/update client.py on Chromebook
-#   screenshot [file] [--method egl|gbm|keyboard]  Take screenshot
+#   screenshot [file] [--method egl|gbm|keyboard] [--jpeg|--png] [-q N]  Take screenshot
 #   tap X Y             Tap at raw touchscreen coordinates
 #   type "text"         Type text via keyboard
 #   shortcut mod key    Keyboard shortcut (e.g. chromeos shortcut ctrl t)
@@ -17,6 +17,9 @@
 #   axtree [target]     Dump accessibility tree for a target
 #   find <pat> [opts]   Find elements by name (--role ROLE, --target N)
 #   click <pat> [opts]  Click element by name (--role ROLE, --target N)
+#   desktop-tree [--depth N]  Full desktop accessibility tree (system UI)
+#   desktop-find <pat> [--role R]  Find desktop elements by name
+#   desktop-click <pat> [--role R] Click desktop element via doDefault()
 #   shell               Interactive SSH session
 #   help                Show this help
 
@@ -26,20 +29,32 @@ REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SSH_HOST="${CHROMEBOOK_HOST:-chromeos-testbed}"
 CLIENT_PATH="${CHROMEOS_CLIENT_PATH:-/mnt/stateful_partition/c2/client.py}"
 REMOTE_PATH_SETUP="export PATH=/bin:/usr/bin:/usr/local/bin:\$PATH"
+SSH_OPTS=(-o ControlMaster=auto -o "ControlPath=/tmp/chromeos-ssh-%C" -o ControlPersist=300)
 
 # Send a JSON command to client.py on the Chromebook
 send_cmd() {
     local json="$1"
-    echo "$json" | ssh "$SSH_HOST" \
+    echo "$json" | ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
         "$REMOTE_PATH_SETUP; LD_LIBRARY_PATH=/usr/local/lib64 python3 $CLIENT_PATH" 2>/dev/null
 }
 
-# Ensure client files are deployed
+# Ensure client files are deployed (skip if unchanged)
 ensure_client() {
     local client_dir
     client_dir=$(dirname "$CLIENT_PATH")
-    ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; mkdir -p $client_dir" 2>/dev/null
-    scp -q "$REPO_DIR/client.py" "$REPO_DIR/drm_screenshot.py" "$REPO_DIR/cdp.py" "$SSH_HOST:$client_dir/"
+
+    # Hash local files to detect changes
+    local hash_file="/tmp/chromeos-deploy-hash"
+    local current_hash
+    current_hash=$(cat "$REPO_DIR/client.py" "$REPO_DIR/drm_screenshot.py" "$REPO_DIR/cdp.py" \
+        2>/dev/null | shasum -a 256 | cut -c1-16)
+    if [[ -f "$hash_file" ]] && [[ "$(cat "$hash_file" 2>/dev/null)" == "$current_hash" ]]; then
+        return 0
+    fi
+
+    ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; mkdir -p $client_dir" 2>/dev/null
+    scp -q "${SSH_OPTS[@]}" "$REPO_DIR/client.py" "$REPO_DIR/drm_screenshot.py" "$REPO_DIR/cdp.py" "$SSH_HOST:$client_dir/"
+    echo "$current_hash" > "$hash_file"
 }
 
 cmd_doctor() {
@@ -59,21 +74,66 @@ cmd_deploy() {
 }
 
 cmd_screenshot() {
-    local method=""
-    local output=""
+    local method="" output="" format="" quality=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --method=*) method="${1#--method=}"; shift ;;
             --method) method="$2"; shift 2 ;;
+            --format=*) format="${1#--format=}"; shift ;;
+            --format) format="$2"; shift 2 ;;
+            --quality=*) quality="${1#--quality=}"; shift ;;
+            --quality|-q) quality="$2"; shift 2 ;;
+            --png) format="png"; shift ;;
+            --jpeg|--jpg) format="jpeg"; shift ;;
             *) output="$1"; shift ;;
         esac
     done
-    output="${output:-/tmp/chromebook-screenshot.png}"
-    ensure_client
-    local cmd_json='{"cmd":"screenshot"'
-    if [[ -n "$method" ]]; then
-        cmd_json="$cmd_json,\"method\":\"$method\""
+
+    # Infer format from extension, default to jpeg
+    if [[ -z "$format" ]]; then
+        case "$output" in
+            *.png) format="png" ;;
+            *)     format="jpeg" ;;
+        esac
     fi
+    if [[ -z "$output" ]]; then
+        output="/tmp/chromebook-screenshot.${format:0:3}"
+    fi
+
+    ensure_client
+
+    # Keyboard method must go through client.py
+    if [[ "$method" == "keyboard" ]]; then
+        _screenshot_json "$output" "$method" "$format"
+        return
+    fi
+
+    # Direct binary transfer: drm_screenshot.py --stdout [--jpeg] > file
+    local remote_dir
+    remote_dir=$(dirname "$CLIENT_PATH")
+    local remote_args="--stdout"
+    if [[ "$format" == "jpeg" ]]; then
+        remote_args="$remote_args --jpeg"
+        [[ -n "$quality" ]] && remote_args="$remote_args -q $quality"
+    fi
+    [[ -n "$method" ]] && remote_args="$remote_args --method $method"
+
+    if ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
+        "$REMOTE_PATH_SETUP; LD_LIBRARY_PATH=/usr/local/lib64 python3 $remote_dir/drm_screenshot.py $remote_args" \
+        > "$output" 2>/dev/null && [[ -s "$output" ]]; then
+        echo "$output ($format)"
+    else
+        rm -f "$output"
+        _screenshot_json "$output" "$method" "$format"
+    fi
+}
+
+# Fallback: screenshot via client.py JSON/base64 path
+_screenshot_json() {
+    local output="$1" method="$2" format="$3"
+    local cmd_json='{"cmd":"screenshot"'
+    [[ -n "$method" ]] && cmd_json="$cmd_json,\"method\":\"$method\""
+    [[ "$format" == "jpeg" ]] && cmd_json="$cmd_json,\"format\":\"jpeg\""
     cmd_json="$cmd_json}"
     local response
     response=$(send_cmd "$cmd_json")
@@ -264,8 +324,132 @@ print(f\"Clicked [{c['role']}] \\\"{c['name']}\\\" at ({c['x']:.0f},{c['y']:.0f}
 "
 }
 
+cmd_desktop_tree() {
+    local depth=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --depth) depth="$2"; shift 2 ;;
+            *) echo "Unknown option: $1" >&2; exit 1 ;;
+        esac
+    done
+    ensure_client
+    local json_cmd='{"cmd":"desktop_tree"'
+    [ -n "$depth" ] && json_cmd="$json_cmd,\"depth\":$depth"
+    json_cmd="$json_cmd}"
+    local response
+    response=$(send_cmd "$json_cmd")
+    echo "$response" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+if 'error' in r:
+    print(r['error'], file=sys.stderr)
+    sys.exit(1)
+def render(node, depth=0):
+    role = node.get('role', '')
+    name = node.get('name', '')
+    if not role and not name:
+        for c in node.get('children', []):
+            render(c, depth)
+        return
+    parts = []
+    if role:
+        parts.append(f'[{role}]')
+    if name:
+        parts.append(f'\"{name}\"')
+    st = node.get('state', {})
+    for k in st:
+        parts.append(f'({k})')
+    if parts:
+        print('  ' * depth + ' '.join(parts))
+    for c in node.get('children', []):
+        render(c, depth + 1)
+render(r['tree'])
+"
+}
+
+cmd_desktop_find() {
+    if [ $# -lt 1 ]; then
+        echo "Usage: chromeos desktop-find <pattern> [--role ROLE]" >&2
+        exit 1
+    fi
+    local pattern="$1"
+    shift
+    local role=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --role) role="$2"; shift 2 ;;
+            *) echo "Unknown option: $1" >&2; exit 1 ;;
+        esac
+    done
+    ensure_client
+
+    local json_cmd
+    json_cmd=$(python3 -c "
+import json, sys
+cmd = {'cmd': 'desktop_find', 'pattern': sys.argv[1]}
+if sys.argv[2]: cmd['role'] = sys.argv[2]
+print(json.dumps(cmd))
+" "$pattern" "$role")
+
+    local response
+    response=$(send_cmd "$json_cmd")
+    echo "$response" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+if 'error' in r:
+    print(r['error'], file=sys.stderr)
+    sys.exit(1)
+for m in r['matches']:
+    parts = [f\"[{m['role']}]\", f\"\\\"{m['name']}\\\"\"]
+    loc = m.get('location')
+    if loc:
+        parts.append(f\"at ({loc['center_x']:.0f},{loc['center_y']:.0f}) {loc['width']:.0f}x{loc['height']:.0f}\")
+    print(' '.join(parts))
+print(f\"---\n{r['count']} matches\", file=sys.stderr)
+"
+}
+
+cmd_desktop_click() {
+    if [ $# -lt 1 ]; then
+        echo "Usage: chromeos desktop-click <pattern> [--role ROLE]" >&2
+        exit 1
+    fi
+    local pattern="$1"
+    shift
+    local role=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --role) role="$2"; shift 2 ;;
+            *) echo "Unknown option: $1" >&2; exit 1 ;;
+        esac
+    done
+    ensure_client
+
+    local json_cmd
+    json_cmd=$(python3 -c "
+import json, sys
+cmd = {'cmd': 'desktop_click', 'pattern': sys.argv[1]}
+if sys.argv[2]: cmd['role'] = sys.argv[2]
+print(json.dumps(cmd))
+" "$pattern" "$role")
+
+    local response
+    response=$(send_cmd "$json_cmd")
+    echo "$response" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+if 'error' in r:
+    print(r['error'], file=sys.stderr)
+    sys.exit(1)
+c = r['clicked']
+loc = c.get('location')
+pos = f\" at ({loc['x']:.0f},{loc['y']:.0f})\" if loc else ''
+print(f\"Clicked [{c['role']}] \\\"{c['name']}\\\"{pos}\")
+"
+}
+
 cmd_shell() {
-    exec ssh "$SSH_HOST"
+    exec ssh "${SSH_OPTS[@]}" "$SSH_HOST"
 }
 
 cmd_help() {
@@ -290,6 +474,9 @@ case "$cmd" in
     axtree)       cmd_axtree "$@" ;;
     find)         cmd_find "$@" ;;
     click)        cmd_click "$@" ;;
+    desktop-tree) cmd_desktop_tree "$@" ;;
+    desktop-find) cmd_desktop_find "$@" ;;
+    desktop-click) cmd_desktop_click "$@" ;;
     shell)        cmd_shell "$@" ;;
     help|--help|-h) cmd_help ;;
     *)

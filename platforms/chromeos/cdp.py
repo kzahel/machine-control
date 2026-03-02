@@ -408,29 +408,90 @@ def click(pattern, role=None, target_idx=0, port=CDP_PORT):
         cdp.close()
 
 
-# === Desktop automation (chrome.automation via extension) ===
+# === Desktop automation (chrome.automation via built-in a11y extension) ===
+
+# ChromeOS built-in accessibility extensions that have chrome.automation access.
+# These are component extensions loaded when any accessibility feature is enabled
+# (Large Cursor, Dictation, Select-to-speak, etc.).
+_A11Y_EXT_IDS = [
+    "egfdjlfmgnehecnclamagfafdccgfndp",  # accessibility_common (Large Cursor, Dictation, etc.)
+    "klbcgckkldhdhonijdbnhhaiedfkllef",  # select_to_speak
+]
+
 
 def _find_automation_target(port=CDP_PORT):
-    """Find the Desktop Automation extension's service worker target."""
-    targets = list_targets(port)
-    for t in targets:
-        url = t.get("url", "")
-        ttype = t.get("type", "")
-        title = t.get("title", "")
-        if ttype == "service_worker" and "background.js" in url:
-            ws = t.get("webSocketDebuggerUrl")
-            if ws:
-                return ws
-    # Fallback: match by title on any target type
-    for t in targets:
-        if "Desktop Automation" in t.get("title", ""):
-            ws = t.get("webSocketDebuggerUrl")
-            if ws:
-                return ws
-    raise RuntimeError(
-        "Desktop Automation extension not found in CDP targets. "
-        "Is it deployed and loaded? Check chrome://extensions"
-    )
+    """Find an accessibility extension's service worker with chrome.automation.
+
+    Piggybacks on ChromeOS built-in accessibility extensions (accessibility_common,
+    select_to_speak) which have chrome.automation desktop access. Requires at least
+    one accessibility feature to be enabled in ChromeOS Settings.
+
+    MV3 service workers go idle and vanish from /json. If not found,
+    uses browser-level CDP to discover and wake the target.
+    """
+    def _scan_json():
+        targets = list_targets(port)
+        for t in targets:
+            url = t.get("url", "")
+            if t.get("type") != "service_worker":
+                continue
+            for ext_id in _A11Y_EXT_IDS:
+                if ext_id in url:
+                    ws = t.get("webSocketDebuggerUrl")
+                    if ws:
+                        return ws
+        return None
+
+    ws = _scan_json()
+    if ws:
+        return ws
+
+    # Service worker is idle — wake it via browser CDP
+    import time
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        conn.request("GET", "/json/version")
+        info = json.loads(conn.getresponse().read())
+    finally:
+        conn.close()
+    browser_ws = info.get("webSocketDebuggerUrl")
+    if not browser_ws:
+        raise RuntimeError("Cannot get browser WebSocket URL")
+
+    cdp = CDP(browser_ws)
+    try:
+        result = cdp.call("Target.getTargets")
+        target_id = None
+        for t in result.get("targetInfos", []):
+            if t.get("type") != "service_worker":
+                continue
+            for ext_id in _A11Y_EXT_IDS:
+                if ext_id in t.get("url", ""):
+                    target_id = t["targetId"]
+                    break
+            if target_id:
+                break
+        if not target_id:
+            raise RuntimeError(
+                "No accessibility extension service worker found. "
+                "Enable an accessibility feature in ChromeOS Settings "
+                "(e.g. Large Cursor, Dictation, or Select-to-speak)"
+            )
+        # Attach to wake the service worker, then detach
+        cdp.call("Target.attachToTarget", targetId=target_id, flatten=False)
+        cdp.call("Target.detachFromTarget", targetId=target_id)
+    finally:
+        cdp.close()
+
+    # Give it a moment to register in /json
+    time.sleep(0.5)
+    for _ in range(5):
+        ws = _scan_json()
+        if ws:
+            return ws
+        time.sleep(0.5)
+
+    raise RuntimeError("Service worker woke but didn't appear in /json")
 
 
 def _js_escape(s):
@@ -475,7 +536,7 @@ new Promise((resolve, reject) => {{
       }}
       return r;
     }}
-    resolve(JSON.stringify(walk(root, 0)));
+    resolve(walk(root, 0));
   }});
 }})
 """
@@ -491,7 +552,9 @@ new Promise((resolve, reject) => {{
             exc = result.get("exceptionDetails", {})
             msg = exc.get("exception", {}).get("description", "Unknown error")
             raise RuntimeError(f"desktop_tree failed: {msg}")
-        return json.loads(val)
+        if isinstance(val, str):
+            return json.loads(val)
+        return val
     finally:
         cdp.close()
 
@@ -536,7 +599,7 @@ new Promise((resolve, reject) => {{
       }}
     }}
     search(root);
-    resolve(JSON.stringify(matches));
+    resolve(matches);
   }});
 }})
 """
@@ -552,7 +615,9 @@ new Promise((resolve, reject) => {{
             exc = result.get("exceptionDetails", {})
             msg = exc.get("exception", {}).get("description", "Unknown error")
             raise RuntimeError(f"desktop_find failed: {msg}")
-        return json.loads(val)
+        if isinstance(val, str):
+            return json.loads(val)
+        return val
     finally:
         cdp.close()
 
@@ -585,12 +650,12 @@ new Promise((resolve, reject) => {{
     if (!target) {{ reject(new Error('No match for pattern: {_js_escape(pattern)}')); return; }}
     target.doDefault();
     const loc = target.location;
-    resolve(JSON.stringify({{
+    resolve({{
       name: target.name || '',
       role: target.role || '',
       location: loc ? {{x: loc.left, y: loc.top,
                         width: loc.width, height: loc.height}} : null
-    }}));
+    }});
   }});
 }})
 """
@@ -606,6 +671,8 @@ new Promise((resolve, reject) => {{
             exc = result.get("exceptionDetails", {})
             msg = exc.get("exception", {}).get("description", "Unknown error")
             raise RuntimeError(f"desktop_click failed: {msg}")
-        return json.loads(val)
+        if isinstance(val, str):
+            return json.loads(val)
+        return val
     finally:
         cdp.close()
