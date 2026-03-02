@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ChromeOS C2 Client - Simplified
-Raw touchscreen and keyboard input via evdev.
+Raw touchscreen and keyboard input via evdev, plus a uinput virtual mouse.
 
 Deploy to: /mnt/stateful_partition/c2/client.py
 Run with: LD_LIBRARY_PATH=/usr/local/lib64 python3 /mnt/stateful_partition/c2/client.py
@@ -14,12 +14,16 @@ Commands:
     {"cmd": "type", "text": "hello"}             -> {"ok": true}
     {"cmd": "screenshot"}                        -> {"image": "base64..."}
     {"cmd": "info"}                              -> {"touch_max": [x, y], "device": "..."}
+    {"cmd": "mouse_move", "x": 960, "y": 540}    -> {"ok": true}  (screen pixel coords)
+    {"cmd": "mouse_click", "button": "left", "x": 960, "y": 540}  -> {"ok": true}
+    {"cmd": "mouse_scroll", "delta": 3}          -> {"ok": true}  (positive=up, negative=down)
     {"cmd": "targets"}                           -> {"targets": [{index, title, url}, ...]}
     {"cmd": "axtree", "target": 0}               -> {"tree": "...", "node_count": N}
     {"cmd": "find", "pattern": "Login"}           -> {"matches": [...], "count": N}
     {"cmd": "click", "pattern": "Login"}          -> {"ok": true, "clicked": {...}}
 """
 
+import atexit
 import os
 import sys
 import json
@@ -34,7 +38,7 @@ import base64
 KEYBOARD_DEV = "/dev/input/event2"
 
 # Event types
-EV_SYN, EV_KEY, EV_ABS = 0, 1, 3
+EV_SYN, EV_KEY, EV_REL, EV_ABS = 0, 1, 2, 3
 
 # Touch
 BTN_TOUCH = 330
@@ -42,6 +46,19 @@ ABS_MT_SLOT = 0x2f
 ABS_MT_TRACKING_ID = 0x39
 ABS_MT_POSITION_X = 0x35
 ABS_MT_POSITION_Y = 0x36
+
+# Mouse buttons
+BTN_LEFT, BTN_RIGHT, BTN_MIDDLE = 0x110, 0x111, 0x112
+
+# Relative axes
+REL_X, REL_Y, REL_WHEEL = 0, 1, 8
+
+# uinput ioctl codes
+_UI_SET_EVBIT  = 0x40045564
+_UI_SET_KEYBIT = 0x40045565
+_UI_SET_RELBIT = 0x40045566
+_UI_DEV_CREATE  = 0x5501
+_UI_DEV_DESTROY = 0x5502
 
 # Keys
 KEY_LEFTMETA = 125
@@ -169,6 +186,110 @@ def find_touchscreen():
 
 # Cache touchscreen info
 _ts_device, _ts_max_x, _ts_max_y = find_touchscreen()
+
+
+# === Virtual Mouse (uinput) ===
+
+class VirtualMouse:
+    """uinput virtual relative mouse.  Works on the active display regardless of
+    which physical screen is connected — unlike the touchscreen which is always
+    mapped to the internal panel."""
+
+    _UINPUT_MAX_NAME_SIZE = 80
+    _ABS_CNT = 64
+    _BUS_VIRTUAL = 0x06
+
+    def __init__(self):
+        self._x = 0  # server-side tracked position for relative conversion
+        self._y = 0
+        self._fd = None
+        self._create()
+
+    def _emit(self, ev_type, code, value):
+        self._fd.write(struct.pack('llHHi', 0, 0, ev_type, code, value))
+
+    def _sync(self):
+        self._emit(EV_SYN, 0, 0)
+
+    def _create(self):
+        fd = open('/dev/uinput', 'wb', buffering=0)
+        fno = fd.fileno()
+
+        # Declare supported event classes and codes
+        fcntl.ioctl(fno, _UI_SET_EVBIT, EV_KEY)
+        fcntl.ioctl(fno, _UI_SET_EVBIT, EV_REL)
+        for btn in (BTN_LEFT, BTN_RIGHT, BTN_MIDDLE):
+            fcntl.ioctl(fno, _UI_SET_KEYBIT, btn)
+        for rel in (REL_X, REL_Y, REL_WHEEL):
+            fcntl.ioctl(fno, _UI_SET_RELBIT, rel)
+
+        # Write uinput_user_dev struct then create the device
+        # Layout: name[80], input_id{bus,vendor,product,version}, ff_effects_max,
+        #         absmax[64], absmin[64], absfuzz[64], absflat[64]
+        name = b'ChromeOS Remote Mouse\x00'.ljust(self._UINPUT_MAX_NAME_SIZE, b'\x00')
+        zeros = [0] * self._ABS_CNT
+        udev = struct.pack(
+            f'{self._UINPUT_MAX_NAME_SIZE}sHHHHI{self._ABS_CNT}i{self._ABS_CNT}i'
+            f'{self._ABS_CNT}i{self._ABS_CNT}i',
+            name, self._BUS_VIRTUAL, 0x1, 0x1, 1, 0,
+            *zeros, *zeros, *zeros, *zeros,
+        )
+        fd.write(udev)
+        fcntl.ioctl(fno, _UI_DEV_CREATE)
+        time.sleep(0.15)  # let kernel register the device
+        self._fd = fd
+
+    def move_to(self, x, y):
+        """Move to absolute pixel position by sending relative deltas."""
+        dx, dy = x - self._x, y - self._y
+        self._x, self._y = x, y
+        if dx or dy:
+            self._emit(EV_REL, REL_X, dx)
+            self._emit(EV_REL, REL_Y, dy)
+            self._sync()
+
+    def click(self, button=BTN_LEFT, x=None, y=None):
+        if x is not None and y is not None:
+            self.move_to(x, y)
+        self._emit(EV_KEY, button, 1)
+        self._sync()
+        time.sleep(0.05)
+        self._emit(EV_KEY, button, 0)
+        self._sync()
+
+    def scroll(self, delta):
+        """Positive delta = scroll up (wheel away from user)."""
+        self._emit(EV_REL, REL_WHEEL, delta)
+        self._sync()
+
+    def close(self):
+        if self._fd:
+            try:
+                fcntl.ioctl(self._fd.fileno(), _UI_DEV_DESTROY)
+            except Exception:
+                pass
+            self._fd.close()
+            self._fd = None
+
+
+_virtual_mouse = None
+
+
+def get_virtual_mouse():
+    global _virtual_mouse
+    if _virtual_mouse is None:
+        _virtual_mouse = VirtualMouse()
+    return _virtual_mouse
+
+
+def _cleanup_mouse():
+    global _virtual_mouse
+    if _virtual_mouse:
+        _virtual_mouse.close()
+        _virtual_mouse = None
+
+
+atexit.register(_cleanup_mouse)
 
 
 # === Touchscreen ===
@@ -548,6 +669,35 @@ def cmd_desktop_click(msg):
         return {"error": f"desktop_click failed: {e}"}
 
 
+def cmd_mouse_move(msg):
+    x = msg.get('x')
+    y = msg.get('y')
+    if x is None or y is None:
+        return {'error': 'mouse_move requires x and y'}
+    get_virtual_mouse().move_to(int(x), int(y))
+    return {'ok': True}
+
+
+def cmd_mouse_click(msg):
+    button_name = msg.get('button', 'left')
+    button = {'left': BTN_LEFT, 'right': BTN_RIGHT, 'middle': BTN_MIDDLE}.get(button_name, BTN_LEFT)
+    x = msg.get('x')
+    y = msg.get('y')
+    if x is not None and y is not None:
+        get_virtual_mouse().click(button, int(x), int(y))
+    else:
+        get_virtual_mouse().click(button)
+    return {'ok': True}
+
+
+def cmd_mouse_scroll(msg):
+    delta = msg.get('delta', 0)
+    if not delta:
+        return {'ok': True}
+    get_virtual_mouse().scroll(int(delta))
+    return {'ok': True}
+
+
 def cmd_desktop_action(msg):
     try:
         import cdp
@@ -576,6 +726,9 @@ COMMANDS = {
     "screenshot": cmd_screenshot,
     "info": cmd_info,
     "reload_config": cmd_reload_config,
+    "mouse_move": cmd_mouse_move,
+    "mouse_click": cmd_mouse_click,
+    "mouse_scroll": cmd_mouse_scroll,
     "targets": cmd_targets,
     "axtree": cmd_axtree,
     "find": cmd_find,

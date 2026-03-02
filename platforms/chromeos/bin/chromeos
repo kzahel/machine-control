@@ -10,9 +10,14 @@
 #   deploy              Deploy/update client.py on Chromebook
 #   screenshot [file] [--method egl|gbm|keyboard] [--jpeg|--png] [-q N]  Take screenshot
 #   tap X Y             Tap at raw touchscreen coordinates
+#   swipe X1 Y1 X2 Y2 [MS]  Swipe gesture (default 200ms)
+#   mouse-move X Y      Move virtual mouse to pixel coords (external display)
+#   mouse-click [left|right|middle] [X Y]  Click virtual mouse (optionally at X Y)
+#   mouse-scroll DELTA  Scroll wheel (positive=up, negative=down)
 #   type "text"         Type text via keyboard
 #   shortcut mod key    Keyboard shortcut (e.g. chromeos shortcut ctrl t)
 #   info                Device info (touch_max, keyboard layout)
+#   remote-desktop [port]  Start remote desktop web server (default port 8765)
 #   targets             List Chrome DevTools targets (pages/tabs)
 #   axtree [target]     Dump accessibility tree for a target
 #   find <pat> [opts]   Find elements by name (--role ROLE, --target N)
@@ -164,6 +169,41 @@ cmd_tap() {
     local y="${2:?Usage: chromeos tap X Y}"
     ensure_client
     send_cmd "{\"cmd\":\"tap\",\"x\":$x,\"y\":$y}"
+}
+
+cmd_swipe() {
+    local x1="${1:?Usage: chromeos swipe X1 Y1 X2 Y2 [DURATION_MS]}"
+    local y1="${2:?Usage: chromeos swipe X1 Y1 X2 Y2 [DURATION_MS]}"
+    local x2="${3:?Usage: chromeos swipe X1 Y1 X2 Y2 [DURATION_MS]}"
+    local y2="${4:?Usage: chromeos swipe X1 Y1 X2 Y2 [DURATION_MS]}"
+    local duration="${5:-200}"
+    ensure_client
+    send_cmd "{\"cmd\":\"swipe\",\"x1\":$x1,\"y1\":$y1,\"x2\":$x2,\"y2\":$y2,\"duration_ms\":$duration}"
+}
+
+cmd_mouse_move() {
+    local x="${1:?Usage: chromeos mouse-move X Y}"
+    local y="${2:?Usage: chromeos mouse-move X Y}"
+    ensure_client
+    send_cmd "{\"cmd\":\"mouse_move\",\"x\":$x,\"y\":$y}"
+}
+
+cmd_mouse_click() {
+    local button="${1:-left}"
+    local x="${2:-}"
+    local y="${3:-}"
+    ensure_client
+    if [[ -n "$x" && -n "$y" ]]; then
+        send_cmd "{\"cmd\":\"mouse_click\",\"button\":\"$button\",\"x\":$x,\"y\":$y}"
+    else
+        send_cmd "{\"cmd\":\"mouse_click\",\"button\":\"$button\"}"
+    fi
+}
+
+cmd_mouse_scroll() {
+    local delta="${1:?Usage: chromeos mouse-scroll DELTA}"
+    ensure_client
+    send_cmd "{\"cmd\":\"mouse_scroll\",\"delta\":$delta}"
 }
 
 cmd_type() {
@@ -650,6 +690,11 @@ cmd_install_apk() {
     fi
 }
 
+cmd_remote_desktop() {
+    local port="${1:-8765}"
+    exec python3 "$REPO_DIR/web/server.py" "$port"
+}
+
 cmd_shell() {
     exec ssh "${SSH_OPTS[@]}" "$SSH_HOST"
 }
@@ -669,6 +714,10 @@ case "$cmd" in
     deploy)       cmd_deploy "$@" ;;
     screenshot)   cmd_screenshot "$@" ;;
     tap)          cmd_tap "$@" ;;
+    swipe)        cmd_swipe "$@" ;;
+    mouse-move)   cmd_mouse_move "$@" ;;
+    mouse-click)  cmd_mouse_click "$@" ;;
+    mouse-scroll) cmd_mouse_scroll "$@" ;;
     type)         cmd_type "$@" ;;
     shortcut)     cmd_shortcut "$@" ;;
     info)         cmd_info "$@" ;;
@@ -682,6 +731,7 @@ case "$cmd" in
     desktop-action) cmd_desktop_action "$@" ;;
     deploy-ext)   cmd_deploy_ext "$@" ;;
     install-apk)  cmd_install_apk "$@" ;;
+    remote-desktop) cmd_remote_desktop "$@" ;;
     shell)        cmd_shell "$@" ;;
     help|--help|-h) cmd_help ;;
     *)
