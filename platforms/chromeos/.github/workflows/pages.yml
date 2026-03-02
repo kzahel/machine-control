@@ -25,6 +25,11 @@ jobs:
         run: |
           mkdir -p _site
           cp scripts/bootstrap.sh _site/bootstrap.sh
+          cat > _site/index.html << 'EOF'
+          <!DOCTYPE html>
+          <meta http-equiv="refresh" content="0;url=https://github.com/kzahel/chromeos-testbed">
+          <a href="https://github.com/kzahel/chromeos-testbed">chromeos-testbed on GitHub</a>
+          EOF
 
       - uses: actions/upload-pages-artifact@v3
 

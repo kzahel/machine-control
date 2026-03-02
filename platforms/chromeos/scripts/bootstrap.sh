@@ -89,7 +89,10 @@ IP=$(ip addr show wlan0 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d/ 
 
 echo "=========================================="
 echo "SSH:       ssh -p $PORT root@$IP"
-echo "After reboot: bash $SSH_DIR/start_sshd.sh"
+echo "After every reboot, restart SSH from VT2 (Ctrl+Alt+F2):"
+echo "  Log in as chronos, then:"
+echo "  sudo -i"
+echo "  cd $SSH_DIR && bash start_sshd.sh"
 echo
 echo "Add to ~/.ssh/config on your dev machine:"
 echo "  Host chromeos-testbed"

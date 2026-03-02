@@ -4,7 +4,7 @@ CLI tools for managing ChromeOS development devices. No dependencies beyond bash
 
 ## Skill
 
-The skill definition is at `skills/chromeos/SKILL.md`. Other projects can reference it for ChromeOS device management.
+The skill definition is at `skills/SKILL.md`. Other projects can reference it for ChromeOS device management.
 
 ## CLI
 

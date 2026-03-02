@@ -2,9 +2,7 @@
 # Health check for ChromeOS development device
 set -uo pipefail
 
-SSH_HOST="${CHROMEBOOK_HOST:-chromeos-testbed}"
-CLIENT_PATH="${CHROMEOS_CLIENT_PATH:-/mnt/stateful_partition/c2/client.py}"
-REMOTE_PATH_SETUP="export PATH=/bin:/usr/bin:/usr/local/bin:\$PATH"
+. "$(dirname "$0")/common.sh"
 
 pass=0
 fail=0
@@ -44,7 +42,7 @@ if [ "$ROOTFS_WRITABLE" = "yes" ]; then
     ok "Rootfs is writable"
 else
     fail "Rootfs is read-only (rootfs verification enabled)" \
-         "On VT2: sudo /usr/share/vboot/bin/make_dev_ssd.sh --remove_rootfs_verification --partitions 4 && sudo reboot"
+         "chromeos fix-devtools"
 fi
 
 # 3. Remote debugging configured

@@ -5,8 +5,7 @@
 # /etc/chrome_dev.conf gets reset. This script re-adds the debugging flag.
 set -euo pipefail
 
-SSH_HOST="${CHROMEBOOK_HOST:-chromeos-testbed}"
-REMOTE_PATH_SETUP="export PATH=/bin:/usr/bin:/usr/local/bin:\$PATH"
+. "$(dirname "$0")/common.sh"
 
 echo "Checking remote debugging on $SSH_HOST..."
 
@@ -62,12 +61,14 @@ if echo "$WRITE_RESULT" | grep -q "SUCCESS"; then
 else
     echo "[FAIL] Cannot write to /etc/chrome_dev.conf — rootfs verification is enabled."
     echo
-    echo "Manual fix — run on the Chromebook VT2 (Ctrl+Alt+F2):"
+    echo "Removing rootfs verification via SSH (device will reboot)..."
+    ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; /usr/share/vboot/bin/make_dev_ssd.sh --remove_rootfs_verification --partitions 4" 2>/dev/null
+    echo "Rebooting device..."
+    ssh "$SSH_HOST" "reboot" 2>/dev/null || true
     echo
-    echo "  sudo bash"
-    echo "  /usr/share/vboot/bin/make_dev_ssd.sh --remove_rootfs_verification --partitions 4"
-    echo "  reboot"
+    print_vt2_ssh_instructions
     echo
-    echo "After reboot, run: chromeos fix-devtools"
+    echo "Then from your dev machine:"
+    echo "  chromeos fix-devtools"
     exit 1
 fi

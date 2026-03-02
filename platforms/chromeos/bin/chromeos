@@ -120,7 +120,7 @@ cmd_shell() {
 }
 
 cmd_help() {
-    sed -n '2,/^$/s/^# \?//p' "$0"
+    sed -En '2,/^$/s/^# ?//p' "$0"
 }
 
 # --- Subcommand dispatch ---

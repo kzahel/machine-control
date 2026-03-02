@@ -30,14 +30,17 @@ chromeos shell               # Interactive SSH session
 
 1. Run `chromeos doctor` — it checks everything and tells you what to fix.
 
-2. **Can't SSH?**
-   - After reboot: `chromeos fix-ssh`
-   - If that fails: Go to VT2 (Ctrl+Alt+F2 on Chromebook), run `sudo bash /mnt/stateful_partition/etc/ssh/start_sshd.sh`
+2. **Can't SSH?** SSH must be restarted manually from VT2 after every reboot:
+   1. On the Chromebook, press Ctrl+Alt+F2
+   2. Log in as chronos
+   3. `sudo -i`
+   4. `cd /mnt/stateful_partition/etc/ssh && bash start_sshd.sh`
+   5. Ctrl+Alt+F1 to return to GUI
    - If start_sshd.sh doesn't exist: Device needs bootstrapping (see Setup below)
 
 3. **DevTools port 9222 not available?**
    - `chromeos fix-devtools` — adds the flag and restarts Chrome
-   - If rootfs is read-only (after ChromeOS update): Need to disable rootfs verification from VT2, then reboot, then re-run fix-devtools
+   - If rootfs is read-only: `fix-devtools` will remove rootfs verification and reboot (then SSH must be restarted from VT2 before running `fix-devtools` again)
 
 4. **SSH tunnel for DevTools:**
    ```bash
@@ -98,7 +101,7 @@ chromeos shortcut ctrl w   # Close tab
 2. Switch to VT2: **Ctrl+Alt+F2**
 3. Log in as `chronos`, then:
    ```
-   sudo bash
+   sudo -i
    curl -sL kyle.graehl.org/chromeos-testbed/bootstrap.sh | bash
    ```
 4. Note the IP address and SSH port shown
