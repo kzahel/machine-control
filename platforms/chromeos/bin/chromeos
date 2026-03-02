@@ -8,11 +8,15 @@
 #   fix-ssh             Restart sshd after reboot
 #   fix-devtools        Re-enable --remote-debugging-port=9222
 #   deploy              Deploy/update client.py on Chromebook
-#   screenshot [file]   Take screenshot, save locally
+#   screenshot [file] [--method egl|gbm|keyboard]  Take screenshot
 #   tap X Y             Tap at raw touchscreen coordinates
 #   type "text"         Type text via keyboard
 #   shortcut mod key    Keyboard shortcut (e.g. chromeos shortcut ctrl t)
 #   info                Device info (touch_max, keyboard layout)
+#   targets             List Chrome DevTools targets (pages/tabs)
+#   axtree [target]     Dump accessibility tree for a target
+#   find <pat> [opts]   Find elements by name (--role ROLE, --target N)
+#   click <pat> [opts]  Click element by name (--role ROLE, --target N)
 #   shell               Interactive SSH session
 #   help                Show this help
 
@@ -35,7 +39,7 @@ ensure_client() {
     local client_dir
     client_dir=$(dirname "$CLIENT_PATH")
     ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; mkdir -p $client_dir" 2>/dev/null
-    scp -q "$REPO_DIR/client.py" "$REPO_DIR/drm_screenshot.py" "$SSH_HOST:$client_dir/"
+    scp -q "$REPO_DIR/client.py" "$REPO_DIR/drm_screenshot.py" "$REPO_DIR/cdp.py" "$SSH_HOST:$client_dir/"
 }
 
 cmd_doctor() {
@@ -55,18 +59,34 @@ cmd_deploy() {
 }
 
 cmd_screenshot() {
-    local output="${1:-/tmp/chromebook-screenshot.png}"
+    local method=""
+    local output=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --method=*) method="${1#--method=}"; shift ;;
+            --method) method="$2"; shift 2 ;;
+            *) output="$1"; shift ;;
+        esac
+    done
+    output="${output:-/tmp/chromebook-screenshot.png}"
     ensure_client
+    local cmd_json='{"cmd":"screenshot"'
+    if [[ -n "$method" ]]; then
+        cmd_json="$cmd_json,\"method\":\"$method\""
+    fi
+    cmd_json="$cmd_json}"
     local response
-    response=$(send_cmd '{"cmd":"screenshot"}')
+    response=$(send_cmd "$cmd_json")
 
     if echo "$response" | python3 -c "import sys,json; r=json.load(sys.stdin); sys.exit(0 if 'image' in r else 1)" 2>/dev/null; then
+        local used_method
+        used_method=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('method',''))" 2>/dev/null)
         echo "$response" | python3 -c "
 import sys, json, base64
 r = json.load(sys.stdin)
 sys.stdout.buffer.write(base64.b64decode(r['image']))
 " > "$output"
-        echo "$output"
+        echo "$output${used_method:+ ($used_method)}"
     else
         local error
         error=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','Unknown error'))" 2>/dev/null || echo "No response from client")
@@ -117,6 +137,133 @@ cmd_info() {
     send_cmd '{"cmd":"info"}'
 }
 
+cmd_targets() {
+    ensure_client
+    local response
+    response=$(send_cmd '{"cmd":"targets"}')
+    if echo "$response" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+if 'error' in r:
+    print(r['error'], file=sys.stderr)
+    sys.exit(1)
+for t in r['targets']:
+    print(f\"  {t['index']}: {t['title']}\")
+    print(f\"     {t['url']}\")
+" 2>&1; then
+        :
+    else
+        echo "Error: Failed to list targets" >&2
+        exit 1
+    fi
+}
+
+cmd_axtree() {
+    local target=0 depth=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --depth) depth="$2"; shift 2 ;;
+            *) target="$1"; shift ;;
+        esac
+    done
+    ensure_client
+    local json_cmd="{\"cmd\":\"axtree\",\"target\":$target"
+    [ -n "$depth" ] && json_cmd="$json_cmd,\"depth\":$depth"
+    json_cmd="$json_cmd}"
+    local response
+    response=$(send_cmd "$json_cmd")
+    echo "$response" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+if 'error' in r:
+    print(r['error'], file=sys.stderr)
+    sys.exit(1)
+print(r['tree'])
+print(f\"---\n{r['node_count']} nodes\", file=sys.stderr)
+"
+}
+
+cmd_find() {
+    if [ $# -lt 1 ]; then
+        echo "Usage: chromeos find <pattern> [--role ROLE] [--target N]" >&2
+        exit 1
+    fi
+    local pattern="$1"
+    shift
+    local role="" target=0
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --role) role="$2"; shift 2 ;;
+            --target) target="$2"; shift 2 ;;
+            *) echo "Unknown option: $1" >&2; exit 1 ;;
+        esac
+    done
+    ensure_client
+
+    local json_cmd
+    json_cmd=$(python3 -c "
+import json, sys
+cmd = {'cmd': 'find', 'pattern': sys.argv[1], 'target': int(sys.argv[2])}
+if sys.argv[3]: cmd['role'] = sys.argv[3]
+print(json.dumps(cmd))
+" "$pattern" "$target" "$role")
+
+    local response
+    response=$(send_cmd "$json_cmd")
+    echo "$response" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+if 'error' in r:
+    print(r['error'], file=sys.stderr)
+    sys.exit(1)
+for m in r['matches']:
+    parts = [f\"[{m['role']}]\", f\"\\\"{m['name']}\\\"\"]
+    b = m.get('bounds')
+    if b:
+        parts.append(f\"at ({b['center_x']:.0f},{b['center_y']:.0f}) {b['width']:.0f}x{b['height']:.0f}\")
+    print(' '.join(parts))
+print(f\"---\n{r['count']} matches\", file=sys.stderr)
+"
+}
+
+cmd_click() {
+    if [ $# -lt 1 ]; then
+        echo "Usage: chromeos click <pattern> [--role ROLE] [--target N]" >&2
+        exit 1
+    fi
+    local pattern="$1"
+    shift
+    local role="" target=0
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --role) role="$2"; shift 2 ;;
+            --target) target="$2"; shift 2 ;;
+            *) echo "Unknown option: $1" >&2; exit 1 ;;
+        esac
+    done
+    ensure_client
+
+    local json_cmd
+    json_cmd=$(python3 -c "
+import json, sys
+cmd = {'cmd': 'click', 'pattern': sys.argv[1], 'target': int(sys.argv[2])}
+if sys.argv[3]: cmd['role'] = sys.argv[3]
+print(json.dumps(cmd))
+" "$pattern" "$target" "$role")
+
+    local response
+    response=$(send_cmd "$json_cmd")
+    echo "$response" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+if 'error' in r:
+    print(r['error'], file=sys.stderr)
+    sys.exit(1)
+c = r['clicked']
+print(f\"Clicked [{c['role']}] \\\"{c['name']}\\\" at ({c['x']:.0f},{c['y']:.0f})\")
+"
+}
+
 cmd_shell() {
     exec ssh "$SSH_HOST"
 }
@@ -139,6 +286,10 @@ case "$cmd" in
     type)         cmd_type "$@" ;;
     shortcut)     cmd_shortcut "$@" ;;
     info)         cmd_info "$@" ;;
+    targets)      cmd_targets "$@" ;;
+    axtree)       cmd_axtree "$@" ;;
+    find)         cmd_find "$@" ;;
+    click)        cmd_click "$@" ;;
     shell)        cmd_shell "$@" ;;
     help|--help|-h) cmd_help ;;
     *)

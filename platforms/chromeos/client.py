@@ -14,6 +14,10 @@ Commands:
     {"cmd": "type", "text": "hello"}             -> {"ok": true}
     {"cmd": "screenshot"}                        -> {"image": "base64..."}
     {"cmd": "info"}                              -> {"touch_max": [x, y], "device": "..."}
+    {"cmd": "targets"}                           -> {"targets": [{index, title, url}, ...]}
+    {"cmd": "axtree", "target": 0}               -> {"tree": "...", "node_count": N}
+    {"cmd": "find", "pattern": "Login"}           -> {"matches": [...], "count": N}
+    {"cmd": "click", "pattern": "Login"}          -> {"ok": true, "clicked": {...}}
 """
 
 import os
@@ -387,17 +391,30 @@ def cmd_type(msg):
 
 
 def cmd_screenshot(msg):
-    if not os.path.isdir(SCREENSHOT_DIR):
-        # No user session — try DRM framebuffer capture (works on login screen)
+    method = msg.get("method")  # "egl", "gbm", "keyboard", or None (auto)
+
+    # Explicit EGL or GBM request
+    if method in ("egl", "gbm"):
         try:
             from drm_screenshot import drm_screenshot_base64
-            return {"image": drm_screenshot_base64(), "method": "drm"}
+            return {"image": drm_screenshot_base64(method=method), "method": method}
         except Exception as e:
-            return {"error": f"No user session, DRM fallback failed: {e}"}
-    image_data = take_screenshot()
-    if image_data:
-        return {"image": image_data}
-    return {"error": "Failed to capture screenshot"}
+            return {"error": f"{method} capture failed: {e}"}
+
+    # Keyboard shortcut (preferred when user session exists — clean render)
+    if method == "keyboard" or (method is None and os.path.isdir(SCREENSHOT_DIR)):
+        image_data = take_screenshot()
+        if image_data:
+            return {"image": image_data, "method": "keyboard"}
+        if method == "keyboard":
+            return {"error": "Keyboard screenshot failed: no file created"}
+
+    # DRM fallback (no user session, or keyboard failed in auto mode)
+    try:
+        from drm_screenshot import drm_screenshot_base64
+        return {"image": drm_screenshot_base64(), "method": "drm"}
+    except Exception as e:
+        return {"error": f"Screenshot failed: {e}"}
 
 
 def cmd_shortcut(msg):
@@ -426,6 +443,57 @@ def cmd_reload_config(msg):
     return {"ok": True, "keyboard": {"layout": _kb_layout, "modifier_remappings": _kb_remappings}}
 
 
+def cmd_targets(msg):
+    try:
+        import cdp
+        targets = cdp.list_targets()
+        pages = [{"index": i, "title": t.get("title", ""), "url": t.get("url", "")}
+                 for i, t in enumerate(targets) if t.get("type") == "page"]
+        return {"targets": pages}
+    except Exception as e:
+        return {"error": f"Cannot connect to DevTools: {e}"}
+
+
+def cmd_axtree(msg):
+    try:
+        import cdp
+        target = msg.get("target", 0)
+        depth = msg.get("depth")
+        nodes = cdp.get_ax_tree(target_idx=target)
+        tree_text = cdp.render_tree(nodes, max_depth=depth)
+        return {"tree": tree_text, "node_count": len(nodes)}
+    except Exception as e:
+        return {"error": f"axtree failed: {e}"}
+
+
+def cmd_find(msg):
+    try:
+        import cdp
+        pattern = msg.get("pattern")
+        if not pattern:
+            return {"error": "find requires 'pattern'"}
+        role = msg.get("role")
+        target = msg.get("target", 0)
+        matches = cdp.find_nodes(pattern, role=role, target_idx=target)
+        return {"matches": matches, "count": len(matches)}
+    except Exception as e:
+        return {"error": f"find failed: {e}"}
+
+
+def cmd_click(msg):
+    try:
+        import cdp
+        pattern = msg.get("pattern")
+        if not pattern:
+            return {"error": "click requires 'pattern'"}
+        role = msg.get("role")
+        target = msg.get("target", 0)
+        result = cdp.click(pattern, role=role, target_idx=target)
+        return {"ok": True, "clicked": result}
+    except Exception as e:
+        return {"error": f"click failed: {e}"}
+
+
 COMMANDS = {
     "ping": cmd_ping,
     "tap": cmd_tap,
@@ -436,6 +504,10 @@ COMMANDS = {
     "screenshot": cmd_screenshot,
     "info": cmd_info,
     "reload_config": cmd_reload_config,
+    "targets": cmd_targets,
+    "axtree": cmd_axtree,
+    "find": cmd_find,
+    "click": cmd_click,
 }
 
 
