@@ -1,6 +1,6 @@
 ---
 name: chromeos
-description: Manage a ChromeOS development device — health checks, fix SSH/devtools after reboots, screenshots, touchscreen input
+description: Manage a ChromeOS development device — health checks, fix SSH/devtools, screenshots, desktop automation via accessibility tree
 ---
 
 # ChromeOS Device Management
@@ -17,7 +17,6 @@ chromeos fix-ssh             # Restart sshd after reboot
 chromeos fix-devtools        # Re-enable remote debugging after ChromeOS update
 chromeos deploy              # Deploy/update input client on Chromebook
 chromeos screenshot [file]   # Take screenshot, save locally
-chromeos tap X Y             # Tap at raw touchscreen coordinates
 chromeos type "text"         # Type text
 chromeos shortcut ctrl t     # Keyboard shortcut (handles modifier remapping)
 chromeos info                # Device info (touch_max, keyboard layout)
@@ -99,23 +98,76 @@ chromeos install-apk app/build/outputs/apk/debug/app-debug.apk
 chromeos install-apk app-debug.apk --keep
 ```
 
-### Input Injection
+### Desktop Automation (Accessibility Tree)
+
+**Prefer the accessibility tree over coordinate guessing.** The `desktop-find` and `desktop-action` commands let you interact with system UI elements by name/role — no fragile coordinate math needed.
 
 ```bash
-# Get device info first (touch coordinate range)
-chromeos info
-# Example output: {"touch_max": [3492, 1968], ...}
+# Find elements by name (regex, case-insensitive)
+chromeos desktop-find "Volume"                    # All elements with "Volume" in name
+chromeos desktop-find "^Volume$" --role slider    # Exact match, specific role
 
-# Tap using visual estimation:
-# 1. Take a screenshot
-# 2. Estimate target position as percentage (X%, Y%)
-# 3. Convert: touch_x = X% * max_x / 100, touch_y = Y% * max_y / 100
-chromeos tap 2619 1673     # ~75% across, ~85% down on 3492x1968 screen
+# Perform actions on elements
+chromeos desktop-action "Toggle Volume" doDefault            # Click/activate
+chromeos desktop-action "^Volume$" focus --role slider --nth 2  # Focus 2nd match
+chromeos desktop-action "Settings" doDefault --role button
 
-chromeos type "hello world"
-chromeos shortcut ctrl t   # New tab
-chromeos shortcut ctrl w   # Close tab
+# Available actions: doDefault, focus, increment, decrement, setValue,
+#   showContextMenu, scrollForward, scrollBackward, longClick
+
+# Inspect the full desktop tree
+chromeos desktop-tree --depth 4
 ```
+
+**Slider pattern** (e.g. system volume): `doDefault`/`increment` don't work reliably on system UI sliders. Instead, focus the slider via the a11y tree, then use keyboard arrows:
+
+```bash
+chromeos desktop-action "^Volume$" focus --role slider --nth 2
+# Then send arrow keys: Up=103, Down=108, Right=106, Left=105
+echo '{"cmd":"key","keys":[103]}' | ssh chromeos-testbed "... python3 client.py"
+```
+
+**When `--nth` is needed:** Multiple elements can share the same name (e.g. a YouTube volume slider and the system volume slider). Use `desktop-find` to list matches, identify which index you need, then pass `--nth N` to `desktop-action`.
+
+### Web Content Accessibility
+
+For elements inside web pages (not system UI), use the per-tab commands:
+
+```bash
+chromeos targets                                   # List open tabs
+chromeos axtree 0                                  # Accessibility tree for tab 0
+chromeos find "Login" --role button --target 0     # Find web element
+chromeos click "Login" --role button --target 0    # Click web element
+```
+
+### Keyboard and Text Input
+
+```bash
+chromeos type "hello world"
+chromeos shortcut ctrl t     # New tab
+chromeos shortcut ctrl w     # Close tab
+chromeos shortcut alt shift s  # Open/close Quick Settings
+```
+
+### Tap (Last Resort)
+
+Coordinate-based tap is fragile — only use when the accessibility tree doesn't expose the target element. Prefer `desktop-action`/`desktop-click` or `click` (web content) instead.
+
+```bash
+chromeos info  # → {"touch_max": [3492, 1968], ...}
+# Convert: touch_x = X% * max_x / 100, touch_y = Y% * max_y / 100
+chromeos tap 2619 1673
+```
+
+### Extending the CLI
+
+If a feature doesn't work or is missing (e.g. a chrome.automation action that's not supported, or a new command you need), **edit the source files directly** rather than working around limitations:
+
+- `cdp.py` — Chrome DevTools Protocol client, desktop automation via chrome.automation
+- `client.py` — On-device command handler (JSON in, JSON out over stdin/stdout)
+- `bin/chromeos` — Bash CLI wrapper, argument parsing, output formatting
+
+Changes to these files are auto-deployed to the Chromebook on next command run. The architecture is simple: `bin/chromeos` sends JSON to `client.py` over SSH, which calls `cdp.py` for accessibility/browser operations.
 
 ## Setup (First-Time)
 
