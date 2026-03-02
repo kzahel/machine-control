@@ -396,7 +396,8 @@ def _drm_screenshot_b64(method, fmt, quality):
     if fmt == "jpeg":
         b64, actual_fmt = drm_screenshot_jpeg_base64(method=method, quality=quality)
         return {"image": b64, "method": method, "format": actual_fmt}
-    return {"image": drm_screenshot_base64(method=method), "method": method, "format": "png"}
+    return {"image": drm_screenshot_base64(method=method),
+            "method": method, "format": "png"}
 
 
 def cmd_screenshot(msg):

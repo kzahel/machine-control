@@ -41,6 +41,10 @@ from ctypes import (
 DRM_CLOEXEC = 0o2000000
 DRM_IOCTL_MODE_GETFB2 = 0xC06464CE
 
+# DRM plane enumeration
+DRM_CLIENT_CAP_ATOMIC = 3  # implies UNIVERSAL_PLANES
+DRM_MODE_OBJECT_PLANE = 0xeeeeeeee
+
 # ── GBM constants ──
 
 GBM_BO_IMPORT_FD = 0x5503
@@ -81,6 +85,15 @@ EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT = 0x3443
 EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT = 0x3444
 EGL_DONT_CARE = -1
 
+# EGL YUV color space hints (for video overlay planes)
+EGL_YUV_COLOR_SPACE_HINT_EXT = 0x327B
+EGL_SAMPLE_RANGE_HINT_EXT = 0x327C
+EGL_YUV_NARROW_RANGE_EXT = 0x327E
+EGL_ITU_REC601_EXT = 0x327F
+EGL_ITU_REC709_EXT = 0x3280
+EGL_ITU_REC2020_EXT = 0x3281
+EGL_YUV_FULL_RANGE_EXT = 0x3282
+
 # ── GLES constants ──
 
 GL_EXTENSIONS = 0x1F03
@@ -105,6 +118,9 @@ GL_COLOR_ATTACHMENT0 = 0x8CE0
 GL_FRAMEBUFFER_COMPLETE = 0x8CD5
 GL_TRIANGLE_STRIP = 0x0005
 GL_PACK_ALIGNMENT = 0x0D05
+GL_BLEND = 0x0BE2
+GL_SRC_ALPHA = 0x0302
+GL_ONE_MINUS_SRC_ALPHA = 0x0303
 
 
 # ── DRM structures ──
@@ -151,6 +167,56 @@ class DrmModeFB2(Structure):
         ("pixel_format", c_uint), ("flags", c_uint),
         ("handles", c_uint * 4), ("pitches", c_uint * 4),
         ("offsets", c_uint * 4), ("modifier", c_ulonglong * 4),
+    ]
+
+
+class DrmModePlaneRes(Structure):
+    _fields_ = [
+        ("count_planes", c_uint),
+        ("planes", POINTER(c_uint)),
+    ]
+
+
+class DrmModePlane(Structure):
+    _fields_ = [
+        ("count_formats", c_uint),
+        ("formats", POINTER(c_uint)),
+        ("plane_id", c_uint),
+        ("crtc_id", c_uint),
+        ("fb_id", c_uint),
+        ("crtc_x", c_uint), ("crtc_y", c_uint),
+        ("x", c_uint), ("y", c_uint),
+        ("possible_crtcs", c_uint),
+        ("gamma_size", c_uint),
+    ]
+
+
+class DrmModePropertyEnum(Structure):
+    _fields_ = [
+        ("value", c_ulonglong),
+        ("name", c_char * 32),
+    ]
+
+
+class DrmModePropertyRes(Structure):
+    _fields_ = [
+        ("prop_id", c_uint),
+        ("flags", c_uint),
+        ("name", c_char * 32),
+        ("count_values", c_int),
+        ("values", POINTER(c_ulonglong)),
+        ("count_enums", c_int),
+        ("enums", POINTER(DrmModePropertyEnum)),
+        ("count_blobs", c_int),
+        ("blob_ids", POINTER(c_uint)),
+    ]
+
+
+class DrmModeObjectProperties(Structure):
+    _fields_ = [
+        ("count_props", c_uint),
+        ("props", POINTER(c_uint)),
+        ("prop_values", POINTER(c_ulonglong)),
     ]
 
 
@@ -240,6 +306,30 @@ def _setup_drm(lib):
 
     lib.drmPrimeHandleToFD.argtypes = [c_int, c_uint, c_uint, POINTER(c_int)]
     lib.drmPrimeHandleToFD.restype = c_int
+
+    # Plane enumeration
+    lib.drmSetClientCap.argtypes = [c_int, c_ulonglong, c_ulonglong]
+    lib.drmSetClientCap.restype = c_int
+
+    lib.drmModeGetPlaneResources.argtypes = [c_int]
+    lib.drmModeGetPlaneResources.restype = POINTER(DrmModePlaneRes)
+    lib.drmModeFreePlaneResources.argtypes = [POINTER(DrmModePlaneRes)]
+    lib.drmModeFreePlaneResources.restype = None
+
+    lib.drmModeGetPlane.argtypes = [c_int, c_uint]
+    lib.drmModeGetPlane.restype = POINTER(DrmModePlane)
+    lib.drmModeFreePlane.argtypes = [POINTER(DrmModePlane)]
+    lib.drmModeFreePlane.restype = None
+
+    lib.drmModeObjectGetProperties.argtypes = [c_int, c_uint, c_uint]
+    lib.drmModeObjectGetProperties.restype = POINTER(DrmModeObjectProperties)
+    lib.drmModeFreeObjectProperties.argtypes = [POINTER(DrmModeObjectProperties)]
+    lib.drmModeFreeObjectProperties.restype = None
+
+    lib.drmModeGetProperty.argtypes = [c_int, c_uint]
+    lib.drmModeGetProperty.restype = POINTER(DrmModePropertyRes)
+    lib.drmModeFreeProperty.argtypes = [POINTER(DrmModePropertyRes)]
+    lib.drmModeFreeProperty.restype = None
 
 
 def _load_egl():
@@ -358,6 +448,12 @@ def _load_glesv2():
     lib.glPixelStorei.restype = None
     lib.glReadPixels.argtypes = [c_int, c_int, c_int, c_int, c_uint, c_uint, c_void_p]
     lib.glReadPixels.restype = None
+
+    # Blending (for multi-plane compositing)
+    lib.glEnable.argtypes = [c_uint]
+    lib.glEnable.restype = None
+    lib.glBlendFunc.argtypes = [c_uint, c_uint]
+    lib.glBlendFunc.restype = None
 
     return lib
 
@@ -656,6 +752,236 @@ def egl_capture_framebuffer(drm_lib, egl, gl, fd, crtc):
     return width, height, rgb_rows
 
 
+def _create_egl_image(egl, drm_lib, display, fd, fb2, create_image,
+                      has_import_modifiers):
+    """Create an EGLImage from a DRM framebuffer. Returns (image, plane_fds)."""
+    has_modifier = (fb2.flags & 0x2) != 0
+
+    plane_fds = []
+    for plane in range(GBM_MAX_PLANES):
+        if fb2.handles[plane] == 0:
+            break
+        pfd = c_int(0)
+        rv = drm_lib.drmPrimeHandleToFD(fd, fb2.handles[plane], 0, byref(pfd))
+        if rv:
+            for f in plane_fds:
+                os.close(f)
+            raise RuntimeError(f"drmPrimeHandleToFD plane {plane} failed: {rv}")
+        plane_fds.append(pfd.value)
+    num_planes = len(plane_fds)
+    if num_planes == 0:
+        raise RuntimeError("No planes found in framebuffer")
+
+    attrs = [
+        EGL_WIDTH, fb2.width,
+        EGL_HEIGHT, fb2.height,
+        EGL_LINUX_DRM_FOURCC_EXT, fb2.pixel_format,
+    ]
+    for plane in range(num_planes):
+        attrs.extend([
+            EGL_DMA_BUF_PLANE0_FD_EXT + plane * 3, plane_fds[plane],
+            EGL_DMA_BUF_PLANE0_OFFSET_EXT + plane * 3, fb2.offsets[plane],
+            EGL_DMA_BUF_PLANE0_PITCH_EXT + plane * 3, fb2.pitches[plane],
+        ])
+        if has_import_modifiers and has_modifier:
+            mod = fb2.modifier[plane]
+            attrs.extend([
+                EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT + plane * 2,
+                int(mod & 0xFFFFFFFF),
+                EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT + plane * 2,
+                int(mod >> 32),
+            ])
+
+    # Note: EGL_YUV_COLOR_SPACE_HINT_EXT / EGL_SAMPLE_RANGE_HINT_EXT cause
+    # EGL_BAD_PARAMETER on ChromeOS Mesa. The GPU handles YUV→RGB conversion
+    # automatically via GL_OES_EGL_image_external without explicit hints.
+
+    attrs.append(EGL_NONE)
+    attr_array = (c_int * len(attrs))(*attrs)
+
+    image = create_image(display, None, EGL_LINUX_DMA_BUF_EXT, None, attr_array)
+    if not image:
+        for f in plane_fds:
+            os.close(f)
+        raise RuntimeError(f"eglCreateImageKHR failed: 0x{egl.eglGetError():x}")
+
+    return image, plane_fds
+
+
+def egl_capture_composited(drm_lib, egl, gl, fd, crtc):
+    """Capture all DRM planes via EGL compositing. Returns (width, height, rgb_rows).
+
+    Enumerates all planes on the CRTC (primary + overlays) and composites them
+    with alpha blending. Falls back to single-FB capture if enumeration fails.
+    """
+    planes = _get_crtc_planes(drm_lib, fd, crtc)
+    if len(planes) <= 1:
+        # No overlays or enumeration failed — use simple path
+        return egl_capture_framebuffer(drm_lib, egl, gl, fd, crtc)
+
+    width = crtc.width if crtc.width else crtc.mode.hdisplay
+    height = crtc.height if crtc.height else crtc.mode.vdisplay
+
+    # EGL init
+    display = egl.eglGetDisplay(c_void_p(0))
+    if not display:
+        raise RuntimeError("eglGetDisplay failed")
+
+    maj, mn = c_int(0), c_int(0)
+    if not egl.eglInitialize(display, byref(maj), byref(mn)):
+        raise RuntimeError(f"eglInitialize failed: 0x{egl.eglGetError():x}")
+
+    try:
+        exts = egl.eglQueryString(display, EGL_EXTENSIONS)
+        exts = exts.decode() if exts else ""
+        for req in ("EGL_KHR_image_base", "EGL_EXT_image_dma_buf_import"):
+            if req not in exts:
+                raise RuntimeError(f"Missing EGL extension: {req}")
+        has_import_modifiers = "EGL_EXT_image_dma_buf_import_modifiers" in exts
+
+        # Get extension function pointers
+        p = egl.eglGetProcAddress(b"eglCreateImageKHR")
+        if not p:
+            raise RuntimeError("eglCreateImageKHR not available")
+        create_image = _CreateImageKHR(p)
+
+        p = egl.eglGetProcAddress(b"eglDestroyImageKHR")
+        if not p:
+            raise RuntimeError("eglDestroyImageKHR not available")
+        destroy_image = _DestroyImageKHR(p)
+
+        p = egl.eglGetProcAddress(b"glEGLImageTargetTexture2DOES")
+        if not p:
+            raise RuntimeError("glEGLImageTargetTexture2DOES not available")
+        image_target_tex = _ImageTargetTexture2DOES(p)
+
+        # Choose config and create context
+        config_attribs = (c_int * 5)(EGL_SURFACE_TYPE, EGL_DONT_CARE,
+                                      EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+                                      EGL_NONE)
+        config = c_void_p()
+        num_configs = c_int(0)
+        if not egl.eglChooseConfig(display, config_attribs, byref(config), 1,
+                                    byref(num_configs)) or num_configs.value == 0:
+            raise RuntimeError("eglChooseConfig failed")
+
+        ctx_attribs = (c_int * 3)(EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE)
+        ctx = egl.eglCreateContext(display, config, None, ctx_attribs)
+        if not ctx:
+            raise RuntimeError(f"eglCreateContext failed: 0x{egl.eglGetError():x}")
+
+        try:
+            if not egl.eglMakeCurrent(display, None, None, ctx):
+                raise RuntimeError("eglMakeCurrent failed")
+
+            # Setup output FBO
+            out_tex = c_uint(0)
+            gl.glGenTextures(1, byref(out_tex))
+            gl.glBindTexture(GL_TEXTURE_2D, out_tex)
+            gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0,
+                             GL_RGBA, GL_UNSIGNED_BYTE, None)
+
+            fbo = c_uint(0)
+            gl.glGenFramebuffers(1, byref(fbo))
+            gl.glBindFramebuffer(GL_FRAMEBUFFER, fbo)
+            gl.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                       GL_TEXTURE_2D, out_tex, 0)
+            fb_status = gl.glCheckFramebufferStatus(GL_FRAMEBUFFER)
+            if fb_status != GL_FRAMEBUFFER_COMPLETE:
+                raise RuntimeError(f"Framebuffer incomplete: 0x{fb_status:x}")
+
+            # Setup input texture
+            in_tex = c_uint(0)
+            gl.glGenTextures(1, byref(in_tex))
+            gl.glBindTexture(GL_TEXTURE_EXTERNAL_OES, in_tex)
+            gl.glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_S,
+                                GL_CLAMP_TO_EDGE)
+            gl.glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_T,
+                                GL_CLAMP_TO_EDGE)
+            gl.glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER,
+                                GL_LINEAR)
+            gl.glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER,
+                                GL_LINEAR)
+
+            # Compile shaders
+            program = _link_program(gl, VERT_SHADER, FRAG_SHADER)
+            uvs_loc = gl.glGetUniformLocation(program, b"uvs")
+
+            # Enable alpha blending for compositing
+            gl.glEnable(GL_BLEND)
+            gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
+            # Render each plane bottom-to-top
+            for plane_info in planes:
+                fb2 = plane_info["fb2"]
+                try:
+                    image, pfds = _create_egl_image(
+                        egl, drm_lib, display, fd, fb2, create_image,
+                        has_import_modifiers)
+                except RuntimeError:
+                    continue  # skip planes we can't import
+
+                try:
+                    # UV coordinates from source crop
+                    fw = float(fb2.width)
+                    fh = float(fb2.height)
+                    uv_left = plane_info["src_x"] / fw
+                    uv_right = (plane_info["src_x"] + plane_info["src_w"]) / fw
+                    uv_top = plane_info["src_y"] / fh
+                    uv_bottom = (plane_info["src_y"] + plane_info["src_h"]) / fh
+                    uvs = (c_float * 8)(
+                        uv_left, uv_top,
+                        uv_right, uv_top,
+                        uv_left, uv_bottom,
+                        uv_right, uv_bottom,
+                    )
+                    gl.glUniform2fv(uvs_loc, 4, uvs)
+
+                    # Viewport from CRTC destination rect
+                    gl.glViewport(plane_info["crtc_x"],
+                                  height - plane_info["crtc_y"] - plane_info["crtc_h"],
+                                  plane_info["crtc_w"], plane_info["crtc_h"])
+
+                    image_target_tex(GL_TEXTURE_EXTERNAL_OES, image)
+                    gl.glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
+                finally:
+                    destroy_image(display, image)
+                    for f in pfds:
+                        os.close(f)
+
+            # Read composited result
+            gl.glPixelStorei(GL_PACK_ALIGNMENT, 1)
+            buf = create_string_buffer(width * height * 4)
+            gl.glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, buf)
+
+            # Cleanup
+            gl.glDeleteProgram(program)
+            gl.glDeleteTextures(1, byref(in_tex))
+            gl.glDeleteFramebuffers(1, byref(fbo))
+            gl.glDeleteTextures(1, byref(out_tex))
+
+        finally:
+            egl.eglMakeCurrent(display, None, None, None)
+            egl.eglDestroyContext(display, ctx)
+
+    finally:
+        egl.eglTerminate(display)
+
+    # Convert RGBA → RGB rows
+    raw = buf.raw
+    rgb_rows = []
+    for y in range(height):
+        row_off = y * width * 4
+        rgba = raw[row_off:row_off + width * 4]
+        row = bytearray(width * 3)
+        row[0::3] = rgba[0::4]
+        row[1::3] = rgba[1::4]
+        row[2::3] = rgba[2::4]
+        rgb_rows.append(bytes(row))
+
+    return width, height, rgb_rows
+
+
 # ── Core screenshot logic ──
 
 def find_active_crtc(drm_lib, fd):
@@ -686,6 +1012,111 @@ def get_fb2(drm_lib, fd, fb_id):
     if rv:
         raise RuntimeError(f"DRM_IOCTL_MODE_GETFB2 failed (rv={rv})")
     return fb2
+
+
+def _get_plane_properties(drm_lib, fd, plane_id):
+    """Read DRM properties for a plane. Returns dict of name->value."""
+    props_ptr = drm_lib.drmModeObjectGetProperties(fd, plane_id,
+                                                     DRM_MODE_OBJECT_PLANE)
+    if not props_ptr:
+        return {}
+    props = props_ptr.contents
+    result = {}
+    for i in range(props.count_props):
+        prop_ptr = drm_lib.drmModeGetProperty(fd, props.props[i])
+        if not prop_ptr:
+            continue
+        name = prop_ptr.contents.name.decode("ascii", errors="replace")
+        result[name] = props.prop_values[i]
+        drm_lib.drmModeFreeProperty(prop_ptr)
+    drm_lib.drmModeFreeObjectProperties(props_ptr)
+    return result
+
+
+def _get_crtc_planes(drm_lib, fd, crtc):
+    """Enumerate all active DRM planes on a CRTC.
+
+    Returns list of dicts with keys: fb2, crtc_x, crtc_y, crtc_w, crtc_h,
+    src_x, src_y, src_w, src_h, color_encoding, color_range.
+    Planes are in enumeration order (z-order by DRM convention).
+    Returns empty list if plane enumeration is not available.
+    """
+    # Enable atomic mode to see all planes (primary + overlay + cursor)
+    rv = drm_lib.drmSetClientCap(fd, DRM_CLIENT_CAP_ATOMIC, 1)
+    if rv:
+        return []
+
+    plane_res_ptr = drm_lib.drmModeGetPlaneResources(fd)
+    if not plane_res_ptr:
+        return []
+
+    plane_res = plane_res_ptr.contents
+    planes = []
+    try:
+        for i in range(plane_res.count_planes):
+            plane_ptr = drm_lib.drmModeGetPlane(fd, plane_res.planes[i])
+            if not plane_ptr:
+                continue
+            plane = plane_ptr.contents
+            try:
+                # Skip planes not on our CRTC or without a framebuffer
+                if plane.crtc_id != crtc.crtc_id or plane.fb_id == 0:
+                    continue
+
+                # Read plane properties
+                props = _get_plane_properties(drm_lib, fd, plane.plane_id)
+
+                # Get framebuffer info
+                try:
+                    fb2 = get_fb2(drm_lib, fd, plane.fb_id)
+                except RuntimeError:
+                    continue
+
+                # SRC_* are in 16.16 fixed-point format
+                src_x = (props.get("SRC_X", 0) >> 16) + \
+                        (props.get("SRC_X", 0) & 0xFFFF) / 65536.0
+                src_y = (props.get("SRC_Y", 0) >> 16) + \
+                        (props.get("SRC_Y", 0) & 0xFFFF) / 65536.0
+                src_w = (props.get("SRC_W", 0) >> 16) + \
+                        (props.get("SRC_W", 0) & 0xFFFF) / 65536.0
+                src_h = (props.get("SRC_H", 0) >> 16) + \
+                        (props.get("SRC_H", 0) & 0xFFFF) / 65536.0
+
+                # Fall back to full FB dimensions if SRC_W/H are 0
+                if src_w == 0:
+                    src_w = float(fb2.width)
+                if src_h == 0:
+                    src_h = float(fb2.height)
+
+                # Map COLOR_ENCODING enum values
+                ce = props.get("COLOR_ENCODING")
+                color_encoding = {0: "bt601", 1: "bt709", 2: "bt2020"}.get(ce)
+
+                # Map COLOR_RANGE enum values
+                cr = props.get("COLOR_RANGE")
+                color_range = {0: "limited", 1: "full"}.get(cr)
+
+                planes.append({
+                    "fb2": fb2,
+                    "plane_id": plane.plane_id,
+                    "crtc_x": int(props.get("CRTC_X", 0)),
+                    "crtc_y": int(props.get("CRTC_Y", 0)),
+                    "crtc_w": int(props.get("CRTC_W", fb2.width)),
+                    "crtc_h": int(props.get("CRTC_H", fb2.height)),
+                    "src_x": src_x,
+                    "src_y": src_y,
+                    "src_w": src_w,
+                    "src_h": src_h,
+                    "color_encoding": color_encoding,
+                    "color_range": color_range,
+                    "format": _fourcc_str(fb2.pixel_format),
+                })
+            finally:
+                drm_lib.drmModeFreePlane(plane_ptr)
+    finally:
+        drm_lib.drmModeFreePlaneResources(plane_res_ptr)
+
+    return planes
 
 
 def capture_framebuffer(drm_lib, gbm_lib, fd, crtc):
@@ -941,6 +1372,19 @@ def run_diag():
         except Exception as e:
             print(f"  FB2 query failed: {e}")
 
+        # Show all planes on this CRTC
+        planes = _get_crtc_planes(drm_lib, fd, crtc)
+        if planes:
+            print(f"  Planes ({len(planes)}):")
+            for p in planes:
+                print(f"    plane {p['plane_id']}: {p['format']} "
+                      f"{p['fb2'].width}x{p['fb2'].height} "
+                      f"-> CRTC({p['crtc_x']},{p['crtc_y']} "
+                      f"{p['crtc_w']}x{p['crtc_h']})"
+                      f"{' ' + p['color_encoding'] if p['color_encoding'] else ''}")
+        else:
+            print("  Planes: enumeration not available")
+
         os.close(fd)
 
 
@@ -987,7 +1431,7 @@ def _drm_setup_and_fns():
         gl_lib = _load_glesv2()
         if not egl_lib or not gl_lib:
             raise RuntimeError("EGL/GLESv2 libraries not available")
-        return egl_capture_framebuffer(drm_lib, egl_lib, gl_lib, fd, crtc)
+        return egl_capture_composited(drm_lib, egl_lib, gl_lib, fd, crtc)
 
     def gbm_fn(drm_lib, fd, crtc):
         gbm_lib = _load_gbm()
