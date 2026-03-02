@@ -7,6 +7,9 @@ set -euo pipefail
 
 . "$(dirname "$0")/common.sh"
 
+AUTO_YES=false
+[[ "${1:-}" == "-y" ]] && AUTO_YES=true
+
 echo "Checking remote debugging on $SSH_HOST..."
 
 # Check SSH
@@ -61,10 +64,21 @@ if echo "$WRITE_RESULT" | grep -q "SUCCESS"; then
 else
     echo "[FAIL] Cannot write to /etc/chrome_dev.conf — rootfs verification is enabled."
     echo
-    echo "Removing rootfs verification via SSH (device will reboot)..."
+    echo "Fixing this requires removing rootfs verification and rebooting."
+    echo "After reboot, you will need physical access to restart SSH from VT2."
+    if [[ "$AUTO_YES" != true ]]; then
+        echo
+        read -r -p "Proceed? [y/N] " confirm
+        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+            echo "Aborted."
+            exit 1
+        fi
+    fi
+    echo
+    echo "Removing rootfs verification..."
     ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; /usr/share/vboot/bin/make_dev_ssd.sh --remove_rootfs_verification --partitions 4" 2>/dev/null
     echo "Rebooting device..."
-    ssh "$SSH_HOST" "reboot" 2>/dev/null || true
+    ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; reboot" || true
     echo
     print_vt2_ssh_instructions
     echo

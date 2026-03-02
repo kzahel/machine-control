@@ -329,12 +329,13 @@ def shortcut(modifiers, key):
 
 # === Screenshot ===
 def take_screenshot():
-    """Take screenshot via Search+F5, return base64."""
+    """Take screenshot via Ctrl+Show Windows (Ctrl+F5), return base64."""
     files = glob.glob(f"{SCREENSHOT_DIR}/Screenshot*.png")
     before = max(files, key=os.path.getmtime) if files else None
     before_time = os.path.getmtime(before) if before else 0
 
-    press_keys([KEY_LEFTMETA, KEY_F5])
+    ctrl_keycode = get_physical_keycode_for_modifier(MOD_CONTROL)
+    press_keys([ctrl_keycode, KEY_F5])
     time.sleep(2)
 
     files = glob.glob(f"{SCREENSHOT_DIR}/Screenshot*.png")
@@ -386,6 +387,13 @@ def cmd_type(msg):
 
 
 def cmd_screenshot(msg):
+    if not os.path.isdir(SCREENSHOT_DIR):
+        # No user session — try DRM framebuffer capture (works on login screen)
+        try:
+            from drm_screenshot import drm_screenshot_base64
+            return {"image": drm_screenshot_base64(), "method": "drm"}
+        except Exception as e:
+            return {"error": f"No user session, DRM fallback failed: {e}"}
     image_data = take_screenshot()
     if image_data:
         return {"image": image_data}

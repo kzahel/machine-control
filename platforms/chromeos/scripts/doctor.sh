@@ -93,7 +93,7 @@ if curl -s --connect-timeout 2 http://localhost:9222/json/version &>/dev/null; t
     ok "DevTools tunnel active (localhost:9222)"
 else
     warn "No DevTools tunnel on localhost:9222" \
-         "Run: ssh -L 9222:127.0.0.1:9222 $SSH_HOST"
+         "Run: ssh -NL 9222:127.0.0.1:9222 $SSH_HOST"
 fi
 
 # Summary

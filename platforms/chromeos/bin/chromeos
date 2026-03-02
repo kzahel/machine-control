@@ -30,10 +30,12 @@ send_cmd() {
         "$REMOTE_PATH_SETUP; LD_LIBRARY_PATH=/usr/local/lib64 python3 $CLIENT_PATH" 2>/dev/null
 }
 
-# Ensure client.py is deployed
+# Ensure client files are deployed
 ensure_client() {
-    ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; mkdir -p $(dirname "$CLIENT_PATH")" 2>/dev/null
-    scp -q "$REPO_DIR/client.py" "$SSH_HOST:$CLIENT_PATH"
+    local client_dir
+    client_dir=$(dirname "$CLIENT_PATH")
+    ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; mkdir -p $client_dir" 2>/dev/null
+    scp -q "$REPO_DIR/client.py" "$REPO_DIR/drm_screenshot.py" "$SSH_HOST:$client_dir/"
 }
 
 cmd_doctor() {

@@ -40,11 +40,11 @@ chromeos shell               # Interactive SSH session
 
 3. **DevTools port 9222 not available?**
    - `chromeos fix-devtools` — adds the flag and restarts Chrome
-   - If rootfs is read-only: `fix-devtools` will remove rootfs verification and reboot (then SSH must be restarted from VT2 before running `fix-devtools` again)
+   - If rootfs is read-only: `fix-devtools` will offer to remove rootfs verification and reboot. **This requires a reboot, which kills SSH. The user must have physical access to the Chromebook to restart SSH from VT2 afterward.** Always confirm with the user before proceeding. Pass `-y` to skip the interactive prompt: `chromeos fix-devtools -y`
 
 4. **SSH tunnel for DevTools:**
    ```bash
-   ssh -L 9222:127.0.0.1:9222 chromeos-testbed
+   ssh -NL 9222:127.0.0.1:9222 chromeos-testbed
    ```
 
 ## Common Workflows

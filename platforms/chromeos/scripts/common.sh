@@ -3,7 +3,7 @@
 
 SSH_HOST="${CHROMEBOOK_HOST:-chromeos-testbed}"
 CLIENT_PATH="${CHROMEOS_CLIENT_PATH:-/mnt/stateful_partition/c2/client.py}"
-REMOTE_PATH_SETUP="export PATH=/bin:/usr/bin:/usr/local/bin:\$PATH"
+REMOTE_PATH_SETUP="export PATH=/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin:\$PATH"
 
 print_vt2_ssh_instructions() {
     echo "SSH must be restarted manually from VT2 after every reboot:"
