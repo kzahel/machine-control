@@ -6,7 +6,7 @@ CLI tools for bootstrapping and managing ChromeOS devices in developer mode. Han
 
 ### 1. Enable developer mode
 
-Follow the [official instructions](https://chromium.googlesource.com/chromiumos/docs/+/main/developer_mode.md) for your device. This wipes the Chromebook.
+Follow the [official instructions](https://www.chromium.org/chromium-os/developer-library/guides/device/developer-mode/) for your device. This wipes the Chromebook.
 
 ### 2. (Maybe) Set a developer password
 
