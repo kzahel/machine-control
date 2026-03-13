@@ -1,6 +1,19 @@
 # ChromeOS Testbed
 
-CLI tools for bootstrapping and managing ChromeOS devices in developer mode. Handles SSH setup, Chrome DevTools remote debugging, screenshots, and input injection — and fixes things that break after ChromeOS updates and reboots.
+## Why this exists
+
+ChromeOS has no automation story. Android has ADB and UIAutomator. Desktop Linux has xdotool and AT-SPI2. macOS has AppleScript. ChromeOS has nothing — no public automation API, no accessibility bus, no scriptable input layer. And the OS actively fights you: every reboot kills SSH, every update re-locks the root filesystem and resets your devtools config.
+
+This project fills that gap. It's the missing **"ADB for the ChromeOS desktop"** — screenshots, input injection, accessibility-tree-driven UI automation, browser control, extension deployment, and APK installation, all from a single CLI over SSH. No SDK, no build system, no dependencies beyond bash.
+
+**Who it's for:**
+- Developers building and testing on ChromeOS who need programmatic device control
+- AI agents (like [Claude Code](https://docs.anthropic.com/en/docs/claude-code)) that need to see and interact with a Chromebook — the included [skill definition](skills/SKILL.md) lets an agent take screenshots, read UI elements, click buttons, type text, and deploy code
+- Anyone tired of manually recovering their dev setup after every ChromeOS reboot and update
+
+**How it works:** A bash CLI on your dev machine sends JSON commands over SSH to a Python client on the Chromebook. The client injects touch/keyboard/mouse events via evdev and uinput, takes screenshots via DRM/EGL, and drives system UI automation by piggybacking on ChromeOS's built-in accessibility extensions through the Chrome DevTools Protocol — a workaround for the absent AT-SPI2 bus that makes system-level UI interaction possible at all.
+
+---
 
 ## Initial Setup
 
