@@ -75,8 +75,15 @@ else
         fi
     fi
     echo
-    echo "Removing rootfs verification..."
-    ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; /usr/share/vboot/bin/make_dev_ssd.sh --remove_rootfs_verification --partitions 4" 2>/dev/null
+    echo "Detecting active kernel partition..."
+    # ChromeOS A/B: root partition 3 → kernel partition 2, root partition 5 → kernel partition 4
+    KERN_PART=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; ROOTDEV=\$(rootdev -s); PARTNUM=\${ROOTDEV##*p}; echo \$((PARTNUM - 1))" 2>/dev/null)
+    if [ -z "$KERN_PART" ] || [ "$KERN_PART" -lt 2 ] || [ "$KERN_PART" -gt 4 ]; then
+        echo "[FAIL] Could not detect kernel partition (got: ${KERN_PART:-empty})"
+        exit 1
+    fi
+    echo "Removing rootfs verification on partition $KERN_PART..."
+    ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; /usr/share/vboot/bin/make_dev_ssd.sh --remove_rootfs_verification --partitions $KERN_PART" 2>/dev/null
     echo "Rebooting device..."
     ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; reboot" || true
     echo

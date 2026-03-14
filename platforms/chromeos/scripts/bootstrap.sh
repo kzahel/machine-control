@@ -67,7 +67,8 @@ if touch /etc/.chromeos-testbed-probe 2>/dev/null; then
     fi
 else
     echo "    [SKIP] Rootfs is read-only. To enable remote debugging later:"
-    echo "    /usr/share/vboot/bin/make_dev_ssd.sh --remove_rootfs_verification --partitions 4"
+    ROOTDEV=$(rootdev -s); PARTNUM=${ROOTDEV##*p}; KERN_PART=$((PARTNUM - 1))
+    echo "    /usr/share/vboot/bin/make_dev_ssd.sh --remove_rootfs_verification --partitions $KERN_PART"
     echo "    reboot"
     echo "    Then run: chromeos fix-devtools"
 fi
