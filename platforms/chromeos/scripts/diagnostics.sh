@@ -39,6 +39,7 @@ capture info.json "$CLI" --json info
 capture targets.json "$CLI" --json targets
 capture desktop-tree.json "$CLI" --json desktop-tree --depth 4
 capture adb.json "$CLI" --json adb-status
+capture power.json "$CLI" --json power-status
 capture device.txt ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; \
 echo '[release]'; cat /etc/lsb-release 2>/dev/null || true; \
 echo '[kernel]'; uname -a; \

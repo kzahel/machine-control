@@ -6,7 +6,7 @@ CLIENT_PATH="${CHROMEOS_CLIENT_PATH:-/mnt/stateful_partition/c2/client.py}"
 REMOTE_PATH_SETUP="export PATH=/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin:\$PATH"
 
 print_vt2_ssh_instructions() {
-    echo "SSH must be restarted manually from VT2 after every reboot:"
+    echo "Automatic SSH startup is unavailable; use the VT2 fallback:"
     echo
     echo "  1. On the Chromebook, press Ctrl+Alt+F2"
     echo "  2. Log in as chronos"

@@ -7,7 +7,8 @@
 # Sets up:
 #   - SSH server on port 2223 with key auth
 #   - Firewall rules
-#   - Persistent start script for reboots
+#   - Automatic SSH startup after reboot when rootfs is writable
+#   - Persistent manual start script as an update-safe fallback
 #   - Remote debugging (if rootfs is writable)
 
 set -e
@@ -16,6 +17,7 @@ SSH_DIR="/mnt/stateful_partition/etc/ssh"
 AUTH_DIR="$SSH_DIR/root_ssh"
 SSHD_CONFIG="$SSH_DIR/sshd_config"
 SSHD_PID="$SSH_DIR/sshd.pid"
+AUTOSTART_JOB="/etc/init/chromeos-testbed-sshd.conf"
 # Linux laptop (controller-host): machines/laptop/id_ed25519.pub in the dotfiles repo.
 LAPTOP_PUBKEY="ssh-ed25519 PUBLIC_KEY_PLACEHOLDER controller@example.invalid"
 PORT=2223
@@ -80,6 +82,18 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
+# Prefer the Upstart-managed listener when its rootfs job is installed.
+if [ -f /etc/init/chromeos-testbed-sshd.conf ]; then
+    initctl reload-configuration
+    if status chromeos-testbed-sshd 2>/dev/null | grep -q "start/running"; then
+        restart chromeos-testbed-sshd
+    else
+        start chromeos-testbed-sshd
+    fi
+    echo "[+] sshd on port 2223 is managed by Upstart"
+    exit 0
+fi
+
 iptables -C INPUT -p tcp --dport 2223 -j ACCEPT 2>/dev/null ||
     iptables -I INPUT 3 -p tcp --dport 2223 -j ACCEPT
 
@@ -97,7 +111,56 @@ echo "[+] sshd on port 2223 - Connect: ssh -p 2223 root@$IP"
 SCRIPT
 chmod +x "$SSH_DIR/start_sshd.sh"
 
-# Start sshd now
+# Install an Upstart job when the rootfs is writable. ChromeOS's own
+# openssh-server job uses this event so firewall initialization has completed
+# before the SSH rule is added. The job file can be replaced by OS updates;
+# the stateful start script remains the fallback and bootstrap reinstalls it.
+if touch /etc/.chromeos-testbed-probe 2>/dev/null; then
+    rm -f /etc/.chromeos-testbed-probe
+    cat > "$AUTOSTART_JOB" << 'JOB'
+description "ChromeOS testbed SSH server"
+author "chromeos-testbed"
+
+start on stopped iptables and stopped ip6tables and starting failsafe
+stop on stopping failsafe or starting halt or starting reboot
+respawn
+respawn limit 3 10
+oom score never
+
+pre-start script
+  SSH_DIR=/mnt/stateful_partition/etc/ssh
+  SSHD_CONFIG="$SSH_DIR/sshd_config"
+  SSHD_PID="$SSH_DIR/sshd.pid"
+
+  /usr/sbin/sshd -t -f "$SSHD_CONFIG"
+
+  iptables -C INPUT -p tcp --dport 2223 -j ACCEPT 2>/dev/null ||
+    iptables -I INPUT 3 -p tcp --dport 2223 -j ACCEPT
+  ip6tables -C INPUT -p tcp --dport 2223 -j ACCEPT 2>/dev/null ||
+    ip6tables -I INPUT 3 -p tcp --dport 2223 -j ACCEPT
+
+  if [ -r "$SSHD_PID" ]; then
+    kill "$(cat "$SSHD_PID")" 2>/dev/null || true
+    rm -f "$SSHD_PID"
+  fi
+  pkill -f "sshd.*$SSHD_CONFIG" 2>/dev/null || true
+end script
+
+exec /usr/sbin/sshd -D -f /mnt/stateful_partition/etc/ssh/sshd_config
+
+post-stop script
+  iptables -D INPUT -p tcp --dport 2223 -j ACCEPT 2>/dev/null || true
+  ip6tables -D INPUT -p tcp --dport 2223 -j ACCEPT 2>/dev/null || true
+end script
+JOB
+    chmod 644 "$AUTOSTART_JOB"
+    initctl reload-configuration
+    echo "    Installed automatic SSH startup"
+else
+    echo "    [SKIP] Rootfs is read-only; automatic SSH startup unavailable"
+fi
+
+# Start sshd now, managed by Upstart when available.
 bash "$SSH_DIR/start_sshd.sh"
 
 echo "    SSH ready on port $PORT"
@@ -139,10 +202,15 @@ IP=$(ip addr show wlan0 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d/ 
 
 echo "=========================================="
 echo "SSH:       ssh -p $PORT root@$IP"
-echo "After every reboot, restart SSH from VT2 (Ctrl+Alt+F2):"
-echo "  Log in as chronos, then:"
-echo "  sudo -i"
-echo "  cd $SSH_DIR && bash start_sshd.sh"
+if [ -f "$AUTOSTART_JOB" ]; then
+    echo "After reboot: SSH starts automatically on port $PORT."
+    echo "ChromeOS updates may remove the boot job; re-run bootstrap if needed."
+else
+    echo "After reboot, restart SSH from VT2 (Ctrl+Alt+F2):"
+    echo "  Log in as chronos, then:"
+    echo "  sudo -i"
+    echo "  cd $SSH_DIR && bash start_sshd.sh"
+fi
 echo
 echo "Add to ~/.ssh/config on your dev machine:"
 echo "  Host chromeos-testbed"

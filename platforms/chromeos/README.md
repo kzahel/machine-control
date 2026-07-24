@@ -42,7 +42,11 @@ sudo -i
 curl -fsSL https://kzahel.github.io/chromeos-testbed/bootstrap.sh | bash
 ```
 
-This sets up SSH on port 2223 with key auth, opens the firewall, configures remote debugging (if rootfs is writable), and creates a persistent start script for reboots.
+This sets up SSH on port 2223 with key auth, opens the firewall, configures
+remote debugging, and—when rootfs is writable—installs an Upstart job that
+starts SSH automatically after reboot. The boot timing follows ChromeOS's own
+`openssh-server` job. A stateful manual start script is retained as a fallback
+because ChromeOS updates may replace files under `/etc/init`.
 
 Switch back to the GUI: **Ctrl+Alt+F1**.
 
@@ -65,7 +69,18 @@ bin/chromeos doctor
 
 ## After a Reboot
 
-Rebooting kills sshd and resets the firewall. SSH must be restarted manually from the Chromebook:
+With the current bootstrap and writable rootfs, SSH and its firewall rule are
+restored automatically. Wait for ChromeOS to boot, then run:
+
+```bash
+bin/chromeos doctor
+```
+
+`doctor` reports `SSH is managed by Upstart and will start after reboot` when
+the boot job is installed and running.
+
+If SSH does not return—most commonly because a ChromeOS update replaced the
+rootfs boot job—use the stateful manual fallback:
 
 1. Switch to VT2: **Ctrl+Alt+F2**
 2. Log in as `chronos` (with your dev password)
@@ -76,19 +91,21 @@ Rebooting kills sshd and resets the firewall. SSH must be restarted manually fro
    ```
 4. Switch back to GUI: **Ctrl+Alt+F1**
 
-If `start_sshd.sh` doesn't exist, the device needs re-bootstrapping (see Initial Setup step 3).
-Re-bootstrap as well if the script reports that `/etc/ssh/sshd_config` is
-inaccessible; current versions use a self-contained configuration on the
-stateful partition.
+If `start_sshd.sh` doesn't exist, the device needs re-bootstrapping (see
+Initial Setup step 3). Re-running bootstrap also reinstalls automatic startup.
 
-> `bin/chromeos fix-ssh` will attempt to restart sshd over SSH, but since SSH is down after a reboot, it just prints the instructions above.
+ChromeOS documents automatic SSH as a developer feature once rootfs
+verification has been removed; see its
+[`openssh-server.conf.README`](https://chromium.googlesource.com/chromiumos/overlays/chromiumos-overlay/+/master/chromeos-base/chromeos-sshd-init/files/openssh-server.conf.README).
 
 ## After a ChromeOS Update
 
 Updates re-enable rootfs verification and reset `/etc/chrome_dev.conf`, which breaks remote debugging.
 
-1. Fix SSH first (see "After a Reboot" above)
-2. Run the automated fix:
+1. Fix SSH first (see "After a Reboot" above).
+2. Re-run bootstrap to restore the Upstart job if `doctor` reports that SSH
+   autostart is missing.
+3. Run the automated fix:
    ```bash
    bin/chromeos fix-devtools
    ```
@@ -110,6 +127,7 @@ bin/chromeos shortcut enter      # Named keys also work (tab, arrows, escape, ..
 bin/chromeos vt2                 # Switch to the VT2 developer console
 bin/chromeos gui                 # Return to the ChromeOS UI
 bin/chromeos info                # Device info
+bin/chromeos power-status        # Current idle/lid behavior
 bin/chromeos shell               # SSH into device
 ```
 
@@ -184,6 +202,41 @@ bin/chromeos install-apk app.apk --authorize
 `install-apk` now connects and verifies the device before installing. It stops
 with an actionable message when authorization is required instead of passing a
 misleading failure through from `adb install`.
+
+### Idle and closed-lid operation
+
+Inspect the effective powerd overrides and its most recently logged policy:
+
+```bash
+bin/chromeos power-status
+```
+
+For a long-running testbed, idle suspend can be disabled independently:
+
+```bash
+bin/chromeos keep-awake
+```
+
+To keep the Chromebook running even while its lid is closed:
+
+```bash
+bin/chromeos keep-awake --lid-closed
+```
+
+This writes ChromeOS powerd's documented stateful developer overrides,
+forces the embedded controller's lid state open, and restarts powerd. It
+persists across ordinary reboots. Keep a closed machine ventilated and
+preferably connected to AC power: the normal lid power safeguard is
+intentionally disabled.
+
+Restore stock behavior with:
+
+```bash
+bin/chromeos restore-power
+```
+
+These commands implement the procedure in the official
+[ChromeOS Power Management FAQ](https://chromium.googlesource.com/chromiumos/platform2/+/main/power_manager/docs/faq.md).
 
 ## Using as a Claude Code skill
 

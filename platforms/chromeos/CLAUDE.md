@@ -13,7 +13,7 @@ The skill definition is at `skills/SKILL.md`. Other projects can reference it fo
 Key commands: `doctor`, `smoke-test`, `diagnostics`, `fix-ssh`,
 `fix-devtools`, `screenshot`, `desktop-tap`, `desktop-wait`, `adb-status`,
 `adb-connect`, `tap`, `type`, `shortcut`, `vt2`, `gui`, `info`, `deploy`,
-`shell`.
+`power-status`, `keep-awake`, `restore-power`, `shell`.
 
 ## Prerequisites
 

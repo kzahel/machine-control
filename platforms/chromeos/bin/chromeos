@@ -39,6 +39,9 @@
 #   adb-connect         Connect to ARCVM ADB and wait until ready
 #   adb-authorize       Approve the visible ChromeOS ADB authorization prompt
 #   install-apk <file> [--keep] [--authorize]  Install Android APK
+#   power-status        Show idle/lid power overrides and current policy
+#   keep-awake [--lid-closed]  Disable idle suspend; optionally ignore the lid
+#   restore-power       Restore default idle and lid behavior
 #   shell               Interactive SSH session
 #   help                Show this help
 
@@ -1170,6 +1173,131 @@ print(json.dumps(r))
     return 1
 }
 
+_power_snapshot() {
+    local raw
+    raw=$(ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP
+read_pref() {
+    name=\"\$1\"
+    if [ -f \"/var/lib/power_manager/\$name\" ]; then
+        value=\$(cat \"/var/lib/power_manager/\$name\")
+        source=override
+    elif [ -f \"/usr/share/power_manager/\$name\" ]; then
+        value=\$(cat \"/usr/share/power_manager/\$name\")
+        source=default
+    else
+        value=unset
+        source=none
+    fi
+    printf '%s\\t%s\\t%s\\n' \"\$name\" \"\$value\" \"\$source\"
+}
+read_pref use_lid
+read_pref disable_idle_suspend
+printf 'ac_connected\\t%s\\tstatus\\n' \"\$(dump_power_status 2>/dev/null | awk '\$1 == \"line_power_connected\" { print \$2; exit }')\"
+printf 'policy\\t%s\\tlog\\n' \"\$(grep -E 'Updated settings:' /var/log/power_manager/powerd.LATEST 2>/dev/null | tail -1)\"
+" 2>/dev/null)
+
+    python3 -c "
+import json,re,sys
+data={}
+sources={}
+for line in sys.argv[1].splitlines():
+    fields=line.split('\\t',2)
+    if len(fields) != 3:
+        continue
+    key,value,source=fields
+    data[key]=value
+    sources[key]=source
+policy=data.get('policy','')
+lid_match=re.search(r'lid_closed=([^ ]+)', policy)
+idle_match=re.search(r'idle=[^ ]+ \\(([^)]+)\\)', policy)
+print(json.dumps({
+    'use_lid': data.get('use_lid'),
+    'use_lid_source': sources.get('use_lid'),
+    'disable_idle_suspend': data.get('disable_idle_suspend'),
+    'disable_idle_suspend_source': sources.get('disable_idle_suspend'),
+    'ac_connected': data.get('ac_connected') == '1',
+    'current_lid_action': lid_match.group(1) if lid_match else None,
+    'current_idle_action': idle_match.group(1) if idle_match else None,
+    'policy_log': policy or None,
+}))
+" "$raw"
+}
+
+cmd_power_status() {
+    local snapshot
+    snapshot=$(_power_snapshot)
+    if json_mode; then
+        echo "$snapshot"
+    else
+        echo "$snapshot" | python3 -c "
+import json,sys
+r=json.load(sys.stdin)
+lid='ignored' if r['use_lid'] == '0' else 'enabled'
+idle='disabled' if r['disable_idle_suspend'] == '1' else 'enabled'
+print(f\"Lid handling: {lid} ({r['use_lid_source']})\")
+print(f\"Idle suspend: {idle} ({r['disable_idle_suspend_source']})\")
+print(f\"Current powerd lid action: {r['current_lid_action'] or 'unknown'}\")
+print(f\"Current powerd idle action: {r['current_idle_action'] or 'unknown'}\")
+print(f\"AC connected: {'yes' if r['ac_connected'] else 'no'}\")
+"
+    fi
+}
+
+cmd_keep_awake() {
+    local lid_closed=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --lid-closed) lid_closed=1; shift ;;
+            *) echo "Unknown option: $1" >&2; exit 1 ;;
+        esac
+    done
+
+    ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; \
+mkdir -p /var/lib/power_manager; \
+printf '1\\n' > /var/lib/power_manager/disable_idle_suspend"
+    if [[ -n "$lid_closed" ]]; then
+        ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; \
+ectool forcelidopen 1; \
+printf '0\\n' > /var/lib/power_manager/use_lid; \
+restart powerd"
+    fi
+
+    if json_mode; then
+        local snapshot
+        snapshot=$(_power_snapshot)
+        python3 -c "
+import json,sys
+r=json.loads(sys.argv[1]); r.update({'ok':True,'lid_override_enabled':bool(sys.argv[2])})
+print(json.dumps(r))
+" "$snapshot" "$lid_closed"
+    else
+        echo "Idle suspend disabled."
+        if [[ -n "$lid_closed" ]]; then
+            echo "Lid switch ignored; the Chromebook will remain running with the lid closed."
+            echo "Keep it ventilated and preferably connected to AC power."
+        fi
+    fi
+}
+
+cmd_restore_power() {
+    ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; \
+ectool forcelidopen 0; \
+rm -f /var/lib/power_manager/use_lid /var/lib/power_manager/disable_idle_suspend; \
+restart powerd"
+
+    if json_mode; then
+        local snapshot
+        snapshot=$(_power_snapshot)
+        python3 -c "
+import json,sys
+r=json.loads(sys.argv[1]); r.update({'ok':True,'restored_defaults':True})
+print(json.dumps(r))
+" "$snapshot"
+    else
+        echo "Default idle-suspend and lid behavior restored."
+    fi
+}
+
 cmd_install_apk() {
     local apk="" keep="" authorize=""
     while [[ $# -gt 0 ]]; do
@@ -1310,6 +1438,9 @@ case "$cmd" in
     adb-status)   cmd_adb_status "$@" ;;
     adb-connect)  cmd_adb_connect "$@" ;;
     adb-authorize) cmd_adb_authorize "$@" ;;
+    power-status) cmd_power_status "$@" ;;
+    keep-awake)   cmd_keep_awake "$@" ;;
+    restore-power) cmd_restore_power "$@" ;;
     install-apk)  cmd_install_apk "$@" ;;
     remote-desktop) cmd_remote_desktop "$@" ;;
     shell)        cmd_shell "$@" ;;
