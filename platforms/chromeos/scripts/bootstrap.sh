@@ -2,7 +2,7 @@
 # ChromeOS SSH Bootstrap
 #
 # Run as root on VT2:
-#   curl -sL kyle.graehl.org/chromeos-testbed/bootstrap.sh | bash
+#   curl -fsSL https://kzahel.github.io/chromeos-testbed/bootstrap.sh | bash
 #
 # Sets up:
 #   - SSH server on port 2223 with key auth
@@ -14,7 +14,8 @@ set -e
 
 SSH_DIR="/mnt/stateful_partition/etc/ssh"
 AUTH_DIR="$SSH_DIR/root_ssh"
-PUBKEY="ssh-ed25519 PUBLIC_KEY_PLACEHOLDER testbed-user@controller-host"
+# Linux laptop (controller-host): machines/laptop/id_ed25519.pub in the dotfiles repo.
+LAPTOP_PUBKEY="ssh-ed25519 PUBLIC_KEY_PLACEHOLDER controller@example.invalid"
 PORT=2223
 
 echo "[+] ChromeOS testbed bootstrap"
@@ -30,8 +31,11 @@ chmod 700 "$AUTH_DIR"
 [ -f "$SSH_DIR/ssh_host_ed25519_key" ] || ssh-keygen -t ed25519 -f "$SSH_DIR/ssh_host_ed25519_key" -N "" -q
 [ -f "$SSH_DIR/ssh_host_rsa_key" ] || ssh-keygen -t rsa -b 4096 -f "$SSH_DIR/ssh_host_rsa_key" -N "" -q
 
-# Add authorized key
-echo "$PUBKEY" > "$AUTH_DIR/authorized_keys"
+# Preserve any existing access and ensure the Linux laptop key is authorized.
+touch "$AUTH_DIR/authorized_keys"
+if ! grep -qxF "$LAPTOP_PUBKEY" "$AUTH_DIR/authorized_keys"; then
+    printf '%s\n' "$LAPTOP_PUBKEY" >> "$AUTH_DIR/authorized_keys"
+fi
 chmod 600 "$AUTH_DIR/authorized_keys"
 
 # Create start script for reboots

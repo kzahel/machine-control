@@ -39,7 +39,7 @@ Log in as `chronos` (using the dev password if you set one), then:
 
 ```bash
 sudo -i
-curl -sL kyle.graehl.org/chromeos-testbed/bootstrap.sh | bash
+curl -fsSL https://kzahel.github.io/chromeos-testbed/bootstrap.sh | bash
 ```
 
 This sets up SSH on port 2223 with key auth, opens the firewall, configures remote debugging (if rootfs is writable), and creates a persistent start script for reboots.

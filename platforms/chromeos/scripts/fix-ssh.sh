@@ -19,6 +19,6 @@ else
     echo
     echo "If start_sshd.sh doesn't exist, the device needs bootstrapping:"
     echo "  sudo -i"
-    echo "  curl -sL kyle.graehl.org/chromeos-testbed/bootstrap.sh | bash"
+    echo "  curl -fsSL https://kzahel.github.io/chromeos-testbed/bootstrap.sh | bash"
     exit 1
 fi
