@@ -4,7 +4,7 @@ ChromeOS C2 Client - Simplified
 Raw touchscreen and keyboard input via evdev, plus a uinput virtual mouse.
 
 Deploy to: /mnt/stateful_partition/c2/client.py
-Run with: LD_LIBRARY_PATH=/usr/local/lib64 python3 /mnt/stateful_partition/c2/client.py
+Run with: LD_LIBRARY_PATH=/usr/local/lib64 /usr/local/bin/python3 /mnt/stateful_partition/c2/client.py
 
 Commands:
     {"cmd": "ping"}                              -> {"pong": true}
@@ -35,7 +35,7 @@ import array
 import base64
 
 # === Constants ===
-KEYBOARD_DEV = "/dev/input/event2"
+DEFAULT_KEYBOARD_DEV = "/dev/input/event2"
 
 # Event types
 EV_SYN, EV_KEY, EV_REL, EV_ABS = 0, 1, 2, 3
@@ -74,6 +74,19 @@ KEY_MAP = {
     ' ': 57, '\n': 28, '\t': 15,
     '-': 12, '=': 13, '[': 26, ']': 27, '\\': 43, ';': 39, "'": 40, '`': 41,
     ',': 51, '.': 52, '/': 53,
+}
+
+SPECIAL_KEY_MAP = {
+    'enter': 28, 'return': 28,
+    'tab': 15,
+    'escape': 1, 'esc': 1,
+    'backspace': 14,
+    'space': 57,
+    'insert': 110, 'delete': 111,
+    'home': 102, 'end': 107,
+    'pageup': 104, 'page-up': 104,
+    'pagedown': 109, 'page-down': 109,
+    'up': 103, 'down': 108, 'left': 105, 'right': 106,
 }
 
 # Dvorak: to type character X, press the QWERTY key that's in X's position on Dvorak
@@ -159,6 +172,25 @@ def get_abs_info(fd, axis):
         return None
 
 
+def find_keyboard():
+    """Find the built-in keyboard event device, with a legacy fallback."""
+    try:
+        with open("/proc/bus/input/devices", "r") as f:
+            blocks = f.read().split("\n\n")
+        for block in blocks:
+            if 'N: Name=' not in block or 'keyboard' not in block.lower():
+                continue
+            for line in block.splitlines():
+                if not line.startswith("H: Handlers="):
+                    continue
+                for handler in line.split("=", 1)[1].split():
+                    if handler.startswith("event"):
+                        return f"/dev/input/{handler}"
+    except (OSError, ValueError):
+        pass
+    return DEFAULT_KEYBOARD_DEV
+
+
 def find_touchscreen():
     """Find touchscreen device and return (device_path, max_x, max_y)."""
     candidates = []
@@ -185,6 +217,7 @@ def find_touchscreen():
 
 
 # Cache touchscreen info
+KEYBOARD_DEV = find_keyboard()
 _ts_device, _ts_max_x, _ts_max_y = find_touchscreen()
 
 
@@ -437,16 +470,27 @@ def shortcut(modifiers, key):
             keycodes.append(KEY_LEFTSHIFT)
         elif mod_lower in mod_map:
             keycodes.append(get_physical_keycode_for_modifier(mod_map[mod_lower]))
+        else:
+            raise ValueError(f"unknown modifier: {mod}")
 
     # Get keycode for main key (translate through layout for shortcuts too)
     key_lower = key.lower()
-    translated = translate_char_for_layout(key_lower)
-    if translated in KEY_MAP:
-        keycodes.append(KEY_MAP[translated])
-    elif key_lower.startswith("f") and key_lower[1:].isdigit():
-        fnum = int(key_lower[1:])
-        if 1 <= fnum <= 12:
-            keycodes.append(58 + fnum)  # F1=59, etc.
+    if key_lower in ("search", "meta"):
+        keycodes.append(get_physical_keycode_for_modifier(MOD_SEARCH))
+    elif key_lower in SPECIAL_KEY_MAP:
+        keycodes.append(SPECIAL_KEY_MAP[key_lower])
+    else:
+        translated = translate_char_for_layout(key_lower)
+        if translated in KEY_MAP:
+            keycodes.append(KEY_MAP[translated])
+        elif key_lower.startswith("f") and key_lower[1:].isdigit():
+            fnum = int(key_lower[1:])
+            if 1 <= fnum <= 12:
+                keycodes.append(58 + fnum)  # F1=59, etc.
+            else:
+                raise ValueError(f"unknown key: {key}")
+        else:
+            raise ValueError(f"unknown key: {key}")
 
     press_keys(keycodes)
     return keycodes
@@ -570,6 +614,7 @@ def cmd_info(msg):
         "device": _ts_device,
         "touch_max": [_ts_max_x, _ts_max_y],
         "keyboard": {
+            "device": KEYBOARD_DEV,
             "layout": _kb_layout,
             "modifier_remappings": _kb_remappings,
         }

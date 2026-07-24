@@ -15,7 +15,7 @@
 #   mouse-click [left|right|middle] [X Y]  Click virtual mouse (optionally at X Y)
 #   mouse-scroll DELTA  Scroll wheel (positive=up, negative=down)
 #   type "text"         Type text via keyboard
-#   shortcut mod key    Keyboard shortcut (e.g. chromeos shortcut ctrl t)
+#   shortcut [mod...] key  Keyboard key/shortcut (e.g. ctrl t, enter, alt left)
 #   info                Device info (touch_max, keyboard layout)
 #   remote-desktop [port]  Start remote desktop web server (default port 8765)
 #   targets             List Chrome DevTools targets (pages/tabs)
@@ -46,23 +46,40 @@ send_cmd() {
         "$REMOTE_PATH_SETUP; LD_LIBRARY_PATH=/usr/local/lib64 python3 $CLIENT_PATH" 2>/dev/null
 }
 
-# Ensure client files are deployed (skip if unchanged)
+# Send a command whose response should not contain an application-level error.
+send_cmd_checked() {
+    local response
+    response=$(send_cmd "$1")
+    echo "$response"
+    if echo "$response" | python3 -c \
+        "import json,sys; sys.exit(1 if json.load(sys.stdin).get('error') else 0)" \
+        2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+# Ensure client files are deployed (skip if the remote copies match)
 ensure_client() {
     local client_dir
     client_dir=$(dirname "$CLIENT_PATH")
 
-    # Hash local files to detect changes
-    local hash_file="/tmp/chromeos-deploy-hash"
     local current_hash
     current_hash=$(cat "$REPO_DIR/client.py" "$REPO_DIR/drm_screenshot.py" "$REPO_DIR/cdp.py" \
         2>/dev/null | shasum -a 256 | cut -c1-16)
-    if [[ -f "$hash_file" ]] && [[ "$(cat "$hash_file" 2>/dev/null)" == "$current_hash" ]]; then
+
+    # Check the actual remote files. A local-only cache could incorrectly skip
+    # deployment after switching targets or deleting files on the Chromebook.
+    local remote_hash
+    remote_hash=$(ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
+        "$REMOTE_PATH_SETUP; cat '$client_dir/client.py' '$client_dir/drm_screenshot.py' '$client_dir/cdp.py' 2>/dev/null | sha256sum | cut -c1-16" \
+        2>/dev/null || true)
+    if [[ "$remote_hash" == "$current_hash" ]]; then
         return 0
     fi
 
-    ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; mkdir -p $client_dir" 2>/dev/null
+    ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; mkdir -p '$client_dir'" 2>/dev/null
     scp -q "${SSH_OPTS[@]}" "$REPO_DIR/client.py" "$REPO_DIR/drm_screenshot.py" "$REPO_DIR/cdp.py" "$SSH_HOST:$client_dir/"
-    echo "$current_hash" > "$hash_file"
 }
 
 cmd_doctor() {
@@ -168,7 +185,7 @@ cmd_tap() {
     local x="${1:?Usage: chromeos tap X Y}"
     local y="${2:?Usage: chromeos tap X Y}"
     ensure_client
-    send_cmd "{\"cmd\":\"tap\",\"x\":$x,\"y\":$y}"
+    send_cmd_checked "{\"cmd\":\"tap\",\"x\":$x,\"y\":$y}"
 }
 
 cmd_swipe() {
@@ -178,14 +195,14 @@ cmd_swipe() {
     local y2="${4:?Usage: chromeos swipe X1 Y1 X2 Y2 [DURATION_MS]}"
     local duration="${5:-200}"
     ensure_client
-    send_cmd "{\"cmd\":\"swipe\",\"x1\":$x1,\"y1\":$y1,\"x2\":$x2,\"y2\":$y2,\"duration_ms\":$duration}"
+    send_cmd_checked "{\"cmd\":\"swipe\",\"x1\":$x1,\"y1\":$y1,\"x2\":$x2,\"y2\":$y2,\"duration_ms\":$duration}"
 }
 
 cmd_mouse_move() {
     local x="${1:?Usage: chromeos mouse-move X Y}"
     local y="${2:?Usage: chromeos mouse-move X Y}"
     ensure_client
-    send_cmd "{\"cmd\":\"mouse_move\",\"x\":$x,\"y\":$y}"
+    send_cmd_checked "{\"cmd\":\"mouse_move\",\"x\":$x,\"y\":$y}"
 }
 
 cmd_mouse_click() {
@@ -194,16 +211,16 @@ cmd_mouse_click() {
     local y="${3:-}"
     ensure_client
     if [[ -n "$x" && -n "$y" ]]; then
-        send_cmd "{\"cmd\":\"mouse_click\",\"button\":\"$button\",\"x\":$x,\"y\":$y}"
+        send_cmd_checked "{\"cmd\":\"mouse_click\",\"button\":\"$button\",\"x\":$x,\"y\":$y}"
     else
-        send_cmd "{\"cmd\":\"mouse_click\",\"button\":\"$button\"}"
+        send_cmd_checked "{\"cmd\":\"mouse_click\",\"button\":\"$button\"}"
     fi
 }
 
 cmd_mouse_scroll() {
     local delta="${1:?Usage: chromeos mouse-scroll DELTA}"
     ensure_client
-    send_cmd "{\"cmd\":\"mouse_scroll\",\"delta\":$delta}"
+    send_cmd_checked "{\"cmd\":\"mouse_scroll\",\"delta\":$delta}"
 }
 
 cmd_type() {
@@ -211,7 +228,7 @@ cmd_type() {
     ensure_client
     local json
     json=$(python3 -c "import json; print(json.dumps({'cmd':'type','text':$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$text")}))")
-    send_cmd "$json"
+    send_cmd_checked "$json"
 }
 
 cmd_shortcut() {
@@ -219,6 +236,7 @@ cmd_shortcut() {
         echo "Usage: chromeos shortcut [modifier...] key" >&2
         echo "  e.g. chromeos shortcut ctrl t" >&2
         echo "  e.g. chromeos shortcut ctrl shift n" >&2
+        echo "  e.g. chromeos shortcut enter" >&2
         exit 1
     fi
     ensure_client
@@ -233,12 +251,12 @@ cmd_shortcut() {
 
     local mods_json
     mods_json=$(IFS=,; echo "[${mods[*]}]")
-    send_cmd "{\"cmd\":\"shortcut\",\"modifiers\":$mods_json,\"key\":\"$key\"}"
+    send_cmd_checked "{\"cmd\":\"shortcut\",\"modifiers\":$mods_json,\"key\":\"$key\"}"
 }
 
 cmd_info() {
     ensure_client
-    send_cmd '{"cmd":"info"}'
+    send_cmd_checked '{"cmd":"info"}'
 }
 
 cmd_targets() {

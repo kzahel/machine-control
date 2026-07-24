@@ -4,7 +4,7 @@
 
 ChromeOS has no automation story. Android has ADB and UIAutomator. Desktop Linux has xdotool and AT-SPI2. macOS has AppleScript. ChromeOS has nothing — no public automation API, no accessibility bus, no scriptable input layer. And the OS actively fights you: every reboot kills SSH, every update re-locks the root filesystem and resets your devtools config.
 
-This project fills that gap. It's the missing **"ADB for the ChromeOS desktop"** — screenshots, input injection, accessibility-tree-driven UI automation, browser control, extension deployment, and APK installation, all from a single CLI over SSH. No SDK, no build system, no dependencies beyond bash.
+This project fills that gap. It's the missing **"ADB for the ChromeOS desktop"** — screenshots, input injection, accessibility-tree-driven UI automation, browser control, extension deployment, and APK installation, all from a single CLI over SSH. There is no SDK or build system: the development machine needs Bash, OpenSSH, and Python 3, while the Chromebook uses its built-in Python and system libraries without pip packages.
 
 **Who it's for:**
 - Developers building and testing on ChromeOS who need programmatic device control
@@ -101,6 +101,7 @@ bin/chromeos screenshot          # Take screenshot
 bin/chromeos tap 1746 984        # Tap center of screen
 bin/chromeos type "hello"        # Type text
 bin/chromeos shortcut ctrl t     # Keyboard shortcut
+bin/chromeos shortcut enter      # Named keys also work (tab, arrows, escape, ...)
 bin/chromeos info                # Device info
 bin/chromeos shell               # SSH into device
 ```

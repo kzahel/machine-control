@@ -67,7 +67,16 @@ else
     fi
 fi
 
-# 5. client.py deployed
+# 5. Remote Python
+PYTHON_PATH=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; command -v python3" 2>/dev/null || true)
+if [ -n "$PYTHON_PATH" ]; then
+    ok "Remote Python available at $PYTHON_PATH"
+else
+    fail "Remote python3 not found on configured PATH" \
+         "Check REMOTE_PATH_SETUP; expected /usr/local/bin/python3 or /usr/bin/python3"
+fi
+
+# 6. client.py deployed
 CLIENT_EXISTS=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; test -f $CLIENT_PATH && echo yes || echo no" 2>/dev/null)
 if [ "$CLIENT_EXISTS" = "yes" ]; then
     ok "client.py deployed at $CLIENT_PATH"
@@ -75,8 +84,8 @@ else
     warn "client.py not deployed" "Run: chromeos deploy"
 fi
 
-# 6. Touchscreen (only if client.py is deployed)
-if [ "$CLIENT_EXISTS" = "yes" ]; then
+# 7. Touchscreen (only if client.py and Python are available)
+if [ "$CLIENT_EXISTS" = "yes" ] && [ -n "$PYTHON_PATH" ]; then
     TS_INFO=$(echo '{"cmd":"info"}' | ssh "$SSH_HOST" \
         "$REMOTE_PATH_SETUP; LD_LIBRARY_PATH=/usr/local/lib64 python3 $CLIENT_PATH" 2>/dev/null || true)
     if echo "$TS_INFO" | python3 -c "import sys,json; r=json.load(sys.stdin); assert r.get('touch_max',[0])[0]>0" 2>/dev/null; then
@@ -88,12 +97,12 @@ if [ "$CLIENT_EXISTS" = "yes" ]; then
     fi
 fi
 
-# 7. SSH tunnel for devtools (local check)
+# 8. SSH tunnel for devtools (local check)
 if curl -s --connect-timeout 2 http://localhost:9222/json/version &>/dev/null; then
     ok "DevTools tunnel active (localhost:9222)"
 else
-    warn "No DevTools tunnel on localhost:9222" \
-         "Run: ssh -NL 9222:127.0.0.1:9222 $SSH_HOST"
+    warn "No local DevTools tunnel (optional)" \
+         "The chromeos CLI connects on-device. For other local CDP tools: ssh -NL 9222:127.0.0.1:9222 $SSH_HOST"
 fi
 
 # Summary

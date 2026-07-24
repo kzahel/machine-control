@@ -124,7 +124,7 @@ chromeos desktop-tree --depth 4
 ```bash
 chromeos desktop-action "^Volume$" focus --role slider --nth 2
 # Then send arrow keys: Up=103, Down=108, Right=106, Left=105
-echo '{"cmd":"key","keys":[103]}' | ssh chromeos-testbed "... python3 client.py"
+chromeos shortcut up
 ```
 
 **When `--nth` is needed:** Multiple elements can share the same name (e.g. a YouTube volume slider and the system volume slider). Use `desktop-find` to list matches, identify which index you need, then pass `--nth N` to `desktop-action`.
@@ -147,6 +147,7 @@ chromeos type "hello world"
 chromeos shortcut ctrl t     # New tab
 chromeos shortcut ctrl w     # Close tab
 chromeos shortcut alt shift s  # Open/close Quick Settings
+chromeos shortcut enter      # Named keys: tab, arrows, escape, backspace, etc.
 ```
 
 ### Tap (Last Resort)
