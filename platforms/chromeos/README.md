@@ -77,6 +77,9 @@ Rebooting kills sshd and resets the firewall. SSH must be restarted manually fro
 4. Switch back to GUI: **Ctrl+Alt+F1**
 
 If `start_sshd.sh` doesn't exist, the device needs re-bootstrapping (see Initial Setup step 3).
+Re-bootstrap as well if the script reports that `/etc/ssh/sshd_config` is
+inaccessible; current versions use a self-contained configuration on the
+stateful partition.
 
 > `bin/chromeos fix-ssh` will attempt to restart sshd over SSH, but since SSH is down after a reboot, it just prints the instructions above.
 
