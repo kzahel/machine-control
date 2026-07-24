@@ -13,6 +13,8 @@ CLI tools for bootstrapping, troubleshooting, and controlling a ChromeOS Chromeb
 
 ```bash
 chromeos doctor              # Health check — shows what's working/broken
+chromeos smoke-test          # End-to-end test; saves screenshots and restores UI
+chromeos diagnostics         # Collect a non-mutating support bundle
 chromeos fix-ssh             # Restart sshd after reboot
 chromeos fix-devtools        # Re-enable remote debugging after ChromeOS update
 chromeos deploy              # Deploy/update input client on Chromebook
@@ -22,6 +24,8 @@ chromeos shortcut ctrl t     # Keyboard shortcut (handles modifier remapping)
 chromeos info                # Device info (touch_max, keyboard layout)
 chromeos deploy-ext <dir> [--name NAME] [--reload [EXT_ID]]  # Deploy extension
 chromeos install-apk <file.apk> [--keep]                     # Install Android APK
+chromeos adb-status          # Check ARCVM proxy and authorization state
+chromeos adb-connect         # Connect to 127.0.0.1:5555 and wait for readiness
 chromeos shell               # Interactive SSH session
 ```
 
@@ -57,6 +61,7 @@ ChromeOS reboots reset firewall rules and stop sshd.
 ```bash
 chromeos fix-ssh           # Restarts sshd remotely
 chromeos doctor            # Verify everything else is OK
+chromeos smoke-test        # Verify screenshots, input, a11y, and calibrated touch
 ```
 
 ### Post-Update Recovery
@@ -98,6 +103,15 @@ chromeos install-apk app/build/outputs/apk/debug/app-debug.apk
 chromeos install-apk app-debug.apk --keep
 ```
 
+`install-apk` automatically connects to ARCVM ADB at `127.0.0.1:5555`.
+If the connection is unauthorized, approve the visible ChromeOS prompt or run:
+
+```bash
+chromeos adb-authorize
+# Or explicitly permit install-apk to approve the prompt:
+chromeos install-apk app-debug.apk --authorize
+```
+
 ### Desktop Automation (Accessibility Tree)
 
 **Prefer the accessibility tree over coordinate guessing.** The `desktop-find` and `desktop-action` commands let you interact with system UI elements by name/role — no fragile coordinate math needed.
@@ -111,6 +125,8 @@ chromeos desktop-find "^Volume$" --role slider    # Exact match, specific role
 chromeos desktop-action "Toggle Volume" doDefault            # Click/activate
 chromeos desktop-action "^Volume$" focus --role slider --nth 2  # Focus 2nd match
 chromeos desktop-action "Settings" doDefault --role button
+chromeos desktop-wait "^Settings$" --role window --timeout 10
+chromeos assert-visible "^Google Chrome$" --role button
 
 # Available actions: doDefault, focus, increment, decrement, setValue,
 #   showContextMenu, scrollForward, scrollBackward, longClick
@@ -161,6 +177,33 @@ chromeos info  # → {"touch_max": [3492, 1968], ...}
 # Convert: touch_x = X% * max_x / 100, touch_y = Y% * max_y / 100
 chromeos tap 2619 1673
 ```
+
+For a real touch event on an accessible system element, use calibrated
+`desktop-tap`. It converts the logical built-in-display coordinates to the
+touchscreen's raw evdev range:
+
+```bash
+chromeos desktop-tap "^Settings$" --role button
+```
+
+The virtual `mouse-*` commands are best-effort only. The one-shot client cannot
+observe ChromeOS's current cursor position or pointer acceleration. Prefer
+accessibility actions or calibrated touch.
+
+### Structured output and evidence
+
+Use a leading `--json` for machine-readable read/query commands:
+
+```bash
+chromeos --json doctor
+chromeos --json targets
+chromeos --json desktop-find "Allow" --role button
+```
+
+`chromeos diagnostics` collects health, OS/device details, ADB state,
+accessibility data, targets, and a screenshot without changing UI state.
+`chromeos smoke-test` performs a restoring UI exercise and stores every result
+and screenshot in a timestamped artifact directory.
 
 ### Extending the CLI
 

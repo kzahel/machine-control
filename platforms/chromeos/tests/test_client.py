@@ -52,5 +52,63 @@ class TargetsTest(unittest.TestCase):
                          ["First", "Second"])
 
 
+class DesktopTapTest(unittest.TestCase):
+    @mock.patch.object(client, "tap")
+    @mock.patch("cdp.desktop_tree")
+    @mock.patch("cdp.desktop_find")
+    def test_maps_desktop_coordinates_to_raw_touchscreen(
+            self, desktop_find, desktop_tree, tap):
+        desktop_find.return_value = [{
+            "role": "button",
+            "name": "Settings",
+            "location": {"x": 760, "y": 430, "width": 80, "height": 40},
+        }]
+        desktop_tree.return_value = {
+            "role": "desktop",
+            "location": {"x": 0, "y": 0, "width": 1600, "height": 900},
+            "children": [{
+                "role": "window",
+                "name": "Built-in display",
+                "location": {"x": 0, "y": 0, "width": 1600, "height": 900},
+            }],
+        }
+
+        with mock.patch.object(client, "_ts_device", "/dev/input/event6"), \
+             mock.patch.object(client, "_ts_max_x", 3492), \
+             mock.patch.object(client, "_ts_max_y", 1968):
+            result = client.cmd_desktop_tap({
+                "pattern": "^Settings$", "role": "button",
+            })
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["tapped"]["touch"], {"x": 1746, "y": 984})
+        tap.assert_called_once_with(1746, 984)
+
+    @mock.patch("cdp.desktop_tree")
+    @mock.patch("cdp.desktop_find")
+    def test_rejects_element_on_external_display(self, desktop_find, desktop_tree):
+        desktop_find.return_value = [{
+            "role": "button",
+            "name": "External",
+            "location": {"x": 1800, "y": 100, "width": 100, "height": 50},
+        }]
+        desktop_tree.return_value = {
+            "role": "desktop",
+            "location": {"x": 0, "y": 0, "width": 3520, "height": 1080},
+            "children": [{
+                "role": "window",
+                "name": "Built-in display",
+                "location": {"x": 0, "y": 0, "width": 1600, "height": 900},
+            }],
+        }
+
+        with mock.patch.object(client, "_ts_device", "/dev/input/event6"), \
+             mock.patch.object(client, "_ts_max_x", 3492), \
+             mock.patch.object(client, "_ts_max_y", 1968):
+            result = client.cmd_desktop_tap({"pattern": "External"})
+
+        self.assertIn("not on the built-in display", result["error"])
+
+
 if __name__ == "__main__":
     unittest.main()

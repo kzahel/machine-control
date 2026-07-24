@@ -715,13 +715,103 @@ def cmd_desktop_click(msg):
         return {"error": f"desktop_click failed: {e}"}
 
 
+def _find_named_bounds(node, name):
+    """Return the first accessibility-tree location for an exact node name."""
+    if node.get("name") == name and node.get("location"):
+        return node["location"]
+    for child in node.get("children", []):
+        found = _find_named_bounds(child, name)
+        if found:
+            return found
+    return None
+
+
+def cmd_desktop_tap(msg):
+    """Tap a desktop accessibility element through the built-in touchscreen.
+
+    chrome.automation reports display-independent coordinates while evdev needs
+    raw touchscreen coordinates. Calibrate against the accessibility bounds of
+    the built-in display so this continues to work with display scaling.
+    """
+    if not _ts_device or not _ts_max_x or not _ts_max_y:
+        return {"error": "desktop_tap requires a built-in touchscreen"}
+
+    try:
+        import cdp
+        pattern = msg.get("pattern")
+        if not pattern:
+            return {"error": "desktop_tap requires 'pattern'"}
+        role = msg.get("role")
+        nth = max(1, int(msg.get("nth", 1)))
+        matches = cdp.desktop_find(pattern, role=role)
+        if len(matches) < nth:
+            return {
+                "error": (
+                    f"No desktop element matching '{pattern}'"
+                    f" (role={role or 'any'}, nth={nth})"
+                )
+            }
+
+        target = matches[nth - 1]
+        location = target.get("location")
+        if not location or location.get("width", 0) <= 0 or location.get("height", 0) <= 0:
+            return {"error": "Matched desktop element has no tappable location"}
+
+        tree = cdp.desktop_tree(max_depth=2)
+        display = _find_named_bounds(tree, "Built-in display")
+        if not display:
+            # A single-display tree may not label its display window. The root
+            # bounds are a safe fallback only when they are usable.
+            display = tree.get("location")
+        if not display or display.get("width", 0) <= 0 or display.get("height", 0) <= 0:
+            return {"error": "Cannot determine built-in display bounds"}
+
+        center_x = location["x"] + location["width"] / 2
+        center_y = location["y"] + location["height"] / 2
+        left, top = display["x"], display["y"]
+        right = left + display["width"]
+        bottom = top + display["height"]
+        if not (left <= center_x <= right and top <= center_y <= bottom):
+            return {
+                "error": (
+                    "Matched element is not on the built-in display; "
+                    "the touchscreen cannot reach it"
+                )
+            }
+
+        raw_x = round((center_x - left) * _ts_max_x / display["width"])
+        raw_y = round((center_y - top) * _ts_max_y / display["height"])
+        raw_x = max(0, min(_ts_max_x, raw_x))
+        raw_y = max(0, min(_ts_max_y, raw_y))
+        tap(raw_x, raw_y)
+        return {
+            "ok": True,
+            "tapped": {
+                "name": target.get("name", ""),
+                "role": target.get("role", ""),
+                "location": location,
+                "touch": {"x": raw_x, "y": raw_y},
+                "display": display,
+            },
+        }
+    except Exception as e:
+        return {"error": f"desktop_tap failed: {e}"}
+
+
 def cmd_mouse_move(msg):
     x = msg.get('x')
     y = msg.get('y')
     if x is None or y is None:
         return {'error': 'mouse_move requires x and y'}
     get_virtual_mouse().move_to(int(x), int(y))
-    return {'ok': True}
+    return {
+        'ok': True,
+        'experimental': True,
+        'warning': (
+            'Virtual relative mouse coordinates are best-effort; '
+            'prefer desktop_tap or tap for reliable activation'
+        ),
+    }
 
 
 def cmd_mouse_click(msg):
@@ -733,7 +823,14 @@ def cmd_mouse_click(msg):
         get_virtual_mouse().click(button, int(x), int(y))
     else:
         get_virtual_mouse().click(button)
-    return {'ok': True}
+    return {
+        'ok': True,
+        'experimental': True,
+        'warning': (
+            'Virtual relative mouse coordinates are best-effort; '
+            'prefer desktop_tap or tap for reliable activation'
+        ),
+    }
 
 
 def cmd_mouse_scroll(msg):
@@ -782,6 +879,7 @@ COMMANDS = {
     "desktop_tree": cmd_desktop_tree,
     "desktop_find": cmd_desktop_find,
     "desktop_click": cmd_desktop_click,
+    "desktop_tap": cmd_desktop_tap,
     "desktop_action": cmd_desktop_action,
 }
 

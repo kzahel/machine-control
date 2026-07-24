@@ -11,7 +11,7 @@ This project fills that gap. It's the missing **"ADB for the ChromeOS desktop"**
 - AI agents (like [Claude Code](https://docs.anthropic.com/en/docs/claude-code)) that need to see and interact with a Chromebook — the included [skill definition](skills/SKILL.md) lets an agent take screenshots, read UI elements, click buttons, type text, and deploy code
 - Anyone tired of manually recovering their dev setup after every ChromeOS reboot and update
 
-**How it works:** A bash CLI on your dev machine sends JSON commands over SSH to a Python client on the Chromebook. The client injects touch/keyboard/mouse events via evdev and uinput, takes screenshots via DRM/EGL, and drives system UI automation by piggybacking on ChromeOS's built-in accessibility extensions through the Chrome DevTools Protocol — a workaround for the absent AT-SPI2 bus that makes system-level UI interaction possible at all.
+**How it works:** A bash CLI on your dev machine sends JSON commands over SSH to a Python client on the Chromebook. The client injects touch and keyboard events via evdev, provides an experimental virtual mouse via uinput, takes screenshots via DRM/EGL, and drives system UI automation by piggybacking on ChromeOS's built-in accessibility extensions through the Chrome DevTools Protocol — a workaround for the absent AT-SPI2 bus that makes system-level UI interaction possible at all.
 
 ---
 
@@ -98,6 +98,8 @@ Updates re-enable rootfs verification and reset `/etc/chrome_dev.conf`, which br
 
 ```bash
 bin/chromeos doctor              # Check everything
+bin/chromeos smoke-test          # Exercise input, screenshots, and desktop UI
+bin/chromeos diagnostics         # Collect a read-only diagnostic bundle
 bin/chromeos fix-ssh             # Fix SSH after reboot
 bin/chromeos fix-devtools        # Fix remote debugging after update
 bin/chromeos screenshot          # Take screenshot
@@ -110,6 +112,78 @@ bin/chromeos gui                 # Return to the ChromeOS UI
 bin/chromeos info                # Device info
 bin/chromeos shell               # SSH into device
 ```
+
+### Structured output
+
+Put `--json` before a command to receive machine-readable output:
+
+```bash
+bin/chromeos --json doctor
+bin/chromeos --json targets
+bin/chromeos --json desktop-find '^Settings$' --role button
+bin/chromeos --json adb-status
+```
+
+Client-level commands such as `info`, `tap`, and `shortcut` already return JSON.
+Administrative recovery commands remain primarily human-oriented.
+
+### Functional verification and diagnostics
+
+`doctor` checks infrastructure without changing the visible UI. `smoke-test`
+is the stronger post-reboot verification: it captures a baseline, opens Quick
+Settings with the keyboard, opens Settings with a calibrated touchscreen tap,
+closes it, asserts that the initial UI was restored, and saves all evidence to
+a timestamped directory under `/tmp`.
+
+```bash
+bin/chromeos doctor
+bin/chromeos smoke-test
+bin/chromeos smoke-test --no-ui       # Infrastructure-only variant
+bin/chromeos diagnostics              # Read-only support bundle
+bin/chromeos diagnostics /tmp/my-run  # Explicit output directory
+```
+
+### Reliable UI synchronization
+
+Wait for state instead of inserting fixed sleeps:
+
+```bash
+bin/chromeos desktop-wait '^Allow$' --role button --timeout 10
+bin/chromeos desktop-wait '^Settings$' --role window --absent
+bin/chromeos assert-visible '^Google Chrome$' --role button
+bin/chromeos target-wait 'PhysBox'
+```
+
+Use `desktop-tap` when a real touch event is important. It maps logical
+`chrome.automation` coordinates to the raw touchscreen range using the
+built-in display bounds, so display scaling does not need to be guessed:
+
+```bash
+bin/chromeos desktop-tap '^Settings$' --role button
+```
+
+The `mouse-*` commands use a relative virtual uinput device and cannot observe
+ChromeOS pointer acceleration or the existing cursor position. They are
+explicitly experimental; prefer accessibility actions, `desktop-tap`, or raw
+`tap` for reliable automation.
+
+### Android/ADB
+
+ARCVM exposes ADB through the Chromebook-local proxy at
+`127.0.0.1:5555`. The connection is not necessarily restored after a reboot,
+even when the proxy is listening.
+
+```bash
+bin/chromeos adb-status
+bin/chromeos adb-connect
+bin/chromeos adb-authorize            # Approve the visible ChromeOS prompt
+bin/chromeos install-apk app.apk
+bin/chromeos install-apk app.apk --authorize
+```
+
+`install-apk` now connects and verifies the device before installing. It stops
+with an actionable message when authorization is required instead of passing a
+misleading failure through from `adb install`.
 
 ## Using as a Claude Code skill
 
@@ -127,9 +201,11 @@ client.py                  evdev input driver (deployed to Chromebook)
 scripts/
   bootstrap.sh             One-time SSH + devtools setup (curl from VT2)
   common.sh                Shared variables and helpers
+  diagnostics.sh           Read-only diagnostic bundle
   doctor.sh                Health check
   fix-ssh.sh               Restart sshd after reboot
   fix-devtools.sh          Fix remote debugging after update
   deploy-client.sh         Deploy client.py to device
+  smoke-test.sh            Restoring end-to-end verification
 skills/SKILL.md            Claude Code skill definition
 ```

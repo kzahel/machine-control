@@ -4,35 +4,87 @@ set -uo pipefail
 
 . "$(dirname "$0")/common.sh"
 
+OUTPUT_FORMAT="${CHROMEOS_OUTPUT:-text}"
 pass=0
 fail=0
+results=()
+
+text_mode() {
+    [[ "$OUTPUT_FORMAT" != "json" ]]
+}
+
+record() {
+    results+=("$1" "$2" "${3:-}" "${4:-}")
+}
 
 ok() {
-    echo "[OK]   $1"
+    record ok "$1" "${2:-}"
+    text_mode && echo "[OK]   $1"
     ((pass++))
 }
 
 fail() {
-    echo "[FAIL] $1"
-    [ -n "${2:-}" ] && echo "       Fix: $2"
+    record fail "$1" "" "${2:-}"
+    if text_mode; then
+        echo "[FAIL] $1"
+        [ -n "${2:-}" ] && echo "       Fix: $2"
+    fi
     ((fail++))
 }
 
 warn() {
-    echo "[WARN] $1"
-    [ -n "${2:-}" ] && echo "       $2"
+    record warn "$1" "${2:-}"
+    if text_mode; then
+        echo "[WARN] $1"
+        [ -n "${2:-}" ] && echo "       $2"
+    fi
 }
 
-echo "Checking ChromeOS device ($SSH_HOST)..."
-echo
+emit_summary() {
+    if text_mode; then
+        echo
+        echo "---"
+        echo "$pass passed, $fail failed"
+        return
+    fi
+    python3 - "$SSH_HOST" "$pass" "$fail" "${results[@]}" <<'PY'
+import json
+import sys
+
+host, passed, failed = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+fields = sys.argv[4:]
+checks = []
+for i in range(0, len(fields), 4):
+    status, name, detail, fix = fields[i:i + 4]
+    item = {"status": status, "name": name}
+    if detail:
+        item["detail"] = detail
+    if fix:
+        item["fix"] = fix
+    checks.append(item)
+print(json.dumps({
+    "ok": failed == 0,
+    "host": host,
+    "passed": passed,
+    "failed": failed,
+    "checks": checks,
+}))
+PY
+}
+
+if text_mode; then
+    echo "Checking ChromeOS device ($SSH_HOST)..."
+    echo
+fi
 
 # 1. SSH connectivity
 if ssh -o ConnectTimeout=5 -o BatchMode=yes "$SSH_HOST" "echo ok" &>/dev/null; then
     ok "SSH connection to $SSH_HOST"
 else
     fail "Cannot connect to $SSH_HOST via SSH" "chromeos fix-ssh"
-    echo
-    echo "Cannot proceed without SSH. Fix SSH first."
+    text_mode && echo
+    text_mode && echo "Cannot proceed without SSH. Fix SSH first."
+    emit_summary
     exit 1
 fi
 
@@ -105,9 +157,30 @@ else
          "The chromeos CLI connects on-device. For other local CDP tools: ssh -NL 9222:127.0.0.1:9222 $SSH_HOST"
 fi
 
-# Summary
-echo
-echo "---"
-echo "$pass passed, $fail failed"
+# 9. ARCVM ADB readiness (optional)
+if ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; command -v adb >/dev/null" &>/dev/null; then
+    ADB_DEVICES=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; adb devices -l" 2>/dev/null || true)
+    ADB_STATE=$(echo "$ADB_DEVICES" | awk '$1 == "127.0.0.1:5555" { print $2; exit }')
+    case "$ADB_STATE" in
+        device)
+            ok "ARCVM ADB connected at 127.0.0.1:5555"
+            ;;
+        unauthorized)
+            warn "ARCVM ADB is waiting for authorization" \
+                 "Run: chromeos adb-authorize"
+            ;;
+        offline)
+            warn "ARCVM ADB is offline" "Run: chromeos adb-connect"
+            ;;
+        *)
+            warn "ARCVM ADB is not connected (optional)" \
+                 "Run: chromeos adb-connect"
+            ;;
+    esac
+else
+    warn "ADB command is not available (optional)"
+fi
+
+emit_summary
 [ "$fail" -gt 0 ] && exit 1
 exit 0
