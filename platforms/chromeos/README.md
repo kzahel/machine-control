@@ -105,6 +105,8 @@ bin/chromeos tap 1746 984        # Tap center of screen
 bin/chromeos type "hello"        # Type text
 bin/chromeos shortcut ctrl t     # Keyboard shortcut
 bin/chromeos shortcut enter      # Named keys also work (tab, arrows, escape, ...)
+bin/chromeos vt2                 # Switch to the VT2 developer console
+bin/chromeos gui                 # Return to the ChromeOS UI
 bin/chromeos info                # Device info
 bin/chromeos shell               # SSH into device
 ```

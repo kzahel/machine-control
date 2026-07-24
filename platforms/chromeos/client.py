@@ -631,8 +631,9 @@ def cmd_targets(msg):
     try:
         import cdp
         targets = cdp.list_targets()
+        page_targets = [t for t in targets if t.get("type") == "page"]
         pages = [{"index": i, "title": t.get("title", ""), "url": t.get("url", "")}
-                 for i, t in enumerate(targets) if t.get("type") == "page"]
+                 for i, t in enumerate(page_targets)]
         return {"targets": pages}
     except Exception as e:
         return {"error": f"Cannot connect to DevTools: {e}"}

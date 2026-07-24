@@ -35,5 +35,22 @@ class ShortcutTest(unittest.TestCase):
         self.mock_press_keys.assert_not_called()
 
 
+class TargetsTest(unittest.TestCase):
+    @mock.patch("cdp.list_targets")
+    def test_page_indices_match_axtree_indices(self, list_targets):
+        list_targets.return_value = [
+            {"type": "service_worker", "title": "internal"},
+            {"type": "page", "title": "First", "url": "https://one.example"},
+            {"type": "background_page", "title": "internal"},
+            {"type": "page", "title": "Second", "url": "https://two.example"},
+        ]
+
+        result = client.cmd_targets({})
+
+        self.assertEqual([target["index"] for target in result["targets"]], [0, 1])
+        self.assertEqual([target["title"] for target in result["targets"]],
+                         ["First", "Second"])
+
+
 if __name__ == "__main__":
     unittest.main()

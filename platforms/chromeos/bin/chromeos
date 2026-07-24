@@ -16,6 +16,8 @@
 #   mouse-scroll DELTA  Scroll wheel (positive=up, negative=down)
 #   type "text"         Type text via keyboard
 #   shortcut [mod...] key  Keyboard key/shortcut (e.g. ctrl t, enter, alt left)
+#   vt2                 Switch the physical display to the VT2 developer console
+#   gui                 Switch the physical display back to the ChromeOS UI
 #   info                Device info (touch_max, keyboard layout)
 #   remote-desktop [port]  Start remote desktop web server (default port 8765)
 #   targets             List Chrome DevTools targets (pages/tabs)
@@ -252,6 +254,18 @@ cmd_shortcut() {
     local mods_json
     mods_json=$(IFS=,; echo "[${mods[*]}]")
     send_cmd_checked "{\"cmd\":\"shortcut\",\"modifiers\":$mods_json,\"key\":\"$key\"}"
+}
+
+cmd_vt2() {
+    ensure_client
+    # Physical Ctrl+Alt+F2. Bypass ChromeOS Ctrl/Search remapping.
+    send_cmd_checked '{"cmd":"key","keys":[29,56,60]}'
+}
+
+cmd_gui() {
+    ensure_client
+    # Physical Ctrl+Alt+F1. Bypass ChromeOS Ctrl/Search remapping.
+    send_cmd_checked '{"cmd":"key","keys":[29,56,59]}'
 }
 
 cmd_info() {
@@ -738,6 +752,8 @@ case "$cmd" in
     mouse-scroll) cmd_mouse_scroll "$@" ;;
     type)         cmd_type "$@" ;;
     shortcut)     cmd_shortcut "$@" ;;
+    vt2)          cmd_vt2 "$@" ;;
+    gui)          cmd_gui "$@" ;;
     info)         cmd_info "$@" ;;
     targets)      cmd_targets "$@" ;;
     axtree)       cmd_axtree "$@" ;;

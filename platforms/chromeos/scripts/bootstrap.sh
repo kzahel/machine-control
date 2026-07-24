@@ -63,6 +63,7 @@ KbdInteractiveAuthentication no
 PermitRootLogin yes
 StrictModes no
 PidFile $SSHD_PID
+Subsystem sftp internal-sftp
 CONFIG
 chmod 600 "$SSHD_CONFIG"
 

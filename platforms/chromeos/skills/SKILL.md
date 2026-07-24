@@ -148,6 +148,8 @@ chromeos shortcut ctrl t     # New tab
 chromeos shortcut ctrl w     # Close tab
 chromeos shortcut alt shift s  # Open/close Quick Settings
 chromeos shortcut enter      # Named keys: tab, arrows, escape, backspace, etc.
+chromeos vt2                 # Physical Ctrl+Alt+F2; bypasses modifier remapping
+chromeos gui                 # Physical Ctrl+Alt+F1; returns to ChromeOS UI
 ```
 
 ### Tap (Last Resort)
