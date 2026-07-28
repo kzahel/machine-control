@@ -926,30 +926,53 @@ cmd_deploy_ext() {
             echo "CDP port $cdp_port not available — skipping reload (set up SSH tunnel: ssh -NL 9222:127.0.0.1:9222 chromeos-testbed)"
         else
             echo "Reloading extension via CDP..."
-            python3 -c "
-import json, urllib.request, sys
-try:
-    import websocket
-except ImportError:
-    print('websocket-client not installed (pip install websocket-client), skipping reload')
-    sys.exit(0)
-targets = json.loads(urllib.request.urlopen('http://localhost:$cdp_port/json').read())
-ext_id = '$ext_id'
-reloaded = 0
-for t in targets:
-    if t.get('type') != 'service_worker':
-        continue
-    if ext_id and ext_id not in t.get('url', ''):
-        continue
-    ws = websocket.create_connection(t['webSocketDebuggerUrl'])
-    ws.send(json.dumps({'id': 1, 'method': 'Runtime.evaluate', 'params': {'expression': 'chrome.runtime.reload()'}}))
-    ws.close()
-    reloaded += 1
-if reloaded:
-    print(f'Reloaded {reloaded} extension(s)')
+            PYTHONPATH="$REPO_DIR${PYTHONPATH:+:$PYTHONPATH}" \
+                python3 - "$cdp_port" "$ext_id" 2>/dev/null <<'PY' \
+                || echo "CDP reload failed, manual reload may be needed"
+import json
+import sys
+
+from cdp import WebSocket, list_targets
+
+port = int(sys.argv[1])
+ext_id = sys.argv[2]
+targets = list_targets(port)
+
+if ext_id:
+    extension_url = f"chrome-extension://{ext_id}/"
+    matching = [
+        target
+        for target in targets
+        if target.get("type") in {"service_worker", "page"}
+        and target.get("url", "").startswith(extension_url)
+        and target.get("webSocketDebuggerUrl")
+    ]
+    matching.sort(key=lambda target: target.get("type") != "service_worker")
+    matching = matching[:1]
 else:
-    print('No matching service worker found — extension may need manual reload at chrome://extensions')
-" 2>/dev/null || echo "CDP reload failed, manual reload may be needed"
+    matching = [
+        target
+        for target in targets
+        if target.get("type") == "service_worker"
+        and target.get("url", "").startswith("chrome-extension://")
+        and target.get("webSocketDebuggerUrl")
+    ]
+
+for target in matching:
+    websocket = WebSocket(target["webSocketDebuggerUrl"])
+    websocket.send(json.dumps({
+        "id": 1,
+        "method": "Runtime.evaluate",
+        "params": {"expression": "chrome.runtime.reload()"},
+    }))
+    websocket.close()
+
+if matching:
+    target_types = ", ".join(target["type"] for target in matching)
+    print(f"Reloaded {len(matching)} extension target(s) via {target_types}")
+else:
+    print("No matching extension target found — reload manually at chrome://extensions")
+PY
         fi
     fi
 
