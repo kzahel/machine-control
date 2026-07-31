@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly PROVIDER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../scripts/common.sh
+source "$PROVIDER_DIR/../../scripts/common.sh"
+
+if [[ $# -gt 1 ]]; then
+    printf 'Usage: macvm screenshot [OUTPUT.png]\n' >&2
+    exit 2
+fi
+
+if [[ $# -eq 1 ]]; then
+    output="$1"
+    mkdir -p "$(dirname "$output")"
+else
+    output_directory="$(mktemp -d /tmp/macvm-tart.XXXXXX)"
+    output="$output_directory/screenshot.png"
+fi
+
+display="$(macvm_display_size)"
+if [[ ! "$display" =~ ^([0-9]+)x([0-9]+)$ ]]; then
+    printf 'Unexpected Tart display size: %s\n' "$display" >&2
+    exit 1
+fi
+display_width="${BASH_REMATCH[1]}"
+display_height="${BASH_REMATCH[2]}"
+
+window_info="$(/usr/bin/swift "$PROVIDER_DIR/host-control.swift" window-info "$MACVM_NAME")"
+window_id="$(printf '%s' "$window_info" | jq -r '.id')"
+window_width="$(printf '%s' "$window_info" | jq -r '.width')"
+window_height="$(printf '%s' "$window_info" | jq -r '.height')"
+
+scratch_directory="$(mktemp -d /tmp/macvm-capture.XXXXXX)"
+trap 'rm -rf "$scratch_directory"' EXIT
+raw_capture="$scratch_directory/window.png"
+
+/usr/sbin/screencapture -x -o -l "$window_id" "$raw_capture"
+if [[ ! -s "$raw_capture" ]]; then
+    printf 'macOS did not create a Tart window capture\n' >&2
+    exit 1
+fi
+
+/usr/bin/swift "$PROVIDER_DIR/normalize-screenshot.swift" \
+    "$raw_capture" "$output" \
+    "$display_width" "$display_height" "$window_width" "$window_height"
+
+if [[ ! -s "$output" ]]; then
+    printf 'Normalized screenshot was not created at %s\n' "$output" >&2
+    exit 1
+fi
+
+printf '%s\n' "$output"

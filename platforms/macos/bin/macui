@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../scripts/common.sh
+source "$REPO_DIR/scripts/common.sh"
+
+usage() {
+    cat <<'EOF'
+Usage: macvm ui COMMAND [ARG...]
+
+Commands:
+  health
+  authorize
+  apps
+  windows [--app APP]
+  tree [--app APP] [--depth N] [--limit N] [--interactive]
+  find QUERY [--app APP] [--role ROLE] [--depth N] [--limit N]
+  actions QUERY [--app APP] [--role ROLE] [--nth N]
+  press QUERY [--app APP] [--role ROLE] [--nth N]
+  focus QUERY [--app APP] [--role ROLE] [--nth N]
+  set-value QUERY VALUE [--app APP] [--role ROLE] [--nth N]
+  launch APP [ARG...]
+
+APP matches a localized application name, bundle id, or PID. Element queries
+are case-insensitive text matches unless --exact is supplied. References shown
+by tree/find are diagnostic and valid only for that invocation.
+EOF
+}
+
+remote_app="$(macvm_remote_ui_app)"
+remote_binary="$(macvm_remote_ui_binary)"
+
+if [[ "${1:-}" == "launch" ]]; then
+    shift
+    if [[ $# -lt 1 ]]; then
+        printf 'Usage: macvm ui launch APP [ARG...]\n' >&2
+        exit 2
+    fi
+    app="$1"
+    shift
+    exec "$MACVM_TART" exec "$MACVM_NAME" /usr/bin/open -a "$app" --args "$@"
+fi
+
+if [[ "${1:-}" == "help" || "${1:-}" == "-h" || "${1:-}" == "--help" || $# -eq 0 ]]; then
+    usage
+    exit 0
+fi
+
+if ! "$MACVM_TART" exec "$MACVM_NAME" /bin/test -x "$remote_binary"; then
+    printf 'Semantic UI helper is not deployed. Run: %s/bin/macvm deploy-ui\n' \
+        "$MACVM_REPO_DIR" >&2
+    exit 1
+fi
+
+remote_scratch="$($MACVM_TART exec "$MACVM_NAME" \
+    /usr/bin/mktemp -d /tmp/macvm-ui.XXXXXX)"
+remote_output="$remote_scratch/output"
+remote_status_file="$remote_scratch/status"
+
+launch_status=0
+"$MACVM_TART" exec "$MACVM_NAME" /usr/bin/open -n -W "$remote_app" \
+    --args --output "$remote_output" --status "$remote_status_file" "$@" \
+    >/dev/null 2>&1 || launch_status=$?
+
+if ! remote_status="$($MACVM_TART exec "$MACVM_NAME" \
+        /bin/cat "$remote_status_file" 2>/dev/null)"; then
+    if [[ "$launch_status" -ne 0 ]]; then
+        printf 'Unable to launch %s through guest LaunchServices\n' \
+            "$remote_app" >&2
+        exit "$launch_status"
+    fi
+    printf 'MacVM UI did not report command status\n' >&2
+    exit 1
+fi
+
+"$MACVM_TART" exec "$MACVM_NAME" /bin/cat "$remote_output" || true
+if [[ ! "$remote_status" =~ ^[0-9]+$ ]]; then
+    printf 'Unexpected MacVM UI status: %s\n' "$remote_status" >&2
+    exit 1
+fi
+exit "$remote_status"

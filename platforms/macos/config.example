@@ -1,0 +1,13 @@
+# Copy to config.local only when these defaults do not match your Tart VM.
+# config.local is ignored by Git. Environment variables override its values.
+
+MACVM_NAME=tahoe-base
+MACVM_TART=/opt/homebrew/bin/tart
+MACVM_BOOT_TIMEOUT=120
+MACVM_SUSPENDABLE=true
+MACVM_CAPTURE_SYSTEM_KEYS=true
+MACVM_SHARE_REPO=true
+
+# Tart's base images run the interactive guest agent as admin.
+MACVM_GUEST_USER=admin
+MACVM_UI_REMOTE_RELATIVE='Library/Application Support/macvm-testbed'

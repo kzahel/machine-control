@@ -1,0 +1,4 @@
+config.local
+.artifacts/
+.build/
+.DS_Store

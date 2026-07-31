@@ -1,0 +1,4 @@
+interface:
+  display_name: "Drive MacVM"
+  short_description: "Operate and recover the Tart macOS testbed"
+  default_prompt: "Use $drive-macvm to inspect and control the macOS VM safely."

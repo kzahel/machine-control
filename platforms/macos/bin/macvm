@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../scripts/common.sh
+source "$REPO_DIR/scripts/common.sh"
+
+usage() {
+    cat <<'EOF'
+Usage: macvm COMMAND [ARG...]
+
+Start here:
+  doctor                 Check Tart, guest agent, desktop, capture, and UI access
+  up                     Start/resume the VM and print its current IPv4 address
+  exec COMMAND [ARG...]  Run a command through the Tart guest agent
+  shell                  Open an interactive zsh through the Tart guest agent
+  ui COMMAND [ARG...]    Inspect and control the macOS accessibility tree
+
+Setup:
+  deploy-ui              Compile and deploy the semantic UI helper
+  authorize-ui           Request the guest Accessibility permission
+
+Out-of-band recovery:
+  screenshot [PATH]      Capture the Tart guest display to a PNG
+  click X Y [BUTTON]     Click guest-display coordinates
+  drag X1 Y1 X2 Y2       Drag between guest-display coordinates
+  type TEXT              Type US-keyboard ASCII through the Tart window
+  key CHORD              Send a key or chord through the Tart window
+
+Lifecycle and discovery:
+  status | get | ip | suspend | shutdown | stop | force-stop
+
+Key examples:
+  enter escape tab cmd-space cmd-tab cmd-shift-g ctrl-option-delete
+
+Configuration:
+  Copy config.example to config.local, or set MACVM_* environment variables.
+EOF
+}
+
+provider() {
+    exec "$REPO_DIR/providers/tart-macos/provider.sh" "$@"
+}
+
+command="${1:-help}"
+shift || true
+
+case "$command" in
+    help|-h|--help) usage ;;
+    doctor) exec "$REPO_DIR/scripts/doctor.sh" "$@" ;;
+    deploy-ui) exec "$REPO_DIR/scripts/deploy-ui.sh" "$@" ;;
+    authorize-ui) exec "$REPO_DIR/bin/macui" authorize "$@" ;;
+    ui) exec "$REPO_DIR/bin/macui" "$@" ;;
+    exec) exec "$MACVM_TART" exec "$MACVM_NAME" "$@" ;;
+    shell) exec "$MACVM_TART" exec -it "$MACVM_NAME" /bin/zsh -l ;;
+    status|get|up|ip|screenshot|click|drag|type|key|suspend|shutdown|stop|force-stop)
+        provider "$command" "$@"
+        ;;
+    *)
+        printf 'Unknown command: %s\n\n' "$command" >&2
+        usage >&2
+        exit 2
+        ;;
+esac
