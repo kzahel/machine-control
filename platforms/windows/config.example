@@ -1,0 +1,14 @@
+# Copy this file to config.local only when the defaults do not match your VM.
+# config.local is ignored by Git. Environment variables override these values.
+
+WINVM_PROVIDER=utm-macos
+WINVM_GUEST_DRIVER=windows
+WINVM_UTM_NAME=Windows
+WINVM_UTMCTL=/Applications/UTM.app/Contents/MacOS/utmctl
+WINVM_SSH_HOST=winvm
+WINVM_SSH_PORT=22
+WINVM_BOOT_TIMEOUT=120
+
+# These normally do not need to change.
+WINVM_UI_PIPE_NAME=winvm-ui
+WINVM_UI_TASK_NAME='WinVM UI Relay'

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly PROVIDER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../scripts/common.sh
+source "$PROVIDER_DIR/../../scripts/common.sh"
+readonly PORT="${1:-22}"
+readonly CONNECT_TIMEOUT="$WINVM_BOOT_TIMEOUT"
+
+ip="$($WINVM_REPO_DIR/bin/winvm ip)"
+
+deadline=$((SECONDS + CONNECT_TIMEOUT))
+while (( SECONDS < deadline )); do
+    if /usr/bin/nc -G 1 -z "$ip" "$PORT" >/dev/null 2>&1; then
+        exec /usr/bin/nc "$ip" "$PORT"
+    fi
+    sleep 1
+done
+
+printf 'Timed out waiting for %s:%s\n' "$ip" "$PORT" >&2
+exit 1

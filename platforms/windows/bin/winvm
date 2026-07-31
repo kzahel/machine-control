@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../scripts/common.sh
+source "$REPO_DIR/scripts/common.sh"
+
+usage() {
+    cat <<'EOF'
+Usage: winvm COMMAND [ARG...]
+
+Start here:
+  doctor                 Check lifecycle, network, SSH, and interactive UI
+  up                     Start/resume the VM and print its current IPv4 address
+  ssh [ARG...]           Connect using the configured SSH alias
+  ui COMMAND [ARG...]    Inspect and control the Windows accessibility tree
+
+Setup:
+  stage-bootstrap [KEY]  Stage OpenSSH bootstrap files through the provider
+  deploy-ui              Install WinApp and deploy/restart the session-1 relay
+  ssh-config USER        Print the recommended OpenSSH client entry
+
+UTM/macOS recovery:
+  screenshot [PATH]      Capture the visible UTM VM window to a PNG
+  type TEXT              Type ASCII text through UTM input automation
+  click X Y [BUTTON]     Click guest coordinates (left, right, or middle)
+  key NAME               Send a common raw key/chord through UTM
+  scan CODE...           Send decimal PC/AT scan codes through UTM
+
+Lifecycle and shells:
+  status | ip | suspend | shutdown | force-stop
+  ps [COMMAND...]        Run the command in the Windows PowerShell SSH shell
+  wsl [ARG...]           Run wsl.exe through Windows SSH
+
+Key names:
+  enter escape tab win-r win-d ctrl-shift-escape alt-f4 ctrl-alt-delete
+
+Configuration:
+  Copy config.example to config.local, or set WINVM_* environment variables.
+EOF
+}
+
+provider() {
+    local provider_path
+    provider_path="$(winvm_provider_path)"
+    if [[ ! -x "$provider_path" ]]; then
+        printf 'Provider is unavailable: %s\n' "$provider_path" >&2
+        exit 1
+    fi
+    exec "$provider_path" "$@"
+}
+
+print_ssh_config() {
+    if [[ $# -ne 1 ]]; then
+        printf 'Usage: winvm ssh-config WINDOWS_USER\n' >&2
+        return 2
+    fi
+    cat <<EOF
+Host $WINVM_SSH_HOST
+    HostName $WINVM_SSH_HOST
+    User $1
+    Port $WINVM_SSH_PORT
+    HostKeyAlias $WINVM_SSH_HOST
+    CheckHostIP no
+    ProxyCommand $WINVM_REPO_DIR/providers/$WINVM_PROVIDER/ssh-proxy %p
+    ServerAliveInterval 15
+    ServerAliveCountMax 4
+EOF
+}
+
+command="${1:-help}"
+shift || true
+
+case "$command" in
+    help|-h|--help) usage ;;
+    doctor) exec "$REPO_DIR/scripts/doctor.sh" "$@" ;;
+    deploy-ui) exec "$REPO_DIR/scripts/deploy-ui.sh" "$@" ;;
+    stage-bootstrap) provider stage-bootstrap "$@" ;;
+    ssh-config) print_ssh_config "$@" ;;
+    ui) exec "$REPO_DIR/bin/winui" "$@" ;;
+    ssh|ps) exec ssh "$WINVM_SSH_HOST" "$@" ;;
+    wsl) exec ssh "$WINVM_SSH_HOST" wsl.exe "$@" ;;
+    status|up|ip|screenshot|type|click|key|scan|suspend|shutdown|force-stop)
+        provider "$command" "$@"
+        ;;
+    *)
+        printf 'Unknown command: %s\n\n' "$command" >&2
+        usage >&2
+        exit 2
+        ;;
+esac
