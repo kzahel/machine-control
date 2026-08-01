@@ -22,8 +22,9 @@ Read the result before acting:
 - If TCP/SSH fails, capture the UTM window and use provider recovery. Read
   `docs/bootstrap.md` when OpenSSH needs repair.
 - If SSH works but the UI relay fails, check whether Explorer has an
-  interactive session. Ask the user to log into Windows after a cold boot;
-  then run `winvm deploy-ui` if the relay remains unavailable.
+  interactive session. Wait for configured auto-logon or ask the user to log
+  into Windows after a cold boot; then run `winvm deploy-ui` if the relay
+  remains unavailable.
 - If all checks pass, use SSH for system work and semantic UI automation for
   desktop work.
 
@@ -48,10 +49,11 @@ winvm ui launch notepad.exe
 
 ```bash
 winvm status | up | ip
+winvm capabilities --json
 winvm ssh
 winvm ps 'Get-Service sshd'
 winvm wsl -- uname -a
-winvm suspend
+winvm down
 
 winvm ui health
 winvm ui windows
@@ -78,12 +80,14 @@ targeting is ambiguous and use `-w HWND`.
 
 - Capture or inspect current state before clicking.
 - Do not close, edit, or foreground unrelated user applications.
-- Use `suspend` for routine VM shutdown. Do not use `force-stop` without clear
-  authorization or exhausted safe recovery paths.
+- Use `down` for routine VM teardown. It suspends only when the provider
+  positively declares support and otherwise performs a clean guest shutdown.
+  Do not use `force-stop` without clear authorization or exhausted safe
+  recovery paths.
 - Never put passwords, private keys, PINs, machine identifiers, or screenshots
   in this repository or command logs.
-- Do not enable auto-login. A cold boot legitimately requires user login for
-  semantic UI control.
+- Treat auto-logon as an explicit test-appliance choice. Never place its
+  credential in this repository, shell history, or command output.
 
 ## Setup and Repair
 

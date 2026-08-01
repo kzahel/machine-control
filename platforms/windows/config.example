@@ -8,6 +8,13 @@ WINVM_UTMCTL=/Applications/UTM.app/Contents/MacOS/utmctl
 WINVM_SSH_HOST=winvm
 WINVM_SSH_PORT=22
 WINVM_BOOT_TIMEOUT=120
+WINVM_SHUTDOWN_TIMEOUT=120
+WINVM_GUEST_SHUTDOWN_GRACE=30
+
+# auto: report known UTM/QEMU blockers and use guest shutdown unless suspend is
+# positively enabled. Use enabled only after validating suspend for the exact
+# VM configuration; use disabled to declare a known provider limitation.
+WINVM_SUSPEND_POLICY=auto
 
 # These normally do not need to change.
 WINVM_UI_PIPE_NAME=winvm-ui

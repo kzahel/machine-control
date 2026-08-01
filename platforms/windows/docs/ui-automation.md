@@ -76,7 +76,8 @@ provide direct access to the underlying CLI.
 ## Limits
 
 - After a cold boot, SSH works before login but UI automation waits for an
-  interactive login.
+  interactive login, whether manual or provided by explicitly configured
+  guest-local auto-logon.
 - Lock screens, consent prompts, and secure desktops require provider-level or
   manual interaction.
 - Native apps may expose rich semantic trees; packaged app outer frames and

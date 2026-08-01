@@ -16,8 +16,20 @@ fail() {
     failures=$((failures + 1))
 }
 
+info() {
+    printf '[info] %s\n' "$*"
+}
+
 printf 'provider=%s guest=%s ssh=%s\n' \
     "$WINVM_PROVIDER" "$WINVM_GUEST_DRIVER" "$WINVM_SSH_HOST"
+
+if capabilities="$($WINVM_REPO_DIR/bin/winvm capabilities 2>/dev/null)"; then
+    while IFS= read -r capability; do
+        info "$capability"
+    done <<< "$capabilities"
+else
+    info 'lifecycle capabilities unavailable'
+fi
 
 if status="$($WINVM_REPO_DIR/bin/winvm status 2>/dev/null)"; then
     if [[ "$status" == "started" ]]; then
@@ -49,6 +61,8 @@ read -r -d '' powershell_script <<POWERSHELL || true
 \$taskName = '$WINVM_UI_TASK_NAME'
 \$task = Get-ScheduledTask -TaskName \$taskName -ErrorAction SilentlyContinue
 \$taskInfo = Get-ScheduledTaskInfo -TaskName \$taskName -ErrorAction SilentlyContinue
+\$winlogonPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+\$winlogon = Get-ItemProperty -LiteralPath \$winlogonPath -ErrorAction SilentlyContinue
 \$statePath = Join-Path \$env:LOCALAPPDATA 'winvm-testbed\relay-state.json'
 \$relayState = if (Test-Path -LiteralPath \$statePath) {
     Get-Content -LiteralPath \$statePath -Raw | ConvertFrom-Json
@@ -65,6 +79,12 @@ read -r -d '' powershell_script <<POWERSHELL || true
     }
     explorer_sessions = @(Get-Process explorer -ErrorAction SilentlyContinue |
         Select-Object -ExpandProperty SessionId -Unique)
+    auto_logon = [ordered]@{
+        enabled = (\$winlogon.AutoAdminLogon -eq '1')
+        plaintext_default_password_present = [bool](
+            \$winlogon.PSObject.Properties.Name -contains 'DefaultPassword'
+        )
+    }
     ui_task = if (\$task) {
         [ordered]@{
             state = \$task.State.ToString()
@@ -82,6 +102,15 @@ if guest_json="$(winvm_powershell "$powershell_script" 2>/dev/null)" \
         && printf '%s' "$guest_json" | jq -e . >/dev/null 2>&1; then
     pass 'key-only SSH and PowerShell are working'
     printf '%s\n' "$guest_json" | jq .
+    if printf '%s' "$guest_json" |
+            jq -e '.auto_logon.plaintext_default_password_present == true' >/dev/null; then
+        fail 'auto-logon uses a plaintext DefaultPassword registry value'
+    elif printf '%s' "$guest_json" |
+            jq -e '.auto_logon.enabled == true' >/dev/null; then
+        pass 'guest-local auto-logon is enabled without a plaintext DefaultPassword value'
+    else
+        info 'guest-local auto-logon is disabled'
+    fi
 else
     fail 'key-only SSH or the PowerShell diagnostic query failed'
 fi

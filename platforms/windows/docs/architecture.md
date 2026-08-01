@@ -15,8 +15,8 @@ bin/winvm
 The CLI reads ignored `config.local`, then selects `WINVM_PROVIDER` and
 `WINVM_GUEST_DRIVER`. Provider commands must implement:
 
-- `status`, `up`, and `ip`
-- `suspend`, `shutdown`, and `force-stop`
+- `status`, `capabilities`, `up`, and `ip`
+- `down`, `suspend`, `shutdown`, and `force-stop`
 - `screenshot`, `type`, `click`, `key`, and `scan` when available
 - `stage-bootstrap` for the selected guest when an out-of-band file channel
   exists

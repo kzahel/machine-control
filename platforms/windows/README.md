@@ -83,17 +83,19 @@ registers its interactive-logon scheduled task, and verifies the named-pipe
 path from SSH session 0 to the desktop session.
 
 See [docs/bootstrap.md](docs/bootstrap.md) for the complete fresh-guest and
-recovery procedure.
+recovery procedure. See [docs/auto-logon.md](docs/auto-logon.md) for the
+explicit, guest-local auto-logon option used by dedicated test appliances.
 
 ## Daily Use
 
 ```bash
 bin/winvm doctor                  # Check every control layer
 bin/winvm up                      # Start/resume and print the guest IP
+bin/winvm capabilities --json     # Inspect lifecycle support and down policy
 bin/winvm ssh                     # Interactive PowerShell over SSH
 bin/winvm ps 'Get-Process'        # PowerShell command
 bin/winvm wsl -- uname -a         # Command through wsl.exe
-bin/winvm suspend                 # Save VM state and preserve the login
+bin/winvm down                    # Safely suspend or cleanly shut down
 ```
 
 Discover and operate semantic Windows controls:
@@ -125,10 +127,12 @@ guest-display coordinates and exclude the UTM title bar.
 
 - OpenSSH starts automatically and remains usable before desktop login.
 - The UI relay starts at interactive user login.
-- UTM suspend/resume preserves the logged-in desktop and is the preferred
-  routine lifecycle.
-- A cold boot requires one manual Windows login. This project deliberately
-  does not store passwords or enable auto-login.
+- `winvm down` uses suspend only when the provider positively declares it
+  available. Known UTM/QEMU blockers such as GPU displays and NVMe disks select
+  a clean guest shutdown instead.
+- A cold boot normally requires one manual Windows login. A dedicated test
+  appliance may use explicitly authorized guest-local auto-logon, but its
+  credential must never be stored in this repository or command output.
 
 ## Application Limits
 

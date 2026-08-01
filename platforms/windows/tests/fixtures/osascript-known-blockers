@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+printf 'display\tvirtio-ramfb-gl\n'
+printf 'drive\tUSB\n'
+printf 'drive\tNVMe\n'

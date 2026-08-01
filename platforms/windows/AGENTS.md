@@ -19,15 +19,18 @@ Prefer control channels in this order:
 
 Inspect the accessibility tree before invoking controls. Capture the visible
 state before coordinate input. Do not close or modify unrelated user windows.
-Do not force-stop a VM unless the user requested it or normal shutdown and
-recovery paths have failed.
+Use `bin/winvm down` for routine teardown so the provider can select a supported
+lifecycle operation. Do not force-stop a VM unless the user requested it or
+normal shutdown and recovery paths have failed.
 
 ## Session Boundary
 
 SSH runs in Windows session 0. Desktop applications run in the logged-in
 interactive session. Launch GUI programs with `bin/winvm ui launch`, never
 with raw SSH. A cold Windows boot requires a user login before semantic UI
-automation is available; do not enable auto-login or store a password.
+automation is available unless the guest has explicitly authorized auto-logon.
+Auto-logon credentials must remain guest-local and must never be stored in this
+repository, shell history, or command output.
 
 ## Configuration and Deployment
 

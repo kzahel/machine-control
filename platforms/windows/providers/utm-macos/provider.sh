@@ -29,6 +29,209 @@ vm_status() {
     "$WINVM_UTMCTL" status "$WINVM_UTM_NAME" 2>/dev/null
 }
 
+utm_configuration_devices() {
+    "$WINVM_OSASCRIPT" - "$WINVM_UTM_NAME" <<'APPLESCRIPT'
+on run argv
+    set vmName to item 1 of argv
+    tell application "UTM"
+        set targetVM to first virtual machine whose name is vmName
+        set vmConfig to configuration of targetVM
+        set outputLines to {}
+        repeat with displayConfig in displays of vmConfig
+            set end of outputLines to "display\t" & (hardware of displayConfig as text)
+        end repeat
+        repeat with driveConfig in drives of vmConfig
+            set end of outputLines to "drive\t" & (interface of driveConfig as text)
+        end repeat
+    end tell
+    set AppleScript's text item delimiters to linefeed
+    return outputLines as text
+end run
+APPLESCRIPT
+}
+
+detect_suspend_capability() {
+    SUSPEND_AVAILABILITY="unknown"
+    SUSPEND_SOURCE="policy"
+    SUSPEND_REASONS=()
+
+    case "$WINVM_SUSPEND_POLICY" in
+        enabled)
+            SUSPEND_AVAILABILITY="available"
+            SUSPEND_SOURCE="configured"
+            return
+            ;;
+        disabled)
+            SUSPEND_AVAILABILITY="unavailable"
+            SUSPEND_SOURCE="configured"
+            SUSPEND_REASONS+=("configured-disabled")
+            return
+            ;;
+        auto) ;;
+        *)
+            printf 'Invalid WINVM_SUSPEND_POLICY: %s (expected auto, enabled, or disabled)\n' \
+                "$WINVM_SUSPEND_POLICY" >&2
+            return 2
+            ;;
+    esac
+
+    SUSPEND_SOURCE="utm-configuration"
+    local devices kind hardware normalized
+    if ! devices="$(utm_configuration_devices 2>/dev/null)"; then
+        SUSPEND_REASONS+=("utm-configuration-unavailable")
+        return
+    fi
+
+    local found_gpu=0 found_nvme=0
+    while IFS=$'\t' read -r kind hardware; do
+        normalized="$(printf '%s' "$hardware" | tr '[:upper:]' '[:lower:]')"
+        if [[ "$kind" == "display" && "$normalized" == *-gl* && "$found_gpu" -eq 0 ]]; then
+            SUSPEND_REASONS+=("utm-qemu-gpu-display")
+            found_gpu=1
+        elif [[ "$kind" == "drive" && "$normalized" == "nvme" && "$found_nvme" -eq 0 ]]; then
+            SUSPEND_REASONS+=("utm-qemu-nvme-disk")
+            found_nvme=1
+        fi
+    done <<< "$devices"
+
+    if (( ${#SUSPEND_REASONS[@]} > 0 )); then
+        SUSPEND_AVAILABILITY="unavailable"
+    else
+        # UTM documents common blockers but does not expose a definitive
+        # per-VM capability. Absence of a known blocker is not proof.
+        SUSPEND_REASONS+=("utm-support-not-declared")
+    fi
+}
+
+default_down_action() {
+    if [[ "$SUSPEND_AVAILABILITY" == "available" ]]; then
+        printf 'suspend\n'
+    else
+        printf 'guest-shutdown\n'
+    fi
+}
+
+provider_capabilities() {
+    local output_format="human"
+    case "${1:-}" in
+        "") ;;
+        --json) output_format="json" ;;
+        *)
+            printf 'Usage: winvm capabilities [--json]\n' >&2
+            return 2
+            ;;
+    esac
+
+    detect_suspend_capability || return
+    local action state reasons_json='[]'
+    action="$(default_down_action)"
+    state="$(vm_status || printf 'unknown\n')"
+
+    if [[ "$output_format" == "json" ]]; then
+        winvm_require_command jq || return
+        if (( ${#SUSPEND_REASONS[@]} > 0 )); then
+            reasons_json="$(printf '%s\n' "${SUSPEND_REASONS[@]}" | jq -R . | jq -s .)"
+        fi
+        jq -n \
+            --arg state "$state" \
+            --arg availability "$SUSPEND_AVAILABILITY" \
+            --arg source "$SUSPEND_SOURCE" \
+            --argjson reasons "$reasons_json" \
+            --arg action "$action" \
+            '{schema_version: 1, state: $state, lifecycle: {suspend: {availability: $availability, source: $source, reasons: $reasons}, default_down_action: $action}}'
+        return
+    fi
+
+    printf 'suspend: %s\n' "$SUSPEND_AVAILABILITY"
+    local reason
+    for reason in "${SUSPEND_REASONS[@]}"; do
+        printf 'suspend-reason: %s\n' "$reason"
+    done
+    printf 'default-down-action: %s\n' "$action"
+}
+
+print_suspend_unavailable() {
+    local joined=""
+    if (( ${#SUSPEND_REASONS[@]} > 0 )); then
+        joined="$(IFS=,; printf '%s' "${SUSPEND_REASONS[*]}")"
+    fi
+    printf 'Suspend is %s for this VM%s; use: winvm down\n' \
+        "$SUSPEND_AVAILABILITY" "${joined:+ ($joined)}" >&2
+}
+
+vm_suspend() {
+    detect_suspend_capability || return
+    if [[ "$SUSPEND_AVAILABILITY" != "available" ]]; then
+        print_suspend_unavailable
+        return 1
+    fi
+    "$WINVM_UTMCTL" suspend --save-state "$WINVM_UTM_NAME"
+}
+
+wait_for_vm_state() {
+    local expected="$1" timeout="$2"
+    local deadline=$((SECONDS + timeout)) status="unknown"
+    while (( SECONDS < deadline )); do
+        status="$(vm_status || true)"
+        if [[ "$status" == "$expected" ]]; then
+            return 0
+        fi
+        sleep 1
+    done
+    LAST_VM_STATUS="$status"
+    return 1
+}
+
+vm_shutdown() {
+    local status
+    status="$(vm_status || true)"
+    if [[ "$status" == "stopped" ]]; then
+        printf 'stopped\n'
+        return
+    fi
+    if [[ "$status" != "started" ]]; then
+        ensure_running
+    fi
+
+    # Prefer a shutdown initiated by Windows. An SSH disconnect is expected as
+    # the guest exits, so provider state is the authoritative result.
+    "$WINVM_SSH_BIN" \
+        -o BatchMode=yes \
+        -o ConnectTimeout=10 \
+        "$WINVM_SSH_HOST" \
+        'shutdown.exe /s /t 0' >/dev/null 2>&1 || true
+
+    if wait_for_vm_state stopped "$WINVM_GUEST_SHUTDOWN_GRACE"; then
+        printf 'stopped\n'
+        return
+    fi
+
+    # Requesting power-down is the non-destructive provider fallback. Never
+    # promote a routine shutdown to force-stop.
+    "$WINVM_UTMCTL" stop --request "$WINVM_UTM_NAME" >/dev/null
+    if wait_for_vm_state stopped "$WINVM_SHUTDOWN_TIMEOUT"; then
+        printf 'stopped\n'
+        return
+    fi
+
+    printf 'Timed out waiting for UTM VM %s to shut down (last status: %s)\n' \
+        "$WINVM_UTM_NAME" "${LAST_VM_STATUS:-unknown}" >&2
+    return 1
+}
+
+vm_down() {
+    if [[ "$(vm_status || true)" == "stopped" ]]; then
+        printf 'stopped\n'
+        return
+    fi
+    detect_suspend_capability || return
+    if [[ "$SUSPEND_AVAILABILITY" == "available" ]]; then
+        vm_suspend
+    else
+        vm_shutdown
+    fi
+}
+
 ensure_running() {
     local status
     status="$(vm_status || true)"
@@ -202,6 +405,7 @@ if [[ -n "$command" ]]; then shift; fi
 
 case "$command" in
     status) vm_status ;;
+    capabilities) provider_capabilities "$@" ;;
     up|ip) guest_ipv4 ;;
     screenshot) exec "$PROVIDER_DIR/screenshot" "$@" ;;
     type) input_text "$@" ;;
@@ -209,8 +413,9 @@ case "$command" in
     key) input_key "$@" ;;
     scan) input_scan_codes "$@" ;;
     stage-bootstrap) stage_bootstrap "$@" ;;
-    suspend) "$WINVM_UTMCTL" suspend --save-state "$WINVM_UTM_NAME" ;;
-    shutdown) "$WINVM_UTMCTL" stop --request "$WINVM_UTM_NAME" ;;
+    down) vm_down ;;
+    suspend) vm_suspend ;;
+    shutdown) vm_shutdown ;;
     force-stop) "$WINVM_UTMCTL" stop --force "$WINVM_UTM_NAME" ;;
     *) usage >&2; exit 2 ;;
 esac

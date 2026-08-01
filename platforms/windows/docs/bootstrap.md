@@ -136,8 +136,10 @@ fixed it. A timeout suggests the firewall path; a refusal suggests the listener.
 ### UI automation disappears after reboot
 
 This is expected until an interactive Windows login exists. SSH starts before
-login, but the relay intentionally has no password and cannot auto-login. Use
-UTM's visible console for the single login, then `bin/winvm doctor`.
+login, but the relay intentionally has no credential. Use UTM's visible console
+for the login, then `bin/winvm doctor`. A dedicated test appliance may instead
+use explicitly authorized guest-local auto-logon; never place that credential
+in this repository or command output.
 
 ## Recovery Order
 
@@ -147,5 +149,6 @@ UTM's visible console for the single login, then `bin/winvm doctor`.
 4. `bin/winvm screenshot`, `type`, `key`, `scan`, and `click`
 5. The smallest necessary manual action in UTM
 
-Do not weaken authentication or disable Windows security controls to recover
-access.
+Do not otherwise weaken authentication or disable Windows security controls to
+recover access. See [auto-logon.md](auto-logon.md) when the user explicitly
+authorizes automatic login for a dedicated test appliance.
