@@ -1,0 +1,4 @@
+interface:
+  display_name: "Drive LinuxVM"
+  short_description: "Operate and recover the UTM Ubuntu testbed"
+  default_prompt: "Use $drive-linuxvm to inspect and operate the Ubuntu Wayland VM."

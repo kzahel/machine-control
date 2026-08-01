@@ -1,0 +1,89 @@
+# Architecture
+
+LinuxVM Testbed separates provider transport, guest identity, semantic UI, and
+outer recovery. No healthy layer is allowed to hide failure in another.
+
+## Host Provider
+
+`providers/utm-macos/provider.sh` owns:
+
+- UTM lifecycle, clone, disposable, and IP commands;
+- QEMU guest-agent command and file transport;
+- normalized UTM-window capture;
+- UTM text and scan-code input; and
+- UTM-native absolute coordinate clicks and host CoreGraphics drags.
+
+The provider contains no GNOME widget knowledge. Display dimensions come from
+configuration and must match the guest's current logical mode.
+
+## Command Completion Contract
+
+`utmctl exec` is a submission mechanism, not the observable completion
+contract. Each `linuxvm exec` invocation creates a private directory beneath
+`/var/tmp/linuxvm-testbed/run`, redirects stdout and stderr, and writes a
+numeric `status` file last. The host polls the status file and returns only
+after it exists.
+
+The wrapper must:
+
+- preserve argv boundaries using shell quoting;
+- return the guest process's actual exit code;
+- keep stdout and stderr on their respective host streams;
+- time out rather than imply success; and
+- garbage-collect only run directories older than one day, so a long command
+  cannot be deleted by a concurrent invocation.
+
+This contract was added after UTM 4.7 returned from a compound APT inspection
+before its last output files existed.
+
+## Guest Identity
+
+QEMU guest-agent execution is root. This is appropriate for bootstrapping,
+packages, services, and recovery, but it is the wrong identity for desktop
+automation.
+
+`linuxvm user-exec` discovers the active logind session (or uses an explicit
+configured user), switches with `runuser`, and supplies:
+
+```text
+XDG_RUNTIME_DIR=/run/user/UID
+DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/UID/bus
+```
+
+It does not guess a Wayland socket or copy credentials.
+
+## Semantic UI
+
+`guests/ubuntu/ui/linuxui.py` is deployed to
+`/usr/local/libexec/linuxvm-testbed/linuxui.py` and invoked on demand. It reads
+the active desktop through AT-SPI and exposes applications, windows, flat tree
+records, searches, actions, focus, editable text, and numeric values.
+
+AT-SPI application roots do not always match launcher process names. GNOME
+Terminal, for example, exposes the window under `gnome-terminal-server`, while
+the launcher may separately appear as `gnome-terminal`. Callers must discover
+with `ui apps` instead of assuming.
+
+## Outer Recovery
+
+The UTM window remains the lowest common denominator for:
+
+- the Ubuntu installer and first boot;
+- a missing or stopped QEMU guest agent;
+- GDM, lock screens, and session loss;
+- incomplete or hung accessibility providers; and
+- password or Polkit dialogs that remain user-authenticated.
+
+Host capture removes the UTM title bar and scales the guest viewport to the
+configured logical resolution. UTM's scripting API accepts those logical
+coordinates for clicks and also supplies text and raw PC scan codes. Because
+UTM exposes no drag command, CoreGraphics reverses the capture transform for
+drag gestures.
+
+## Optional Future Layers
+
+- Cloud-init or Ubuntu autoinstall can produce a fresh image.
+- The XDG RemoteDesktop and ScreenCast portals can supply direct PipeWire
+  frames and compositor-approved input after explicit user consent.
+- SSH can be an optional non-root transport, but must use public keys and may
+  not replace the credential-free guest-agent recovery path.
