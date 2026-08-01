@@ -124,5 +124,35 @@ class RegistrationResponseTests(unittest.TestCase):
         deck.register(manifest, "/home/deck/devkit-game/example_game")
 
 
+class InstallOutputTests(unittest.TestCase):
+    @mock.patch.dict(
+        os.environ,
+        {"STEAMDECK_HOST": "example.invalid", "STEAMDECK_USER": "deck"},
+        clear=True,
+    )
+    @mock.patch("steamdeck.subprocess.run")
+    def test_rsync_progress_is_redirected_from_stdout(self, run: mock.Mock) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            payload = Path(temporary)
+            deck = steamdeck.SteamDeck()
+            manifest = steamdeck.GameManifest(
+                path=payload / "generated.json",
+                game_id="example_game",
+                payload=payload,
+                argv=["./ExampleGame"],
+                env={},
+                runtime=None,
+                force_appid="",
+            )
+            with mock.patch.object(
+                deck,
+                "prepare_upload",
+                return_value="/home/deck/devkit-game/example_game",
+            ), mock.patch.object(deck, "register"):
+                deck.install(manifest)
+        _args, kwargs = run.call_args
+        self.assertIs(kwargs["stdout"], steamdeck.sys.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

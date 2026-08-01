@@ -275,6 +275,7 @@ class SteamDeck:
                 f"{self.target}:{remote_directory}/",
             ],
             check=True,
+            stdout=sys.stderr,
         )
         self.register(manifest, remote_directory)
         return remote_directory
