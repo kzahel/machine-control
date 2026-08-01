@@ -10,6 +10,13 @@ The consuming project owns its build. A Unity project can stage a Linux x86_64
 player, a Rust project can stage a Steam Runtime build, and both use the same
 deployment manifest and device transport.
 
+Building the Linux player on macOS is a supported Unity workflow: install the
+matching Linux Build Support module for the Editor, select Linux x86_64 in the
+project's Build Profile, and point this testbed at the resulting player
+directory. Unity's Linux IL2CPP cross-compiler also supports producing Linux
+players from the other standalone Editor platforms. See Unity's
+[Linux IL2CPP cross-compiler documentation](https://docs.unity3d.com/6000.0/Documentation/Manual/linux-il2cpp-crosscompiler.html).
+
 ## Prerequisites
 
 1. Enable Developer Mode on the Deck.
