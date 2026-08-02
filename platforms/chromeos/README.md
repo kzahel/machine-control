@@ -2,7 +2,7 @@
 
 ## Why this exists
 
-ChromeOS has no automation story. Android has ADB and UIAutomator. Desktop Linux has xdotool and AT-SPI2. macOS has AppleScript. ChromeOS has nothing — no public automation API, no accessibility bus, no scriptable input layer. And the OS actively fights you: every reboot kills SSH, every update re-locks the root filesystem and resets your devtools config.
+ChromeOS has no automation story. Android has ADB and UIAutomator. Desktop Linux has xdotool and AT-SPI2. macOS has AppleScript. ChromeOS has nothing — no public automation API, no accessibility bus, no scriptable input layer. And the OS actively fights you: every reboot returns to the profile sign-in screen, while updates can re-lock the root filesystem and reset your devtools config.
 
 This project fills that gap. It's the missing **"ADB for the ChromeOS desktop"** — screenshots, input injection, accessibility-tree-driven UI automation, browser control, extension deployment, and APK installation, all from a single CLI over SSH. There is no SDK or build system: the development machine needs Bash, OpenSSH, and Python 3, while the Chromebook uses its built-in Python and system libraries without pip packages.
 
@@ -70,32 +70,39 @@ bin/chromeos doctor
 ## After a Reboot
 
 With the current bootstrap and writable rootfs, SSH and its firewall rule are
-restored automatically. Wait for ChromeOS to boot, then run:
+restored automatically. ChromeOS itself still waits at the profile sign-in
+screen after reboot: browser automation, extensions, and Crostini are not
+usable until the profile is unlocked.
 
 ```bash
-bin/chromeos doctor
+bin/chromeos doctor  # Warns when no user session is active
+bin/chromeos login   # Hidden prompt; logs in the selected/last-used profile
+bin/chromeos doctor  # Browser checks now exercise the user session
 ```
 
-`doctor` reports `SSH is managed by Upstart and will start after reboot` when
-the boot job is installed and running.
+For non-interactive automation, pipe the PIN from an approved secret source:
 
-If SSH does not return—most commonly because a ChromeOS update replaced the
-rootfs boot job—use the stateful manual fallback:
+```bash
+password-manager-read-command | bin/chromeos login --pin-stdin
+```
 
-1. Switch to VT2: **Ctrl+Alt+F2**
-2. Log in as `chronos` (with your dev password)
-3. Become root and start sshd:
-   ```bash
-   sudo -i
-   cd /mnt/stateful_partition/etc/ssh && bash start_sshd.sh
-   ```
-4. Switch back to GUI: **Ctrl+Alt+F1**
+Do not place the PIN in a positional argument, shell history, source file, or
+agent log. The CLI intentionally rejects positional PINs. It submits one
+attempt, verifies that the user vault mounted, and never retries a failed PIN.
+
+If automatic SSH itself fails, use VT2 and the stateful fallback:
+
+```bash
+sudo -i
+/mnt/stateful_partition/etc/ssh/start_sshd.sh
+```
+
+An OS update can replace the Upstart job under `/etc`; re-run bootstrap after
+restoring SSH if that happens.
 
 If `start_sshd.sh` doesn't exist, the device needs re-bootstrapping (see
-Initial Setup step 3). Re-running bootstrap also reinstalls automatic startup.
-
-ChromeOS documents automatic SSH as a developer feature once rootfs
-verification has been removed; see its
+Initial Setup step 3). ChromeOS documents automatic SSH as a developer feature
+once rootfs verification has been removed; see its
 [`openssh-server.conf.README`](https://chromium.googlesource.com/chromiumos/overlays/chromiumos-overlay/+/master/chromeos-base/chromeos-sshd-init/files/openssh-server.conf.README).
 
 ## After a ChromeOS Update
@@ -117,11 +124,12 @@ Updates re-enable rootfs verification and reset `/etc/chrome_dev.conf`, which br
 bin/chromeos doctor              # Check everything
 bin/chromeos smoke-test          # Exercise input, screenshots, and desktop UI
 bin/chromeos diagnostics         # Collect a read-only diagnostic bundle
-bin/chromeos fix-ssh             # Fix SSH after reboot
+bin/chromeos fix-ssh             # Repair/restart the root SSH service
 bin/chromeos fix-devtools        # Fix remote debugging after update
 bin/chromeos screenshot          # Take screenshot
 bin/chromeos tap 1746 984        # Tap center of screen
 bin/chromeos type "hello"        # Type text
+bin/chromeos login               # Securely prompt for and submit profile PIN
 bin/chromeos shortcut ctrl t     # Keyboard shortcut
 bin/chromeos shortcut enter      # Named keys also work (tab, arrows, escape, ...)
 bin/chromeos vt2                 # Switch to the VT2 developer console

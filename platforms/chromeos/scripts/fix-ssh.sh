@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Fix SSH access to ChromeOS device after reboot
+# Repair/restart ChromeOS testbed SSH.
 #
 # The bootstrap normally lets Upstart restore SSH after reboot. This command
-# restarts that job (or the stateful manual fallback) when SSH is still reachable.
+# restarts that job, or the stateful manual fallback, when SSH is still reachable.
 set -euo pipefail
 
 . "$(dirname "$0")/common.sh"

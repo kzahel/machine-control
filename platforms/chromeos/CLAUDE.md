@@ -51,6 +51,14 @@ Dev Machine                     Chromebook (VT2 root)
 | `/mnt/stateful_partition/c2/client.py` | Yes | Input client |
 | `/etc/chrome_dev.conf` | No (reset by updates) | Chrome flags |
 
+## Deploying Changes to Chromebook
+
+When `client.py`, `cdp.py`, `daemon.py`, or `drm_screenshot.py` are modified, ask the user if the changes should be synced to chromeos-testbed. The answer is almost always yes. Deploy with:
+
+```bash
+scp <file> chromeos-testbed:/mnt/stateful_partition/c2/<file>
+```
+
 ## Git Commit Policy
 
 Do NOT include `Co-Authored-By` lines referencing Claude, AI, or Anthropic in commit messages.

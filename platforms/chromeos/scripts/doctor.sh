@@ -107,7 +107,17 @@ case "$SSH_AUTOSTART" in
         ;;
 esac
 
-# 3. Check rootfs writability
+# 3. ChromeOS user session
+SESSION_MOUNTED=$(ssh "$SSH_HOST" \
+    "$REMOTE_PATH_SETUP; cryptohome --action=is_mounted" 2>/dev/null | tail -n 1 | tr -d '\r')
+if [ "$SESSION_MOUNTED" = "true" ]; then
+    ok "ChromeOS user session active"
+else
+    warn "ChromeOS is waiting at sign-in; browser and Crostini automation are unavailable" \
+         "Run: chromeos login (or pipe an approved secret source to chromeos login --pin-stdin)"
+fi
+
+# 4. Check rootfs writability
 ROOTFS_WRITABLE=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; touch /etc/.chromeos-testbed-probe 2>/dev/null && rm -f /etc/.chromeos-testbed-probe && echo yes || echo no" 2>/dev/null)
 if [ "$ROOTFS_WRITABLE" = "yes" ]; then
     ok "Rootfs is writable"
@@ -116,7 +126,7 @@ else
          "chromeos fix-devtools"
 fi
 
-# 4. Remote debugging configured
+# 5. Remote debugging configured
 DEVTOOLS_CONFIGURED=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; /bin/cat /etc/chrome_dev.conf 2>/dev/null" | grep -c "remote-debugging-port" || true)
 if [ "$DEVTOOLS_CONFIGURED" -gt 0 ]; then
     ok "Remote debugging configured in chrome_dev.conf"
@@ -124,7 +134,7 @@ else
     fail "Remote debugging not configured" "chromeos fix-devtools"
 fi
 
-# 5. DevTools port listening
+# 6. DevTools port listening
 DEVTOOLS_LISTENING=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; /bin/cat /proc/net/tcp 2>/dev/null" | awk '{print $2}' | grep -ci ":2406" || true)
 # 9222 decimal = 0x2406
 if [ "$DEVTOOLS_LISTENING" -gt 0 ]; then
@@ -138,7 +148,7 @@ else
     fi
 fi
 
-# 6. Remote Python
+# 7. Remote Python
 PYTHON_PATH=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; command -v python3" 2>/dev/null || true)
 if [ -n "$PYTHON_PATH" ]; then
     ok "Remote Python available at $PYTHON_PATH"
@@ -147,7 +157,7 @@ else
          "Check REMOTE_PATH_SETUP; expected /usr/local/bin/python3 or /usr/bin/python3"
 fi
 
-# 7. client.py deployed
+# 8. client.py deployed
 CLIENT_EXISTS=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; test -f $CLIENT_PATH && echo yes || echo no" 2>/dev/null)
 if [ "$CLIENT_EXISTS" = "yes" ]; then
     ok "client.py deployed at $CLIENT_PATH"
@@ -155,7 +165,7 @@ else
     warn "client.py not deployed" "Run: chromeos deploy"
 fi
 
-# 8. Touchscreen (only if client.py and Python are available)
+# 9. Touchscreen (only if client.py and Python are available)
 if [ "$CLIENT_EXISTS" = "yes" ] && [ -n "$PYTHON_PATH" ]; then
     TS_INFO=$(echo '{"cmd":"info"}' | ssh "$SSH_HOST" \
         "$REMOTE_PATH_SETUP; LD_LIBRARY_PATH=/usr/local/lib64 python3 $CLIENT_PATH" 2>/dev/null || true)
@@ -168,7 +178,7 @@ if [ "$CLIENT_EXISTS" = "yes" ] && [ -n "$PYTHON_PATH" ]; then
     fi
 fi
 
-# 9. SSH tunnel for devtools (local check)
+# 10. SSH tunnel for devtools (local check)
 if curl -s --connect-timeout 2 http://localhost:9222/json/version &>/dev/null; then
     ok "DevTools tunnel active (localhost:9222)"
 else
@@ -176,7 +186,7 @@ else
          "The chromeos CLI connects on-device. For other local CDP tools: ssh -NL 9222:127.0.0.1:9222 $SSH_HOST"
 fi
 
-# 10. ARCVM ADB readiness (optional)
+# 11. ARCVM ADB readiness (optional)
 if ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; command -v adb >/dev/null" &>/dev/null; then
     ADB_DEVICES=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; adb devices -l" 2>/dev/null || true)
     ADB_STATE=$(echo "$ADB_DEVICES" | awk '$1 == "127.0.0.1:5555" { print $2; exit }')

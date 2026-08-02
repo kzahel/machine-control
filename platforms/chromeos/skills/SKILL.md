@@ -20,6 +20,7 @@ chromeos fix-devtools        # Re-enable remote debugging after ChromeOS update
 chromeos deploy              # Deploy/update input client on Chromebook
 chromeos screenshot [file]   # Take screenshot, save locally
 chromeos type "text"         # Type text
+chromeos login [--pin-stdin] # Log in selected profile; hidden prompt by default
 chromeos shortcut ctrl t     # Keyboard shortcut (handles modifier remapping)
 chromeos info                # Device info (touch_max, keyboard layout)
 chromeos deploy-ext <dir> [--name NAME] [--reload [EXT_ID]]  # Deploy extension
@@ -50,7 +51,11 @@ chromeos shell               # Interactive SSH session
 
 3. **DevTools port 9222 not available?**
    - `chromeos fix-devtools` — adds the flag and restarts Chrome
-   - If rootfs is read-only: `fix-devtools` will offer to remove rootfs verification and reboot. **This requires a reboot, which kills SSH. The user must have physical access to the Chromebook to restart SSH from VT2 afterward.** Always confirm with the user before proceeding. Pass `-y` to skip the interactive prompt: `chromeos fix-devtools -y`
+   - If rootfs is read-only: `fix-devtools` will offer to remove rootfs
+     verification and reboot. An OS update may also have replaced the
+     automatic SSH Upstart job, so physical VT2 access must be available as a
+     fallback. Always confirm with the user before proceeding. Pass `-y` to
+     skip the interactive prompt: `chromeos fix-devtools -y`
 
 4. **SSH tunnel for DevTools:**
    ```bash
@@ -59,15 +64,30 @@ chromeos shell               # Interactive SSH session
 
 ## Common Workflows
 
-### Post-Reboot Recovery
+### Post-Reboot Login
 
 The bootstrap-installed Upstart job normally restores SSH and its firewall
-rule automatically.
+rule automatically. ChromeOS remains at the profile sign-in screen until the
+selected user profile is unlocked. A driver needs the profile PIN before
+browser, extension, or Crostini automation can resume.
 
 ```bash
-chromeos doctor            # Verify everything else is OK
-chromeos smoke-test        # Verify screenshots, input, a11y, and calibrated touch
+chromeos doctor            # Warns that the user session is not active
+chromeos login             # Hidden interactive PIN prompt
+chromeos doctor            # Verify post-login services
 ```
+
+For an automation driver, pipe the PIN from an approved secret source without
+printing it:
+
+```bash
+password-manager-read-command | chromeos login --pin-stdin
+```
+
+Never pass the PIN as a command argument or include it in an agent/tool log.
+`chromeos login` intentionally has no positional PIN form. It acts on the
+already-selected (normally last-used) profile, clears partial input, submits
+only once, and verifies success by checking whether the user vault mounted.
 
 If SSH is unreachable, use the VT2 fallback above, then re-run bootstrap to
 restore future automatic startup.
@@ -279,6 +299,6 @@ Then verify: `chromeos doctor`
 
 | Event | What breaks | Fix |
 |-------|-------------|-----|
-| Reboot | Upstart restores sshd and firewall | `chromeos doctor`; VT2 fallback if needed |
+| Reboot | User session is signed out; browser/extensions/Crostini unavailable | Wait for automatic SSH, then `chromeos login` |
 | ChromeOS update | SSH boot job and chrome_dev.conf may reset; rootfs may become read-only | VT2: start stateful SSH, re-bootstrap, then `chromeos fix-devtools` |
 | IP change | SSH config stale | Update `~/.ssh/config` HostName |

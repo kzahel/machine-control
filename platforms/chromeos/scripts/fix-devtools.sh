@@ -65,7 +65,8 @@ else
     echo "[FAIL] Cannot write to /etc/chrome_dev.conf — rootfs verification is enabled."
     echo
     echo "Fixing this requires removing rootfs verification and rebooting."
-    echo "After reboot, you will need physical access to restart SSH from VT2."
+    echo "After this update-repair reboot, SSH may need VT2 recovery if the"
+    echo "rootfs update replaced the automatic Upstart job."
     if [[ "$AUTO_YES" != true ]]; then
         echo
         read -r -p "Proceed? [y/N] " confirm

@@ -17,6 +17,7 @@
 #   mouse-click [left|right|middle] [X Y]  Experimental virtual mouse click
 #   mouse-scroll DELTA  Scroll wheel (positive=up, negative=down)
 #   type "text"         Type text via keyboard
+#   login [--pin-stdin] [--timeout SEC]  Log in the selected profile with a PIN
 #   shortcut [mod...] key  Keyboard key/shortcut (e.g. ctrl t, enter, alt left)
 #   vt2                 Switch the physical display to the VT2 developer console
 #   gui                 Switch the physical display back to the ChromeOS UI
@@ -279,6 +280,108 @@ cmd_type() {
     local json
     json=$(python3 -c "import json; print(json.dumps({'cmd':'type','text':$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$text")}))")
     send_cmd_checked "$json"
+}
+
+chromeos_user_session_active() {
+    local mounted
+    mounted=$(ssh -n "${SSH_OPTS[@]}" "$SSH_HOST" \
+        "$REMOTE_PATH_SETUP; cryptohome --action=is_mounted" 2>/dev/null || true)
+    [[ "$(printf '%s\n' "$mounted" | tail -n 1 | tr -d '\r')" == "true" ]]
+}
+
+cmd_login() {
+    local pin_stdin=0 timeout=15
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --pin-stdin) pin_stdin=1; shift ;;
+            --timeout=*) timeout="${1#--timeout=}"; shift ;;
+            --timeout) timeout="${2:?--timeout requires seconds}"; shift 2 ;;
+            --help|-h)
+                echo "Usage: chromeos login [--pin-stdin] [--timeout SEC]"
+                echo
+                echo "Logs in the already-selected (normally last-used) ChromeOS profile."
+                echo "Without --pin-stdin, securely prompts for the PIN on a terminal."
+                echo "Positional PIN arguments are intentionally not supported."
+                return 0
+                ;;
+            *)
+                echo "Unknown option: $1" >&2
+                echo "PIN arguments are not accepted; use the hidden prompt or --pin-stdin." >&2
+                return 1
+                ;;
+        esac
+    done
+
+    if [[ ! "$timeout" =~ ^[0-9]+$ ]] || (( timeout < 1 || timeout > 60 )); then
+        echo "Error: --timeout must be an integer from 1 to 60 seconds." >&2
+        return 1
+    fi
+
+    if chromeos_user_session_active; then
+        echo "[OK] ChromeOS user session is already active."
+        return 0
+    fi
+
+    local pin=""
+    if (( pin_stdin )); then
+        if ! IFS= read -r pin; then
+            if [[ -z "$pin" ]]; then
+                echo "Error: no PIN received on stdin." >&2
+                return 1
+            fi
+        fi
+    fi
+
+    ensure_client
+
+    if (( ! pin_stdin )) && [[ -t 0 ]]; then
+        IFS= read -r -s -p "PIN for the selected ChromeOS profile: " pin
+        echo >&2
+    elif (( ! pin_stdin )); then
+        echo "Error: no interactive terminal for the hidden PIN prompt." >&2
+        echo "Pipe the PIN from an approved secret source and add --pin-stdin." >&2
+        return 1
+    fi
+
+    if [[ ! "$pin" =~ ^[0-9]{4,20}$ ]]; then
+        pin=""
+        unset pin
+        echo "Error: a ChromeOS PIN must contain 4-20 digits." >&2
+        return 1
+    fi
+
+    # A modifier-only key wakes the display without entering a character.
+    send_cmd '{"cmd":"key","keys":[42]}' >/dev/null
+    sleep 1
+
+    # Clear a partially entered PIN, type the supplied PIN, and submit it in one
+    # SSH/client session. The PIN travels only over SSH stdin, never as a
+    # process argument or command-line option.
+    {
+        local i
+        for ((i=0; i<20; i++)); do
+            printf '%s\n' '{"cmd":"key","keys":[14]}'
+        done
+        printf '%s\n' "{\"cmd\":\"type\",\"text\":\"$pin\"}"
+        printf '%s\n' '{"cmd":"key","keys":[28]}'
+    } | ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
+        "$REMOTE_PATH_SETUP; LD_LIBRARY_PATH=/usr/local/lib64 python3 $CLIENT_PATH" >/dev/null
+
+    pin=""
+    unset pin
+
+    local attempt
+    for ((attempt=0; attempt<timeout*2; attempt++)); do
+        if chromeos_user_session_active; then
+            echo "[OK] ChromeOS login succeeded; the user vault is mounted."
+            return 0
+        fi
+        sleep 0.5
+    done
+
+    echo "[FAIL] ChromeOS login was not confirmed after ${timeout}s." >&2
+    echo "       Check the selected profile and PIN on the Chromebook; no retry was attempted." >&2
+    return 1
 }
 
 cmd_shortcut() {
@@ -1441,6 +1544,7 @@ case "$cmd" in
     mouse-click)  cmd_mouse_click "$@" ;;
     mouse-scroll) cmd_mouse_scroll "$@" ;;
     type)         cmd_type "$@" ;;
+    login)        cmd_login "$@" ;;
     shortcut)     cmd_shortcut "$@" ;;
     vt2)          cmd_vt2 "$@" ;;
     gui)          cmd_gui "$@" ;;

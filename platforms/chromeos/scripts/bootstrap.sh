@@ -211,6 +211,8 @@ else
     echo "  sudo -i"
     echo "  cd $SSH_DIR && bash start_sshd.sh"
 fi
+echo "ChromeOS still waits at the profile sign-in screen after reboot."
+echo "From the dev machine, run: chromeos login"
 echo
 echo "Add to ~/.ssh/config on your dev machine:"
 echo "  Host chromeos-testbed"
