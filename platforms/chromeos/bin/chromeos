@@ -169,11 +169,6 @@ cmd_screenshot() {
 
     ensure_client
 
-    # A sleeping ChromeOS display has no active CRTC for DRM capture. Wake it
-    # with modifier-only input so this does not type into or activate the
-    # focused control, then allow scanout to settle.
-    send_cmd '{"cmd":"wake"}' >/dev/null
-
     # Keyboard method must go through client.py
     if [[ "$method" == "keyboard" ]]; then
         _screenshot_json "$output" "$method" "$format"
@@ -188,28 +183,41 @@ cmd_screenshot() {
         remote_args="$remote_args --jpeg"
         [[ -n "$quality" ]] && remote_args="$remote_args -q $quality"
     fi
-    [[ -n "$method" ]] && remote_args="$remote_args --method $method"
+    local capture_method="${method:-egl}"
+    remote_args="$remote_args --method $capture_method"
 
-    local capture_ok=0 attempt
+    local capture_ok=0 attempt error_file
+    error_file=$(mktemp "${TMPDIR:-/tmp}/chromeos-screenshot-error.XXXXXX")
     for attempt in 1 2 3; do
         if ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
             "$REMOTE_PATH_SETUP; LD_LIBRARY_PATH=/usr/local/lib64 python3 $remote_dir/drm_screenshot.py $remote_args" \
-            > "$output" 2>/dev/null && [[ -s "$output" ]]; then
+            > "$output" 2>"$error_file" && [[ -s "$output" ]]; then
             capture_ok=1
             break
         fi
         rm -f "$output"
-        [[ "$attempt" -lt 3 ]] && sleep 0.35
+        if ! grep -q "No active CRTC" "$error_file"; then
+            break
+        fi
+        if [[ "$attempt" -eq 1 ]]; then
+            # Modifier-only input wakes a sleeping display without typing into
+            # or activating the focused control.
+            send_cmd '{"cmd":"wake"}' >/dev/null
+        elif [[ "$attempt" -lt 3 ]]; then
+            sleep 0.35
+        fi
     done
 
     if (( capture_ok )); then
+        rm -f "$error_file"
         if json_mode; then
             python3 -c "import json,sys; print(json.dumps({'ok':True,'path':sys.argv[1],'format':sys.argv[2],'method':sys.argv[3] or 'auto'}))" \
-                "$output" "$format" "$method"
+                "$output" "$format" "$capture_method"
         else
-            echo "$output ($format)"
+            echo "$output ($capture_method, $format)"
         fi
     else
+        rm -f "$error_file"
         _screenshot_json "$output" "$method" "$format"
     fi
 }

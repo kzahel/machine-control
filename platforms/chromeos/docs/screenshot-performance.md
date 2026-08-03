@@ -87,8 +87,6 @@ bin/chromeos screenshot output.jpg
   |
   |-- ensure_client (hash check, skip if unchanged)
   |
-  |-- wake display with modifier-only input
-  |
   |-- ssh chromeos-testbed "python3 drm_screenshot.py --stdout --jpeg"
   |     |
   |     |-- EGL capture: DRM fd -> EGLImage -> glReadPixels (RGBA)
@@ -102,5 +100,8 @@ bin/chromeos screenshot output.jpg
 ```
 
 Keyboard screenshots (`--method keyboard`) still use the client.py JSON/base64 path since they go through Chrome's screenshot UI.
-Direct DRM capture retries briefly after waking because display scanout can take
-longer to expose an active CRTC than input delivery itself.
+If direct DRM capture reports that a sleeping display has no active CRTC, the
+CLI wakes it with modifier-only input and retries briefly because display
+scanout can take longer to react than input delivery itself. Other direct
+capture failures retain the existing fallback behavior, and output names the
+method that ultimately succeeded.

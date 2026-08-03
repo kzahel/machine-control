@@ -110,12 +110,13 @@ chromeos screenshot ~/Desktop/screen.png   # Custom output path
 ```
 
 Use the default capture method or explicit `--method egl` for routine
-screenshots. Capture wakes the display with modifier-only input before reading
-the framebuffer, so callers do not need a separate key press. GBM is acceptable
-only as a fallback when EGL is unavailable; it can produce severe visual
-artifacts on tiled framebuffers even when capture succeeds. Visually inspect any
-GBM capture before relying on it, and prefer `--method keyboard` when a native
-ChromeOS screenshot is suitable.
+screenshots. If framebuffer capture reports that the sleeping display has no
+active CRTC, capture wakes it with modifier-only input and retries, so callers
+do not need a separate key press. The command reports the method it used. GBM
+is acceptable only as a fallback when EGL is unavailable; it can produce severe
+visual artifacts on tiled framebuffers even when capture succeeds. Visually
+inspect any GBM capture before relying on it, and prefer `--method keyboard`
+when a native ChromeOS screenshot is suitable.
 
 ### Deploying Extensions
 

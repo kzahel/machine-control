@@ -4,6 +4,67 @@ from unittest import mock
 import client
 
 
+class DrmWakeRetryTests(unittest.TestCase):
+    def test_awake_capture_does_not_send_input(self):
+        expected = {"image": "frame", "method": "egl", "format": "png"}
+        with (
+            mock.patch.object(client, "_drm_screenshot_b64", return_value=expected),
+            mock.patch.object(client, "wake_display") as wake,
+        ):
+            actual = client._drm_screenshot_after_wake("egl", "png", 80)
+
+        self.assertEqual(expected, actual)
+        wake.assert_not_called()
+
+    def test_sleeping_capture_wakes_and_retries_once(self):
+        expected = {"image": "frame", "method": "egl", "format": "png"}
+        with (
+            mock.patch.object(
+                client,
+                "_drm_screenshot_b64",
+                side_effect=[RuntimeError("No active CRTC found"), expected],
+            ) as capture,
+            mock.patch.object(client, "wake_display") as wake,
+        ):
+            actual = client._drm_screenshot_after_wake("egl", "png", 80)
+
+        self.assertEqual(expected, actual)
+        self.assertEqual(2, capture.call_count)
+        wake.assert_called_once_with()
+
+    def test_unrelated_capture_failure_does_not_send_input(self):
+        with (
+            mock.patch.object(
+                client,
+                "_drm_screenshot_b64",
+                side_effect=RuntimeError("permission denied"),
+            ),
+            mock.patch.object(client, "wake_display") as wake,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "permission denied"):
+                client._drm_screenshot_after_wake("egl", "png", 80)
+
+        wake.assert_not_called()
+
+    def test_retry_failure_is_returned(self):
+        with (
+            mock.patch.object(
+                client,
+                "_drm_screenshot_b64",
+                side_effect=[
+                    RuntimeError("No active CRTC found"),
+                    RuntimeError("No active CRTC found"),
+                ],
+            ) as capture,
+            mock.patch.object(client, "wake_display") as wake,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "No active CRTC"):
+                client._drm_screenshot_after_wake("egl", "png", 80)
+
+        self.assertEqual(2, capture.call_count)
+        wake.assert_called_once_with()
+
+
 class ShortcutTest(unittest.TestCase):
     def setUp(self):
         self.layout = mock.patch.object(client, "_kb_layout", "qwerty")

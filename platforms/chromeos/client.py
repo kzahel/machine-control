@@ -577,19 +577,26 @@ def _drm_screenshot_b64(method, fmt, quality):
             "method": method, "format": "png"}
 
 
+def _drm_screenshot_after_wake(method, fmt, quality):
+    """Retry only the expected sleeping-display failure after waking scanout."""
+    try:
+        return _drm_screenshot_b64(method, fmt, quality)
+    except Exception as error:
+        if "No active CRTC" not in str(error):
+            raise
+        wake_display()
+        return _drm_screenshot_b64(method, fmt, quality)
+
+
 def cmd_screenshot(msg):
     method = msg.get("method")  # "egl", "gbm", "keyboard", or None (auto)
     fmt = msg.get("format", "jpeg")  # "jpeg" (default) or "png"
     quality = msg.get("quality", 80)
 
-    # A sleeping display has no active CRTC, so DRM capture cannot begin.
-    # Modifier-only input is harmless when the display is already awake.
-    wake_display()
-
     # Explicit method request
     if method in ("egl", "gbm"):
         try:
-            return _drm_screenshot_b64(method, fmt, quality)
+            return _drm_screenshot_after_wake(method, fmt, quality)
         except Exception as e:
             return {"error": f"{method} capture failed: {e}"}
 
@@ -601,7 +608,7 @@ def cmd_screenshot(msg):
 
     # Default: EGL, fall back to keyboard, then GBM
     try:
-        return _drm_screenshot_b64("egl", fmt, quality)
+        return _drm_screenshot_after_wake("egl", fmt, quality)
     except Exception:
         pass
 
