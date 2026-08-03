@@ -90,16 +90,31 @@ fi
 
 # 2. Check reboot-persistent SSH management
 SSH_AUTOSTART=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; \
-if [ ! -f /etc/init/chromeos-testbed-sshd.conf ]; then echo missing; \
-elif status chromeos-testbed-sshd 2>/dev/null | grep -q 'start/running'; then echo running; \
-else echo stopped; fi" 2>/dev/null || true)
+if [ -f /etc/init/openssh-server.conf ] && \
+   grep -qx 'author \"chromeos-testbed\"' /etc/init/openssh-server.conf && \
+   grep -qx 'start on shill-connected' /etc/init/openssh-server.conf; then \
+  if status openssh-server 2>/dev/null | grep -q 'start/running'; then echo running; \
+  else echo stopped; fi; \
+elif [ -f /etc/init/chromeos-testbed-sshd.conf ] && \
+     grep -qx 'author \"chromeos-testbed\"' /etc/init/chromeos-testbed-sshd.conf; then \
+  if status chromeos-testbed-sshd 2>/dev/null | grep -q 'start/running'; then echo incompatible-running; \
+  else echo incompatible-stopped; fi; \
+else echo missing; fi" 2>/dev/null || true)
 case "$SSH_AUTOSTART" in
     running)
-        ok "SSH is managed by Upstart and will start after reboot"
+        ok "SSH starts through openssh-server after network connection"
         ;;
     stopped)
         warn "SSH autostart is installed but not running" \
              "Run: chromeos fix-ssh"
+        ;;
+    incompatible-running)
+        warn "SSH uses the incompatible chromeos-testbed-sshd startup job" \
+             "Re-run the current bootstrap to restore reliable post-reboot startup"
+        ;;
+    incompatible-stopped)
+        warn "Incompatible SSH autostart is installed but not running" \
+             "Re-run the current bootstrap to replace and restart it"
         ;;
     *)
         warn "SSH autostart is not installed" \

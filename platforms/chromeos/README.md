@@ -45,8 +45,9 @@ curl -fsSL https://kzahel.github.io/chromeos-testbed/bootstrap.sh | bash
 This sets up SSH on port 2223 with key auth, opens the firewall, configures
 remote debugging, and—when rootfs is writable—installs an Upstart job that
 starts SSH automatically after reboot. The boot timing follows ChromeOS's own
-`openssh-server` job. A stateful manual start script is retained as a fallback
-because ChromeOS updates may replace files under `/etc/init`.
+network event through the `openssh-server` job. A stateful manual start script
+is retained as a fallback because ChromeOS updates may replace files under
+`/etc/init`.
 
 Switch back to the GUI: **Ctrl+Alt+F1**.
 
