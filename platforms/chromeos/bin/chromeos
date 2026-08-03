@@ -169,6 +169,11 @@ cmd_screenshot() {
 
     ensure_client
 
+    # A sleeping ChromeOS display has no active CRTC for DRM capture. Wake it
+    # with modifier-only input so this does not type into or activate the
+    # focused control, then allow scanout to settle.
+    send_cmd '{"cmd":"wake"}' >/dev/null
+
     # Keyboard method must go through client.py
     if [[ "$method" == "keyboard" ]]; then
         _screenshot_json "$output" "$method" "$format"
@@ -185,9 +190,19 @@ cmd_screenshot() {
     fi
     [[ -n "$method" ]] && remote_args="$remote_args --method $method"
 
-    if ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
-        "$REMOTE_PATH_SETUP; LD_LIBRARY_PATH=/usr/local/lib64 python3 $remote_dir/drm_screenshot.py $remote_args" \
-        > "$output" 2>/dev/null && [[ -s "$output" ]]; then
+    local capture_ok=0 attempt
+    for attempt in 1 2 3; do
+        if ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
+            "$REMOTE_PATH_SETUP; LD_LIBRARY_PATH=/usr/local/lib64 python3 $remote_dir/drm_screenshot.py $remote_args" \
+            > "$output" 2>/dev/null && [[ -s "$output" ]]; then
+            capture_ok=1
+            break
+        fi
+        rm -f "$output"
+        [[ "$attempt" -lt 3 ]] && sleep 0.35
+    done
+
+    if (( capture_ok )); then
         if json_mode; then
             python3 -c "import json,sys; print(json.dumps({'ok':True,'path':sys.argv[1],'format':sys.argv[2],'method':sys.argv[3] or 'auto'}))" \
                 "$output" "$format" "$method"
@@ -195,7 +210,6 @@ cmd_screenshot() {
             echo "$output ($format)"
         fi
     else
-        rm -f "$output"
         _screenshot_json "$output" "$method" "$format"
     fi
 }

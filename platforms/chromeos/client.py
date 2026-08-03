@@ -13,6 +13,7 @@ Commands:
     {"cmd": "key", "keys": [125, 63]}            -> {"ok": true}  (raw keycodes)
     {"cmd": "type", "text": "hello"}             -> {"ok": true}
     {"cmd": "screenshot"}                        -> {"image": "base64..."}
+    {"cmd": "wake"}                              -> {"ok": true}
     {"cmd": "info"}                              -> {"touch_max": [x, y], "device": "..."}
     {"cmd": "mouse_move", "x": 960, "y": 540}    -> {"ok": true}  (screen pixel coords)
     {"cmd": "mouse_click", "button": "left", "x": 960, "y": 540}  -> {"ok": true}
@@ -497,6 +498,12 @@ def shortcut(modifiers, key):
 
 
 # === Screenshot ===
+def wake_display(settle_seconds=0.5):
+    """Wake display scanout without typing or changing the active control."""
+    press_keys([KEY_LEFTSHIFT])
+    time.sleep(settle_seconds)
+
+
 def take_screenshot():
     """Take screenshot via Ctrl+Show Windows (Ctrl+F5), return base64."""
     files = glob.glob(f"{SCREENSHOT_DIR}/Screenshot*.png")
@@ -519,6 +526,11 @@ def take_screenshot():
 # === Command Handlers ===
 def cmd_ping(msg):
     return {"pong": True}
+
+
+def cmd_wake(msg):
+    wake_display()
+    return {"ok": True}
 
 
 def cmd_tap(msg):
@@ -569,6 +581,10 @@ def cmd_screenshot(msg):
     method = msg.get("method")  # "egl", "gbm", "keyboard", or None (auto)
     fmt = msg.get("format", "jpeg")  # "jpeg" (default) or "png"
     quality = msg.get("quality", 80)
+
+    # A sleeping display has no active CRTC, so DRM capture cannot begin.
+    # Modifier-only input is harmless when the display is already awake.
+    wake_display()
 
     # Explicit method request
     if method in ("egl", "gbm"):
@@ -861,6 +877,7 @@ def cmd_desktop_action(msg):
 
 COMMANDS = {
     "ping": cmd_ping,
+    "wake": cmd_wake,
     "tap": cmd_tap,
     "swipe": cmd_swipe,
     "key": cmd_key,
