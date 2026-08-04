@@ -8,6 +8,14 @@ direction together so later work can reproduce the problem.
 
 ### Provider screenshots do not share the coordinate space used by `click`
 
+Status: **resolved 2026-08-04.** Provider capture now reads the live UTM
+window geometry, removes its title bar and Retina scale, and emits an image at
+the configured Windows logical display size. The observed 2798×2050 raw host
+capture now becomes 1399×985, matching the coordinates consumed by UTM click.
+As an end-to-end probe, clicking the Search box at its normalized screenshot
+coordinate made `SearchHost` the foreground window; Escape restored the prior
+desktop.
+
 `winvm screenshot` captures the full macOS UTM window with
 `screencapture -l`. On the observed Retina host the PNG was 2798×2050 and
 included UTM chrome/title-bar pixels, while the guest display and UTM mouse
@@ -17,10 +25,9 @@ Effect: a point read from the screenshot cannot be passed directly to
 `winvm click`; it needs an undocumented scale and title-bar transform. This
 made WebView-only controls need trial-and-error clicks.
 
-Possible direction: normalize screenshots to the guest viewport as LinuxVM
-and MacVM do, or emit the exact screenshot-to-guest transform alongside the
-path. Until then, document that the screenshot is raw host-window pixels even
-though `click` accepts title-bar-free guest pixels.
+The display dimensions remain explicit configuration because screenshot
+recovery must work even when SSH and PowerShell display discovery are
+unavailable. Update them when the guest logical display mode changes.
 
 ### UIA invoke can report dispatch without an application transition
 

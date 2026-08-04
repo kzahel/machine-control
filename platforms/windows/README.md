@@ -121,7 +121,10 @@ bin/winvm scan 28 156             # Enter make/break scan codes
 ```
 
 Semantic automation is preferable to coordinates. UTM mouse coordinates are
-guest-display coordinates and exclude the UTM title bar.
+guest-display coordinates and exclude the UTM title bar. `winvm screenshot`
+crops the title bar and Retina backing pixels, then scales the image to the
+configured guest display. A screenshot pixel `(x, y)` is therefore the exact
+coordinate accepted by `winvm click x y`.
 
 ## What Survives a Reboot
 

@@ -73,6 +73,7 @@ fi
 
 if command -v swiftc >/dev/null 2>&1; then
     swiftc -typecheck "$REPO_DIR/providers/utm-macos/window-id.swift"
+    swiftc -typecheck "$REPO_DIR/providers/utm-macos/normalize-screenshot.swift"
 fi
 
 printf 'Smoke tests passed.\n'

@@ -35,6 +35,13 @@ UTM guest-agent process execution was unreliable on the original test VM, so
 it is not trusted as a command channel. The design uses guest-agent transfer
 only for bootstrap and SSH afterward.
 
+Provider capture finds the visible layer-0 UTM window, records its logical
+geometry, captures its Retina backing pixels, removes the macOS title bar, and
+normalizes the guest viewport to `WINVM_DISPLAY_WIDTH` ×
+`WINVM_DISPLAY_HEIGHT`. UTM mouse input consumes that same guest coordinate
+space. Keep the configured dimensions aligned with the Windows logical display
+mode; screenshot pixels can then be passed directly to `winvm click`.
+
 ## Windows Guest Driver
 
 The bootstrap installs and hardens Windows OpenSSH. The semantic UI layer uses
