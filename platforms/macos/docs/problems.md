@@ -63,3 +63,57 @@ the target directory even though it was visibly present.
 Workaround: use Command-Shift-G and enter an exact path, or use a fresh
 screenshot and coordinates. Possible direction: document the path-navigation
 recipe and consider deriving row text from named child cells when available.
+
+### Semantic tree discovery and actions can disagree
+
+Status: **unresolved.** In Chrome, `macvm ui tree` exposed meaningful controls,
+including the address field, extension toolbar controls, and extension page
+content. Fresh `ui find`, `ui press`, and `ui set-value` invocations could not
+reliably rediscover some of those same controls, even with the same explicit
+application selector and an increased traversal depth.
+
+Effect: a control can appear automatable during inspection but fail when the
+test attempts to act on it. Because each command starts a fresh helper and
+rebuilds the Accessibility snapshot, dynamic browser UI and focus changes may
+contribute to the disagreement.
+
+Possible direction: make tree output and state-changing actions share one
+query/traversal implementation, add diagnostic output explaining why visible
+records were excluded, and add regressions for Chrome's address field,
+extension toolbar controls, and extension page buttons. A longer-lived
+guest-side helper may be worth evaluating if fresh AX references are the root
+cause.
+
+### Host keyboard modifier chords can degrade into literal input
+
+Status: **unresolved.** During Chrome automation, `macvm key cmd-l` entered a
+literal `l` instead of focusing the address field. Another modified shortcut
+also produced printable input rather than the requested chord. The VM had been
+started with Tart system-key capture enabled, so this was not explained by the
+documented launch prerequisite.
+
+Effect: shortcut-driven navigation can corrupt text or URLs and invalidate a
+test step while still appearing to complete successfully.
+
+Possible direction: add end-to-end chord tests against a simple guest-native
+target, inspect how CoreGraphics flags and modifier key transitions reach
+Tart, and prefer a guest-local keyboard action for normal post-bootstrap
+automation.
+
+### Outer input disrupts concurrent work on the host
+
+Status: **unresolved design gap.** `macvm click`, `macvm type`, and `macvm key`
+foreground the Tart window and send input from the host. This is appropriate
+for bootstrap, consent, and recovery, but it steals focus and can interfere
+with someone using the host when semantic automation falls back to it during a
+routine test.
+
+Effect: unattended MacVM validation is not currently safe to run alongside
+interactive host work if it may use outer input.
+
+Possible direction: make routine automation guest-native and non-disruptive by
+default. Add an explicit no-host-input mode that fails rather than falling
+back, reserve outer input for an opt-in exclusive/recovery mode, and provide
+guest-native primitives for common operations such as opening a URL in a
+chosen browser and sending a keyboard chord to a chosen application. Document
+which commands can activate the Tart window.
