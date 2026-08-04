@@ -49,6 +49,11 @@ bin/macvm shell
 bin/macvm suspend
 ```
 
+`macvm up` submits the graphical `tart run` process to the current user's
+launchd GUI domain. The VM therefore remains running after the invoking shell
+or non-interactive command runner exits. Routine suspend, shutdown, and stop
+leave no launchd-owned Tart process; the next `up` replaces any inactive job.
+
 Discover and operate semantic macOS controls:
 
 ```bash

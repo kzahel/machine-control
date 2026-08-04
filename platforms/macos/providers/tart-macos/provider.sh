@@ -14,6 +14,81 @@ Internal Tart-on-macOS provider. Use bin/macvm instead.
 EOF
 }
 
+launchd_label() {
+    local safe_name
+    safe_name="$(printf '%s' "$MACVM_NAME" | tr -c 'A-Za-z0-9._-' '_')"
+    printf 'app.macvm-testbed.tart.%s\n' "$safe_name"
+}
+
+launchd_domain() {
+    printf 'gui/%s\n' "$(/usr/bin/id -u)"
+}
+
+launchd_runtime_dir() {
+    local temp_root="${TMPDIR:-/tmp}"
+    printf '%s/macvm-testbed/launchd\n' "${temp_root%/}"
+}
+
+xml_escape() {
+    printf '%s' "$1" | /usr/bin/sed \
+        -e 's/&/\&amp;/g' \
+        -e 's/</\&lt;/g' \
+        -e 's/>/\&gt;/g' \
+        -e 's/"/\&quot;/g' \
+        -e "s/'/\\\&apos;/g"
+}
+
+write_launchd_plist() {
+    local plist_path="$1" label="$2" log_path="$3"
+    shift 3
+    local argument
+    {
+        printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'
+        printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
+        printf '%s\n' '<plist version="1.0">' '<dict>'
+        printf '  <key>Label</key>\n  <string>%s</string>\n' "$(xml_escape "$label")"
+        printf '%s\n' '  <key>ProgramArguments</key>' '  <array>'
+        for argument in "$@"; do
+            printf '    <string>%s</string>\n' "$(xml_escape "$argument")"
+        done
+        printf '%s\n' '  </array>'
+        printf '  <key>StandardOutPath</key>\n  <string>%s</string>\n' \
+            "$(xml_escape "$log_path")"
+        printf '  <key>StandardErrorPath</key>\n  <string>%s</string>\n' \
+            "$(xml_escape "$log_path")"
+        printf '%s\n' \
+            '  <key>ProcessType</key>' '  <string>Interactive</string>' \
+            '  <key>LimitLoadToSessionType</key>' '  <string>Aqua</string>' \
+            '  <key>RunAtLoad</key>' '<true/>' \
+            '  <key>KeepAlive</key>' '<false/>' \
+            '</dict>' '</plist>'
+    } >"$plist_path"
+    /bin/chmod 600 "$plist_path"
+    /usr/bin/plutil -lint "$plist_path" >/dev/null
+}
+
+unload_launchd_runner() {
+    /bin/launchctl bootout "$(launchd_domain)/$(launchd_label)" \
+        >/dev/null 2>&1 || true
+}
+
+start_launchd_runner() {
+    local -a arguments=("$MACVM_TART" run "$@" "$MACVM_NAME")
+    local runtime_dir label plist_path log_path
+    runtime_dir="$(launchd_runtime_dir)"
+    label="$(launchd_label)"
+    plist_path="$runtime_dir/$label.plist"
+    log_path="$runtime_dir/$label.log"
+
+    /bin/mkdir -p "$runtime_dir"
+    /bin/chmod 700 "$runtime_dir"
+    unload_launchd_runner
+    : >"$log_path"
+    write_launchd_plist "$plist_path" "$label" "$log_path" "${arguments[@]}"
+    /bin/launchctl bootstrap "$(launchd_domain)" "$plist_path"
+    printf '%s\n' "$log_path"
+}
+
 ensure_running() {
     local state
     state="$(macvm_state || true)"
@@ -36,9 +111,8 @@ ensure_running() {
         run_args+=(--dir="macvm-testbed:$MACVM_REPO_DIR:ro")
     fi
 
-    local log_path="/tmp/macvm-${MACVM_NAME//[^A-Za-z0-9_.-]/_}.log"
-    nohup "$MACVM_TART" run "${run_args[@]}" "$MACVM_NAME" \
-        >"$log_path" 2>&1 &
+    local log_path
+    log_path="$(start_launchd_runner "${run_args[@]}")"
 
     local deadline=$((SECONDS + MACVM_BOOT_TIMEOUT))
     while (( SECONDS < deadline )); do
@@ -120,6 +194,7 @@ guest_shutdown() {
     local deadline=$((SECONDS + MACVM_BOOT_TIMEOUT))
     while (( SECONDS < deadline )); do
         if [[ "$(macvm_state || true)" != "running" ]]; then
+            unload_launchd_runner
             return 0
         fi
         sleep 1
@@ -146,7 +221,7 @@ case "$command" in
     key) input_key "$@" ;;
     suspend) "$MACVM_TART" suspend "$MACVM_NAME" ;;
     shutdown) guest_shutdown ;;
-    stop) "$MACVM_TART" stop "$MACVM_NAME" --timeout 30 ;;
-    force-stop) "$MACVM_TART" stop "$MACVM_NAME" --timeout 0 ;;
+    stop) "$MACVM_TART" stop "$MACVM_NAME" --timeout 30; unload_launchd_runner ;;
+    force-stop) "$MACVM_TART" stop "$MACVM_NAME" --timeout 0; unload_launchd_runner ;;
     *) usage >&2; exit 2 ;;
 esac

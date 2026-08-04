@@ -93,7 +93,12 @@ stage. See [bootstrap](bootstrap.md) for the operational contract.
 - `force-stop` sets Tart's graceful timeout to zero and requires explicit
   recovery intent.
 - starting through `macvm up` enables suspendability, guest system-key
-  capture, and a read-only repository share by default.
+  capture, and a read-only repository share by default;
+- `macvm up` runs Tart as a transient per-user launchd GUI job so ownership is
+  independent of the invoking shell or agent process group; and
+- normal shutdown and stop unload that transient job after Tart has completed
+  the lifecycle transition. Suspend lets Tart exit naturally so its saved
+  state is retained; the next `up` replaces the inactive launchd job.
 
 The VM's disk and suspended state are not a session-ownership authority.
 Restoring or cloning a VM that contains provider state must not make it an

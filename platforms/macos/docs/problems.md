@@ -8,6 +8,12 @@ direction together so later work can reproduce the problem.
 
 ### `macvm up` is not durable under process-group-reaping command runners
 
+Status: **resolved 2026-08-04.** `macvm up` now submits `tart run` as a
+transient job in the current user's launchd GUI domain. A separate invocation
+verified the VM remained running after the launcher command and its process
+group exited. Suspend is allowed to finish and exit the runner naturally so
+the saved state remains available; the next `up` replaces the inactive job.
+
 `providers/tart-macos/provider.sh` starts `tart run` with `nohup ... &` and
 returns once Tart reports `running`. Under an agent command runner that reaps
 the completed command's process group, Tart exits as soon as the `macvm up`
@@ -18,9 +24,9 @@ Effect: a successful `up` is followed immediately by a stopped VM and later
 commands fail. Keeping the launching shell alive in a persistent execution
 session made the VM stable for the full smoke.
 
-Possible direction: provide a launchd-owned or otherwise fully detached Tart
-launch mode, and add a doctor/smoke probe that verifies the VM remains running
-after the launcher process exits.
+The launchd runner retains the graphical Aqua session, suspendability,
+system-key capture, and read-only repository share used by the prior direct
+launch.
 
 ### Tree formatting hides a control's value when it also has a label
 
