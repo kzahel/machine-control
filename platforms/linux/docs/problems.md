@@ -14,10 +14,20 @@ desktop and `qemu-guest-agent` was active, and the same doctor passed after the
 cold boot settled. The first result was therefore a transport-readiness race,
 not a failed guest service.
 
+The 2026-08-04 candidate-validation rerun also found that this failure path can
+leave the VM started without an on-screen UTM console. The settled doctor then
+passed the command channel, session, and AT-SPI checks but failed **visible UTM
+window**. Running `open -a UTM` on the Mac host exposed the already-running VM
+console once; on later boots it opened only the UTM library. Choosing the VM
+from UTM's **Window** menu exposed the console without restarting the guest,
+and the next doctor passed every check. Treat that as the bounded workaround
+until `up` owns both readiness and visible console presentation.
+
 Possible direction: make `up` wait for a bounded guest-agent readiness result
-or return an unambiguous started-but-not-ready status, and place a timeout
-around each `utmctl exec` readiness probe so a cold-start check cannot block
-past the controller deadline.
+or return an unambiguous started-but-not-ready status, ensure the requested VM
+console is visible after a successful start, and place a timeout around each
+`utmctl exec` readiness probe so a cold-start check cannot block past the
+controller deadline.
 
 ### There is no documented GUI-application launch path
 
@@ -53,6 +63,20 @@ least common chooser/editing shortcuts such as Ctrl-L, Ctrl-A, Ctrl-C/V, Home,
 End, Page Up, and Page Down. Until then, abort a sequence immediately when
 `key` returns nonzero and use semantic actions, documented scan codes, or
 coordinates.
+
+### Raw shortcuts do not establish the intended guest window focus
+
+Two `linuxvm key alt-f4` calls returned success while a visible application
+window remained open. AT-SPI actions used immediately beforehand operated the
+application semantically but had not made its frame the active recipient of
+raw guest input. The frame published by `mutter-x11-frames` exposed a
+`window.close` action; invoking its visible **Close** control closed the exact
+window and allowed the product's last-window behavior to be validated.
+
+Possible direction: document that `key` targets the guest's existing input
+focus, not the application most recently addressed by `linuxvm ui`. Add a
+first-class semantic window activate/close example or command so callers do
+not infer target focus from a successful raw-key return.
 
 ### The action selector supported by `press` is not documented
 
