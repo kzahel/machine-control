@@ -124,7 +124,8 @@ Semantic automation is preferable to coordinates. UTM mouse coordinates are
 guest-display coordinates and exclude the UTM title bar. `winvm screenshot`
 crops the title bar and Retina backing pixels, then scales the image to the
 configured guest display. A screenshot pixel `(x, y)` is therefore the exact
-coordinate accepted by `winvm click x y`.
+coordinate accepted by `winvm click x y`. Capture also finds a matching UTM
+console on another macOS Space, preferring an on-screen console when possible.
 
 ## What Survives a Reboot
 
@@ -143,6 +144,11 @@ Accessibility quality depends on the application. Native Notepad exposes a
 rich semantic tree. Some packaged applications expose only their outer frame.
 Tauri and other embedded webviews may expose window chrome without exposing
 web content; use screenshots/input or add a WebView-specific driver.
+
+Windows system-modal and secure-desktop prompts are outside the unelevated
+semantic relay. The relay also depends on SSH, so it cannot dismiss a prompt
+when the command channel is unavailable. Keep provider screenshot and raw
+input available for those recovery cases, and re-run `doctor` afterward.
 
 RustDesk or RDP can be added for convenient human viewing, but neither is
 required for the agent control path or a substitute for semantic automation.

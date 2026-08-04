@@ -5,12 +5,16 @@ struct UTMWindow: Codable {
     let id: Int
     let width: Double
     let height: Double
+    let isOnScreen: Bool
 }
 
 let arguments = Array(CommandLine.arguments.dropFirst())
 let vmName = arguments.first ?? "Windows"
 let jsonOutput = arguments.dropFirst().contains("--json")
-let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+// Keep windows from every macOS Space in scope. A VM console can move to a
+// different Space while UTM input automation and guest control remain usable,
+// and `screencapture -l` can still capture that window by ID.
+let options: CGWindowListOption = [.excludeDesktopElements]
 
 guard let windowInfo = CGWindowListCopyWindowInfo(options, kCGNullWindowID)
         as? [[String: Any]] else {
@@ -31,13 +35,23 @@ let candidates = windowInfo.compactMap { window -> UTMWindow? in
           let height = (bounds["Height"] as? NSNumber)?.doubleValue else {
         return nil
     }
-    return UTMWindow(id: windowID, width: width, height: height)
+    let isOnScreen = (window[kCGWindowIsOnscreen as String] as? NSNumber)?
+        .boolValue ?? false
+    return UTMWindow(
+        id: windowID,
+        width: width,
+        height: height,
+        isOnScreen: isOnScreen
+    )
 }
 
 guard let selected = candidates.max(by: {
-    $0.width * $0.height < $1.width * $1.height
+    if $0.isOnScreen != $1.isOnScreen {
+        return !$0.isOnScreen && $1.isOnScreen
+    }
+    return $0.width * $0.height < $1.width * $1.height
 }) else {
-    fputs("No visible UTM window named '\(vmName)' was found\n", stderr)
+    fputs("No UTM window named '\(vmName)' was found\n", stderr)
     exit(1)
 }
 
