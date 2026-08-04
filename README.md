@@ -383,3 +383,7 @@ implementation repository.
   ordinary agent actions.
 - Freezing a cross-platform wire protocol before the Windows local-and-remote
   vertical slice has survived real use.
+
+## License
+
+This project is available under the [MIT License](LICENSE).

@@ -166,9 +166,36 @@ repository enters the system, update `SYSTEM-MAP.md`. Keep exact experiment
 evidence and third-party source pins in `machine-control-spike`; link to those
 findings rather than copying detailed audit logs here.
 
-Never store credentials, private machine configuration, VM/device identifiers,
-personal captures, signed approval material, or generated support bundles in
-this directory.
+## Public repository safety
+
+Treat this repository and its complete Git history as public. Portable
+architecture, contracts, schemas, generic examples, conformance expectations,
+and reusable implementation plans belong here. Private infrastructure and
+deployment state do not.
+
+Never commit:
+
+- real machine, VM, host, device, Wi-Fi, network, relay, account, or friendly
+  names that identify the controller user's infrastructure;
+- IP or MAC addresses, DNS names, ports tied to a private deployment, usernames,
+  home-directory paths, peer IDs, device serials/UDIDs, VM IDs, or cloud resource
+  identifiers;
+- credentials, passwords, API keys, tokens, private keys, certificates,
+  pairing material, signing identities, recovery codes, or authorization
+  grants and leases;
+- private network topology, access routes, firewall rules, remote-management
+  endpoints, or enough combined detail to reconstruct them;
+- personal screenshots, recordings, logs, clipboard contents, support bundles,
+  crash artifacts, or golden-image identifiers; or
+- machine-specific configuration, even when it appears harmless or temporary.
+
+Use generic placeholders and logical examples instead. Labels such as `winvm`
+or `ios` are acceptable only as non-authoritative examples that reveal no real
+endpoint or access path. Store actual inventory and deployment configuration in
+ignored local files or a deliberately private infrastructure store owned by the
+relevant testbed. Before committing captured evidence, redact and minimize it;
+when uncertain, keep it out of this repository. Deleting a secret in a later
+commit does not remove it from Git history.
 
 ## Commit message guidance
 
