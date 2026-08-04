@@ -1,0 +1,14 @@
+# Copy to config.local for controller-local defaults. Never commit a device
+# UDID, Apple account, signing artifact, or controller-local path.
+
+# A unique physical-device name is preferred with Agent Device 0.20.5.
+# export IOS_DEVICE_TESTBED_DEVICE=iPhone
+
+# Xcode paid-team signing settings for the dedicated XCTest runner.
+# export IOS_DEVICE_TESTBED_TEAM_ID=<apple-developer-team-id>
+# export IOS_DEVICE_TESTBED_RUNNER_BUNDLE_ID=com.example.iosdevicetestbed.runner
+
+# Optional overrides. Defaults keep Agent Device state isolated from ~/.agent-device.
+# export IOS_DEVICE_TESTBED_STATE_DIR="$HOME/.ios-device-testbed"
+# export IOS_DEVICE_TESTBED_AGENT_DEVICE=/path/to/agent-device
+# export IOS_DEVICE_TESTBED_SIGNING_IDENTITY='Apple Development'

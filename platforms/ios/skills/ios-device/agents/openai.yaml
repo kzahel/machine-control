@@ -1,0 +1,4 @@
+interface:
+  display_name: "iOS Device Testbed"
+  short_description: "Operate the physical iPhone testbed safely"
+  default_prompt: "Use $ios-device to inspect and test an app on the physical iPhone."
