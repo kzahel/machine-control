@@ -17,6 +17,19 @@ YepAnywhere's delegation direction is documented in
 Delegation creates a normal worker session on a YA peer; it does not turn YA
 into a raw proxy for every testbed CLI.
 
+## Missing common implementation boundary
+
+**Open:** There is not yet one implemented target-controller runtime or facade
+shared by Windows, macOS, Linux, and ChromeOS. The Windows-first slice should
+establish the contract boundary between authenticated local/remote sessions,
+the interactive-session companion, platform adapters, and any protected
+broker. It may initially compose existing WinVM administration and WinApp
+mechanisms rather than moving their lifecycle or recovery ownership.
+
+This future implementation is not YepAnywhere delegation, not dotfiles
+inventory, and not an outer testbed. Its repository ownership should be added
+to this map only after the Windows slice provides enough evidence to choose it.
+
 ## Desktop VM testbeds
 
 | Repository | Administration/inner control | Outer control |

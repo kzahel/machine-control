@@ -5,6 +5,19 @@ Status: proposal for common vocabulary, not a frozen wire protocol.
 The common layer should let coordination and agents reason about heterogeneous
 providers without claiming that all platforms have equivalent behavior.
 
+## Contract and session envelope
+
+Local IPC, SSH, an authenticated tunnel, CLI/SDK calls, and MCP are facades or
+transports for the same conceptual contract. A session handshake should expose
+at least contract version, target identity and generation, provider/build
+identity, authenticated caller scope, current capabilities, and artifact
+transfer limits. Public target names, snapshot IDs, and YA session IDs are not
+authorization credentials.
+
+The lifecycle needs explicit health, cancellation, lease expiry, revocation,
+and session cleanup. Reconnect must not silently preserve stale element
+references or protected authority across a target/provider generation change.
+
 ## Capability description
 
 A capability should report more than supported/unsupported:
@@ -64,6 +77,13 @@ Every observation identifies:
 A sparse accessibility tree is degraded output, not proof that the screen has
 no controls.
 
+When a screenshot and semantic tree claim to describe the same state, the
+provider should return them from one observation epoch or say that they may
+have drifted. Element and window references should bind enough identity—such
+as target generation, snapshot, process, native window ID, and provider
+instance—to reject a plausible-looking reference that now names a different
+object.
+
 ## Action results
 
 An action result separates acceptance, delivery, effect, and evidence:
@@ -100,6 +120,11 @@ Candidate effect states:
 Mutating actions with `unknown` outcome must not be replayed automatically.
 The next step is observation and reconciliation.
 
+Refusals should use stable machine-readable reasons such as stale reference,
+capability unavailable, wrong session/desktop, authorization required, policy
+denied, target generation changed, or unsupported state. Human-readable error
+text alone is not sufficient for safe route selection or recovery.
+
 ## Route escalation
 
 An operation may return a proposed next route:
@@ -132,6 +157,13 @@ Providers should eventually be tested for:
 - no silent privilege or outer-route escalation;
 - revocation and cleanup; and
 - recovery independence.
+
+Conformance should use small deterministic native and web fixtures with state
+that can be checked independently of the action provider. Event-aware waits,
+postconditions, and bounded retries are preferable to fixed sleeps; retries
+must still respect unknown outcomes and action idempotency. Test reports should
+pin the environment and distinguish provider behavior from fixture or transport
+failure.
 
 Existing provider-specific commands do not need to adopt one wire format
 immediately. A thin adapter can first project their behavior into this

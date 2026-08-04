@@ -88,6 +88,20 @@ recovery channel.
 An implementation of some control capabilities. A provider advertises what it
 can currently do, its restrictions, and the routes it may use.
 
+**Target controller**
+
+The target-native service boundary that presents administration, semantic,
+visual, input, application/session, and explicitly authorized protected
+capabilities through a common contract. Local and remote agents may call it;
+it is not itself a YA worker, hypervisor console, or one platform adapter.
+
+**User-session companion**
+
+A target-resident process in the interactive desktop session that can use the
+platform's semantic, capture, input, clipboard, window, and application APIs.
+It may be supervised by a service, but does not inherit protected authority
+merely because a service launched it.
+
 **Inner provider**  
 A provider running in or through the target OS. It usually has the richest
 semantic state but depends on the guest OS, an interactive session, permissions,
@@ -101,6 +115,13 @@ and less semantic.
 **Protected broker**  
 A separately installed and authenticated component exposing only narrowly
 typed protected capabilities. It is not directly agent-facing.
+
+**Authorization lease**
+
+A bounded, expiring, revocable grant for a protected or disruptive capability.
+It binds the caller, target and provider generation, capability, scope, and
+relevant session/desktop state. A target selector or generic admin flag is not
+an authorization lease.
 
 **Route**  
 The actual mechanism used for an operation. Initial route classes are

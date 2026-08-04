@@ -77,6 +77,14 @@ The target-native system should cover, as far as the platform permits:
 - an explicitly authorized resident service or protected broker for operations
   that cannot run in an ordinary user process.
 
+Full control does not imply one unsafe deployment posture. A disposable test
+appliance may deliberately arm a stronger resident controller because isolation
+and rebuildability are part of its boundary. A personal or shared workstation
+should keep protected operations behind visible, bounded, revocable authority
+outside the ordinary agent process. Both profiles must expose the same honest
+capability vocabulary; neither may silently widen itself from agent-controlled
+arguments or environment.
+
 Preboot firmware, disk-unlock screens, unavailable operating systems, and
 physically broken machines may still require an outer provider or a human.
 Those exceptions do not make outer control the normal desktop route.
@@ -299,6 +307,27 @@ The original durable brief remains in
 valuable first-generation design, especially its security and protocol notes,
 but it was written around evaluating Cua as a possible common core.
 
+The durable lessons retained here are deliberately narrower than that original
+plan:
+
+- own a transport- and facade-independent control contract rather than tying
+  the architecture to MCP, SSH, Cua, Computer Use, or one agent product;
+- use a stable target service plus an interactive-session companion and only a
+  narrow protected broker where the platform requires one;
+- distinguish dedicated test appliances from personal/shared machines, and do
+  not mistake same-user tool policy for containment from a shell-capable agent;
+- bind semantic references and protected authority to target/session
+  generations, with expiry, cancellation, revocation, and structured refusal;
+- pair semantic and visual observations by explicit epochs and keep action
+  delivery separate from independently observed effect; and
+- test providers with deterministic fixtures, event-aware waits, honest
+  omissions, and independent oracles.
+
+What was intentionally not carried forward is equally important: Cua is not
+the universal core; spawning a YA worker inside a desktop is not required for
+outside control; MCP is not the authorization boundary; and outer VM/KVM input
+is not a routine fallback.
+
 [`../machine-control-spike/`](../machine-control-spike/README.md) contains the
 executable Cua evaluation and exact evidence. Its macOS and Windows findings
 show that Cua contains useful contract ideas and may remain an optional
@@ -321,6 +350,8 @@ implementation repository.
 - Merging controller and worker transcripts into one provider session.
 - Making screenshot-and-coordinate control the least common denominator.
 - Giving a guest worker generic access to its hypervisor or physical KVM.
+- Requiring an in-target agent session before an authorized outside caller can
+  use the resident controller.
 - Treating login, credentials, biometrics, or protected authorization as
   ordinary agent actions.
 - Freezing a cross-platform wire protocol before the Windows local-and-remote

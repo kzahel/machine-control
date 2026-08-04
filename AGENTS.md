@@ -101,6 +101,12 @@ Preserve these rules:
   privilege honestly; do not weaken the target-resident goal merely because a
   normal user process cannot cross a session, integrity, or secure-desktop
   boundary.
+- Treat local IPC, SSH, tunnels, CLI/SDK calls, and MCP as transports or facades
+  over the contract, not as the contract or its security boundary. A public
+  target name or agent session ID is not private bearer authority.
+- Do not claim same-user containment when the agent also has a shell. Stronger
+  separation requires a different OS identity, sandbox, isolated appliance, or
+  authorization component outside the agent's authority.
 - ChromeOS, iOS, Android, Quest, and other physical devices are in scope for the
   North Star. Preserve their existing authoritative testbeds and native routes;
   do not make desktop VM architecture a prerequisite for device support.

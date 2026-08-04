@@ -5,12 +5,16 @@ in the relevant testbed and `machine-control-spike`.
 
 ## Windows desktop
 
-Preferred placement is a YA worker in the interactive Windows session.
+Preferred control is a Windows-resident service reachable through the same
+facade from an outside agent or a local YA worker. The interactive-session
+companion owns ordinary desktop operations; the worker is optional.
 
 - Administration: PowerShell/SSH or another guest administration channel.
 - Semantics: UI Automation through the existing WinApp relay.
 - Guest-local visual/input fallback: a user-session provider where it does not
   cross integrity or secure-desktop boundaries silently.
+- Optional supplements: Computer Use or Cua when either improves a task, without
+  making it the only remotely usable surface.
 - Outer recovery: UTM/QEMU console capture and input on the Mac controller.
 - Protected future: a narrow session proxy and optionally a SYSTEM broker for
   truthful input-desktop state, companion bootstrap, and explicitly armed
@@ -23,7 +27,9 @@ therefore a reference or optional provider, not the system foundation. See
 
 ## macOS desktop
 
-Preferred placement is a YA worker inside the physical Mac or macOS VM.
+Preferred control is a stable, consented, target-resident helper reachable
+locally or remotely. A YA worker may run inside the physical Mac or VM when the
+task benefits from local project context.
 
 - Administration: local shell or `tart exec` for the VM.
 - Semantics: Accessibility (`AXUIElement`) through a stable, consented helper.
@@ -37,7 +43,9 @@ foreground the Tart window and move the controller pointer.
 
 ## Linux desktop
 
-Preferred placement is a YA worker in the Linux user session.
+Preferred control is a target-resident service connected to the active desktop
+session and reachable locally or remotely. A YA worker in that session is
+optional.
 
 - Administration: QEMU guest agent, SSH, or local shell.
 - Semantics: AT-SPI under the correct user D-Bus session.
@@ -54,6 +62,17 @@ The developer-mode Chromebook currently exposes unusually rich on-device
 control through root SSH, Chrome accessibility, CDP, DRM/EGL capture, and
 device-native input. Treat ChromeOS as its own platform rather than generic
 Linux.
+
+This is the current reference for the North Star: an outside caller gets
+compact system-wide `chrome.automation` semantics, page-level CDP, target-local
+pixels/input, and administration without running an agent on the Chromebook or
+manipulating it through a host window. The common facade should preserve that
+ergonomic power while allowing different native adapters on other systems.
+
+ARCVM is a distinct Android target within the ChromeOS testbed. A local
+Chromebook ADB proxy/port forward should expose it through the Android capability
+family rather than pretending `chrome.automation` covers Android application
+internals.
 
 The on-device route is rich but not independent: an update can break rootfs
 changes, SSH startup, remote debugging, or the accessibility extension. The

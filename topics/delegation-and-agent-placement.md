@@ -7,6 +7,11 @@ controller session creates and supervises separate native worker sessions on
 authorized YA peers. It does not move the controller transcript and does not
 proxy every target operation through the controller.
 
+Delegation is not the machine-control transport. An authorized outside agent
+can address a target-resident controller directly. A delegated worker is an
+optional execution placement for local development context or agent-coupled
+tools, and it calls the same resident control surface locally.
+
 ## Three selections, not one
 
 Before starting work, coordination resolves three independent choices:
@@ -21,23 +26,30 @@ the worker and project live on a Mac while the SUT is the attached phone. For a
 hardware KVM, the worker may run on the KVM controller while the SUT has no
 software agent at all.
 
-## Preferred desktop flow
+## Preferred desktop flows
 
 ```text
-controller                         authoritative testbed        guest YA
-    |                                       |                      |
-    |-- read-only readiness --------------->|                      |
-    |-- start/resume if authorized -------->|                      |
-    |<------------- guest reachable --------|                      |
-    |-------------------------------------------------- delegate -->|
-    |                                       |              local build/test
-    |                                       |              local semantic UI
-    |<-------------------------------- progress/attention/result ---|
-    |-- outer recovery only if needed ----->|                      |
+controller                authoritative testbed        resident controller
+    |                              |                            |
+    |-- readiness/start ---------->|                            |
+    |<---------- target reachable -|                            |
+    |---------------- authenticated direct control ----------->|
+    |                        semantic/capture/input/admin        |
+    |<----------------------- results and evidence -------------|
+    |-- outer recovery only ------>|                            |
+
+controller                         target YA          resident controller
+    |                                 |                         |
+    |-- optional delegation -------->|                         |
+    |                         local build/debug                 |
+    |                                 |-- local control ------->|
+    |<------------- progress/attention/result -----------------|
 ```
 
-The outer testbed may prepare a stopped guest before delegation, but once the
-worker is healthy it should leave ordinary desktop work to that worker.
+The outer testbed may prepare a stopped guest before direct control or
+delegation. Once the resident controller is healthy, it should leave ordinary
+desktop work to that controller. Spawning a worker should not be required just
+to make semantic UI or guest-local input remotely reachable.
 
 ## Supervision states
 

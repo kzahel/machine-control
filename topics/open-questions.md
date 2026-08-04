@@ -3,7 +3,11 @@
 ## Settled direction
 
 - YepAnywhere delegation is the initial cross-host orchestration mechanism.
-- Workers run inside desktop targets when possible.
+- Desktop control is implemented at the target and is directly reachable by
+  authorized local or remote callers through the same conceptual interface.
+- Workers run inside desktop targets when local build/debug context or an
+  in-target-only provider makes that useful; they are not a control
+  prerequisite.
 - Existing testbed repositories retain lifecycle, bootstrap, recovery, and
   target-specific safety ownership.
 - Dotfiles remains discovery/availability, not an operation proxy.
@@ -13,10 +17,27 @@
 - Cua is a reference and optional provider, not the required foundation.
 - Agent Device remains the current iOS semantic provider behind the iOS
   testbed wrapper.
-- Common work should begin with vocabulary, adapters, and conformance rather
-  than a new daemon or frozen wire protocol.
+- ChromeOS is the current reference for rich outside access to target-native
+  administration, semantics, capture, and input.
+- The Windows-first slice should build the resident control shape and validate
+  local and remote facades before freezing a universal wire protocol.
 
 ## Highest-priority open questions
+
+### What is the Windows resident component boundary?
+
+Validate the smallest repeatable target appliance that can provide:
+
+- a stable installed service identity and authenticated local/remote sessions;
+- a companion in the interactive user session for UIA, capture, and input;
+- administration adapters and health visible to the outer testbed;
+- optional, narrowly typed protected operations under an explicit profile or
+  lease; and
+- recovery after reboot, logout, lock, user switching, or provider crash.
+
+The implementation may initially use WinApp, PowerShell, SSH, Cua, or other
+existing pieces behind the facade. The product boundary is the target
+controller, not any one adapter.
 
 ### How is inner-first policy enforced?
 
@@ -32,17 +53,11 @@ decide:
 
 ### Where does YA run in each guest?
 
-For desktop VMs, decide the smallest repeatable guest appliance:
-
-- YA server lifecycle and auto-start policy;
-- provider credentials and local security posture;
-- target-local checkout discovery;
-- guest URL/relay identity and pairing;
-- readiness health used by the outer testbed; and
-- behavior after reboot, logout, lock, or provider crash.
-
-The worker should be a normal target-owned YA session, not an SSH-spawned
-process whose transcript is copied back as if local.
+Once direct resident control works, decide the smallest repeatable YA worker
+appliance: server lifecycle, provider credentials, checkout discovery, relay
+identity/pairing, and readiness. The worker should be a normal target-owned YA
+session, not an SSH-spawned process whose transcript is copied back as if
+local. This question must not block outside use of the resident controller.
 
 ### What is the adapter boundary?
 
@@ -64,10 +79,15 @@ inside the failing guest must not hold the only recovery authority.
 
 ### How are protected brokers introduced?
 
-Windows provides the strongest use case, but a SYSTEM broker should follow—not
-precede—a working delegated inner/outer flow. It needs a concrete capability,
-separate arming, peer authentication, request binding, and conformance tests.
-It should never become a privileged copy of the whole desktop API.
+Windows provides the strongest use case. Start with an explicit dedicated test
+appliance profile and add a SYSTEM broker only for concrete operations the
+user-session companion cannot perform. It needs separate arming, authenticated
+peers, request/target/generation binding, expiry, revocation, and conformance
+tests. It should never become a privileged copy of the whole desktop API.
+
+For personal/shared machines, same-user policy is not containment when an agent
+also has a shell. Decide which OS identity, sandbox, or external authorization
+host can issue protected leases without being writable by the agent itself.
 
 ### How are artifacts exchanged?
 
@@ -78,24 +98,33 @@ provenance.
 
 ## Recommended first integration slice
 
-Use Windows because the existing testbed already has rich inner and outer
-routes and makes session boundaries obvious:
+Use Windows because its existing testbed already has useful administration,
+WinApp semantics, and independent outer recovery, while its session and
+integrity boundaries expose the hard cases:
 
-1. Add or wrap a read-only machine-capability description for WinVM.
-2. Start the VM through the authoritative outer testbed.
-3. Wait for a YA peer inside Windows to become ready.
-4. Delegate a bounded application test to a Windows worker.
-5. Give that worker PowerShell and WinApp semantic tools, but no UTM input.
-6. Return semantic evidence to the controller.
-7. Deliberately stop or disable the inner UI provider.
-8. Have the worker emit a structured recovery request.
-9. Let the controller capture outer state and restore the inner provider.
-10. Verify that no ordinary worker action focused UTM, moved the Mac pointer,
-    or typed through the controller desktop.
+1. Create a clean Windows installation through the authoritative testbed and
+   bootstrap a stable resident service plus interactive-session companion.
+2. Expose capability/state discovery, UIA snapshots/actions, guest-local
+   screenshots/input, and administration behind one target-oriented facade.
+3. Exercise that facade from an authorized outside agent without spawning a
+   Windows agent and without focusing the VM window.
+4. Exercise the same contract locally from a Windows process or worker; only
+   transport and target selection should differ.
+5. Validate snapshot-scoped references, explicit coordinates, observation
+   epochs, action/effect evidence, degraded capabilities, and restart/revoke.
+6. Cover normal, elevated, locked, logged-out, user-switched, and secure-desktop
+   states with truthful results. Add only the narrow protected route the test
+   appliance actually requires.
+7. Deliberately disable resident control, emit a structured recovery request,
+   and let the controller use the independent outer route to diagnose/repair it.
+8. Install YA/Computer Use in the guest as optional providers and verify that
+   their presence improves selected tasks without becoming the only interface.
+9. Let automation validate, shut down, and seal or snapshot the image so the
+   golden image is an output of the process.
 
-This slice validates agent placement, delegation, capability projection,
-inner-first enforcement, recovery escalation, and result exchange. It gives
-more architectural evidence than beginning with a protected broker.
+This slice validates the North Star itself: rich target-native control with the
+same ergonomics from outside and inside, independent recovery, truthful
+security boundaries, and no routine controller-desktop interference.
 
 ## Later questions
 
