@@ -119,6 +119,9 @@ skills/drive-macvm/               Reusable agent operating skill
 See [docs/architecture.md](docs/architecture.md) before adding another host
 provider or guest implementation.
 
+Open automation gaps found while driving real applications are tracked in
+[docs/problems.md](docs/problems.md).
+
 ## Requirements
 
 Host:
