@@ -1,5 +1,7 @@
 # Capabilities and Results
 
+Topic: `capabilities-and-results`
+
 Status: proposal for common vocabulary, not a frozen wire protocol.
 
 The common layer should let coordination and agents reason about heterogeneous

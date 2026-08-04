@@ -1,5 +1,9 @@
 # Inner-First Routing
 
+Topic: `inner-first-routing`
+
+Status: accepted routing and authorization policy.
+
 ## Problem
 
 The desktop testbeds document semantic control before coordinate control, but

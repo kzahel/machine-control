@@ -75,10 +75,10 @@ Android's established ADB foundation instead of starting over.
 Treat this North Star as the highest-priority decision when other documents,
 older spikes, or implementation conveniences pull in a different direction.
 
-Start with the North Star in `README.md`, then read `GLOSSARY.md` and
-`topics/inner-first-routing.md`. Read `SYSTEM-MAP.md` before changing ownership
-boundaries among YepAnywhere, dotfiles, a testbed, a guest-resident provider,
-or an outer provider.
+Start with the North Star in `README.md`, then read `GLOSSARY.md`,
+`topics/README.md`, and `topics/inner-first-routing.md`. Read `SYSTEM-MAP.md`
+before changing ownership boundaries among YepAnywhere, dotfiles, a testbed, a
+guest-resident provider, or an outer provider.
 
 Preserve these rules:
 
@@ -121,6 +121,38 @@ Preserve these rules:
 - Do not collapse a YA peer, an agent execution host, a system under test, a
   testbed provider, or a delegation handle into one identity.
 
+## Documentation workflow
+
+Use the topic/tactical convention shared with YepAnywhere and Mclone:
+
+- Root architecture and reference documents own durable system shape,
+  vocabulary, ownership boundaries, and the North Star.
+- Focused, living topic documents under `topics/` own current truth, decisions,
+  evidence, gaps, and direction for continuing concerns.
+- Numbered tactical documents under `docs/tactical/` own bounded implementation
+  slices and execution records.
+- Exact experiments and source pins remain in `machine-control-spike` or the
+  authoritative implementation/testbed repository.
+
+Before working on a continuing concern, read its topic. Update that topic when
+the work changes current status, contract, evidence, validation, gaps, or next
+direction. Keep topics as current truth rather than append-only diaries; Git
+and commit bodies retain the history. Create a sibling topic when two concerns
+can evolve independently, and do not create a topic for every small standalone
+change.
+
+New topics should normally include a `Topic: <slug>` line and honest status.
+Implementation tacticals use zero-padded filenames such as `000-topic.md` and
+`001-next-topic.md`. Each tactical names its owning topics, objective,
+completion conditions, boundaries, ordered work, validation, and final result.
+Name steps for the product surface or work they cover, for example
+`### 3 — prove remote direct control`; do not invent opaque letter-and-number
+lane codes.
+
+Completed tacticals remain execution records. Continuing guidance comes from
+the current topic and architecture documents. Add every tactical to
+`docs/tactical/README.md` and every topic to `topics/README.md`.
+
 Label claims as one of:
 
 - **Current**: observed in the checked-in testbeds or research spike.
@@ -128,11 +160,39 @@ Label claims as one of:
 - **Proposal**: a candidate contract or implementation approach.
 - **Open**: a question that still needs evidence or a product decision.
 
-When a decision changes, update the affected topic and `README.md`. When a new
-program or repository enters the system, update `SYSTEM-MAP.md`. Keep exact
-experiment evidence and third-party source pins in `machine-control-spike`;
-link to those findings rather than copying detailed audit logs here.
+When a decision changes, update the affected topic and `README.md` when the
+North Star or repository-level synthesis also changes. When a new program or
+repository enters the system, update `SYSTEM-MAP.md`. Keep exact experiment
+evidence and third-party source pins in `machine-control-spike`; link to those
+findings rather than copying detailed audit logs here.
 
 Never store credentials, private machine configuration, VM/device identifiers,
 personal captures, signed approval material, or generated support bundles in
 this directory.
+
+## Commit message guidance
+
+Aim for a <=65 character subject and strictly enforce a 72-column line wrap for
+the body. Prefer bullets when items are numerous or complex and prose when the
+content is short and simple.
+
+For non-trivial commits, include a concise excerpt or synthesis of the
+originating instruction—or the motivating observation when the change was not
+user-prompted. Summarize the request and key direction well enough that a future
+maintainer could re-derive something close to the intended result. Prune
+digressions, secrets, and low-signal chat detail rather than reproducing the
+conversation verbatim.
+
+Keep the subject as the scannable result for `git log --oneline`; put the
+motivation synthesis in the body. A one-line message is sufficient for a small,
+mechanical, self-evident change.
+
+When a commit belongs to a related series, append one or more exact
+`Topic: <string>` trailers. Later commits copy the topic string verbatim so
+`git log --grep "Topic: ..."` finds the chain. Use multiple trailers when one
+commit spans multiple topics. Standalone commits with no expected follow-up do
+not need a trailer.
+
+Register each new series string in root [`topics.md`](topics.md) when its first
+commit is created, and scan that registry before choosing a new one. When a
+series implements a documented topic, normally reuse the topic filename's slug.

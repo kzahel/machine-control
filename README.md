@@ -279,6 +279,29 @@ runs on an authorized controller machine and the device is a distinct control
 target. Agent placement and control-target selection are separate decisions;
 this placement difference must not create an unrelated agent-facing workflow.
 
+## Documentation organization
+
+This repository uses the same topic/tactical separation as YepAnywhere and
+Mclone:
+
+- This README owns the North Star and repository-level synthesis.
+- [Glossary](GLOSSARY.md) and [system map](SYSTEM-MAP.md) are durable reference
+  documents for vocabulary and ownership.
+- [`topics/`](topics/README.md) contains focused, living records of current
+  decisions, evidence, gaps, and recommended direction.
+- [`docs/tactical/`](docs/tactical/README.md) contains numbered, bounded
+  implementation plans and execution records. Completed tacticals are history;
+  their owning topics remain current truth.
+- [`topics.md`](topics.md) registers exact `Topic:` strings used to thread
+  related commit series.
+- [`machine-control-spike`](../machine-control-spike/README.md) retains exact
+  experiment evidence and third-party source pins.
+
+Do not turn a topic into a chronological work log or use a completed tactical
+as the continuing architecture contract. Update the smallest owning topic when
+the current truth changes; create a tactical when execution needs a bounded,
+reviewable plan.
+
 ## Reading order
 
 - **North Star above:** the product direction that governs the remaining
@@ -287,6 +310,8 @@ this placement difference must not create an unrelated agent-facing workflow.
   terms used throughout the project.
 - [System map](SYSTEM-MAP.md): which existing repository or program owns each
   concern.
+- [Topic index](topics/README.md): current continuing concerns and their update
+  policy.
 - [Architecture](topics/architecture.md): the component model and trust/failure
   boundaries.
 - [Inner-first routing](topics/inner-first-routing.md): the policy that keeps
@@ -297,8 +322,10 @@ this placement difference must not create an unrelated agent-facing workflow.
   vocabulary for truthful discovery and action outcomes.
 - [Platform notes](topics/platform-notes.md): current routes and gaps per
   operating system and device family.
-- [Open questions](topics/open-questions.md): unresolved decisions and the
-  recommended first integration slice.
+- [Windows resident control](topics/windows-resident-control.md): unresolved
+  decisions for the first complete platform proof.
+- [Tactical 000](docs/tactical/000-windows-resident-control-vertical-slice.md):
+  the bounded Windows implementation and validation sequence.
 
 ## Consolidation of earlier work
 

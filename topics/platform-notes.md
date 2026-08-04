@@ -1,5 +1,9 @@
 # Platform Notes
 
+Topic: `platform-notes`
+
+Status: living cross-platform capability and gap survey.
+
 These notes summarize the present direction. Exact validation evidence belongs
 in the relevant testbed and `machine-control-spike`.
 
@@ -96,6 +100,11 @@ treat the phone as a separate SUT.
 
 Agent Device's macOS/Linux/web support is not a reason to replace the richer
 desktop testbeds, and it has no native Windows desktop backend.
+
+**Open:** Decide whether simulator and physical-device routes share a stable
+device-family target identity with different capabilities or remain distinct
+targets. Do not hide lifecycle, signing, authority, or fidelity differences to
+force one identifier.
 
 ## Android and Android-derived devices
 

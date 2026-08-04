@@ -1,5 +1,9 @@
 # Architecture
 
+Topic: `architecture`
+
+Status: active architecture contract.
+
 ## Decision
 
 Machine control is a set of cooperating control planes with independent trust

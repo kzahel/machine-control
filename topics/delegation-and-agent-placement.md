@@ -1,5 +1,9 @@
 # Delegation and Agent Placement
 
+Topic: `delegation-and-agent-placement`
+
+Status: active coordination and placement contract.
+
 ## Decision
 
 YepAnywhere cross-host delegation is the initial orchestration mechanism. A
@@ -109,3 +113,9 @@ result should identify:
 - degraded, unverifiable, or skipped coverage;
 - recovery or human actions that occurred; and
 - final cleanup/lifecycle recommendation.
+
+## Open coordination question
+
+**Open:** Decide whether a worker session ever moves between YA peers or
+whether delegation to a new target-owned session remains the long-term model.
+Do not make worker migration a prerequisite for the machine-control contract.
