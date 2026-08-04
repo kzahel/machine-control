@@ -44,6 +44,7 @@ bin/linuxvm doctor
 bin/linuxvm status
 bin/linuxvm exec -- uname -a
 bin/linuxvm user-exec -- id
+bin/linuxvm gui-launch -- gnome-text-editor
 bin/linuxvm ip
 bin/linuxvm suspend
 ```
@@ -51,6 +52,12 @@ bin/linuxvm suspend
 Guest execution is root because QEMU's guest agent is a hypervisor management
 channel. `user-exec` deliberately switches to the active logged-in user and
 sets that user's runtime and D-Bus environment.
+
+GUI applications should use `gui-launch`, not `user-exec`. It submits a
+transient service to the active desktop user's systemd manager, verifies that
+the manager has an imported Wayland or X11 display, prints the service unit,
+and returns without tying the application to the guest-agent command. Inspect
+or stop that unit with `user-exec -- systemctl --user ...`.
 
 Discover and operate native GNOME controls:
 
@@ -77,6 +84,9 @@ bin/linuxvm key ctrl-alt-t
 The screenshot is normalized to the configured 1280×800 guest display. Its
 pixel `(x, y)` is the coordinate accepted by `click` and `drag`; UTM's macOS
 title bar is excluded.
+
+`linuxvm shutdown` does not return until UTM reports `stopped`, or until the
+configured `LINUXVM_SHUTDOWN_TIMEOUT` expires.
 
 ## Control Layers
 

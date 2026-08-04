@@ -15,7 +15,8 @@ python3 -m py_compile "$REPO_DIR/guests/ubuntu/ui/linuxui.py"
 swiftc -typecheck "$REPO_DIR/providers/utm-macos/host-control.swift"
 swiftc -typecheck "$REPO_DIR/providers/utm-macos/normalize-screenshot.swift"
 
-"$LINUXVM" help >/dev/null
+help_output="$("$LINUXVM" help)"
+[[ "$help_output" == *'gui-launch'* ]]
 "$LINUXVM" doctor
 
 artifact_dir="$REPO_DIR/.artifacts/smoke"
@@ -30,6 +31,12 @@ test "$completion" = 'start:finish'
 desktop_user="$($LINUXVM desktop-user)"
 user_id="$($LINUXVM user-exec -- /usr/bin/id -un)"
 test "$desktop_user" = "$user_id"
+
+gui_unit="$("$LINUXVM" gui-launch -- /usr/bin/bash -lc \
+    'test -n "$WAYLAND_DISPLAY" -o -n "$DISPLAY"; sleep 30')"
+[[ "$gui_unit" =~ ^linuxvm-gui-[0-9]+\.[0-9]+\.[0-9]+\.service$ ]]
+"$LINUXVM" user-exec -- /usr/bin/systemctl --user is-active "$gui_unit" >/dev/null
+"$LINUXVM" user-exec -- /usr/bin/systemctl --user stop "$gui_unit"
 
 ui_health="$($LINUXVM ui health)"
 jq -e '.atspiAvailable == true and .applicationCount > 0' \

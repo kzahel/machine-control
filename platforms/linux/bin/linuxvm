@@ -15,6 +15,7 @@ Lifecycle and transport:
   status | up | ip | suspend | reboot | shutdown | force-stop
   exec -- COMMAND [ARG...]       Run a root command with reliable completion
   user-exec -- COMMAND [ARG...]  Run in the active Wayland desktop session
+  gui-launch -- COMMAND [ARG...] Launch through the desktop user systemd manager
   shell                          Stdin-forwarded root shell (no PTY)
   push LOCAL REMOTE | pull REMOTE [LOCAL]
   clone NEW_NAME | disposable
@@ -52,6 +53,37 @@ user_exec() {
         "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus" "$@"
 }
 
+gui_launch() {
+    if [[ "${1:-}" == "--" ]]; then shift; fi
+    (( $# > 0 )) || {
+        printf 'Usage: linuxvm gui-launch -- COMMAND [ARG...]\n' >&2
+        return 2
+    }
+
+    local user uid manager_environment unit token
+    user="$(desktop_user)"
+    [[ -n "$user" ]] || { printf 'No active desktop user found\n' >&2; return 1; }
+    uid="$("$PROVIDER" exec /usr/bin/id -u "$user")"
+
+    manager_environment="$("$PROVIDER" exec /usr/sbin/runuser -u "$user" -- \
+        /usr/bin/env \
+        "XDG_RUNTIME_DIR=/run/user/$uid" \
+        "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus" \
+        /usr/bin/systemctl --user show-environment)"
+    if ! grep -Eq '^(WAYLAND_DISPLAY|DISPLAY)=.+' <<<"$manager_environment"; then
+        printf 'The desktop user manager has no imported Wayland/X11 display; log into GNOME and retry\n' >&2
+        return 1
+    fi
+
+    token="$(date +%s).$$.$RANDOM"
+    unit="linuxvm-gui-$token.service"
+    "$PROVIDER" exec /usr/sbin/runuser -u "$user" -- /usr/bin/env \
+        "XDG_RUNTIME_DIR=/run/user/$uid" \
+        "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus" \
+        /usr/bin/systemd-run --user --quiet --collect --unit "$unit" -- "$@"
+    printf '%s\n' "$unit"
+}
+
 bootstrap_command() {
     cat <<'EOF'
 sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y qemu-guest-agent spice-vdagent python3-gi gir1.2-atspi-2.0 jq && sudo systemctl start qemu-guest-agent
@@ -68,6 +100,7 @@ case "$command" in
         "$PROVIDER" exec "$@"
         ;;
     user-exec) user_exec "$@" ;;
+    gui-launch) gui_launch "$@" ;;
     desktop-user) desktop_user ;;
     ui) exec "$BIN_DIR/linuxui" "$@" ;;
     deploy-ui) exec "$LINUXVM_REPO_DIR/scripts/deploy-ui.sh" ;;

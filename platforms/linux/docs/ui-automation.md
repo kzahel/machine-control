@@ -7,9 +7,25 @@ fallback. Neither path is sufficient alone.
 
 1. Use `linuxvm exec` for system and file work.
 2. Use `linuxvm user-exec` for non-UI work owned by the desktop account.
-3. Use `linuxvm ui` for named controls, actions, text, and values.
-4. Use normalized screenshot and physical input when semantics are missing.
-5. Ask the user to enter passwords or other secrets directly in the guest.
+3. Use `linuxvm gui-launch` to start a graphical application through the
+   active user's systemd manager.
+4. Use `linuxvm ui` for named controls, actions, text, and values.
+5. Use normalized screenshot and physical input when semantics are missing.
+6. Ask the user to enter passwords or other secrets directly in the guest.
+
+## Launching GUI Applications
+
+`user-exec` deliberately does not guess a Wayland socket. Launch graphical
+programs through the desktop user's imported systemd environment instead:
+
+```bash
+unit="$(bin/linuxvm gui-launch -- gnome-text-editor)"
+bin/linuxvm user-exec -- systemctl --user status "$unit"
+```
+
+The launch command fails closed if the user manager has neither
+`WAYLAND_DISPLAY` nor `DISPLAY`. It prints the transient service name so a
+caller can inspect logs or stop it without matching an unrelated process.
 
 ## AT-SPI Commands
 

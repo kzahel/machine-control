@@ -8,18 +8,21 @@ direction together so later work can reproduce the problem.
 
 ### There is no documented GUI-application launch path
 
+Status: **resolved 2026-08-04.** `linuxvm gui-launch -- COMMAND [ARG...]`
+now verifies the active user's systemd manager has an imported display, starts
+the application as a collected transient user service, and prints its unit for
+later inspection or teardown. The smoke suite verifies that the launched unit
+inherits a real Wayland/X11 display.
+
 `linuxvm user-exec` intentionally supplies the user runtime directory and
 D-Bus address but not `DISPLAY` or `WAYLAND_DISPLAY`. Launching an AppImage
 through it therefore failed with `Failed to initialize GTK`. The architecture
 document explains that it does not guess a Wayland socket, but the CLI offers
 no corresponding `ui launch` operation.
 
-Workaround: `systemd-run --user` inherits the GNOME user manager's imported
-display environment and launched the AppImage successfully.
-
-Possible direction: add a session-owned GUI launch command that reads the
-active user manager environment, or document the `systemd-run --user` recipe
-next to `user-exec`.
+The command preserves the deliberate `user-exec` boundary: non-GUI commands
+still receive only the runtime directory and session bus rather than a guessed
+Wayland socket.
 
 ### Common desktop shortcuts are missing from `key`
 
@@ -46,9 +49,12 @@ include it in `--help` examples for multi-action AT-SPI nodes.
 
 ### `shutdown` returns before the VM reaches `stopped`
 
+Status: **resolved 2026-08-04.** `linuxvm shutdown` now polls UTM until the VM
+reports `stopped`, returns that state on success, and fails with the last state
+after `LINUXVM_SHUTDOWN_TIMEOUT`. It never escalates a timeout to force-stop.
+
 Immediately after `linuxvm shutdown`, `linuxvm status` still reported
 `started`; a short poll then reported `stopped`.
 
-Effect: cleanup scripts can finish while the VM is still shutting down.
-Possible direction: either wait for the terminal state within the configured
-timeout or document the asynchronous contract and provide a `wait` command.
+Cleanup scripts can now treat a successful shutdown command as the terminal
+lifecycle boundary.

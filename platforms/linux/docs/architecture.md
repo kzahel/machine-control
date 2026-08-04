@@ -52,6 +52,12 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/UID/bus
 
 It does not guess a Wayland socket or copy credentials.
 
+`linuxvm gui-launch` crosses the additional application-lifetime boundary. It
+verifies that the active user's systemd manager already has an imported
+`WAYLAND_DISPLAY` or `DISPLAY`, then creates a collected transient user
+service. The graphical process inherits the real desktop environment from
+that manager and is not killed when the guest-agent invocation completes.
+
 ## Semantic UI
 
 `guests/ubuntu/ui/linuxui.py` is deployed to
@@ -79,6 +85,10 @@ configured logical resolution. UTM's scripting API accepts those logical
 coordinates for clicks and also supplies text and raw PC scan codes. Because
 UTM exposes no drag command, CoreGraphics reverses the capture transform for
 drag gestures.
+
+Routine `shutdown` is synchronous from the caller's perspective: the provider
+requests a normal UTM guest power-down and polls until the state is `stopped`.
+It times out with the last observed state and never escalates to force-stop.
 
 ## Optional Future Layers
 

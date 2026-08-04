@@ -69,6 +69,43 @@ wait_for_guest_agent() {
     return 1
 }
 
+wait_for_vm_state() {
+    local expected="$1" timeout="$2"
+    local deadline=$((SECONDS + timeout)) status="unknown"
+    while (( SECONDS < deadline )); do
+        status="$(vm_status || true)"
+        if [[ "$status" == "$expected" ]]; then
+            return 0
+        fi
+        sleep 1
+    done
+    LAST_VM_STATUS="$status"
+    return 1
+}
+
+guest_shutdown() {
+    local status
+    status="$(vm_status || true)"
+    if [[ "$status" == "stopped" ]]; then
+        printf 'stopped\n'
+        return
+    fi
+    if [[ "$status" == "unknown" || -z "$status" ]]; then
+        printf 'UTM VM not found: %s\n' "$LINUXVM_UTM_NAME" >&2
+        return 1
+    fi
+
+    "$LINUXVM_UTMCTL" stop --request "$LINUXVM_UTM_NAME" >/dev/null
+    if wait_for_vm_state stopped "$LINUXVM_SHUTDOWN_TIMEOUT"; then
+        printf 'stopped\n'
+        return
+    fi
+
+    printf 'Timed out waiting for UTM VM %s to shut down (last status: %s)\n' \
+        "$LINUXVM_UTM_NAME" "${LAST_VM_STATUS:-unknown}" >&2
+    return 1
+}
+
 guest_ipv4() {
     wait_for_guest_agent
     local addresses ip
@@ -317,7 +354,7 @@ case "$command" in
     window-info) host_control window-info "$LINUXVM_UTM_NAME" ;;
     suspend) "$LINUXVM_UTMCTL" suspend --save-state "$LINUXVM_UTM_NAME" ;;
     reboot) guest_reboot ;;
-    shutdown) "$LINUXVM_UTMCTL" stop --request "$LINUXVM_UTM_NAME" ;;
+    shutdown) guest_shutdown ;;
     force-stop) "$LINUXVM_UTMCTL" stop --force "$LINUXVM_UTM_NAME" ;;
     disposable)
         [[ "$(vm_status)" == "stopped" ]] || {

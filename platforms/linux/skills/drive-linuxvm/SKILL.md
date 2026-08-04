@@ -15,11 +15,13 @@ from non-root desktop-session work.
 2. Use `bin/linuxvm exec --` for packages, services, files, and system facts.
    QEMU guest-agent execution is root-equivalent.
 3. Use `bin/linuxvm user-exec --` for commands owned by the logged-in user.
-4. Use `bin/linuxvm ui` for GNOME applications and named AT-SPI controls.
+4. Use `bin/linuxvm gui-launch --` to start graphical applications through
+   the active user's imported systemd environment.
+5. Use `bin/linuxvm ui` for GNOME applications and named AT-SPI controls.
    Inspect with `apps`, `windows`, `tree`, or `find` before acting.
-5. Use `screenshot`, `click`, `drag`, `type`, `key`, or `scan` for lock screens,
+6. Use `screenshot`, `click`, `drag`, `type`, `key`, or `scan` for lock screens,
    bootstrap, or recovery when semantic access is unavailable.
-6. Ask the user to enter passwords directly in the guest. Never include one in
+7. Ask the user to enter passwords directly in the guest. Never include one in
    chat, a command, `config.local`, or a repository file.
 
 ## Start and inspect
@@ -29,6 +31,7 @@ bin/linuxvm doctor
 bin/linuxvm up
 bin/linuxvm exec -- uname -a
 bin/linuxvm user-exec -- id
+bin/linuxvm gui-launch -- gnome-text-editor
 bin/linuxvm ui apps
 bin/linuxvm ui tree --app gnome-terminal-server --interactive --depth 8
 ```
@@ -74,7 +77,8 @@ desktop and `key ctrl-alt-t`, then install and start `qemu-guest-agent` with the
 documented one-line command. Let the user perform any password entry.
 
 Prefer `suspend` for routine parking, `reboot` for a tracked guest restart, and
-`shutdown` for an orderly power-down.
+`shutdown` for an orderly power-down. `shutdown` waits for the provider to
+report `stopped`; a successful return is a terminal lifecycle boundary.
 Use `force-stop` only for explicit recovery. Never delete, replace, revert, or
 reset a VM without user authorization.
 
