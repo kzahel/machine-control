@@ -135,7 +135,7 @@ are:
 | --- | --- |
 | ChromeOS | `chrome.automation` plus per-page CDP |
 | macOS | Accessibility/`AXUIElement` |
-| Windows | UI Automation, currently through WinApp and evaluated Cua routes |
+| Windows | UI Automation through WinApp and current Cua Driver candidates |
 | Linux | AT-SPI in the active desktop session |
 
 The common desktop facade should make the latter three feel as compact,
@@ -322,6 +322,8 @@ reviewable plan.
   vocabulary for truthful discovery and action outcomes.
 - [Platform notes](topics/platform-notes.md): current routes and gaps per
   operating system and device family.
+- [Desktop provider landscape](topics/provider-landscape.md): current upstream
+  candidates, exact-window findings, and conformance-fixture lessons.
 - [Windows resident control](topics/windows-resident-control.md): unresolved
   decisions for the first complete platform proof.
 - [Tactical 000](docs/tactical/000-windows-resident-control-vertical-slice.md):
@@ -350,16 +352,19 @@ plan:
 - test providers with deterministic fixtures, event-aware waits, honest
   omissions, and independent oracles.
 
-What was intentionally not carried forward is equally important: Cua is not
-the universal core; spawning a YA worker inside a desktop is not required for
-outside control; MCP is not the authorization boundary; and outer VM/KVM input
-is not a routine fallback.
+What was intentionally not carried forward is equally important: no particular
+Cua version or other provider is predeclared the universal core; spawning a YA
+worker inside a desktop is not required for outside control; MCP is not the
+authorization boundary; and outer VM/KVM input is not a routine fallback.
 
 [`../machine-control-spike/`](../machine-control-spike/README.md) contains the
-executable Cua evaluation and exact evidence. Its macOS and Windows findings
-show that Cua contains useful contract ideas and may remain an optional
-user-session provider, but it should not be the trust, lifecycle, recovery, or
-cross-platform foundation of this system.
+executable Cua evaluation and exact evidence for the version it audited. The
+current upstream Cua Driver has since developed a substantially stronger
+cross-platform exact-window, background-delivery, effect-reporting, and fixture
+contract. It is now the leading common desktop-plane candidate to re-evaluate,
+but it still does not own this system's trust, lifecycle, recovery, protected
+authority, or cross-device contract. See the
+[provider landscape](topics/provider-landscape.md).
 
 ChatGPT Computer Use is likewise a valuable installed provider and ergonomic
 benchmark on supported systems. Because its protocol and availability are tied

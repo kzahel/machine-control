@@ -10,3 +10,5 @@ commits with no expected follow-up do not need a trailer or registry entry.
 
 - `windows-resident-control` — Windows target-resident facade, system-shell
   acceptance, local/remote parity, recovery, and reproducible appliance proof.
+- `provider-landscape` — reusable desktop-provider research, exact-window
+  requirements, fixture design, and evidence-driven selection.

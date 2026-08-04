@@ -26,8 +26,11 @@ implementation slices. The bounded execution plan lives in
   flyouts, Settings, dialogs, and ordinary window management; an app-scoped
   test alone is insufficient.
 - Outer control is startup, bootstrap, independent observation, and recovery.
-- Cua and Computer Use are references or optional providers, not the required
-  foundation.
+- Current Cua Driver is the leading resident desktop-plane candidate to
+  validate; WinApp remains the existing comparison route. Neither owns the
+  project contract, lifecycle, protected authority, or recovery boundary.
+- Computer Use is an optional provider and ergonomic benchmark, not the only
+  remotely usable surface.
 - ChromeOS is the current quality and architecture reference for rich outside
   access to target-native administration, semantics, capture, and input.
 - The Windows slice validates local and remote facades before the project
@@ -44,9 +47,11 @@ The smallest repeatable Windows target appliance needs to provide:
   profile or lease; and
 - recovery after reboot, logout, lock, user switching, or provider crash.
 
-The first implementation may compose WinApp, PowerShell, SSH, Cua, or other
-existing pieces behind the facade. The product boundary is the target
-controller, not any one adapter.
+The first implementation should compare current Cua Driver with WinApp and may
+compose either with PowerShell, SSH, or other existing pieces behind the
+facade. The product boundary is the target controller, not any one adapter. The
+source-reviewed shortlist and shared acceptance lessons live in
+[`provider-landscape.md`](provider-landscape.md).
 
 ## System-shell acceptance contract
 
@@ -127,7 +132,8 @@ provenance.
 ## Later questions
 
 - Whether the proven facade should become a common machine-control SDK.
-- Whether Cua remains a Windows provider or only a conformance comparison.
+- Whether current Cua Driver becomes the primary Windows desktop adapter,
+  remains a comparison provider, or supplies parts of a smaller resident core.
 - How multiple displays, RDP/console sessions, fast-user switching, and nested
   VMs are represented.
 - Which physical Windows machines warrant BMC, power, or hardware-KVM support.

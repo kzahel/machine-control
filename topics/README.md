@@ -36,6 +36,9 @@ its `Topic:` trailers.
   explicit outer recovery, and host-interference policy.
 - [`platform-notes.md`](platform-notes.md): current native foundations and gaps
   across desktop, mobile, headset, VM, and physical targets.
+- [`provider-landscape.md`](provider-landscape.md): source-reviewed desktop
+  providers, exact-window lessons, fixture patterns, and the validation
+  shortlist.
 - [`windows-resident-control.md`](windows-resident-control.md): current Windows
   proving-ground decisions, unresolved boundaries, and next implementation
   direction.

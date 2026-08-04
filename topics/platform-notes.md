@@ -17,17 +17,22 @@ companion owns ordinary desktop operations; the worker is optional.
 - Semantics: UI Automation through the existing WinApp relay.
 - Guest-local visual/input fallback: a user-session provider where it does not
   cross integrity or secure-desktop boundaries silently.
-- Optional supplements: Computer Use or Cua when either improves a task, without
-  making it the only remotely usable surface.
+- Leading provider candidate: current Cua Driver, compared with the existing
+  WinApp route through the same acceptance suite.
+- Optional supplement: Computer Use when it improves a task, without making it
+  the only remotely usable surface.
 - Outer recovery: UTM/QEMU console capture and input on the Mac controller.
 - Protected future: a narrow session proxy and optionally a SYSTEM broker for
   truthful input-desktop state, companion bootstrap, and explicitly armed
   secure-desktop operations.
 
 The Cua spike proved useful normal-user behavior but also found cross-integrity
-IPC, lock-state, UIAccess, secure-desktop, signing, and provenance gaps. Cua is
-therefore a reference or optional provider, not the system foundation. See
-[`windows-findings.md`](../../machine-control-spike/docs/windows-findings.md).
+IPC, lock-state, UIAccess, secure-desktop, signing, and provenance gaps in the
+audited version. Current upstream Cua Driver now presents a materially stronger
+cross-platform window, background-delivery, result, and fixture contract, so it
+must be re-evaluated rather than accepted or rejected from the older evidence.
+See [`windows-findings.md`](../../machine-control-spike/docs/windows-findings.md)
+and [`provider-landscape.md`](provider-landscape.md).
 
 ## macOS desktop
 
@@ -44,6 +49,11 @@ task benefits from local project context.
 
 Outer Tart input must not be available to an ordinary worker because it can
 foreground the Tart window and move the controller pointer.
+
+The current macOS shortlist is Cua Driver, Peekaboo, Touchpoint, and Agent
+Device. Their exact-window, capture, background-delivery, TCC identity, and
+private-API postures differ materially; see
+[`provider-landscape.md`](provider-landscape.md).
 
 ## Linux desktop
 
@@ -98,8 +108,11 @@ treat the phone as a separate SUT.
 - Human gates: passcode, biometrics, Apple Pay, account recovery, and protected
   authorization.
 
-Agent Device's macOS/Linux/web support is not a reason to replace the richer
-desktop testbeds, and it has no native Windows desktop backend.
+Agent Device also has a macOS helper, but its present public surface is scoped
+to the frontmost app, desktop, or menu bar rather than an exact selected
+window, and its screenshot path is display-scoped. Its Linux/web support is not
+a reason to replace the richer desktop testbeds, and it has no native Windows
+desktop backend. See [`provider-landscape.md`](provider-landscape.md).
 
 **Open:** Decide whether simulator and physical-device routes share a stable
 device-family target identity with different capabilities or remain distinct

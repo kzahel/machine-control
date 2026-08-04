@@ -20,6 +20,8 @@ maintained as a manually curated prerequisite.
   justified protected path are represented honestly.
 - Start, taskbar, notification area, shell flyouts, Windows Settings, dialogs,
   and ordinary window management are controllable without host input.
+- Exact-window identity, semantics, visual capture, action scope, delivery
+  posture, and independently observed effect pass as separate dimensions.
 - Semantic references, observations, mutations, restart, revocation, and
   recovery pass deterministic conformance checks.
 - The authoritative WinVM testbed retains lifecycle, bootstrap, outer recovery,
@@ -43,16 +45,19 @@ maintained as a manually curated prerequisite.
 ### 1 — establish a baseline on the existing Windows VM
 
 Inventory the current PowerShell/SSH, WinApp/UIA, screenshot, input, session,
-and outer-recovery routes. Run one deterministic fixture through the existing
-healthy VM before combining facade design with clean-install automation. Record
-real gaps rather than replacing working adapters speculatively.
+and outer-recovery routes. Compare current Cua Driver and WinApp on one exact
+window and the smallest Windows-shell path, using the criteria in the
+[provider landscape](../../topics/provider-landscape.md). Run one deterministic
+fixture through the existing healthy VM before combining facade design with
+clean-install automation. Record real gaps rather than replacing working
+adapters speculatively.
 
 ### 2 — assemble the target-oriented facade
 
 Compose capability/state discovery, UIA snapshots and actions, guest-local
 screenshots and input, and administration behind one target-oriented contract.
-Existing PowerShell, SSH, WinApp, and evaluated Cua mechanisms may remain
-adapters; none becomes the product boundary by accident.
+Current Cua Driver, WinApp, PowerShell, SSH, and any narrower native helper may
+remain adapters; none becomes the product boundary by accident.
 
 ### 3 — drive the real Windows shell
 
@@ -89,10 +94,12 @@ the same.
 
 ### 6 — verify identity, evidence, and lifecycle behavior
 
-Test snapshot-scoped references, process/window identity, explicit coordinate
-spaces, paired semantic/visual observation epochs, delivery-versus-effect
-results, stable refusal reasons, degraded capabilities, restart, cancellation,
-lease expiry, and revocation.
+Test snapshot-scoped references, process and native-window identity, owner
+mismatch and recreation, exact-window semantics, compositor capture versus
+desktop cropping, occlusion and minimization, explicit coordinate spaces,
+paired semantic/visual observation epochs, background focus/z-order/cursor
+invariants, delivery-versus-effect results, stable refusal reasons, degraded
+capabilities, restart, cancellation, lease expiry, and revocation.
 
 ### 7 — cover session and privilege boundaries
 

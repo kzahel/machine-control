@@ -59,10 +59,17 @@ route merely because it is convenient.
 | Component | Use it for | Do not make it |
 | --- | --- | --- |
 | [`machine-control-spike`](../machine-control-spike/README.md) | Exact Cua pins, conformance evidence, macOS/Windows behavior, and security findings | The current architecture hub or production implementation |
-| [Cua](https://github.com/trycua/cua) | Reference contract, optional guest-user provider, and comparison adapter | Cross-host coordinator, testbed lifecycle owner, protected-control trust foundation, or required common core |
-| [Agent Device](https://github.com/callstack/agent-device) | Current iOS XCTest provider and a source of agent-oriented snapshot/action/recovery behavior | The overall desktop/control fabric; its desktop backends do not replace the existing testbeds and it lacks native Windows desktop control |
+| [Cua Driver](https://github.com/trycua/cua/tree/main/libs/cua-driver) | Leading cross-platform desktop-plane candidate to re-evaluate; exact-window semantics/capture, explicit background/foreground delivery, effect reporting, and strong fixtures | Cross-host coordinator, testbed lifecycle owner, protected-control trust foundation, or the owner of the common contract |
+| [Touchpoint](https://github.com/Touchpoint-Labs/touchpoint) | Small cross-platform AX/UIA/AT-SPI/CDP facade and exact-window identity reference; second common-provider spike candidate | A proven occlusion-independent capture or Wayland-input solution without target validation |
+| [Agent Device](https://github.com/callstack/agent-device) | Current iOS XCTest provider and a source of compact agent-oriented snapshot/action/recovery behavior | Exact-window macOS control, native Windows control, or the overall desktop/control fabric |
+| [Peekaboo](https://github.com/openclaw/Peekaboo) | Deep macOS reference for exact-window capture, background action routing, transient system surfaces, and native fixture design | A cross-platform provider or protected-control boundary |
+| [kwin-mcp](https://github.com/isac322/kwin-mcp) | Linux/KWin reference for isolated target-native Wayland sessions, AT-SPI, compositor capture, and libei input | A proven universal Linux desktop or exact-window facade |
 | YepAnywhere Device Bridge | Human remote viewing and fast pixel/input backends, especially its iOS Simulator work | Semantic agent control or the cross-platform orchestration contract |
 | RustDesk and similar remote desktop projects | Reference architectures for session services, desktop switching, capture, and input | A wholesale trust boundary imported into the agent-facing system |
+
+The source-reviewed comparison, secondary candidates, and acceptance lessons
+live in [`provider-landscape.md`](topics/provider-landscape.md). Being listed
+here does not mean a provider has passed on the configured machines.
 
 ## Ownership rule
 
