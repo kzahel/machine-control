@@ -6,6 +6,19 @@ direction together so later work can reproduce the problem.
 
 ## Observed 2026-08-04 during 200 OK `v0.1.6` smoke
 
+### Cold start can race guest-agent readiness
+
+`linuxvm up` returned an Apple-event `OSStatus error -2700`, followed by guest
+agent/IP failures, when invoked against the stopped VM. GNOME reached the
+desktop and `qemu-guest-agent` was active, and the same doctor passed after the
+cold boot settled. The first result was therefore a transport-readiness race,
+not a failed guest service.
+
+Possible direction: make `up` wait for a bounded guest-agent readiness result
+or return an unambiguous started-but-not-ready status, and place a timeout
+around each `utmctl exec` readiness probe so a cold-start check cannot block
+past the controller deadline.
+
 ### There is no documented GUI-application launch path
 
 Status: **resolved 2026-08-04.** `linuxvm gui-launch -- COMMAND [ARG...]`
@@ -31,9 +44,14 @@ needed for GTK file-chooser path entry, returned `Unknown key name`. Falling
 through to `type` without the shortcut activated GTK type-ahead and selected a
 different nested folder.
 
-Possible direction: add generic modifier parsing or at least common chooser
-and editing shortcuts such as Ctrl-L, Ctrl-A, and Ctrl-C/V. Until then, abort a
-sequence immediately when `key` returns nonzero and use semantic actions or
+The ARM64 Chrome store run also needed End to reach Google's consent buttons;
+`linuxvm key end` failed with the same unknown-key result. Raw scan codes were
+an effective fallback for that key.
+
+Possible direction: add generic modifier parsing plus navigation keys, or at
+least common chooser/editing shortcuts such as Ctrl-L, Ctrl-A, Ctrl-C/V, Home,
+End, Page Up, and Page Down. Until then, abort a sequence immediately when
+`key` returns nonzero and use semantic actions, documented scan codes, or
 coordinates.
 
 ### The action selector supported by `press` is not documented
