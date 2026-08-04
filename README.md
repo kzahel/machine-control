@@ -300,12 +300,12 @@ this placement difference must not create an unrelated agent-facing workflow.
 - [Open questions](topics/open-questions.md): unresolved decisions and the
   recommended first integration slice.
 
-## Relationship to earlier work
+## Consolidation of earlier work
 
-The original durable brief remains in
-[`../dotfiles/machine-control/`](../dotfiles/machine-control/README.md). It is a
-valuable first-generation design, especially its security and protocol notes,
-but it was written around evaluating Cua as a possible common core.
+The original Cua-oriented brief has been consolidated into this repository and
+removed. This is the sole current architecture source of truth; exact
+experimental evidence remains in the spike repository rather than in a second
+documentation tree.
 
 The durable lessons retained here are deliberately narrower than that original
 plan:
