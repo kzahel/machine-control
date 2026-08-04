@@ -22,6 +22,9 @@ implementation slices. The bounded execution plan lives in
   ownership.
 - Ordinary callers receive Windows administration and resident semantic,
   visual, and input control, not host/hypervisor input.
+- System-wide control includes Start, taskbar, notification area, shell
+  flyouts, Settings, dialogs, and ordinary window management; an app-scoped
+  test alone is insufficient.
 - Outer control is startup, bootstrap, independent observation, and recovery.
 - Cua and Computer Use are references or optional providers, not the required
   foundation.
@@ -44,6 +47,31 @@ The smallest repeatable Windows target appliance needs to provide:
 The first implementation may compose WinApp, PowerShell, SSH, Cua, or other
 existing pieces behind the facade. The product boundary is the target
 controller, not any one adapter.
+
+## System-shell acceptance contract
+
+Windows UI Automation should observe from the desktop root rather than only an
+application root. Start, taskbar, notification area, Settings, shell flyouts,
+dialogs, and ordinary windows are first-class control targets. Transient shell
+surfaces must use generation-scoped references and event-aware waits because
+focus or shell recreation can invalidate them.
+
+The resident fallback order is:
+
+1. UIA semantic action.
+2. Native Shell or Win32 operation.
+3. Guest-local keyboard or pointer input with fresh visual evidence.
+4. An explicitly authorized protected route when the desktop boundary requires
+   it.
+
+Missing semantics must never silently route input through the host VM window.
+Administration and UI testing remain distinct intents: a direct Settings URI
+or OS API is efficient for configuration, while the Windows-shell acceptance
+track deliberately drives and verifies the visible Settings experience.
+
+The facade should allow compact semantic/visual scopes for Start, taskbar,
+notification area, a shell flyout, and a Settings window so agents do not pay
+for the entire desktop tree on every action.
 
 ## Open decisions
 
