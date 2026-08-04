@@ -111,6 +111,9 @@ per-helper consent grant.
 Read [docs/ui-automation.md](docs/ui-automation.md) for application-root
 selection, lock-screen behavior, and semantic limitations.
 
+Open automation gaps found while driving real applications are tracked in
+[docs/problems.md](docs/problems.md).
+
 ## Repository Layout
 
 ```text
