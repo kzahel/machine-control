@@ -159,6 +159,9 @@ skills/drive-winvm/            Reusable agent skill
 See [docs/architecture.md](docs/architecture.md) before adding another host
 provider or guest driver.
 
+Open automation gaps found while driving real applications are tracked in
+[docs/problems.md](docs/problems.md).
+
 ## Requirements
 
 Host:
