@@ -39,4 +39,5 @@ the commits' `Topic:` trailers and register that exact string in
 
 | Tactical | Status | Scope |
 | --- | --- | --- |
-| [`000-windows-resident-control-vertical-slice.md`](000-windows-resident-control-vertical-slice.md) | proposed | First complete local-and-remote Windows proof of the target-native contract |
+| [`000-windows-resident-control-vertical-slice.md`](000-windows-resident-control-vertical-slice.md) | active | First complete local-and-remote Windows proof of the target-native contract |
+| [`001-windows-system-shell-acceptance.md`](001-windows-system-shell-acceptance.md) | active | Cua-first acceptance run across the real Windows system shell |

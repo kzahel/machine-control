@@ -1,6 +1,7 @@
 # Tactical 000: Windows Resident-Control Vertical Slice
 
-Status: proposed; implementation has not started.
+Status: active; the first bounded implementation slice is
+[`Tactical 001`](001-windows-system-shell-acceptance.md).
 
 Topic: `windows-resident-control`
 
@@ -82,6 +83,9 @@ into host-side input. Support compact observation scopes such as `start_menu`,
 `taskbar`, `notification_area`, and one Settings window so system-shell control
 remains token-efficient.
 
+This step is executed and recorded by
+[`Tactical 001`](001-windows-system-shell-acceptance.md).
+
 ### 4 — prove remote direct control
 
 Exercise the facade from an authenticated outside agent without spawning a
@@ -135,7 +139,7 @@ image as a reproducible output.
 
 The precursor Cua fit, macOS, and Windows investigations are complete and
 linked from the [research corpus](../../research/README.md). The integrated
-resident-controller slice has not started. As it executes, record exact
-commands and experiment evidence in the owning implementation/testbed
-repository or in `machine-control-spike`. Keep only the cross-provider result
-and links here.
+resident-controller slice started with the focused Windows shell-acceptance
+run in Tactical 001. Record exact commands and experiment evidence in the
+owning implementation/testbed repository or in `machine-control-spike`. Keep
+only the cross-provider result and links here.

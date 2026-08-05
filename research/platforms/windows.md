@@ -9,6 +9,9 @@ Current decision topic:
 Bounded execution plan:
 [`Tactical 000`](../../docs/tactical/000-windows-resident-control-vertical-slice.md).
 
+Active system-shell acceptance run:
+[`Tactical 001`](../../docs/tactical/001-windows-system-shell-acceptance.md).
+
 ## Platform acceptance surface
 
 Windows depth is not established by controlling one ordinary application. The

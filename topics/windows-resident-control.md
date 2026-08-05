@@ -2,9 +2,10 @@
 
 Topic: `windows-resident-control`
 
-Status: active design and implementation-planning concern. Cua source/live
-evaluation and the existing WinApp route are documented; the first integrated
-resident-controller tactical is proposed and implementation has not started.
+Status: active design and implementation concern. Cua source/live evaluation
+and the existing WinApp route are documented; the first integrated
+resident-controller tactical has started with a focused Windows system-shell
+acceptance run.
 
 ## Scope
 
@@ -14,6 +15,8 @@ implementation slices. Candidate comparison and investigation depth live in
 the [Windows research report](../research/platforms/windows.md). The bounded
 execution plan lives in
 [`Tactical 000`](../docs/tactical/000-windows-resident-control-vertical-slice.md).
+Its active shell-acceptance slice lives in
+[`Tactical 001`](../docs/tactical/001-windows-system-shell-acceptance.md).
 
 ## Settled direction
 
