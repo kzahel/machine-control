@@ -14,7 +14,7 @@ implementation slices. Candidate comparison and investigation depth live in
 the [Windows research report](../research/platforms/windows.md). The bounded
 execution plan lives in
 [`Tactical 000`](../docs/tactical/000-windows-resident-control-vertical-slice.md).
-Its active shell-acceptance slice lives in
+Its completed shell-acceptance slice lives in
 [`Tactical 001`](../docs/tactical/001-windows-system-shell-acceptance.md).
 
 ## Settled direction
@@ -63,6 +63,11 @@ reports the actual route, fidelity, foreground consequence, delivery, and
 independent effect. PowerShell, SSH, and narrower native components may remain
 adapters behind the facade. The product boundary is the target controller, not
 any one adapter.
+
+The cross-platform ownership boundary, hybrid-first rationale, correctness
+oracles, and criteria for eventually forking or replacing Cua are recorded in
+the
+[provisional provider composition](architecture.md#provisional-provider-composition).
 
 ## Research and option status
 

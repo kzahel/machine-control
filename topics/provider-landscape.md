@@ -48,9 +48,19 @@ did not discover a newly transformed product. See the
 [Cua dossier](../research/providers/cua-driver.md) and exact
 [spike recommendation](../../machine-control-spike/docs/phase-1-recommendation.md).
 
-**Decision:** Use Cua as the leading common Windows/macOS/Linux desktop-plane
-candidate. Validate the remaining Windows product surface rather than rerunning
-the completed Cua fit, macOS, and Windows investigations wholesale.
+**Current:** The completed Windows system-shell acceptance run retained Cua as
+a strong common runtime but disproved an unmodified Cua-only Windows stack.
+WinApp/native routes materially outperformed or supplemented it for the
+taskbar, packaged Settings windows, selected window-state operations, and
+capture of HWNDs absent from Cua's registry. See the
+[Windows shell findings](../../machine-control-spike/docs/windows-shell-findings.md).
+
+**Decision:** Implement an owned facade and conformance corpus over
+operation-level providers. Keep Cua pinned as the first common-runtime adapter
+and compose deep platform adapters where evidence requires them. Do not fork
+Cua or begin a full native rewrite until repeated implementation evidence meets
+the gates in the
+[provisional architecture](architecture.md#fork-and-replacement-gates).
 
 **Current:** The strongest complementary references are:
 
@@ -109,7 +119,9 @@ pretending they have all received equivalent investigation. Promote one to a
 provider dossier only when a measured gap or distinctive architecture
 justifies source review.
 
-**Open:** Decide, after the Windows vertical slice, whether the common desktop
-plane should directly depend on Cua, wrap multiple upstream providers, extract
-a smaller resident core, or maintain a derivative. API shape alone is not
-enough evidence.
+**Open:** Use the Windows hybrid facade in real workflows, then measure whether
+provider arbitration, packaging, reliability, latency, or required source
+changes justify extracting a smaller core or maintaining a derivative. The
+hybrid and differential provider results are evidence; independent fixture and
+OS effects remain the correctness oracles. API aesthetics alone are not enough
+evidence.

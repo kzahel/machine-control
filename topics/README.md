@@ -30,8 +30,9 @@ its `Topic:` trailers.
 
 ## Current topics
 
-- [`architecture.md`](architecture.md): target-native component, trust,
-  deployment-profile, facade, and failure-boundary decisions.
+- [`architecture.md`](architecture.md): target-native component, provisional
+  provider composition, fork/replacement gates, trust, deployment-profile,
+  facade, and failure-boundary decisions.
 - [`capabilities-and-results.md`](capabilities-and-results.md): common
   capability, observation, action, uncertainty, and conformance vocabulary.
 - [`delegation-and-agent-placement.md`](delegation-and-agent-placement.md): YA

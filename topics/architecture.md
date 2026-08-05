@@ -55,8 +55,8 @@ shape with their own native facilities.
 
 ## Resident component shape
 
-**Proposal:** The Windows vertical slice should validate a small set of
-components rather than one omnipotent daemon:
+**Decision — provisional implementation:** The Windows vertical slice should
+validate a small set of components rather than one omnipotent daemon:
 
 1. A stable installed target service owns identity, authenticated local/remote
    sessions, capabilities, cancellation, revocation, and routing.
@@ -75,6 +75,93 @@ attach to a durable identity. Linux must bind to the correct desktop and D-Bus
 session. ChromeOS already distributes the equivalent functions across SSH and
 target-local helpers. The common contract should describe the capabilities,
 not insist that every platform use the same number of processes.
+
+## Provisional provider composition
+
+**Decision:** The project initially builds an owned hybrid system rather than
+forking Cua or rewriting every platform primitive. The owned product boundary
+is the target-oriented facade, resident-session architecture, provider adapter
+interface, and conformance corpus. Providers are replaceable implementation
+components behind that boundary.
+
+```text
+local or authorized remote caller
+                 |
+                 v
+owned facade, session, identity, results, and provider arbitration
+       |                    |                     |
+       v                    v                     v
+ Cua adapter       platform-depth adapter   administration adapter
+ common runtime    WinApp/Win32, AX, etc.    native OS facilities
+```
+
+The first Windows composition is:
+
+- Cua for the common runtime behaviors it already performs well: bounded
+  semantics, snapshot-scoped references, ordinary-window capture,
+  background-first actions, sessions, action-route reporting, and frame
+  placement;
+- a WinApp/Win32/Shell adapter for measured Windows gaps: taskbar and system
+  surfaces absent from Cua's registry, packaged-window outer/inner resolution,
+  pattern-aware state actions, and alternate exact-window capture; and
+- explicit administration adapters for files, processes, packages, services,
+  deployment, logs, and direct OS configuration intents.
+
+Provider selection occurs per operation, not once for the whole machine. The
+facade returns the actual provider route, semantic and capture fidelity,
+delivery mode, foreground/cursor consequence, independently observed effect,
+and uncertainty. Callers should not need to know that one operation used Cua
+and the next used WinApp, but the result must never conceal that fact.
+
+### Why the hybrid comes first
+
+**Decision:** Optimize first for a fully functional target controller that can
+perform real work. A working composition reveals the correct common contract,
+delivers immediate value, and creates a behavioral baseline against which
+owned replacements can be measured. It also prevents a universal rewrite from
+delaying the Windows vertical slice and every workflow that depends on it.
+
+The hybrid is useful differential evidence, but provider agreement is not a
+correctness oracle. Correctness comes from independent effects: deterministic
+fixture state, native window/process relationships, application or registry
+state, foreground/focus/z-order/cursor observations, and bounded visual
+evidence. The project-owned conformance cases preserve those oracles so Cua,
+WinApp, native replacements, and later platform adapters can be compared on
+the same behavior.
+
+### Fork and replacement gates
+
+**Decision:** Keep Cua pinned and wrapped, and prefer narrow upstream changes
+where practical. Consider a maintained Cua derivative only when repeated
+implementation evidence shows one or more of the following:
+
+- required behavior cuts through Cua internals and cannot be expressed by the
+  facade or a provider adapter;
+- necessary patches cannot be upstreamed and maintaining a small patch stack
+  is less costly than compensating around it;
+- its process, packaging, signing, transport, or release model prevents the
+  resident appliance from meeting measured reliability requirements; or
+- replacing the dependency has a demonstrated fidelity, performance,
+  security, or maintenance benefit that exceeds ongoing fork cost.
+
+Architectural neatness alone is not a fork criterion. A fork inherits upstream
+merging, platform packaging, signing, release engineering, and every subsystem
+the project did not intend to change.
+
+An all-owned runtime should emerge incrementally, adapter by adapter, behind
+the stable facade. Replace a component only after the conformance corpus can
+prove parity or document an intentional difference. This keeps a complete
+working route available and avoids a flag-day rewrite.
+
+### Shareable project boundary
+
+**Proposal:** If this work becomes a standalone public implementation, its
+coherent initial deliverable is the facade, provider SDK, resident-session
+model, conformance corpus, and useful provider adapters. It does not need to
+own every accessibility, capture, or input primitive before it is genuinely
+this project's runtime. Over time the same boundary can support upstream
+providers, maintained derivatives, and fully owned backends without changing
+the agent-facing experience.
 
 ## One contract, multiple facades and transports
 

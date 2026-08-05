@@ -46,6 +46,18 @@ Proprietary agent-coupled tools may be excellent optional routes and quality
 benchmarks, but they are not the only foundation for the target-native
 interface.
 
+The provisional implementation architecture is an owned facade,
+resident-session boundary, provider adapter interface, and conformance corpus
+over replaceable upstream and native providers. Begin with the functional
+hybrid: pinned Cua for common-runtime behavior and deep platform adapters such
+as WinApp/Win32 for measured gaps. Route per operation and report the actual
+provider, fidelity, delivery, and independently observed effect. Do not fork
+Cua or start an all-platform rewrite for neatness alone; require repeated
+evidence that wrapping or upstreaming cannot meet the needed reliability,
+fidelity, packaging, security, or maintenance boundary. Provider agreement is
+differential evidence, not a correctness oracle; deterministic fixture and OS
+effects are the oracle.
+
 Treat the existing ChromeOS testbed as the closest current reference for the
 desired desktop architecture. An agent outside the Chromebook reaches it over
 SSH, while administration, `chrome.automation` desktop semantics, per-page

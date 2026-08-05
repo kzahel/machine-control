@@ -13,6 +13,9 @@ matches the question:
   “what else is available?”
 - [Topic index](topics/README.md): current architectural decisions, open
   questions, and recommended direction derived from that evidence.
+- [Provisional implementation architecture](topics/architecture.md#provisional-provider-composition):
+  what this project owns, how upstream and native providers compose, and when
+  a fork or owned replacement becomes justified.
 - [Implementation tacticals](docs/tactical/README.md): bounded work selected
   from the topics.
 - [System map](SYSTEM-MAP.md): which repository or program owns each part of
@@ -116,6 +119,22 @@ UIAutomator, ChatGPT Computer Use, and similar systems can implement or
 supplement it. Proprietary, agent-coupled providers may be excellent primary
 routes or quality benchmarks, but the usable control surface must not exist
 only inside one proprietary agent product.
+
+**Decision — provisional implementation architecture:** Build the useful
+system first as an owned target-oriented facade, resident-session boundary,
+provider adapter interface, and conformance corpus. Initially compose pinned,
+unmodified Cua with deep platform routes such as WinApp/Win32 on Windows and
+the already authoritative ChromeOS and device providers. Select a provider per
+operation and disclose the actual route and result; do not make callers stitch
+providers together themselves.
+
+This hybrid is the first product shape, not disposable glue. It supplies useful
+control now and a stable seam for replacing individual providers later. Do not
+fork Cua or begin an all-platform rewrite merely for conceptual neatness. Fork
+or replace a component when conformance and real workflows show that wrapping
+or upstreaming cannot meet the required fidelity, reliability, packaging, or
+maintenance boundary. See the
+[provisional provider composition](topics/architecture.md#provisional-provider-composition).
 
 ### ChromeOS is the current reference implementation
 
@@ -277,6 +296,10 @@ implementation:
    AT-SPI, Chrome accessibility, XCTest, ADB, and raw KVM pixels/HID have
    different authority and failure modes. A common contract must say which
    route actually ran and what it could verify.
+8. **Own the facade and conformance; compose providers first.** Cua and deep
+   native/platform routes are replaceable adapters behind the project-owned
+   product boundary. Fork or replace them incrementally only when measured
+   behavior justifies the maintenance cost.
 
 ```text
 controller YA session
