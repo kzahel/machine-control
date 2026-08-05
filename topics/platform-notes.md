@@ -1,146 +1,89 @@
-# Platform Notes
+# Platform Direction
 
 Topic: `platform-notes`
 
-Status: living cross-platform capability and gap survey.
-
-These notes summarize the present direction. Exact validation evidence belongs
-in the relevant testbed and `machine-control-spike`.
+Status: living cross-platform decision summary. Detailed candidate comparison
+and investigation status live in the
+[platform research index](../research/platforms/README.md).
 
 ## Windows desktop
 
-Preferred control is a Windows-resident service reachable through the same
-facade from an outside agent or a local YA worker. The interactive-session
-companion owns ordinary desktop operations; the worker is optional.
+**Decision:** Windows is the first complete vertical slice. Use a
+target-resident interactive-session controller reachable through the same
+logical facade by local and authorized remote callers. Keep WinVM responsible
+for lifecycle, bootstrap, recovery, and safe outer control.
 
-- Administration: PowerShell/SSH or another guest administration channel.
-- Semantics: UI Automation through the existing WinApp relay.
-- Guest-local visual/input fallback: a user-session provider where it does not
-  cross integrity or secure-desktop boundaries silently.
-- Leading provider candidate: current Cua Driver, compared with the existing
-  WinApp route through the same acceptance suite.
-- Optional supplement: Computer Use when it improves a task, without making it
-  the only remotely usable surface.
-- Outer recovery: UTM/QEMU console capture and input on the Mac controller.
-- Protected future: a narrow session proxy and optionally a SYSTEM broker for
-  truthful input-desktop state, companion bootstrap, and explicitly armed
-  secure-desktop operations.
+The recent spike establishes Cua as the provisional normal-user core; WinApp is
+the adopted comparison/supplement. A session proxy must add truthful active
+session, lock/input-desktop, reconnect, and authenticated transport behavior.
+Add a SYSTEM broker only for concrete, explicitly armed protected operations.
+Computer Use remains an optional in-target route and ergonomic benchmark.
 
-The Cua spike proved useful normal-user behavior but also found cross-integrity
-IPC, lock-state, UIAccess, secure-desktop, signing, and provenance gaps in the
-audited version. Current upstream Cua Driver now presents a materially stronger
-cross-platform window, background-delivery, result, and fixture contract, so it
-must be re-evaluated rather than accepted or rejected from the older evidence.
-See [`windows-findings.md`](../../machine-control-spike/docs/windows-findings.md)
-and [`provider-landscape.md`](provider-landscape.md).
+See [Windows control research](../research/platforms/windows.md) and the
+[Windows decision topic](windows-resident-control.md).
 
 ## macOS desktop
 
-Preferred control is a stable, consented, target-resident helper reachable
-locally or remotely. A YA worker may run inside the physical Mac or VM when the
-task benefits from local project context.
+**Decision:** Use a stable consented target-resident helper for ordinary AX,
+capture, input, window, and application operations. A local agent is optional.
+Keep Tart input outside the ordinary worker route because it can foreground the
+VM and interfere with the controller desktop.
 
-- Administration: local shell or `tart exec` for the VM.
-- Semantics: Accessibility (`AXUIElement`) through a stable, consented helper.
-- Capture/input: guest-local APIs when authorized.
-- Outer recovery for VM: Tart screenshot and input.
-- Protected boundary: login window, FileVault/preboot, TCC consent, and
-  passwords are not ordinary AX actions.
+Cua has recent live evidence; Peekaboo is the deepest macOS-specific source
+reference found. TCC identity, exact-window capture, transient system surfaces,
+private API posture, and login/protected domains remain explicit comparison
+dimensions.
 
-Outer Tart input must not be available to an ordinary worker because it can
-foreground the Tart window and move the controller pointer.
-
-The current macOS shortlist is Cua Driver, Peekaboo, Touchpoint, and Agent
-Device. Their exact-window, capture, background-delivery, TCC identity, and
-private-API postures differ materially; see
-[`provider-landscape.md`](provider-landscape.md).
+See [macOS control research](../research/platforms/macos.md).
 
 ## Linux desktop
 
-Preferred control is a target-resident service connected to the active desktop
-session and reachable locally or remotely. A YA worker in that session is
-optional.
+**Decision:** Run semantics in the active target desktop session through
+AT-SPI and report X11/XWayland/compositor-specific capture and input honestly.
+A private virtual compositor is still target-native control and may be the best
+non-interfering test-appliance shape. GDM, lock, and absent user sessions are
+different authority domains.
 
-- Administration: QEMU guest agent, SSH, or local shell.
-- Semantics: AT-SPI under the correct user D-Bus session.
-- GUI launch: through the active user's environment/systemd manager.
-- Wayland input/capture: compositor/portal-specific and honestly reported.
-- Outer recovery: UTM framebuffer and virtual HID.
-
-GDM, lock screens, and a missing user session are different authority/session
-domains from the logged-in AT-SPI desktop.
+See [Linux control research](../research/platforms/linux.md).
 
 ## ChromeOS
 
-The developer-mode Chromebook currently exposes unusually rich on-device
-control through root SSH, Chrome accessibility, CDP, DRM/EGL capture, and
-device-native input. Treat ChromeOS as its own platform rather than generic
-Linux.
+**Current:** The developer-mode Chromebook is the closest working desktop
+North Star implementation: SSH administration, `chrome.automation`, page CDP,
+DRM/EGL capture, and device-native input all execute on the target while an
+outside agent receives ergonomic control. ARCVM remains a distinct Android
+target reached through a Chromebook-local ADB proxy.
 
-This is the current reference for the North Star: an outside caller gets
-compact system-wide `chrome.automation` semantics, page-level CDP, target-local
-pixels/input, and administration without running an agent on the Chromebook or
-manipulating it through a host window. The common facade should preserve that
-ergonomic power while allowing different native adapters on other systems.
+**Decision:** Wrap and preserve the adopted stack before considering a rewrite
+or common-provider backend. Do not classify ChromeOS as generic Linux.
 
-ARCVM is a distinct Android target within the ChromeOS testbed. A local
-Chromebook ADB proxy/port forward should expose it through the Android capability
-family rather than pretending `chrome.automation` covers Android application
-internals.
-
-The on-device route is rich but not independent: an update can break rootfs
-changes, SSH startup, remote debugging, or the accessibility extension. The
-hardware-KVM project is the intended outer path for normal-mode devices and
-recovery, but it is still in bring-up.
+See [ChromeOS control research](../research/platforms/chromeos.md).
 
 ## iOS and iOS Simulator
 
-A stock iPhone cannot run a general YA worker. Place the agent on a Mac and
-treat the phone as a separate SUT.
+**Current:** CoreDevice plus a signed XCTest runner through Agent Device is the
+adopted physical-device route. The agent runs on an authorized Mac because a
+stock phone cannot host the full resident stack.
 
-- Physical lifecycle and files: Xcode CoreDevice/`devicectl`.
-- Semantic control: a signed, persistent XCUITest runner; Agent Device is the
-  current provider through `ios-device-testbed`.
-- Observation fallback: on-demand screenshots and coordinate gestures.
-- Simulator: prefer the same XCTest semantics for parity; YepAnywhere's
-  SimulatorKit/IOSurface/IndigoHID helper can remain an optional fast pixel/HID
-  route.
-- Human gates: passcode, biometrics, Apple Pay, account recovery, and protected
-  authorization.
+**Decision:** Preserve this native device-hosted architecture and normalize
+inventory, authorization, target selection, capabilities, evidence, and
+results with the wider system. Do not force mobile into a desktop process
+model.
 
-Agent Device also has a macOS helper, but its present public surface is scoped
-to the frontmost app, desktop, or menu bar rather than an exact selected
-window, and its screenshot path is display-scoped. Its Linux/web support is not
-a reason to replace the richer desktop testbeds, and it has no native Windows
-desktop backend. See [`provider-landscape.md`](provider-landscape.md).
+See [iOS control research](../research/platforms/ios.md).
 
-**Open:** Decide whether simulator and physical-device routes share a stable
-device-family target identity with different capabilities or remain distinct
-targets. Do not hide lifecycle, signing, authority, or fidelity differences to
-force one identifier.
+## Android and derived devices
 
-## Android and Android-derived devices
+**Decision:** ADB is the administration, lifecycle, debug, screenshot, and
+input baseline. Add UIAutomator/accessibility semantics and common ergonomics;
+do not replace mature platform facilities. Keep Quest, ARCVM, TV, emulator, and
+physical-device policy in their authoritative testbeds.
 
-ADB is the administration and lifecycle baseline. UIAutomator or an
-accessibility helper can provide semantics when needed; screenshots and input
-remain fallbacks. The worker normally runs on the attached controller, although
-an Android-hosted worker is possible in specialized environments.
-
-Quest adds headset state, wake/proximity policy, and protected in-headset
-surfaces. Those remain owned by its testbed rather than a generic Android
-provider.
+See [Android control research](../research/platforms/android.md).
 
 ## Physical desktop hardware
 
-When the OS can host YA, prefer a local worker plus native administration and
-semantic control. An independent management or hardware path may include:
-
-- SSH or an OS management agent;
-- BMC/IPMI/Redfish where hardware supports it;
-- HDMI capture plus USB HID;
-- remotely controlled power only under a separate, conservative policy; or
-- a human gate when no safe independent path exists.
-
-Hardware KVM is authoritative pixels and HID, not semantic truth. It should be
-used for bootstrap/recovery and as an independent visual oracle, not as the
-normal way to test an accessible desktop application.
+**Decision:** Prefer resident administration and semantic control whenever the
+OS is running. Hardware KVM, BMC, power, capture, and HID remain independent
+bootstrap/recovery routes and visual oracles. They do not become routine
+semantic control merely because the target is physical rather than virtual.

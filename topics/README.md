@@ -11,8 +11,12 @@ Documentation roles:
 
 - Root architecture and reference documents own the durable project shape,
   vocabulary, ownership boundaries, and North Star.
+- [`research/`](../research/README.md) owns the two-axis evidence corpus:
+  provider dossiers for architectural breadth and platform reports for
+  operating-system depth.
 - Topic documents own current truth, decisions, evidence, gaps, and direction
-  for a focused continuing concern.
+  for a focused continuing concern. They link to research rather than
+  duplicating provider or platform dossiers.
 - Tactical documents under [`docs/tactical/`](../docs/tactical/README.md) own
   bounded implementation slices and their execution records.
 - [`machine-control-spike`](../../machine-control-spike/README.md) owns exact
@@ -34,11 +38,10 @@ its `Topic:` trailers.
   coordination and the separation between agent placement and control target.
 - [`inner-first-routing.md`](inner-first-routing.md): ordinary resident routes,
   explicit outer recovery, and host-interference policy.
-- [`platform-notes.md`](platform-notes.md): current native foundations and gaps
-  across desktop, mobile, headset, VM, and physical targets.
-- [`provider-landscape.md`](provider-landscape.md): source-reviewed desktop
-  providers, exact-window lessons, fixture patterns, and the validation
-  shortlist.
+- [`platform-notes.md`](platform-notes.md): current decisions across desktop,
+  mobile, headset, VM, and physical targets.
+- [`provider-landscape.md`](provider-landscape.md): cross-provider decisions,
+  common-spine direction, exact-window requirements, and validation shortlist.
 - [`windows-resident-control.md`](windows-resident-control.md): current Windows
   proving-ground decisions, unresolved boundaries, and next implementation
   direction.
@@ -54,5 +57,7 @@ its `Topic:` trailers.
   to scan.
 - Link authoritative repositories and evidence rather than copying their
   detailed logs into this repository.
+- Update a provider dossier or platform report before changing a topic when new
+  evidence is what changed the decision.
 - Create a sibling topic rather than broadening an existing one into a
   catch-all.

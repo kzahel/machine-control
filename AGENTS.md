@@ -75,7 +75,8 @@ Android's established ADB foundation instead of starting over.
 Treat this North Star as the highest-priority decision when other documents,
 older spikes, or implementation conveniences pull in a different direction.
 
-Start with the North Star in `README.md`, then read `GLOSSARY.md`,
+Start with the North Star in `README.md`. Use `research/README.md` as the entry
+point for provider/platform options and evidence, then read `GLOSSARY.md`,
 `topics/README.md`, and `topics/inner-first-routing.md`. Read `SYSTEM-MAP.md`
 before changing ownership boundaries among YepAnywhere, dotfiles, a testbed, a
 guest-resident provider, or an outer provider.
@@ -123,19 +124,39 @@ Preserve these rules:
 
 ## Documentation workflow
 
-Use the topic/tactical convention shared with YepAnywhere and Mclone:
+Use a research/topic/tactical convention:
 
 - Root architecture and reference documents own durable system shape,
   vocabulary, ownership boundaries, and the North Star.
+- The two-axis corpus under `research/` owns provider dossiers and platform
+  reports. Provider dossiers record cross-platform architecture, declared
+  license scope, claimed reach, implementation depth, evidence, gaps, and fit.
+  Platform reports compare all plausible routes for one OS or device family
+  and record how deeply each has actually been investigated.
 - Focused, living topic documents under `topics/` own current truth, decisions,
-  evidence, gaps, and direction for continuing concerns.
+  gaps, and direction derived from the research corpus.
 - Numbered tactical documents under `docs/tactical/` own bounded implementation
   slices and execution records.
 - Exact experiments and source pins remain in `machine-control-spike` or the
   authoritative implementation/testbed repository.
 
-Before working on a continuing concern, read its topic. Update that topic when
-the work changes current status, contract, evidence, validation, gaps, or next
+Provider-first and platform-first research are complementary. A provider may
+be the best common architectural spine without being the deepest route on
+every platform; a platform-specific provider may sit behind the common
+contract. Do not force one library everywhere, and do not discard useful
+cross-platform architecture merely because one OS has a deeper specialist.
+
+Use the evidence levels defined in `research/README.md` and attach them to a
+specific provider, platform, capability, and route. Keep upstream claims,
+source review, builds, live tests, conformance evidence, and adoption distinct.
+Record the repository's declared top-level license and any relevant narrower
+terms in every provider dossier, while keeping exact revision audits in the
+spike or owning implementation repository.
+
+Before working on a continuing concern, read its topic and relevant provider
+dossier/platform report. Update the corpus when work changes a provider fact,
+license, comparison, evidence level, or investigation gap. Update the topic
+when that evidence changes current status, contract, decision, or next
 direction. Keep topics as current truth rather than append-only diaries; Git
 and commit bodies retain the history. Create a sibling topic when two concerns
 can evolve independently, and do not create a topic for every small standalone
@@ -152,6 +173,11 @@ lane codes.
 Completed tacticals remain execution records. Continuing guidance comes from
 the current topic and architecture documents. Add every tactical to
 `docs/tactical/README.md` and every topic to `topics/README.md`.
+
+Avoid duplicate truth: a provider dossier owns provider-wide facts, a platform
+report owns platform comparison, a topic owns the resulting decision, and a
+tactical owns execution. Summaries should link downward rather than copying
+evidence details into every layer.
 
 Label claims as one of:
 

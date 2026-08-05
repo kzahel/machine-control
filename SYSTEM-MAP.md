@@ -58,18 +58,23 @@ route merely because it is convenient.
 
 | Component | Use it for | Do not make it |
 | --- | --- | --- |
+| [Research corpus](research/README.md) | Provider architecture/license/evidence dossiers and per-platform option comparisons | Exact experiment log, source-pin store, decision topic, or implementation |
 | [`machine-control-spike`](../machine-control-spike/README.md) | Exact Cua pins, conformance evidence, macOS/Windows behavior, and security findings | The current architecture hub or production implementation |
-| [Cua Driver](https://github.com/trycua/cua/tree/main/libs/cua-driver) | Leading cross-platform desktop-plane candidate to re-evaluate; exact-window semantics/capture, explicit background/foreground delivery, effect reporting, and strong fixtures | Cross-host coordinator, testbed lifecycle owner, protected-control trust foundation, or the owner of the common contract |
-| [Touchpoint](https://github.com/Touchpoint-Labs/touchpoint) | Small cross-platform AX/UIA/AT-SPI/CDP facade and exact-window identity reference; second common-provider spike candidate | A proven occlusion-independent capture or Wayland-input solution without target validation |
-| [Agent Device](https://github.com/callstack/agent-device) | Current iOS XCTest provider and a source of compact agent-oriented snapshot/action/recovery behavior | Exact-window macOS control, native Windows control, or the overall desktop/control fabric |
-| [Peekaboo](https://github.com/openclaw/Peekaboo) | Deep macOS reference for exact-window capture, background action routing, transient system surfaces, and native fixture design | A cross-platform provider or protected-control boundary |
-| [kwin-mcp](https://github.com/isac322/kwin-mcp) | Linux/KWin reference for isolated target-native Wayland sessions, AT-SPI, compositor capture, and libei input | A proven universal Linux desktop or exact-window facade |
+| [Cua Driver](research/providers/cua-driver.md) | Spike-supported provisional normal-user desktop core; exact-window semantics/capture, explicit delivery/effects, sessions, and strong fixtures | Cross-host coordinator, testbed lifecycle owner, protected-control trust foundation, or owner of the common contract |
+| [Open Computer Use](research/providers/open-computer-use.md) | Compact agent-neutral Computer Use CLI/MCP across Windows, macOS, and Linux; first common-provider comparison candidate | Proven session/result/remote core or exact-window equivalent without conformance evidence |
+| [WinApp](research/providers/winapp.md) | Adopted WinVM UIA route, Windows comparison provider, and possible gap-filling adapter | Cross-platform core, effect oracle, or protected desktop provider |
+| [Touchpoint](research/providers/touchpoint.md) | Small cross-platform AX/UIA/AT-SPI/CDP facade and exact-window identity reference | Proven occlusion-independent capture or Wayland-input solution without target validation |
+| [Agent Device](research/providers/agent-device.md) | Current iOS XCTest provider and a source of compact agent-oriented snapshot/action/recovery behavior | Exact-window macOS control, native Windows control, or the overall desktop/control fabric |
+| [Peekaboo](research/providers/peekaboo.md) | Deep macOS reference for exact-window capture, background action routing, transient system surfaces, and native fixture design | Cross-platform provider or protected-control boundary |
+| [kwin-mcp](research/providers/kwin-mcp.md) | Linux/KWin reference for isolated target-native Wayland sessions, AT-SPI, compositor capture, and libei input | Proven universal Linux desktop or exact-window facade |
 | YepAnywhere Device Bridge | Human remote viewing and fast pixel/input backends, especially its iOS Simulator work | Semantic agent control or the cross-platform orchestration contract |
-| RustDesk and similar remote desktop projects | Reference architectures for session services, desktop switching, capture, and input | A wholesale trust boundary imported into the agent-facing system |
+| [RustDesk](research/providers/rustdesk.md) and similar remote desktop projects | AGPL-licensed reference architecture for session services, desktop switching, capture, and input | A wholesale trust boundary imported into the agent-facing system |
 
-The source-reviewed comparison, secondary candidates, and acceptance lessons
-live in [`provider-landscape.md`](topics/provider-landscape.md). Being listed
-here does not mean a provider has passed on the configured machines.
+Detailed claims and evidence levels live in the
+[provider index](research/providers/README.md) and
+[platform index](research/platforms/README.md). Cross-provider decisions live
+in [`provider-landscape.md`](topics/provider-landscape.md). Being listed here
+does not mean a provider has passed on every advertised platform.
 
 ## Ownership rule
 

@@ -45,25 +45,28 @@ maintained as a manually curated prerequisite.
 ### 1 — establish a baseline on the existing Windows VM
 
 Inventory the current PowerShell/SSH, WinApp/UIA, screenshot, input, session,
-and outer-recovery routes. Compare current Cua Driver and WinApp on one exact
-window and the smallest Windows-shell path, using the criteria in the
-[provider landscape](../../topics/provider-landscape.md). Run one deterministic
-fixture through the existing healthy VM before combining facade design with
-clean-install automation. Record real gaps rather than replacing working
-adapters speculatively.
+and outer-recovery routes. Treat the completed Cua source, macOS, and Windows
+spike as baseline evidence rather than rerunning it. Map its proven and missing
+cells alongside the adopted WinApp route using the
+[Windows research report](../../research/platforms/windows.md). Run only the
+smallest health/smoke check needed to prove the existing VM has not drifted
+before combining facade design with clean-install automation.
 
 ### 2 — assemble the target-oriented facade
 
 Compose capability/state discovery, UIA snapshots and actions, guest-local
 screenshots and input, and administration behind one target-oriented contract.
-Current Cua Driver, WinApp, PowerShell, SSH, and any narrower native helper may
-remain adapters; none becomes the product boundary by accident.
+Start with Cua as the provisional normal-user core. WinApp, PowerShell, SSH,
+and narrower native helpers may remain adapters; none becomes the product
+boundary by accident.
 
 ### 3 — drive the real Windows shell
 
 Use a desktop-root UIA observation scope to inspect and control Start, taskbar,
 notification area, shell flyouts, Windows Settings, ordinary dialogs, and
-window state. The acceptance flow must:
+window state. Exercise Cua first, then use WinApp or a native route on the same
+case when it is the adopted baseline or demonstrates a material advantage. The
+acceptance flow must:
 
 - open Start, inspect it semantically, search, and launch an application;
 - enumerate and activate taskbar applications;
@@ -130,6 +133,9 @@ image as a reproducible output.
 
 ## Validation record
 
-Not started. As slices execute, record exact commands and experiment evidence
-in their owning implementation/testbed repository or in
-`machine-control-spike`. Keep only the cross-provider result and links here.
+The precursor Cua fit, macOS, and Windows investigations are complete and
+linked from the [research corpus](../../research/README.md). The integrated
+resident-controller slice has not started. As it executes, record exact
+commands and experiment evidence in the owning implementation/testbed
+repository or in `machine-control-spike`. Keep only the cross-provider result
+and links here.

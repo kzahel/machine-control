@@ -2,14 +2,17 @@
 
 Topic: `windows-resident-control`
 
-Status: active design and implementation-planning concern; the first tactical
-is proposed and implementation has not started.
+Status: active design and implementation-planning concern. Cua source/live
+evaluation and the existing WinApp route are documented; the first integrated
+resident-controller tactical is proposed and implementation has not started.
 
 ## Scope
 
 This topic owns the current Windows proving-ground decisions, unresolved
 resident component boundaries, and the direction that must survive across
-implementation slices. The bounded execution plan lives in
+implementation slices. Candidate comparison and investigation depth live in
+the [Windows research report](../research/platforms/windows.md). The bounded
+execution plan lives in
 [`Tactical 000`](../docs/tactical/000-windows-resident-control-vertical-slice.md).
 
 ## Settled direction
@@ -26,9 +29,10 @@ implementation slices. The bounded execution plan lives in
   flyouts, Settings, dialogs, and ordinary window management; an app-scoped
   test alone is insufficient.
 - Outer control is startup, bootstrap, independent observation, and recovery.
-- Current Cua Driver is the leading resident desktop-plane candidate to
-  validate; WinApp remains the existing comparison route. Neither owns the
-  project contract, lifecycle, protected authority, or recovery boundary.
+- The recent Cua spike passed with conditions and establishes Cua as the
+  provisional normal-user desktop core; WinApp remains the adopted comparison
+  and supplemental route. Neither owns the project contract, lifecycle,
+  protected authority, or recovery boundary.
 - Computer Use is an optional provider and ergonomic benchmark, not the only
   remotely usable surface.
 - ChromeOS is the current quality and architecture reference for rich outside
@@ -47,11 +51,34 @@ The smallest repeatable Windows target appliance needs to provide:
   profile or lease; and
 - recovery after reboot, logout, lock, user switching, or provider crash.
 
-The first implementation should compare current Cua Driver with WinApp and may
-compose either with PowerShell, SSH, or other existing pieces behind the
-facade. The product boundary is the target controller, not any one adapter. The
-source-reviewed shortlist and shared acceptance lessons live in
-[`provider-landscape.md`](provider-landscape.md).
+The first implementation should use the completed Cua evidence rather than
+repeat it wholesale, exercise Cua first on the untested Windows system-shell
+surface, and compare WinApp or a native route on the same case where it is the
+adopted baseline or exposes a material advantage. PowerShell, SSH, and narrower
+native components may remain adapters behind the facade. The product boundary
+is the target controller, not any one adapter.
+
+## Research and option status
+
+**Current:** The [Windows research report](../research/platforms/windows.md)
+is the single entry point for the candidate matrix and completed
+investigations. It records:
+
+- Cua source review and live normal/elevated/UAC/lock/session experiments;
+- the adopted WinVM/WinApp relay and observed UIA/WebView/effect limits;
+- Open Computer Use as a source-reviewed compact cross-platform comparison;
+- Cua-plus-native, WinApp-centered, and owned-native architecture options; and
+- source-reviewed and search-triage alternatives that have not earned a live
+  experiment.
+
+**Decision:** The leading architecture is a Cua normal-user core plus a small
+owned Windows session proxy, with WinApp/Win32/Shell adapters added only for
+measured gaps and a narrow protected broker deferred until a concrete operation
+justifies it.
+
+The provider-first view and common contract lessons live in
+[`provider-landscape.md`](provider-landscape.md). Exact pins, commands, and
+target evidence remain in `machine-control-spike` and `winvm-testbed`.
 
 ## System-shell acceptance contract
 

@@ -2,6 +2,27 @@
 
 Status: current architecture notebook, started 2026-08-04.
 
+## Start here
+
+Read the [North Star](#north-star) first. Then use the documentation layer that
+matches the question:
+
+- [Research corpus](research/README.md): what providers and platform routes
+  exist, their licenses, how deeply each claim has been investigated, and the
+  evidence behind it. This is the entry point for “what have we tried?” and
+  “what else is available?”
+- [Topic index](topics/README.md): current architectural decisions, open
+  questions, and recommended direction derived from that evidence.
+- [Implementation tacticals](docs/tactical/README.md): bounded work selected
+  from the topics.
+- [System map](SYSTEM-MAP.md): which repository or program owns each part of
+  the actual system.
+
+Provider-first and platform-first research are intentionally both preserved.
+A broad library may be the best common spine without being the best component
+on every OS; a deep platform-specific provider may sit behind the same common
+contract. One library everywhere is an optimization, not a requirement.
+
 ## North Star
 
 **Decision:** Give every supported computer and device the richest practical
@@ -281,14 +302,16 @@ this placement difference must not create an unrelated agent-facing workflow.
 
 ## Documentation organization
 
-This repository uses the same topic/tactical separation as YepAnywhere and
-Mclone:
+This repository uses a research/topic/tactical separation:
 
 - This README owns the North Star and repository-level synthesis.
 - [Glossary](GLOSSARY.md) and [system map](SYSTEM-MAP.md) are durable reference
   documents for vocabulary and ownership.
+- [`research/`](research/README.md) is the two-axis evidence corpus. Provider
+  dossiers record architecture, license, reach, and fit; platform reports
+  compare depth and investigation status on each OS or device family.
 - [`topics/`](topics/README.md) contains focused, living records of current
-  decisions, evidence, gaps, and recommended direction.
+  decisions, gaps, and recommended direction derived from the corpus.
 - [`docs/tactical/`](docs/tactical/README.md) contains numbered, bounded
   implementation plans and execution records. Completed tacticals are history;
   their owning topics remain current truth.
@@ -297,10 +320,11 @@ Mclone:
 - [`machine-control-spike`](../machine-control-spike/README.md) retains exact
   experiment evidence and third-party source pins.
 
-Do not turn a topic into a chronological work log or use a completed tactical
-as the continuing architecture contract. Update the smallest owning topic when
-the current truth changes; create a tactical when execution needs a bounded,
-reviewable plan.
+Do not duplicate provider dossiers in platform reports or raw experiments in
+topics. Provider dossiers own cross-platform facts; platform reports own
+comparison depth; topics own decisions. Do not turn a topic into a
+chronological work log or use a completed tactical as the continuing
+architecture contract.
 
 ## Reading order
 
@@ -310,6 +334,10 @@ reviewable plan.
   terms used throughout the project.
 - [System map](SYSTEM-MAP.md): which existing repository or program owns each
   concern.
+- [Research corpus](research/README.md): provider-first and platform-first
+  evidence, license records, investigation depth, and indexes.
+- [Windows research](research/platforms/windows.md): all current Windows
+  candidates and completed Cua/WinApp investigations in one place.
 - [Topic index](topics/README.md): current continuing concerns and their update
   policy.
 - [Architecture](topics/architecture.md): the component model and trust/failure
@@ -320,10 +348,10 @@ reviewable plan.
   how YepAnywhere workers and testbed targets relate.
 - [Capabilities and results](topics/capabilities-and-results.md): a provisional
   vocabulary for truthful discovery and action outcomes.
-- [Platform notes](topics/platform-notes.md): current routes and gaps per
+- [Platform direction](topics/platform-notes.md): current decisions per
   operating system and device family.
-- [Desktop provider landscape](topics/provider-landscape.md): current upstream
-  candidates, exact-window findings, and conformance-fixture lessons.
+- [Provider landscape](topics/provider-landscape.md): cross-provider decisions,
+  shortlist, exact-window requirements, and conformance-fixture direction.
 - [Windows resident control](topics/windows-resident-control.md): unresolved
   decisions for the first complete platform proof.
 - [Tactical 000](docs/tactical/000-windows-resident-control-vertical-slice.md):
@@ -358,12 +386,15 @@ worker inside a desktop is not required for outside control; MCP is not the
 authorization boundary; and outer VM/KVM input is not a routine fallback.
 
 [`../machine-control-spike/`](../machine-control-spike/README.md) contains the
-executable Cua evaluation and exact evidence for the version it audited. The
-current upstream Cua Driver has since developed a substantially stronger
-cross-platform exact-window, background-delivery, effect-reporting, and fixture
-contract. It is now the leading common desktop-plane candidate to re-evaluate,
-but it still does not own this system's trust, lifecycle, recovery, protected
-authority, or cross-device contract. See the
+recent executable Cua evaluation and exact evidence. That spike already found
+the cross-platform exact-window, background-delivery, effect-reporting, and
+fixture contract and recommended Cua as the provisional normal-user evaluation
+core. A same-version source review immediately afterward added competitor
+context but did not reveal a newly transformed Cua release. Continue with the
+remaining Windows product surface and review later upstream changes only when
+they affect a concrete gap. Cua still does not own this system's trust,
+lifecycle, recovery, protected authority, or cross-device contract. See the
+[Cua dossier](research/providers/cua-driver.md) and
 [provider landscape](topics/provider-landscape.md).
 
 ChatGPT Computer Use is likewise a valuable installed provider and ergonomic

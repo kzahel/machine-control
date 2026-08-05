@@ -2,6 +2,10 @@
 
 Bounded implementation plans and execution records live here.
 
+Tacticals are selected from current [`topics/`](../../topics/README.md) and
+should link the relevant [provider/platform research](../../research/README.md)
+rather than embedding another candidate survey or experiment log.
+
 Use zero-padded numeric prefixes for new tactical documents, such as
 `000-topic.md` and `001-next-topic.md`. Keep one coherent implementation slice
 per document. A coordinating parent tactical is acceptable when it makes the
