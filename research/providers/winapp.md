@@ -12,7 +12,7 @@ Last corpus review: 2026-08-05.
 
 | Platform | Level | Evidence and limit |
 | --- | --- | --- |
-| Windows | `adopted` | `winvm-testbed` installs WinApp and reaches it through an interactive-session relay for ordinary semantic automation. Specific behaviors have live operational evidence, but no complete shared conformance matrix exists. |
+| Windows | `adopted` | `winvm-testbed` installs WinApp and reaches it through an interactive-session relay. Application and real-shell gap cells have live evidence, but no complete shared provider-wide conformance matrix exists. |
 | Other platforms | Unsupported | WinApp is a Windows provider. |
 
 Evidence links:
@@ -20,6 +20,7 @@ Evidence links:
 - [WinVM UI automation](../../../winvm-testbed/docs/ui-automation.md)
 - [WinVM architecture](../../../winvm-testbed/docs/architecture.md)
 - [WinVM known problems](../../../winvm-testbed/docs/problems.md)
+- [Windows shell findings](../../../machine-control-spike/docs/windows-shell-findings.md)
 - [upstream UI automation reference](https://github.com/microsoft/winappCli/blob/main/docs/ui-automation.md)
 
 ## Architecture and depth
@@ -41,6 +42,15 @@ embedded WebView2, a semantic InvokePattern acknowledgement that did not cause
 the intended application transition, and the need to re-inspect after material
 actions. This is concrete evidence for separating dispatch from effect.
 
+The real-shell run also established concrete strengths. WinApp exposed the
+otherwise Cua-invisible taskbar and its Start, application, notification,
+clock, and desktop controls. Semantic click activated a minimized taskbar
+application; pattern-aware invoke changed ordinary maximize, restore,
+minimize, and close state. It inspected the semantically rich inner Settings
+window after activating the packaged outer frame, and it captured exact HWNDs
+that Cua's registry could not address. A focus precondition correctly refused
+unsafe synthetic click until the target window was foreground.
+
 ## North Star fit
 
 WinApp provides strong Windows semantic and window capture primitives but not
@@ -52,10 +62,10 @@ filling a platform-specific gap.
 ## Current disposition
 
 **Decision:** Preserve WinApp as the adopted Windows comparison route and a
-possible supplemental adapter. Compare it with Cua only on common acceptance
-cases or demonstrated gaps; do not rerun already-settled Cua experiments merely
-to create symmetry.
+required component of the Windows shell adapter behind the owned hybrid
+facade. Route it only for capabilities it demonstrably supplies; do not rerun
+already-settled Cua experiments merely to create symmetry.
 
-**Open:** Measure desktop-root shell coverage, transient-surface behavior,
-exact-window capture under occlusion/minimization, event-aware waits, and
-local/remote result normalization through the proposed facade.
+**Open:** Measure exact-window capture under occlusion/minimization,
+event-aware waits, provider failover rules, and local/remote result
+normalization through the proposed facade.

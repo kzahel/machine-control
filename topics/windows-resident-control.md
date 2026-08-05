@@ -2,10 +2,9 @@
 
 Topic: `windows-resident-control`
 
-Status: active design and implementation concern. Cua source/live evaluation
-and the existing WinApp route are documented; the first integrated
-resident-controller tactical has started with a focused Windows system-shell
-acceptance run.
+Status: active implementation concern. Cua source/live evaluation and the
+Windows system-shell acceptance run are complete. The next bounded slice is an
+owned hybrid facade and interactive-session proxy.
 
 ## Scope
 
@@ -33,9 +32,12 @@ Its active shell-acceptance slice lives in
   test alone is insufficient.
 - Outer control is startup, bootstrap, independent observation, and recovery.
 - The recent Cua spike passed with conditions and establishes Cua as the
-  provisional normal-user desktop core; WinApp remains the adopted comparison
-  and supplemental route. Neither owns the project contract, lifecycle,
-  protected authority, or recovery boundary.
+  provisional common normal-user runtime. Real shell acceptance proves that a
+  Cua-only stack is insufficient: WinApp/native Windows adapters are required
+  for taskbar operations, packaged-window inner/outer resolution, selected
+  window-state actions, and capture of HWNDs absent from Cua's registry.
+  Neither provider owns the project contract, lifecycle, protected authority,
+  or recovery boundary.
 - Computer Use is an optional provider and ergonomic benchmark, not the only
   remotely usable surface.
 - ChromeOS is the current quality and architecture reference for rich outside
@@ -54,12 +56,13 @@ The smallest repeatable Windows target appliance needs to provide:
   profile or lease; and
 - recovery after reboot, logout, lock, user switching, or provider crash.
 
-The first implementation should use the completed Cua evidence rather than
-repeat it wholesale, exercise Cua first on the untested Windows system-shell
-surface, and compare WinApp or a native route on the same case where it is the
-adopted baseline or exposes a material advantage. PowerShell, SSH, and narrower
-native components may remain adapters behind the facade. The product boundary
-is the target controller, not any one adapter.
+The first implementation should use the completed Cua and system-shell
+evidence rather than repeat it. Build an owned facade/session proxy that routes
+each operation through Cua or the measured WinApp/native shell adapter and
+reports the actual route, fidelity, foreground consequence, delivery, and
+independent effect. PowerShell, SSH, and narrower native components may remain
+adapters behind the facade. The product boundary is the target controller, not
+any one adapter.
 
 ## Research and option status
 
@@ -74,10 +77,10 @@ investigations. It records:
 - source-reviewed and search-triage alternatives that have not earned a live
   experiment.
 
-**Decision:** The leading architecture is a Cua normal-user core plus a small
-owned Windows session proxy, with WinApp/Win32/Shell adapters added only for
-measured gaps and a narrow protected broker deferred until a concrete operation
-justifies it.
+**Decision:** The leading architecture is a small owned Windows facade/session
+proxy with a Cua common-runtime adapter and an operation-level
+WinApp/Win32/Shell adapter for measured gaps. A narrow protected broker remains
+deferred until a concrete operation justifies it.
 
 The provider-first view and common contract lessons live in
 [`provider-landscape.md`](provider-landscape.md). Exact pins, commands, and
@@ -108,6 +111,16 @@ The facade should allow compact semantic/visual scopes for Start, taskbar,
 notification area, a shell flyout, and a Settings window so agents do not pay
 for the entire desktop tree on every action.
 
+**Current:**
+[`Tactical 001`](../docs/tactical/001-windows-system-shell-acceptance.md)
+completed this track. The minimized
+[`shell findings`](../../machine-control-spike/docs/windows-shell-findings.md)
+show that provider choice must occur per operation. Cua remains strong for
+ordinary-window semantics, compact state, background UIA, capture, evidence,
+and frame placement. The Windows adapter must cover Cua-invisible shell HWNDs,
+pattern-aware taskbar/title-bar actions, Settings outer/inner resolution, and
+alternate exact-window capture.
+
 ## Open decisions
 
 ### Inner-first enforcement
@@ -130,10 +143,12 @@ outside control.
 
 ### Adapter boundary
 
-Determine how a small adapter projects target/capability inventory, independent
-state dimensions, route and host-interference metadata, structured results,
-recovery requests, and artifact references without forcing every testbed to
-rename or reimplement its CLI.
+Define the smallest facade that projects target/capability inventory,
+generation-scoped window and element identity, compact observation, capture
+extent, route and host-interference metadata, structured delivery/effect
+results, recovery requests, and artifact references. Its provider arbiter must
+select Cua or the Windows shell adapter per operation without forcing every
+testbed to rename or reimplement its CLI.
 
 ### Outer recovery authority
 
@@ -162,8 +177,8 @@ provenance.
 ## Later questions
 
 - Whether the proven facade should become a common machine-control SDK.
-- Whether current Cua Driver becomes the primary Windows desktop adapter,
-  remains a comparison provider, or supplies parts of a smaller resident core.
+- Whether long-term Cua maintenance stays wrapper/upstream based or eventually
+  warrants replacing portions of the common runtime behind the same facade.
 - How multiple displays, RDP/console sessions, fast-user switching, and nested
   VMs are represented.
 - Which physical Windows machines warrant BMC, power, or hardware-KVM support.

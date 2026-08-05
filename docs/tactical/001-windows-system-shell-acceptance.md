@@ -1,6 +1,6 @@
 # Tactical 001: Windows System-Shell Acceptance
 
-Status: active; execution started 2026-08-05.
+Status: complete; executed 2026-08-05.
 
 Topic: `windows-resident-control`
 
@@ -135,7 +135,44 @@ or one bounded experiment required before that choice.
 
 ## Validation record
 
-Execution has started. The plan and acceptance contract are recorded here;
-exact commands, source pins, and live target evidence will be added to
-`machine-control-spike`. Update this section with the final result and links
-when the run is complete.
+The authoritative minimized result is
+[`windows-shell-findings.md`](../../../machine-control-spike/docs/windows-shell-findings.md).
+The repeatable probe is
+[`windows-shell-cua-probe.ps1`](../../../machine-control-spike/scripts/windows-shell-cua-probe.ps1);
+generated JSON, trees, and screenshots remained in guest scratch space.
+
+The existing Windows test appliance passed lifecycle, SSH, interactive-relay,
+Cua, and WinApp health. Cua Driver 0.17.0 ran at genuine Medium integrity. All
+ordinary control ran inside the target's interactive session through Cua or
+the WinVM WinApp relay; no host/VM-window input or capture was used.
+
+The run covered every acceptance surface. Its material results were:
+
+- Cua provided compact Start/Search and flyout semantics, UIA text entry,
+  exact-window flyout and ordinary-window capture, generation-scoped element
+  references, dialog control, and confirmed system-API frame placement.
+- Cua's internal window registry omitted the taskbar and could later omit a
+  still-visible Search or Settings inner window even when supplied its exact
+  valid HWND.
+- Cua title-bar UIA actions acknowledged delivery but independently produced
+  no maximize, minimize, or close effect.
+- WinApp/native routes supplied taskbar semantics and activation, pattern-aware
+  window-state actions, packaged Settings inner-window semantics, and capture
+  for exact HWNDs that Cua could not address.
+- The Settings case changed and independently verified a harmless user-scoped
+  visual option in both directions, then restored the original absent registry
+  value and visible off state.
+- Transient flyout and dialog references were rejected after dismissal, and
+  foreground/cursor consequences were recorded independently from delivery.
+
+The decision is to proceed with an owned hybrid facade and interactive-session
+proxy. Cua remains the default common runtime for the operations it performs
+well; a WinApp/native Windows shell adapter is required for measured
+operation-level gaps. The facade, not either provider, owns routing, fidelity,
+effect, and reference-lifetime truth. A protected broker is not justified by
+this slice.
+
+All disposable windows and shell surfaces were closed, the changed setting and
+temporary integrity policy were restored, generated guest evidence was
+removed, the temporary Cua daemon was stopped, and the test appliance returned
+to its original stopped lifecycle state.

@@ -13,7 +13,7 @@ Last corpus review: 2026-08-05.
 
 | Platform | Level | Evidence and limit |
 | --- | --- | --- |
-| Windows | `conformance-tested` | Recent spike tested normal and elevated applications, UAC, lock, capture, semantics, background delivery, and revocation. Protected and cross-integrity gaps remain. |
+| Windows | `conformance-tested` | Recent spikes tested normal and elevated applications, UAC, lock, capture, semantics, background delivery, revocation, and the real Windows shell. The taskbar/selected shell HWND registry, window-state action, protected, and cross-integrity gaps require adjacent adapters. |
 | macOS | `conformance-tested` | Recent spike built the pinned source and exercised AppKit/Electron semantics, exact-window capture, background input, effects, permission identity, restart, and lock behavior. |
 | Linux | `source-reviewed` | X11, Sway, GNOME, KDE, and nested-compositor routes are implemented/documented separately; no local corpus conformance run yet. |
 | ChromeOS/iOS/Android | Unsupported as first-class Cua Driver platforms | They require separate provider families or a future adapter. |
@@ -23,6 +23,7 @@ Exact source and experiment evidence:
 - [Cua fit matrix](../../../machine-control-spike/docs/cua-fit-matrix.md)
 - [phase recommendation](../../../machine-control-spike/docs/phase-1-recommendation.md)
 - [Windows findings](../../../machine-control-spike/docs/windows-findings.md)
+- [Windows shell findings](../../../machine-control-spike/docs/windows-shell-findings.md)
 - [macOS findings](../../../machine-control-spike/docs/macos-findings.md)
 
 ## Architecture
@@ -64,6 +65,9 @@ Required adjacent work includes:
   lock-state, and fidelity data;
 - a concrete authenticated transport/server adapter for outside callers;
 - a Windows session proxy and truthful input-desktop state;
+- a WinApp/native Windows shell adapter for Cua-invisible shell HWNDs,
+  pattern-aware taskbar/title-bar actions, packaged-window resolution, and
+  alternate exact-window capture;
 - a narrow protected broker only for justified protected operations;
 - first-class ChromeOS and device-provider integration outside the current
   three desktop backends; and
@@ -71,11 +75,13 @@ Required adjacent work includes:
 
 ## Current disposition
 
-**Decision:** Treat Cua as the leading candidate for the common normal-user
-desktop plane and the default first route in the Windows vertical slice. Keep
-WinApp and native platform components available for measured gaps. Cua does
-not own testbed lifecycle, cross-host coordination, protected authority,
-outer recovery, or the project-wide ergonomic contract.
+**Decision:** Treat Cua as the common normal-user runtime adapter and default
+first route for operations it performs well. The Windows vertical slice must
+place it behind an owned hybrid facade: real-shell acceptance requires
+WinApp/native components for measured taskbar, packaged-window, window-state,
+registry-visibility, and capture gaps. Cua does not own provider arbitration,
+testbed lifecycle, cross-host coordination, protected authority, outer
+recovery, or the project-wide ergonomic contract.
 
 **Open:** Determine whether the necessary capability, transport, session-proxy,
 and protected-broker additions can remain wrappers/upstream changes or require

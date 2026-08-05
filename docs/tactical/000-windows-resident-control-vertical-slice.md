@@ -1,7 +1,8 @@
 # Tactical 000: Windows Resident-Control Vertical Slice
 
-Status: active; the first bounded implementation slice is
-[`Tactical 001`](001-windows-system-shell-acceptance.md).
+Status: active; the first bounded implementation slice,
+[`Tactical 001`](001-windows-system-shell-acceptance.md), is complete. The next
+slice is the target-resident hybrid facade and interactive-session proxy.
 
 Topic: `windows-resident-control`
 
@@ -83,8 +84,10 @@ into host-side input. Support compact observation scopes such as `start_menu`,
 `taskbar`, `notification_area`, and one Settings window so system-shell control
 remains token-efficient.
 
-This step is executed and recorded by
-[`Tactical 001`](001-windows-system-shell-acceptance.md).
+This step was completed and recorded by
+[`Tactical 001`](001-windows-system-shell-acceptance.md). The result requires
+Cua plus an operation-level WinApp/native Windows shell adapter behind the
+owned facade.
 
 ### 4 — prove remote direct control
 
@@ -138,8 +141,14 @@ image as a reproducible output.
 ## Validation record
 
 The precursor Cua fit, macOS, and Windows investigations are complete and
-linked from the [research corpus](../../research/README.md). The integrated
-resident-controller slice started with the focused Windows shell-acceptance
-run in Tactical 001. Record exact commands and experiment evidence in the
-owning implementation/testbed repository or in `machine-control-spike`. Keep
-only the cross-provider result and links here.
+linked from the [research corpus](../../research/README.md). Tactical 001
+completed the real Windows shell-acceptance track and selected a hybrid
+Cua-plus-Windows-adapter facade. Its authoritative result is
+[`windows-shell-findings.md`](../../../machine-control-spike/docs/windows-shell-findings.md).
+
+Steps 1 and 3 are therefore complete. Step 2 is next: implement the smallest
+resident facade/session proxy that normalizes identity, compact observation,
+capture, action routing, delivery, effect, and fidelity across Cua and the
+measured WinApp/native gaps. Exact future commands and experiment evidence
+remain in the owning implementation/testbed repository or
+`machine-control-spike`.
