@@ -8,6 +8,10 @@ The Windows suites exercise the same installed facade from two placements:
   Cua and native providers from either remote or local placement. Its optional
   failure lane terminates only the supervised Cua child to prove bounded
   restart, stale-reference, timeout, and disclosed fallback behavior.
+- `inbox-application-workflow.ps1` drives Calculator and Notepad through the
+  resident facade. It verifies Calculator through an independent native UIA
+  readback and Notepad through exact file bytes, including close, reopen,
+  edit, exact-window capture, lifecycle, metrics, and owned-artifact cleanup.
 - `provider-absence.ps1` is an explicitly confirmed, reversible package test.
   It withholds the installed Cua executable after revocation, proves truthful
   unavailable capability and native observation fallback, then restores the

@@ -10,6 +10,9 @@
     <AssemblyName>machine-control-windows</AssemblyName>
     <RootNamespace>MachineControl.Windows</RootNamespace>
     <PublishSingleFile>true</PublishSingleFile>
+    <!-- Keep WPF native companions beside the apphost. Bundled extraction is
+         unreliable for UIAutomationTypes on Windows ARM64 session helpers. -->
+    <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
     <SelfContained>true</SelfContained>
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>

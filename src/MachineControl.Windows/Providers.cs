@@ -58,6 +58,7 @@ internal sealed class WindowsNativeProvider : IControlProvider
             Semantic("snapshot", "desktop", "UI Automation"),
             Capture("screenshot", "input-desktop or exact-HWND pixels"),
             Semantic("invoke", "desktop", "UIA pattern; authorized input fallback"),
+            Semantic("set.value", "desktop", "UIA ValuePattern plus readback"),
             Input("click", "coordinate input"),
             Input("key", "keyboard input"),
             Input("type", "Unicode keyboard input"),
@@ -183,6 +184,11 @@ internal static class ProviderRouter
             "taskbar, shell, packaged window, or system scope",
             ["windows-native"],
             "terminal unless an explicit target-local input fallback is authorized"),
+        new RoutePlan(
+            "set.value",
+            "editable element exposed through UI Automation",
+            ["windows-native"],
+            "terminal semantic refusal; no implicit input fallback"),
         new RoutePlan(
             "invoke,window.state",
             "system-scoped query refused before dispatch, or idempotent " +

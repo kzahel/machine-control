@@ -8,16 +8,28 @@ case "$runtime_id" in
 esac
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+publish_parent="$repo_root/publish"
+publish_root="$publish_parent/$runtime_id"
+mkdir -p "$publish_parent"
+staged_root="$(mktemp -d "$publish_parent/.$runtime_id.XXXXXX")"
+cleanup() {
+  if [[ -d "$staged_root" &&
+        "$staged_root" == "$publish_parent/.$runtime_id."* ]]; then
+    rm -rf -- "$staged_root"
+  fi
+}
+trap cleanup EXIT INT TERM
+
 dotnet publish \
   "$repo_root/src/MachineControl.Windows/MachineControl.Windows.csproj" \
   --configuration Release \
   --runtime "$runtime_id" \
   --self-contained true \
-  --output "$repo_root/publish/$runtime_id"
+  --output "$staged_root"
 
 "$repo_root/scripts/fetch-cua-windows.sh" \
   "$runtime_id" \
-  "$repo_root/publish/$runtime_id"
+  "$staged_root"
 
 for fixture in MachineControl.Fixture MachineControl.ElevatedFixture; do
   dotnet publish \
@@ -25,5 +37,13 @@ for fixture in MachineControl.Fixture MachineControl.ElevatedFixture; do
     --configuration Release \
     --runtime "$runtime_id" \
     --self-contained true \
-    --output "$repo_root/publish/$runtime_id/fixtures"
+    --output "$staged_root/fixtures"
 done
+
+if [[ "$publish_root" != "$publish_parent/$runtime_id" ]]; then
+  printf 'Refusing unexpected publish path: %s\n' "$publish_root" >&2
+  exit 1
+fi
+rm -rf -- "$publish_root"
+mv -- "$staged_root" "$publish_root"
+trap - EXIT INT TERM

@@ -85,6 +85,10 @@ readonly provider_executable="$publish_root/providers/cua/cua-driver.exe"
 readonly provider_license="$publish_root/providers/cua/LICENSE.md"
 for required_path in \
     "$publish_root/machine-control-windows.exe" \
+    "$publish_root/PenImc_cor3.dll" \
+    "$publish_root/PresentationNative_cor3.dll" \
+    "$publish_root/vcruntime140_cor3.dll" \
+    "$publish_root/wpfgfx_cor3.dll" \
     "$manifest" \
     "$provider_executable" \
     "$provider_license"; do
@@ -101,6 +105,8 @@ if [[ "$actual_digest" != "$expected_digest" ]]; then
     printf 'Published Cua executable digest does not match its manifest.\n' >&2
     exit 1
 fi
+readonly runtime_digest="$(shasum -a 256 \
+    "$publish_root/machine-control-windows.exe" | awk '{print $1}')"
 
 local_stage="$(mktemp -d "${TMPDIR:-/tmp}/machine-control-bootstrap.XXXXXX")"
 readonly local_stage
@@ -184,6 +190,21 @@ try {
 
     $executable = Join-Path $env:ProgramData `
         'MachineControl\runtime\machine-control-windows.exe'
+    $runtimeDigest = (Get-FileHash -Algorithm SHA256 -LiteralPath `
+        $executable).Hash.ToLowerInvariant()
+    if ($runtimeDigest -ne '__RUNTIME_DIGEST__') {
+        throw 'installed runtime executable digest mismatch'
+    }
+    foreach ($companion in @(
+        'PenImc_cor3.dll',
+        'PresentationNative_cor3.dll',
+        'vcruntime140_cor3.dll',
+        'wpfgfx_cor3.dll')) {
+        if (-not (Test-Path -LiteralPath `
+                (Join-Path (Split-Path $executable) $companion))) {
+            throw "installed native companion is absent: $companion"
+        }
+    }
     $deadline = [DateTime]::UtcNow.AddSeconds(30)
     do {
         $status = '{"operation":"status"}' | & $executable call |
@@ -226,6 +247,7 @@ try {
         cua_version = $cua[0].version
         native_state = $native[0].state
         provider_digest = $actualDigest
+        runtime_digest = $runtimeDigest
         staging_removed = $true
     }
 }
@@ -238,5 +260,6 @@ $result | ConvertTo-Json -Compress -Depth 10
 POWERSHELL
 install_script="${install_script//__REMOTE_STAGE__/$remote_stage_name}"
 install_script="${install_script//__RUNTIME_ID__/$runtime_id}"
+install_script="${install_script//__RUNTIME_DIGEST__/$runtime_digest}"
 remote_powershell "$install_script"
 remote_stage_created=0

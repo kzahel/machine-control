@@ -45,7 +45,7 @@ internal static class DesktopController
                     Delivery = "unknown",
                     Effect = "unknown",
                     ErrorCode = "desktop_operation_failed",
-                    Message = ex.Message,
+                    Message = DescribeException(ex),
                     ElapsedMs = 0,
                 });
             }
@@ -67,6 +67,18 @@ internal static class DesktopController
         cancellationToken.Register(() =>
             completion.TrySetCanceled(cancellationToken));
         return completion.Task;
+    }
+
+    private static string DescribeException(Exception exception)
+    {
+        var descriptions = new List<string>();
+        for (var current = exception;
+             current is not null;
+             current = current.InnerException)
+        {
+            descriptions.Add($"{current.GetType().Name}: {current.Message}");
+        }
+        return string.Join(" -> ", descriptions);
     }
 
     private static Result Execute(
@@ -143,6 +155,8 @@ internal static class DesktopController
                 "screenshot" => Screenshot(
                     request, generation, desktopName, timer),
                 "invoke" => Invoke(request, generation, desktopName, timer),
+                "set.value" => SetValue(
+                    request, generation, desktopName, timer),
                 "click" => Click(request, generation, desktopName, timer),
                 "key" => Key(request, generation, desktopName, timer),
                 "type" => TypeText(request, generation, desktopName, timer),
@@ -683,6 +697,109 @@ internal static class DesktopController
             new { x = request.X, y = request.Y, button },
             coordinateSpace: "windows.virtual_screen_physical_pixels");
     }
+
+    private static Result SetValue(
+        Request request,
+        string generation,
+        string desktopName,
+        Stopwatch timer)
+    {
+        if (request.Text is null ||
+            (string.IsNullOrWhiteSpace(request.Query) &&
+             string.IsNullOrWhiteSpace(request.Reference)))
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "invalid_request",
+                "set.value requires text plus query or reference");
+        }
+        var root = ResolveAutomationRoot(request);
+        CachedSelector? selector = null;
+        if (!string.IsNullOrWhiteSpace(request.Reference) &&
+            (!Selectors.TryGetValue(request.Reference, out selector) ||
+             !string.Equals(
+                 selector.Generation,
+                 generation,
+                 StringComparison.Ordinal)))
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "stale_or_unknown_reference",
+                "The semantic reference is not valid for this generation");
+        }
+        var query = request.Query ?? selector?.PreferredQuery ?? string.Empty;
+        var element = FindElement(root, query, maxVisited: 10_000);
+        if (element is null)
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "element_not_found",
+                $"No element matched '{query}'");
+        }
+        if (!element.TryGetCurrentPattern(
+                ValuePattern.Pattern,
+                out var valuePatternObject))
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "semantic_action_unavailable",
+                "The matched element does not expose UIA ValuePattern");
+        }
+        var valuePattern = (ValuePattern)valuePatternObject;
+        if (valuePattern.Current.IsReadOnly)
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "element_read_only",
+                "The matched element reports a read-only value");
+        }
+        valuePattern.SetValue(request.Text);
+        Thread.Sleep(100);
+        var observed = valuePattern.Current.Value;
+        var exactReadback = string.Equals(
+            observed,
+            request.Text,
+            StringComparison.Ordinal);
+        var normalizedReadback = string.Equals(
+            NormalizeLineEndings(observed),
+            NormalizeLineEndings(request.Text),
+            StringComparison.Ordinal);
+        return Success(
+            request,
+            generation,
+            desktopName,
+            timer,
+            "windows.native/uia_value_pattern",
+            "confirmed",
+            normalizedReadback ? "confirmed" : "unverifiable",
+            new
+            {
+                matched = SafeElementSummary(element),
+                requestedLength = request.Text.Length,
+                observedLength = observed.Length,
+                exactReadback,
+                normalizedReadback,
+            });
+    }
+
+    private static string NormalizeLineEndings(string value) =>
+        value.Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\r", "\n", StringComparison.Ordinal);
 
     private static Result Key(
         Request request,
@@ -1621,7 +1738,10 @@ internal static class DesktopController
             "alt+n" => new ushort[] { 0x12, 0x4E },
             "alt+tab" => new ushort[] { 0x12, 0x09 },
             "alt+f4" => new ushort[] { 0x12, 0x73 },
+            "ctrl+a" => new ushort[] { 0x11, 0x41 },
             "ctrl+escape" => new ushort[] { 0x11, 0x1B },
+            "ctrl+s" => new ushort[] { 0x11, 0x53 },
+            "ctrl+w" => new ushort[] { 0x11, 0x57 },
             "shift+f10" => new ushort[] { 0x10, 0x79 },
             "win" => new ushort[] { 0x5B },
             "win+a" => new ushort[] { 0x5B, 0x41 },
@@ -1657,22 +1777,53 @@ internal static class DesktopController
 
     private static void SendText(string value)
     {
-        var inputs = new List<NativeMethods.INPUT>(value.Length * 2);
+        var segment = new StringBuilder();
+        for (var index = 0; index < value.Length; index++)
+        {
+            var character = value[index];
+            if (character is '\r' or '\n')
+            {
+                SendUnicodeSegment(segment.ToString());
+                segment.Clear();
+                Thread.Sleep(100);
+                SendKey("enter");
+                // RichEdit-based controls can process the line break after
+                // SendInput returns. Do not let the following Unicode batch
+                // overtake that focus/caret transition.
+                Thread.Sleep(100);
+                if (character == '\r' && index + 1 < value.Length &&
+                    value[index + 1] == '\n')
+                {
+                    index++;
+                }
+                continue;
+            }
+            segment.Append(character);
+        }
+        SendUnicodeSegment(segment.ToString());
+    }
+
+    private static void SendUnicodeSegment(string value)
+    {
+        var inputs = new NativeMethods.INPUT[2];
         foreach (var character in value)
         {
-            inputs.Add(UnicodeInput(character, 0));
-            inputs.Add(UnicodeInput(
+            inputs[0] = UnicodeInput(character, 0);
+            inputs[1] = UnicodeInput(
                 character,
-                NativeMethods.KEYEVENTF_KEYUP));
-        }
-        if (inputs.Count == 0) return;
-        if (NativeMethods.SendInput(
-                (uint)inputs.Count,
-                inputs.ToArray(),
-                Marshal.SizeOf<NativeMethods.INPUT>()) != inputs.Count)
-        {
-            throw new System.ComponentModel.Win32Exception(
-                Marshal.GetLastWin32Error());
+                NativeMethods.KEYEVENTF_KEYUP);
+            if (NativeMethods.SendInput(
+                    (uint)inputs.Length,
+                    inputs,
+                    Marshal.SizeOf<NativeMethods.INPUT>()) != inputs.Length)
+            {
+                throw new System.ComponentModel.Win32Exception(
+                    Marshal.GetLastWin32Error());
+            }
+            // Some WinUI/RichEdit controls drop a burst even when SendInput
+            // accepts every event. Preserve one agent operation while giving
+            // the target message queue time to consume each UTF-16 pair.
+            Thread.Sleep(5);
         }
     }
 
