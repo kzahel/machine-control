@@ -1,11 +1,12 @@
 # Tactical 000: Windows Resident-Control Vertical Slice
 
-Status: active; shell acceptance, full target-native Windows control, and
-provider composition are complete in
+Status: complete on 2026-08-09. Shell acceptance, full target-native Windows
+control, provider composition, and clean-appliance acceptance are recorded in
 [`Tactical 001`](001-windows-system-shell-acceptance.md),
 [`Tactical 002`](002-windows-full-target-native-control.md), and
-[`Tactical 004`](004-windows-provider-composition-and-agent-ergonomics.md).
-Clean-install bootstrap and image sealing remain.
+[`Tactical 004`](004-windows-provider-composition-and-agent-ergonomics.md),
+with bootstrap, real applications, and sealing in
+[`Tactical 005`](005-windows-clean-appliance-and-real-application-acceptance.md).
 
 Topic: `windows-resident-control`
 
@@ -152,12 +153,15 @@ completed the real Windows shell-acceptance track and selected a hybrid
 Cua-plus-Windows-adapter facade. Its authoritative result is
 [`windows-shell-findings.md`](../../../machine-control-spike/docs/windows-shell-findings.md).
 
-Steps 1 through 7 are now complete through Tacticals 001, 002, 003, and 004.
+Steps 1 through 7 are complete through Tacticals 001, 002, 003, and 004.
 The facade/session proxy normalizes identity, compact observation, capture,
 action routing, delivery, effect, and fidelity while its protected provider
 crosses High, UAC, lock/login, and session boundaries without outer control.
-The remaining work in this coordinating tactical is explicit outer-recovery
-integration, optional worker/provider evaluation where useful, and clean-image
-bootstrap, validation, shutdown, and sealing. Exact commands and experiment
-evidence remain in the owning implementation/testbed repository or
-`machine-control-spike`.
+Tactical 005 completed the reproducible MachineControl-layer bootstrap,
+transactional rollback, sustained Calculator/Notepad acceptance, local/remote
+placement parity, provider and generation recovery, cleanup, guest shutdown,
+testbed sealing, and disposable verification boot. The testbed remained the
+independent lifecycle and recovery authority. Optional YA/Computer Use
+placement remains a later optimization rather than an unmet condition. The
+source-isolation deviation from the sealing run is recorded in Tactical 005.
+Exact commands and raw evidence remain outside this public repository.

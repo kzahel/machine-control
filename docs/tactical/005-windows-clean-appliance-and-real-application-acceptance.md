@@ -1,6 +1,7 @@
 # Tactical 005: Windows Clean Appliance and Real-Application Acceptance
 
-Status: active; started 2026-08-09.
+Status: complete on 2026-08-09, with the source-isolation deviation recorded
+below.
 
 Topics: `windows-resident-control`, `architecture`, and
 `capabilities-and-results`.
@@ -214,10 +215,71 @@ minimum durable result records:
 
 ## Validation record
 
-Execution started on 2026-08-09. The source appliance was stopped before this
-tactical began. UTM 4.7.5 exposes full stopped-VM clone and disposable-start
-primitives, but `winvm-testbed` did not yet expose them through its lifecycle
-contract. The current source is a valid testbed-ready base source but already
-contains the adopted runtime; all clean-state proof will therefore occur only
-after cloning and complete runtime removal on the candidate.
+Execution completed on 2026-08-09.
 
+**Current:** The authoritative testbed now exposes guarded stopped-source
+`seal`, disposable start, and exact-confirmed stopped deletion. Shutdown probes
+the guest agent once rather than allowing the SSH proxy's full boot timeout to
+delay provider fallback. Its smoke suite passed after both lifecycle changes.
+
+**Current:** Clean-baseline proof occurred on the candidate after removing the
+pre-existing runtime. The service, install root, artifacts, provider process,
+fixtures, conformance state, and bootstrap staging were all absent. UAC stayed
+enabled with administrator consent on the secure desktop.
+
+**Current:** `scripts/bootstrap-windows.sh` detected ARM64, built through a
+fresh staged publish directory, verified the pinned Cua digest and license,
+installed transactionally, required the installed runtime digest and four WPF
+native companions, waited for the Medium `Default`-desktop helper, and removed
+staging. Fresh install and repeated install passed. A deliberately invalid
+replacement failed, restored the previous executable digest and running
+service, preserved facade readiness, and left no transaction debris.
+
+The WPF companions are material. Bundled native extraction left native UIA
+unable to initialize on Windows ARM64. Keeping `PresentationNative_cor3.dll`
+and its three native companions beside the apphost restored the native UIA
+route. Replacing publish output from a fresh staging directory also eliminated
+an incremental-publish case that silently omitted those files.
+
+**Current:** The real-application suite passed remotely and from a target-local
+Medium process on the corrected candidate. Calculator used one 39-element Cua
+snapshot (about 9.8 KB or 2.45K estimated tokens), four generation-scoped Cua
+actions, an independent native UIA `Display is 56` observation, exact-window
+capture, four state transitions, and confirmed close. Notepad used native UIA
+`set.value` with normalized line-ending readback (about 856 bytes or 214
+estimated tokens per mutation), target-local save input, exact filesystem
+bytes, close, reopen, Cua document readback, a second mutation/save, capture,
+and confirmed close. Both placements used 40–42 facade round trips; only
+launch/poll latency varied. Every workflow removed its document and captures.
+
+Windows Run is the adopted launch route for these packaged inbox applications.
+Direct `app.launch` of the `calc.exe` broker honestly returned `no_effect` and
+could leave only a splash frame; process creation is not an application-launch
+oracle. The suite sends Run input through the resident facade and waits for the
+real application HWND and semantics.
+
+**Current:** Remote provider recovery passed in 18 round trips: bounded Cua
+timeout fell back to native UIA, a provider restart invalidated the old
+reference and recovered once, restart exhaustion disclosed native fallback,
+and runtime revocation invalidated generation state and recreated the helper.
+The local deterministic provider workflow passed in 12 round trips. A final
+digest-pinned reinstall was followed by another complete real-application
+pass.
+
+**Deviation:** After conversation compaction, the ignored target override was
+absent and the testbed CLI reverted to its default source appliance. Later
+runtime upgrades and acceptance runs therefore also executed on the source.
+The error was detected before disposable verification. The source was cleaned
+and stopped with UAC and appliance policy unchanged, but its runtime was
+upgraded; the completion condition that it remain unmodified was not met. The
+incorrectly derived seal was deleted, target selection was made explicit in
+ignored configuration, and install, remote/local application acceptance,
+cleanup, shutdown, sealing, and disposable verification were repeated on the
+actual candidate.
+
+**Current:** The corrected retained seal passed a non-persistent boot: testbed
+doctor, key-only SSH, automatic service, Medium helper, exact runtime digest,
+all four WPF native companions, Cua/native capability, Calculator `56`, and
+confirmed close. It then shut down so UTM discarded verification changes. The
+retained seal and source are stopped, and the candidate was deleted only after
+the seal passed. No private target identity or raw evidence is committed.

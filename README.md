@@ -338,6 +338,9 @@ and minimized physical-x64 results live in
 The completed local/remote provider-composition and ergonomics proof is
 recorded in
 [`Tactical 004`](docs/tactical/004-windows-provider-composition-and-agent-ergonomics.md).
+The reproducible bootstrap, sustained Calculator/Notepad workflow, recovery,
+cleanup, and disposable seal verification are recorded in
+[`Tactical 005`](docs/tactical/005-windows-clean-appliance-and-real-application-acceptance.md).
 
 ## Current position
 

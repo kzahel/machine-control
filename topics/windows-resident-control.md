@@ -2,11 +2,13 @@
 
 Topic: `windows-resident-control`
 
-Status: active implementation concern. The first full target-native Windows
-slice and its provider-composition workstream are complete in
+Status: first complete Windows appliance milestone. Full target-native control,
+provider composition, and reproducible appliance acceptance are complete in
 [`Tactical 002`](../docs/tactical/002-windows-full-target-native-control.md)
 and
-[`Tactical 004`](../docs/tactical/004-windows-provider-composition-and-agent-ergonomics.md).
+[`Tactical 004`](../docs/tactical/004-windows-provider-composition-and-agent-ergonomics.md),
+with clean-appliance acceptance in
+[`Tactical 005`](../docs/tactical/005-windows-clean-appliance-and-real-application-acceptance.md).
 
 **Current:** The implementation under [`src/`](../src) provides the first
 Windows service/session vertical slice. It composes pinned Cua at Medium
@@ -18,6 +20,13 @@ failure/recovery, and restartable helpers. Physical recovery also proved that
 the dual-boot lifecycle must reselect Windows after one-shot EFI `BootNext`;
 once selected, SSH, the automatic service, a new generation, and the Medium
 helper returned.
+
+The clean-appliance slice adds architecture-detected transactional bootstrap,
+installed runtime/provider digest checks, required WPF native companions,
+semantic UIA value mutation, sustained Calculator and Notepad effects through
+both placements, clean shutdown, a stopped retained seal, and a successful
+disposable verification boot. Its source-target selection deviation is
+recorded in Tactical 005 and does not weaken the explicit-target requirement.
 
 ## Scope
 
