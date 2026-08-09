@@ -44,3 +44,4 @@ the commits' `Topic:` trailers and register that exact string in
 | [`002-windows-full-target-native-control.md`](002-windows-full-target-native-control.md) | complete | Full resident Windows control across ordinary, elevated, UAC, lock/login, lifecycle, and physical hardware boundaries |
 | [`003-windows-credential-login.md`](003-windows-credential-login.md) | complete | Secret-safe stock PIN and password Credential Provider login from pre-login Windows |
 | [`004-windows-provider-composition-and-agent-ergonomics.md`](004-windows-provider-composition-and-agent-ergonomics.md) | complete | Compose Cua and native Windows routes behind the owned facade and prove a realistic local/remote agent workflow |
+| [`005-windows-clean-appliance-and-real-application-acceptance.md`](005-windows-clean-appliance-and-real-application-acceptance.md) | active | Bootstrap a clean MachineControl-layer Windows appliance, run sustained inbox-app workflows, and verify a retained seal |
