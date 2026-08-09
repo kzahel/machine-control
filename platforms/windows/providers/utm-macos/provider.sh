@@ -262,7 +262,7 @@ wait_for_vm_state() {
 }
 
 vm_shutdown() {
-    local status
+    local status ip=""
     status="$(vm_status || true)"
     if [[ "$status" == "stopped" ]]; then
         printf 'stopped\n'
@@ -274,11 +274,20 @@ vm_shutdown() {
 
     # Prefer a shutdown initiated by Windows. An SSH disconnect is expected as
     # the guest exits, so provider state is the authoritative result.
-    "$WINVM_SSH_BIN" \
-        -o BatchMode=yes \
-        -o ConnectTimeout=10 \
-        "$WINVM_SSH_HOST" \
-        'shutdown.exe /s /t 0' >/dev/null 2>&1 || true
+    # Probe the guest agent once before SSH. The stable alias normally uses a
+    # guest-agent ProxyCommand whose full boot timeout is appropriate for `up`
+    # but not for shutdown fallback. When an address is already available,
+    # bypass only that proxy while preserving the alias user and host-key name.
+    ip="$(guest_ipv4_once || true)"
+    if [[ -n "$ip" ]]; then
+        "$WINVM_SSH_BIN" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=10 \
+            -o ProxyCommand=none \
+            -o HostName="$ip" \
+            "$WINVM_SSH_HOST" \
+            'shutdown.exe /s /t 0' >/dev/null 2>&1 || true
+    fi
 
     if wait_for_vm_state stopped "$WINVM_GUEST_SHUTDOWN_GRACE"; then
         printf 'stopped\n'
@@ -336,10 +345,9 @@ guest_ipv4() {
     ensure_running
 
     local deadline=$((SECONDS + WINVM_BOOT_TIMEOUT))
-    local addresses ip
+    local ip
     while (( SECONDS < deadline )); do
-        addresses="$("$WINVM_UTMCTL" ip-address "$WINVM_UTM_NAME" 2>/dev/null || true)"
-        ip="$(printf '%s\n' "$addresses" | awk '/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }')"
+        ip="$(guest_ipv4_once || true)"
         if [[ -n "$ip" ]]; then
             printf '%s\n' "$ip"
             return 0
@@ -350,6 +358,14 @@ guest_ipv4() {
     printf 'Timed out waiting for %s to report an IPv4 address\n' \
         "$WINVM_UTM_NAME" >&2
     return 1
+}
+
+guest_ipv4_once() {
+    local addresses
+    addresses="$("$WINVM_UTMCTL" ip-address \
+        "$WINVM_UTM_NAME" 2>/dev/null || true)"
+    printf '%s\n' "$addresses" |
+        awk '/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }'
 }
 
 input_text() {
