@@ -256,9 +256,19 @@ try {
 
     $afterStatus = Invoke-Control @{ operation = 'status' }
     Assert-Accepted $afterStatus 'status after workflow'
+    $foregroundBefore = $null
+    if ($beforeStatus.data.PSObject.Properties.Name -contains
+        'foregroundWindow') {
+        $foregroundBefore = $beforeStatus.data.foregroundWindow.hwnd
+    }
+    $foregroundAfter = $null
+    if ($afterStatus.data.PSObject.Properties.Name -contains
+        'foregroundWindow') {
+        $foregroundAfter = $afterStatus.data.foregroundWindow.hwnd
+    }
     $summary.focus_cursor = [ordered]@{
-        foreground_before = $beforeStatus.data.foregroundWindow.hwnd
-        foreground_after = $afterStatus.data.foregroundWindow.hwnd
+        foreground_before = $foregroundBefore
+        foreground_after = $foregroundAfter
         cursor_before = $beforeStatus.data.cursor
         cursor_after = $afterStatus.data.cursor
         semantic_route_claim = $invoke.focusConsequence
