@@ -94,7 +94,7 @@ owned facade, session, identity, results, and provider arbitration
        |                    |                     |
        v                    v                     v
  Cua adapter       platform-depth adapter   administration adapter
- common runtime    WinApp/Win32, AX, etc.    native OS facilities
+ common runtime    UIA/Win32, AX, etc.       native OS facilities
 ```
 
 The first Windows composition is:
@@ -103,17 +103,27 @@ The first Windows composition is:
   semantics, snapshot-scoped references, ordinary-window capture,
   background-first actions, sessions, action-route reporting, and frame
   placement;
-- a WinApp/Win32/Shell adapter for measured Windows gaps: taskbar and system
-  surfaces absent from Cua's registry, packaged-window outer/inner resolution,
-  pattern-aware state actions, and alternate exact-window capture; and
+- an owned native UIA/Win32/Shell adapter for measured Windows gaps: taskbar
+  and system surfaces absent from Cua's registry, packaged-window
+  outer/inner resolution, pattern-aware state actions, alternate exact-window
+  capture, session truth, and protected desktops; and
 - explicit administration adapters for files, processes, packages, services,
   deployment, logs, and direct OS configuration intents.
 
 Provider selection occurs per operation, not once for the whole machine. The
 facade returns the actual provider route, semantic and capture fidelity,
 delivery mode, foreground/cursor consequence, independently observed effect,
-and uncertainty. Callers should not need to know that one operation used Cua
-and the next used WinApp, but the result must never conceal that fact.
+and uncertainty. Callers should not need a provider-specific vocabulary when
+one operation uses Cua and the next uses a native adapter, but the result must
+never conceal that fact.
+
+**Current — Windows proof:** Tactical 004 implemented this shape with pinned
+Cua and the owned native adapter on ARM64 and physical x64. A live WinApp
+differential found no tested operation for which adding WinApp to the resident
+runtime improved reach, fidelity, effect evidence, or ergonomics, so it remains
+an external comparison route. This is the intended evidence-driven outcome:
+the platform-depth slot is replaceable and does not require a preselected
+library.
 
 ### Why the hybrid comes first
 

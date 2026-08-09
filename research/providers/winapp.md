@@ -6,13 +6,13 @@ Declared license: [MIT](https://github.com/microsoft/winappCli/blob/main/LICENSE
 for the repository. Dependency and packaged-tool licenses have not been audited
 for redistribution here.
 
-Last corpus review: 2026-08-05.
+Last corpus review: 2026-08-09.
 
 ## Evidence
 
 | Platform | Level | Evidence and limit |
 | --- | --- | --- |
-| Windows | `adopted` | `winvm-testbed` installs WinApp and reaches it through an interactive-session relay. Application and real-shell gap cells have live evidence, but no complete shared provider-wide conformance matrix exists. |
+| Windows | `adopted` | `winvm-testbed` reaches WinApp through an interactive-session relay. It is differential-only for the resident runtime. Application and real-shell cells have live evidence, including a same-surface Tactical 004 differential, but no complete shared provider-wide conformance matrix exists. |
 | Other platforms | Unsupported | WinApp is a Windows provider. |
 
 Evidence links:
@@ -21,6 +21,7 @@ Evidence links:
 - [WinVM architecture](../../../winvm-testbed/docs/architecture.md)
 - [WinVM known problems](../../../winvm-testbed/docs/problems.md)
 - [Windows shell findings](../../../machine-control-spike/docs/windows-shell-findings.md)
+- [Windows provider-composition result](../../docs/tactical/004-windows-provider-composition-and-agent-ergonomics.md)
 - [upstream UI automation reference](https://github.com/microsoft/winappCli/blob/main/docs/ui-automation.md)
 
 ## Architecture and depth
@@ -51,6 +52,17 @@ window after activating the packaged outer frame, and it captured exact HWNDs
 that Cua's registry could not address. A focus precondition correctly refused
 unsafe synthetic click until the target window was foreground.
 
+**Current — Tactical 004 differential:** WinApp 0.5.0 was rerun through the
+testbed relay against the deterministic fixture, taskbar, Settings, exact
+taskbar capture, and maximize behavior after the resident Cua/native facade was
+working. It reached the same required fixture and OS effects, but did not
+demonstrate greater semantic reach, capture fidelity, effect observability, or
+agent ergonomics for any tested operation. The owned native route now covers
+the shell/state/capture gaps that previously made WinApp appear required. The
+end-to-end WinApp CLI/relay calls also took roughly 5.6–6.8 seconds in those
+cells, materially slower than the resident routes; transport/startup and
+provider-local timing are not claimed to be identical measurements.
+
 ## North Star fit
 
 WinApp provides strong Windows semantic and window capture primitives but not
@@ -61,11 +73,13 @@ filling a platform-specific gap.
 
 ## Current disposition
 
-**Decision:** Preserve WinApp as the adopted Windows comparison route and a
-required component of the Windows shell adapter behind the owned hybrid
-facade. Route it only for capabilities it demonstrably supplies; do not rerun
-already-settled Cua experiments merely to create symmetry.
+**Decision:** Preserve WinApp as the adopted `winvm-testbed` comparison and
+diagnostic route, but do not install or adapt it into the resident runtime
+without a newly measured operation-level advantage. The current Windows
+platform-depth provider is owned native UIA/Win32. Do not rerun already-settled
+Cua experiments merely to create symmetry.
 
-**Open:** Measure exact-window capture under occlusion/minimization,
-event-aware waits, provider failover rules, and local/remote result
-normalization through the proposed facade.
+**Open:** Exact-window capture under occlusion/minimization and broader
+event-aware behavior could still justify a future WinApp cell. Provider
+failover and local/remote normalization are now proven through the resident
+Cua/native facade rather than this external route.

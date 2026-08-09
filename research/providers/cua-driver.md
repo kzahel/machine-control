@@ -7,13 +7,13 @@ for the repository. Upstream documents MIT-0 terms for skill copies published
 through ClawHub; treat that as a narrower distribution boundary, not as a
 change to the repository license.
 
-Last corpus review: 2026-08-05.
+Last corpus review: 2026-08-09.
 
 ## Evidence by platform
 
 | Platform | Level | Evidence and limit |
 | --- | --- | --- |
-| Windows | `conformance-tested` | Recent spikes tested normal and elevated applications, UAC, lock, capture, semantics, background delivery, revocation, and the real Windows shell. The taskbar/selected shell HWND registry, window-state action, protected, and cross-integrity gaps require adjacent adapters. |
+| Windows | `adopted` | The resident runtime packages Cua 0.17.0 as its Medium-integrity semantics/action/capture adapter. ARM64 VM and physical x64 conformance passed with independent effects, timeout/crash/absence behavior, local/remote parity, and native adapters for shell, state, session, protected, and cross-integrity gaps. |
 | macOS | `conformance-tested` | Recent spike built the pinned source and exercised AppKit/Electron semantics, exact-window capture, background input, effects, permission identity, restart, and lock behavior. |
 | Linux | `source-reviewed` | X11, Sway, GNOME, KDE, and nested-compositor routes are implemented/documented separately; no local corpus conformance run yet. |
 | ChromeOS/iOS/Android | Unsupported as first-class Cua Driver platforms | They require separate provider families or a future adapter. |
@@ -25,6 +25,7 @@ Exact source and experiment evidence:
 - [Windows findings](../../../machine-control-spike/docs/windows-findings.md)
 - [Windows shell findings](../../../machine-control-spike/docs/windows-shell-findings.md)
 - [macOS findings](../../../machine-control-spike/docs/macos-findings.md)
+- [Windows provider-composition result](../../docs/tactical/004-windows-provider-composition-and-agent-ergonomics.md)
 
 ## Architecture
 
@@ -59,30 +60,36 @@ Direct fits include exact-window control, compact semantics, visual grounding,
 background-first actions, explicit escalation, session and action-result
 contracts, local/embedded execution, and a remote carrier seam.
 
-Required adjacent work includes:
+Tactical 004 closed the Windows integration items with an owned session proxy,
+authenticated carrier use, capability/result projection, native shell adapter,
+and protected broker. Remaining provider-wide adjacent work includes:
 
 - target/provider capability descriptions with route, coordinate, omission,
-  lock-state, and fidelity data;
-- a concrete authenticated transport/server adapter for outside callers;
-- a Windows session proxy and truthful input-desktop state;
-- a WinApp/native Windows shell adapter for Cua-invisible shell HWNDs,
-  pattern-aware taskbar/title-bar actions, packaged-window resolution, and
-  alternate exact-window capture;
-- a narrow protected broker only for justified protected operations;
+  lock-state, and fidelity data on platforms beyond the exercised Windows
+  facade;
 - first-class ChromeOS and device-provider integration outside the current
   three desktop backends; and
 - high-volume image/artifact transfer outside base64-oriented surfaces.
 
 ## Current disposition
 
-**Decision:** Treat Cua as the common normal-user runtime adapter and default
-first route for operations it performs well. The Windows vertical slice must
-place it behind an owned hybrid facade: real-shell acceptance requires
-WinApp/native components for measured taskbar, packaged-window, window-state,
-registry-visibility, and capture gaps. Cua does not own provider arbitration,
-testbed lifecycle, cross-host coordination, protected authority, outer
-recovery, or the project-wide ergonomic contract.
+**Decision — adopted on Windows:** Treat Cua as the common normal-user runtime
+adapter and default first route for operations it performs well. The Windows
+runtime supervises the unmodified 0.17.0 release as a private
+per-helper-generation child, disables telemetry and update checks, and keeps it
+out of the LocalSystem protected process. The owned native adapter supplies
+measured taskbar, state, registry-visibility, fallback-capture, session, and
+protected behavior. Cua does not own provider arbitration, testbed lifecycle,
+cross-host coordination, protected authority, outer recovery, or the
+project-wide ergonomic contract.
 
-**Open:** Determine whether the necessary capability, transport, session-proxy,
-and protected-broker additions can remain wrappers/upstream changes or require
-a maintained derivative.
+The ARM64 and x64 package manifests pin the evaluated release artifacts by
+SHA-256 and include the upstream MIT license. The source review remains pinned
+separately because the upstream release binary does not attest which source
+commit produced it. Provider crash invalidates facade references, permits one
+supervised restart per helper generation, and then uses only an explicitly
+reported authorized observation fallback.
+
+**Open:** Longer-running and broader-platform evidence may still reveal a
+maintenance or packaging reason for a derivative. The current Windows result
+supports continued wrapping; it does not meet the project's fork gate.

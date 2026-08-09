@@ -23,8 +23,10 @@ and must be deleted during cleanup.
 | Case | Result | Important evidence |
 | --- | --- | --- |
 | x64 self-contained publish and service install | pass | Automatic LocalSystem service; active x64 process architecture |
+| Cua/native provider composition | pass | Digest-pinned Cua ran only in the Medium helper; owned native UIA/Win32 retained shell, state, fallback, session, and protected routes |
 | Ordinary Medium plane | pass | Integrity RID 8192, `Default`, not LocalSystem |
-| Local/remote parity | pass | Interactive Medium probe and SSH carrier used the same pipe and route vocabulary |
+| Local/remote parity | pass | Target-local Medium workflow and SSH carrier used the same operations, pipe, provider routes, result vocabulary, and fixture oracle |
+| Provider timeout and revocation | pass | One-millisecond Cua observation deadline disclosed native UIA fallback; stale generation was rejected and helper recreated |
 | Start and Start menu | pass | Bounded UIA projection and semantic toggle |
 | Search | pass with explicit fallback | Taskbar configuration had no Search element; target-local `Win+S` opened a compact semantic Search surface |
 | Quick Settings | pass with explicit fallback | Target-local capture/input; zero matching UIA elements reported honestly |
@@ -41,6 +43,12 @@ and must be deleted during cleanup.
 | PIN login | pass | Stock PIN field discovered semantically before one hidden one-shot submission; independent WTS, `Default`, and Medium-helper effect |
 | Password login | pass | Stock Sign-in options and Password provider invoked semantically before one hidden one-shot submission; independent WTS, `Default`, and Medium-helper effect |
 | Windows boot recovery | pass | After explicitly selecting Windows again, SSH, the automatic service, a new generation, and the Medium helper returned |
+
+The composed provider acceptance reran ordinary shell and UAC cases after the
+earlier full-control validation. It did not rerun PIN or password submission
+because no change crossed that separately guarded secret path. The complete
+execution decision is in
+[`Tactical 004`](../tactical/004-windows-provider-composition-and-agent-ergonomics.md).
 
 ## Compact observation measurements
 
@@ -60,8 +68,9 @@ passing physical run.
 ## Findings
 
 The target-native runtime is not coupled to the ARM64 VM: ordinary semantics,
-native shell fallback, exact capture, secure-desktop UAC control, elevated
-application control, and lifecycle routing all ran on physical x64 Windows.
+native shell fallback, Cua exact capture and background semantic action,
+secure-desktop UAC control, elevated application control, and lifecycle routing
+all ran on physical x64 Windows.
 
 Logout exposed a race in its effect oracle. Windows switched to a new active
 session while the old WTS record still reported a user, causing the operation

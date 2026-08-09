@@ -1,6 +1,6 @@
 # Tactical 004: Windows Provider Composition and Agent Ergonomics
 
-Status: active; started 2026-08-09.
+Status: complete; started and completed 2026-08-09.
 
 Topics: `windows-resident-control`, `architecture`,
 `capabilities-and-results`, and `provider-landscape`.
@@ -252,8 +252,8 @@ The service no longer treats `scope=system` as authority to use LocalSystem on
 the ordinary Default desktop; protected routing follows the observed input
 desktop or lock state instead.
 
-Validation of this first slice is source builds for Windows x64 and ARM64.
-Tactical 002 remains active on the full provider-composition condition.
+This first slice passed source builds for Windows x64 and ARM64. Its live
+composition result is recorded below.
 
 ### Cua composition and placement result
 
@@ -302,8 +302,118 @@ The launcher now creates the correct token-specific environment block before
 starting either session helper. The rerun placed `%LOCALAPPDATA%` state in the
 interactive user's profile and let the independent marker prove the action.
 
-Windows x64 and ARM64 source builds pass, and both self-contained packages
-include digest-verified Cua assets plus the upstream MIT license. The WinApp
-differential, representative shell/protected regressions on the composed
-runtime, physical x64 acceptance, final documentation, and appliance cleanup
-remain in progress.
+### WinApp differential result
+
+**Current — live ARM64 VM:** WinApp 0.5.0 ran through the authoritative
+testbed's interactive-session relay against the same fixture and representative
+shell surfaces. These measurements are end-to-end CLI/relay results, while the
+owned facade reports provider-local latency; they therefore establish useful
+operational differences rather than a universal provider benchmark.
+
+| Case | WinApp observation | Owned composed route | Result |
+| --- | --- | --- | --- |
+| fixture inspect/action | 529-byte inspect with 6 actionable elements in 5,767 ms; 47-byte InvokePattern result in 5,666 ms | Cua snapshot/action in 181/51–63 ms | both reached the application-owned counter oracle |
+| taskbar Start | 2,022 bytes and 20 controls in 5,846 ms | 289-byte native projection in 137 ms | equivalent required semantic value |
+| Settings | 4,660-byte outer-HWND inspect with 39 controls in 6,677 ms | 598-byte native query in 140 ms | both reached the requested Settings surface |
+| exact taskbar capture | 1,399×48, 21,664 bytes in 6,752 ms | 1,399×48, 22,141 bytes in 57 ms | no WinApp fidelity advantage in this cell |
+| maximize | title-bar InvokePattern in 6,435 ms | native `window.state` with effect readback | both effects confirmed independently |
+
+WinApp also selected Accessibility in Settings; the owned native route then
+independently observed the resulting Visual effects surface. This is useful
+differential evidence, but no tested operation showed greater reach, fidelity,
+effect observability, or ergonomics than the resident Cua/native composition.
+
+**Decision:** Do not add WinApp to the installed runtime for Tactical 004.
+Preserve it in `winvm-testbed` as an external differential and diagnostic
+route. The platform-depth adapter is the owned native UIA/Win32 provider until
+a future measured gap demonstrates that WinApp or another provider is better
+for a specific operation.
+
+### Composed shell and protected result
+
+**Current — live ARM64 VM:** The representative shell suite passed through the
+composed runtime for Start/Search, taskbar flyouts, Settings, Explorer, desktop
+context menu, window lifecycle, exact capture, application switching,
+revocation, and helper recreation. Ordinary operations, including
+`scope=system`, remained in the Medium helper. Compact examples included Start
+at 289 bytes/about 72 tokens/167 ms, Settings at 5,577 bytes/about 1,394
+tokens/305 ms, and Explorer at 526 bytes/about 131 tokens/596 ms.
+
+The UAC suite retained the real enabled-consent policy and proved both cancel
+and approve on the genuine `Winlogon` input desktop. The protected worker used
+input-desktop GDI capture, exposed four semantic elements in the cancel case
+and two in the approve case, controlled the resulting High-integrity fixture,
+and confirmed its increment through the fixture-owned marker. Cleanup
+independently observed zero remaining fixtures.
+
+This run exposed one routing distinction worth preserving. A Medium route can
+see an elevated control yet be unable to invoke it, and a Win32 state message
+can be delivered across integrity boundaries without effect. The arbiter now
+performs one disclosed protected retry only for a system-scoped semantic
+refusal before dispatch, or an exact idempotent state action independently
+observed to have no effect. It never retries provider references or an action
+with unknown completion.
+
+### Physical x64 and placement result
+
+**Current — live physical Windows x64:** The final x64 package installed as the
+same automatic resident service and passed without a VM-host, KVM, reboot,
+sign-in, or credential route. The target initially reported the
+`Screen-saver` input desktop; a target-native protected Escape returned the
+already authenticated session to `Default`, after which ordinary work used
+the Medium helper.
+
+The deterministic workflow passed remotely in 15 facade round trips and from
+a target-local Medium process in 12. Both selected Cua for bounded snapshot,
+semantic action, and exact capture; native Win32 owned window state. The
+application marker confirmed the action, the one-millisecond observation
+deadline produced a disclosed native UIA fallback, remote revocation rejected
+the stale generation and recreated the helper, and the cursor remained
+unchanged.
+
+| Operation | Remote | Local | Typical serialized size |
+| --- | ---: | ---: | ---: |
+| bounded snapshot | 83 ms | 95 ms | 1,208 bytes/about 302 tokens |
+| semantic increment | 1,102 ms | 44 ms | 1,032–1,038 bytes/about 258–260 tokens |
+| exact capture | 187 ms | 114 ms | 1,126 bytes/about 282 tokens |
+
+The physical shell regression also passed. Representative compact results
+included Start at 288 bytes/about 72 tokens/82 ms and Settings at 7,412
+bytes/about 1,853 tokens/157 ms. Search, Quick Settings, and Notification
+Center honestly disclosed their authorized target-local input or pixel
+fallbacks where the physical shell exposed fewer semantics. Exact fixture
+capture selected Cua. Genuine secure-desktop UAC cancel and approve passed
+again, including High-integrity semantics and the independent elevated marker.
+Credential login was not rerun because this change did not cross its guarded
+secret path.
+
+### Packaging, cleanup, and final decision
+
+**Current:** Self-contained Windows ARM64 and x64 packages build from the same
+source and include the upstream MIT license plus a digest-verified Cua 0.17.0
+provider. The evaluated provider executable SHA-256 values are
+`fef346fc57fb57f5721ee77cf479c607cd5015580447cdca71a71ef43175afaa`
+for ARM64 and
+`635efe92eb0c3f9737db7e8aca0198f12ccf97e3269a9a75d28388690113db27`
+for x64. The package truthfully keeps the evaluated release artifact separate
+from the source-review SHA because upstream does not attest that binary's
+source provenance.
+
+The physical target deliberately retains the installed final runtime for
+continued appliance testing. Tactical staging, raw JSON, screenshots,
+application markers, and fixtures were removed. The ARM64 appliance retains
+the final runtime, has the original UAC policy, contains none of that temporary
+evidence, and was returned to its prior stopped lifecycle.
+
+**Final result:** All completion conditions passed. The owned facade composes
+pinned Cua with the deeper native Windows provider per operation, presents the
+same contract to local and authenticated outside callers, survives bounded
+provider failures without silent fallback, and covers ordinary shell plus
+full protected UAC operation without an outer route. The WinApp differential
+did not justify another installed adapter. This closes Tactical 002's live
+provider-composition condition without a Cua fork or broader rewrite.
+
+Remaining program work—production endpoint authorization, more Windows/session
+variants, binary provenance improvements, additional fixtures, and eventual
+golden-image automation—is continuing product work rather than an incomplete
+Tactical 004 condition.

@@ -7,7 +7,7 @@ requiring one library to win everywhere.
 
 | Platform | Current research posture |
 | --- | --- |
-| [Windows](windows.md) | First complete vertical slice; Cua and WinApp have live evidence |
+| [Windows](windows.md) | First complete vertical slice; Cua/native composition adopted, WinApp differential live-tested |
 | [macOS](macos.md) | Cua has live evidence; several strong exact-window references are source-reviewed |
 | [Linux](linux.md) | AT-SPI foundation; X11 and each Wayland compositor require distinct evidence |
 | [ChromeOS](chromeos.md) | Existing testbed is the North Star desktop reference |

@@ -125,7 +125,7 @@ only inside one proprietary agent product.
 **Decision — provisional implementation architecture:** Build the useful
 system first as an owned target-oriented facade, resident-session boundary,
 provider adapter interface, and conformance corpus. Initially compose pinned,
-unmodified Cua with deep platform routes such as WinApp/Win32 on Windows and
+unmodified Cua with deep platform routes such as UIA/Win32 on Windows and
 the already authoritative ChromeOS and device providers. Select a provider per
 operation and disclose the actual route and result; do not make callers stitch
 providers together themselves.
@@ -177,7 +177,7 @@ are:
 | --- | --- |
 | ChromeOS | `chrome.automation` plus per-page CDP |
 | macOS | Accessibility/`AXUIElement` |
-| Windows | UI Automation through WinApp and current Cua Driver candidates |
+| Windows | Adopted Cua plus owned native UIA/Win32 resident composition |
 | Linux | AT-SPI in the active desktop session |
 
 The common desktop facade should make the latter three feel as compact,
@@ -269,9 +269,12 @@ runners retain their separate ownership boundaries.
 vertical slice as an automatic LocalSystem service with separate ordinary and
 protected active-session helpers. The same named-pipe facade is callable by a
 local process or through authenticated SSH. It provides bounded UI Automation,
-native window inventory and state, exact and input-desktop capture,
-target-local keyboard/pointer input, lock/logout, UAC secure-desktop control,
-and guarded stock Credential Provider login.
+digest-pinned Cua semantics/action/capture, native window inventory and state,
+exact and input-desktop capture, target-local application launch and
+keyboard/pointer input, lock/logout, UAC secure-desktop control, and guarded
+stock Credential Provider login. Executable capability/routing metadata and
+every result disclose the selected provider, fallback, delivery, effect,
+uncertainty, retries, and generation behavior.
 
 ```text
 local CLI or authenticated SSH caller
@@ -280,7 +283,8 @@ local CLI or authenticated SSH caller
 Windows service (LocalSystem, session 0)
           |
           +-- ordinary helper (interactive user, Medium integrity)
-          |     +-- UI Automation and ordinary desktop state
+          |     +-- supervised Cua ordinary-window provider
+          |     +-- native UIA/Win32 shell, state, capture, and input
           |
           +-- protected helper (LocalSystem, active session)
                 +-- system/elevated/Winlogon desktops
@@ -318,6 +322,9 @@ scripts/login-windows.sh <ssh-target> password
 Windows conformance suites live under [`tests/windows`](tests/windows/README.md),
 and minimized physical-x64 results live in
 [`docs/evidence/windows-physical-x64.md`](docs/evidence/windows-physical-x64.md).
+The completed local/remote provider-composition and ergonomics proof is
+recorded in
+[`Tactical 004`](docs/tactical/004-windows-provider-composition-and-agent-ergonomics.md).
 
 ## Current position
 
@@ -430,8 +437,9 @@ architecture contract.
   operating system and device family.
 - [Provider landscape](topics/provider-landscape.md): cross-provider decisions,
   shortlist, exact-window requirements, and conformance-fixture direction.
-- [Windows resident control](topics/windows-resident-control.md): unresolved
-  decisions for the first complete platform proof.
+- [Windows resident control](topics/windows-resident-control.md): current
+  implementation truth and next Windows decisions after the first complete
+  platform proof.
 - [Tactical 000](docs/tactical/000-windows-resident-control-vertical-slice.md):
   the bounded Windows implementation and validation sequence.
 
@@ -468,10 +476,12 @@ recent executable Cua evaluation and exact evidence. That spike already found
 the cross-platform exact-window, background-delivery, effect-reporting, and
 fixture contract and recommended Cua as the provisional normal-user evaluation
 core. A same-version source review immediately afterward added competitor
-context but did not reveal a newly transformed Cua release. Continue with the
-remaining Windows product surface and review later upstream changes only when
-they affect a concrete gap. Cua still does not own this system's trust,
-lifecycle, recovery, protected authority, or cross-device contract. See the
+context but did not reveal a newly transformed Cua release. Tactical 004 has
+since integrated that exact evaluated release behind the Windows facade and
+proved it with native platform-depth routes on ARM64 and physical x64. Review
+later upstream changes only when they affect a concrete gap. Cua still does not
+own this system's trust, lifecycle, recovery, protected authority, or
+cross-device contract. See the
 [Cua dossier](research/providers/cua-driver.md) and
 [provider landscape](topics/provider-landscape.md).
 

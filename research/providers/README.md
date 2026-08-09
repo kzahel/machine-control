@@ -7,9 +7,9 @@ components remain necessary. Evidence levels are defined in the
 
 | Provider | Declared top-level license | Platform reach under review | Strongest evidence here |
 | --- | --- | --- | --- |
-| [Cua Driver](cua-driver.md) | MIT; published skill copies have separate MIT-0 terms | Windows, macOS, Linux | Windows/macOS conformance-tested in the recent spike |
+| [Cua Driver](cua-driver.md) | MIT; published skill copies have separate MIT-0 terms | Windows, macOS, Linux | Adopted by the Windows runtime; Windows/macOS conformance-tested |
 | [Open Computer Use](open-computer-use.md) | MIT; third-party notices apply | Windows, macOS, Linux | Source-reviewed at the spike pin |
-| [WinApp](winapp.md) | MIT | Windows | Adopted by `winvm-testbed` |
+| [WinApp](winapp.md) | MIT | Windows | Adopted by `winvm-testbed`; external differential for the resident runtime |
 | [Agent Device](agent-device.md) | MIT | iOS, Android, macOS, Linux, web, TV/device variants | Adopted for iOS; macOS source-reviewed |
 | [Touchpoint](touchpoint.md) | MIT | Windows, macOS, Linux, browser CDP | Source-reviewed |
 | [Peekaboo](peekaboo.md) | MIT | macOS | Source-reviewed |

@@ -1,6 +1,6 @@
 # Tactical 002: Windows Full Target-Native Control
 
-Status: active; execution started 2026-08-09.
+Status: complete; started and completed 2026-08-09.
 
 Topics: `windows-resident-control`, `architecture`, and
 `capabilities-and-results`.
@@ -47,7 +47,8 @@ components.
   notification area and overflow, Quick Settings or equivalent flyouts,
   Windows Settings, context menus, ordinary dialogs, application switching,
   and window lifecycle/state without host input.
-- The facade composes Cua, WinApp/UIA, and native Windows routes per operation.
+- The facade composes Cua with deep Windows UIA/Win32 routes per operation;
+  WinApp is added only where differential evidence demonstrates an advantage.
   Results disclose attempted and actual providers, semantics/capture fidelity,
   coordinate space, delivery mode, focus/cursor consequence, effect, evidence,
   and uncertainty. Provider fallback is never silent.
@@ -213,7 +214,7 @@ their owning repositories.
 
 ## Validation record
 
-Execution is active. This repository's [`src/`](../../src) and
+Execution is complete. This repository's [`src/`](../../src) and
 [`tests/windows`](../../tests/windows/README.md) contain the facade, split
 Medium/protected session planes, typed service lifecycle operations,
 Windows-native provider, deterministic fixtures, and conformance suites.
@@ -233,15 +234,19 @@ automatic runtime returned with a new generation, and its Medium helper
 reattached. The earlier suspected pre-login SSH failure was the Linux service,
 not a Windows carrier defect.
 
-**Open:** Physical cleanup is verified. Do not close this tactical until the VM
-is returned to its prior lifecycle and UAC state, and the remaining live Cua
-and WinApp provider-composition condition is either implemented or deliberately
-respecified from the native vertical-slice evidence. That composition work is
-owned by
-[`Tactical 004`](004-windows-provider-composition-and-agent-ergonomics.md).
+**Final:** Physical cleanup is verified and the deliberately adopted runtime
+remains installed. The VM retains the final runtime, its original UAC policy,
+no tactical staging or captured evidence, and its prior stopped lifecycle.
+[`Tactical 004`](004-windows-provider-composition-and-agent-ergonomics.md)
+connected digest-pinned Cua to the owned facade, made provider capabilities and
+routing executable, passed the ordinary shell and protected regressions on
+ARM64 and physical x64, and proved provider timeout, crash, absence, stale
+identity, fallback, and recovery behavior.
 
-**Deviation:** The current executable proves the owned native provider rather
-than composing live Cua and WinApp adapters. Provider inventory reports both as
-not connected instead of silently claiming the provisional hybrid. This is a
-functional native vertical slice and strong conformance baseline, but the
-provider-composition completion condition remains open.
+**Decision:** A live WinApp differential found no tested operation for which
+installing another adapter improved reach, fidelity, effect observability, or
+ergonomics over Cua plus the owned native UIA/Win32 routes. Retaining WinApp as
+an external testbed comparison deliberately satisfies the composition
+condition without making its package a product dependency. All completion
+conditions are closed; broader authorization hardening, environment coverage,
+and image sealing are later program work.

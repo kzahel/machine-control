@@ -39,8 +39,8 @@ the commits' `Topic:` trailers and register that exact string in
 
 | Tactical | Status | Scope |
 | --- | --- | --- |
-| [`000-windows-resident-control-vertical-slice.md`](000-windows-resident-control-vertical-slice.md) | active | First complete local-and-remote Windows proof of the target-native contract |
+| [`000-windows-resident-control-vertical-slice.md`](000-windows-resident-control-vertical-slice.md) | active | Coordinating Windows milestone; full control is proven, clean-image sealing remains |
 | [`001-windows-system-shell-acceptance.md`](001-windows-system-shell-acceptance.md) | complete | Cua-first acceptance run across the real Windows system shell; selected a hybrid facade |
-| [`002-windows-full-target-native-control.md`](002-windows-full-target-native-control.md) | active | Full resident Windows control across ordinary, elevated, UAC, lock/login, lifecycle, and physical hardware boundaries |
+| [`002-windows-full-target-native-control.md`](002-windows-full-target-native-control.md) | complete | Full resident Windows control across ordinary, elevated, UAC, lock/login, lifecycle, and physical hardware boundaries |
 | [`003-windows-credential-login.md`](003-windows-credential-login.md) | complete | Secret-safe stock PIN and password Credential Provider login from pre-login Windows |
-| [`004-windows-provider-composition-and-agent-ergonomics.md`](004-windows-provider-composition-and-agent-ergonomics.md) | active | Compose Cua and native Windows routes behind the owned facade and prove a realistic local/remote agent workflow |
+| [`004-windows-provider-composition-and-agent-ergonomics.md`](004-windows-provider-composition-and-agent-ergonomics.md) | complete | Compose Cua and native Windows routes behind the owned facade and prove a realistic local/remote agent workflow |

@@ -7,6 +7,15 @@ Status: proposal for common vocabulary, not a frozen wire protocol.
 The common layer should let coordination and agents reason about heterogeneous
 providers without claiming that all platforms have equivalent behavior.
 
+**Current — Windows exercise:** Tactical 004 made the first subset executable.
+Provider inventory reports availability, placement, privilege, desktop
+requirements, operation fidelity, omissions, source pins, and failure policy.
+Every operation result reports actual route, provider attempts, delivery,
+effect, uncertainty, fallback, provider/end-to-end latency, retry count, and
+stale-reference events. Cua references are opaque facade references bound to
+the runtime and provider generation. The common vocabulary remains a proposal;
+the live Windows shape is evidence for it, not a prematurely frozen protocol.
+
 ## Contract and session envelope
 
 Local IPC, SSH, an authenticated tunnel, CLI/SDK calls, and MCP are facades or

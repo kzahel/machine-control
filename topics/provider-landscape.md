@@ -62,9 +62,19 @@ Cua or begin a full native rewrite until repeated implementation evidence meets
 the gates in the
 [provisional architecture](architecture.md#fork-and-replacement-gates).
 
+**Current:** Tactical 004 implemented and conformance-tested that composition
+on Windows ARM64 and physical x64. Cua owns bounded ordinary-session semantics,
+actions, and capture; the owned native UIA/Win32 provider owns system-shell,
+window-state, session, fallback, and protected routes. A same-surface WinApp
+differential found no operation-level advantage that justified another
+installed adapter, so WinApp remains an external comparison and diagnostic
+route. This is evidence for measured platform-depth composition, not a claim
+that the same provider pair fits every platform.
+
 **Current:** The strongest complementary references are:
 
-- [WinApp](../research/providers/winapp.md) for the adopted Windows UIA route;
+- [WinApp](../research/providers/winapp.md) for the external Windows UIA
+  differential route;
 - [Open Computer Use](../research/providers/open-computer-use.md) for a compact,
   agent-neutral, three-desktop Computer Use surface;
 - [Touchpoint](../research/providers/touchpoint.md) for a small common facade;
@@ -119,9 +129,9 @@ pretending they have all received equivalent investigation. Promote one to a
 provider dossier only when a measured gap or distinctive architecture
 justifies source review.
 
-**Open:** Use the Windows hybrid facade in real workflows, then measure whether
-provider arbitration, packaging, reliability, latency, or required source
-changes justify extracting a smaller core or maintaining a derivative. The
-hybrid and differential provider results are evidence; independent fixture and
-OS effects remain the correctness oracles. API aesthetics alone are not enough
-evidence.
+**Open:** Use the proven Windows hybrid facade in longer application workflows
+and additional session/hardware configurations, then measure whether provider
+arbitration, packaging, reliability, latency, or required source changes
+justify extracting a smaller core or maintaining a derivative. The hybrid and
+differential provider results are evidence; independent fixture and OS effects
+remain the correctness oracles. API aesthetics alone are not enough evidence.

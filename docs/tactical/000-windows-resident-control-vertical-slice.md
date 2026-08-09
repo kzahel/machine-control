@@ -1,9 +1,11 @@
 # Tactical 000: Windows Resident-Control Vertical Slice
 
-Status: active; the shell-acceptance slice,
-[`Tactical 001`](001-windows-system-shell-acceptance.md), is complete. Full
-target-native Windows implementation is active in
-[`Tactical 002`](002-windows-full-target-native-control.md).
+Status: active; shell acceptance, full target-native Windows control, and
+provider composition are complete in
+[`Tactical 001`](001-windows-system-shell-acceptance.md),
+[`Tactical 002`](002-windows-full-target-native-control.md), and
+[`Tactical 004`](004-windows-provider-composition-and-agent-ergonomics.md).
+Clean-install bootstrap and image sealing remain.
 
 Topic: `windows-resident-control`
 
@@ -87,8 +89,9 @@ remains token-efficient.
 
 This step was completed and recorded by
 [`Tactical 001`](001-windows-system-shell-acceptance.md). The result requires
-Cua plus an operation-level WinApp/native Windows shell adapter behind the
-owned facade.
+Cua plus an operation-level native Windows shell adapter behind the owned
+facade. WinApp remains an external differential unless a measured operation
+justifies installing it.
 
 ### 4 — prove remote direct control
 
@@ -149,10 +152,12 @@ completed the real Windows shell-acceptance track and selected a hybrid
 Cua-plus-Windows-adapter facade. Its authoritative result is
 [`windows-shell-findings.md`](../../../machine-control-spike/docs/windows-shell-findings.md).
 
-Steps 1 and 3 are therefore complete. Tactical 002 now implements steps 2, 4,
-5, 6, and 7 as one Windows-depth proof: the facade/session proxy must normalize
-identity, compact observation, capture, action routing, delivery, effect, and
-fidelity while an installed protected provider crosses High, UAC, lock/login,
-and session boundaries without outer control. Exact commands and experiment
+Steps 1 through 7 are now complete through Tacticals 001, 002, 003, and 004.
+The facade/session proxy normalizes identity, compact observation, capture,
+action routing, delivery, effect, and fidelity while its protected provider
+crosses High, UAC, lock/login, and session boundaries without outer control.
+The remaining work in this coordinating tactical is explicit outer-recovery
+integration, optional worker/provider evaluation where useful, and clean-image
+bootstrap, validation, shutdown, and sealing. Exact commands and experiment
 evidence remain in the owning implementation/testbed repository or
 `machine-control-spike`.

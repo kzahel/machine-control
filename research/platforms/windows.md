@@ -1,7 +1,8 @@
 # Windows Control Research
 
-Status: first implementation platform; Cua and WinApp have real fixture and
-Windows system-shell evidence, while other candidates remain source review or
+Status: first implemented platform; the resident Cua/native composition is
+adopted and conformance-tested on ARM64 VM and physical x64, WinApp remains a
+live external differential, and other candidates remain source review or
 search triage.
 
 Current decision topic:
@@ -12,6 +13,11 @@ Bounded execution plan:
 
 Completed system-shell acceptance run:
 [`Tactical 001`](../../docs/tactical/001-windows-system-shell-acceptance.md).
+
+Completed full-control and provider-composition runs:
+[`Tactical 002`](../../docs/tactical/002-windows-full-target-native-control.md)
+and
+[`Tactical 004`](../../docs/tactical/004-windows-provider-composition-and-agent-ergonomics.md).
 
 ## Platform acceptance surface
 
@@ -33,10 +39,10 @@ resident stack must cover:
 
 | Candidate | Evidence | Demonstrated value | Material gaps or unknowns | Current disposition |
 | --- | --- | --- | --- | --- |
-| [Cua Driver](../providers/cua-driver.md) | `conformance-tested` for significant normal/elevated/session and real-shell behavior | Exact-window state, UIA, capture, background actions, action/effect contract, sessions, fixtures | Filtered registry omits taskbar and some visible shell HWNDs; selected UIA window-state no-ops; cross-integrity, lock/UIAccess, and protected gaps | Common runtime inside hybrid facade |
+| [Cua Driver](../providers/cua-driver.md) | `adopted` for ordinary-session semantics/action/capture; broader behavior `conformance-tested` | Exact-window state, UIA, capture, background actions, action/effect contract, sessions, fixtures | Filtered registry omits taskbar and some visible shell HWNDs; selected UIA window-state no-ops; cross-integrity and protected gaps | Installed common-runtime adapter inside owned facade |
 | [Open Computer Use](../providers/open-computer-use.md) | `source-reviewed` | Compact agent-neutral Computer Use CLI/MCP over UIA and Win32 messages | No local live test; thinner multi-window/session/effect/remote contract | First common-provider comparison set |
-| [WinApp](../providers/winapp.md) | `adopted` by WinVM; application and shell behaviors live-tested | Mature Windows UIA CLI, taskbar/Settings semantics, HWND targeting, pattern-aware state actions, screenshots, existing relay | Thinner session/result contract, WebView gaps, some invokes without effect, no protected route | Required Windows shell adapter component |
-| Cua plus WinApp/native helpers | `conformance-tested composition` | Common runtime plus best Windows-specific shell operations | Owned facade, provider arbitration, route disclosure, stale-reference translation | Selected implementation direction |
+| [WinApp](../providers/winapp.md) | `adopted` by WinVM; application, shell, and Tactical 004 differential live-tested | Mature Windows UIA CLI, taskbar/Settings semantics, HWND targeting, pattern-aware state actions, screenshots, existing relay | Thinner session/result contract, WebView gaps, some invokes without effect, no protected route, high observed CLI/relay latency | Retained external differential; no installed adapter without a measured advantage |
+| Cua plus owned native helpers | `adopted` and `conformance-tested` | Common runtime plus deeper Windows-specific shell, state, session, fallback, and protected operations | Production authorization and broader environment coverage remain | Implemented direction |
 | [Terminator](../providers/terminator.md) | `source-reviewed` | Substantial Windows-only Rust/UIA implementation | No local integrity, shell, lock, effect, or fixture evidence | Second-round candidate |
 | [Touchpoint](../providers/touchpoint.md) | `source-reviewed` | Small common facade; UIA/HWND/CDP | No local evidence; framebuffer-crop capture; thinner result/session model | Common-provider alternative |
 | [OculOS](../providers/oculos.md) | `source-reviewed` | Resident REST/MCP service shape; Windows is its deepest backend | Live behavior and contract strength unproven | Architecture reference |
@@ -86,6 +92,14 @@ exact-window, result, and fixture architecture was already present in the
 spike. Review relevant deltas narrowly; do not characterize the spike as an
 old product evaluation or rerun it wholesale without a changed question.
 
+**Current — adopted runtime adapter:** Tactical 004 packages the digest-pinned
+0.17.0 release as an unmodified private child of the Medium helper. VM and
+physical conformance proved compact snapshot, normalized opaque references,
+semantic action with an application-owned marker, exact capture, timeout,
+crash/restart, provider absence, stale reference/generation rejection, and
+local/remote parity. Cua never runs in the protected LocalSystem plane; the
+owned provider handles shell, state, session, fallback, and protected gaps.
+
 ### WinApp through WinVM
 
 **Current — adopted:** WinVM installs Microsoft WinApp and invokes it in the
@@ -114,6 +128,15 @@ duplicate of every shell cell. It did run the adopted-baseline and measured-gap
 cells in the system-shell track. Preserve that operational evidence without
 inflating it into a full provider-wide conformance result.
 
+**Current — external differential:** Tactical 004 reran WinApp 0.5.0 against
+the fixture, taskbar, Settings, exact capture, and maximize cells after the
+owned composition was live. It reached the required effects but offered no
+tested operation-level advantage over Cua/native. Its roughly 5.6–6.8 second
+end-to-end CLI/relay cells were also materially slower than the resident
+routes, although those measurements include different transport/startup
+costs. WinApp therefore remains installed in the testbed as comparison and
+diagnostic evidence, not in the product runtime.
+
 ### Real Windows system shell
 
 **Current — conformance-tested composition:** The 2026-08-05 acceptance run
@@ -136,6 +159,14 @@ Authoritative details:
 - [Windows shell findings](../../../machine-control-spike/docs/windows-shell-findings.md)
 - [repeatable shell probe](../../../machine-control-spike/scripts/windows-shell-cua-probe.ps1)
 
+**Current — installed composition:** Tactical 004 reran the representative
+shell suite through the resident facade on ARM64 and physical x64. Cua handled
+the deterministic ordinary-window snapshot/action/capture workflow; owned
+native UIA/Win32 handled compact shell projections, window state and effect
+readback, authorized input fallbacks, sessions, UAC secure desktop, and the
+High-integrity fixture. Both local and authenticated remote placements used
+the same operations and result vocabulary without outer input.
+
 ## Architecture options
 
 ### Cua-centered resident stack
@@ -156,19 +187,23 @@ WinApp, CDP, Win32/Shell, or another native helper when it demonstrably provides
 better semantics or capture. The response must name the actual route and must
 not silently change focus, privilege, or fidelity.
 
-**Decision:** This is the leading path. Shell acceptance measured concrete
-taskbar, packaged-window, window-state, registry-visibility, and capture gaps.
-Build one owned facade/session proxy and route only those operations through the
-Windows-specific adapter, with actual route and effect disclosed.
+**Decision — implemented:** This is the adopted path. Shell acceptance
+measured concrete taskbar, packaged-window, window-state,
+registry-visibility, capture, session, and protected gaps. The owned
+facade/session proxy routes those operations through its native Windows
+adapter, with actual route, provider attempts, delivery, effect, and fallback
+disclosed. WinApp remains available externally but is not required by the
+installed composition.
 
 ### WinApp-centered facade
 
 Build project sessions, results, verification, remote transport, and capability
 metadata around the existing WinVM relay and WinApp operations.
 
-**Open:** This remains credible if Cua's integration or maintenance cost proves
-unacceptable. It currently requires more common-contract work and gives up
-useful cross-platform reuse.
+**Decision:** Defer unless a future measured gap or Cua maintenance failure
+outweighs the now-proven resident composition. It requires more common-contract
+work, gives up useful cross-platform reuse, and showed no operation-level
+advantage in the Tactical 004 differential.
 
 ### New native implementation
 
@@ -180,12 +215,13 @@ evidence shows that Cua/WinApp cannot be layered or upstreamed coherently.
 
 ## Next evidence
 
-1. Implement the smallest owned hybrid facade and interactive-session proxy.
-2. Normalize generation-scoped HWND/element identity, compact observations,
-   capture extent, action route, delivery, effect, and foreground consequence
-   across Cua and the Windows shell adapter.
-3. Exercise the same logical operations locally and through an authenticated
-   outside transport without spawning a Windows agent.
-4. Run the existing fixture corpus plus the real-shell acceptance flow through
-   that facade before designing a protected broker.
-5. After the resident stack passes, bootstrap and seal it from a clean image.
+1. Run longer real-application workflows through the adopted facade and add
+   event-aware fixture cases for remaining toolkit, transient, multi-display,
+   and occlusion behavior.
+2. Exercise additional Windows builds, hardware, console/RDP, fast-user-switch,
+   and policy/localization configurations.
+3. Harden endpoint authorization and artifact transfer beyond the current
+   dedicated-appliance/local-user boundary.
+4. Revisit Cua release provenance and upstream deltas only when a concrete
+   reliability, packaging, security, or missing-capability question changes.
+5. Bootstrap, validate, and seal the resident stack from a clean image.

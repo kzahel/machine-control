@@ -2,22 +2,22 @@
 
 Topic: `windows-resident-control`
 
-Status: active implementation concern. Cua source/live evaluation and the
-Windows system-shell acceptance run are complete. Full target-native Windows
-implementation is active in
-[`Tactical 002`](../docs/tactical/002-windows-full-target-native-control.md).
-Its next provider-composition and agent-ergonomics workstream is tracked in
+Status: active implementation concern. The first full target-native Windows
+slice and its provider-composition workstream are complete in
+[`Tactical 002`](../docs/tactical/002-windows-full-target-native-control.md)
+and
 [`Tactical 004`](../docs/tactical/004-windows-provider-composition-and-agent-ergonomics.md).
 
 **Current:** The implementation under [`src/`](../src) provides the first
-Windows service/session vertical slice. VM and physical x64 evidence covers the
-ordinary Medium plane, native system-shell control, local/remote parity,
-genuine UAC secure-desktop approve/cancel, High-integrity fixture control,
-lock, logout, stock PIN/password login, and restartable helpers. Physical
-recovery also proved that the dual-boot lifecycle must reselect Windows after
-one-shot EFI `BootNext`; once selected, SSH, the automatic service, a new
-generation, and the Medium helper returned. Tactical 002 remains active until
-remaining provider-composition gaps are resolved.
+Windows service/session vertical slice. It composes pinned Cua at Medium
+integrity with owned native UIA/Win32 ordinary and protected routes behind one
+facade. VM and physical x64 evidence covers compact system-shell control,
+local/remote parity, genuine UAC secure-desktop approve/cancel, High-integrity
+fixture control, lock, logout, stock PIN/password login, provider
+failure/recovery, and restartable helpers. Physical recovery also proved that
+the dual-boot lifecycle must reselect Windows after one-shot EFI `BootNext`;
+once selected, SSH, the automatic service, a new generation, and the Medium
+helper returned.
 
 ## Scope
 
@@ -44,13 +44,14 @@ Its completed shell-acceptance slice lives in
   flyouts, Settings, dialogs, and ordinary window management; an app-scoped
   test alone is insufficient.
 - Outer control is startup, bootstrap, independent observation, and recovery.
-- The recent Cua spike passed with conditions and establishes Cua as the
-  provisional common normal-user runtime. Real shell acceptance proves that a
-  Cua-only stack is insufficient: WinApp/native Windows adapters are required
-  for taskbar operations, packaged-window inner/outer resolution, selected
-  window-state actions, and capture of HWNDs absent from Cua's registry.
-  Neither provider owns the project contract, lifecycle, protected authority,
-  or recovery boundary.
+- Cua is the installed ordinary-session adapter for bounded semantics,
+  snapshot-scoped action, and exact capture. The owned native provider covers
+  taskbar and shell projections, window lifecycle/state, fallback capture and
+  input, session truth, and protected desktops. A live WinApp differential did
+  not demonstrate an operation-level advantage over this composition, so
+  WinApp remains an external testbed comparison rather than an installed
+  runtime dependency. No provider owns the project contract, lifecycle,
+  protected authority, or recovery boundary.
 - Computer Use is an optional provider and ergonomic benchmark, not the only
   remotely usable surface.
 - ChromeOS is the current quality and architecture reference for rich outside
@@ -69,13 +70,13 @@ The smallest repeatable Windows target appliance needs to provide:
   profile or lease; and
 - recovery after reboot, logout, lock, user switching, or provider crash.
 
-The first implementation should use the completed Cua and system-shell
-evidence rather than repeat it. Build an owned facade/session proxy that routes
-each operation through Cua or the measured WinApp/native shell adapter and
-reports the actual route, fidelity, foreground consequence, delivery, and
-independent effect. PowerShell, SSH, and narrower native components may remain
-adapters behind the facade. The product boundary is the target controller, not
-any one adapter.
+The current implementation uses the completed Cua and system-shell evidence
+rather than repeating it. Its owned facade/session proxy routes each operation
+through Cua or the measured native shell/protected adapter and reports the
+actual route, fidelity, foreground consequence, delivery, and independent
+effect. PowerShell, SSH, WinApp, and narrower native components may remain
+transports, differential routes, or adapters behind the facade. The product
+boundary is the target controller, not any one adapter.
 
 The cross-platform ownership boundary, hybrid-first rationale, correctness
 oracles, and criteria for eventually forking or replacing Cua are recorded in
@@ -89,18 +90,19 @@ is the single entry point for the candidate matrix and completed
 investigations. It records:
 
 - Cua source review and live normal/elevated/UAC/lock/session experiments;
-- the adopted WinVM/WinApp relay and observed UIA/WebView/effect limits;
+- the WinVM/WinApp relay, its UIA/WebView/effect limits, and the Tactical 004
+  differential that kept it outside the installed runtime;
 - Open Computer Use as a source-reviewed compact cross-platform comparison;
 - Cua-plus-native, WinApp-centered, and owned-native architecture options; and
 - source-reviewed and search-triage alternatives that have not earned a live
   experiment.
 
-**Decision:** The leading architecture is a small owned Windows facade/session
-proxy with a Cua common-runtime adapter, an operation-level WinApp/Win32/Shell
-adapter for measured gaps, and a separately installed protected Windows
-provider. Tactical 002 now requires a full protected-desktop capability on a
-dedicated test appliance; the interface and arming remain narrow even though
-the authorized desktop control is not.
+**Decision:** The implemented architecture is a small owned Windows
+facade/session proxy with a Cua common-runtime adapter, an owned native
+UIA/Win32/Shell adapter for measured gaps, and a separate protected Windows
+plane. WinApp remains replaceable differential evidence. The protected
+interface and arming remain narrow even though the authorized desktop control
+on a dedicated appliance is complete.
 
 The provider-first view and common contract lessons live in
 [`provider-landscape.md`](provider-landscape.md). Exact pins, commands, and
@@ -137,9 +139,10 @@ completed this track. The minimized
 [`shell findings`](../../machine-control-spike/docs/windows-shell-findings.md)
 show that provider choice must occur per operation. Cua remains strong for
 ordinary-window semantics, compact state, background UIA, capture, evidence,
-and frame placement. The Windows adapter must cover Cua-invisible shell HWNDs,
-pattern-aware taskbar/title-bar actions, Settings outer/inner resolution, and
-alternate exact-window capture.
+and frame placement. Tactical 004 connected it behind the facade, while the
+installed native adapter covers Cua-invisible shell surfaces, bounded
+taskbar/Settings projections, pattern-aware state effects, session/protected
+boundaries, and alternate exact-window capture.
 
 ## Open decisions
 
@@ -161,14 +164,18 @@ appliance: server lifecycle, provider credentials, checkout discovery, relay
 identity and pairing, and readiness. This question must not block direct
 outside control.
 
-### Adapter boundary
+### Contract evolution
 
-Define the smallest facade that projects target/capability inventory,
-generation-scoped window and element identity, compact observation, capture
-extent, route and host-interference metadata, structured delivery/effect
-results, recovery requests, and artifact references. Its provider arbiter must
-select Cua or the Windows shell adapter per operation without forcing every
-testbed to rename or reimplement its CLI.
+**Current:** The executable `machine-control/v0` facade now projects
+machine-readable provider inventory and routing, generation-scoped provider
+references, compact observation, capture extent, actual route, delivery,
+effect, uncertainty, retries, and fallback. The arbiter selects Cua or the
+Windows provider per operation without exposing their request vocabularies.
+
+**Open:** Evolve this exercised vocabulary toward a common multi-platform SDK
+without freezing Windows-specific implementation details as universal wire
+semantics. Artifact transfer and controller-level recovery requests remain
+separate decisions.
 
 ### Outer recovery authority
 

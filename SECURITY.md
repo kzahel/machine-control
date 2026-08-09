@@ -22,6 +22,21 @@ operations. It does include a typed, one-submission stock Credential Provider
 login route for dedicated test appliances. Other administration belongs to a
 separately authorized transport.
 
+## Ordinary provider subprocess
+
+The installed runtime supervises the unmodified Cua 0.17.0 release only as a
+child of the Medium interactive helper. It uses a private generation-scoped
+named pipe, disables upstream telemetry and update checks, and never starts Cua
+inside the LocalSystem protected worker. Package manifests verify the exact
+evaluated executable digest and include the upstream MIT license.
+
+The upstream release artifact does not attest the source commit that produced
+it; the separately recorded source-review SHA is not a binary-provenance
+claim. Treat this as an explicit supply-chain limitation until a reproducible
+or attested build replaces the evaluated binary. Provider crashes invalidate
+facade references and permit one supervised restart, not unbounded replay of
+mutating actions.
+
 ## Credential route
 
 PIN/password login is absent from the ordinary JSON request surface. The local
