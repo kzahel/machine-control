@@ -89,10 +89,11 @@ bin/winvm generalize --decrypt
 bin/winvm generalize --check
 ```
 
-Preflight also names removable per-user AppX packages that are neither
-provisioned into the image nor expected Windows-serviced packages. Sysprep
-rejects these packages. Reconciliation is deliberately explicit because it
-removes an installed application from the candidate:
+Preflight also names every removable, non-framework, non-resource per-user
+AppX package that is not provisioned into the image. Sysprep rejects these
+packages, including some Windows-serviced packages after Store updates.
+Reconciliation is deliberately explicit because it removes an installed
+package from the candidate:
 
 ```bash
 bin/winvm generalize --remove-appx EXACT_PACKAGE_NAME

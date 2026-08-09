@@ -115,9 +115,7 @@ $unprovisionedAppx = @(Get-AppxPackage | Where-Object {
         $_.Name -notin $provisionedAppxNames -and
         -not $_.NonRemovable -and
         -not $_.IsFramework -and
-        -not $_.IsResourcePackage -and
-        ($_.SignatureKind.ToString() -eq 'Developer' -or
-            $_.PublisherId -ne '8wekyb3d8bbwe')
+        -not $_.IsResourcePackage
     })
 $appxReady = $unprovisionedAppx.Count -eq 0
 $preflight = [ordered]@{
