@@ -23,6 +23,12 @@ The Windows suites exercise the same installed facade from two placements:
   acceptance route. It prompts the human without echo and uses the runtime's
   dedicated non-JSON secret channel.
 
+`scripts/bootstrap-windows.sh` is the reproducible host-to-target installation
+path used before these suites. It detects ARM64/x64, builds and verifies the
+matching package, installs through administrative SSH, waits for the Medium
+helper and adopted providers, and removes transfer staging. It assumes a
+testbed-ready Windows base; it is not an OOBE or credential bootstrap.
+
 The suites write generated evidence only to caller-selected target-local paths.
 Do not commit raw output or screenshots. A testbed operator must separately
 authorize and supervise lock, logout, reboot, and credential-gated recovery.

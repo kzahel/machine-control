@@ -309,6 +309,19 @@ testbed's administrative transport. The ordinary contract accepts one-line
 JSON through `machine-control-windows.exe call`; every result separates route,
 session/desktop/generation, delivery, observed effect, and uncertainty.
 
+For a testbed-ready Windows base with key-only administrative SSH and an
+authorized interactive appliance login, one host command detects architecture,
+publishes and verifies the package, installs it idempotently, waits for the
+Medium helper and providers, removes staging, and returns minimized readiness:
+
+```bash
+scripts/bootstrap-windows.sh <ssh-target>
+```
+
+This is the MachineControl-layer bootstrap. Windows OOBE, guest tools, SSH,
+appliance login policy, VM cloning, and image sealing remain owned by the
+authoritative testbed.
+
 PIN/password login deliberately does not accept a secret in JSON, arguments,
 environment variables, or files. An authorized human uses the non-echoing
 helper, which carries one secret through a dedicated one-shot channel after
