@@ -36,6 +36,7 @@ fi
 
 read -r -d '' launch_script <<'POWERSHELL' || true
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 $taskName = 'WinVM Image Generalization'
 $scriptPath = 'C:\Users\Public\winvm-prepare-generalized-image.ps1'
 $arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass ' +
@@ -61,7 +62,7 @@ $path = 'C:\ProgramData\WinVM-Factory\generalization-receipt.json'
 if (Test-Path -LiteralPath $path) {
     $receipt = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
     if ($receipt.state -eq 'failed') {
-        '{0}`t{1}`t{2}' -f $receipt.error_type, $receipt.line, $receipt.message
+        '{0}|{1}|{2}' -f $receipt.error_type, $receipt.line, $receipt.message
     }
 }
 POWERSHELL

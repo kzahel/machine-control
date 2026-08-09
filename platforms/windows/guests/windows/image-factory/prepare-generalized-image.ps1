@@ -16,7 +16,10 @@ $receiptPath = Join-Path $receiptRoot 'generalization-receipt.json'
 $winlogonPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
 
 function Remove-LsaPrivateData {
-    param([Parameter(Mandatory = $true)][string]$Name)
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [switch]$ValidateOnly
+    )
     if (-not ('WinVM.Factory.Lsa' -as [type])) {
         Add-Type -TypeDefinition @'
 using System;
@@ -57,11 +60,12 @@ namespace WinVM.Factory {
         public static void RemovePrivateData(string name) {
             var attributes = new LSA_OBJECT_ATTRIBUTES();
             attributes.Length = (uint)Marshal.SizeOf(attributes);
+            IntPtr policy;
             var status = LsaOpenPolicy(
                 IntPtr.Zero,
                 ref attributes,
                 0x00000020,
-                out var policy);
+                out policy);
             if (status != 0) {
                 throw new InvalidOperationException(
                     "LsaOpenPolicy failed: " + LsaNtStatusToWinError(status));
@@ -87,6 +91,7 @@ namespace WinVM.Factory {
 }
 '@
     }
+    if ($ValidateOnly) { return }
     [WinVM.Factory.Lsa]::RemovePrivateData($Name)
 }
 
@@ -99,6 +104,7 @@ $pendingReboot = @(@(
         'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending',
         'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired'
     ) | Where-Object { Test-Path -LiteralPath $_ })
+Remove-LsaPrivateData -Name 'DefaultPassword' -ValidateOnly
 $preflight = [ordered]@{
     schema = 'winvm-image-generalization/v0'
     administrator = $administrator
