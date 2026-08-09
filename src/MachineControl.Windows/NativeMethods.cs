@@ -19,6 +19,8 @@ internal static class NativeMethods
     public const uint SE_PRIVILEGE_ENABLED = 0x00000002;
     public const uint CREATE_UNICODE_ENVIRONMENT = 0x00000400;
     public const uint CREATE_NO_WINDOW = 0x08000000;
+    public const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    public const int ERROR_INSUFFICIENT_BUFFER = 122;
     public const uint DESKTOP_ALL_ACCESS = 0x01FF;
     public const int UOI_NAME = 2;
     public const int WTSUserName = 5;
@@ -48,6 +50,18 @@ internal static class NativeMethods
 
     [DllImport("kernel32.dll")]
     public static extern IntPtr GetCurrentProcess();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr OpenProcess(
+        uint desiredAccess,
+        bool inheritHandle,
+        uint processId);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetApplicationUserModelId(
+        IntPtr process,
+        ref uint applicationUserModelIdLength,
+        StringBuilder? applicationUserModelId);
 
     [DllImport("kernel32.dll")]
     public static extern uint GetCurrentThreadId();

@@ -46,6 +46,7 @@ internal sealed record Request
     public string? Scope { get; init; }
     public string? Target { get; init; }
     public string? ExecutablePath { get; init; }
+    public string? ApplicationId { get; init; }
     public string? Arguments { get; init; }
     public string? Query { get; init; }
     public string? Reference { get; init; }

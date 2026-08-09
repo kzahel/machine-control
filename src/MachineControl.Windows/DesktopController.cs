@@ -148,6 +148,8 @@ internal static class DesktopController
                 "status" => Status(request, generation, desktopName, timer),
                 "app.launch" => AppLaunch(
                     request, generation, desktopName, desktop, timer),
+                "app.activate" => AppActivate(
+                    request, generation, desktopName, desktop, timer),
                 "windows" => Windows(
                     request, generation, desktopName, desktop, timer),
                 "snapshot" => Snapshot(
@@ -363,6 +365,144 @@ internal static class DesktopController
                 windows,
             },
             fidelity: "target_local_application_launch");
+    }
+
+    private static Result AppActivate(
+        Request request,
+        string generation,
+        string desktopName,
+        IntPtr desktop,
+        Stopwatch timer)
+    {
+        if (!string.Equals(
+                desktopName,
+                "Default",
+                StringComparison.OrdinalIgnoreCase) ||
+            IsLocalSystem())
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "application_activation_unavailable",
+                "Registered application activation requires the Medium interactive Default desktop helper");
+        }
+        if (string.IsNullOrWhiteSpace(request.ApplicationId) ||
+            request.ApplicationId.Length > 512 ||
+            request.ApplicationId.Any(char.IsControl))
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "invalid_application_id",
+                "app.activate requires a registered applicationId");
+        }
+        if (request.Arguments?.Length > 4096)
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "invalid_arguments",
+                "app.activate arguments exceed 4096 UTF-16 code units");
+        }
+
+        uint processId;
+        try
+        {
+            processId = ApplicationActivation.Activate(
+                request.ApplicationId,
+                request.Arguments ?? string.Empty);
+        }
+        catch (COMException ex)
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "application_activation_failed",
+                $"Registered application activation failed (HRESULT 0x{ex.HResult:X8})");
+        }
+
+        var timeout = TimeSpan.FromMilliseconds(
+            Math.Clamp(request.TimeoutMs ?? 10_000, 500, 30_000));
+        var deadline = DateTime.UtcNow + timeout;
+        var windows = FindActivatedWindows(
+            desktop,
+            processId,
+            request.ApplicationId);
+        while (!windows.Any(window => window.Visible) &&
+            DateTime.UtcNow < deadline)
+        {
+            Thread.Sleep(100);
+            windows = FindActivatedWindows(
+                desktop,
+                processId,
+                request.ApplicationId);
+        }
+        var visible = windows.Where(window => window.Visible).ToList();
+        return Success(
+            request,
+            generation,
+            desktopName,
+            timer,
+            "windows.native/application_activation_manager",
+            "confirmed",
+            visible.Count > 0 ? "confirmed" : "no_effect",
+            new
+            {
+                applicationId = request.ApplicationId,
+                processId,
+                windows = visible,
+                visibleWindowCount = visible.Count,
+            },
+            fidelity: "registered_application_activation") with
+        {
+            FocusConsequence = "may_change",
+        };
+    }
+
+    private static List<WindowRecord> FindActivatedWindows(
+        IntPtr desktop,
+        uint processId,
+        string applicationId) =>
+        EnumerateWindows(desktop)
+            .Where(window =>
+                window.ProcessId == processId ||
+                string.Equals(
+                    TryGetApplicationUserModelId(window.ProcessId),
+                    applicationId,
+                    StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+    private static string? TryGetApplicationUserModelId(int processId)
+    {
+        var process = NativeMethods.OpenProcess(
+            NativeMethods.PROCESS_QUERY_LIMITED_INFORMATION,
+            false,
+            (uint)processId);
+        if (process == IntPtr.Zero) return null;
+        using var handle = new NativeHandle(process);
+        uint length = 0;
+        var result = NativeMethods.GetApplicationUserModelId(
+            process,
+            ref length,
+            null);
+        if (result != NativeMethods.ERROR_INSUFFICIENT_BUFFER || length < 2)
+        {
+            return null;
+        }
+        var value = new StringBuilder((int)length);
+        result = NativeMethods.GetApplicationUserModelId(
+            process,
+            ref length,
+            value);
+        return result == 0 ? value.ToString() : null;
     }
 
     private static List<WindowRecord> EnumerateWindows(IntPtr desktop)

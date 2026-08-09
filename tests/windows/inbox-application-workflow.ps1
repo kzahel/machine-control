@@ -57,6 +57,15 @@ function Get-Metric {
     }
 }
 
+function Get-RegisteredApplicationId {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    $matches = @(Get-StartApps | Where-Object { $_.Name -eq $Name })
+    if ($matches.Count -ne 1 -or -not $matches[0].AppID) {
+        throw "Expected one registered $Name application identity"
+    }
+    return $matches[0].AppID
+}
+
 function Get-Windows {
     $result = Invoke-Control @{ operation = 'windows' }
     Assert-Accepted $result 'window inventory'
@@ -273,6 +282,8 @@ $summary = [ordered]@{
 $workflowError = $null
 $calculator = $null
 $notepad = $null
+$settings = $null
+$characterMap = $null
 $capturePaths = [Collections.Generic.List[string]]::new()
 $workflowRoot = Join-Path $env:LOCALAPPDATA 'MachineControl\workflow'
 $documentName = "machine-control-inbox-$Placement.txt"
@@ -291,13 +302,24 @@ try {
     New-Item -ItemType Directory -Force -Path $workflowRoot | Out-Null
     New-Item -ItemType File -Path $documentPath | Out-Null
 
-    $calcLaunch = Start-ThroughRun -CommandLine 'calc' -Label 'Calculator'
+    $calculatorAppId = Get-RegisteredApplicationId -Name 'Calculator'
+    $calcLaunch = Invoke-Control @{
+        operation = 'app.activate'
+        applicationId = $calculatorAppId
+        timeoutMs = 15000
+    }
+    Assert-Accepted $calcLaunch 'registered Calculator activation'
+    if ($calcLaunch.actualRoute -notmatch 'application_activation_manager' -or
+        $calcLaunch.effect -ne 'confirmed' -or
+        $calcLaunch.focusConsequence -ne 'may_change') {
+        throw 'Calculator activation lacked native visible-window confirmation'
+    }
     $calculator = Wait-Window `
         -Predicate { $_.visible -and $_.title -eq 'Calculator' } `
         -Label 'Calculator'
     $calcMetrics = [ordered]@{
-        launch = Get-Metric $calcLaunch.submit
-        launch_route = 'Windows Run via target-local facade input'
+        launch = Get-Metric $calcLaunch
+        launch_route = 'Windows ApplicationActivationManager'
     }
     $calculatorControlNames = @('Seven', 'Multiply by', 'Eight', 'Equals')
     $calculatorControls = Get-NamedElements `
@@ -370,6 +392,88 @@ try {
     $summary.metrics.calculator = $calcMetrics
     Close-Window -Window $calculator -Label 'Calculator'
     $calculator = $null
+
+    Wait-NoMatchingWindow `
+        -Predicate { $_.visible -and $_.title -eq 'Settings' } `
+        -Label 'a pre-existing Settings window'
+    $settingsAppId = Get-RegisteredApplicationId -Name 'Settings'
+    $settingsLaunch = Invoke-Control @{
+        operation = 'app.activate'
+        applicationId = $settingsAppId
+        timeoutMs = 15000
+    }
+    Assert-Accepted $settingsLaunch 'registered Settings activation'
+    if ($settingsLaunch.effect -ne 'confirmed') {
+        throw 'Settings activation lacked a visible-window effect'
+    }
+    $settings = Wait-Window `
+        -Predicate { $_.visible -and $_.title -eq 'Settings' } `
+        -Label 'Settings'
+    $settingsSystem = Invoke-Control @{
+        operation = 'snapshot'
+        scope = 'system'
+        hwnd = [long]$settings.hwnd
+        processId = [int]$settings.processId
+        query = 'System'
+        maxDepth = 12
+        maxElements = 30
+    }
+    Assert-Accepted $settingsSystem 'Settings System semantic observation'
+    if (@($settingsSystem.data.elements |
+            Where-Object { $_.name -eq 'System' }).Count -lt 1) {
+        throw 'Settings did not expose its System semantic control'
+    }
+    $summary.applications.settings = [ordered]@{
+        launch = 'registered application activation confirmed by visible HWND'
+        semantics = 'System control independently observed through native UIA'
+        window_lifecycle = 'confirmed'
+    }
+    $summary.metrics.settings = [ordered]@{
+        launch = Get-Metric $settingsLaunch
+        system_semantics = Get-Metric $settingsSystem
+    }
+    Close-Window -Window $settings -Label 'Settings'
+    $settings = $null
+
+    $characterMapPath = Join-Path $env:WINDIR 'System32\charmap.exe'
+    $characterMapLaunch = Invoke-Control @{
+        operation = 'app.launch'
+        executablePath = $characterMapPath
+    }
+    Assert-Accepted $characterMapLaunch 'classic Character Map launch'
+    if ($characterMapLaunch.effect -ne 'confirmed') {
+        throw 'Character Map classic launch lacked a visible-window effect'
+    }
+    $characterMap = Wait-Window `
+        -Predicate {
+            $_.visible -and
+            $_.processId -eq [int]$characterMapLaunch.data.processId
+        } `
+        -Label 'Character Map'
+    $characterMapSnapshot = Invoke-Control @{
+        operation = 'snapshot'
+        scope = 'system'
+        hwnd = [long]$characterMap.hwnd
+        processId = [int]$characterMap.processId
+        query = 'Select'
+        maxDepth = 12
+        maxElements = 30
+    }
+    Assert-Accepted $characterMapSnapshot 'Character Map semantics'
+    if ($characterMapSnapshot.data.count -lt 1) {
+        throw 'Character Map did not expose a Select semantic control'
+    }
+    $summary.applications.character_map = [ordered]@{
+        launch = 'classic executable plus matching visible process HWND'
+        semantics = 'Select control independently observed through native UIA'
+        window_lifecycle = 'confirmed'
+    }
+    $summary.metrics.character_map = [ordered]@{
+        launch = Get-Metric $characterMapLaunch
+        semantics = Get-Metric $characterMapSnapshot
+    }
+    Close-Window -Window $characterMap -Label 'Character Map'
+    $characterMap = $null
 
     $notepadLaunch = Start-ThroughRun `
         -CommandLine ('notepad.exe "{0}"' -f $documentPath) `
@@ -482,6 +586,20 @@ finally {
         }
         catch { }
     }
+    if ($settings) {
+        try {
+            Close-Window -Window $settings -Label 'Settings cleanup'
+            $settings = $null
+        }
+        catch { }
+    }
+    if ($characterMap) {
+        try {
+            Close-Window -Window $characterMap -Label 'Character Map cleanup'
+            $characterMap = $null
+        }
+        catch { }
+    }
     foreach ($capturePath in $capturePaths) {
         Remove-Item -LiteralPath $capturePath -Force -ErrorAction SilentlyContinue
     }
@@ -492,7 +610,9 @@ finally {
     }
     $summary.round_trips = $script:roundTrips
     $summary.cleanup = [ordered]@{
-        application_windows_closed = (-not $calculator -and -not $notepad)
+        application_windows_closed = (
+            -not $calculator -and -not $notepad -and
+            -not $settings -and -not $characterMap)
         document_removed = (-not (Test-Path -LiteralPath $documentPath))
         captures_removed = @($capturePaths |
             Where-Object { Test-Path -LiteralPath $_ }).Count -eq 0
