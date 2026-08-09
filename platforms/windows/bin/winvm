@@ -34,7 +34,14 @@ Image lifecycle:
   assert-target OP       Verify its ignored UUID pin, role, and operation policy
   seal NAME              Clone the configured stopped VM as a stopped seal
   disposable-up          Start the configured VM without persisting changes
+  export-image PATH      Export the configured stopped VM to a new .utm bundle
   delete --confirm NAME  Delete the exact configured stopped VM
+
+Image factory:
+  factory-create NAME WINDOWS_ISO SEED_ISO
+                         Create a stopped QEMU VM from explicit local media
+  generalize [--check|--confirm-target]
+                         Preflight or Sysprep/shut down a pinned candidate
 
 Lifecycle and shells:
   status | capabilities | ip | down | suspend | shutdown | force-stop
@@ -97,7 +104,8 @@ case "$command" in
     ui) exec "$REPO_DIR/bin/winui" "$@" ;;
     ssh|ps) assert_target connect; exec "$WINVM_SSH_BIN" "$WINVM_SSH_HOST" "$@" ;;
     wsl) assert_target connect; exec "$WINVM_SSH_BIN" "$WINVM_SSH_HOST" wsl.exe "$@" ;;
-    status|capabilities|target-id|pin-target|assert-target|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop|seal|disposable-up|delete)
+    generalize) exec "$REPO_DIR/scripts/generalize-windows.sh" "$@" ;;
+    status|capabilities|target-id|pin-target|assert-target|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop|seal|disposable-up|export-image|factory-create|delete)
         provider "$command" "$@"
         ;;
     *)

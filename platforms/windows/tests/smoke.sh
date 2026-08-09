@@ -10,6 +10,8 @@ scripts=(
     "$REPO_DIR/scripts/common.sh"
     "$REPO_DIR/scripts/deploy-ui.sh"
     "$REPO_DIR/scripts/doctor.sh"
+    "$REPO_DIR/scripts/generalize-windows.sh"
+    "$REPO_DIR/scripts/image-factory.sh"
     "$REPO_DIR/providers/utm-macos/provider.sh"
     "$REPO_DIR/providers/utm-macos/screenshot"
     "$REPO_DIR/providers/utm-macos/ssh-proxy"
@@ -27,6 +29,9 @@ help_output="$(WINVM_UTM_NAME='Smoke Test VM' "$REPO_DIR/bin/winvm" help)"
 [[ "$help_output" == *'seal'* ]]
 [[ "$help_output" == *'disposable-up'* ]]
 [[ "$help_output" == *'delete --confirm NAME'* ]]
+[[ "$help_output" == *'factory-create NAME WINDOWS_ISO SEED_ISO'* ]]
+[[ "$help_output" == *'generalize [--check|--confirm-target]'* ]]
+[[ "$help_output" == *'export-image PATH'* ]]
 [[ "$help_output" == *'target-id'* ]]
 [[ "$help_output" == *'pin-target ROLE'* ]]
 [[ "$help_output" == *'assert-target OP'* ]]
@@ -52,6 +57,9 @@ blocked_json="$(
 [[ "$(jq -r '.lifecycle.default_down_action' <<< "$blocked_json")" == 'guest-shutdown' ]]
 [[ "$(jq -r '.lifecycle.seal.availability' <<< "$blocked_json")" == 'available' ]]
 [[ "$(jq -r '.lifecycle.disposable_start.persistence' <<< "$blocked_json")" == 'discard_on_stop' ]]
+[[ "$(jq -r '.lifecycle.export_image.kind' <<< "$blocked_json")" == 'utm_bundle' ]]
+[[ "$(jq -r '.lifecycle.generalize.route' <<< "$blocked_json")" == 'guest_sysprep' ]]
+[[ "$(jq -r '.image_factory.availability' <<< "$blocked_json")" == 'conditional' ]]
 [[ "$(jq -r '.lifecycle.delete.requires | index("exact_name_confirmation") != null' <<< "$blocked_json")" == 'true' ]]
 [[ "$(jq -r '.lifecycle.suspend.reasons | index("utm-qemu-gpu-display") != null' <<< "$blocked_json")" == 'true' ]]
 [[ "$(jq -r '.lifecycle.suspend.reasons | index("utm-qemu-nvme-disk") != null' <<< "$blocked_json")" == 'true' ]]
@@ -113,6 +121,8 @@ candidate_json="$(assert_target candidate up --json)"
 [[ "$(jq -r '.authorized' <<< "$candidate_json")" == 'true' ]]
 [[ "$(jq -r '.transport.ssh_alias' <<< "$candidate_json")" == 'winvm' ]]
 assert_target candidate product-install >/dev/null
+assert_target candidate generalize >/dev/null
+assert_target candidate export-image >/dev/null
 if assert_target seal product-install >/dev/null 2>&1; then
     printf 'Seal unexpectedly authorized persistent product installation.\n' >&2
     exit 1
@@ -150,10 +160,15 @@ if assert_target source delete >/dev/null 2>&1; then
     printf 'Source delete unexpectedly passed role policy.\n' >&2
     exit 1
 fi
+if assert_target source generalize >/dev/null 2>&1; then
+    printf 'Source generalization unexpectedly passed role policy.\n' >&2
+    exit 1
+fi
 
 assert_target seal connect >/dev/null
 assert_target seal disposable-up >/dev/null
 assert_target seal seal >/dev/null
+assert_target seal export-image >/dev/null
 if assert_target seal up >/dev/null 2>&1; then
     printf 'Persistent seal boot unexpectedly succeeded without override.\n' >&2
     exit 1

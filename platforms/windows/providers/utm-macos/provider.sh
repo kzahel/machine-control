@@ -53,10 +53,20 @@ pin_target() {
         printf 'Usage: winvm pin-target source|candidate|seal [VM_NAME|--configured]\n' >&2
         return 2
     fi
-    local actual_id temporary
-    actual_id="$(target_id "$selected_name")"
-    if [[ -z "$actual_id" ]]; then
-        printf 'The provider could not resolve the configured target identity.\n' >&2
+    local actual_id="" previous_id="" temporary stable_reads=0
+    local deadline=$((SECONDS + 10))
+    while (( SECONDS < deadline && stable_reads < 3 )); do
+        actual_id="$(target_id "$selected_name")"
+        if [[ -n "$actual_id" && "$actual_id" == "$previous_id" ]]; then
+            stable_reads=$((stable_reads + 1))
+        else
+            previous_id="$actual_id"
+            stable_reads=1
+        fi
+        if (( stable_reads < 3 )); then sleep 1; fi
+    done
+    if [[ -z "$actual_id" || stable_reads -lt 3 ]]; then
+        printf 'The provider could not resolve a stable target identity.\n' >&2
         return 1
     fi
     temporary="$(mktemp "$WINVM_TARGET_FILE.XXXXXX")"
@@ -88,7 +98,7 @@ role_allows_operation() {
         seal)
             [[ "$role" == "source" || "$role" == "candidate" || "$role" == "seal" ]]
             ;;
-        disposable-up|delete)
+        disposable-up|delete|export-image)
             [[ "$role" == "candidate" || "$role" == "seal" ]]
             ;;
         up)
@@ -100,7 +110,7 @@ role_allows_operation() {
             [[ "$role" == "candidate" || "$role" == "seal" ]] ||
                 { [[ "$role" == "source" ]] && source_mutation_authorized; }
             ;;
-        stage-bootstrap|deploy-ui|product-install|input|force-stop)
+        stage-bootstrap|deploy-ui|product-install|generalize|input|force-stop)
             [[ "$role" == "candidate" ]] ||
                 { [[ "$role" == "source" ]] && source_mutation_authorized; }
             ;;
@@ -158,6 +168,81 @@ assert_target() {
         printf 'target verified: role=%s operation=%s\n' \
             "$WINVM_TARGET_ROLE" "$operation"
     fi
+}
+
+factory_create() {
+    if [[ $# -ne 3 || -z "$1" || -z "$2" || -z "$3" ]]; then
+        printf 'Usage: winvm factory-create NAME WINDOWS_ISO SEED_ISO\n' >&2
+        return 2
+    fi
+    local destination="$1" windows_iso="$2" seed_iso="$3" status
+    for media in "$windows_iso" "$seed_iso"; do
+        if [[ ! -f "$media" || ! -r "$media" ]]; then
+            printf 'Factory media is absent or unreadable.\n' >&2
+            return 1
+        fi
+    done
+    if vm_is_registered "$destination"; then
+        printf 'Factory destination is already registered.\n' >&2
+        return 1
+    fi
+    "$WINVM_OSASCRIPT" - "$destination" "$windows_iso" "$seed_iso" <<'APPLESCRIPT'
+on run argv
+    set vmName to item 1 of argv
+    set windowsIso to POSIX file (item 2 of argv)
+    set seedIso to POSIX file (item 3 of argv)
+    tell application "UTM"
+        make new virtual machine with properties {backend:qemu, configuration:{name:vmName, architecture:"aarch64", memory:8192, cpu cores:4, hypervisor:true, uefi:true, drives:{{removable:true, source:windowsIso}, {removable:true, source:seedIso}, {interface:NVMe, guest size:131072}}, displays:{{hardware:"virtio-ramfb-gl", dynamic resolution:true}}, network interfaces:{{mode:shared}}}}
+    end tell
+end run
+APPLESCRIPT
+    status="$("$WINVM_UTMCTL" status "$destination" 2>/dev/null || true)"
+    if [[ "$status" != "stopped" ]]; then
+        printf 'UTM did not create a stopped factory target.\n' >&2
+        return 1
+    fi
+    printf 'factory target created\n'
+}
+
+vm_export_image() {
+    if [[ $# -ne 1 || -z "$1" ]]; then
+        printf 'Usage: winvm export-image OUTPUT.utm\n' >&2
+        return 2
+    fi
+    local output="$1" status parent
+    if [[ "$output" != /* || "${output##*.}" != "utm" ]]; then
+        printf 'Export output must be an absolute .utm path.\n' >&2
+        return 2
+    fi
+    if [[ -e "$output" ]]; then
+        printf 'Export output already exists.\n' >&2
+        return 1
+    fi
+    parent="$(dirname "$output")"
+    if [[ ! -d "$parent" || ! -w "$parent" ]]; then
+        printf 'Export parent is absent or not writable.\n' >&2
+        return 1
+    fi
+    status="$(vm_status || true)"
+    if [[ "$status" != "stopped" ]]; then
+        printf 'Export requires a stopped target.\n' >&2
+        return 1
+    fi
+    "$WINVM_OSASCRIPT" - "$WINVM_UTM_NAME" "$output" <<'APPLESCRIPT'
+on run argv
+    set vmName to item 1 of argv
+    set outputFile to POSIX file (item 2 of argv)
+    tell application "UTM"
+        set targetVM to first virtual machine whose name is vmName
+        export targetVM to outputFile
+    end tell
+end run
+APPLESCRIPT
+    if [[ ! -d "$output" ]]; then
+        printf 'UTM did not produce the requested export bundle.\n' >&2
+        return 1
+    fi
+    printf 'image exported\n'
 }
 
 utm_configuration_devices() {
@@ -269,7 +354,7 @@ provider_capabilities() {
             --arg source "$SUSPEND_SOURCE" \
             --argjson reasons "$reasons_json" \
             --arg action "$action" \
-            '{schema_version: 1, state: $state, lifecycle: {suspend: {availability: $availability, source: $source, reasons: $reasons}, default_down_action: $action, seal: {availability: "available", kind: "full_clone", requires: ["source_stopped", "destination_unregistered"]}, disposable_start: {availability: "available", persistence: "discard_on_stop"}, delete: {availability: "available", requires: ["configured_target_stopped", "exact_name_confirmation"]}}}'
+            '{schema_version: 1, state: $state, lifecycle: {suspend: {availability: $availability, source: $source, reasons: $reasons}, default_down_action: $action, seal: {availability: "available", kind: "full_clone", requires: ["source_stopped", "destination_unregistered"]}, disposable_start: {availability: "available", persistence: "discard_on_stop"}, export_image: {availability: "available", kind: "utm_bundle", requires: ["identity_pin", "candidate_or_seal_role", "target_stopped", "new_absolute_output"]}, generalize: {availability: "available", route: "guest_sysprep", requires: ["identity_pin", "candidate_role", "administrator", "no_pending_reboot"]}, delete: {availability: "available", requires: ["configured_target_stopped", "exact_name_confirmation"]}}, image_factory: {availability: "conditional", architecture: "aarch64", requires: ["local_windows_iso", "private_answer_media", "unregistered_destination"]}}'
         return
     fi
 
@@ -281,6 +366,9 @@ provider_capabilities() {
     printf 'default-down-action: %s\n' "$action"
     printf 'seal: available (stopped full clone)\n'
     printf 'disposable-start: available (discard on stop)\n'
+    printf 'export-image: available (stopped UTM bundle)\n'
+    printf 'generalize: available (candidate guest Sysprep)\n'
+    printf 'image-factory: conditional (explicit local media)\n'
     printf 'delete: available (stopped exact-name confirmation)\n'
 }
 
@@ -645,6 +733,8 @@ case "$command" in
     stage-bootstrap) assert_target stage-bootstrap >/dev/null; stage_bootstrap "$@" ;;
     seal) assert_target seal >/dev/null; vm_seal "$@" ;;
     disposable-up) assert_target disposable-up >/dev/null; vm_disposable_up "$@" ;;
+    export-image) assert_target export-image >/dev/null; vm_export_image "$@" ;;
+    factory-create) factory_create "$@" ;;
     delete) assert_target delete >/dev/null; vm_delete "$@" ;;
     down) assert_target down >/dev/null; vm_down ;;
     suspend) assert_target suspend >/dev/null; vm_suspend ;;

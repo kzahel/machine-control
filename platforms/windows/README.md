@@ -87,6 +87,8 @@ path from SSH session 0 to the desktop session.
 See [docs/bootstrap.md](docs/bootstrap.md) for the complete fresh-guest and
 recovery procedure. See [docs/auto-logon.md](docs/auto-logon.md) for the
 explicit, guest-local auto-logon option used by dedicated test appliances.
+See [docs/image-factory.md](docs/image-factory.md) for unattended answer media,
+factory creation, Sysprep generalization, and stopped UTM export.
 
 ## Daily Use
 
