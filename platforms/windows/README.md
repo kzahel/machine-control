@@ -54,8 +54,10 @@ bin/winvm help
 bin/winvm doctor
 ```
 
-The defaults expect a UTM VM named `Windows` and an SSH alias named `winvm`.
-Copy `config.example` to ignored `config.local` if yours differs.
+The defaults identify a UTM VM named `Windows` and an SSH alias named `winvm`,
+but do not authorize mutation. Copy `config.example` to ignored `config.local`,
+pin its provider-native UUID and role with `bin/winvm pin-target ROLE`, where
+the role is `source`, `candidate`, or `seal`, before using mutating commands.
 
 For a fresh guest, install UTM Windows Guest Tools, log into Windows, and
 stage the OpenSSH bootstrap plus your public key through the guest agent:
@@ -90,6 +92,7 @@ explicit, guest-local auto-logon option used by dedicated test appliances.
 
 ```bash
 bin/winvm doctor                  # Check every control layer
+bin/winvm assert-target connect --json # Verify UUID pin and role policy
 bin/winvm up                      # Start/resume and print the guest IP
 bin/winvm capabilities --json     # Inspect lifecycle support and down policy
 bin/winvm ssh                     # Interactive PowerShell over SSH
@@ -129,6 +132,26 @@ crops the title bar and Retina backing pixels, then scales the image to the
 configured guest display. A screenshot pixel `(x, y)` is therefore the exact
 coordinate accepted by `winvm click x y`. Capture also finds a matching UTM
 console on another macOS Space, preferring an on-screen console when possible.
+
+## Target-Safety Interlock
+
+Friendly VM names are selectors, not mutation authority. `pin-target` writes
+an ignored, mode-0600 `.target.local`. Before changing
+state, the UTM provider resolves the selected VM's UUID and compares it with
+`WINVM_EXPECTED_UTM_ID` in ignored configuration. It also applies the declared
+`WINVM_TARGET_ROLE` policy:
+
+- `source` can be inspected, stopped, or cloned while stopped, but cannot be
+  booted, connected to, bootstrapped, driven, force-stopped, or deleted unless
+  the narrowly scoped source-mutation override is present;
+- `candidate` supports ordinary build, control, sealing, and exact-confirmed
+  deletion; and
+- `seal` supports disposable verification and teardown, but a persistent boot
+  requires its own explicit override.
+
+An assertion is a local safety interlock, not a credential. SSH keys and the
+provider's authorization remain the security boundary. Keep real UUIDs and
+role selection in `.target.local`; do not paste them into documentation or Git.
 
 ## What Survives a Reboot
 

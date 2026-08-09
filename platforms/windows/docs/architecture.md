@@ -13,7 +13,9 @@ bin/winvm
 ```
 
 The CLI reads ignored `config.local`, then selects `WINVM_PROVIDER` and
-`WINVM_GUEST_DRIVER`. Provider commands must implement:
+`WINVM_GUEST_DRIVER`. A provider-native immutable identity pin and target role
+are checked before mutation; a public name is only a selector. Provider
+commands must implement:
 
 - `status`, `capabilities`, `up`, and `ip`
 - `down`, `suspend`, `shutdown`, and `force-stop`
@@ -22,6 +24,8 @@ The CLI reads ignored `config.local`, then selects `WINVM_PROVIDER` and
 - `screenshot`, `type`, `click`, `key`, and `scan` when available
 - `stage-bootstrap` for the selected guest when an out-of-band file channel
   exists
+- `target-id` and `assert-target OPERATION` when provider-native identity is
+  available
 
 Guest drivers own SSH bootstrap, guest-side deployment, semantic automation,
 and session-boundary behavior.
@@ -50,6 +54,12 @@ a distinct unregistered destination name, and remains a provider-owned VM
 rather than a portable generalized Windows image. Deletion requires the exact
 configured stopped VM name twice: once through configuration and once through
 `--confirm`.
+
+UTM's AppleScript VM UUID is the current provider identity. Every mutating
+operation compares it to the ignored configured pin before applying the
+source/candidate/seal role policy. SSH's proxy performs the same assertion, so
+a missing override cannot silently fall back to the default stopped source and
+start it merely because an alias was reused.
 
 ## Windows Guest Driver
 

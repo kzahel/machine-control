@@ -16,8 +16,10 @@ bin/winvm status
 bin/winvm ip
 ```
 
-If the VM or SSH alias differs from the defaults, copy `config.example` to
-ignored `config.local` and edit it.
+Copy `config.example` to ignored `config.local`, even when the friendly name
+matches, then run `bin/winvm pin-target candidate`. This records the resolved
+UUID and role in mode-0600 ignored `.target.local`. Mutating commands
+intentionally fail when the pin is absent or stale.
 
 ## 2. Stage OpenSSH Without Guest Networking
 

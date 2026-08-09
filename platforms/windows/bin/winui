@@ -123,6 +123,7 @@ capture_response() {
 }
 
 require_tools
+"$REPO_DIR/bin/winvm" assert-target connect >/dev/null
 command="${1:-}"
 if [[ -n "$command" ]]; then
     shift

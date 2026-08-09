@@ -8,7 +8,12 @@ source "$PROVIDER_DIR/../../scripts/common.sh"
 readonly PORT="${1:-22}"
 readonly CONNECT_TIMEOUT="$WINVM_BOOT_TIMEOUT"
 
-ip="$($WINVM_REPO_DIR/bin/winvm ip)"
+"$WINVM_REPO_DIR/bin/winvm" assert-target connect >/dev/null
+if [[ "$($WINVM_REPO_DIR/bin/winvm status)" == "stopped" ]]; then
+    ip="$($WINVM_REPO_DIR/bin/winvm up)"
+else
+    ip="$($WINVM_REPO_DIR/bin/winvm ip)"
+fi
 
 deadline=$((SECONDS + CONNECT_TIMEOUT))
 while (( SECONDS < deadline )); do

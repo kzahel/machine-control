@@ -29,6 +29,9 @@ UTM/macOS recovery:
   scan CODE...           Send decimal PC/AT scan codes through UTM
 
 Image lifecycle:
+  target-id              Print the configured VM's provider-native UUID
+  pin-target ROLE        Pin its current UUID and source/candidate/seal role
+  assert-target OP       Verify its ignored UUID pin, role, and operation policy
   seal NAME              Clone the configured stopped VM as a stopped seal
   disposable-up          Start the configured VM without persisting changes
   delete --confirm NAME  Delete the exact configured stopped VM
@@ -58,6 +61,12 @@ provider() {
     exec "$provider_path" "$@"
 }
 
+assert_target() {
+    local operation="$1"
+    "$REPO_DIR/providers/$WINVM_PROVIDER/provider.sh" \
+        assert-target "$operation" >/dev/null
+}
+
 print_ssh_config() {
     if [[ $# -ne 1 ]]; then
         printf 'Usage: winvm ssh-config WINDOWS_USER\n' >&2
@@ -81,14 +90,14 @@ shift || true
 
 case "$command" in
     help|-h|--help) usage ;;
-    doctor) exec "$REPO_DIR/scripts/doctor.sh" "$@" ;;
-    deploy-ui) exec "$REPO_DIR/scripts/deploy-ui.sh" "$@" ;;
+    doctor) assert_target connect; exec "$REPO_DIR/scripts/doctor.sh" "$@" ;;
+    deploy-ui) assert_target deploy-ui; exec "$REPO_DIR/scripts/deploy-ui.sh" "$@" ;;
     stage-bootstrap) provider stage-bootstrap "$@" ;;
     ssh-config) print_ssh_config "$@" ;;
     ui) exec "$REPO_DIR/bin/winui" "$@" ;;
-    ssh|ps) exec "$WINVM_SSH_BIN" "$WINVM_SSH_HOST" "$@" ;;
-    wsl) exec "$WINVM_SSH_BIN" "$WINVM_SSH_HOST" wsl.exe "$@" ;;
-    status|capabilities|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop|seal|disposable-up|delete)
+    ssh|ps) assert_target connect; exec "$WINVM_SSH_BIN" "$WINVM_SSH_HOST" "$@" ;;
+    wsl) assert_target connect; exec "$WINVM_SSH_BIN" "$WINVM_SSH_HOST" wsl.exe "$@" ;;
+    status|capabilities|target-id|pin-target|assert-target|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop|seal|disposable-up|delete)
         provider "$command" "$@"
         ;;
     *)

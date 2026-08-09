@@ -4,6 +4,16 @@
 WINVM_PROVIDER=utm-macos
 WINVM_GUEST_DRIVER=windows
 WINVM_UTM_NAME=Windows
+# Mutating commands fail closed until both values identify the configured VM.
+# Obtain the UUID locally with: bin/winvm target-id
+# Roles are source, candidate, or seal. Keep the real UUID in config.local.
+WINVM_EXPECTED_UTM_ID=
+WINVM_TARGET_ROLE=unclassified
+
+# Source mutation and a persistent retained-seal boot are exceptional recovery
+# actions. Prefer one-command environment overrides instead of storing these.
+WINVM_ALLOW_SOURCE_MUTATION=0
+WINVM_ALLOW_PERSISTENT_SEAL_BOOT=0
 WINVM_UTMCTL=/Applications/UTM.app/Contents/MacOS/utmctl
 WINVM_DISPLAY_WIDTH=1399
 WINVM_DISPLAY_HEIGHT=985

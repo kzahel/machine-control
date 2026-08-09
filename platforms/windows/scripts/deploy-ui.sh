@@ -6,6 +6,8 @@ readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
 
+"$WINVM_REPO_DIR/bin/winvm" assert-target deploy-ui >/dev/null
+
 skip_winapp=0
 case "${1:-}" in
     '') ;;

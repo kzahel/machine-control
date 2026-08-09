@@ -27,6 +27,9 @@ help_output="$(WINVM_UTM_NAME='Smoke Test VM' "$REPO_DIR/bin/winvm" help)"
 [[ "$help_output" == *'seal'* ]]
 [[ "$help_output" == *'disposable-up'* ]]
 [[ "$help_output" == *'delete --confirm NAME'* ]]
+[[ "$help_output" == *'target-id'* ]]
+[[ "$help_output" == *'pin-target ROLE'* ]]
+[[ "$help_output" == *'assert-target OP'* ]]
 
 config_output="$(
     WINVM_SSH_HOST=smoke-host \
@@ -90,6 +93,68 @@ if WINVM_UTM_NAME='configured-name' \
     printf 'Mismatched delete confirmation unexpectedly succeeded.\n' >&2
     exit 1
 fi
+
+identity_provider_env=(
+    WINVM_UTMCTL=/usr/bin/true
+    WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-target-id"
+    WINVM_EXPECTED_UTM_ID=11111111-2222-3333-4444-555555555555
+)
+
+assert_target() {
+    env "${identity_provider_env[@]}" \
+        WINVM_TARGET_ROLE="$1" \
+        "$provider" assert-target "$2" "${3:-}"
+}
+
+candidate_json="$(assert_target candidate up --json)"
+[[ "$(jq -r '.identity_pin' <<< "$candidate_json")" == 'verified' ]]
+[[ "$(jq -r '.role' <<< "$candidate_json")" == 'candidate' ]]
+[[ "$(jq -r '.operation' <<< "$candidate_json")" == 'up' ]]
+[[ "$(jq -r '.authorized' <<< "$candidate_json")" == 'true' ]]
+
+if env \
+    WINVM_UTMCTL=/usr/bin/true \
+    WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-target-id" \
+    WINVM_TARGET_ROLE=candidate \
+    "$provider" assert-target up >/dev/null 2>&1; then
+    printf 'Unpinned target unexpectedly authorized mutation.\n' >&2
+    exit 1
+fi
+
+if env \
+    WINVM_UTMCTL=/usr/bin/true \
+    WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-target-id" \
+    WINVM_EXPECTED_UTM_ID=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee \
+    WINVM_TARGET_ROLE=candidate \
+    "$provider" assert-target up >/dev/null 2>&1; then
+    printf 'Mismatched target identity unexpectedly authorized mutation.\n' >&2
+    exit 1
+fi
+
+if assert_target source up >/dev/null 2>&1; then
+    printf 'Source mutation unexpectedly succeeded without override.\n' >&2
+    exit 1
+fi
+assert_target source seal >/dev/null
+env "${identity_provider_env[@]}" \
+    WINVM_TARGET_ROLE=source \
+    WINVM_ALLOW_SOURCE_MUTATION=1 \
+    "$provider" assert-target up >/dev/null
+if assert_target source delete >/dev/null 2>&1; then
+    printf 'Source delete unexpectedly passed role policy.\n' >&2
+    exit 1
+fi
+
+assert_target seal connect >/dev/null
+assert_target seal disposable-up >/dev/null
+if assert_target seal up >/dev/null 2>&1; then
+    printf 'Persistent seal boot unexpectedly succeeded without override.\n' >&2
+    exit 1
+fi
+env "${identity_provider_env[@]}" \
+    WINVM_TARGET_ROLE=seal \
+    WINVM_ALLOW_PERSISTENT_SEAL_BOOT=1 \
+    "$provider" assert-target up >/dev/null
 
 if command -v swiftc >/dev/null 2>&1; then
     swiftc -typecheck "$REPO_DIR/providers/utm-macos/window-id.swift"
