@@ -484,11 +484,7 @@ internal sealed class BrokerHost
                 probe.Desktop,
                 "Default",
                 StringComparison.OrdinalIgnoreCase) ||
-                probe.SessionLocked == true ||
-                string.Equals(
-                    request.Scope,
-                    "system",
-                    StringComparison.OrdinalIgnoreCase);
+                probe.SessionLocked == true;
             var session = useProtected
                 ? protectedSession
                 : await EnsureSessionAsync(

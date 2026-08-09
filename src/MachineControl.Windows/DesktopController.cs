@@ -184,6 +184,7 @@ internal static class DesktopController
             new
             {
                 providers = ProviderRouter.Describe(),
+                routing = ProviderRouter.RoutingTable(),
                 serviceOperations = new[]
                 {
                     "service.status",
@@ -1787,6 +1788,13 @@ internal static class DesktopController
                     "selected"),
             ],
             Data = data,
+            Uncertainty = effect is "confirmed" or "not_applicable"
+                ? "none"
+                : "intended effect was not independently established",
+            RetrySafety = effect == "unknown"
+                ? "observe_and_reconcile_before_retry"
+                : "not_needed",
+            ProviderLatencyMs = timer.ElapsedMilliseconds,
             ElapsedMs = timer.ElapsedMilliseconds,
         };
 
@@ -1808,6 +1816,21 @@ internal static class DesktopController
             Generation = generation,
             Delivery = "refused",
             Effect = "refused",
+            Uncertainty = "none",
+            RetrySafety = "safe_not_dispatched",
+            ProviderAttempts =
+            [
+                new ProviderAttempt(
+                    IsLocalSystem()
+                        ? "windows-native-protected"
+                        : "windows-native-user",
+                    "refused",
+                    errorCode,
+                    timer.ElapsedMilliseconds,
+                    "refused",
+                    "refused"),
+            ],
+            ProviderLatencyMs = timer.ElapsedMilliseconds,
             ErrorCode = errorCode,
             Message = message,
             ElapsedMs = timer.ElapsedMilliseconds,

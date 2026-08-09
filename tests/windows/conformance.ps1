@@ -59,6 +59,19 @@ $createdWindowHandles = [System.Collections.Generic.List[long]]::new()
 try {
     $capabilities = Invoke-Control @{ operation = 'capabilities' }
     Assert-Accepted $capabilities 'capabilities'
+    foreach ($providerId in @('windows-native', 'cua', 'winapp')) {
+        $provider = @($capabilities.data.providers |
+            Where-Object { $_.id -eq $providerId })
+        if ($provider.Count -ne 1 -or
+            -not $provider[0].state -or
+            -not $provider[0].routeClass -or
+            @($provider[0].operations).Count -lt 1) {
+            throw "provider '$providerId' lacks executable capability metadata"
+        }
+    }
+    if (@($capabilities.data.routing).Count -lt 4) {
+        throw 'capabilities did not expose the operation routing table'
+    }
 
     $status = Invoke-Control @{ operation = 'status' }
     Assert-Accepted $status 'ordinary status'
@@ -66,6 +79,12 @@ try {
         throw 'ordinary status did not use the Medium user-session plane'
     }
     $summary.ordinary_integrity_rid = $status.data.integrityRid
+
+    $systemStatus = Invoke-Control @{ operation = 'status'; scope = 'system' }
+    Assert-Accepted $systemStatus 'ordinary system-scope status'
+    if ($systemStatus.data.isLocalSystem) {
+        throw 'Default-desktop system scope was silently promoted to LocalSystem'
+    }
 
     $baselineWindows = Invoke-Control @{
         operation = 'windows'

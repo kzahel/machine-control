@@ -213,7 +213,45 @@ At minimum, record a matrix with:
 
 ## Validation record
 
-Execution has not started. The current owned native provider is the baseline;
-Cua is declared but not connected, and WinApp is an external comparison route
-rather than an adopted runtime adapter. Tactical 002 remains active on this
-provider-composition condition.
+Execution started on 2026-08-09.
+
+### Frozen workflows and baseline
+
+**Decision:** The deterministic workflow uses the checked-in Medium fixture:
+launch it without an outer UI route, identify its exact HWND, take a bounded
+semantic snapshot, invoke its increment control through a snapshot-scoped
+reference, independently observe `counter=0` becoming `counter=1`, capture the
+exact window, exercise minimize/maximize/restore, reject a stale reference,
+close the fixture, and prove its process/window effect disappeared. Semantic
+snapshot and invocation prefer Cua; exact capture may fall back to the native
+provider when Cua cannot register the HWND; native Win32 owns window state.
+
+**Decision:** The representative Windows workflow is the existing shell
+conformance path: Start/Search, Quick Settings, notification overflow,
+Settings, File Explorer, desktop transient menu, fixture lifecycle, exact
+capture, application switching, revocation, and helper recreation. It adds one
+UAC approve/cancel transition through the already proven protected broker.
+The protected regression is reused and is not a reason to rerun credential
+submission. All ordinary Default-desktop operations must remain in the Medium
+interactive helper, including `scope=system` shell operations.
+
+**Current baseline:** The owned native provider supplies the complete passing
+route today. It reports bounded element count, visited nodes, serialized bytes,
+estimated tokens, end-to-end latency, generation, route, delivery, effect,
+focus, cursor, and exact-capture artifact metadata. Cua is pinned at 0.17.0 and
+source revision `d21e3447f9b08c761c090946648d5aca5e6c9cf1`, but is not yet
+connected. WinApp is the adopted testbed comparison route. Exact prior Cua and
+shell measurements remain linked from the research corpus rather than copied
+here.
+
+**Current implementation:** Provider inventory and routing are now executable
+machine-readable capability records. Availability, placement, privilege,
+desktop requirements, per-operation fidelity, delivery, effect observation,
+host interference, omissions, source pin, and failure policy are distinct.
+The service no longer treats `scope=system` as authority to use LocalSystem on
+the ordinary Default desktop; protected routing follows the observed input
+desktop or lock state instead.
+
+Validation of this first slice is source builds for Windows x64 and ARM64.
+Live workflow measurements and the remaining provider composition cells are
+still in progress. Tactical 002 remains active on this condition.

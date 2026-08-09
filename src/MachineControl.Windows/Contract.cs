@@ -48,6 +48,7 @@ internal sealed record Request
     public string? Query { get; init; }
     public string? Reference { get; init; }
     public long? Hwnd { get; init; }
+    public int? ProcessId { get; init; }
     public int? MaxDepth { get; init; }
     public int? MaxElements { get; init; }
     public int? X { get; init; }
@@ -79,7 +80,14 @@ internal sealed record Result
     public string? CoordinateSpace { get; init; }
     public string? FocusConsequence { get; init; }
     public string? CursorConsequence { get; init; }
+    public string Uncertainty { get; init; } = "none";
+    public string RetrySafety { get; init; } = "not_applicable";
     public ProviderAttempt[]? ProviderAttempts { get; init; }
+    public bool FallbackUsed { get; init; }
+    public long? ProviderLatencyMs { get; init; }
+    public int AgentRoundTrips { get; init; } = 1;
+    public int RetryCount { get; init; }
+    public int StaleReferenceEvents { get; init; }
     public string? ErrorCode { get; init; }
     public string? Message { get; init; }
     public object? Evidence { get; init; }
@@ -90,7 +98,10 @@ internal sealed record Result
 internal sealed record ProviderAttempt(
     string Provider,
     string Outcome,
-    string? Detail = null);
+    string? Detail = null,
+    long? ElapsedMs = null,
+    string? Delivery = null,
+    string? Effect = null);
 
 internal sealed record ElementRecord(
     string Reference,
