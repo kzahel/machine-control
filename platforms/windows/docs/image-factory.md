@@ -89,6 +89,20 @@ bin/winvm generalize --decrypt
 bin/winvm generalize --check
 ```
 
+Preflight also names removable per-user AppX packages that are neither
+provisioned into the image nor expected Windows-serviced packages. Sysprep
+rejects these packages. Reconciliation is deliberately explicit because it
+removes an installed application from the candidate:
+
+```bash
+bin/winvm generalize --remove-appx EXACT_PACKAGE_NAME
+bin/winvm generalize --check
+```
+
+Record each removed application and reinstall it after OOBE if the finished
+appliance requires it. The command refuses provisioned, framework, resource,
+non-removable, wildcard, and non-exact targets.
+
 The current profile is a same-controller UTM appliance: it disables guest
 auto-logon, deletes the LSA auto-logon secret and SSH host identity, cleans
 workflow artifacts, retains the controller's public authorized key, and runs:

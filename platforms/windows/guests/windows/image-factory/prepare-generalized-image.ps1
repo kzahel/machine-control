@@ -4,6 +4,7 @@
 param(
     [switch]$CheckOnly,
     [switch]$DecryptOsVolume,
+    [string]$RemoveUnprovisionedAppx,
     [switch]$ConfirmGeneralize,
     [string]$TaskName,
     [ValidateRange(0, 30)]
@@ -108,6 +109,17 @@ $pendingReboot = @(@(
 Remove-LsaPrivateData -Name 'DefaultPassword' -ValidateOnly
 $bitLocker = Get-BitLockerVolume -MountPoint $env:SystemDrive -ErrorAction Stop
 $storageReady = $bitLocker.VolumeStatus.ToString() -eq 'FullyDecrypted'
+$provisionedAppxNames = @(
+    Get-AppxProvisionedPackage -Online | ForEach-Object DisplayName)
+$unprovisionedAppx = @(Get-AppxPackage | Where-Object {
+        $_.Name -notin $provisionedAppxNames -and
+        -not $_.NonRemovable -and
+        -not $_.IsFramework -and
+        -not $_.IsResourcePackage -and
+        ($_.SignatureKind.ToString() -eq 'Developer' -or
+            $_.PublisherId -ne '8wekyb3d8bbwe')
+    })
+$appxReady = $unprovisionedAppx.Count -eq 0
 $preflight = [ordered]@{
     schema = 'winvm-image-generalization/v0'
     administrator = $administrator
@@ -119,18 +131,50 @@ $preflight = [ordered]@{
     bitlocker_protection_status = $bitLocker.ProtectionStatus.ToString()
     bitlocker_encryption_percentage = $bitLocker.EncryptionPercentage
     sysprep_storage_ready = $storageReady
+    unprovisioned_user_appx = @($unprovisionedAppx | ForEach-Object Name)
+    sysprep_appx_ready = $appxReady
     profile = 'same-controller-utm-appliance'
     retained_controller_public_key = $true
     removes_ssh_host_identity = $true
     removes_autologon_secret = $true
     mode = 'generalize-oobe-shutdown-mode-vm'
 }
+if ($RemoveUnprovisionedAppx) {
+    if (-not $administrator) {
+        throw 'AppX reconciliation requires an administrator'
+    }
+    if ($RemoveUnprovisionedAppx -notmatch '^[A-Za-z0-9_.-]+$') {
+        throw 'AppX package name contains unsupported characters'
+    }
+    if ($RemoveUnprovisionedAppx -in $provisionedAppxNames) {
+        throw 'Refusing to remove a package that is provisioned for the image'
+    }
+    $matches = @(Get-AppxPackage -AllUsers | Where-Object {
+            $_.Name -eq $RemoveUnprovisionedAppx -and
+            -not $_.NonRemovable -and
+            -not $_.IsFramework -and
+            -not $_.IsResourcePackage
+        })
+    if ($matches.Count -eq 0) {
+        throw 'No removable unprovisioned package matched the exact name'
+    }
+    foreach ($package in $matches) {
+        Remove-AppxPackage -AllUsers -Package $package.PackageFullName
+    }
+    [ordered]@{
+        schema = 'winvm-image-appx-reconciliation/v0'
+        removed_name = $RemoveUnprovisionedAppx
+        removed_package_count = $matches.Count
+        reinstall_after_oobe = $true
+    } | ConvertTo-Json -Compress
+    exit 0
+}
 if ($DecryptOsVolume) {
     if (-not $administrator) {
         throw 'OS-volume decryption requires an administrator'
     }
     if (-not $storageReady) {
-        Disable-BitLocker -MountPoint $env:SystemDrive
+        Disable-BitLocker -MountPoint $env:SystemDrive | Out-Null
         $deadline = [DateTime]::UtcNow.AddMinutes(30)
         do {
             Start-Sleep -Seconds 2
@@ -151,7 +195,9 @@ if ($DecryptOsVolume) {
 if ($CheckOnly) {
     $preflight | ConvertTo-Json -Compress
     exit $(if ($administrator -and (Test-Path -LiteralPath $sysprep) -and
-        $pendingReboot.Count -eq 0 -and $storageReady) { 0 } else { 1 })
+        $pendingReboot.Count -eq 0 -and $storageReady -and $appxReady) {
+            0
+        } else { 1 })
 }
 Remove-Item -LiteralPath $receiptPath -Force -ErrorAction SilentlyContinue
 trap {
@@ -181,6 +227,9 @@ if ($pendingReboot.Count -ne 0) {
 }
 if (-not $storageReady) {
     throw 'Generalization requires a fully decrypted OS volume'
+}
+if (-not $appxReady) {
+    throw 'Generalization requires explicit unprovisioned AppX reconciliation'
 }
 if ($TaskName) {
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false `

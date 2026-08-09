@@ -10,7 +10,9 @@ readonly REMOTE_SCRIPT='C:/Users/Public/winvm-prepare-generalized-image.ps1'
 
 usage() {
     cat <<'EOF'
-Usage: winvm generalize --check|--decrypt|--confirm-target
+Usage:
+  winvm generalize --check|--decrypt|--confirm-target
+  winvm generalize --remove-appx EXACT_PACKAGE_NAME
 
 Preflight or generalize the UUID-pinned candidate with Sysprep /generalize
 /oobe /shutdown /mode:vm. `--decrypt` prepares an encrypted candidate OS
@@ -23,6 +25,14 @@ EOF
 case "${1:-}" in
     --check) mode=check ;;
     --decrypt) mode=decrypt ;;
+    --remove-appx)
+        [[ $# -eq 2 && "$2" =~ ^[A-Za-z0-9_.-]+$ ]] || {
+            usage >&2
+            exit 2
+        }
+        mode=remove_appx
+        appx_name="$2"
+        ;;
     --confirm-target) mode=execute ;;
     *) usage >&2; exit 2 ;;
 esac
@@ -38,6 +48,10 @@ fi
 if [[ "$mode" == "decrypt" ]]; then
     exec ssh -o BatchMode=yes "$WINVM_SSH_HOST" \
         "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $REMOTE_SCRIPT -DecryptOsVolume"
+fi
+if [[ "$mode" == "remove_appx" ]]; then
+    exec ssh -o BatchMode=yes "$WINVM_SSH_HOST" \
+        "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $REMOTE_SCRIPT -RemoveUnprovisionedAppx $appx_name"
 fi
 
 read -r -d '' launch_script <<'POWERSHELL' || true

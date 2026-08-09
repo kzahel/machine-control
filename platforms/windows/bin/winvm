@@ -41,7 +41,8 @@ Image factory:
   factory-create NAME WINDOWS_ISO SEED_ISO
                          Create a stopped QEMU VM from explicit local media
   generalize [--check|--decrypt|--confirm-target]
-                         Preflight or Sysprep/shut down a pinned candidate
+  generalize --remove-appx EXACT_PACKAGE_NAME
+                         Prepare or Sysprep/shut down a pinned candidate
 
 Lifecycle and shells:
   status | capabilities | ip | down | suspend | shutdown | force-stop
