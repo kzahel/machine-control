@@ -233,10 +233,12 @@ automatic runtime returned with a new generation, and its Medium helper
 reattached. The earlier suspected pre-login SSH failure was the Linux service,
 not a Windows carrier defect.
 
-**Open:** Do not close this tactical until physical cleanup is verified, the VM
+**Open:** Physical cleanup is verified. Do not close this tactical until the VM
 is returned to its prior lifecycle and UAC state, and the remaining live Cua
 and WinApp provider-composition condition is either implemented or deliberately
-respecified from the native vertical-slice evidence.
+respecified from the native vertical-slice evidence. That composition work is
+owned by
+[`Tactical 004`](004-windows-provider-composition-and-agent-ergonomics.md).
 
 **Deviation:** The current executable proves the owned native provider rather
 than composing live Cua and WinApp adapters. Provider inventory reports both as

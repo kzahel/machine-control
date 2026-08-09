@@ -6,6 +6,8 @@ Status: active implementation concern. Cua source/live evaluation and the
 Windows system-shell acceptance run are complete. Full target-native Windows
 implementation is active in
 [`Tactical 002`](../docs/tactical/002-windows-full-target-native-control.md).
+Its next provider-composition and agent-ergonomics workstream is tracked in
+[`Tactical 004`](../docs/tactical/004-windows-provider-composition-and-agent-ergonomics.md).
 
 **Current:** The implementation under [`src/`](../src) provides the first
 Windows service/session vertical slice. VM and physical x64 evidence covers the
