@@ -111,6 +111,12 @@ candidate_json="$(assert_target candidate up --json)"
 [[ "$(jq -r '.role' <<< "$candidate_json")" == 'candidate' ]]
 [[ "$(jq -r '.operation' <<< "$candidate_json")" == 'up' ]]
 [[ "$(jq -r '.authorized' <<< "$candidate_json")" == 'true' ]]
+[[ "$(jq -r '.transport.ssh_alias' <<< "$candidate_json")" == 'winvm' ]]
+assert_target candidate product-install >/dev/null
+if assert_target seal product-install >/dev/null 2>&1; then
+    printf 'Seal unexpectedly authorized persistent product installation.\n' >&2
+    exit 1
+fi
 
 if env \
     WINVM_UTMCTL=/usr/bin/true \

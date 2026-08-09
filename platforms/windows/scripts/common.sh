@@ -12,7 +12,9 @@ if [[ -f "$WINVM_CONFIG_FILE" ]]; then
 fi
 
 WINVM_TARGET_FILE="${WINVM_TARGET_FILE:-$WINVM_REPO_DIR/.target.local}"
-if [[ -f "$WINVM_TARGET_FILE" ]]; then
+if [[ -f "$WINVM_TARGET_FILE" &&
+    -z "${WINVM_EXPECTED_UTM_ID:-}" &&
+    "${WINVM_TARGET_ROLE:-unclassified}" == "unclassified" ]]; then
     # shellcheck source=/dev/null
     source "$WINVM_TARGET_FILE"
 fi

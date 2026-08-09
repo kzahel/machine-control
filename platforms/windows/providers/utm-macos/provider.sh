@@ -93,7 +93,7 @@ role_allows_operation() {
             [[ "$role" == "candidate" || "$role" == "seal" ]] ||
                 { [[ "$role" == "source" ]] && source_mutation_authorized; }
             ;;
-        stage-bootstrap|deploy-ui|input|force-stop)
+        stage-bootstrap|deploy-ui|product-install|input|force-stop)
             [[ "$role" == "candidate" ]] ||
                 { [[ "$role" == "source" ]] && source_mutation_authorized; }
             ;;
@@ -145,7 +145,8 @@ assert_target() {
             --arg role "$WINVM_TARGET_ROLE" \
             --arg operation "$operation" \
             --arg state "$(vm_status || printf unknown)" \
-            '{schema_version: 1, provider: $provider, identity_pin: "verified", role: $role, operation: $operation, authorized: true, state: $state}'
+            --arg ssh_alias "$WINVM_SSH_HOST" \
+            '{schema_version: 1, provider: $provider, identity_pin: "verified", role: $role, operation: $operation, authorized: true, state: $state, transport: {ssh_alias: $ssh_alias}}'
     else
         printf 'target verified: role=%s operation=%s\n' \
             "$WINVM_TARGET_ROLE" "$operation"
