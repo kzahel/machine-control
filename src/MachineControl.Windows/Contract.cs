@@ -45,12 +45,15 @@ internal sealed record Request
     public required string Operation { get; init; }
     public string? Scope { get; init; }
     public string? Target { get; init; }
+    public string? ExecutablePath { get; init; }
+    public string? Arguments { get; init; }
     public string? Query { get; init; }
     public string? Reference { get; init; }
     public long? Hwnd { get; init; }
     public int? ProcessId { get; init; }
     public int? MaxDepth { get; init; }
     public int? MaxElements { get; init; }
+    public int? TimeoutMs { get; init; }
     public int? X { get; init; }
     public int? Y { get; init; }
     public string? Key { get; init; }

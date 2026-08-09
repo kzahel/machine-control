@@ -24,15 +24,21 @@ internal static class Program
 internal sealed class FixtureForm : Form
 {
     private readonly string _marker;
+    private readonly string _counterMarker;
     private readonly Label _status;
+    private readonly Label _counter;
+    private int _counterValue;
 
     public FixtureForm(string marker)
     {
         _marker = marker;
+        _counterMarker = Path.Combine(
+            Path.GetDirectoryName(marker)!,
+            "counter.json");
         Text = "Machine Control Medium Fixture";
         AccessibleName = Text;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(520, 190);
+        ClientSize = new Size(520, 250);
 
         var integrity = Integrity.GetRid();
         var identity = new Label
@@ -56,10 +62,40 @@ internal sealed class FixtureForm : Form
             AutoSize = true,
             Location = new Point(24, 124),
         };
+        var increment = new Button
+        {
+            Name = "btn-increment",
+            Text = "Increment counter",
+            AccessibleName = "Increment counter",
+            Location = new Point(250, 64),
+            Size = new Size(180, 38),
+        };
+        _counter = new Label
+        {
+            Name = "counter-value",
+            Text = "Counter: 0",
+            AccessibleName = "Counter value 0",
+            AutoSize = true,
+            Location = new Point(250, 124),
+        };
+        increment.Click += (_, _) => SetCounter(_counterValue + 1);
         elevate.Click += RequestElevation;
         Controls.Add(identity);
         Controls.Add(elevate);
         Controls.Add(_status);
+        Controls.Add(increment);
+        Controls.Add(_counter);
+        SetCounter(0);
+    }
+
+    private void SetCounter(int value)
+    {
+        _counterValue = value;
+        _counter.Text = $"Counter: {value}";
+        _counter.AccessibleName = $"Counter value {value}";
+        File.WriteAllText(
+            _counterMarker,
+            $"{{\"counter\":{value},\"processId\":{Environment.ProcessId}}}");
     }
 
     private void RequestElevation(object? sender, EventArgs e)

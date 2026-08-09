@@ -99,21 +99,39 @@ internal static class SessionLauncher
             lpDesktop = "winsta0\\default",
         };
 
-        if (!NativeMethods.CreateProcessAsUser(
+        if (!NativeMethods.CreateEnvironmentBlock(
+                out var environment,
                 token,
-                null,
-                commandLine,
-                IntPtr.Zero,
-                IntPtr.Zero,
-                false,
-                NativeMethods.CREATE_UNICODE_ENVIRONMENT |
-                NativeMethods.CREATE_NO_WINDOW,
-                IntPtr.Zero,
-                Path.GetDirectoryName(executable),
-                ref startup,
-                out var processInfo))
+                inherit: false))
         {
-            throw new Win32Exception(Marshal.GetLastWin32Error());
+            throw new Win32Exception(
+                Marshal.GetLastWin32Error(),
+                "CreateEnvironmentBlock failed");
+        }
+
+        NativeMethods.PROCESS_INFORMATION processInfo;
+        try
+        {
+            if (!NativeMethods.CreateProcessAsUser(
+                    token,
+                    null,
+                    commandLine,
+                    IntPtr.Zero,
+                    IntPtr.Zero,
+                    false,
+                    NativeMethods.CREATE_UNICODE_ENVIRONMENT |
+                    NativeMethods.CREATE_NO_WINDOW,
+                    environment,
+                    Path.GetDirectoryName(executable),
+                    ref startup,
+                    out processInfo))
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+        }
+        finally
+        {
+            NativeMethods.DestroyEnvironmentBlock(environment);
         }
 
         NativeMethods.CloseHandle(processInfo.hThread);

@@ -88,6 +88,15 @@ internal static class NativeMethods
         ref STARTUPINFO startupInfo,
         out PROCESS_INFORMATION processInformation);
 
+    [DllImport("userenv.dll", SetLastError = true)]
+    public static extern bool CreateEnvironmentBlock(
+        out IntPtr environment,
+        IntPtr token,
+        bool inherit);
+
+    [DllImport("userenv.dll", SetLastError = true)]
+    public static extern bool DestroyEnvironmentBlock(IntPtr environment);
+
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     public static extern bool CreateProcess(
         string? applicationName,

@@ -52,7 +52,7 @@ internal static class Program
                         operations = new[]
                         {
                             "service.status", "service.revoke",
-                            "status", "windows", "snapshot", "screenshot",
+                            "status", "app.launch", "windows", "snapshot", "screenshot",
                             "capabilities", "invoke", "click", "key",
                             "type", "window.state",
                             "session.lock", "session.logoff",

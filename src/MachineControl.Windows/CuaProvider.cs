@@ -151,7 +151,7 @@ internal sealed class CuaProvider : IControlProvider
             "get_window_state",
             arguments,
             screenshotOutFile: null,
-            TimeSpan.FromSeconds(15),
+            ObservationTimeout(request, 15_000),
             cancellationToken);
         var elements = NormalizeElements(
             upstream.Value,
@@ -226,7 +226,7 @@ internal sealed class CuaProvider : IControlProvider
             "get_window_state",
             arguments,
             path,
-            TimeSpan.FromSeconds(20),
+            ObservationTimeout(request, 20_000),
             cancellationToken);
         if (!File.Exists(path))
         {
@@ -275,6 +275,10 @@ internal sealed class CuaProvider : IControlProvider
         string generation,
         CancellationToken cancellationToken)
     {
+        // Refresh provider health and generation before accepting a cached
+        // reference. Upstream tokens may otherwise collide after a daemon
+        // restart even though their provider epoch is stale.
+        await _host.EnsureReadyAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(request.Reference) ||
             !_references.TryGetValue(request.Reference, out var reference))
         {
@@ -438,6 +442,12 @@ internal sealed class CuaProvider : IControlProvider
         }
         return (processId, request.Hwnd.Value);
     }
+
+    private static TimeSpan ObservationTimeout(Request request, int defaultMs) =>
+        TimeSpan.FromMilliseconds(Math.Clamp(
+            request.TimeoutMs ?? defaultMs,
+            1,
+            30_000));
 
     private static int GetWindowProcessId(long hwnd)
     {
@@ -615,6 +625,7 @@ internal sealed class CuaDriverHost
     private string _providerGeneration = Guid.NewGuid().ToString("n");
     private int _restartCount;
     private bool _startedOnce;
+    private string _integrityEvidence = "not_checked";
 
     public string SessionId { get; } = $"machine-control-{Guid.NewGuid():n}";
     public string ProviderGeneration => _providerGeneration;
@@ -637,7 +648,7 @@ internal sealed class CuaDriverHost
             return new CuaHealth(
                 "experimental",
                 $"healthy private daemon; release artifact SHA-256 verified; " +
-                $"restart count {_restartCount}");
+                $"restart count {_restartCount}; integrity {_integrityEvidence}");
         }
         if (_lastError is not null)
         {
@@ -693,6 +704,9 @@ internal sealed class CuaDriverHost
             _callGate.Release();
         }
     }
+
+    public Task EnsureReadyAsync(CancellationToken cancellationToken) =>
+        EnsureStartedAsync(cancellationToken);
 
     private async Task EnsureStartedAsync(CancellationToken cancellationToken)
     {
@@ -788,23 +802,30 @@ internal sealed class CuaDriverHost
                 permissionResult.StandardOutput))
             {
                 var root = permissions.RootElement;
-                var rid = root.TryGetProperty(
+                int? providerRid = root.TryGetProperty(
                         "integrity_level_rid",
                         out var ridValue) &&
+                    ridValue.ValueKind == JsonValueKind.Number &&
                     ridValue.TryGetInt32(out var parsedRid)
                         ? parsedRid
-                        : 0;
+                        : null;
                 var elevated = root.TryGetProperty("elevated", out var elevatedValue) &&
                     elevatedValue.ValueKind == JsonValueKind.True;
-                if (rid != 8192 || elevated)
+                var hostRid = CurrentIntegrityRid();
+                if (hostRid != 8192 || elevated || providerRid is not (null or 8192))
                 {
                     throw new CuaProviderException(
                         "provider_policy_refused",
-                        $"Cua requires Medium integrity RID 8192; observed {rid}",
+                        "Cua requires Medium integrity RID 8192; " +
+                        $"host observed {hostRid}, provider observed " +
+                        $"{providerRid?.ToString() ?? "unavailable"}",
                         "refused",
                         "refused",
                         permissionResult.ElapsedMs);
                 }
+                _integrityEvidence = providerRid == 8192
+                    ? "provider_and_host_medium"
+                    : "host_medium; provider_self_query_unavailable";
             }
 
             var session = await RunCliAsync(
@@ -895,7 +916,7 @@ internal sealed class CuaDriverHost
             try { process.Kill(entireProcessTree: true); } catch { }
             throw new CuaProviderException(
                 "provider_timeout",
-                $"Cua call exceeded {timeout.TotalSeconds:0} seconds",
+                $"Cua call exceeded {timeout.TotalMilliseconds:0} ms",
                 "unknown",
                 "unknown",
                 timer.ElapsedMilliseconds);
@@ -1037,6 +1058,19 @@ internal sealed class CuaDriverHost
         using var identity = WindowsIdentity.GetCurrent();
         return identity.User?.IsWellKnown(
             WellKnownSidType.LocalSystemSid) == true;
+    }
+
+    private static int CurrentIntegrityRid()
+    {
+        if (!NativeMethods.OpenProcessToken(
+                NativeMethods.GetCurrentProcess(),
+                NativeMethods.TOKEN_QUERY,
+                out var token))
+        {
+            return 0;
+        }
+        using var tokenHandle = new NativeHandle(token);
+        return TokenInspector.GetIntegrityRid(token);
     }
 
     private static string Bounded(string value)

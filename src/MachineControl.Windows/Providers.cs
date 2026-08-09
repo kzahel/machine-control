@@ -53,6 +53,7 @@ internal sealed class WindowsNativeProvider : IControlProvider
         [
             Semantic("capabilities", "system", "machine-readable inventory"),
             Semantic("status", "session", "native state observation"),
+            Semantic("app.launch", "desktop", "target-local process and HWND readback"),
             Semantic("windows", "desktop", "exact HWND inventory"),
             Semantic("snapshot", "desktop", "UI Automation"),
             Capture("screenshot", "input-desktop or exact-HWND pixels"),
@@ -167,7 +168,7 @@ internal static class ProviderRouter
     public static RoutePlan[] RoutingTable() =>
     [
         new RoutePlan(
-            "capabilities,status,windows",
+            "capabilities,status,app.launch,windows",
             "all current desktop states",
             ["windows-native"],
             "terminal structured refusal"),

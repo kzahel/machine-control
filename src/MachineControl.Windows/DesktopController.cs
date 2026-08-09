@@ -134,6 +134,8 @@ internal static class DesktopController
                 "capabilities" => Capabilities(
                     request, generation, desktopName, timer),
                 "status" => Status(request, generation, desktopName, timer),
+                "app.launch" => AppLaunch(
+                    request, generation, desktopName, desktop, timer),
                 "windows" => Windows(
                     request, generation, desktopName, desktop, timer),
                 "snapshot" => Snapshot(
@@ -242,6 +244,115 @@ internal static class DesktopController
         IntPtr desktop,
         Stopwatch timer)
     {
+        var windows = EnumerateWindows(desktop);
+
+        var filtered = (string.IsNullOrWhiteSpace(request.Query)
+            ? windows
+            : windows.Where(window =>
+                window.Title.Contains(
+                    request.Query,
+                    StringComparison.OrdinalIgnoreCase) ||
+                window.ClassName.Contains(
+                    request.Query,
+                    StringComparison.OrdinalIgnoreCase))
+                .ToList())
+            .Take(Math.Clamp(request.MaxElements ?? 100, 1, 1000))
+            .ToList();
+        return Success(
+            request,
+            generation,
+            desktopName,
+            timer,
+            "windows.native/enum_desktop_windows",
+            "confirmed",
+            "not_applicable",
+            new { windows = filtered, count = filtered.Count });
+    }
+
+    private static Result AppLaunch(
+        Request request,
+        string generation,
+        string desktopName,
+        IntPtr desktop,
+        Stopwatch timer)
+    {
+        if (string.IsNullOrWhiteSpace(request.ExecutablePath) ||
+            request.ExecutablePath.Length > 2048 ||
+            !Path.IsPathFullyQualified(request.ExecutablePath) ||
+            !File.Exists(request.ExecutablePath))
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "invalid_executable_path",
+                "app.launch requires an existing absolute executablePath");
+        }
+        if (request.Arguments?.Length > 4096)
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "invalid_arguments",
+                "app.launch arguments exceed 4096 UTF-16 code units");
+        }
+
+        var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = request.ExecutablePath,
+            Arguments = request.Arguments ?? string.Empty,
+            WorkingDirectory = Path.GetDirectoryName(request.ExecutablePath),
+            UseShellExecute = false,
+        });
+        if (process is null)
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "application_launch_failed",
+                "Windows did not return a process for app.launch");
+        }
+        try { process.WaitForInputIdle(5000); } catch { }
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        var windows = EnumerateWindows(desktop)
+            .Where(window => window.ProcessId == process.Id)
+            .ToList();
+        while (!windows.Any(window => window.Visible) &&
+            !process.HasExited &&
+            DateTime.UtcNow < deadline)
+        {
+            Thread.Sleep(100);
+            windows = EnumerateWindows(desktop)
+                .Where(window => window.ProcessId == process.Id)
+                .ToList();
+        }
+        var running = !process.HasExited;
+        return Success(
+            request,
+            generation,
+            desktopName,
+            timer,
+            "windows.native/process_start",
+            "confirmed",
+            running && windows.Any(window => window.Visible)
+                ? "confirmed"
+                : running ? "partial" : "no_effect",
+            new
+            {
+                processId = process.Id,
+                running,
+                windows,
+            },
+            fidelity: "target_local_application_launch");
+    }
+
+    private static List<WindowRecord> EnumerateWindows(IntPtr desktop)
+    {
         var windows = new List<WindowRecord>();
         NativeMethods.EnumDesktopWindows(desktop, (hwnd, _) =>
         {
@@ -266,28 +377,7 @@ internal static class DesktopController
                     rect.Bottom - rect.Top)));
             return true;
         }, IntPtr.Zero);
-
-        var filtered = (string.IsNullOrWhiteSpace(request.Query)
-            ? windows
-            : windows.Where(window =>
-                window.Title.Contains(
-                    request.Query,
-                    StringComparison.OrdinalIgnoreCase) ||
-                window.ClassName.Contains(
-                    request.Query,
-                    StringComparison.OrdinalIgnoreCase))
-                .ToList())
-            .Take(Math.Clamp(request.MaxElements ?? 100, 1, 1000))
-            .ToList();
-        return Success(
-            request,
-            generation,
-            desktopName,
-            timer,
-            "windows.native/enum_desktop_windows",
-            "confirmed",
-            "not_applicable",
-            new { windows = filtered, count = filtered.Count });
+        return windows;
     }
 
     private static Result Snapshot(

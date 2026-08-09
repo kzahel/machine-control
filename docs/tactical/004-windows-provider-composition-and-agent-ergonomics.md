@@ -235,14 +235,14 @@ The protected regression is reused and is not a reason to rerun credential
 submission. All ordinary Default-desktop operations must remain in the Medium
 interactive helper, including `scope=system` shell operations.
 
-**Current baseline:** The owned native provider supplies the complete passing
-route today. It reports bounded element count, visited nodes, serialized bytes,
-estimated tokens, end-to-end latency, generation, route, delivery, effect,
-focus, cursor, and exact-capture artifact metadata. Cua is pinned at 0.17.0 and
-source revision `d21e3447f9b08c761c090946648d5aca5e6c9cf1`, but is not yet
-connected. WinApp is the adopted testbed comparison route. Exact prior Cua and
-shell measurements remain linked from the research corpus rather than copied
-here.
+**Pre-integration baseline:** The owned native provider supplied the complete
+passing route. It reported bounded element count, visited nodes, serialized
+bytes, estimated tokens, end-to-end latency, generation, route, delivery,
+effect, focus, cursor, and exact-capture artifact metadata. Cua was pinned at
+0.17.0 and source review revision
+`d21e3447f9b08c761c090946648d5aca5e6c9cf1`, but was not connected. WinApp
+was the adopted testbed comparison route. Exact prior Cua and shell
+measurements remain linked from the research corpus rather than copied here.
 
 **Current implementation:** Provider inventory and routing are now executable
 machine-readable capability records. Availability, placement, privilege,
@@ -253,5 +253,57 @@ the ordinary Default desktop; protected routing follows the observed input
 desktop or lock state instead.
 
 Validation of this first slice is source builds for Windows x64 and ARM64.
-Live workflow measurements and the remaining provider composition cells are
-still in progress. Tactical 002 remains active on this condition.
+Tactical 002 remains active on the full provider-composition condition.
+
+### Cua composition and placement result
+
+**Current — live ARM64 VM:** The runtime now packages the exact evaluated Cua
+0.17.0 release asset behind a digest check and supervises it as an unmodified
+child of the Medium helper on a private per-generation named pipe. Telemetry
+and update checks are disabled. The helper independently requires Medium RID
+8192; Cua never starts in the LocalSystem protected process. Capability output
+separately reports the evaluated release digest, pinned source-review revision,
+and the unresolved fact that the release binary does not attest its source
+SHA.
+
+The deterministic fixture workflow passed from both placements through the
+same facade. An authenticated remote caller used 18 round trips including the
+failure lane; a target-local Medium caller used 12 and deliberately omitted
+service revocation because successful revocation terminates that caller's
+helper process tree. Both used these ordinary passing routes:
+
+| Operation | Remote latency | Local latency | Route | Oracle |
+| --- | ---: | ---: | --- | --- |
+| bounded semantic snapshot | 181 ms | 181 ms | `cua/get_window_state` | exact HWND and normalized elements |
+| background increment | 63 ms | 51 ms | `cua/accessibility` | fixture-owned counter marker, not Cua agreement |
+| exact content capture | 202 ms | 232 ms | `cua/get_window_state_capture` | PNG extent, size, and SHA-256 |
+
+The first projected snapshot response was 1,210 bytes remotely and 1,211
+bytes locally, approximately 302 and 303 tokens. The action response was
+1,031/1,032 bytes, approximately 258 tokens. The cursor remained at the same
+coordinates across each workflow. Foreground changed because the workflow
+intentionally launched and changed state on its own fixture; the semantic Cua
+action remained background-delivered.
+
+**Current — failure conformance:** A one-millisecond read-only deadline caused
+a structured Cua timeout and a separately disclosed native UIA observation.
+Killing the supervised daemon invalidated the prior owned reference before
+dispatch, consumed its single automatic restart, and recovered a fresh Cua
+snapshot. A second crash exhausted the bounded restart and produced an
+explicit native observation fallback with both provider attempts. Service
+revocation rejected the earlier runtime generation and recreated its helper.
+The reversible absence test withheld only the installed Cua executable,
+reported the provider `unavailable`, used a disclosed native observation
+fallback, restored the exact package, and revoked the temporary generation.
+
+**Current — environment correction:** The first application marker exposed
+that `CreateProcessAsUser` had inherited the LocalSystem service environment.
+The launcher now creates the correct token-specific environment block before
+starting either session helper. The rerun placed `%LOCALAPPDATA%` state in the
+interactive user's profile and let the independent marker prove the action.
+
+Windows x64 and ARM64 source builds pass, and both self-contained packages
+include digest-verified Cua assets plus the upstream MIT license. The WinApp
+differential, representative shell/protected regressions on the composed
+runtime, physical x64 acceptance, final documentation, and appliance cleanup
+remain in progress.
