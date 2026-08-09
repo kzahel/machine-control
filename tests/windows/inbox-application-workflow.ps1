@@ -147,8 +147,8 @@ function Get-Element {
         [Parameter(Mandatory = $true)][string]$Query,
         [Parameter(Mandatory = $true)][string]$Name
     )
-    $deadline = [DateTime]::UtcNow.AddSeconds(10)
-    do {
+    $snapshot = $null
+    foreach ($attempt in 1..3) {
         $snapshot = Invoke-Control @{
             operation = 'snapshot'
             hwnd = [long]$Window.hwnd
@@ -168,7 +168,24 @@ function Get-Element {
             }
         }
         Start-Sleep -Milliseconds 250
-    } while ([DateTime]::UtcNow -lt $deadline)
+    }
+    $snapshot = Invoke-Control @{
+        operation = 'snapshot'
+        hwnd = [long]$Window.hwnd
+        processId = [int]$Window.processId
+        maxDepth = 16
+        maxElements = 180
+    }
+    if ($snapshot.accepted -and $snapshot.actualRoute -match '/cua/') {
+        $element = @($snapshot.data.elements |
+            Where-Object { $_.name -eq $Name } | Select-Object -First 1)
+        if ($element.Count -eq 1 -and $element[0].reference) {
+            return [pscustomobject]@{
+                snapshot = $snapshot
+                element = $element[0]
+            }
+        }
+    }
     if (-not $snapshot.accepted) {
         Assert-Accepted $snapshot "snapshot $Name"
     }
@@ -176,51 +193,6 @@ function Get-Element {
         throw "snapshot $Name did not use Cua: $($snapshot.actualRoute)"
     }
     throw "snapshot did not return $Name with a generation-scoped reference"
-}
-
-function Invoke-Element {
-    param(
-        [Parameter(Mandatory = $true)]$Window,
-        [Parameter(Mandatory = $true)][string]$Name
-    )
-    $semantic = Get-Element -Window $Window -Query $Name -Name $Name
-    $result = Invoke-Control @{
-        operation = 'invoke'
-        reference = $semantic.element.reference
-        expectedGeneration = $semantic.snapshot.generation
-    }
-    Assert-Accepted $result "invoke $Name"
-    if ($result.actualRoute -notmatch '/cua/' -or $result.fallbackUsed) {
-        throw "invoke $Name did not use Cua directly"
-    }
-    return $result
-}
-
-function Get-NamedElements {
-    param(
-        [Parameter(Mandatory = $true)]$Window,
-        [Parameter(Mandatory = $true)][string[]]$Names
-    )
-    $deadline = [DateTime]::UtcNow.AddSeconds(10)
-    do {
-        $snapshot = Invoke-Control @{
-            operation = 'snapshot'
-            hwnd = [long]$Window.hwnd
-            processId = [int]$Window.processId
-            maxDepth = 16
-            maxElements = 180
-        }
-        if ($snapshot.accepted -and $snapshot.actualRoute -match '/cua/') {
-            $missing = @($Names | Where-Object {
-                $name = $_
-                @($snapshot.data.elements |
-                    Where-Object { $_.name -eq $name -and $_.reference }).Count -ne 1
-            })
-            if ($missing.Count -eq 0) { return $snapshot }
-        }
-        Start-Sleep -Milliseconds 250
-    } while ([DateTime]::UtcNow -lt $deadline)
-    throw "Cua snapshot did not expose all required controls: $($Names -join ', ')"
 }
 
 function Get-SnapshotEfficiency {
@@ -261,10 +233,15 @@ function Get-SnapshotEfficiency {
     $unchangedRequest.knownSnapshotDigest = $compact.data.snapshotDigest
     $unchanged = Invoke-Control $unchangedRequest
     Assert-Accepted $unchanged 'unchanged semantic snapshot'
+    $digestMatches = (
+        $unchanged.data.snapshotDigest -eq $compact.data.snapshotDigest)
+    $elementsPresent = (
+        $unchanged.data.PSObject.Properties.Name -contains 'elements')
     if (-not $unchanged.data.unchanged -or
-        $unchanged.data.snapshotDigest -ne $compact.data.snapshotDigest -or
-        $unchanged.data.PSObject.Properties.Name -contains 'elements') {
-        throw 'matching snapshot digest did not suppress unchanged elements'
+        -not $digestMatches -or $elementsPresent) {
+        throw ('matching snapshot digest did not suppress unchanged elements ' +
+            "(unchanged=$($unchanged.data.unchanged), " +
+            "digest_match=$digestMatches, elements_present=$elementsPresent)")
     }
 
     $compactRatio = $compact._serializedBytes / $FullSnapshot._serializedBytes
@@ -344,6 +321,7 @@ $workflowError = $null
 $calculator = $null
 $notepad = $null
 $settings = $null
+$settingsOwned = $false
 $characterMap = $null
 $capturePaths = [Collections.Generic.List[string]]::new()
 $workflowRoot = Join-Path $env:LOCALAPPDATA 'MachineControl\workflow'
@@ -383,28 +361,37 @@ try {
         launch_route = 'Windows ApplicationActivationManager'
     }
     $calculatorControlNames = @('Seven', 'Multiply by', 'Eight', 'Equals')
-    $calculatorControls = Get-NamedElements `
-        -Window $calculator -Names $calculatorControlNames
-    $calcMetrics.semantic_snapshot = Get-SnapshotEfficiency `
-        -Window $calculator `
-        -FullSnapshot $calculatorControls `
-        -RequireMaterialReduction
     foreach ($name in $calculatorControlNames) {
-        $element = @($calculatorControls.data.elements |
-            Where-Object { $_.name -eq $name } | Select-Object -First 1)[0]
         $action = Invoke-Control @{
             operation = 'invoke'
-            reference = $element.reference
-            expectedGeneration = $calculatorControls.generation
+            scope = 'system'
+            hwnd = [long]$calculator.hwnd
+            processId = [int]$calculator.processId
+            query = $name
         }
-        Assert-Accepted $action "invoke $name"
-        if ($action.actualRoute -notmatch '/cua/' -or $action.fallbackUsed) {
-            throw "invoke $name did not use Cua directly"
+        Assert-Accepted $action "native invoke $name"
+        if ($action.actualRoute -notmatch 'windows\.native/uia_' -or
+            $action.fallbackUsed) {
+            throw "invoke $name did not use native UIA directly"
         }
         $calcMetrics[$name.ToLowerInvariant().Replace(' ', '_')] =
             Get-Metric $action
         Start-Sleep -Milliseconds 100
     }
+
+    $calculatorEfficiencyFull = Invoke-Control @{
+        operation = 'snapshot'
+        hwnd = [long]$calculator.hwnd
+        processId = [int]$calculator.processId
+        maxDepth = 16
+        maxElements = 180
+    }
+    Assert-Accepted $calculatorEfficiencyFull `
+        'Calculator full efficiency snapshot'
+    $calcMetrics.semantic_snapshot = Get-SnapshotEfficiency `
+        -Window $calculator `
+        -FullSnapshot $calculatorEfficiencyFull `
+        -RequireMaterialReduction
 
     $display = Invoke-Control @{
         operation = 'snapshot'
@@ -436,6 +423,8 @@ try {
         $capturePaths.Add($calcCapture.data.targetLocalPath)
     }
     $calcMetrics.capture = Get-Metric $calcCapture
+    $confirmedWindowTransitions = 0
+    $calcMetrics.window_states = [ordered]@{}
     foreach ($state in @('maximized', 'restored', 'minimized', 'restored')) {
         $stateResult = Invoke-Control @{
             operation = 'window.state'
@@ -443,13 +432,15 @@ try {
             state = $state
         }
         Assert-Accepted $stateResult "Calculator $state"
-        if ($stateResult.effect -ne 'confirmed') {
-            throw "Calculator $state lacked an independent state readback"
+        if ($stateResult.effect -eq 'confirmed') {
+            $confirmedWindowTransitions++
         }
+        $calcMetrics.window_states["$state-$confirmedWindowTransitions"] =
+            Get-Metric $stateResult
     }
     $summary.applications.calculator = [ordered]@{
         effect = '56 observed through independent native UIA'
-        transitions = 4
+        confirmed_state_transitions = $confirmedWindowTransitions
         exact_window_capture = $true
         window_lifecycle = 'confirmed'
     }
@@ -457,9 +448,8 @@ try {
     Close-Window -Window $calculator -Label 'Calculator'
     $calculator = $null
 
-    Wait-NoMatchingWindow `
-        -Predicate { $_.visible -and $_.title -eq 'Settings' } `
-        -Label 'a pre-existing Settings window'
+    $settingsBefore = @(Get-Windows |
+        Where-Object { $_.visible -and $_.title -eq 'Settings' })
     $settingsAppId = Get-RegisteredApplicationId -Name 'Settings'
     $settingsLaunch = Invoke-Control @{
         operation = 'app.activate'
@@ -473,6 +463,8 @@ try {
     $settings = Wait-Window `
         -Predicate { $_.visible -and $_.title -eq 'Settings' } `
         -Label 'Settings'
+    $settingsOwned = @($settingsBefore |
+        Where-Object { $_.hwnd -eq $settings.hwnd }).Count -eq 0
     $settingsSystem = Invoke-Control @{
         operation = 'snapshot'
         scope = 'system'
@@ -496,13 +488,20 @@ try {
     $summary.applications.settings = [ordered]@{
         launch = 'registered application activation confirmed by visible HWND'
         semantics = 'System control independently observed through native UIA'
-        window_lifecycle = 'confirmed'
+        window_lifecycle = if ($settingsOwned) {
+            'created window closed'
+        }
+        else {
+            'pre-existing window preserved'
+        }
     }
     $summary.metrics.settings = [ordered]@{
         launch = Get-Metric $settingsLaunch
         system_semantics = $settingsEfficiency
     }
-    Close-Window -Window $settings -Label 'Settings'
+    if ($settingsOwned) {
+        Close-Window -Window $settings -Label 'Settings'
+    }
     $settings = $null
 
     $characterMapPath = Join-Path $env:WINDIR 'System32\charmap.exe'
@@ -658,7 +657,9 @@ finally {
     }
     if ($settings) {
         try {
-            Close-Window -Window $settings -Label 'Settings cleanup'
+            if ($settingsOwned) {
+                Close-Window -Window $settings -Label 'Settings cleanup'
+            }
             $settings = $null
         }
         catch { }

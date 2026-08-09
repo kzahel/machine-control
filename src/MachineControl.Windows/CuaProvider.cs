@@ -190,6 +190,7 @@ internal sealed class CuaProvider : IControlProvider
                 maxElements = arguments["max_elements"],
                 projection = projection.Projection,
                 snapshotDigest = projection.SnapshotDigest,
+                digestScope = "semantic_content_without_generation_references",
                 unchanged = projection.Unchanged,
                 serializedBytes = projection.ContentBytes,
                 estimatedTokens = projection.ContentEstimatedTokens,
@@ -697,7 +698,8 @@ internal sealed class CuaDriverHost
             }
             try
             {
-                using var document = JsonDocument.Parse(invocation.StandardOutput);
+                using var document = JsonDocument.Parse(
+                    invocation.StandardOutput);
                 return new CuaCallResult(
                     document.RootElement.Clone(),
                     invocation.ElapsedMs);

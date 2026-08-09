@@ -475,6 +475,11 @@ internal static class DesktopController
             .Where(window =>
                 window.ProcessId == processId ||
                 string.Equals(
+                    ApplicationActivation.TryGetWindowApplicationId(
+                        window.Hwnd),
+                    applicationId,
+                    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(
                     TryGetApplicationUserModelId(window.ProcessId),
                     applicationId,
                     StringComparison.OrdinalIgnoreCase))
@@ -594,6 +599,7 @@ internal static class DesktopController
                 maxElements,
                 projection = projection.Projection,
                 snapshotDigest = projection.SnapshotDigest,
+                digestScope = "semantic_content_without_generation_references",
                 unchanged = projection.Unchanged,
                 serializedBytes = projection.ContentBytes,
                 estimatedTokens = projection.ContentEstimatedTokens,
@@ -1051,30 +1057,40 @@ internal static class DesktopController
                 IntPtr.Zero,
                 IntPtr.Zero)
             : NativeMethods.ShowWindowAsync(hwnd, command);
-        Thread.Sleep(250);
-        var minimized = NativeMethods.IsIconic(hwnd);
-        var maximized = NativeMethods.IsZoomed(hwnd);
-        var exists = NativeMethods.IsWindow(hwnd);
-        var confirmed = request.State.Equals(
+        var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(
+            Math.Clamp(request.TimeoutMs ?? 3_000, 250, 15_000));
+        var minimized = false;
+        var maximized = false;
+        var exists = true;
+        var confirmed = false;
+        do
+        {
+            Thread.Sleep(100);
+            minimized = NativeMethods.IsIconic(hwnd);
+            maximized = NativeMethods.IsZoomed(hwnd);
+            exists = NativeMethods.IsWindow(hwnd);
+            confirmed = request.State.Equals(
                 "closed",
                 StringComparison.OrdinalIgnoreCase)
-            ? !exists
-            : request.State.Equals(
-                "minimized",
-                StringComparison.OrdinalIgnoreCase)
-            ? minimized
-            : request.State.Equals(
-                    "maximized",
+                ? !exists
+                : request.State.Equals(
+                    "minimized",
                     StringComparison.OrdinalIgnoreCase)
-                ? maximized
-                : !minimized && !maximized;
+                    ? minimized
+                    : request.State.Equals(
+                        "maximized",
+                        StringComparison.OrdinalIgnoreCase)
+                        ? maximized
+                        : exists && !minimized && !maximized;
+        }
+        while (!confirmed && DateTime.UtcNow < deadline);
         return Success(
             request,
             generation,
             desktopName,
             timer,
             "windows.native/show_window_async",
-            delivered ? "confirmed" : "refused",
+            delivered ? "confirmed" : confirmed ? "unknown" : "refused",
             confirmed ? "confirmed" : "no_effect",
             new { hwnd = request.Hwnd, exists, minimized, maximized });
     }
