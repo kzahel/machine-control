@@ -184,6 +184,12 @@ internal static class ProviderRouter
             ["windows-native"],
             "terminal unless an explicit target-local input fallback is authorized"),
         new RoutePlan(
+            "invoke,window.state",
+            "system-scoped query refused before dispatch, or idempotent " +
+            "state action independently had no effect at Medium",
+            ["windows-native-user", "windows-native-protected"],
+            "one disclosed protected retry; never retry references or unknown outcomes"),
+        new RoutePlan(
             "click,key,type",
             "coordinate or desktop-wide target-local input",
             ["windows-native"],

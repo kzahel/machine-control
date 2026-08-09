@@ -490,11 +490,38 @@ internal sealed class BrokerHost
                 : await EnsureSessionAsync(
                     protectedAuthority: false,
                     cancellationToken);
-            return await PipeTransport.CallAsync(
+            var responseText = await PipeTransport.CallAsync(
                 session.PipeName,
                 Contract.Serialize(request),
                 TimeSpan.FromSeconds(25),
                 cancellationToken);
+            if (useProtected) return responseText;
+
+            var ordinary = Contract.ParseResult(responseText);
+            if (!ShouldRetryWithProtectedProvider(request, ordinary))
+            {
+                return responseText;
+            }
+            var protectedText = await PipeTransport.CallAsync(
+                protectedSession.PipeName,
+                Contract.Serialize(request),
+                TimeSpan.FromSeconds(25),
+                cancellationToken);
+            var protectedResult = Contract.ParseResult(protectedText);
+            return Contract.Serialize(protectedResult with
+            {
+                FallbackUsed = true,
+                ProviderAttempts =
+                [
+                    .. ordinary.ProviderAttempts ?? [],
+                    .. protectedResult.ProviderAttempts ?? [],
+                ],
+                Uncertainty = protectedResult.Accepted
+                    ? "Medium route refused or independently had no effect " +
+                      "before protected retry"
+                    : protectedResult.Uncertainty,
+                ElapsedMs = started.ElapsedMilliseconds,
+            });
         }
         catch (NoInteractiveSessionException ex)
         {
@@ -529,6 +556,40 @@ internal sealed class BrokerHost
                 ElapsedMs = started.ElapsedMilliseconds,
             });
         }
+    }
+
+    private static bool ShouldRetryWithProtectedProvider(
+        Request request,
+        Result ordinary)
+    {
+        if (!string.Equals(
+                request.Scope,
+                "system",
+                StringComparison.OrdinalIgnoreCase) ||
+            !string.IsNullOrWhiteSpace(request.Reference) ||
+            !string.IsNullOrWhiteSpace(request.ExpectedGeneration))
+        {
+            return false;
+        }
+        var semanticRefusal =
+            !ordinary.Accepted &&
+            string.Equals(
+                request.Operation,
+                "invoke",
+                StringComparison.OrdinalIgnoreCase) &&
+            ordinary.Delivery == "refused" &&
+            ordinary.Effect == "refused" &&
+            ordinary.ErrorCode is
+                "semantic_action_unavailable" or "element_not_found";
+        var idempotentStateNoEffect =
+            ordinary.Accepted &&
+            string.Equals(
+                request.Operation,
+                "window.state",
+                StringComparison.OrdinalIgnoreCase) &&
+            request.Hwnd is > 0 &&
+            ordinary.Effect == "no_effect";
+        return semanticRefusal || idempotentStateNoEffect;
     }
 
     private async Task<SessionProcess> EnsureSessionAsync(

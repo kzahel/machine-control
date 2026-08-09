@@ -805,7 +805,7 @@ internal static class DesktopController
             desktopName,
             timer,
             "windows.native/show_window_async",
-            delivered ? "confirmed" : "unknown",
+            delivered ? "confirmed" : "refused",
             confirmed ? "confirmed" : "no_effect",
             new { hwnd = request.Hwnd, exists, minimized, maximized });
     }

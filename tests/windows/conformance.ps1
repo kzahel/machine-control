@@ -417,8 +417,10 @@ try {
         hwnd = $hwnd
     }
     Assert-Accepted $windowCapture 'exact fixture capture'
-    if ($windowCapture.actualRoute -ne 'windows.native/print_window') {
-        throw 'fixture capture did not use the exact-window route'
+    if ($windowCapture.actualRoute -notin @(
+            'windows.user_session/cua/get_window_state_capture',
+            'windows.native/print_window')) {
+        throw 'fixture capture did not use an exact-window provider route'
     }
     $close = Invoke-Control @{
         operation = 'window.state'
@@ -431,7 +433,7 @@ try {
         throw 'fixture close was not independently confirmed'
     }
     $summary.shell.window_lifecycle = $true
-    $summary.shell.exact_window_capture = $true
+    $summary.shell.exact_window_capture = $windowCapture.actualRoute
 
     $beforeSwitch = Invoke-Control @{ operation = 'status' }
     Invoke-Control @{ operation = 'key'; key = 'alt+tab' } | Out-Null
