@@ -28,6 +28,12 @@ both placements, clean shutdown, a stopped retained seal, and a successful
 disposable verification boot. Its source-target selection deviation is
 recorded in Tactical 005 and does not weaken the explicit-target requirement.
 
+**Current:** [`Tactical 006`](../docs/tactical/006-windows-safety-launch-efficiency-and-image-factory.md)
+is closing the gaps exposed by that milestone: fail-closed target identity,
+native registered-application activation, broader application evidence,
+compact unchanged-aware semantics, and a testbed-owned generalized-image
+factory.
+
 ## Scope
 
 This topic owns the current Windows proving-ground decisions, unresolved
