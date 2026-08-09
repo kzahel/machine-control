@@ -26,16 +26,27 @@ require_utmctl() {
 }
 
 vm_status() {
-    "$WINVM_UTMCTL" status "$WINVM_UTM_NAME" 2>/dev/null
+    "$WINVM_UTMCTL" status "$(utm_target_identifier)" 2>/dev/null
+}
+
+utm_target_identifier() {
+    printf '%s\n' "${WINVM_EXPECTED_UTM_ID:-$WINVM_UTM_NAME}"
 }
 
 target_id() {
     local target_name="${1:-$WINVM_UTM_NAME}"
-    "$WINVM_OSASCRIPT" - "$target_name" <<'APPLESCRIPT'
+    local expected_id=""
+    if [[ $# -eq 0 ]]; then expected_id="$WINVM_EXPECTED_UTM_ID"; fi
+    "$WINVM_OSASCRIPT" - "$target_name" "$expected_id" <<'APPLESCRIPT'
 on run argv
     set vmName to item 1 of argv
+    set expectedId to item 2 of argv
     tell application "UTM"
-        set targetVM to first virtual machine whose name is vmName
+        if expectedId is not "" then
+            set targetVM to first virtual machine whose id is expectedId
+        else
+            set targetVM to first virtual machine whose name is vmName
+        end if
         return id of targetVM
     end tell
 end run
@@ -228,12 +239,12 @@ vm_export_image() {
         printf 'Export requires a stopped target.\n' >&2
         return 1
     fi
-    "$WINVM_OSASCRIPT" - "$WINVM_UTM_NAME" "$output" <<'APPLESCRIPT'
+    "$WINVM_OSASCRIPT" - "$WINVM_EXPECTED_UTM_ID" "$output" <<'APPLESCRIPT'
 on run argv
-    set vmName to item 1 of argv
+    set expectedId to item 1 of argv
     set outputFile to POSIX file (item 2 of argv)
     tell application "UTM"
-        set targetVM to first virtual machine whose name is vmName
+        set targetVM to first virtual machine whose id is expectedId
         export targetVM to outputFile
     end tell
 end run
@@ -246,11 +257,19 @@ APPLESCRIPT
 }
 
 utm_configuration_devices() {
-    "$WINVM_OSASCRIPT" - "$WINVM_UTM_NAME" <<'APPLESCRIPT'
+    local target_identifier selector_kind
+    target_identifier="$(utm_target_identifier)"
+    selector_kind="$(if [[ -n "$WINVM_EXPECTED_UTM_ID" ]]; then printf id; else printf name; fi)"
+    "$WINVM_OSASCRIPT" - "$target_identifier" "$selector_kind" <<'APPLESCRIPT'
 on run argv
-    set vmName to item 1 of argv
+    set targetIdentifier to item 1 of argv
+    set selectorKind to item 2 of argv
     tell application "UTM"
-        set targetVM to first virtual machine whose name is vmName
+        if selectorKind is "id" then
+            set targetVM to first virtual machine whose id is targetIdentifier
+        else
+            set targetVM to first virtual machine whose name is targetIdentifier
+        end if
         set vmConfig to configuration of targetVM
         set outputLines to {}
         repeat with displayConfig in displays of vmConfig
@@ -396,7 +415,7 @@ vm_seal() {
         printf 'Seal destination is already registered.\n' >&2
         return 1
     fi
-    "$WINVM_UTMCTL" clone --hide "$WINVM_UTM_NAME" --name "$destination" \
+    "$WINVM_UTMCTL" clone --hide "$(utm_target_identifier)" --name "$destination" \
         >/dev/null
     status="$("$WINVM_UTMCTL" status "$destination" 2>/dev/null || true)"
     if [[ "$status" != "stopped" ]]; then
@@ -415,7 +434,7 @@ vm_disposable_up() {
             "${status:-unknown}" >&2
         return 1
     fi
-    "$WINVM_UTMCTL" start --hide "$WINVM_UTM_NAME" --disposable >/dev/null
+    "$WINVM_UTMCTL" start --hide "$(utm_target_identifier)" --disposable >/dev/null
     if ! wait_for_vm_state started "$WINVM_BOOT_TIMEOUT"; then
         printf 'Timed out waiting for disposable VM start (last state: %s).\n' \
             "${LAST_VM_STATUS:-unknown}" >&2
@@ -463,7 +482,7 @@ vm_suspend() {
         print_suspend_unavailable
         return 1
     fi
-    "$WINVM_UTMCTL" suspend --save-state "$WINVM_UTM_NAME"
+    "$WINVM_UTMCTL" suspend --save-state "$(utm_target_identifier)"
 }
 
 wait_for_vm_state() {
@@ -515,7 +534,7 @@ vm_shutdown() {
 
     # Requesting power-down is the non-destructive provider fallback. Never
     # promote a routine shutdown to force-stop.
-    "$WINVM_UTMCTL" stop --request "$WINVM_UTM_NAME" >/dev/null
+    "$WINVM_UTMCTL" stop --request "$(utm_target_identifier)" >/dev/null
     if wait_for_vm_state stopped "$WINVM_SHUTDOWN_TIMEOUT"; then
         printf 'stopped\n'
         return
@@ -543,7 +562,7 @@ ensure_running() {
     local status
     status="$(vm_status || true)"
     if [[ "$status" != "started" ]]; then
-        "$WINVM_UTMCTL" start --hide "$WINVM_UTM_NAME" >/dev/null 2>&1 || true
+        "$WINVM_UTMCTL" start --hide "$(utm_target_identifier)" >/dev/null 2>&1 || true
     fi
 
     local deadline=$((SECONDS + WINVM_BOOT_TIMEOUT))
@@ -582,7 +601,7 @@ guest_ipv4() {
 guest_ipv4_once() {
     local addresses
     addresses="$("$WINVM_UTMCTL" ip-address \
-        "$WINVM_UTM_NAME" 2>/dev/null || true)"
+        "$(utm_target_identifier)" 2>/dev/null || true)"
     printf '%s\n' "$addresses" |
         awk '/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }'
 }
@@ -592,12 +611,12 @@ input_text() {
         printf 'Usage: winvm type TEXT\n' >&2
         return 2
     fi
-    /usr/bin/osascript - "$WINVM_UTM_NAME" "$1" <<'APPLESCRIPT'
+    /usr/bin/osascript - "$WINVM_EXPECTED_UTM_ID" "$1" <<'APPLESCRIPT'
 on run argv
-    set vmName to item 1 of argv
+    set expectedId to item 1 of argv
     set inputText to item 2 of argv
     tell application "UTM"
-        set targetVM to first virtual machine whose name is vmName
+        set targetVM to first virtual machine whose id is expectedId
         input keystroke targetVM text inputText
     end tell
 end run
@@ -614,9 +633,9 @@ input_click() {
         printf 'Unknown mouse button: %s\n' "$button" >&2
         return 2
     fi
-    /usr/bin/osascript - "$WINVM_UTM_NAME" "$1" "$2" "$button" <<'APPLESCRIPT'
+    /usr/bin/osascript - "$WINVM_EXPECTED_UTM_ID" "$1" "$2" "$button" <<'APPLESCRIPT'
 on run argv
-    set vmName to item 1 of argv
+    set expectedId to item 1 of argv
     set clickPosition to {(item 2 of argv) as integer, (item 3 of argv) as integer}
     set buttonName to item 4 of argv
     if buttonName is "right" then
@@ -627,7 +646,7 @@ on run argv
         set buttonKind to «constant MsBtMsLf»
     end if
     tell application "UTM"
-        set targetVM to first virtual machine whose name is vmName
+        set targetVM to first virtual machine whose id is expectedId
         input mouse click targetVM at clickPosition with mouse button buttonKind
     end tell
 end run
@@ -646,15 +665,15 @@ input_scan_codes() {
             return 2
         fi
     done
-    /usr/bin/osascript - "$WINVM_UTM_NAME" "$@" <<'APPLESCRIPT'
+    /usr/bin/osascript - "$WINVM_EXPECTED_UTM_ID" "$@" <<'APPLESCRIPT'
 on run argv
-    set vmName to item 1 of argv
+    set expectedId to item 1 of argv
     set scanCodes to {}
     repeat with rawCode in items 2 thru -1 of argv
         set end of scanCodes to rawCode as integer
     end repeat
     tell application "UTM"
-        set targetVM to first virtual machine whose name is vmName
+        set targetVM to first virtual machine whose id is expectedId
         input scan code targetVM codes scanCodes
     end tell
 end run
@@ -697,9 +716,9 @@ stage_bootstrap() {
     fi
 
     ensure_running
-    "$WINVM_UTMCTL" file push "$WINVM_UTM_NAME" \
+    "$WINVM_UTMCTL" file push "$(utm_target_identifier)" \
         'C:\Users\Public\winvm-bootstrap-openssh.ps1' < "$bootstrap"
-    "$WINVM_UTMCTL" file push "$WINVM_UTM_NAME" \
+    "$WINVM_UTMCTL" file push "$(utm_target_identifier)" \
         'C:\Users\Public\winvm-host.pub' < "$public_key"
 
     cat <<'EOF'
@@ -739,6 +758,6 @@ case "$command" in
     down) assert_target down >/dev/null; vm_down ;;
     suspend) assert_target suspend >/dev/null; vm_suspend ;;
     shutdown) assert_target shutdown >/dev/null; vm_shutdown ;;
-    force-stop) assert_target force-stop >/dev/null; "$WINVM_UTMCTL" stop --force "$WINVM_UTM_NAME" ;;
+    force-stop) assert_target force-stop >/dev/null; "$WINVM_UTMCTL" stop --force "$(utm_target_identifier)" ;;
     *) usage >&2; exit 2 ;;
 esac
