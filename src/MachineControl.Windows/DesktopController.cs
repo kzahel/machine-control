@@ -1050,25 +1050,83 @@ internal static class DesktopController
                 "invalid_window_state",
                 "state must be minimized, maximized, restored, or closed");
         }
-        var delivered = command == -2
-            ? NativeMethods.PostMessage(
-                hwnd,
-                NativeMethods.WM_CLOSE,
-                IntPtr.Zero,
-                IntPtr.Zero)
-            : NativeMethods.ShowWindowAsync(hwnd, command);
+        var delivered = false;
+        var route = "windows.native/show_window_async";
+        WindowPattern? windowPattern = null;
+        string? semanticFailure = null;
+        try
+        {
+            var element = AutomationElement.FromHandle(hwnd);
+            if (element.TryGetCurrentPattern(
+                    WindowPattern.Pattern,
+                    out var patternObject))
+            {
+                windowPattern = (WindowPattern)patternObject;
+                if (command == -2)
+                {
+                    windowPattern.Close();
+                }
+                else
+                {
+                    var visualState = command switch
+                    {
+                        NativeMethods.SW_MINIMIZE =>
+                            WindowVisualState.Minimized,
+                        NativeMethods.SW_MAXIMIZE =>
+                            WindowVisualState.Maximized,
+                        _ => WindowVisualState.Normal,
+                    };
+                    windowPattern.SetWindowVisualState(visualState);
+                }
+                delivered = true;
+                route = "windows.native/uia_window_pattern";
+            }
+        }
+        catch (Exception ex) when (
+            ex is ElementNotAvailableException or InvalidOperationException
+                or COMException)
+        {
+            semanticFailure = ex.GetType().Name;
+            delivered = command == -2 && !NativeMethods.IsWindow(hwnd);
+        }
+        if (!delivered)
+        {
+            delivered = command == -2
+                ? NativeMethods.PostMessage(
+                    hwnd,
+                    NativeMethods.WM_CLOSE,
+                    IntPtr.Zero,
+                    IntPtr.Zero)
+                : NativeMethods.ShowWindowAsync(hwnd, command);
+            route = windowPattern is null
+                ? "windows.native/show_window_async"
+                : "windows.native/uia_window_pattern_then_show_window_async";
+        }
         var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(
             Math.Clamp(request.TimeoutMs ?? 3_000, 250, 15_000));
         var minimized = false;
         var maximized = false;
         var exists = true;
         var confirmed = false;
+        WindowVisualState? semanticState = null;
         do
         {
             Thread.Sleep(100);
             minimized = NativeMethods.IsIconic(hwnd);
             maximized = NativeMethods.IsZoomed(hwnd);
             exists = NativeMethods.IsWindow(hwnd);
+            semanticState = null;
+            if (exists && windowPattern is not null)
+            {
+                try
+                {
+                    semanticState = windowPattern.Current.WindowVisualState;
+                }
+                catch (ElementNotAvailableException)
+                {
+                    // Native HWND state remains an independent readback.
+                }
+            }
             confirmed = request.State.Equals(
                 "closed",
                 StringComparison.OrdinalIgnoreCase)
@@ -1076,12 +1134,15 @@ internal static class DesktopController
                 : request.State.Equals(
                     "minimized",
                     StringComparison.OrdinalIgnoreCase)
-                    ? minimized
+                    ? minimized || semanticState == WindowVisualState.Minimized
                     : request.State.Equals(
                         "maximized",
                         StringComparison.OrdinalIgnoreCase)
-                        ? maximized
-                        : exists && !minimized && !maximized;
+                        ? maximized ||
+                            semanticState == WindowVisualState.Maximized
+                        : exists && !minimized && !maximized &&
+                            (semanticState is null ||
+                                semanticState == WindowVisualState.Normal);
         }
         while (!confirmed && DateTime.UtcNow < deadline);
         return Success(
@@ -1089,10 +1150,18 @@ internal static class DesktopController
             generation,
             desktopName,
             timer,
-            "windows.native/show_window_async",
+            route,
             delivered ? "confirmed" : confirmed ? "unknown" : "refused",
             confirmed ? "confirmed" : "no_effect",
-            new { hwnd = request.Hwnd, exists, minimized, maximized });
+            new
+            {
+                hwnd = request.Hwnd,
+                exists,
+                minimized,
+                maximized,
+                semanticState = semanticState?.ToString().ToLowerInvariant(),
+                semanticFailure,
+            });
     }
 
     private static Result LockSession(

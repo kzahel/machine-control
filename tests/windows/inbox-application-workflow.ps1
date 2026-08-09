@@ -438,6 +438,10 @@ try {
         $calcMetrics.window_states["$state-$confirmedWindowTransitions"] =
             Get-Metric $stateResult
     }
+    if ($confirmedWindowTransitions -ne 4) {
+        throw "Only $confirmedWindowTransitions of 4 Calculator window " +
+            'transitions had independent effect confirmation'
+    }
     $summary.applications.calculator = [ordered]@{
         effect = '56 observed through independent native UIA'
         confirmed_state_transitions = $confirmedWindowTransitions
