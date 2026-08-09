@@ -147,7 +147,12 @@ state, the UTM provider resolves the selected VM's UUID and compares it with
 - `candidate` supports ordinary build, control, sealing, and exact-confirmed
   deletion; and
 - `seal` supports disposable verification and teardown, but a persistent boot
-  requires its own explicit override.
+  requires its own explicit override. A stopped seal may be cloned without
+  changing it.
+
+`pin-target ROLE NAME` atomically changes the private selection and its UUID
+pin together. `pin-target ROLE --configured` returns to the target named in
+`config.local` without copying that private name into a command or document.
 
 An assertion is a local safety interlock, not a credential. SSH keys and the
 provider's authorization remain the security boundary. Keep real UUIDs and

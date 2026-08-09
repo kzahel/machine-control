@@ -30,7 +30,7 @@ UTM/macOS recovery:
 
 Image lifecycle:
   target-id              Print the configured VM's provider-native UUID
-  pin-target ROLE        Pin its current UUID and source/candidate/seal role
+  pin-target ROLE [NAME] Pin a selected VM's UUID and source/candidate/seal role
   assert-target OP       Verify its ignored UUID pin, role, and operation policy
   seal NAME              Clone the configured stopped VM as a stopped seal
   disposable-up          Start the configured VM without persisting changes

@@ -153,6 +153,7 @@ fi
 
 assert_target seal connect >/dev/null
 assert_target seal disposable-up >/dev/null
+assert_target seal seal >/dev/null
 if assert_target seal up >/dev/null 2>&1; then
     printf 'Persistent seal boot unexpectedly succeeded without override.\n' >&2
     exit 1
