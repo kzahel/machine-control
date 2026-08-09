@@ -30,7 +30,7 @@ help_output="$(WINVM_UTM_NAME='Smoke Test VM' "$REPO_DIR/bin/winvm" help)"
 [[ "$help_output" == *'disposable-up'* ]]
 [[ "$help_output" == *'delete --confirm NAME'* ]]
 [[ "$help_output" == *'factory-create NAME WINDOWS_ISO SEED_ISO'* ]]
-[[ "$help_output" == *'generalize [--check|--confirm-target]'* ]]
+[[ "$help_output" == *'generalize [--check|--decrypt|--confirm-target]'* ]]
 [[ "$help_output" == *'export-image PATH'* ]]
 [[ "$help_output" == *'target-id'* ]]
 [[ "$help_output" == *'pin-target ROLE'* ]]

@@ -3,6 +3,7 @@
 [CmdletBinding()]
 param(
     [switch]$CheckOnly,
+    [switch]$DecryptOsVolume,
     [switch]$ConfirmGeneralize,
     [string]$TaskName,
     [ValidateRange(0, 30)]
@@ -105,6 +106,8 @@ $pendingReboot = @(@(
         'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired'
     ) | Where-Object { Test-Path -LiteralPath $_ })
 Remove-LsaPrivateData -Name 'DefaultPassword' -ValidateOnly
+$bitLocker = Get-BitLockerVolume -MountPoint $env:SystemDrive -ErrorAction Stop
+$storageReady = $bitLocker.VolumeStatus.ToString() -eq 'FullyDecrypted'
 $preflight = [ordered]@{
     schema = 'winvm-image-generalization/v0'
     administrator = $administrator
@@ -112,16 +115,43 @@ $preflight = [ordered]@{
     runtime_installed = [bool]$service
     runtime_state = if ($service) { $service.Status.ToString() } else { $null }
     pending_reboot_markers = $pendingReboot.Count
+    bitlocker_volume_status = $bitLocker.VolumeStatus.ToString()
+    bitlocker_protection_status = $bitLocker.ProtectionStatus.ToString()
+    bitlocker_encryption_percentage = $bitLocker.EncryptionPercentage
+    sysprep_storage_ready = $storageReady
     profile = 'same-controller-utm-appliance'
     retained_controller_public_key = $true
     removes_ssh_host_identity = $true
     removes_autologon_secret = $true
     mode = 'generalize-oobe-shutdown-mode-vm'
 }
+if ($DecryptOsVolume) {
+    if (-not $administrator) {
+        throw 'OS-volume decryption requires an administrator'
+    }
+    if (-not $storageReady) {
+        Disable-BitLocker -MountPoint $env:SystemDrive
+        $deadline = [DateTime]::UtcNow.AddMinutes(30)
+        do {
+            Start-Sleep -Seconds 2
+            $bitLocker = Get-BitLockerVolume -MountPoint $env:SystemDrive
+            $storageReady = (
+                $bitLocker.VolumeStatus.ToString() -eq 'FullyDecrypted')
+        } while (-not $storageReady -and [DateTime]::UtcNow -lt $deadline)
+    }
+    [ordered]@{
+        schema = 'winvm-image-storage-preparation/v0'
+        volume_status = $bitLocker.VolumeStatus.ToString()
+        protection_status = $bitLocker.ProtectionStatus.ToString()
+        encryption_percentage = $bitLocker.EncryptionPercentage
+        sysprep_storage_ready = $storageReady
+    } | ConvertTo-Json -Compress
+    exit $(if ($storageReady) { 0 } else { 1 })
+}
 if ($CheckOnly) {
     $preflight | ConvertTo-Json -Compress
     exit $(if ($administrator -and (Test-Path -LiteralPath $sysprep) -and
-        $pendingReboot.Count -eq 0) { 0 } else { 1 })
+        $pendingReboot.Count -eq 0 -and $storageReady) { 0 } else { 1 })
 }
 Remove-Item -LiteralPath $receiptPath -Force -ErrorAction SilentlyContinue
 trap {
@@ -148,6 +178,9 @@ if (-not $administrator -or -not (Test-Path -LiteralPath $sysprep)) {
 }
 if ($pendingReboot.Count -ne 0) {
     throw 'Generalization refuses a target with pending reboot markers'
+}
+if (-not $storageReady) {
+    throw 'Generalization requires a fully decrypted OS volume'
 }
 if ($TaskName) {
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false `

@@ -40,7 +40,7 @@ Image lifecycle:
 Image factory:
   factory-create NAME WINDOWS_ISO SEED_ISO
                          Create a stopped QEMU VM from explicit local media
-  generalize [--check|--confirm-target]
+  generalize [--check|--decrypt|--confirm-target]
                          Preflight or Sysprep/shut down a pinned candidate
 
 Lifecycle and shells:

@@ -10,17 +10,19 @@ readonly REMOTE_SCRIPT='C:/Users/Public/winvm-prepare-generalized-image.ps1'
 
 usage() {
     cat <<'EOF'
-Usage: winvm generalize --check|--confirm-target
+Usage: winvm generalize --check|--decrypt|--confirm-target
 
 Preflight or generalize the UUID-pinned candidate with Sysprep /generalize
-/oobe /shutdown /mode:vm. The confirmation path strips auto-logon and SSH host
-identity, retains the authorized controller public key, and waits for a clean
-provider-observed shutdown.
+/oobe /shutdown /mode:vm. `--decrypt` prepares an encrypted candidate OS
+volume, which Sysprep requires. The confirmation path strips auto-logon and
+SSH host identity, retains the authorized controller public key, and waits for
+a clean provider-observed shutdown.
 EOF
 }
 
 case "${1:-}" in
     --check) mode=check ;;
+    --decrypt) mode=decrypt ;;
     --confirm-target) mode=execute ;;
     *) usage >&2; exit 2 ;;
 esac
@@ -32,6 +34,10 @@ scp -q "$GUEST_SCRIPT" "$WINVM_SSH_HOST:$REMOTE_SCRIPT"
 if [[ "$mode" == "check" ]]; then
     exec ssh -o BatchMode=yes "$WINVM_SSH_HOST" \
         "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $REMOTE_SCRIPT -CheckOnly"
+fi
+if [[ "$mode" == "decrypt" ]]; then
+    exec ssh -o BatchMode=yes "$WINVM_SSH_HOST" \
+        "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $REMOTE_SCRIPT -DecryptOsVolume"
 fi
 
 read -r -d '' launch_script <<'POWERSHELL' || true

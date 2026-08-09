@@ -80,6 +80,15 @@ Preflight the explicitly pinned candidate:
 bin/winvm generalize --check
 ```
 
+The preflight refuses an encrypted OS volume because Sysprep cannot generalize
+it even when BitLocker protection is suspended. On a dedicated candidate,
+decrypt and wait for independent `FullyDecrypted` state with:
+
+```bash
+bin/winvm generalize --decrypt
+bin/winvm generalize --check
+```
+
 The current profile is a same-controller UTM appliance: it disables guest
 auto-logon, deletes the LSA auto-logon secret and SSH host identity, cleans
 workflow artifacts, retains the controller's public authorized key, and runs:
@@ -88,8 +97,8 @@ workflow artifacts, retains the controller's public authorized key, and runs:
 Sysprep /generalize /oobe /shutdown /mode:vm /quiet
 ```
 
-Execute only after the candidate has passed acceptance and has no pending
-reboot markers:
+Execute only after the candidate has passed acceptance, has no pending reboot
+markers, and reports `sysprep_storage_ready`:
 
 ```bash
 bin/winvm generalize --confirm-target
