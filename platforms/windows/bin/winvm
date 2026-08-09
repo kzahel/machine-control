@@ -28,6 +28,11 @@ UTM/macOS recovery:
   key NAME               Send a common raw key/chord through UTM
   scan CODE...           Send decimal PC/AT scan codes through UTM
 
+Image lifecycle:
+  seal NAME              Clone the configured stopped VM as a stopped seal
+  disposable-up          Start the configured VM without persisting changes
+  delete --confirm NAME  Delete the exact configured stopped VM
+
 Lifecycle and shells:
   status | capabilities | ip | down | suspend | shutdown | force-stop
   down                   Safely suspend or shut down according to capabilities
@@ -83,7 +88,7 @@ case "$command" in
     ui) exec "$REPO_DIR/bin/winui" "$@" ;;
     ssh|ps) exec "$WINVM_SSH_BIN" "$WINVM_SSH_HOST" "$@" ;;
     wsl) exec "$WINVM_SSH_BIN" "$WINVM_SSH_HOST" wsl.exe "$@" ;;
-    status|capabilities|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop)
+    status|capabilities|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop|seal|disposable-up|delete)
         provider "$command" "$@"
         ;;
     *)

@@ -17,6 +17,8 @@ The CLI reads ignored `config.local`, then selects `WINVM_PROVIDER` and
 
 - `status`, `capabilities`, `up`, and `ip`
 - `down`, `suspend`, `shutdown`, and `force-stop`
+- `seal`, `disposable-up`, and exact-confirmed `delete` when image lifecycle is
+  available
 - `screenshot`, `type`, `click`, `key`, and `scan` when available
 - `stage-bootstrap` for the selected guest when an out-of-band file channel
   exists
@@ -41,6 +43,13 @@ normalizes the guest viewport to `WINVM_DISPLAY_WIDTH` ×
 `WINVM_DISPLAY_HEIGHT`. UTM mouse input consumes that same guest coordinate
 space. Keep the configured dimensions aligned with the Windows logical display
 mode; screenshot pixels can then be passed directly to `winvm click`.
+
+The provider also exposes UTM's full stopped-VM clone as `seal` and its
+non-persistent start mode as `disposable-up`. A seal requires a stopped source,
+a distinct unregistered destination name, and remains a provider-owned VM
+rather than a portable generalized Windows image. Deletion requires the exact
+configured stopped VM name twice: once through configuration and once through
+`--confirm`.
 
 ## Windows Guest Driver
 

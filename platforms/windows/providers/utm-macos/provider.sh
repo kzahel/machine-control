@@ -138,7 +138,7 @@ provider_capabilities() {
             --arg source "$SUSPEND_SOURCE" \
             --argjson reasons "$reasons_json" \
             --arg action "$action" \
-            '{schema_version: 1, state: $state, lifecycle: {suspend: {availability: $availability, source: $source, reasons: $reasons}, default_down_action: $action}}'
+            '{schema_version: 1, state: $state, lifecycle: {suspend: {availability: $availability, source: $source, reasons: $reasons}, default_down_action: $action, seal: {availability: "available", kind: "full_clone", requires: ["source_stopped", "destination_unregistered"]}, disposable_start: {availability: "available", persistence: "discard_on_stop"}, delete: {availability: "available", requires: ["configured_target_stopped", "exact_name_confirmation"]}}}'
         return
     fi
 
@@ -148,6 +148,85 @@ provider_capabilities() {
         printf 'suspend-reason: %s\n' "$reason"
     done
     printf 'default-down-action: %s\n' "$action"
+    printf 'seal: available (stopped full clone)\n'
+    printf 'disposable-start: available (discard on stop)\n'
+    printf 'delete: available (stopped exact-name confirmation)\n'
+}
+
+vm_is_registered() {
+    "$WINVM_UTMCTL" status "$1" >/dev/null 2>&1
+}
+
+vm_seal() {
+    if [[ $# -ne 1 || -z "$1" ]]; then
+        printf 'Usage: winvm seal DESTINATION_NAME\n' >&2
+        return 2
+    fi
+    local destination="$1" status
+    if [[ "$destination" == "$WINVM_UTM_NAME" ]]; then
+        printf 'Seal destination must differ from the configured source VM.\n' >&2
+        return 2
+    fi
+    status="$(vm_status || true)"
+    if [[ "$status" != "stopped" ]]; then
+        printf 'Seal requires a stopped source VM (current state: %s).\n' \
+            "${status:-unknown}" >&2
+        return 1
+    fi
+    if vm_is_registered "$destination"; then
+        printf 'Seal destination is already registered.\n' >&2
+        return 1
+    fi
+    "$WINVM_UTMCTL" clone --hide "$WINVM_UTM_NAME" --name "$destination" \
+        >/dev/null
+    status="$("$WINVM_UTMCTL" status "$destination" 2>/dev/null || true)"
+    if [[ "$status" != "stopped" ]]; then
+        printf 'UTM did not produce a stopped seal (state: %s).\n' \
+            "${status:-unknown}" >&2
+        return 1
+    fi
+    printf 'sealed\n'
+}
+
+vm_disposable_up() {
+    local status
+    status="$(vm_status || true)"
+    if [[ "$status" != "stopped" ]]; then
+        printf 'Disposable start requires a stopped VM (current state: %s).\n' \
+            "${status:-unknown}" >&2
+        return 1
+    fi
+    "$WINVM_UTMCTL" start --hide "$WINVM_UTM_NAME" --disposable >/dev/null
+    if ! wait_for_vm_state started "$WINVM_BOOT_TIMEOUT"; then
+        printf 'Timed out waiting for disposable VM start (last state: %s).\n' \
+            "${LAST_VM_STATUS:-unknown}" >&2
+        return 1
+    fi
+    guest_ipv4
+}
+
+vm_delete() {
+    if [[ $# -ne 2 || "$1" != "--confirm" || -z "$2" ]]; then
+        printf 'Usage: winvm delete --confirm CONFIGURED_VM_NAME\n' >&2
+        return 2
+    fi
+    local confirmation="$2" status
+    if [[ "$confirmation" != "$WINVM_UTM_NAME" ]]; then
+        printf 'Delete confirmation does not match the configured VM.\n' >&2
+        return 2
+    fi
+    status="$(vm_status || true)"
+    if [[ "$status" != "stopped" ]]; then
+        printf 'Delete requires the configured VM to be stopped (state: %s).\n' \
+            "${status:-unknown}" >&2
+        return 1
+    fi
+    "$WINVM_UTMCTL" delete "$WINVM_UTM_NAME" >/dev/null
+    if vm_is_registered "$WINVM_UTM_NAME"; then
+        printf 'UTM still reports the deleted VM as registered.\n' >&2
+        return 1
+    fi
+    printf 'deleted\n'
 }
 
 print_suspend_unavailable() {
@@ -413,6 +492,9 @@ case "$command" in
     key) input_key "$@" ;;
     scan) input_scan_codes "$@" ;;
     stage-bootstrap) stage_bootstrap "$@" ;;
+    seal) vm_seal "$@" ;;
+    disposable-up) vm_disposable_up "$@" ;;
+    delete) vm_delete "$@" ;;
     down) vm_down ;;
     suspend) vm_suspend ;;
     shutdown) vm_shutdown ;;

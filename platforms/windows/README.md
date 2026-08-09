@@ -96,6 +96,9 @@ bin/winvm ssh                     # Interactive PowerShell over SSH
 bin/winvm ps 'Get-Process'        # PowerShell command
 bin/winvm wsl -- uname -a         # Command through wsl.exe
 bin/winvm down                    # Safely suspend or cleanly shut down
+bin/winvm seal READY_NAME         # Clone a stopped VM as a stopped seal
+bin/winvm disposable-up           # Verify a seal without persisting changes
+bin/winvm delete --confirm NAME   # Delete only the exact configured stopped VM
 ```
 
 Discover and operate semantic Windows controls:
@@ -134,6 +137,8 @@ console on another macOS Space, preferring an on-screen console when possible.
 - `winvm down` uses suspend only when the provider positively declares it
   available. Known UTM/QEMU blockers such as GPU displays and NVMe disks select
   a clean guest shutdown instead.
+- A stopped UTM VM can be cloned into a provider-owned seal. A seal can be
+  started in disposable mode for verification without saving guest changes.
 - A cold boot normally requires one manual Windows login. A dedicated test
   appliance may use explicitly authorized guest-local auto-logon, but its
   credential must never be stored in this repository or command output.
