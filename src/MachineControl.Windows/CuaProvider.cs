@@ -129,6 +129,17 @@ internal sealed class CuaProvider : IControlProvider
         string generation,
         CancellationToken cancellationToken)
     {
+        if (!SnapshotProjection.IsSupported(request.Projection))
+        {
+            return Failure(
+                request,
+                generation,
+                "invalid_projection",
+                "snapshot projection must be full or compact",
+                "refused",
+                "refused",
+                elapsedMs: 0);
+        }
         var target = ResolveWindow(request);
         var arguments = new Dictionary<string, object?>
         {
@@ -158,8 +169,7 @@ internal sealed class CuaProvider : IControlProvider
             generation,
             target.ProcessId,
             target.Hwnd);
-        var serializedBytes = Encoding.UTF8.GetByteCount(
-            Contract.Serialize(elements));
+        var projection = SnapshotProjection.Create(elements, request);
         var total = ReadInt(upstream.Value, "total_element_count") ??
             ReadInt(upstream.Value, "element_count") ??
             elements.Count;
@@ -173,13 +183,16 @@ internal sealed class CuaProvider : IControlProvider
             degraded ? "degraded_semantic" : "exact_window_semantic",
             new
             {
-                elements,
+                elements = projection.Elements,
                 count = elements.Count,
                 visited = total,
                 maxDepth = arguments["max_depth"],
                 maxElements = arguments["max_elements"],
-                serializedBytes,
-                estimatedTokens = Math.Max(1, serializedBytes / 4),
+                projection = projection.Projection,
+                snapshotDigest = projection.SnapshotDigest,
+                unchanged = projection.Unchanged,
+                serializedBytes = projection.ContentBytes,
+                estimatedTokens = projection.ContentEstimatedTokens,
                 queryProjected = !string.IsNullOrWhiteSpace(request.Query),
                 elementsComplete = ReadBool(
                     upstream.Value,

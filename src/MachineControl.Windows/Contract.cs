@@ -54,6 +54,8 @@ internal sealed record Request
     public int? ProcessId { get; init; }
     public int? MaxDepth { get; init; }
     public int? MaxElements { get; init; }
+    public string? Projection { get; init; }
+    public string? KnownSnapshotDigest { get; init; }
     public int? TimeoutMs { get; init; }
     public int? X { get; init; }
     public int? Y { get; init; }
@@ -119,6 +121,19 @@ internal sealed record ElementRecord(
     string[] Patterns,
     string? Value = null,
     bool? Selected = null);
+
+internal sealed record CompactElementRecord(
+    [property: JsonPropertyName("r")] string Reference,
+    [property: JsonPropertyName("d")] int Depth,
+    [property: JsonPropertyName("t")] string ControlType,
+    [property: JsonPropertyName("n")] string Name,
+    [property: JsonPropertyName("a")] string AutomationId,
+    [property: JsonPropertyName("e")] bool Enabled,
+    [property: JsonPropertyName("o")] bool Offscreen,
+    [property: JsonPropertyName("b")] double[] Bounds,
+    [property: JsonPropertyName("p")] string[] Patterns,
+    [property: JsonPropertyName("v")] string? Value = null,
+    [property: JsonPropertyName("s")] bool? Selected = null);
 
 internal sealed record RectRecord(double X, double Y, double Width, double Height);
 

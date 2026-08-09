@@ -223,6 +223,67 @@ function Get-NamedElements {
     throw "Cua snapshot did not expose all required controls: $($Names -join ', ')"
 }
 
+function Get-SnapshotEfficiency {
+    param(
+        [Parameter(Mandatory = $true)]$Window,
+        [Parameter(Mandatory = $true)]$FullSnapshot,
+        [string]$Query,
+        [int]$MaxDepth = 16,
+        [int]$MaxElements = 180,
+        [switch]$RequireMaterialReduction
+    )
+    if (-not $FullSnapshot.data.snapshotDigest -or
+        $FullSnapshot.data.projection -ne 'full') {
+        throw 'full snapshot did not report its projection and digest'
+    }
+    $compactRequest = @{
+        operation = 'snapshot'
+        hwnd = [long]$Window.hwnd
+        processId = [int]$Window.processId
+        projection = 'compact'
+        maxDepth = $MaxDepth
+        maxElements = $MaxElements
+    }
+    if ($Query) {
+        $compactRequest.scope = 'system'
+        $compactRequest.query = $Query
+    }
+    $compact = Invoke-Control $compactRequest
+    Assert-Accepted $compact 'compact semantic snapshot'
+    if ($compact.data.projection -ne 'compact' -or
+        -not $compact.data.snapshotDigest -or
+        $compact.data.unchanged -or
+        $compact.data.count -ne $FullSnapshot.data.count) {
+        throw 'compact snapshot changed scope or omitted its declared content'
+    }
+
+    $unchangedRequest = $compactRequest.Clone()
+    $unchangedRequest.knownSnapshotDigest = $compact.data.snapshotDigest
+    $unchanged = Invoke-Control $unchangedRequest
+    Assert-Accepted $unchanged 'unchanged semantic snapshot'
+    if (-not $unchanged.data.unchanged -or
+        $unchanged.data.snapshotDigest -ne $compact.data.snapshotDigest -or
+        $unchanged.data.PSObject.Properties.Name -contains 'elements') {
+        throw 'matching snapshot digest did not suppress unchanged elements'
+    }
+
+    $compactRatio = $compact._serializedBytes / $FullSnapshot._serializedBytes
+    $unchangedRatio = $unchanged._serializedBytes / $compact._serializedBytes
+    if ($RequireMaterialReduction -and
+        ($compactRatio -ge 0.80 -or $unchangedRatio -ge 0.60)) {
+        throw ('semantic payload reduction was not material: ' +
+            "compact=$compactRatio unchanged=$unchangedRatio")
+    }
+    return [ordered]@{
+        full = Get-Metric $FullSnapshot
+        compact = Get-Metric $compact
+        unchanged = Get-Metric $unchanged
+        compact_to_full_ratio = [Math]::Round($compactRatio, 3)
+        unchanged_to_compact_ratio = [Math]::Round($unchangedRatio, 3)
+        element_count = $compact.data.count
+    }
+}
+
 function Wait-FileContent {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -324,7 +385,10 @@ try {
     $calculatorControlNames = @('Seven', 'Multiply by', 'Eight', 'Equals')
     $calculatorControls = Get-NamedElements `
         -Window $calculator -Names $calculatorControlNames
-    $calcMetrics.semantic_snapshot = Get-Metric $calculatorControls
+    $calcMetrics.semantic_snapshot = Get-SnapshotEfficiency `
+        -Window $calculator `
+        -FullSnapshot $calculatorControls `
+        -RequireMaterialReduction
     foreach ($name in $calculatorControlNames) {
         $element = @($calculatorControls.data.elements |
             Where-Object { $_.name -eq $name } | Select-Object -First 1)[0]
@@ -423,6 +487,12 @@ try {
             Where-Object { $_.name -eq 'System' }).Count -lt 1) {
         throw 'Settings did not expose its System semantic control'
     }
+    $settingsEfficiency = Get-SnapshotEfficiency `
+        -Window $settings `
+        -FullSnapshot $settingsSystem `
+        -Query 'System' `
+        -MaxDepth 12 `
+        -MaxElements 30
     $summary.applications.settings = [ordered]@{
         launch = 'registered application activation confirmed by visible HWND'
         semantics = 'System control independently observed through native UIA'
@@ -430,7 +500,7 @@ try {
     }
     $summary.metrics.settings = [ordered]@{
         launch = Get-Metric $settingsLaunch
-        system_semantics = Get-Metric $settingsSystem
+        system_semantics = $settingsEfficiency
     }
     Close-Window -Window $settings -Label 'Settings'
     $settings = $null

@@ -540,6 +540,16 @@ internal static class DesktopController
         string desktopName,
         Stopwatch timer)
     {
+        if (!SnapshotProjection.IsSupported(request.Projection))
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "invalid_projection",
+                "snapshot projection must be full or compact");
+        }
         var maxDepth = Math.Clamp(request.MaxDepth ?? 8, 1, 20);
         var maxElements = Math.Clamp(request.MaxElements ?? 250, 1, 2000);
         var root = ResolveAutomationRoot(request);
@@ -566,8 +576,7 @@ internal static class DesktopController
             generation,
             records,
             ref visited);
-        var json = Contract.Serialize(records);
-        var bytes = Encoding.UTF8.GetByteCount(json);
+        var projection = SnapshotProjection.Create(records, request);
         return Success(
             request,
             generation,
@@ -578,13 +587,16 @@ internal static class DesktopController
             "not_applicable",
             new
             {
-                elements = records,
+                elements = projection.Elements,
                 count = records.Count,
                 visited,
                 maxDepth,
                 maxElements,
-                serializedBytes = bytes,
-                estimatedTokens = Math.Max(1, bytes / 4),
+                projection = projection.Projection,
+                snapshotDigest = projection.SnapshotDigest,
+                unchanged = projection.Unchanged,
+                serializedBytes = projection.ContentBytes,
+                estimatedTokens = projection.ContentEstimatedTokens,
                 queryProjected = !string.IsNullOrWhiteSpace(request.Query),
             });
     }
