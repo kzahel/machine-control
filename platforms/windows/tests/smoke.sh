@@ -3,6 +3,8 @@
 set -euo pipefail
 
 readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+temporary="$(mktemp -d /tmp/winvm-smoke.XXXXXX)"
+trap 'rm -rf -- "$temporary"' EXIT
 
 scripts=(
     "$REPO_DIR/bin/winvm"
@@ -46,6 +48,20 @@ config_output="$(
 [[ "$config_output" == *'User smoke-user'* ]]
 [[ "$config_output" == *'Port 22'* ]]
 [[ "$config_output" == *'/providers/utm-macos/ssh-proxy %p'* ]]
+
+printf "WINVM_UTM_NAME='configured-name'\n" > "$temporary/config"
+{
+    printf "WINVM_UTM_NAME='selected-name'\n"
+    printf "WINVM_EXPECTED_UTM_ID='11111111-2222-3333-4444-555555555555'\n"
+    printf "WINVM_TARGET_ROLE='candidate'\n"
+} > "$temporary/target"
+layered_names="$(
+    WINVM_CONFIG_FILE="$temporary/config" \
+    WINVM_TARGET_FILE="$temporary/target" \
+    bash -c 'source "$1"; source "$1"; printf "%s|%s\n" "$WINVM_UTM_NAME" "$WINVM_CONFIGURED_UTM_NAME"' \
+        _ "$REPO_DIR/scripts/common.sh"
+)"
+[[ "$layered_names" == 'selected-name|configured-name' ]]
 
 provider="$REPO_DIR/providers/utm-macos/provider.sh"
 blocked_json="$(
@@ -102,6 +118,19 @@ if WINVM_UTM_NAME='configured-name' \
     printf 'Mismatched delete confirmation unexpectedly succeeded.\n' >&2
     exit 1
 fi
+
+delete_capture="$temporary/delete-target"
+delete_marker="$temporary/delete-complete"
+env \
+    WINVM_UTM_NAME='selected-name' \
+    WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-delete-by-id" \
+    WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-target-id" \
+    WINVM_EXPECTED_UTM_ID=11111111-2222-3333-4444-555555555555 \
+    WINVM_TARGET_ROLE=candidate \
+    WINVM_TEST_DELETE_CAPTURE="$delete_capture" \
+    WINVM_TEST_DELETE_MARKER="$delete_marker" \
+    "$provider" delete --confirm selected-name >/dev/null
+[[ "$(<"$delete_capture")" == '11111111-2222-3333-4444-555555555555' ]]
 
 identity_provider_env=(
     WINVM_UTMCTL=/usr/bin/true

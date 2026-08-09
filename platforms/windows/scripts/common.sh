@@ -3,18 +3,30 @@
 # Shared configuration for host commands. Keep this file safe to source from
 # scripts that enable either `set -e` or `set -u`.
 
+WINVM_ENVIRONMENT_OVERRIDES=()
+while IFS= read -r winvm_environment_name; do
+    WINVM_ENVIRONMENT_OVERRIDES+=(
+        "$(declare -p "$winvm_environment_name")")
+done < <(compgen -e WINVM_)
+
 WINVM_REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WINVM_CONFIG_FILE="${WINVM_CONFIG_FILE:-$WINVM_REPO_DIR/config.local}"
+WINVM_COMMON_LOADED="${WINVM_COMMON_LOADED:-0}"
 
-if [[ -f "$WINVM_CONFIG_FILE" ]]; then
+if [[ "$WINVM_COMMON_LOADED" != "1" && -f "$WINVM_CONFIG_FILE" ]]; then
     # shellcheck source=/dev/null
     source "$WINVM_CONFIG_FILE"
 fi
+for winvm_environment_declaration in "${WINVM_ENVIRONMENT_OVERRIDES[@]}"; do
+    eval "$winvm_environment_declaration"
+done
+unset WINVM_ENVIRONMENT_OVERRIDES winvm_environment_declaration
+unset winvm_environment_name
 
-WINVM_CONFIGURED_UTM_NAME="${WINVM_UTM_NAME:-Windows}"
+WINVM_CONFIGURED_UTM_NAME="${WINVM_CONFIGURED_UTM_NAME:-${WINVM_UTM_NAME:-Windows}}"
 
 WINVM_TARGET_FILE="${WINVM_TARGET_FILE:-$WINVM_REPO_DIR/.target.local}"
-if [[ -f "$WINVM_TARGET_FILE" &&
+if [[ "$WINVM_COMMON_LOADED" != "1" && -f "$WINVM_TARGET_FILE" &&
     -z "${WINVM_EXPECTED_UTM_ID:-}" &&
     "${WINVM_TARGET_ROLE:-unclassified}" == "unclassified" ]]; then
     # shellcheck source=/dev/null
@@ -42,8 +54,10 @@ WINVM_SSH_BIN="${WINVM_SSH_BIN:-ssh}"
 WINVM_UI_PIPE_NAME="${WINVM_UI_PIPE_NAME:-winvm-ui}"
 WINVM_UI_TASK_NAME="${WINVM_UI_TASK_NAME:-WinVM UI Relay}"
 WINVM_UI_REMOTE_RELATIVE="${WINVM_UI_REMOTE_RELATIVE:-AppData/Local/winvm-testbed}"
+WINVM_COMMON_LOADED=1
 
 export WINVM_REPO_DIR WINVM_CONFIG_FILE WINVM_PROVIDER WINVM_GUEST_DRIVER
+export WINVM_COMMON_LOADED
 export WINVM_TARGET_FILE
 export WINVM_CONFIGURED_UTM_NAME
 export WINVM_SSH_HOST WINVM_SSH_PORT WINVM_UTM_NAME WINVM_UTMCTL

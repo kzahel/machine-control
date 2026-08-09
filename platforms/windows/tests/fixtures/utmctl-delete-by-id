@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+case "${1:-}" in
+    status)
+        if [[ "${2:-}" == "$WINVM_EXPECTED_UTM_ID" &&
+            -f "$WINVM_TEST_DELETE_MARKER" ]]; then
+            exit 1
+        fi
+        printf 'stopped\n'
+        ;;
+    delete)
+        printf '%s\n' "${2:-}" > "$WINVM_TEST_DELETE_CAPTURE"
+        : > "$WINVM_TEST_DELETE_MARKER"
+        ;;
+    *) exit 1 ;;
+esac

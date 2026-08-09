@@ -440,8 +440,8 @@ vm_delete() {
             "${status:-unknown}" >&2
         return 1
     fi
-    "$WINVM_UTMCTL" delete "$WINVM_UTM_NAME" >/dev/null
-    if vm_is_registered "$WINVM_UTM_NAME"; then
+    "$WINVM_UTMCTL" delete "$WINVM_EXPECTED_UTM_ID" >/dev/null
+    if vm_is_registered "$WINVM_EXPECTED_UTM_ID"; then
         printf 'UTM still reports the deleted VM as registered.\n' >&2
         return 1
     fi
