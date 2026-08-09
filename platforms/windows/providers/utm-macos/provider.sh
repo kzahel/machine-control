@@ -253,6 +253,7 @@ APPLESCRIPT
         printf 'UTM did not produce the requested export bundle.\n' >&2
         return 1
     fi
+    "$WINVM_REPO_DIR/scripts/image-manifest.sh" "$output" >/dev/null
     printf 'image exported\n'
 }
 

@@ -35,6 +35,8 @@ Image lifecycle:
   seal NAME              Clone the configured stopped VM as a stopped seal
   disposable-up          Start the configured VM without persisting changes
   export-image PATH      Export the configured stopped VM to a new .utm bundle
+  image-manifest PATH [--oobe-confirmed]
+                         Write or refresh the adjacent private export manifest
   delete --confirm NAME  Delete the exact configured stopped VM
 
 Image factory:
@@ -106,6 +108,7 @@ case "$command" in
     ssh|ps) assert_target connect; exec "$WINVM_SSH_BIN" "$WINVM_SSH_HOST" "$@" ;;
     wsl) assert_target connect; exec "$WINVM_SSH_BIN" "$WINVM_SSH_HOST" wsl.exe "$@" ;;
     generalize) exec "$REPO_DIR/scripts/generalize-windows.sh" "$@" ;;
+    image-manifest) exec "$REPO_DIR/scripts/image-manifest.sh" "$@" ;;
     status|capabilities|target-id|pin-target|assert-target|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop|seal|disposable-up|export-image|factory-create|delete)
         provider "$command" "$@"
         ;;

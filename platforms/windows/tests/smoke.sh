@@ -14,6 +14,7 @@ scripts=(
     "$REPO_DIR/scripts/doctor.sh"
     "$REPO_DIR/scripts/generalize-windows.sh"
     "$REPO_DIR/scripts/image-factory.sh"
+    "$REPO_DIR/scripts/image-manifest.sh"
     "$REPO_DIR/providers/utm-macos/provider.sh"
     "$REPO_DIR/providers/utm-macos/screenshot"
     "$REPO_DIR/providers/utm-macos/ssh-proxy"
@@ -35,6 +36,7 @@ help_output="$(WINVM_UTM_NAME='Smoke Test VM' "$REPO_DIR/bin/winvm" help)"
 [[ "$help_output" == *'generalize [--check|--decrypt|--confirm-target]'* ]]
 [[ "$help_output" == *'generalize --remove-appx EXACT_PACKAGE_NAME'* ]]
 [[ "$help_output" == *'export-image PATH'* ]]
+[[ "$help_output" == *'image-manifest PATH [--oobe-confirmed]'* ]]
 [[ "$help_output" == *'target-id'* ]]
 [[ "$help_output" == *'pin-target ROLE'* ]]
 [[ "$help_output" == *'assert-target OP'* ]]

@@ -125,8 +125,49 @@ computer, and documents `/mode:vm` only for the same VM/hypervisor hardware
 profile. Accordingly, this output is not claimed as a hardware-independent
 Windows distribution. Boot it once with `disposable-up`; verify that Windows
 enters OOBE and that the provider can stop it without persisting the first
-boot. A controller-ready derivative must then provision fresh target identity,
+boot, then record the observation in the adjacent private manifest:
+
+```bash
+bin/winvm image-manifest PRIVATE_ABSOLUTE_OUTPUT.utm --oobe-confirmed
+```
+
+A controller-ready derivative must then provision fresh target identity,
 authorization, appliance login policy, and resident-helper readiness.
+
+## Validation record
+
+**Current (2026-08-10):** The seed renderer, XML validation, secret-file
+permissions, manifest writer, target-role policy, and mocked provider behavior
+pass on the macOS host. The UTM factory AppleScript recipe parses against the
+installed UTM dictionary.
+
+A UUID-pinned ARM64 candidate passed the full resident application acceptance
+before preparation. Live preflight detected and required explicit resolution
+of two real Windows image blockers:
+
+- the OS volume was fully encrypted even though BitLocker protection was off;
+  `--decrypt` reached independently observed `FullyDecrypted`; and
+- six removable user packages were absent from image provisioning. Exact
+  reconciliation removed `Microsoft.VisualStudioCode`, `winapp`,
+  `Microsoft.WidgetsPlatformRuntime`, `Microsoft.StartExperiencesApp`,
+  `Microsoft.Ink.Handwriting.Main.en-US.1.0.1`, and
+  `Microsoft.Winget.Source` from this candidate. Required packages must be
+  restored after OOBE.
+
+Sysprep then completed with the declared VM profile and UTM observed a stopped
+target. A roughly 53-GiB private UTM bundle and adjacent mode-0600 manifest were
+exported under ignored factory storage. A disposable boot visibly reached the
+Windows country/region OOBE page; it was stopped cleanly without persisting
+that first boot. No screenshot, VM identity, endpoint, account, or bundle path
+is committed.
+
+No compatible Windows installation ISO was present locally, so the
+ISO-to-new-base lane has not been executed. Its exact remaining live boundary
+is media validation, `factory-create`, Windows Setup/image-index compatibility,
+first-logon OpenSSH bootstrap, answer-media removal, and subsequent product
+installation on that newly created target. The repository does not claim this
+lane is proven until explicit licensed media is supplied and that sequence
+passes.
 
 ## Authoritative references
 
