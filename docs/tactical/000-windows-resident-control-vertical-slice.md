@@ -1,8 +1,9 @@
 # Tactical 000: Windows Resident-Control Vertical Slice
 
-Status: active; the first bounded implementation slice,
-[`Tactical 001`](001-windows-system-shell-acceptance.md), is complete. The next
-slice is the target-resident hybrid facade and interactive-session proxy.
+Status: active; the shell-acceptance slice,
+[`Tactical 001`](001-windows-system-shell-acceptance.md), is complete. Full
+target-native Windows implementation is active in
+[`Tactical 002`](002-windows-full-target-native-control.md).
 
 Topic: `windows-resident-control`
 
@@ -18,8 +19,8 @@ maintained as a manually curated prerequisite.
 
 - Outside control does not require a Windows YA worker or focus the VM window.
 - Local and remote callers receive the same capability and result semantics.
-- UIA, guest-local capture/input, administration, session state, and the one
-  justified protected path are represented honestly.
+- UIA, guest-local capture/input, administration, session state, and the
+  explicitly armed full protected-desktop path are represented honestly.
 - Start, taskbar, notification area, shell flyouts, Windows Settings, dialogs,
   and ordinary window management are controllable without host input.
 - Exact-window identity, semantics, visual capture, action scope, delivery
@@ -114,8 +115,10 @@ capabilities, restart, cancellation, lease expiry, and revocation.
 ### 7 — cover session and privilege boundaries
 
 Exercise normal, elevated, locked, logged-out, user-switched, and secure-desktop
-states. Add only the narrow protected route the dedicated test appliance
-actually requires, with explicit arming and honest omissions.
+states. On a dedicated test appliance, the protected route may provide full
+desktop semantics, capture, and input. Keep its interface typed, explicitly
+armed, and separate from arbitrary SYSTEM command execution; “narrow” describes
+the trust and API boundary, not weak control.
 
 ### 8 — prove independent outer recovery
 
@@ -146,9 +149,10 @@ completed the real Windows shell-acceptance track and selected a hybrid
 Cua-plus-Windows-adapter facade. Its authoritative result is
 [`windows-shell-findings.md`](../../../machine-control-spike/docs/windows-shell-findings.md).
 
-Steps 1 and 3 are therefore complete. Step 2 is next: implement the smallest
-resident facade/session proxy that normalizes identity, compact observation,
-capture, action routing, delivery, effect, and fidelity across Cua and the
-measured WinApp/native gaps. Exact future commands and experiment evidence
-remain in the owning implementation/testbed repository or
+Steps 1 and 3 are therefore complete. Tactical 002 now implements steps 2, 4,
+5, 6, and 7 as one Windows-depth proof: the facade/session proxy must normalize
+identity, compact observation, capture, action routing, delivery, effect, and
+fidelity while an installed protected provider crosses High, UAC, lock/login,
+and session boundaries without outer control. Exact commands and experiment
+evidence remain in the owning implementation/testbed repository or
 `machine-control-spike`.

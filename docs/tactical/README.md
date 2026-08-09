@@ -41,3 +41,4 @@ the commits' `Topic:` trailers and register that exact string in
 | --- | --- | --- |
 | [`000-windows-resident-control-vertical-slice.md`](000-windows-resident-control-vertical-slice.md) | active | First complete local-and-remote Windows proof of the target-native contract |
 | [`001-windows-system-shell-acceptance.md`](001-windows-system-shell-acceptance.md) | complete | Cua-first acceptance run across the real Windows system shell; selected a hybrid facade |
+| [`002-windows-full-target-native-control.md`](002-windows-full-target-native-control.md) | active | Full resident Windows control across ordinary, elevated, UAC, lock/login, lifecycle, and physical hardware boundaries |

@@ -110,10 +110,13 @@ Preserve these rules:
   route could interrupt the controller user's desktop, it should normally be
   absent from the worker's tools and require an explicit recovery request.
 - Dedicated test appliances may explicitly authorize a stronger resident
-  service or protected broker than a personal workstation. Describe that
-  privilege honestly; do not weaken the target-resident goal merely because a
-  normal user process cannot cross a session, integrity, or secure-desktop
-  boundary.
+  service or protected provider than a personal workstation, including full
+  target-native semantics, capture, keyboard, and pointer control across
+  elevated, UAC, lock/login, and session transitions. Describe that privilege
+  honestly; keep its API and arming typed rather than weakening its control or
+  exposing arbitrary SYSTEM command execution. Do not weaken the
+  target-resident goal merely because a normal user process cannot cross a
+  session, integrity, or secure-desktop boundary.
 - Treat local IPC, SSH, tunnels, CLI/SDK calls, and MCP as transports or facades
   over the contract, not as the contract or its security boundary. A public
   target name or agent session ID is not private bearer authority.

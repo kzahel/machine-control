@@ -63,9 +63,11 @@ validate a small set of components rather than one omnipotent daemon:
 2. A normal-user companion in the interactive session owns UI Automation,
    screen/window capture, guest-local input, clipboard, and session-scoped app
    operations.
-3. A narrow privileged broker exists only for explicitly authorized operations
-   that cannot safely run in the companion. Its methods are typed capabilities,
-   not arbitrary command execution or a privileged mirror of the whole API.
+3. A separately authorized privileged provider owns operations that cannot
+   safely run in the companion. On a dedicated test appliance it may expose
+   full protected-desktop semantics, capture, keyboard, and pointer control.
+   Its methods remain typed capabilities, not arbitrary command execution or a
+   privileged mirror of unrelated administration APIs.
 4. Administration adapters use the strongest existing OS mechanisms for shell,
    files, packages, processes, services, deployment, and logs.
 

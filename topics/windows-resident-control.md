@@ -3,8 +3,9 @@
 Topic: `windows-resident-control`
 
 Status: active implementation concern. Cua source/live evaluation and the
-Windows system-shell acceptance run are complete. The next bounded slice is an
-owned hybrid facade and interactive-session proxy.
+Windows system-shell acceptance run are complete. Full target-native Windows
+implementation is active in
+[`Tactical 002`](../docs/tactical/002-windows-full-target-native-control.md).
 
 ## Scope
 
@@ -83,9 +84,11 @@ investigations. It records:
   experiment.
 
 **Decision:** The leading architecture is a small owned Windows facade/session
-proxy with a Cua common-runtime adapter and an operation-level
-WinApp/Win32/Shell adapter for measured gaps. A narrow protected broker remains
-deferred until a concrete operation justifies it.
+proxy with a Cua common-runtime adapter, an operation-level WinApp/Win32/Shell
+adapter for measured gaps, and a separately installed protected Windows
+provider. Tactical 002 now requires a full protected-desktop capability on a
+dedicated test appliance; the interface and arming remain narrow even though
+the authorized desktop control is not.
 
 The provider-first view and common contract lessons live in
 [`provider-landscape.md`](provider-landscape.md). Exact pins, commands, and
@@ -163,10 +166,13 @@ hold the only authority capable of repairing its resident provider.
 
 ### Protected broker and personal-machine authority
 
-Begin with an explicit dedicated-test-appliance profile. Add a SYSTEM broker
-only for concrete operations the user-session companion cannot perform, with
-separate arming, authenticated peers, request/target/generation binding,
-expiry, revocation, and conformance tests.
+Begin with an explicit dedicated-test-appliance profile. Its installed Windows
+service may authorize complete protected-desktop semantics, capture, keyboard,
+and pointer input across elevated, UAC, lock/login, and session transitions.
+Keep protected operations typed and separate from arbitrary SYSTEM command
+execution, with authenticated peers, request/target/generation binding,
+expiry, revocation, and conformance tests. “Narrow” describes the authority and
+API boundary, not an intentional inability to control Windows.
 
 For personal/shared machines, same-user tool policy is not containment when an
 agent also has a shell. Decide which OS identity, sandbox, or external
