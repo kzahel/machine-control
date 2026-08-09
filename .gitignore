@@ -2,6 +2,7 @@ artifacts/
 bin/
 obj/
 publish/
+.cache/
 *.user
 *.suo
 .DS_Store

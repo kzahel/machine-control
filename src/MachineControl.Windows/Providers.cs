@@ -11,6 +11,8 @@ internal sealed record ProviderDescriptor(
     string[] KnownOmissions,
     string? Version = null,
     string? SourceRevision = null,
+    string? ArtifactDigest = null,
+    string? Provenance = null,
     string? Detail = null);
 
 internal sealed record ProviderOperationDescriptor(
@@ -116,55 +118,12 @@ internal static class ProviderRouter
 {
     private static readonly IControlProvider Native =
         new WindowsNativeProvider();
+    private static readonly CuaProvider Cua = new();
 
     public static ProviderDescriptor[] Describe() =>
     [
         Native.Describe(),
-        new ProviderDescriptor(
-            "cua",
-            "not_yet_integrated",
-            "guest.user",
-            "planned child of the Medium interactive-session helper",
-            "Medium",
-            "unlocked Default desktop",
-            [
-                new ProviderOperationDescriptor(
-                    "snapshot",
-                    "not_yet_integrated",
-                    "desktop",
-                    ["Default"],
-                    "compact exact-window UIA",
-                    "observation",
-                    "provider snapshot only",
-                    "none"),
-                new ProviderOperationDescriptor(
-                    "screenshot",
-                    "not_yet_integrated",
-                    "desktop",
-                    ["Default"],
-                    "ordinary exact-window capture",
-                    "observation",
-                    "artifact hash and bounds",
-                    "none"),
-                new ProviderOperationDescriptor(
-                    "invoke",
-                    "not_yet_integrated",
-                    "desktop",
-                    ["Default"],
-                    "snapshot-bound background semantic action",
-                    "background-first",
-                    "provider report; caller verifies fixture effect",
-                    "none expected"),
-            ],
-            [
-                "taskbar and selected shell HWND discovery",
-                "packaged Settings inner/outer resolution",
-                "protected and cross-integrity desktops",
-                "selected window-state operations",
-            ],
-            Version: "0.17.0",
-            SourceRevision: "d21e3447f9b08c761c090946648d5aca5e6c9cf1",
-            Detail: "Pinned adapter connection is the next implementation slice"),
+        Cua.Describe(),
         new ProviderDescriptor(
             "winapp",
             "external_comparison",
@@ -216,7 +175,8 @@ internal static class ProviderRouter
             "snapshot,screenshot,invoke",
             "ordinary exact application window",
             ["cua", "windows-native"],
-            "Cua is not connected yet; safe observation fallback only"),
+            "safe observation fallback for explicit provider failure; " +
+            "mutating unknown outcomes are terminal"),
         new RoutePlan(
             "snapshot,invoke,window.state",
             "taskbar, shell, packaged window, or system scope",
@@ -234,9 +194,62 @@ internal static class ProviderRouter
             "typed protected route; never route through Cua"),
     ];
 
-    public static Task<Result> ExecuteAsync(
+    public static async Task<Result> ExecuteAsync(
         Request request,
         string generation,
-        CancellationToken cancellationToken) =>
-        Native.ExecuteAsync(request, generation, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        var operation = request.Operation.ToLowerInvariant();
+        var ordinaryExactWindow = request.Hwnd is > 0 &&
+            !string.Equals(request.Scope, "system", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(request.Target, "taskbar", StringComparison.OrdinalIgnoreCase);
+        var routeCua = ordinaryExactWindow &&
+                operation is "snapshot" or "screenshot" ||
+            operation == "invoke" && Cua.OwnsReference(request.Reference);
+        if (!routeCua)
+        {
+            return await Native.ExecuteAsync(
+                request,
+                generation,
+                cancellationToken);
+        }
+
+        var cua = await Cua.ExecuteAsync(
+            request,
+            generation,
+            cancellationToken);
+        if (cua.Accepted || operation == "invoke" ||
+            !ObservationFallbackAllowed(cua.ErrorCode))
+        {
+            return cua;
+        }
+
+        var native = await Native.ExecuteAsync(
+            request,
+            generation,
+            cancellationToken);
+        return native with
+        {
+            FallbackUsed = true,
+            ProviderAttempts =
+            [
+                .. cua.ProviderAttempts ?? [],
+                .. native.ProviderAttempts ?? [],
+            ],
+            RetryCount = cua.ErrorCode == "provider_timeout" ? 0 : native.RetryCount,
+            Uncertainty = native.Accepted
+                ? "Cua observation failed before native fallback"
+                : native.Uncertainty,
+        };
+    }
+
+    private static bool ObservationFallbackAllowed(string? errorCode) =>
+        errorCode is
+            "provider_unavailable" or
+            "provider_unhealthy" or
+            "provider_timeout" or
+            "provider_error" or
+            "provider_invalid_response" or
+            "target_unavailable" or
+            "exact_window_capture_failed";
 }

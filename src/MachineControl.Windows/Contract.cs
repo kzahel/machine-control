@@ -112,7 +112,9 @@ internal sealed record ElementRecord(
     bool Enabled,
     bool Offscreen,
     RectRecord Bounds,
-    string[] Patterns);
+    string[] Patterns,
+    string? Value = null,
+    bool? Selected = null);
 
 internal sealed record RectRecord(double X, double Y, double Width, double Height);
 

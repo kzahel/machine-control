@@ -15,6 +15,10 @@ dotnet publish \
   --self-contained true \
   --output "$repo_root/publish/$runtime_id"
 
+"$repo_root/scripts/fetch-cua-windows.sh" \
+  "$runtime_id" \
+  "$repo_root/publish/$runtime_id"
+
 for fixture in MachineControl.Fixture MachineControl.ElevatedFixture; do
   dotnet publish \
     "$repo_root/src/$fixture/$fixture.csproj" \
