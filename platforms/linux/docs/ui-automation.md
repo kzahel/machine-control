@@ -25,7 +25,9 @@ bin/linuxvm user-exec -- systemctl --user status "$unit"
 
 The launch command fails closed if the user manager has neither
 `WAYLAND_DISPLAY` nor `DISPLAY`. It prints the transient service name so a
-caller can inspect logs or stop it without matching an unrelated process.
+caller can inspect logs or stop it without matching an unrelated process. The
+unit remains active across a self-updating application's process replacement
+and is collected after the final process exits.
 
 ## AT-SPI Commands
 

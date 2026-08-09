@@ -55,7 +55,9 @@ It does not guess a Wayland socket or copy credentials.
 `linuxvm gui-launch` crosses the additional application-lifetime boundary. It
 verifies that the active user's systemd manager already has an imported
 `WAYLAND_DISPLAY` or `DISPLAY`, then creates a collected transient user
-service. The graphical process inherits the real desktop environment from
+service. The service uses `ExitType=cgroup`, so an application can replace its
+main process during an updater relaunch without systemd killing the new
+process. The graphical process inherits the real desktop environment from
 that manager and is not killed when the guest-agent invocation completes.
 
 ## Semantic UI

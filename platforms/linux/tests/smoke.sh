@@ -33,9 +33,11 @@ user_id="$($LINUXVM user-exec -- /usr/bin/id -un)"
 test "$desktop_user" = "$user_id"
 
 gui_unit="$("$LINUXVM" gui-launch -- /usr/bin/bash -lc \
-    'test -n "$WAYLAND_DISPLAY" -o -n "$DISPLAY"; sleep 30')"
+    'test -n "$WAYLAND_DISPLAY" -o -n "$DISPLAY"; sleep 120')"
 [[ "$gui_unit" =~ ^linuxvm-gui-[0-9]+\.[0-9]+\.[0-9]+\.service$ ]]
 "$LINUXVM" user-exec -- /usr/bin/systemctl --user is-active "$gui_unit" >/dev/null
+test "$("$LINUXVM" user-exec -- /usr/bin/systemctl --user show \
+    --property=ExitType --value "$gui_unit")" = 'cgroup'
 "$LINUXVM" user-exec -- /usr/bin/systemctl --user stop "$gui_unit"
 
 ui_health="$($LINUXVM ui health)"

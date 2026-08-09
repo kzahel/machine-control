@@ -80,7 +80,8 @@ gui_launch() {
     "$PROVIDER" exec /usr/sbin/runuser -u "$user" -- /usr/bin/env \
         "XDG_RUNTIME_DIR=/run/user/$uid" \
         "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus" \
-        /usr/bin/systemd-run --user --quiet --collect --unit "$unit" -- "$@"
+        /usr/bin/systemd-run --user --quiet --collect \
+            --property=ExitType=cgroup --unit "$unit" -- "$@"
     printf '%s\n' "$unit"
 }
 
