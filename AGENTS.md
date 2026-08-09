@@ -1,8 +1,11 @@
-# Machine Control Documentation Guide
+# Machine Control Project Guide
 
-This directory is the current documentation hub for cross-platform machine
-control. It contains architecture and vocabulary, not a machine-control
-implementation.
+This is the unified public repository for cross-platform machine-control
+architecture, research, implementation, fixtures, and conformance. The
+Windows resident runtime under `src/` is the first implementation vertical
+slice; the documentation describes the cross-platform destination and governs
+that code. Do not split reusable runtime code into a sibling repository merely
+because the project began as documentation.
 
 ## North Star (highest priority)
 
@@ -137,6 +140,31 @@ Preserve these rules:
 - Do not collapse a YA peer, an agent execution host, a system under test, a
   testbed provider, or a delegation handle into one identity.
 
+## Implementation workflow
+
+The Windows runtime owns the reusable target-resident facade, provider adapter
+boundary, normalized contract, protected session broker, and conformance
+fixtures. Preserve these rules:
+
+- Expose typed desktop/session capabilities, not arbitrary SYSTEM shell,
+  filesystem, registry, or provider dispatch.
+- A dedicated-test-appliance profile may arm full protected-desktop semantics,
+  capture, keyboard, pointer, and credential-provider control. Do not weaken
+  UAC, secure desktop, Windows Hello, password, or lockout policy.
+- Keep secrets out of ordinary JSON, arguments, environment variables, logs,
+  captures, evidence, and Git. A credential operation must use its dedicated
+  one-shot secret transport and refuse before reading the secret if provider or
+  field discovery is uncertain.
+- Bind observations and actions to runtime, session, desktop, and provider
+  generations. Reject stale references rather than retargeting them.
+- Keep request acceptance, delivery, effect, evidence, and uncertainty
+  separate. Report the actual provider route, capture fidelity, coordinate
+  space, privilege, and foreground/cursor consequences.
+- RustDesk is an AGPL-3.0 architecture reference, not a code donor.
+
+Use `dotnet format --verify-no-changes`, the contract tests, and appropriate
+Windows ARM64/x64 publishes before committing runtime changes.
+
 ## Documentation workflow
 
 Use a research/topic/tactical convention:
@@ -152,8 +180,10 @@ Use a research/topic/tactical convention:
   gaps, and direction derived from the research corpus.
 - Numbered tactical documents under `docs/tactical/` own bounded implementation
   slices and execution records.
-- Exact experiments and source pins remain in `machine-control-spike` or the
-  authoritative implementation/testbed repository.
+- Disposable third-party experiments and exact upstream source pins remain in
+  `machine-control-spike`; adopted reusable runtime code and its conformance
+  suites live here; target lifecycle/bootstrap/recovery evidence stays in the
+  authoritative testbed repository.
 
 Provider-first and platform-first research are complementary. A provider may
 be the best common architectural spine without being the deepest route on
@@ -165,8 +195,8 @@ Use the evidence levels defined in `research/README.md` and attach them to a
 specific provider, platform, capability, and route. Keep upstream claims,
 source review, builds, live tests, conformance evidence, and adoption distinct.
 Record the repository's declared top-level license and any relevant narrower
-terms in every provider dossier, while keeping exact revision audits in the
-spike or owning implementation repository.
+terms in every provider dossier, while keeping third-party revision audits in
+the spike and target-specific lifecycle audits in the owning testbed.
 
 Before working on a continuing concern, read its topic and relevant provider
 dossier/platform report. Update the corpus when work changes a provider fact,

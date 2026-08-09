@@ -1,6 +1,6 @@
 # Machine Control
 
-Status: current architecture notebook, started 2026-08-04.
+Status: active architecture and implementation repository, started 2026-08-04.
 
 ## Start here
 
@@ -18,6 +18,8 @@ matches the question:
   a fork or owned replacement becomes justified.
 - [Implementation tacticals](docs/tactical/README.md): bounded work selected
   from the topics.
+- [Windows runtime](#windows-runtime): the first resident implementation,
+  build/install workflow, contract, and conformance entry points.
 - [System map](SYSTEM-MAP.md): which repository or program owns each part of
   the actual system.
 
@@ -254,15 +256,68 @@ provide the same target-selection ergonomics and honest capability reporting.
 The Windows vertical slice is the immediate proving ground, not the boundary
 of the project.
 
-This directory explains how agents should develop and test applications across
-physical machines, virtual machines, and attached devices without pretending
-that every target has the same control technology. It exists because the code
-is deliberately split among YepAnywhere, the testbed inventory, standalone
-testbed repositories, guest helpers, device runners, and external recovery
-providers.
+This repository explains and implements how agents should develop and test
+applications across physical machines, virtual machines, and attached devices
+without pretending that every target has the same control technology. Reusable
+machine-control contracts and resident providers live here. YepAnywhere,
+testbed inventory, target lifecycle/recovery repositories, and native device
+runners retain their separate ownership boundaries.
 
-It is documentation only. The implementations remain in their owning
-repositories.
+## Windows runtime
+
+**Current:** `src/MachineControl.Windows` implements the first resident
+vertical slice as an automatic LocalSystem service with separate ordinary and
+protected active-session helpers. The same named-pipe facade is callable by a
+local process or through authenticated SSH. It provides bounded UI Automation,
+native window inventory and state, exact and input-desktop capture,
+target-local keyboard/pointer input, lock/logout, UAC secure-desktop control,
+and guarded stock Credential Provider login.
+
+```text
+local CLI or authenticated SSH caller
+          |
+          v
+Windows service (LocalSystem, session 0)
+          |
+          +-- ordinary helper (interactive user, Medium integrity)
+          |     +-- UI Automation and ordinary desktop state
+          |
+          +-- protected helper (LocalSystem, active session)
+                +-- system/elevated/Winlogon desktops
+                +-- disposable protected-desktop worker
+                +-- target-local capture and input
+```
+
+The current `dedicated-test-appliance` profile is intentionally powerful. Read
+[SECURITY.md](SECURITY.md) before installation; it is not a hostile-user
+containment boundary and should not be left armed on a personal or shared
+workstation.
+
+Publish the self-contained runtime for the selected architecture:
+
+```bash
+scripts/publish-windows.sh win-arm64
+scripts/publish-windows.sh win-x64
+```
+
+Install `scripts/install-windows.ps1` through the authoritative Windows
+testbed's administrative transport. The ordinary contract accepts one-line
+JSON through `machine-control-windows.exe call`; every result separates route,
+session/desktop/generation, delivery, observed effect, and uncertainty.
+
+PIN/password login deliberately does not accept a secret in JSON, arguments,
+environment variables, or files. An authorized human uses the non-echoing
+helper, which carries one secret through a dedicated one-shot channel after
+semantic Credential Provider discovery:
+
+```bash
+scripts/login-windows.sh <ssh-target> pin
+scripts/login-windows.sh <ssh-target> password
+```
+
+Windows conformance suites live under [`tests/windows`](tests/windows/README.md),
+and minimized physical-x64 results live in
+[`docs/evidence/windows-physical-x64.md`](docs/evidence/windows-physical-x64.md).
 
 ## Current position
 
@@ -425,9 +480,9 @@ benchmark on supported systems. Because its protocol and availability are tied
 to a proprietary agent product, it cannot be the only expression of the
 target-native contract.
 
-This directory is the current synthesis. It should link to detailed evidence
-in the spike and to behavior owned by the testbeds instead of becoming another
-implementation repository.
+This repository is the current synthesis and reusable implementation. It links
+to disposable third-party evidence in the spike and lifecycle/recovery
+behavior owned by the testbeds instead of duplicating those responsibilities.
 
 ## Non-goals
 
@@ -438,8 +493,8 @@ implementation repository.
 - Giving a guest worker generic access to its hypervisor or physical KVM.
 - Requiring an in-target agent session before an authorized outside caller can
   use the resident controller.
-- Treating login, credentials, biometrics, or protected authorization as
-  ordinary agent actions.
+- Treating secrets, biometrics, or protected authorization as ordinary JSON or
+  unguarded agent actions.
 - Freezing a cross-platform wire protocol before the Windows local-and-remote
   vertical slice has survived real use.
 

@@ -17,18 +17,24 @@ YepAnywhere's delegation direction is documented in
 Delegation creates a normal worker session on a YA peer; it does not turn YA
 into a raw proxy for every testbed CLI.
 
-## Missing common implementation boundary
+## Target-controller implementation boundary
 
-**Open:** There is not yet one implemented target-controller runtime or facade
-shared by Windows, macOS, Linux, and ChromeOS. The Windows-first slice should
-establish the contract boundary between authenticated local/remote sessions,
-the interactive-session companion, platform adapters, and any protected
-broker. It may initially compose existing WinVM administration and WinApp
-mechanisms rather than moving their lifecycle or recovery ownership.
+| Repository | Current role | Does not own |
+| --- | --- | --- |
+| [`machine-control`](README.md) | Cross-platform architecture/research plus the owned target-resident facade, provider boundary, Windows service/session implementation, typed protected broker, fixtures, and conformance corpus | Testbed lifecycle/bootstrap/recovery, private deployment inventory, YA delegation, or product assertions |
 
-This future implementation is not YepAnywhere delegation, not dotfiles
-inventory, and not an outer testbed. Its repository ownership should be added
-to this map only after the Windows slice provides enough evidence to choose it.
+**Current:** The Windows-first runtime establishes the implementation boundary
+between authenticated local/remote callers, a Medium interactive-session
+companion, replaceable providers, and a typed LocalSystem protected route. Its
+physical x64 evidence covers ordinary system-shell control, UAC secure desktop,
+elevated applications, lock, logout, and Windows boot recovery. The dual-boot
+testbed must explicitly reselect Windows after one-shot EFI `BootNext`; a
+generic reboot otherwise returns to its default OS.
+
+This is not yet one implementation shared by Windows, macOS, Linux, and
+ChromeOS. Later platform adapters should reuse the contract and conformance
+shape here where that is honest; they must not move their target-specific
+lifecycle or recovery ownership into this repository.
 
 ## Desktop VM testbeds
 
@@ -82,9 +88,11 @@ When adding a capability:
 
 1. Put target-specific lifecycle, bootstrap, and recovery in the authoritative
    testbed.
-2. Put native semantic behavior in a guest/device provider owned by that
-   testbed or a deliberately selected upstream dependency.
-3. Put cross-provider capability vocabulary and conformance expectations here.
+2. Put reusable resident semantic behavior and provider adapters here; keep a
+   target-specific native runner in its authoritative testbed when it is not a
+   reusable machine-control component.
+3. Put cross-provider capability vocabulary and conformance expectations here
+   beside the implementation they govern.
 4. Put worker creation, peer authorization, observation, and supervision in
    YepAnywhere coordination.
 5. Put product-specific assertions in the consuming application repository.

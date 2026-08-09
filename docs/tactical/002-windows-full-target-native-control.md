@@ -149,12 +149,11 @@ desktop-transition comparison if it can be isolated and completely removed.
 
 ### 2 — create the owned runtime boundary
 
-Create a deliberately reusable runtime repository rather than placing product
-code in this documentation hub, the research spike, or WinVM. Define the
-smallest versioned request/result types needed by this tactical, a provider
-adapter boundary, deterministic fixtures, architecture-neutral build outputs,
-and public-repository safety rules. Add the repository to `SYSTEM-MAP.md` only
-after that ownership exists.
+Create a deliberately reusable runtime boundary in this repository rather than
+placing product code in the research spike or WinVM. Define the smallest
+versioned request/result types needed by this tactical, a provider adapter
+boundary, deterministic fixtures, architecture-neutral build outputs, and
+public-repository safety rules. Record that ownership in `SYSTEM-MAP.md`.
 
 ### 3 — install service and session supervision
 
@@ -208,12 +207,39 @@ Withhold outer control from the acceptance caller. Test refused authority,
 wrong desktop/session, stale generation, failed provider, unavailable
 semantics, visual fallback, revoke, and uncertain completion. Restore mutated
 state, uninstall experimental benchmarks, preserve only deliberately adopted
-runtime components, and return the VM lifecycle. Record exact source/build and
-experiment evidence outside this architecture repository.
+runtime components, and return the VM lifecycle. Keep adopted conformance here
+while disposable third-party pins and testbed lifecycle evidence remain in
+their owning repositories.
 
 ## Validation record
 
-Execution has started. Exact sources, build pins, commands, and generated live
-evidence belong in the owned runtime, `machine-control-spike`, and
-`winvm-testbed`. Update this section with the final result, deviations,
-remaining gaps, and authoritative links when the tactical ends.
+Execution is active. This repository's [`src/`](../../src) and
+[`tests/windows`](../../tests/windows/README.md) contain the facade, split
+Medium/protected session planes, typed service lifecycle operations,
+Windows-native provider, deterministic fixtures, and conformance suites.
+
+**Current:** Windows ARM64 VM validation passed ordinary system-shell control,
+local/remote parity, genuine UAC secure-desktop approve/cancel, elevated
+fixture control, lock, logout/no-user state, helper recreation, revocation, and
+reboot. Physical x64 validation passed the same architecture through ordinary,
+UAC, elevated, lock, logout, and stock PIN/password login cases. The minimized
+measurements and exact deviations live in the
+[`physical x64 evidence`](../evidence/windows-physical-x64.md).
+
+**Current:** A generic reboot after one-shot EFI `BootNext` returned the
+dual-boot target to Linux and therefore did not test Windows restart. After the
+testbed explicitly selected Windows again, Windows SSH authenticated, the
+automatic runtime returned with a new generation, and its Medium helper
+reattached. The earlier suspected pre-login SSH failure was the Linux service,
+not a Windows carrier defect.
+
+**Open:** Do not close this tactical until physical cleanup is verified, the VM
+is returned to its prior lifecycle and UAC state, and the remaining live Cua
+and WinApp provider-composition condition is either implemented or deliberately
+respecified from the native vertical-slice evidence.
+
+**Deviation:** The current executable proves the owned native provider rather
+than composing live Cua and WinApp adapters. Provider inventory reports both as
+not connected instead of silently claiming the provisional hybrid. This is a
+functional native vertical slice and strong conformance baseline, but the
+provider-composition completion condition remains open.

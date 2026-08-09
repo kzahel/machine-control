@@ -7,6 +7,16 @@ Windows system-shell acceptance run are complete. Full target-native Windows
 implementation is active in
 [`Tactical 002`](../docs/tactical/002-windows-full-target-native-control.md).
 
+**Current:** The implementation under [`src/`](../src) provides the first
+Windows service/session vertical slice. VM and physical x64 evidence covers the
+ordinary Medium plane, native system-shell control, local/remote parity,
+genuine UAC secure-desktop approve/cancel, High-integrity fixture control,
+lock, logout, stock PIN/password login, and restartable helpers. Physical
+recovery also proved that the dual-boot lifecycle must reselect Windows after
+one-shot EFI `BootNext`; once selected, SSH, the automatic service, a new
+generation, and the Medium helper returned. Tactical 002 remains active until
+remaining provider-composition gaps are resolved.
+
 ## Scope
 
 This topic owns the current Windows proving-ground decisions, unresolved
@@ -168,7 +178,8 @@ hold the only authority capable of repairing its resident provider.
 
 Begin with an explicit dedicated-test-appliance profile. Its installed Windows
 service may authorize complete protected-desktop semantics, capture, keyboard,
-and pointer input across elevated, UAC, lock/login, and session transitions.
+pointer input, and guarded stock Credential Provider selection across elevated,
+UAC, lock/login, and session transitions.
 Keep protected operations typed and separate from arbitrary SYSTEM command
 execution, with authenticated peers, request/target/generation binding,
 expiry, revocation, and conformance tests. “Narrow” describes the authority and
