@@ -34,11 +34,26 @@ if [[ "$mode" == "check" ]]; then
         "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $REMOTE_SCRIPT -CheckOnly"
 fi
 
-set +e
-ssh -o BatchMode=yes "$WINVM_SSH_HOST" \
-    "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $REMOTE_SCRIPT -ConfirmGeneralize" \
-    >/dev/null 2>&1
-set -e
+read -r -d '' launch_script <<'POWERSHELL' || true
+$ErrorActionPreference = 'Stop'
+$taskName = 'WinVM Image Generalization'
+$scriptPath = 'C:\Users\Public\winvm-prepare-generalized-image.ps1'
+$arguments = '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass ' +
+    ('-File "{0}" -ConfirmGeneralize -TaskName "{1}" ' -f
+        $scriptPath, $taskName) +
+    '-StartDelaySeconds 5'
+$action = New-ScheduledTaskAction `
+    -Execute 'powershell.exe' -Argument $arguments
+Register-ScheduledTask -TaskName $taskName -Action $action `
+    -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
+Start-ScheduledTask -TaskName $taskName
+[ordered]@{
+    schema = 'winvm-generalization-launch/v0'
+    task_registered = $true
+    execution_identity = 'LocalSystem'
+} | ConvertTo-Json -Compress
+POWERSHELL
+winvm_powershell "$launch_script" >/dev/null
 
 deadline=$((SECONDS + 900))
 while (( SECONDS < deadline )); do

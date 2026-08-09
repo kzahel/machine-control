@@ -3,7 +3,10 @@
 [CmdletBinding()]
 param(
     [switch]$CheckOnly,
-    [switch]$ConfirmGeneralize
+    [switch]$ConfirmGeneralize,
+    [string]$TaskName,
+    [ValidateRange(0, 30)]
+    [int]$StartDelaySeconds = 0
 )
 
 Set-StrictMode -Version Latest
@@ -92,10 +95,10 @@ $administrator = [Security.Principal.WindowsPrincipal]::new($identity).
     IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 $service = Get-Service -Name MachineControlRuntime -ErrorAction SilentlyContinue
 $sysprep = Join-Path $env:WINDIR 'System32\Sysprep\Sysprep.exe'
-$pendingReboot = @(
-    'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending',
-    'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired'
-) | Where-Object { Test-Path -LiteralPath $_ }
+$pendingReboot = @(@(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending',
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired'
+    ) | Where-Object { Test-Path -LiteralPath $_ })
 $preflight = [ordered]@{
     schema = 'winvm-image-generalization/v0'
     administrator = $administrator
@@ -122,6 +125,13 @@ if (-not $administrator -or -not (Test-Path -LiteralPath $sysprep)) {
 }
 if ($pendingReboot.Count -ne 0) {
     throw 'Generalization refuses a target with pending reboot markers'
+}
+if ($TaskName) {
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false `
+        -ErrorAction SilentlyContinue
+}
+if ($StartDelaySeconds -gt 0) {
+    Start-Sleep -Seconds $StartDelaySeconds
 }
 
 New-Item -ItemType Directory -Force -Path $receiptRoot | Out-Null
