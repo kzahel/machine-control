@@ -117,6 +117,23 @@ if ($CheckOnly) {
     exit $(if ($administrator -and (Test-Path -LiteralPath $sysprep) -and
         $pendingReboot.Count -eq 0) { 0 } else { 1 })
 }
+Remove-Item -LiteralPath $receiptPath -Force -ErrorAction SilentlyContinue
+trap {
+    $failure = $_
+    try {
+        New-Item -ItemType Directory -Force -Path $receiptRoot | Out-Null
+        [ordered]@{
+            schema = 'winvm-image-generalization/v0'
+            state = 'failed'
+            error_type = $failure.Exception.GetType().FullName
+            message = $failure.Exception.Message
+            line = $failure.InvocationInfo.ScriptLineNumber
+        } | ConvertTo-Json | Set-Content -LiteralPath `
+            $receiptPath -Encoding utf8
+    }
+    catch { }
+    throw $failure.Exception
+}
 if (-not $ConfirmGeneralize) {
     throw 'Generalization requires -ConfirmGeneralize'
 }

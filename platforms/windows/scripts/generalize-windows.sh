@@ -55,12 +55,34 @@ Start-ScheduledTask -TaskName $taskName
 POWERSHELL
 winvm_powershell "$launch_script" >/dev/null
 
+guest_ip="$("$WINVM_REPO_DIR/bin/winvm" ip)"
+read -r -d '' failure_probe <<'POWERSHELL' || true
+$path = 'C:\ProgramData\WinVM-Factory\generalization-receipt.json'
+if (Test-Path -LiteralPath $path) {
+    $receipt = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+    if ($receipt.state -eq 'failed') {
+        '{0}`t{1}`t{2}' -f $receipt.error_type, $receipt.line, $receipt.message
+    }
+}
+POWERSHELL
+failure_probe_encoded="$(printf '%s' "$failure_probe" | winvm_encode_powershell)"
 deadline=$((SECONDS + 900))
 while (( SECONDS < deadline )); do
     state="$("$WINVM_REPO_DIR/bin/winvm" status 2>/dev/null || true)"
     if [[ "$state" == "stopped" ]]; then
         printf 'generalized shutdown observed\n'
         exit 0
+    fi
+    if winvm_tcp_check "$guest_ip" "$WINVM_SSH_PORT" 1; then
+        failure="$(ssh -o BatchMode=yes -o ConnectTimeout=2 \
+            -o ProxyCommand=none -o HostName="$guest_ip" \
+            "$WINVM_SSH_HOST" \
+            "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand $failure_probe_encoded" \
+            2>/dev/null || true)"
+        if [[ -n "$failure" ]]; then
+            printf 'Guest generalization failed: %s\n' "$failure" >&2
+            exit 1
+        fi
     fi
     sleep 2
 done
