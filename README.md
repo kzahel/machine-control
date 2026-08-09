@@ -320,7 +320,11 @@ scripts/bootstrap-windows.sh --testbed ../winvm-testbed <ssh-target>
 
 This is the MachineControl-layer bootstrap. Windows OOBE, guest tools, SSH,
 appliance login policy, VM cloning, and image sealing remain owned by the
-authoritative testbed.
+authoritative testbed. Its
+[image-factory runbook](../winvm-testbed/docs/image-factory.md) now covers
+secret-safe unattended inputs, fail-closed UUID/role selection, BitLocker and
+AppX preflight, Sysprep shutdown, stopped export/manifest, and disposable OOBE
+verification.
 
 PIN/password login deliberately does not accept a secret in JSON, arguments,
 environment variables, or files. An authorized human uses the non-echoing
@@ -341,6 +345,13 @@ recorded in
 The reproducible bootstrap, sustained Calculator/Notepad workflow, recovery,
 cleanup, and disposable seal verification are recorded in
 [`Tactical 005`](docs/tactical/005-windows-clean-appliance-and-real-application-acceptance.md).
+The completed safety and generalized-image slice is recorded in
+[`Tactical 006`](docs/tactical/006-windows-safety-launch-efficiency-and-image-factory.md):
+native registered/package activation and UIA window lifecycle, four-application
+local/remote acceptance, compact plus digest-matched unchanged observations,
+and a live generalized ARM64 export with disposable OOBE proof. The
+ISO-to-new-base route remains implemented but awaits explicit compatible
+installation media for live validation.
 
 ## Current position
 

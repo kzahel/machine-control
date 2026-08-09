@@ -16,6 +16,23 @@ stale-reference events. Cua references are opaque facade references bound to
 the runtime and provider generation. The common vocabulary remains a proposal;
 the live Windows shape is evidence for it, not a prematurely frozen protocol.
 
+**Current — repeated observation:** Tactical 006 added explicit `full` and
+`compact` semantic projections plus a content digest whose scope excludes
+ephemeral generation references. A caller may supply the prior digest; only a
+matching digest returns `unchanged: true` without elements. On final Calculator
+state, compact was 6,577 bytes versus 9,971 full and unchanged was 1,165 bytes;
+Settings measured 3,843 versus 4,971 and 986 bytes. The result continues to
+identify the actual Cua or native UIA route and does not silently trade away
+full fidelity.
+
+**Current — action effects:** Registered application activation reports the
+Windows activation route, returned process, matching visible window, and
+effect. Packaged-window lifecycle uses native UIA `WindowPattern` with semantic
+and HWND readback after live Win32 no-effects; a disclosed Win32 route remains
+available when that pattern is absent. The four-app local/remote corpus requires
+independent UI, file, capture, and cleanup effects rather than successful API
+return alone.
+
 ## Contract and session envelope
 
 Local IPC, SSH, an authenticated tunnel, CLI/SDK calls, and MCP are facades or

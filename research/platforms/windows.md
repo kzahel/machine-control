@@ -167,6 +167,17 @@ readback, authorized input fallbacks, sessions, UAC secure desktop, and the
 High-integrity fixture. Both local and authenticated remote placements used
 the same operations and result vocabulary without outer input.
 
+Tactical 006 extended that evidence to Calculator, Settings, Character Map,
+and Notepad in identical 51-call remote and target-local workflows. Windows
+`IApplicationActivationManager` plus AppUserModelID window association replaced
+Run-dialog launch for registered applications. Native UIA `WindowPattern`
+replaced unreliable `ShowWindowAsync` as the primary packaged-window lifecycle
+route. Cua remained the richer ordinary-window observer and exact-capture route,
+while native UIA supplied deterministic Calculator actions, system semantics,
+and independent effects. Compact and digest-matched unchanged projections
+materially reduced repeated Calculator and Settings payloads without removing
+the full projection.
+
 ## Architecture options
 
 ### Cua-centered resident stack
@@ -215,13 +226,14 @@ evidence shows that Cua/WinApp cannot be layered or upstreamed coherently.
 
 ## Next evidence
 
-1. Run longer real-application workflows through the adopted facade and add
-   event-aware fixture cases for remaining toolkit, transient, multi-display,
-   and occlusion behavior.
+1. Extend the proven four-application workflow to remaining toolkits,
+   transient surfaces, multi-display, occlusion, and longer soak behavior.
 2. Exercise additional Windows builds, hardware, console/RDP, fast-user-switch,
    and policy/localization configurations.
 3. Harden endpoint authorization and artifact transfer beyond the current
    dedicated-appliance/local-user boundary.
 4. Revisit Cua release provenance and upstream deltas only when a concrete
    reliability, packaging, security, or missing-capability question changes.
-5. Bootstrap, validate, and seal the resident stack from a clean image.
+5. Supply explicit compatible Windows media and execute the implemented
+   unattended ISO-to-new-base path through first-logon bootstrap and product
+   acceptance.

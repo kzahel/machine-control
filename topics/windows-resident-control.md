@@ -9,6 +9,10 @@ and
 [`Tactical 004`](../docs/tactical/004-windows-provider-composition-and-agent-ergonomics.md),
 with clean-appliance acceptance in
 [`Tactical 005`](../docs/tactical/005-windows-clean-appliance-and-real-application-acceptance.md).
+Target safety, native activation/window lifecycle, efficient repeated
+observation, expanded real-app acceptance, and generalized-image export are
+complete in
+[`Tactical 006`](../docs/tactical/006-windows-safety-launch-efficiency-and-image-factory.md).
 
 **Current:** The implementation under [`src/`](../src) provides the first
 Windows service/session vertical slice. It composes pinned Cua at Medium
@@ -28,11 +32,26 @@ both placements, clean shutdown, a stopped retained seal, and a successful
 disposable verification boot. Its source-target selection deviation is
 recorded in Tactical 005 and does not weaken the explicit-target requirement.
 
-**Current:** [`Tactical 006`](../docs/tactical/006-windows-safety-launch-efficiency-and-image-factory.md)
-is closing the gaps exposed by that milestone: fail-closed target identity,
-native registered-application activation, broader application evidence,
-compact unchanged-aware semantics, and a testbed-owned generalized-image
-factory.
+**Current:** The next slice closed the gaps exposed by that milestone. The
+testbed now fails mutation closed against a provider UUID and target role, and
+MachineControl bootstrap validates that assertion. The facade activates
+registered applications through `IApplicationActivationManager`, controls
+window lifecycle through UIA `WindowPattern` with independent readback, and
+supports full, compact, and digest-matched unchanged observations.
+
+Calculator, Settings, Character Map, and Notepad pass the same 51-call workflow
+from authenticated-remote and target-local placements, with independent app,
+semantic, window, file, capture, and cleanup effects. Calculator compact state
+was 66% of full and its unchanged response 17.7% of compact; Settings measured
+77.3% and 25.7% respectively.
+
+The authoritative testbed also generalized a live ARM64 candidate after
+explicit BitLocker and per-user AppX preparation, observed Sysprep shutdown,
+exported a stopped private UTM bundle and manifest, and reached Windows OOBE in
+a non-persistent boot. The unattended ISO-to-new-base path is implemented but
+not live-proven because no compatible local installation media was available;
+the exact remaining boundary is recorded in Tactical 006 and the testbed
+[image-factory runbook](../../winvm-testbed/docs/image-factory.md).
 
 ## Scope
 
@@ -67,6 +86,13 @@ Its completed shell-acceptance slice lives in
   WinApp remains an external testbed comparison rather than an installed
   runtime dependency. No provider owns the project contract, lifecycle,
   protected authority, or recovery boundary.
+- Registered/package activation and application-frame association use owned
+  Windows Shell APIs. Native UIA `WindowPattern` is the primary window-state
+  route because live packaged-window acceptance showed intermittent Win32
+  `ShowWindowAsync` no-effects; Win32 remains a disclosed fallback.
+- Repeated observations may request an explicit compact projection and provide
+  a prior content digest. Matching unchanged state suppresses elements only
+  when the digest scope matches; full fidelity remains caller-selectable.
 - Computer Use is an optional provider and ergonomic benchmark, not the only
   remotely usable surface.
 - ChromeOS is the current quality and architecture reference for rich outside

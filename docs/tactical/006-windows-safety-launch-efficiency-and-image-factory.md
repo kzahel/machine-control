@@ -1,6 +1,6 @@
 # Tactical 006: Windows Safety, Launch, Efficiency, and Image Factory
 
-Status: active.
+Status: complete.
 
 Topics: `windows-resident-control`, `architecture`, and
 `capabilities-and-results`.
@@ -133,4 +133,119 @@ measurements, deviations, and the exact remaining boundary.
 
 ## Validation record
 
-Execution not yet complete.
+Completed 2026-08-10.
+
+### Target safety and bootstrap binding
+
+The authoritative testbed now pins UTM's immutable target UUID in ignored
+state, classifies `source`, `candidate`, and `seal` roles, and checks each
+operation against that role before dispatch. Source deletion is never allowed;
+source mutation and persistent seal boot require separate overrides. Product
+bootstrap consumes the testbed's machine-readable candidate assertion and
+requires `--allow-unattested-target` when no integrated testbed can attest a
+physical or alternate-provider target.
+
+Live cleanup exposed an important second-process configuration bug: the CLI's
+selected target name could be replaced by `config.local` while its UUID and
+role survived. The testbed now preserves the resolved selection across child
+processes, gives explicit environment values precedence over file defaults,
+and addresses all pinned UTM lifecycle, clone, export, guest-agent, and
+recovery-input operations by UUID. Mocked regressions prove double-source
+layering and UUID-addressed deletion.
+
+### Native application and window behavior
+
+`app.activate` uses Windows `IApplicationActivationManager` for registered or
+packaged application identities. It reports the returned process, activation
+route, matching visible HWNDs, and independently confirmed effect. Packaged
+frame association uses the window AppUserModelID property, including existing
+Settings frames hosted by `ApplicationFrameHost`.
+
+The final acceptance rerun caught intermittent `ShowWindowAsync` no-effects
+on Calculator. Window lifecycle now uses native UI Automation `WindowPattern`
+as the primary maximize, restore, minimize, and close route, retains Win32 as
+a disclosed fallback, and reads back semantic plus HWND state. The suite
+requires all four transitions rather than merely recording partial success.
+
+Both authenticated-remote and target-local Medium-user placements passed 51
+facade calls over the same four-application workflow:
+
+- Calculator: registered activation, four native UIA actions, independent
+  display value, exact-window capture, four confirmed state transitions, and
+  close;
+- Settings: registered activation, system-scope UIA semantics, and preservation
+  of a pre-existing window;
+- Character Map: classic executable launch, matching process/window effect,
+  native UIA semantics, and close; and
+- Notepad: visible launch, two semantic edits, two exact filesystem saves,
+  reopen/readback, exact-window capture, close, and document cleanup.
+
+Both placements reported all owned windows, documents, and captures cleaned.
+
+### Compact and unchanged observations
+
+Snapshots now accept explicit `full` or `compact` projection and return a
+digest whose scope excludes generation-scoped references. Suppression occurs
+only when the caller supplies a matching prior digest; an unchanged response
+states `unchanged: true` and omits the element collection. Full fidelity
+remains available.
+
+Final real-application payloads were:
+
+| Surface | Full | Compact | Unchanged | Compact/full | Unchanged/compact |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Calculator | 9,971 B / ~2,493 tokens | 6,577 B / ~1,644 | 1,165 B / ~291 | 0.660 | 0.177 |
+| Settings | 4,971 B / ~1,243 tokens | 3,843 B / ~961 | 986 B / ~246 | 0.773 | 0.257 |
+
+The local and remote runs produced the same sizes on the final application
+state. Results still report the actual Cua or native UIA route, latency,
+fallback, delivery, effect, focus, and cursor consequences.
+
+### Image factory
+
+The Windows testbed now owns:
+
+- a secret-safe unattended answer-file renderer and ignored answer-media ISO;
+- explicit local Windows-media validation and a parsed ARM64 UTM creation
+  recipe;
+- first-logon OpenSSH/public-key bootstrap;
+- candidate-only preflight, BitLocker decryption, and exact AppX
+  reconciliation;
+- detached LocalSystem preparation, auto-logon/LSA cleanup, SSH host-identity
+  removal, and Sysprep `/generalize /oobe /shutdown /mode:vm`;
+- stopped UTM export plus an atomic private manifest; and
+- disposable OOBE verification without persisting the first boot.
+
+Live preflight found two real blockers rather than hiding them: the OS volume
+was fully encrypted with protection off, and six removable per-user AppX
+packages were absent from image provisioning. Explicit preparation reached
+`FullyDecrypted` and reconciled the exact reported packages. Sysprep then
+completed, UTM independently observed shutdown, a roughly 53-GiB private
+bundle was exported, and a disposable boot visibly reached the Windows
+country/region OOBE page. The adjacent mode-0600 manifest records the declared
+same-controller UTM profile and confirmed disposable OOBE without a persistent
+first boot.
+
+The retained pre-generalization recovery clone passed a disposable `doctor`
+run and is stopped. The generalized export is stopped. Temporary host keys,
+answer media, acceptance artifacts, and screenshots were removed and were not
+committed.
+
+### Validation commands and remaining boundary
+
+- Both `win-arm64` and `win-x64` runtime builds completed with no warnings or
+  errors.
+- `tests/windows/bootstrap-target-safety.sh` passed.
+- The testbed's `tests/image-factory.sh` and `tests/smoke.sh` passed, including
+  target-role, configuration-layering, UUID-deletion, renderer, manifest, and
+  mocked provider checks.
+- The UTM factory AppleScript parsed against the installed UTM dictionary.
+
+No compatible licensed Windows installation ISO was present locally. The
+ISO-to-new-base lane therefore stops honestly at: explicit media validation,
+`factory-create`, Setup/image-index and driver compatibility, first-logon SSH
+bootstrap, answer-media removal, and product installation on that newly
+created target. The renderer and provider boundary are implemented and tested,
+but this lane is not called live-proven until such media is supplied. See the
+authoritative testbed's
+[`image-factory.md`](../../../winvm-testbed/docs/image-factory.md).
