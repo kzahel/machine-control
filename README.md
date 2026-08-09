@@ -315,7 +315,7 @@ publishes and verifies the package, installs it idempotently, waits for the
 Medium helper and providers, removes staging, and returns minimized readiness:
 
 ```bash
-scripts/bootstrap-windows.sh <ssh-target>
+scripts/bootstrap-windows.sh --testbed ../winvm-testbed <ssh-target>
 ```
 
 This is the MachineControl-layer bootstrap. Windows OOBE, guest tools, SSH,

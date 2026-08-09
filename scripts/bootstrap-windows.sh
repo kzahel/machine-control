@@ -4,15 +4,56 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Usage: bootstrap-windows.sh SSH_TARGET [win-arm64|win-x64]
+Usage: bootstrap-windows.sh (--testbed PATH | --allow-unattested-target)
+                            [--check-target] SSH_TARGET [win-arm64|win-x64]
 
 Build, verify, transfer, install, and probe MachineControl on a testbed-ready
 Windows target. When the runtime identifier is omitted, target architecture is
 detected through PowerShell over the authenticated SSH carrier.
+
+--testbed requires a provider-native identity assertion authorizing product
+installation on a candidate and binds it to SSH_TARGET. The conspicuous
+--allow-unattested-target escape hatch is for explicitly selected physical or
+non-integrated targets. --check-target validates the assertion without making
+or connecting to the target.
 EOF
 }
 
-if [[ $# -lt 1 || $# -gt 2 ]]; then
+testbed_root=""
+allow_unattested=0
+check_target_only=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --testbed)
+            if [[ $# -lt 2 || -z "$2" ]]; then usage >&2; exit 2; fi
+            testbed_root="$2"
+            shift 2
+            ;;
+        --allow-unattested-target)
+            allow_unattested=1
+            shift
+            ;;
+        --check-target)
+            check_target_only=1
+            shift
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        --*)
+            printf 'Unknown option: %s\n' "$1" >&2
+            usage >&2
+            exit 2
+            ;;
+        *) break ;;
+    esac
+done
+
+if [[ $# -lt 1 || $# -gt 2 ||
+    ( -n "$testbed_root" && "$allow_unattested" -eq 1 ) ||
+    ( -z "$testbed_root" && "$allow_unattested" -eq 0 ) ||
+    ( "$check_target_only" -eq 1 && -z "$testbed_root" ) ]]; then
     usage >&2
     exit 2
 fi
@@ -27,6 +68,38 @@ esac
 readonly repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 readonly ssh_bin="${MACHINE_CONTROL_SSH_BIN:-ssh}"
 readonly scp_bin="${MACHINE_CONTROL_SCP_BIN:-scp}"
+
+if [[ -n "$testbed_root" ]]; then
+    readonly assertion_command="$testbed_root/bin/winvm"
+    if [[ ! -x "$assertion_command" ]]; then
+        printf 'Testbed assertion command is unavailable.\n' >&2
+        exit 1
+    fi
+    if ! command -v jq >/dev/null 2>&1; then
+        printf 'Required command not found: jq\n' >&2
+        exit 1
+    fi
+    if ! target_assertion="$($assertion_command \
+            assert-target product-install --json)"; then
+        printf 'Testbed target assertion refused product installation.\n' >&2
+        exit 1
+    fi
+    if ! jq -e \
+        --arg target "$ssh_target" \
+        '.authorized == true and
+         .identity_pin == "verified" and
+         .role == "candidate" and
+         .operation == "product-install" and
+         .transport.ssh_alias == $target' \
+        >/dev/null <<< "$target_assertion"; then
+        printf 'Testbed assertion does not bind this candidate SSH target.\n' >&2
+        exit 1
+    fi
+    if [[ "$check_target_only" -eq 1 ]]; then
+        printf 'target assertion passed\n'
+        exit 0
+    fi
+fi
 
 for command_name in "$ssh_bin" "$scp_bin" iconv base64 jq shasum; do
     if ! command -v "$command_name" >/dev/null 2>&1; then

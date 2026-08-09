@@ -1,5 +1,7 @@
 artifacts/
 bin/
+!tests/fixtures/asserted-testbed/bin/
+!tests/fixtures/asserted-testbed/bin/winvm
 obj/
 publish/
 .cache/

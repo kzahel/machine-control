@@ -28,10 +28,19 @@ The Windows suites exercise the same installed facade from two placements:
   dedicated non-JSON secret channel.
 
 `scripts/bootstrap-windows.sh` is the reproducible host-to-target installation
-path used before these suites. It detects ARM64/x64, builds and verifies the
-matching package, installs through administrative SSH, waits for the Medium
-helper and adopted providers, and removes transfer staging. It assumes a
-testbed-ready Windows base; it is not an OOBE or credential bootstrap.
+path used before these suites. It requires a UUID-pinned candidate assertion
+from the authoritative testbed, or the explicit `--allow-unattested-target`
+mode for physical and non-integrated targets. It detects ARM64/x64, builds and
+verifies the matching package, installs through administrative SSH, waits for
+the Medium helper and adopted providers, and removes transfer staging. It
+assumes a testbed-ready Windows base; it is not an OOBE or credential
+bootstrap.
+
+Run its host-side target-safety checks with:
+
+```bash
+tests/windows/bootstrap-target-safety.sh
+```
 
 The suites write generated evidence only to caller-selected target-local paths.
 Do not commit raw output or screenshots. A testbed operator must separately

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ "$*" != "assert-target product-install --json" ]]; then
+    printf 'unexpected mock invocation\n' >&2
+    exit 2
+fi
+
+jq -n --arg alias "${MOCK_WINVM_SSH_ALIAS:-fixture-target}" \
+    '{schema_version: 1, provider: "fixture", identity_pin: "verified", role: "candidate", operation: "product-install", authorized: true, state: "stopped", transport: {ssh_alias: $alias}}'
