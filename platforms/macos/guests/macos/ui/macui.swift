@@ -524,6 +524,14 @@ final class ResidentService {
                            message: "Cua \(providerOperation) reported \(code)",
                            route: route)
         }
+        if providerResult["effect"] as? String == "refused" ||
+                providerResult["code"] != nil {
+            return refused(request,
+                code: providerResult["code"] as? String ?? "provider_refused",
+                message: providerResult["message"] as? String ??
+                    "Cua \(providerOperation) refused the operation",
+                route: route)
+        }
         let delivery: String
         if let value = providerResult["delivery"] as? String {
             delivery = value
@@ -844,13 +852,15 @@ final class ResidentService {
                          "operations": ["applications", "windows", "snapshot", "action",
                                         "application.launch", "application.activate",
                                         "application.terminate", "input.key",
-                                        "input.text", "input.click", "capture"]],
+                                        "input.text", "input.click", "window.close",
+                                        "capture"]],
                         ["id": "cua", "state": cua == nil ? "unavailable" : "ready",
                          "routeClass": "guest.user", "placement": "target_resident",
                          "operations": ["applications", "windows", "snapshot", "action",
                                         "application.launch", "application.activate",
                                         "application.terminate", "input.key",
-                                        "input.text", "input.click", "capture"]],
+                                        "input.text", "input.click", "window.close",
+                                        "capture"]],
                     ],
                     "routing": [
                         ["operations": ["snapshot", "action"],
@@ -863,6 +873,8 @@ final class ResidentService {
                         ["operations": ["applications", "application.launch",
                                          "application.activate", "application.terminate"],
                          "provider": cua == nil ? "macos.workspace" : "cua"],
+                        ["operations": ["window.close"],
+                         "provider": defaultSemanticProvider],
                     ],
                     "screenCaptureAuthorized": CGPreflightScreenCaptureAccess(),
                     "accessibilityAuthorized": AXIsProcessTrusted(),
@@ -1159,6 +1171,66 @@ final class ResidentService {
                 result["effect"] = NSWorkspace.shared.frontmostApplication?
                     .processIdentifier == app.processIdentifier ? "confirmed" : "unknown"
                 result["focusConsequence"] = "target_application_activated"
+            case "window.close":
+                guard let query = requestString(request, "target") else {
+                    result = refused(request, code: "invalid_request",
+                                     message: "target is required")
+                    break
+                }
+                if useCua(request) {
+                    let (pid, _) = try cuaApplication(query)
+                    let window = try cuaWindow(pid: pid)
+                    guard let windowID = (window["window_id"] as? NSNumber)?.intValue else {
+                        throw MacUIError.element("Cua window has no native identifier")
+                    }
+                    let output = try cuaCall("invoke_menu", [
+                        "pid": pid, "window_id": windowID,
+                        "path": ["File", "Close Window"],
+                    ])
+                    result = projectCuaResult(request,
+                        providerOperation: "invoke_menu", providerResult: output,
+                        route: "guest.user/macos.cua")
+                    var closed = false
+                    for _ in 0..<20 {
+                        usleep(100_000)
+                        let remaining = try cuaCall("list_windows", [:])["windows"]
+                            as? [[String: Any]] ?? []
+                        closed = !remaining.contains {
+                            ($0["window_id"] as? NSNumber)?.intValue == windowID &&
+                            ($0["is_on_screen"] as? Bool) == true
+                        }
+                        if closed { break }
+                    }
+                    result["effect"] = closed ? "confirmed" : "unverifiable"
+                    result["uncertainty"] = closed ? "none" : "window_still_observable"
+                    result["evidence"] = [["kind": "window_state",
+                                           "summary": closed ?
+                                            "Exact window is no longer on screen" :
+                                            "Exact window remains on screen"]]
+                    break
+                }
+                try requireAccessibility()
+                let app = try resolveApplication(query)
+                let root = AXUIElementCreateApplication(app.processIdentifier)
+                let windows = (attribute(root, kAXWindowsAttribute as CFString)
+                               as? [AXUIElement]) ?? []
+                guard let window = windows.first,
+                      let closeButton = attribute(window,
+                        kAXCloseButtonAttribute as CFString) else {
+                    result = refused(request, code: "window_not_found",
+                                     message: "No closeable native window was found",
+                                     route: "guest.user/macos.ax")
+                    break
+                }
+                let closeElement = unsafeBitCast(closeButton, to: AXUIElement.self)
+                let delivery = AXUIElementPerformAction(
+                    closeElement, kAXPressAction as CFString)
+                result = base(request, route: "guest.user/macos.ax")
+                result["delivery"] = delivery == .success ? "confirmed" : "unknown"
+                usleep(180_000)
+                let after = (attribute(root, kAXWindowsAttribute as CFString)
+                             as? [AXUIElement]) ?? []
+                result["effect"] = after.count < windows.count ? "confirmed" : "unknown"
             case "input.key", "input.text", "input.click":
                 if useCua(request) {
                     var arguments: [String: Any] = [:]
