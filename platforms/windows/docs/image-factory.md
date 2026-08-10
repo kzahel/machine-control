@@ -31,12 +31,12 @@ controller's public SSH key, but never its private key.
 ## Render unattended answer media
 
 Prepare a mode-0600 file containing one setup password and select a public SSH
-key. Then run, for Windows ARM64 image index 1:
+key. Then run for the Windows Pro index resolved from the exact image catalog:
 
 ```bash
 scripts/image-factory.sh render-seed \
-  arm64 APPLIANCE_USER 1 PRIVATE_SECRET_FILE CONTROLLER_PUBLIC_KEY \
-  PRIVATE_UTM_GUEST_TOOLS_ISO
+  arm64 APPLIANCE_USER IMAGE_INDEX windows-11-pro PRIVATE_SECRET_FILE \
+  CONTROLLER_PUBLIC_KEY PRIVATE_UTM_GUEST_TOOLS_ISO
 ```
 
 The renderer XML-escapes all substituted values, rejects weak file
@@ -48,6 +48,14 @@ only disk 0, creates EFI/MSR/Windows GPT partitions, selects the declared image
 index, injects the matching Windows 11 VirtIO drivers, suppresses automatic
 activation, creates the administrator, logs on once, installs UTM Guest Tools
 silently, and invokes the seed's OpenSSH bootstrap.
+
+Windows Setup does not define an empty product-key value for guaranteed quiet
+installation. For the currently supported `windows-11-pro` edition, the
+renderer embeds Microsoft's public Pro KMS client setup key and sets its UI to
+`Never`. This selects the catalog edition without supplying a customer key or
+activating Windows; activation remains suppressed and must be observed after
+installation. The renderer rejects arbitrary editions rather than accepting a
+possibly private activation key on its command line.
 
 The seed also supplies UEFI Shell `startup.nsh`. UTM maps the Windows installer
 as the first filesystem in this factory recipe, and the script launches the

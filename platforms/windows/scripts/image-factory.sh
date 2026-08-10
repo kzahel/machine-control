@@ -14,14 +14,16 @@ usage() {
     cat <<'EOF'
 Usage:
   image-factory.sh validate-media WINDOWS_ISO
-  image-factory.sh render-seed ARCH USERNAME IMAGE_INDEX SECRET_FILE PUBLIC_KEY GUEST_TOOLS_ISO
+  image-factory.sh render-seed ARCH USERNAME IMAGE_INDEX EDITION SECRET_FILE PUBLIC_KEY GUEST_TOOLS_ISO
 
 The rendered seed is written under ignored .factory.local. SECRET_FILE must be
 mode 0600, contain one non-empty line, and is never accepted as an argument or
-environment value. GUEST_TOOLS_ISO must be UTM Windows Guest Tools media. Its
-drivers and installer are copied into the private seed so Windows Setup sees
-one authoritative Autounattend.xml. The output contains plaintext setup
-credentials and must be detached and securely discarded after bootstrap.
+environment value. EDITION is currently windows-11-pro and selects Microsoft's
+public installation-only KMS client setup key; it does not activate Windows.
+GUEST_TOOLS_ISO must be UTM Windows Guest Tools media. Its drivers and installer
+are copied into the private seed so Windows Setup sees one authoritative
+Autounattend.xml. The output contains plaintext setup credentials and must be
+detached and securely discarded after bootstrap.
 EOF
 }
 
@@ -57,15 +59,28 @@ validate_media() {
 }
 
 render_seed() {
-    if [[ $# -ne 6 ]]; then usage >&2; return 2; fi
-    local architecture="$1" username="$2" image_index="$3"
-    local secret_file="$4" public_key="$5" guest_tools_iso="$6"
+    if [[ $# -ne 7 ]]; then usage >&2; return 2; fi
+    local architecture="$1" username="$2" image_index="$3" edition="$4"
+    local secret_file="$5" public_key="$6" guest_tools_iso="$7"
     case "$architecture" in arm64|amd64) ;; *) usage >&2; return 2 ;; esac
     if [[ ! "$username" =~ ^[A-Za-z][A-Za-z0-9_.-]{0,31}$ ||
         ! "$image_index" =~ ^[1-9][0-9]*$ ]]; then
         printf 'Username or image index is invalid.\n' >&2
         return 2
     fi
+    local installation_key
+    case "$edition" in
+        windows-11-pro)
+            # Microsoft's public Windows Pro KMS client setup key selects the
+            # edition but cannot activate it without a separately configured
+            # KMS host. The factory never accepts a customer activation key.
+            installation_key='W269N-WFGWX-YVC9B-4J6C9-T83GX'
+            ;;
+        *)
+            printf 'Unsupported unattended installation edition.\n' >&2
+            return 2
+            ;;
+    esac
     if [[ ! -f "$secret_file" || ! -r "$secret_file" ||
         ! -f "$public_key" || ! -r "$public_key" ||
         ! -f "$guest_tools_iso" || ! -r "$guest_tools_iso" ]]; then
@@ -132,6 +147,7 @@ render_seed() {
     content="${content//__DRIVER_ARCHITECTURE__/$driver_architecture}"
     content="${content//__LANGUAGE__/$language}"
     content="${content//__IMAGE_INDEX__/$image_index}"
+    content="${content//__INSTALLATION_KEY__/$installation_key}"
     content="${content//__USERNAME__/$escaped_user}"
     content="${content//__PASSWORD__/$escaped_password}"
     printf '%s\n' "$content" > "$staging/Autounattend.xml"
