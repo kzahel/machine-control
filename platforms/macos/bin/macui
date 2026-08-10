@@ -22,7 +22,7 @@ Commands:
   focus QUERY [--app APP] [--role ROLE] [--nth N]
   set-value QUERY VALUE [--app APP] [--role ROLE] [--nth N]
   resident-start | resident-stop | resident-restart
-  control JSON
+  control JSON | control-local JSON
   launch APP [ARG...]
 
 APP matches a localized application name, bundle id, or PID. Element queries
@@ -90,6 +90,17 @@ case "${1:-}" in
         macvm_assert_mutation_target
         resident_start
         resident_request "$1"
+        exit
+        ;;
+    control-local)
+        shift
+        if [[ $# -ne 1 ]]; then
+            printf 'Usage: macvm control-local JSON\n' >&2
+            exit 2
+        fi
+        macvm_assert_mutation_target
+        resident_start
+        "$MACVM_TART" exec "$MACVM_NAME" "$(macvm_remote_control_cli)" "$1"
         exit
         ;;
 esac

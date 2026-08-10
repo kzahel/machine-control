@@ -17,6 +17,8 @@ Start here:
   shell                  Open an interactive zsh through the Tart guest agent
   ui COMMAND [ARG...]    Inspect and control the macOS accessibility tree
   control JSON           Call the target-resident machine-control facade
+  control-local JSON     Call it through the installed guest-local CLI
+  fixture-state          Read the deterministic fixture's file oracle
 
 Setup:
   deploy-ui              Compile and deploy the semantic UI helper
@@ -56,6 +58,11 @@ case "$command" in
     authorize-ui) exec "$REPO_DIR/bin/macui" authorize "$@" ;;
     ui) exec "$REPO_DIR/bin/macui" "$@" ;;
     control) exec "$REPO_DIR/bin/macui" control "$@" ;;
+    control-local) exec "$REPO_DIR/bin/macui" control-local "$@" ;;
+    fixture-state)
+        exec "$MACVM_TART" exec "$MACVM_NAME" /bin/cat \
+            "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-fixture/state.json"
+        ;;
     exec) exec "$MACVM_TART" exec "$MACVM_NAME" "$@" ;;
     shell) exec "$MACVM_TART" exec -it "$MACVM_NAME" /bin/zsh -l ;;
     status|get|up|ip|screenshot|click|drag|type|key|suspend|shutdown|stop|force-stop)

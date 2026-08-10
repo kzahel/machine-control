@@ -75,7 +75,7 @@ wrapper or the same guest-local CLI:
 
 ```bash
 bin/macvm control '{"operation":"status"}'
-bin/macvm exec ~/bin/machine-control '{"operation":"status"}'
+bin/macvm control-local '{"operation":"status"}'
 ```
 
 Both calls reach one socket and one resident generation. Semantic references
