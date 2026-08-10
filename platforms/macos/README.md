@@ -19,7 +19,7 @@ macOS Accessibility inspection and actions.
 | Semantic UI | Native AXUIElement helper in the interactive guest session |
 | Resident facade | Per-user Unix socket with `machine-control/v0` envelopes |
 | Composition | Native AX/Quartz/CGEvent plus optional installed Cua |
-| Administrator sheets | Strict `SecurityAgent` lease plus non-echoing one-shot credential channel |
+| Administrator sheets | Strict SecurityAgent, System Settings, Installer, and Gatekeeper profiles plus a non-echoing one-shot credential channel |
 | Privacy fixtures | Signed API triggers and independent policy/hardware oracle |
 | Framework fixtures | Deterministic AppKit and SwiftUI semantics with file oracles |
 | Recovery | Tart-window screenshot and CoreGraphics keyboard/mouse input |
@@ -88,6 +88,12 @@ that composition and route rather than pretending the native provider ran.
 Normal Aqua administrator sheets use the same resident through a strict,
 short-lived lease and an interactive non-echoing credential helper; see
 [macOS UI automation](docs/ui-automation.md#administrator-authorization-sheets).
+The accepted logged-in Aqua corpus also covers settings-managed privacy,
+native panels and sheets, notifications, Safari downloads, DMGs, Gatekeeper,
+Installer, AppKit, SwiftUI, and target-local visual fallback. The execution
+record and environment omissions live in the sibling machine-control
+repository's
+[`Tactical 010`](../machine-control/docs/tactical/010-macos-full-aqua-software-testing.md).
 
 Set `MACVM_FORBID_OUTER_UI=true` for ordinary software-test acceptance. In
 that mode, Tart-window screenshot, click, drag, type, and key commands fail

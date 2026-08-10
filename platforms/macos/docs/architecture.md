@@ -95,14 +95,16 @@ its session-scoped AX, exact-window capture, and background input. Cua remains
 replaceable and is not bundled by this repository.
 
 Normal Aqua administrator sheets use a separate credential boundary. The
-resident first fingerprints the active `SecurityAgent` requester, prompt,
-secure field, buttons, process, and exact window, then issues a short-lived,
+resident first applies an exact allowlisted profile for SecurityAgent,
+Installer, an inline System Settings sheet, or Gatekeeper's
+LocalAuthentication sheet. The profile binds requester and prompt text, secure
+field, buttons, process, and exact window before issuing a short-lived,
 generation-bound, single-use lease. A guest-local helper reads one credential
 without echo and streams it through a staged exchange on the same mode-`0600`
 socket. The secret is never part of the JSON facade or a process argument,
 environment variable, file, log, capture, or result. Target-local physical key
-events submit it; the fixture or calling workflow remains the authority for
-whether the intended privileged effect occurred.
+events are posted to the verified owner process; the calling workflow's
+independent oracle remains authoritative for the privileged effect.
 
 The helper is compiled and ad-hoc signed with an explicit stable designated
 requirement as `MacVM UI.app`. The selected host command transport asks
@@ -140,8 +142,9 @@ stage. See [bootstrap](bootstrap.md) for the operational contract.
 - `suspend` works only when the VM was launched with `--suspendable`.
 - `force-stop` sets Tart's graceful timeout to zero and requires explicit
   recovery intent.
-- starting through `macvm up` enables suspendability, guest system-key
-  capture, and a read-only repository share by default;
+- starting through `macvm up` enables suspendability and a read-only repository
+  share by default. Guest system-key capture defaults off and acceptance mode
+  suppresses it even if ignored local configuration requests it;
 - `macvm up` runs Tart as a transient per-user launchd GUI job so ownership is
   independent of the invoking shell or agent process group; and
 - normal shutdown and stop unload that transient job after Tart has completed

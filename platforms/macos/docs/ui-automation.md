@@ -169,6 +169,13 @@ The same fixture presents deterministic native Open, folder-selection, and
 Save panels, nested sheets, and an application relaunch request. Its oracle
 records only fixture basenames and effects, not arbitrary selected paths.
 
+`deploy-swiftui-fixture` installs a separate deterministic SwiftUI application.
+Its Increment and Reset controls expose native AX semantics, while
+`swiftui-fixture-state` supplies the independent file oracle. Use
+`remove-swiftui-fixture` and `remove-fixture` to remove both framework fixtures,
+their deployed source, application registrations, and owned state after a
+corpus run.
+
 ## Administrator Authorization Sheets
 
 After the resident has Accessibility permission, a normal Aqua
@@ -182,9 +189,9 @@ bin/macvm control \
 bin/macvm authorization-submit GENERATION_BOUND_LEASE_ID
 ```
 
-`authorization.begin` requires one active `SecurityAgent` process, one exact
-on-screen window, the expected requester and prompt text, one
-`AXSecureTextField`, and unique Cancel and OK buttons. The returned lease is
+`authorization.begin` requires one exact allowlisted owner and on-screen
+window, the expected requester and prompt text, one `AXSecureTextField`, and
+the profile's unique cancel and confirmation buttons. The returned lease is
 bound to that process, window, requester, context, resident generation, short
 expiry, and a single cancel or credential submission. A stale, expired, used,
 or changed-sheet lease fails closed.
