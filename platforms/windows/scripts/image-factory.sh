@@ -139,6 +139,8 @@ render_seed() {
         "$staging/bootstrap-openssh.ps1"
     cp "$WINVM_REPO_DIR/guests/windows/image-factory/bootstrap-first-logon.ps1" \
         "$staging/bootstrap-first-logon.ps1"
+    cp "$WINVM_REPO_DIR/guests/windows/image-factory/startup.nsh" \
+        "$staging/startup.nsh"
     cp "$public_key" "$staging/controller.pub"
     find "$staging" -type d -exec chmod 700 {} +
     find "$staging" -type f -exec chmod 600 {} +

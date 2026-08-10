@@ -49,6 +49,14 @@ index, injects the matching Windows 11 VirtIO drivers, suppresses automatic
 activation, creates the administrator, logs on once, installs UTM Guest Tools
 silently, and invokes the seed's OpenSSH bootstrap.
 
+The seed also supplies UEFI Shell `startup.nsh`. UTM maps the Windows installer
+as the first filesystem in this factory recipe, and the script launches the
+installer's `cdboot_noprompt.efi` entry directly. This avoids both an
+interactive firmware-shell stop and Windows media's `Press any key` prompt.
+The exact Windows ISO must contain that standard no-prompt ARM64 loader; media
+validation is part of live acceptance rather than an assumption about every
+possible ISO.
+
 The checked-in AppleScript configuration surface does not expose UTM's Windows
 wizard flags for TPM 2.0 and preloaded Secure Boot keys. The answer media uses
 the same Windows Setup hardware-check bypasses shipped on UTM's guest-tools

@@ -33,6 +33,8 @@ hdiutil attach -readonly -nobrowse -mountpoint "$seed_mount" \
     "$temporary/output/winvm-seed.iso" >/dev/null
 test -f "$seed_mount/utm-guest-tools-fixture.exe"
 test -f "$seed_mount/Drivers/NetKVM/w11/ARM64/netkvm.inf"
+grep -Fq 'FS0:\efi\microsoft\boot\cdboot_noprompt.efi' \
+    "$seed_mount/startup.nsh"
 grep -Fq 'E:\Drivers\NetKVM\w11\ARM64' "$seed_mount/Autounattend.xml"
 grep -Fq '<SkipAutoActivation>true</SkipAutoActivation>' \
     "$seed_mount/Autounattend.xml"
