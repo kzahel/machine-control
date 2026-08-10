@@ -1,0 +1,15 @@
+[Unit]
+Description=LinuxVM deterministic Qt control fixture
+After=graphical-session.target at-spi-dbus-bus.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+Environment=QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1
+Environment=QT_QPA_PLATFORM=xcb
+ExecStart=/usr/bin/python3 /usr/local/libexec/linuxvm-testbed/qt_fixture.py
+Restart=on-failure
+RestartSec=1
+
+[Install]
+WantedBy=default.target

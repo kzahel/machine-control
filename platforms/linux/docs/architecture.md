@@ -87,12 +87,15 @@ and `/usr/local/bin/machine-control` inside the guest use the same newline-
 delimited request path. Local versus remote use therefore changes transport
 placement, not the operation or result vocabulary.
 
-The first resident slice normalizes status, capabilities, applications,
-windows, compact/full snapshots, and actions over native AT-SPI. Snapshot
-references bind to a random resident generation and bounded snapshot cache.
-A restart or evicted snapshot refuses the reference as stale. Action delivery
-is reported separately from effect because AT-SPI acknowledgement does not
-prove that an application changed.
+The resident normalizes status, capabilities, applications, windows,
+compact/full snapshots, actions, focus, and editable/numeric values over
+native AT-SPI. Snapshot references bind to a random resident generation and
+bounded snapshot cache. A restart or evicted snapshot refuses the reference as
+stale. Delivery is reported separately from effect because AT-SPI
+acknowledgement does not prove that an application changed. Some Qt and
+Chromium providers publish unnamed native action slots; the facade may invoke
+the first such slot for a requested press, but only an independent fixture or
+OS effect can accept the result.
 
 The same resident invokes Ubuntu's packaged `gnome-screenshot` from the active
 GNOME session for full-display and current-active-window PNGs. Artifacts live
@@ -113,6 +116,14 @@ Unicode text uses `wl-copy --paste-once` in the active Wayland session and a
 virtual Ctrl+V. This avoids keyboard-layout assumptions and reports the
 clipboard side effect. A deterministic GTK fixture writes each semantic,
 pointer, drag, scroll, key, and text effect to a separate JSON oracle.
+
+Framework acceptance adds a PyQt5/XWayland fixture with the Qt accessibility
+bridge explicitly enabled and a loopback browser fixture opened in Chromium
+with renderer accessibility forced on. The latter yields rich document
+semantics while retaining a canvas that requires the visual route. GNOME 46
+Settings is the converse mixed case on the accepted image: its labels are
+useful, but its GTK4 control extents are zero, so a fixed-display capture and
+virtual HID action are paired with an independently read setting effect.
 
 Application launch uses the active user's systemd manager with one owned
 transient unit per argv array. The result can wait for an independently

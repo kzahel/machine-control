@@ -75,9 +75,21 @@ bin/linuxvm control \
 ```
 
 The active-user resident owns one generation and bounded snapshot cache.
-Actions require an exact reference from that generation; do not re-resolve a
-stale path silently. Results report the native AT-SPI route and distinguish
-confirmed delivery from an independently unverifiable effect.
+Actions, focus, and values require an exact reference from that generation; do
+not re-resolve a stale path silently. Results report the native AT-SPI route
+and distinguish confirmed delivery from an independently unverifiable effect.
+
+Qt and Chromium can publish native action slots with empty names. A requested
+press may use the first unnamed slot, reported as `index:N`; require an
+independent effect before accepting it. The deterministic profiles cover
+these cases:
+
+```bash
+bin/linuxvm fixture qt reset
+bin/linuxvm fixture qt state
+bin/linuxvm fixture browser reset
+bin/linuxvm fixture browser state
+```
 
 ## Application Roots
 
@@ -85,6 +97,10 @@ AT-SPI reports accessibility providers, not a window-manager process list.
 Launcher and server roots may coexist. The observed Terminal window and widget
 tree live under `gnome-terminal-server`; `gnome-terminal` has no child window.
 Electron and browser content may require the application's accessibility mode.
+The accepted Qt fixture uses XWayland plus
+`QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1`; its pure Wayland launch did not publish
+usable semantic children. Chromium is launched with
+`--force-renderer-accessibility` for deterministic browser coverage.
 
 ## Wayland Boundary
 
@@ -97,7 +113,14 @@ service and its full-desktop authority remain root privileged.
 The semantic helper does not edit GNOME permission stores or bypass a lock
 screen. The virtual HID broker does run as root for the dedicated appliance.
 XDG RemoteDesktop/ScreenCast could later provide a bounded-workstation profile,
-but it retains the portal's explicit consent flow.
+but it retains the portal's explicit consent flow. The current appliance route
+does not claim compositor-mediated authorization: it is root-authorized global
+input for a disposable, dedicated test system.
+
+GNOME 46 Settings on the accepted image publishes recognizable AT-SPI labels
+with zero-sized widget bounds. Ground the fixed appliance window with resident
+capture, use the resident virtual HID fallback, and verify the setting through
+an independent OS read. Do not present those coordinates as semantic bounds.
 
 ## Normalized Coordinates
 
@@ -116,11 +139,14 @@ absolute clicks may be unreliable. Use raw scan-code shortcuts such as
 
 ## Authentication And Secure Surfaces
 
-AT-SPI may expose a Polkit dialog's non-secret controls but does not remove its
-authentication requirement. The user enters passwords in the guest. The CLI
-has no password option, and screenshots containing authentication context are
-generated artifacts rather than repository content.
+AT-SPI exposes enough of the tested Polkit dialog to detect it and cancel it
+without a secret; it does not remove the authentication requirement. Routine
+root administration instead uses the explicit root-equivalent QEMU
+guest-agent command channel. The CLI has no password option, and screenshots
+containing authentication context are generated artifacts rather than
+repository content.
 
 GDM, lock screens, and a logged-out desktop may use a different user and D-Bus
-session. Treat `ui health` failure there as a session boundary and use the
-outer UTM path.
+session. They are deferred protected planes, not accepted ordinary routes.
+Treat `ui health` failure there as a session boundary and use the outer UTM
+path only for explicit recovery.

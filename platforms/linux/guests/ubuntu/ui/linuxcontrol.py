@@ -199,6 +199,8 @@ class Resident:
                 "windows",
                 "snapshot",
                 "action",
+                "focus",
+                "set_value",
                 "capture",
                 "application.launch",
                 "application.activate",
@@ -706,16 +708,7 @@ class Resident:
         return result
 
     def action(self, request: dict[str, Any]) -> dict[str, Any]:
-        reference = str(request.get("reference") or "")
-        parts = reference.split(":", 2)
-        if len(parts) != 3 or parts[0] != self.generation:
-            raise ControlFailure(
-                "stale_reference", "Reference belongs to another resident generation"
-            )
-        snapshot = self.snapshots.get(parts[1])
-        if snapshot is None or reference not in snapshot:
-            raise ControlFailure("stale_reference", "Snapshot reference has expired")
-        node = snapshot[reference]
+        node = self.resolve_reference(request)
         requested = str(request.get("action") or "press").casefold()
         available = linuxui.actions(node)
         if not available:
@@ -737,6 +730,11 @@ class Resident:
             )
             if selected is not None:
                 break
+        if selected is None and requested in ("press", "activate"):
+            selected = next(
+                (value for value in available if not value["name"]),
+                None,
+            )
         if selected is None:
             raise ControlFailure("unsupported_action", "Requested action is unavailable")
         if not node.do_action(selected["index"]):
@@ -750,7 +748,67 @@ class Resident:
                 "uncertainty": "no_independent_state_change",
             }
         )
-        result["data"] = {"invoked": selected["name"]}
+        result["data"] = {"invoked": selected["name"] or f"index:{selected['index']}"}
+        return result
+
+    def resolve_reference(self, request: dict[str, Any]) -> Any:
+        reference = str(request.get("reference") or "")
+        parts = reference.split(":", 2)
+        if len(parts) != 3 or parts[0] != self.generation:
+            raise ControlFailure(
+                "stale_reference", "Reference belongs to another resident generation"
+            )
+        snapshot = self.snapshots.get(parts[1])
+        if snapshot is None or reference not in snapshot:
+            raise ControlFailure("stale_reference", "Snapshot reference has expired")
+        return snapshot[reference]
+
+    def focus(self, request: dict[str, Any]) -> dict[str, Any]:
+        node = self.resolve_reference(request)
+        if "Component" not in linuxui.interfaces(node):
+            raise ControlFailure("unsupported_action", "Element cannot receive focus")
+        try:
+            delivered = node.grab_focus()
+        except Exception as error:
+            raise ControlFailure("delivery_failed", str(error)) from error
+        if not delivered:
+            raise ControlFailure("delivery_failed", "AT-SPI rejected focus")
+        effect = "focused" in linuxui.state_names(node)
+        result = self.envelope(request, "focus")
+        result.update(
+            {
+                "delivery": "confirmed",
+                "effect": "element_focused" if effect else "unverifiable",
+                "uncertainty": "none" if effect else "focus_state_not_observed",
+            }
+        )
+        result["data"] = {"focused": effect}
+        return result
+
+    def set_value(self, request: dict[str, Any]) -> dict[str, Any]:
+        node = self.resolve_reference(request)
+        interfaces = linuxui.interfaces(node)
+        value = request.get("value")
+        if "EditableText" in interfaces:
+            if not node.set_text_contents(str(value or "")):
+                raise ControlFailure("delivery_failed", "AT-SPI rejected text value")
+            kind = "text"
+        elif "Value" in interfaces:
+            node.set_current_value(float(value))
+            kind = "number"
+        else:
+            raise ControlFailure(
+                "unsupported_action", "Element exposes no writable value interface"
+            )
+        result = self.envelope(request, "set_value")
+        result.update(
+            {
+                "delivery": "confirmed",
+                "effect": "unverifiable",
+                "uncertainty": "no_independent_state_change",
+            }
+        )
+        result["data"] = {"kind": kind, "value": value}
         return result
 
     def handle(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -764,6 +822,8 @@ class Resident:
                 "windows": self.windows,
                 "snapshot": self.snapshot,
                 "action": self.action,
+                "focus": self.focus,
+                "set_value": self.set_value,
                 "capture": self.capture,
                 "application.launch": self.application_launch,
                 "application.activate": self.application_activate,

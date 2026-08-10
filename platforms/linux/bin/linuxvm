@@ -26,7 +26,8 @@ Desktop automation:
   control JSON | control-local JSON
                                  Call the persistent resident facade
   artifact ID [OUTPUT.png]       Fetch a bounded resident capture artifact
-  fixture start|stop|reset|state Manage the deterministic GTK effect oracle
+  fixture [gtk|qt|browser] ACTION
+                                 Manage deterministic effect-oracle fixtures
   deploy-ui | deploy-resident | authorize-ui | desktop-user | doctor
   screenshot [OUTPUT.png]
   click X Y [left|right|middle] | drag X1 Y1 X2 Y2
@@ -111,30 +112,50 @@ artifact() {
 }
 
 fixture() {
-    local user home
+    local user home kind action service state_directory
     user="$(desktop_user)"
     home="$("$PROVIDER" exec /usr/bin/getent passwd "$user" |
         /usr/bin/awk -F: '{print $6}')"
     [[ -n "$home" ]] || { printf 'Desktop home not found\n' >&2; return 1; }
-    case "${1:-}" in
+    kind=gtk
+    action="${1:-}"
+    if [[ "$action" =~ ^(gtk|qt|browser)$ ]]; then
+        kind="$action"
+        action="${2:-}"
+    fi
+    case "$kind" in
+        gtk)
+            service=linuxvm-fixture.service
+            state_directory=fixture
+            ;;
+        qt)
+            service=linuxvm-qt-fixture.service
+            state_directory=qt-fixture
+            ;;
+        browser)
+            service=linuxvm-browser-fixture.service
+            state_directory=browser-fixture
+            ;;
+    esac
+    case "$action" in
         start)
-            user_exec /usr/bin/systemctl --user start linuxvm-fixture.service
+            user_exec /usr/bin/systemctl --user start "$service"
             ;;
         stop)
-            user_exec /usr/bin/systemctl --user stop linuxvm-fixture.service
+            user_exec /usr/bin/systemctl --user stop "$service"
             ;;
         reset)
-            user_exec /usr/bin/systemctl --user stop linuxvm-fixture.service
+            user_exec /usr/bin/systemctl --user stop "$service"
             user_exec /usr/bin/rm -f \
-                "$home/.cache/linuxvm-testbed/fixture/state.json"
-            user_exec /usr/bin/systemctl --user start linuxvm-fixture.service
+                "$home/.cache/linuxvm-testbed/$state_directory/state.json"
+            user_exec /usr/bin/systemctl --user start "$service"
             ;;
         state)
             user_exec /usr/bin/cat \
-                "$home/.cache/linuxvm-testbed/fixture/state.json"
+                "$home/.cache/linuxvm-testbed/$state_directory/state.json"
             ;;
         *)
-            printf 'Usage: linuxvm fixture start|stop|reset|state\n' >&2
+            printf 'Usage: linuxvm fixture [gtk|qt|browser] start|stop|reset|state\n' >&2
             return 2
             ;;
     esac
@@ -142,7 +163,7 @@ fixture() {
 
 bootstrap_command() {
     cat <<'EOF'
-sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y qemu-guest-agent spice-vdagent python3-gi gir1.2-atspi-2.0 gnome-screenshot python3-evdev wl-clipboard jq && sudo systemctl start qemu-guest-agent
+sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y qemu-guest-agent spice-vdagent python3-gi gir1.2-atspi-2.0 gnome-screenshot python3-evdev python3-pyqt5 wl-clipboard jq && sudo systemctl start qemu-guest-agent
 EOF
 }
 

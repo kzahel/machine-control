@@ -16,6 +16,10 @@ python3 -m py_compile "$REPO_DIR/guests/ubuntu/ui/linuxcontrol.py"
 python3 -m py_compile "$REPO_DIR/guests/ubuntu/input/linuxinputd.py"
 python3 -m py_compile \
     "$REPO_DIR/guests/ubuntu/fixtures/control_fixture.py"
+python3 -m py_compile \
+    "$REPO_DIR/guests/ubuntu/fixtures/qt_fixture.py"
+python3 -m py_compile \
+    "$REPO_DIR/guests/ubuntu/fixtures/browser_fixture.py"
 swiftc -typecheck "$REPO_DIR/providers/utm-macos/host-control.swift"
 swiftc -typecheck "$REPO_DIR/providers/utm-macos/normalize-screenshot.swift"
 
@@ -23,7 +27,7 @@ help_output="$("$LINUXVM" help)"
 [[ "$help_output" == *'gui-launch'* ]]
 [[ "$help_output" == *'deploy-resident'* ]]
 [[ "$help_output" == *'artifact ID'* ]]
-[[ "$help_output" == *'fixture start'* ]]
+[[ "$help_output" == *'fixture [gtk|qt|browser] ACTION'* ]]
 guard_status="$("$LINUXVM" guard-status)"
 jq -e '.mutationGuardRequired == false or
        .mutationTargetVerified == true' <<<"$guard_status" >/dev/null

@@ -16,6 +16,7 @@ apt-get install -y \
     gir1.2-atspi-2.0 \
     gnome-screenshot \
     python3-evdev \
+    python3-pyqt5 \
     wl-clipboard \
     jq
 
