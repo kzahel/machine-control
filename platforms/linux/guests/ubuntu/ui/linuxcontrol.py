@@ -18,6 +18,11 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
+import gi
+
+gi.require_version("Gdk", "3.0")
+from gi.repository import Gdk
+
 import linuxui
 
 
@@ -25,6 +30,8 @@ SCHEMA = "machine-control/v0"
 ROUTE = "guest.user/linux.atspi"
 CAPTURE_ROUTE = "guest.user/gnome-screenshot"
 ARTIFACT_DIRECTORY = Path.home() / ".cache/linuxvm-testbed/artifacts"
+INPUT_SOCKET = Path("/run/linuxvm-testbed/input.sock")
+INPUT_ROUTE = "guest.system/linux.uinput"
 
 
 def role_name(native: str) -> str:
@@ -78,6 +85,54 @@ class Resident:
             "hostInterference": "none",
         }
 
+    def call_input(self, request: dict[str, Any]) -> dict[str, Any]:
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                client.settimeout(8)
+                client.connect(str(INPUT_SOCKET))
+                client.sendall(
+                    json.dumps(request, separators=(",", ":")).encode() + b"\n"
+                )
+                response = bytearray()
+                while True:
+                    chunk = client.recv(65536)
+                    if not chunk:
+                        break
+                    response.extend(chunk)
+        except OSError as error:
+            raise ControlFailure("input_unavailable", str(error)) from error
+        value = json.loads(response)
+        if not value.get("accepted"):
+            raise ControlFailure(
+                "input_refused", str(value.get("error") or "Input broker refused")
+            )
+        return value
+
+    def display_geometry(self) -> dict[str, int]:
+        display = Gdk.Display.get_default()
+        if display is None or display.get_n_monitors() < 1:
+            raise ControlFailure("display_unavailable", "No GDK display is available")
+        rectangles = [
+            display.get_monitor(index).get_geometry()
+            for index in range(display.get_n_monitors())
+        ]
+        left = min(value.x for value in rectangles)
+        top = min(value.y for value in rectangles)
+        right = max(value.x + value.width for value in rectangles)
+        bottom = max(value.y + value.height for value in rectangles)
+        return {
+            "x": left,
+            "y": top,
+            "width": right - left,
+            "height": bottom - top,
+        }
+
+    def input_ready(self) -> bool:
+        try:
+            return self.call_input({"operation": "status"}).get("state") == "ready"
+        except (ControlFailure, json.JSONDecodeError):
+            return False
+
     def fail(
         self,
         request: dict[str, Any],
@@ -120,10 +175,11 @@ class Resident:
         result["data"] = {
             "semanticState": "ready",
             "captureState": "ready",
-            "inputState": "semantic_only",
+            "inputState": "ready" if self.input_ready() else "unavailable",
             "sessionType": os.environ.get("XDG_SESSION_TYPE", "wayland"),
             "desktopName": os.environ.get("XDG_CURRENT_DESKTOP", "GNOME"),
             "applicationCount": len(applications),
+            "displayGeometry": self.display_geometry(),
             "residentPid": os.getpid(),
             "uptimeMs": int((time.monotonic() - self.started) * 1000),
         }
@@ -141,6 +197,12 @@ class Resident:
                 "snapshot",
                 "action",
                 "capture",
+                "input.move",
+                "input.click",
+                "input.drag",
+                "input.scroll",
+                "input.key",
+                "input.text",
             ],
             "semantic": {
                 "route": ROUTE,
@@ -154,8 +216,114 @@ class Resident:
                 "artifactLifetime": "until_cleanup",
                 "sessionRequirement": "active_user_gnome_wayland",
             },
-            "input": {"state": "semantic_only"},
+            "input": {
+                "state": "ready" if self.input_ready() else "unavailable",
+                "route": INPUT_ROUTE,
+                "fidelity": "virtual_hid",
+                "privilege": "root_test_appliance",
+                "authorization": "active_user_owned_socket",
+                "sessionRequirement": "logged_in_unlocked_graphical_session",
+                "clipboardTextSideEffect": True,
+            },
             "outerRecoveryRequired": False,
+        }
+        return result
+
+    def input(self, request: dict[str, Any]) -> dict[str, Any]:
+        operation = str(request.get("operation") or "")
+        action = operation.removeprefix("input.")
+        broker_request: dict[str, Any] = {"operation": action}
+        geometry = self.display_geometry()
+        for name in (
+            "x",
+            "y",
+            "x1",
+            "y1",
+            "x2",
+            "y2",
+            "dx",
+            "dy",
+            "button",
+            "count",
+            "steps",
+            "durationMs",
+            "key",
+        ):
+            if name in request:
+                broker_request[name] = request[name]
+        if action in ("move", "drag") or (
+            action in ("click", "scroll") and "x" in request
+        ):
+            broker_request["width"] = geometry["width"]
+            broker_request["height"] = geometry["height"]
+            for name in ("x", "x1", "x2"):
+                if name in broker_request:
+                    broker_request[name] = int(broker_request[name]) - geometry["x"]
+            for name in ("y", "y1", "y2"):
+                if name in broker_request:
+                    broker_request[name] = int(broker_request[name]) - geometry["y"]
+        if action in ("click", "scroll") and "x" in broker_request:
+            self.call_input(
+                {
+                    "operation": "move",
+                    "x": broker_request.pop("x"),
+                    "y": broker_request.pop("y"),
+                    "width": broker_request.pop("width"),
+                    "height": broker_request.pop("height"),
+                }
+            )
+
+        clipboard_side_effect = False
+        if action == "text":
+            text = str(request.get("text") or "")
+            provider = subprocess.Popen(
+                [
+                    "/usr/bin/wl-copy",
+                    "--foreground",
+                    "--paste-once",
+                    "--type",
+                    "text/plain;charset=utf-8",
+                ],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
+            assert provider.stdin is not None
+            provider.stdin.write(text.encode("utf-8"))
+            provider.stdin.close()
+            time.sleep(0.1)
+            self.call_input({"operation": "key", "key": "ctrl+v"})
+            try:
+                provider.wait(timeout=3)
+            except subprocess.TimeoutExpired as error:
+                provider.terminate()
+                provider.wait(timeout=2)
+                raise ControlFailure(
+                    "text_delivery_failed", "Clipboard paste was not consumed"
+                ) from error
+            if provider.returncode != 0:
+                detail = (provider.stderr.read() if provider.stderr else b"").decode(
+                    "utf-8", errors="replace"
+                )
+                raise ControlFailure("text_delivery_failed", detail.strip())
+            clipboard_side_effect = True
+        else:
+            self.call_input(broker_request)
+
+        result = self.envelope(request, operation)
+        result.update(
+            {
+                "actualRoute": INPUT_ROUTE,
+                "fidelity": "virtual_hid",
+                "delivery": "confirmed",
+                "effect": "unverifiable",
+                "uncertainty": "no_independent_state_change",
+            }
+        )
+        result["data"] = {
+            "displayGeometry": geometry,
+            "clipboardTextSideEffect": clipboard_side_effect,
+            "privilege": "root_test_appliance",
         }
         return result
 
@@ -371,6 +539,10 @@ class Resident:
                 "action": self.action,
                 "capture": self.capture,
             }
+            if operation.startswith("input."):
+                result = self.input(request)
+                result["elapsedMs"] = int((time.monotonic() - started) * 1000)
+                return result
             if operation not in dispatch:
                 raise ControlFailure(
                     "unsupported_operation", f"Unsupported operation: {operation}"

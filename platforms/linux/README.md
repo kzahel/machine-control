@@ -19,6 +19,7 @@ semantic AT-SPI inspection and actions behind one CLI.
 | Semantic UI | AT-SPI in the active desktop user's D-Bus session |
 | Resident facade | Active-user Unix socket with `machine-control/v0` envelopes |
 | Inner capture | GNOME Wayland display and active-window PNG artifacts |
+| Inner input | Root appliance broker with active-user-only virtual HID socket |
 | Recovery | Normalized UTM capture, text, scan codes, mouse, and drag |
 
 The initial target is the existing local UTM VM named `Linux`. A future pass
@@ -52,6 +53,8 @@ bin/linuxvm control '{"operation":"status"}'
 bin/linuxvm control-local '{"operation":"status"}'
 capture="$(bin/linuxvm control '{"operation":"capture","target":"display"}')"
 bin/linuxvm artifact "$(jq -r '.data.artifact.id' <<<"$capture")"
+bin/linuxvm control '{"operation":"input.click","x":640,"y":400}'
+bin/linuxvm control '{"operation":"input.text","text":"Hello, 世界 👋"}'
 bin/linuxvm ip
 bin/linuxvm suspend
 ```
@@ -97,6 +100,19 @@ result reports its guest path, dimensions, size, and digest. `linuxvm artifact`
 fetches only that bounded UUID namespace. `display` is full-display fidelity.
 `active_window` means the window active when GNOME performs the capture; it is
 not arbitrary hidden-window capture.
+
+Pointer, click, drag, scroll, key, and Unicode text fallback use a root system
+service that owns one `/dev/uinput` virtual HID device. Its mode-`0600` socket
+is assigned to the active desktop user, so the resident can request only the
+broker's bounded input operations. This is an intentionally privileged route
+for a dedicated test appliance, reported as `root_test_appliance`; it is not a
+same-user containment boundary. Unicode text uses a one-shot Wayland clipboard
+offer followed by virtual Ctrl+V and reports that clipboard side effect.
+
+`bin/linuxvm fixture reset` starts the deterministic GTK fixture. Its semantic
+button, unexposed drawing canvas, text entry, keyboard events, drag, and scroll
+effects are written independently to `bin/linuxvm fixture state`. The smoke
+suite uses this oracle instead of trusting provider acknowledgement.
 
 Use the provider-level path when AT-SPI is absent, the session is locked, or
 an application exposes an incomplete accessibility tree:
@@ -151,6 +167,8 @@ Host agent
   |
   +-- active-user Unix socket -- semantics and target-native capture
   |
+  +-- root appliance broker --- active-user-scoped virtual HID operations
+  |
   +-- UTM window -------------- pixels, virtual HID, lock/setup recovery
 ```
 
@@ -169,8 +187,9 @@ sentinel, then returns captured stdout, stderr, and the real exit code.
 
 This project does not use `xdotool`. GNOME applications publish semantic UI
 through AT-SPI, and the resident captures through GNOME's in-session screenshot
-provider. AT-SPI requires an active desktop session but no macOS-style
-per-helper consent grant.
+provider. A narrow in-guest `/dev/uinput` broker supplies the visual fallback.
+AT-SPI requires an active desktop session but no macOS-style per-helper consent
+grant.
 
 Read [docs/ui-automation.md](docs/ui-automation.md) for application-root
 selection, lock-screen behavior, and semantic limitations.
@@ -204,7 +223,8 @@ Guest:
 
 - Ubuntu GNOME with an active Wayland desktop session
 - `qemu-guest-agent` and `spice-vdagent`
-- Python 3, PyGObject, the AT-SPI introspection data, and `gnome-screenshot`
+- Python 3, PyGObject, the AT-SPI introspection data, `gnome-screenshot`,
+  `python3-evdev`, and `wl-clipboard`
 - A stable configured display size (1280×800 by default)
 
 SSH is optional and inactive on the original guest. It is not part of the
@@ -215,6 +235,8 @@ default trust or transport path.
 - No password, SSH key, or portal token is stored or accepted by the CLI.
 - Guest-agent commands are root-equivalent and remain explicit.
 - Semantic UI commands run as the logged-in non-root desktop user.
+- The dedicated-appliance input broker runs as root, owns `/dev/uinput`, and
+  exposes only a mode-`0600` active-user socket with bounded input operations.
 - Password and Polkit authentication remain user-entered inside the guest.
 - `force-stop` is an explicit recovery operation, never routine lifecycle.
 

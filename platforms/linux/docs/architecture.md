@@ -101,6 +101,19 @@ can be fetched by UUID through the outside wrapper without admitting arbitrary
 guest paths. This is target-native capture; it neither observes nor focuses the
 UTM window.
 
+The target-native visual-input fallback is a root system service with one
+persistent `/dev/uinput` device. It accepts a bounded JSON vocabulary over a
+mode-`0600` Unix socket owned by the active desktop account. The user resident
+adds display geometry and normalized result metadata; the broker never accepts
+commands, paths, or arbitrary device events. The route is still powerful: it
+can drive the whole logged-in desktop and is honestly reported as privileged
+dedicated-appliance control, not same-user isolation.
+
+Unicode text uses `wl-copy --paste-once` in the active Wayland session and a
+virtual Ctrl+V. This avoids keyboard-layout assumptions and reports the
+clipboard side effect. A deterministic GTK fixture writes each semantic,
+pointer, drag, scroll, key, and text effect to a separate JSON oracle.
+
 ## Outer Recovery
 
 The UTM window remains the lowest common denominator for:
@@ -131,6 +144,8 @@ It times out with the last observed state and never escalates to force-stop.
 
 - Cloud-init or Ubuntu autoinstall can produce a fresh image.
 - The XDG RemoteDesktop and ScreenCast portals can supply direct PipeWire
-  frames and compositor-approved input after explicit user consent.
+  frames and compositor-approved EIS input after explicit user consent. They
+  remain an important bounded-workstation profile, but the dedicated appliance
+  route avoids a consent selector on each fresh automation setup.
 - SSH can be an optional non-root transport, but must use public keys and may
   not replace the credential-free guest-agent recovery path.

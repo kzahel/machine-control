@@ -15,6 +15,8 @@ apt-get install -y \
     python3-gi \
     gir1.2-atspi-2.0 \
     gnome-screenshot \
+    python3-evdev \
+    wl-clipboard \
     jq
 
 # Ubuntu's qemu-guest-agent service is a static unit activated by the VirtIO

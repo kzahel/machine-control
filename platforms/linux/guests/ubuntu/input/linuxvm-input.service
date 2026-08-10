@@ -1,0 +1,14 @@
+[Unit]
+Description=LinuxVM dedicated-appliance input broker
+After=systemd-logind.service graphical.target
+
+[Service]
+Type=simple
+RuntimeDirectory=linuxvm-testbed
+RuntimeDirectoryMode=0755
+ExecStart=/usr/bin/python3 /usr/local/libexec/linuxvm-testbed/linuxinputd.py --socket=/run/linuxvm-testbed/input.sock
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

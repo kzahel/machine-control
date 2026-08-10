@@ -11,8 +11,10 @@ fallback. Neither path is sufficient alone.
    active user's systemd manager.
 4. Use `linuxvm control` for resident semantics and normalized results.
 5. Use `linuxvm ui` for direct diagnostic AT-SPI commands.
-6. Use normalized screenshot and physical input when semantics are missing.
-7. Ask the user to enter passwords or other secrets directly in the guest.
+6. Use resident capture and the in-guest virtual HID broker when semantics are
+   missing.
+7. Reserve normalized UTM screenshot/input for bootstrap and recovery.
+8. Ask the user to enter passwords or other secrets directly in the guest.
 
 ## Launching GUI Applications
 
@@ -87,12 +89,15 @@ Electron and browser content may require the application's accessibility mode.
 ## Wayland Boundary
 
 Global X11 tools such as `xdotool` are not used. AT-SPI performs semantic
-actions inside the user session, while UTM injects virtual keyboard and mouse
-input outside the compositor's application sandbox.
+actions inside the user session. The dedicated-appliance broker creates a
+persistent virtual HID device through `/dev/uinput`, which GNOME/Mutter
+receives as target-local input. Its active-user socket is mode `0600`; the
+service and its full-desktop authority remain root privileged.
 
-The helper does not edit GNOME permission stores, run as root, or bypass a
-lock screen. XDG RemoteDesktop/ScreenCast portal support could later provide a
-clean PipeWire stream, but it would retain the portal's explicit consent flow.
+The semantic helper does not edit GNOME permission stores or bypass a lock
+screen. The virtual HID broker does run as root for the dedicated appliance.
+XDG RemoteDesktop/ScreenCast could later provide a bounded-workstation profile,
+but it retains the portal's explicit consent flow.
 
 ## Normalized Coordinates
 
