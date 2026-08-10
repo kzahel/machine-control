@@ -24,6 +24,10 @@ Start here:
   admin-fixture-state    Read the administrator fixture's file oracle
   privacy-fixture-state  Read the privacy fixture's file oracle
   swiftui-fixture-state  Read the SwiftUI fixture's file oracle
+  electron-fixture-state Read the Electron fixture's file oracle
+  java-fixture-state     Read the Java Swing fixture's file oracle
+  framework-runtime-status
+                         Inspect the pinned Java, Node, and Electron runtimes
 
 Setup:
   deploy-ui              Compile and deploy the semantic UI helper
@@ -31,12 +35,18 @@ Setup:
   deploy-admin-fixture   Compile and deploy the administrator fixture
   deploy-privacy-fixture Compile and deploy the privacy consent fixture
   deploy-swiftui-fixture Compile and deploy the SwiftUI fixture
+  deploy-electron-fixture Deploy the deterministic Electron fixture
+  deploy-java-fixture    Build and deploy the deterministic Swing fixture
+  install-framework-runtimes
+                         Install checksum-pinned ARM64 framework runtimes
   reset-admin-fixture    Clear administrator fixture oracle state
   reset-privacy-fixture  Reset one privacy fixture consent class
   remove-fixture         Remove the AppKit fixture and oracle state
   remove-admin-fixture   Remove administrator fixture and oracle state
   remove-privacy-fixture Remove the privacy fixture and oracle state
   remove-swiftui-fixture Remove the SwiftUI fixture and oracle state
+  remove-electron-fixture Remove the Electron fixture and oracle state
+  remove-java-fixture    Remove the Java fixture and oracle state
   authorize-ui           Request the guest Accessibility permission
 
 Out-of-band recovery:
@@ -72,12 +82,18 @@ case "$command" in
     deploy-admin-fixture) exec "$REPO_DIR/scripts/deploy-admin-fixture.sh" "$@" ;;
     deploy-privacy-fixture) exec "$REPO_DIR/scripts/deploy-privacy-fixture.sh" "$@" ;;
     deploy-swiftui-fixture) exec "$REPO_DIR/scripts/deploy-swiftui-fixture.sh" "$@" ;;
+    deploy-electron-fixture) exec "$REPO_DIR/scripts/deploy-electron-fixture.sh" "$@" ;;
+    deploy-java-fixture) exec "$REPO_DIR/scripts/deploy-java-fixture.sh" "$@" ;;
+    install-framework-runtimes) exec "$REPO_DIR/scripts/install-framework-runtimes.sh" "$@" ;;
+    framework-runtime-status) exec "$REPO_DIR/scripts/framework-runtime-status.sh" "$@" ;;
     reset-admin-fixture) exec "$REPO_DIR/scripts/reset-admin-fixture.sh" "$@" ;;
     reset-privacy-fixture) exec "$REPO_DIR/scripts/reset-privacy-fixture.sh" "$@" ;;
     remove-fixture) exec "$REPO_DIR/scripts/remove-fixture.sh" "$@" ;;
     remove-admin-fixture) exec "$REPO_DIR/scripts/remove-admin-fixture.sh" "$@" ;;
     remove-privacy-fixture) exec "$REPO_DIR/scripts/remove-privacy-fixture.sh" "$@" ;;
     remove-swiftui-fixture) exec "$REPO_DIR/scripts/remove-swiftui-fixture.sh" "$@" ;;
+    remove-electron-fixture) exec "$REPO_DIR/scripts/remove-electron-fixture.sh" "$@" ;;
+    remove-java-fixture) exec "$REPO_DIR/scripts/remove-java-fixture.sh" "$@" ;;
     authorize-ui) exec "$REPO_DIR/bin/macui" authorize "$@" ;;
     ui) exec "$REPO_DIR/bin/macui" "$@" ;;
     control) exec "$REPO_DIR/bin/macui" control "$@" ;;
@@ -99,6 +115,14 @@ case "$command" in
     swiftui-fixture-state)
         macvm_exec /bin/cat \
             "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-swiftui-fixture/state.json"
+        ;;
+    electron-fixture-state)
+        macvm_exec /bin/cat \
+            "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-electron-fixture/state.json"
+        ;;
+    java-fixture-state)
+        macvm_exec /bin/cat \
+            "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-java-fixture/state.json"
         ;;
     exec) macvm_exec "$@" ;;
     shell) macvm_shell ;;

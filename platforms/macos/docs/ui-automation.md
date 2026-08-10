@@ -176,6 +176,20 @@ Its Increment and Reset controls expose native AX semantics, while
 their deployed source, application registrations, and owned state after a
 corpus run.
 
+`install-framework-runtimes` adds checksum-verified, user-local ARM64 Temurin,
+Node, and Electron distributions to the prepared appliance. It does not use
+Homebrew or mutate the system Java installation. `framework-runtime-status`
+checks both the recorded pins and the runnable binaries.
+
+`deploy-java-fixture` uses the pinned Temurin `javac`, `jar`, and `jpackage`
+tools to build a stable Swing application bundle. `deploy-electron-fixture`
+copies the pinned upstream Electron runtime, embeds a minimal context-isolated
+application, applies a stable bundle identity, and ad-hoc signs the result.
+Both applications expose labelled native buttons and persist each effect to a
+separate JSON file oracle. `remove-java-fixture` and
+`remove-electron-fixture` remove their app bundles and state while retaining
+the reusable framework runtimes.
+
 ## Administrator Authorization Sheets
 
 After the resident has Accessibility permission, a normal Aqua

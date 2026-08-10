@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Machine Control Electron Fixture</title>
+    <style>
+      body { font: 18px system-ui; margin: 32px; }
+      button { font: inherit; margin-right: 12px; padding: 8px 14px; }
+      #count { font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <h1>Electron semantic fixture</h1>
+    <p id="count" aria-live="polite">Electron count: 0</p>
+    <button id="increment" type="button">Increment Electron</button>
+    <button id="reset" type="button">Reset Electron</button>
+    <script>
+      const count = document.querySelector('#count');
+      async function update(effect) {
+        const state = await window.fixture.update(effect);
+        count.textContent = `Electron count: ${state.count}`;
+      }
+      document.querySelector('#increment').addEventListener(
+        'click', () => update('incremented')
+      );
+      document.querySelector('#reset').addEventListener(
+        'click', () => update('reset')
+      );
+    </script>
+  </body>
+</html>

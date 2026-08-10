@@ -21,7 +21,7 @@ macOS Accessibility inspection and actions.
 | Composition | Native AX/Quartz/CGEvent plus optional installed Cua |
 | Administrator sheets | Strict SecurityAgent, System Settings, Installer, and Gatekeeper profiles plus a non-echoing one-shot credential channel |
 | Privacy fixtures | Signed API triggers and independent policy/hardware oracle |
-| Framework fixtures | Deterministic AppKit and SwiftUI semantics with file oracles |
+| Framework fixtures | Deterministic AppKit, SwiftUI, Java Swing, and Electron semantics with file oracles |
 | Recovery | Tart-window screenshot and CoreGraphics keyboard/mouse input |
 
 The semantic helper has no provider-packaged exclusions for the Dock, menu
@@ -90,10 +90,13 @@ short-lived lease and an interactive non-echoing credential helper; see
 [macOS UI automation](docs/ui-automation.md#administrator-authorization-sheets).
 The accepted logged-in Aqua corpus also covers settings-managed privacy,
 native panels and sheets, notifications, Safari downloads, DMGs, Gatekeeper,
-Installer, AppKit, SwiftUI, and target-local visual fallback. The execution
-record and environment omissions live in the sibling machine-control
+Installer, AppKit, SwiftUI, Java Swing, Electron, and target-local visual
+fallback. The execution
+record and original environment omissions live in the sibling machine-control
 repository's
-[`Tactical 010`](../machine-control/docs/tactical/010-macos-full-aqua-software-testing.md).
+[`Tactical 010`](../machine-control/docs/tactical/010-macos-full-aqua-software-testing.md);
+the Java/Electron closure is
+[`Tactical 011`](../machine-control/docs/tactical/011-macos-java-electron-framework-coverage.md).
 
 Set `MACVM_FORBID_OUTER_UI=true` for ordinary software-test acceptance. In
 that mode, Tart-window screenshot, click, drag, type, and key commands fail
@@ -104,6 +107,25 @@ control remain available.
 host's cursor and frontmost application. It remains available under the guard
 so conformance tests can prove that target-resident input did not manipulate
 the host desktop; it does not observe guest pixels or inject input.
+
+The prepared appliance can carry checksum-pinned, user-local ARM64 build
+runtimes without Homebrew or a system-wide package installer:
+
+```bash
+bin/macvm install-framework-runtimes
+bin/macvm framework-runtime-status
+bin/macvm deploy-java-fixture
+bin/macvm deploy-electron-fixture
+```
+
+The runtime manifest pins Eclipse Temurin 21 LTS, Node 24 LTS, and Electron to
+immutable official archives and SHA-256 values. Deployment builds a Swing app
+with `jpackage` and packages an Electron app under stable bundle identifiers;
+both expose native semantics and write independent file oracles. Fixture
+removal retains the reusable runtimes. Native AX drives Swing. The accepted
+Electron semantic cell uses the installed Cua adapter after target activation:
+live differential evidence found native AX acknowledged the Chromium button
+without changing its oracle, while Cua produced the effect.
 
 A resident capture returns a guest artifact path. Fetch that bounded artifact
 without reading arbitrary guest files through the artifact interface:
@@ -175,6 +197,9 @@ guests/macos/fixture/             Deterministic native conformance fixture
 guests/macos/admin-fixture/       Harmless administrator-sheet fixture
 guests/macos/privacy-fixture/     Privacy API and System Settings fixture
 guests/macos/swiftui-fixture/     Deterministic SwiftUI semantic fixture
+guests/macos/java-fixture/        Deterministic Java Swing semantic fixture
+guests/macos/electron-fixture/    Deterministic Electron semantic fixture
+guests/macos/framework-runtimes/  Pinned runtime manifest
 scripts/                          Deployment and diagnostics
 skills/drive-macvm/               Reusable agent operating skill
 ```

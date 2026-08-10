@@ -16,12 +16,18 @@ for script in \
     scripts/deploy-admin-fixture.sh \
     scripts/deploy-privacy-fixture.sh \
     scripts/deploy-swiftui-fixture.sh \
+    scripts/deploy-electron-fixture.sh \
+    scripts/deploy-java-fixture.sh \
+    scripts/framework-runtime-status.sh \
+    scripts/install-framework-runtimes.sh \
     scripts/reset-admin-fixture.sh \
     scripts/remove-fixture.sh \
     scripts/remove-admin-fixture.sh \
     scripts/reset-privacy-fixture.sh \
     scripts/remove-privacy-fixture.sh \
     scripts/remove-swiftui-fixture.sh \
+    scripts/remove-electron-fixture.sh \
+    scripts/remove-java-fixture.sh \
     scripts/submit-authorization.sh \
     scripts/fetch-artifact.sh \
     scripts/doctor.sh \
@@ -53,6 +59,18 @@ done
     guests/macos/privacy-fixture/PrivacyConsentFixture.swift
 /usr/bin/swiftc -typecheck -parse-as-library -framework SwiftUI \
     guests/macos/swiftui-fixture/SwiftUIFixture.swift
+
+/usr/bin/python3 -m json.tool \
+    guests/macos/electron-fixture/package.json >/dev/null
+for file in guests/macos/electron-fixture/main.js \
+    guests/macos/electron-fixture/preload.js; do
+    test -s "$file"
+done
+test -s guests/macos/java-fixture/MachineControlJavaFixture.java
+source guests/macos/framework-runtimes/versions.env
+[[ "$MACVM_NODE_SHA256" =~ ^[0-9a-f]{64}$ ]]
+[[ "$MACVM_JAVA_SHA256" =~ ^[0-9a-f]{64}$ ]]
+[[ "$MACVM_ELECTRON_SHA256" =~ ^[0-9a-f]{64}$ ]]
 
 bin/macvm help >/dev/null
 bin/macui help >/dev/null
