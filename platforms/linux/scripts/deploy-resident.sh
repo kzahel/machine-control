@@ -104,7 +104,7 @@ done
 "$LINUXVM" exec -- /usr/bin/test -S /run/linuxvm-testbed/input.sock
 
 "$LINUXVM" user-exec -- /usr/bin/systemctl --user daemon-reload
-"$LINUXVM" user-exec -- /usr/bin/systemctl --user enable \
+"$LINUXVM" user-exec -- /usr/bin/systemctl --user reenable \
     linuxvm-control.service >/dev/null
 "$LINUXVM" user-exec -- /usr/bin/systemctl --user restart \
     linuxvm-control.service

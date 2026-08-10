@@ -100,6 +100,12 @@ those exact references. An empty native AT-SPI action name is reported as its
 index; deterministic effect observation, not that invocation, establishes
 success.
 
+The resident is enabled under the user's `graphical-session.target`, after
+GNOME has imported the real display environment. The root input broker is
+enabled independently under `multi-user.target`. `doctor` waits boundedly for
+autologin, Wayland, AT-SPI, capture, and input readiness because the QEMU guest
+agent can return before the desktop session is complete.
+
 Resident capture runs `gnome-screenshot` in the active user session. It writes
 an owned, UUID-named PNG beneath `~/.cache/linuxvm-testbed/artifacts`; the
 result reports its guest path, dimensions, size, and digest. `linuxvm artifact`
@@ -155,6 +161,16 @@ surfaces, Files, Settings, a file chooser, Polkit detection and cancellation,
 Qt, and Chromium under that guard:
 
 ```bash
+tests/gnome-acceptance.sh
+```
+
+Cold-boot acceptance also requires a changed resident generation and a typed
+`stale_reference` refusal for a pre-reboot element, followed by both suites:
+
+```bash
+bin/linuxvm reboot
+bin/linuxvm doctor
+tests/smoke.sh
 tests/gnome-acceptance.sh
 ```
 

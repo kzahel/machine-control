@@ -4,6 +4,23 @@ This is a living record of concrete gaps encountered while using LinuxVM
 Testbed. Keep observed behavior, effect, workaround, and a likely improvement
 direction together so later work can reproduce the problem.
 
+## Resolved 2026-08-10 during resident reboot acceptance
+
+### Enabled resident services were not boot-ready
+
+The first guarded reboot returned the QEMU guest agent before GNOME autologin.
+Doctor sampled the session too early. The user resident also started from
+`default.target` before the user manager received `WAYLAND_DISPLAY`, while the
+root input broker's `After=graphical.target` ordering conflicted with its
+`multi-user.target` enablement and left it inactive.
+
+The input broker now orders only after logind. The user resident is re-enabled
+under `graphical-session.target`, and doctor waits boundedly for the active
+Wayland user, AT-SPI, and the complete semantic/capture/input status. A second
+clean reboot restored both services, changed the resident generation, refused
+a pre-reboot reference as stale, and passed smoke plus full GNOME/framework
+acceptance with outer UI prohibited.
+
 ## Observed 2026-08-04 during 200 OK `v0.1.6` smoke
 
 ### Cold start can race guest-agent readiness

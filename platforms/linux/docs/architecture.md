@@ -87,6 +87,14 @@ and `/usr/local/bin/machine-control` inside the guest use the same newline-
 delimited request path. Local versus remote use therefore changes transport
 placement, not the operation or result vocabulary.
 
+The user service is wanted by `graphical-session.target`, not
+`default.target`. This prevents it from starting before GNOME imports
+`WAYLAND_DISPLAY` into the user manager. The root virtual-HID broker is wanted
+by `multi-user.target` and orders only after logind; ordering it after
+`graphical.target` creates a boot cycle and can leave an enabled broker
+inactive. Doctor treats guest-agent availability and desktop readiness as
+different milestones and polls the latter boundedly.
+
 The resident normalizes status, capabilities, applications, windows,
 compact/full snapshots, actions, focus, and editable/numeric values over
 native AT-SPI. Snapshot references bind to a random resident generation and

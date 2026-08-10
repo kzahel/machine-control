@@ -56,12 +56,19 @@ fi
 ip="$($PROVIDER ip 2>/dev/null || true)"
 [[ -n "$ip" ]] && ok "guest IPv4: $ip" || bad "guest IPv4"
 
-user="$($LINUXVM desktop-user 2>/dev/null || true)"
+user=""
+session_type=""
+for _ in {1..60}; do
+    user="$($LINUXVM desktop-user 2>/dev/null || true)"
+    session_type="$($PROVIDER exec /usr/bin/bash -lc \
+        'pid=$(pgrep -n -x gnome-shell); tr "\0" "\n" < "/proc/$pid/environ" | sed -n "s/^XDG_SESSION_TYPE=//p"' \
+        2>/dev/null || true)"
+    if [[ -n "$user" && "$session_type" == "wayland" ]]; then
+        break
+    fi
+    sleep 1
+done
 [[ -n "$user" ]] && ok "active desktop user: $user" || bad "active desktop user"
-
-session_type="$($PROVIDER exec /usr/bin/bash -lc \
-    'pid=$(pgrep -n -x gnome-shell); tr "\0" "\n" < "/proc/$pid/environ" | sed -n "s/^XDG_SESSION_TYPE=//p"' \
-    2>/dev/null || true)"
 [[ "$session_type" == "wayland" ]] && ok "GNOME Wayland session" || bad "Wayland session: $session_type"
 
 if $PROVIDER exec /usr/bin/systemctl is-active --quiet qemu-guest-agent; then
@@ -80,8 +87,17 @@ if $PROVIDER exec /usr/bin/test -x "$LINUXVM_UI_REMOTE"; then
 else
     bad "semantic UI helper deployed"
 fi
-if ui_health="$($LINUXVM ui health 2>/dev/null)" && \
-   [[ "$(jq -r '.atspiAvailable // false' <<<"$ui_health")" == "true" ]]; then
+ui_health=""
+for _ in {1..30}; do
+    if ui_health="$($LINUXVM ui health 2>/dev/null)" &&
+       [[ "$(jq -r '.atspiAvailable // false' \
+           <<<"$ui_health")" == "true" ]]; then
+        break
+    fi
+    ui_health=""
+    sleep 1
+done
+if [[ -n "$ui_health" ]]; then
     ok "AT-SPI desktop access"
     printf '%s\n' "$ui_health"
 else
