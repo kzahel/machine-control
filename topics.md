@@ -13,5 +13,7 @@ commits with no expected follow-up do not need a trailer or registry entry.
   gates.
 - `windows-resident-control` — Windows target-resident facade, system-shell
   acceptance, local/remote parity, recovery, and reproducible appliance proof.
+- `macos-resident-control` — macOS target-resident facade, native provider
+  composition, local/remote parity, TCC identity, and Tart appliance proof.
 - `provider-landscape` — common-provider versus platform-depth decisions,
   exact-window requirements, fixture design, and evidence-driven selection.

@@ -39,6 +39,9 @@ its `Topic:` trailers.
   coordination and the separation between agent placement and control target.
 - [`inner-first-routing.md`](inner-first-routing.md): ordinary resident routes,
   explicit outer recovery, and host-interference policy.
+- [`macos-resident-control.md`](macos-resident-control.md): current macOS
+  ordinary-session resident implementation, Tart boundary, and protected-plane
+  sequencing.
 - [`platform-notes.md`](platform-notes.md): current decisions across desktop,
   mobile, headset, VM, and physical targets.
 - [`provider-landscape.md`](provider-landscape.md): cross-provider decisions,
