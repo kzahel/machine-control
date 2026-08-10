@@ -13,7 +13,8 @@ func privacyEventTapCallback(_ proxy: CGEventTapProxy, _ type: CGEventType,
     Unmanaged.passUnretained(event)
 }
 
-final class PrivacyFixtureController: NSObject, NSApplicationDelegate {
+final class PrivacyFixtureController: NSObject, NSApplicationDelegate,
+    UNUserNotificationCenterDelegate {
     private var services: [String: [String: Any]] = [:]
     private var lastService = "none"
     private var localBrowser: NWBrowser?
@@ -27,6 +28,7 @@ final class PrivacyFixtureController: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        UNUserNotificationCenter.current().delegate = self
         let definitions: [(String, String, Selector)] = [
             ("Accessibility", "accessibility", #selector(requestAccessibility)),
             ("Screen Recording", "screen-recording", #selector(requestScreenRecording)),
@@ -196,12 +198,38 @@ final class PrivacyFixtureController: NSObject, NSApplicationDelegate {
 
     @objc private func requestNotifications(_ sender: Any?) {
         update("notifications", ["event": "requested"])
-        UNUserNotificationCenter.current().requestAuthorization(
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(
             options: [.alert, .badge, .sound]) { granted, error in
             self.update("notifications", ["event": "request_completed",
                 "authorization": granted ? "authorized" : "denied",
                 "error": error.map { $0.localizedDescription as Any } ?? NSNull()])
+            guard granted else { return }
+            let identifier = "machine-control-notification-probe"
+            center.removePendingNotificationRequests(withIdentifiers: [identifier])
+            center.removeDeliveredNotifications(withIdentifiers: [identifier])
+            let content = UNMutableNotificationContent()
+            content.title = "Machine Control Privacy Fixture"
+            content.body = "Notification delivery probe"
+            let trigger = UNTimeIntervalNotificationTrigger(
+                timeInterval: 0.5, repeats: false)
+            center.add(UNNotificationRequest(identifier: identifier,
+                content: content, trigger: trigger)) { schedulingError in
+                self.update("notifications", ["event": "delivery_scheduled",
+                    "effect": schedulingError == nil ? "scheduled" : "schedule_failed",
+                    "error": schedulingError.map {
+                        $0.localizedDescription as Any } ?? NSNull()])
+            }
         }
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler:
+            @escaping (UNNotificationPresentationOptions) -> Void) {
+        update("notifications", ["event": "presented", "effect": "presented",
+            "requestIdentifier": notification.request.identifier])
+        completionHandler([.banner, .list, .sound])
     }
 
     @objc private func requestCamera(_ sender: Any?) {
@@ -246,7 +274,7 @@ final class PrivacyFixtureController: NSObject, NSApplicationDelegate {
     @objc private func probeFullDiskAccess(_ sender: Any?) {
         update("full-disk-access", ["event": "requested"])
         let url = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Safari/History.db")
+            .appendingPathComponent("Library/Messages/chat.db")
         do {
             let data = try Data(contentsOf: url, options: .mappedIfSafe)
             update("full-disk-access", ["event": "request_returned",

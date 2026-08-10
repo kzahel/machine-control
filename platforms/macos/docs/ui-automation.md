@@ -214,7 +214,9 @@ Camera, Microphone, Documents, Downloads, Full Disk Access probing, and Local
 Network. `privacy-fixture-state` reads its independent file oracle. The oracle
 keeps consent result, API effect, and virtual hardware presence separate. Its
 Input Monitoring trigger attempts a real session event tap, and its Screen
-Recording trigger probes ScreenCaptureKit content after requesting access.
+Recording trigger probes ScreenCaptureKit content after requesting access. Its
+notification trigger schedules a deterministic banner/list delivery and
+records foreground presentation independently.
 
 Use `reset-privacy-fixture SERVICE` only for classes supported by `tccutil`.
 Camera, Microphone, and Automation can be reset and replayed directly. Local
