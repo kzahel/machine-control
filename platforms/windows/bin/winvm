@@ -42,6 +42,8 @@ Image lifecycle:
 Image factory:
   factory-create NAME WINDOWS_ISO SEED_ISO
                          Create a stopped QEMU VM from explicit local media
+  factory-detach-installer
+                         Remove only the installer from a stopped candidate
   factory-detach-media   Remove all removable drives from a stopped candidate
   generalize [--check|--decrypt|--confirm-target]
   generalize --remove-appx EXACT_PACKAGE_NAME
@@ -110,7 +112,7 @@ case "$command" in
     wsl) assert_target connect; exec "$WINVM_SSH_BIN" "$WINVM_SSH_HOST" wsl.exe "$@" ;;
     generalize) exec "$REPO_DIR/scripts/generalize-windows.sh" "$@" ;;
     image-manifest) exec "$REPO_DIR/scripts/image-manifest.sh" "$@" ;;
-    status|capabilities|target-id|pin-target|assert-target|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop|seal|disposable-up|export-image|factory-create|factory-detach-media|delete)
+    status|capabilities|target-id|pin-target|assert-target|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop|seal|disposable-up|export-image|factory-create|factory-detach-installer|factory-detach-media|delete)
         provider "$command" "$@"
         ;;
     *)

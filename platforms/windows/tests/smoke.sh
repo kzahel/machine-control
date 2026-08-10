@@ -33,6 +33,7 @@ help_output="$(WINVM_UTM_NAME='Smoke Test VM' "$REPO_DIR/bin/winvm" help)"
 [[ "$help_output" == *'disposable-up'* ]]
 [[ "$help_output" == *'delete --confirm NAME'* ]]
 [[ "$help_output" == *'factory-create NAME WINDOWS_ISO SEED_ISO'* ]]
+[[ "$help_output" == *'factory-detach-installer'* ]]
 [[ "$help_output" == *'factory-detach-media'* ]]
 [[ "$help_output" == *'generalize [--check|--decrypt|--confirm-target]'* ]]
 [[ "$help_output" == *'generalize --remove-appx EXACT_PACKAGE_NAME'* ]]
@@ -81,6 +82,7 @@ blocked_json="$(
 [[ "$(jq -r '.lifecycle.generalize.route' <<< "$blocked_json")" == 'guest_sysprep' ]]
 [[ "$(jq -r '.image_factory.availability' <<< "$blocked_json")" == 'conditional' ]]
 [[ "$(jq -r '.image_factory.requires | index("stopped_media_detachment") != null' <<< "$blocked_json")" == 'true' ]]
+[[ "$(jq -r '.image_factory.requires | index("installer_detachment_before_bootstrap") != null' <<< "$blocked_json")" == 'true' ]]
 [[ "$(jq -r '.lifecycle.delete.requires | index("exact_name_confirmation") != null' <<< "$blocked_json")" == 'true' ]]
 [[ "$(jq -r '.lifecycle.suspend.reasons | index("utm-qemu-gpu-display") != null' <<< "$blocked_json")" == 'true' ]]
 [[ "$(jq -r '.lifecycle.suspend.reasons | index("utm-qemu-nvme-disk") != null' <<< "$blocked_json")" == 'true' ]]
@@ -170,6 +172,7 @@ candidate_json="$(assert_target candidate up --json)"
 assert_target candidate product-install >/dev/null
 assert_target candidate generalize >/dev/null
 assert_target candidate export-image >/dev/null
+assert_target candidate factory-detach-installer >/dev/null
 assert_target candidate factory-detach-media >/dev/null
 if assert_target seal product-install >/dev/null 2>&1; then
     printf 'Seal unexpectedly authorized persistent product installation.\n' >&2
@@ -179,6 +182,15 @@ if assert_target seal factory-detach-media >/dev/null 2>&1; then
     printf 'Seal unexpectedly authorized factory-media detachment.\n' >&2
     exit 1
 fi
+
+detach_installer_output="$(env \
+    WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-always-stopped" \
+    WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-factory-detach-installer" \
+    WINVM_EXPECTED_UTM_ID=11111111-2222-3333-4444-555555555555 \
+    WINVM_TARGET_ROLE=candidate \
+    "$provider" factory-detach-installer)"
+[[ "$detach_installer_output" == \
+    'factory installer detached: removed=1 seed_remaining=1' ]]
 
 detach_output="$(env \
     WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-always-stopped" \

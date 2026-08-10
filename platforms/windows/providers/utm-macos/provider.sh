@@ -121,7 +121,7 @@ role_allows_operation() {
             [[ "$role" == "candidate" || "$role" == "seal" ]] ||
                 { [[ "$role" == "source" ]] && source_mutation_authorized; }
             ;;
-        stage-bootstrap|deploy-ui|product-install|generalize|input|force-stop|factory-detach-media)
+        stage-bootstrap|deploy-ui|product-install|generalize|input|force-stop|factory-detach-installer|factory-detach-media)
             [[ "$role" == "candidate" ]] ||
                 { [[ "$role" == "source" ]] && source_mutation_authorized; }
             ;;
@@ -244,8 +244,9 @@ on run argv
             set drives of vmConfig to retainedDrives
             update configuration targetVM with vmConfig
         end if
+        set updatedConfig to configuration of targetVM
         set remainingCount to 0
-        repeat with driveConfig in drives of (configuration of targetVM)
+        repeat with driveConfig in drives of updatedConfig
             if removable of driveConfig then
                 set remainingCount to remainingCount + 1
             end if
@@ -261,6 +262,58 @@ APPLESCRIPT
         return 1
     fi
     printf 'factory media detached: removed=%s remaining=0\n' "$removed"
+}
+
+factory_detach_installer() {
+    local status result initial removed remaining
+    status="$(vm_status || true)"
+    if [[ "$status" != "stopped" ]]; then
+        printf 'Factory installer detachment requires a stopped target.\n' >&2
+        return 1
+    fi
+    result="$("$WINVM_OSASCRIPT" - "$WINVM_EXPECTED_UTM_ID" <<'APPLESCRIPT'
+on run argv
+    set expectedId to item 1 of argv
+    tell application "UTM"
+        set targetVM to first virtual machine whose id is expectedId
+        set vmConfig to configuration of targetVM
+        set initialCount to 0
+        repeat with driveConfig in drives of vmConfig
+            if removable of driveConfig then
+                set initialCount to initialCount + 1
+            end if
+        end repeat
+        set retainedDrives to {}
+        set removedCount to 0
+        if initialCount is 2 then
+            repeat with driveConfig in drives of vmConfig
+                if (removable of driveConfig) and removedCount is 0 then
+                    set removedCount to 1
+                else
+                    set end of retainedDrives to contents of driveConfig
+                end if
+            end repeat
+            set drives of vmConfig to retainedDrives
+            update configuration targetVM with vmConfig
+        end if
+        set updatedConfig to configuration of targetVM
+        set remainingCount to 0
+        repeat with driveConfig in drives of updatedConfig
+            if removable of driveConfig then
+                set remainingCount to remainingCount + 1
+            end if
+        end repeat
+        return (initialCount as text) & tab & (removedCount as text) & tab & (remainingCount as text)
+    end tell
+end run
+APPLESCRIPT
+)"
+    IFS=$'\t' read -r initial removed remaining <<< "$result"
+    if [[ "$initial" != "2" || "$removed" != "1" || "$remaining" != "1" ]]; then
+        printf 'UTM did not confirm exact installer-only detachment.\n' >&2
+        return 1
+    fi
+    printf 'factory installer detached: removed=1 seed_remaining=1\n'
 }
 
 vm_export_image() {
@@ -422,7 +475,7 @@ provider_capabilities() {
             --arg source "$SUSPEND_SOURCE" \
             --argjson reasons "$reasons_json" \
             --arg action "$action" \
-            '{schema_version: 1, state: $state, lifecycle: {suspend: {availability: $availability, source: $source, reasons: $reasons}, default_down_action: $action, seal: {availability: "available", kind: "full_clone", requires: ["source_stopped", "destination_unregistered"]}, disposable_start: {availability: "available", persistence: "discard_on_stop"}, export_image: {availability: "available", kind: "utm_bundle", requires: ["identity_pin", "candidate_or_seal_role", "target_stopped", "new_absolute_output"]}, generalize: {availability: "available", route: "guest_sysprep", requires: ["identity_pin", "candidate_role", "administrator", "no_pending_reboot"]}, delete: {availability: "available", requires: ["configured_target_stopped", "exact_name_confirmation"]}}, image_factory: {availability: "conditional", architecture: "aarch64", requires: ["local_windows_iso", "private_answer_media", "unregistered_destination", "stopped_media_detachment"]}}'
+            '{schema_version: 1, state: $state, lifecycle: {suspend: {availability: $availability, source: $source, reasons: $reasons}, default_down_action: $action, seal: {availability: "available", kind: "full_clone", requires: ["source_stopped", "destination_unregistered"]}, disposable_start: {availability: "available", persistence: "discard_on_stop"}, export_image: {availability: "available", kind: "utm_bundle", requires: ["identity_pin", "candidate_or_seal_role", "target_stopped", "new_absolute_output"]}, generalize: {availability: "available", route: "guest_sysprep", requires: ["identity_pin", "candidate_role", "administrator", "no_pending_reboot"]}, delete: {availability: "available", requires: ["configured_target_stopped", "exact_name_confirmation"]}}, image_factory: {availability: "conditional", architecture: "aarch64", requires: ["local_windows_iso", "private_answer_media", "installer_detachment_before_bootstrap", "stopped_media_detachment"]}}'
         return
     fi
 
@@ -803,6 +856,7 @@ case "$command" in
     disposable-up) assert_target disposable-up >/dev/null; vm_disposable_up "$@" ;;
     export-image) assert_target export-image >/dev/null; vm_export_image "$@" ;;
     factory-create) factory_create "$@" ;;
+    factory-detach-installer) assert_target factory-detach-installer >/dev/null; factory_detach_installer ;;
     factory-detach-media) assert_target factory-detach-media >/dev/null; factory_detach_media ;;
     delete) assert_target delete >/dev/null; vm_delete "$@" ;;
     down) assert_target down >/dev/null; vm_down ;;

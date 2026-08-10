@@ -101,6 +101,13 @@ disk, shared networking, and removable Windows/seed media. Media compatibility,
 Windows edition/index, driver availability, and activation are caller-owned
 inputs and must be proven on the exact ISO.
 
+Windows Setup restarts after laying down the system disk, while first logon
+still needs the seed. If UEFI remains at `Start boot option`, stop the candidate
+through `bin/winvm down`, run `bin/winvm factory-detach-installer`, and start it
+again. That guarded transition requires exactly two removable drives, removes
+only the first factory-created installer, and independently requires exactly
+one seed drive to remain. It will not guess when the drive shape differs.
+
 After Windows first-logon bootstrap completes, verify key-only SSH, remove the
 one-use answer media and Windows ISO with `bin/winvm factory-detach-media`
 while the candidate is stopped, rotate the setup credential, and install
