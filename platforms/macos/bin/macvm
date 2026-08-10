@@ -19,10 +19,12 @@ Start here:
   control JSON           Call the target-resident machine-control facade
   control-local JSON     Call it through the installed guest-local CLI
   fixture-state          Read the deterministic fixture's file oracle
+  admin-fixture-state    Read the administrator fixture's file oracle
 
 Setup:
   deploy-ui              Compile and deploy the semantic UI helper
   deploy-fixture         Compile and deploy the deterministic native fixture
+  deploy-admin-fixture   Compile and deploy the administrator fixture
   authorize-ui           Request the guest Accessibility permission
 
 Out-of-band recovery:
@@ -55,6 +57,7 @@ case "$command" in
     doctor) exec "$REPO_DIR/scripts/doctor.sh" "$@" ;;
     deploy-ui) exec "$REPO_DIR/scripts/deploy-ui.sh" "$@" ;;
     deploy-fixture) exec "$REPO_DIR/scripts/deploy-fixture.sh" "$@" ;;
+    deploy-admin-fixture) exec "$REPO_DIR/scripts/deploy-admin-fixture.sh" "$@" ;;
     authorize-ui) exec "$REPO_DIR/bin/macui" authorize "$@" ;;
     ui) exec "$REPO_DIR/bin/macui" "$@" ;;
     control) exec "$REPO_DIR/bin/macui" control "$@" ;;
@@ -62,6 +65,10 @@ case "$command" in
     fixture-state)
         exec "$MACVM_TART" exec "$MACVM_NAME" /bin/cat \
             "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-fixture/state.json"
+        ;;
+    admin-fixture-state)
+        exec "$MACVM_TART" exec "$MACVM_NAME" /bin/cat \
+            "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-admin-fixture/state.json"
         ;;
     exec) exec "$MACVM_TART" exec "$MACVM_NAME" "$@" ;;
     shell) exec "$MACVM_TART" exec -it "$MACVM_NAME" /bin/zsh -l ;;

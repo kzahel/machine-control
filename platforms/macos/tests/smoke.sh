@@ -13,6 +13,7 @@ for script in \
     scripts/common.sh \
     scripts/deploy-ui.sh \
     scripts/deploy-fixture.sh \
+    scripts/deploy-admin-fixture.sh \
     scripts/doctor.sh \
     guests/macos/ui/machine-control \
     guests/macos/bootstrap/bootstrap-guest.sh; do
@@ -24,6 +25,7 @@ done
     guests/macos/bootstrap/org.cirruslabs.tart-guest-daemon.plist.in \
     guests/macos/ui/Info.plist \
     guests/macos/fixture/Info.plist \
+    guests/macos/admin-fixture/Info.plist \
     >/dev/null
 
 /usr/bin/swiftc -typecheck providers/tart-macos/host-control.swift
@@ -31,6 +33,8 @@ done
 /usr/bin/swiftc -typecheck -framework SystemConfiguration \
     guests/macos/ui/macui.swift
 /usr/bin/swiftc -typecheck guests/macos/fixture/MachineControlFixture.swift
+/usr/bin/swiftc -typecheck -framework AppKit \
+    guests/macos/admin-fixture/AdminAuthorizationFixture.swift
 
 bin/macvm help >/dev/null
 bin/macui help >/dev/null
