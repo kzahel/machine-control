@@ -36,7 +36,7 @@ help_output="$(WINVM_UTM_NAME='Smoke Test VM' "$REPO_DIR/bin/winvm" help)"
 [[ "$help_output" == *'seal'* ]]
 [[ "$help_output" == *'disposable-up'* ]]
 [[ "$help_output" == *'delete --confirm NAME'* ]]
-[[ "$help_output" == *'factory-create NAME WINDOWS_ISO SEED_ISO'* ]]
+[[ "$help_output" == *'factory-create NAME WINDOWS_ISO SEED_ISO BOOT_IMAGE'* ]]
 [[ "$help_output" == *'factory-detach-installer'* ]]
 [[ "$help_output" == *'factory-detach-media'* ]]
 [[ "$help_output" == *'generalize [--check|--decrypt|--confirm-target]'* ]]
@@ -131,14 +131,16 @@ fi
 
 mkdir -p "$temporary/factory-media"
 touch "$temporary/factory-media/windows.iso" \
-    "$temporary/factory-media/seed.iso"
+    "$temporary/factory-media/seed.iso" \
+    "$temporary/factory-media/boot.img"
 (
     cd "$temporary"
     factory_output="$(WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-factory-create" \
     WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-factory-create" \
     WINVM_TEST_FACTORY_UTMCTL_MARKER="$temporary/factory-created" \
     "$provider" factory-create fixture \
-        factory-media/windows.iso factory-media/seed.iso)"
+        factory-media/windows.iso factory-media/seed.iso \
+        factory-media/boot.img)"
     [[ "$factory_output" == 'factory target created' ]]
 )
 
@@ -194,7 +196,7 @@ detach_installer_output="$(env \
     WINVM_TARGET_ROLE=candidate \
     "$provider" factory-detach-installer)"
 [[ "$detach_installer_output" == \
-    'factory installer detached: removed=1 seed_remaining=1' ]]
+    'factory installer detached: removed=1 seed_media_remaining=2' ]]
 
 detach_output="$(env \
     WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-always-stopped" \
@@ -202,7 +204,7 @@ detach_output="$(env \
     WINVM_EXPECTED_UTM_ID=11111111-2222-3333-4444-555555555555 \
     WINVM_TARGET_ROLE=candidate \
     "$provider" factory-detach-media)"
-[[ "$detach_output" == 'factory media detached: removed=2 remaining=0' ]]
+[[ "$detach_output" == 'factory media detached: removed=3 remaining=0' ]]
 
 if env \
     WINVM_UTMCTL=/usr/bin/true \

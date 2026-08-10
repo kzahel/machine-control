@@ -6,7 +6,7 @@ script="$(</dev/stdin)"
 if [[ "$script" == *'return id of targetVM'* ]]; then
     printf '11111111-2222-3333-4444-555555555555\n'
 elif [[ "$script" == *'initialCount as text'* ]]; then
-    printf '2\t1\t1\n'
+    printf '3\t1\t2\n'
 else
     printf 'Unexpected factory-installer-detach AppleScript.\n' >&2
     exit 1

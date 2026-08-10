@@ -182,12 +182,12 @@ assert_target() {
 }
 
 factory_create() {
-    if [[ $# -ne 3 || -z "$1" || -z "$2" || -z "$3" ]]; then
-        printf 'Usage: winvm factory-create NAME WINDOWS_ISO SEED_ISO\n' >&2
+    if [[ $# -ne 4 || -z "$1" || -z "$2" || -z "$3" || -z "$4" ]]; then
+        printf 'Usage: winvm factory-create NAME WINDOWS_ISO SEED_ISO BOOT_IMAGE\n' >&2
         return 2
     fi
-    local destination="$1" windows_iso="$2" seed_iso="$3" status
-    for media in "$windows_iso" "$seed_iso"; do
+    local destination="$1" windows_iso="$2" seed_iso="$3" boot_image="$4" status
+    for media in "$windows_iso" "$seed_iso" "$boot_image"; do
         if [[ ! -f "$media" || ! -r "$media" ]]; then
             printf 'Factory media is absent or unreadable.\n' >&2
             return 1
@@ -195,18 +195,21 @@ factory_create() {
     done
     windows_iso="$(cd "$(dirname "$windows_iso")" && pwd -P)/$(basename "$windows_iso")"
     seed_iso="$(cd "$(dirname "$seed_iso")" && pwd -P)/$(basename "$seed_iso")"
+    boot_image="$(cd "$(dirname "$boot_image")" && pwd -P)/$(basename "$boot_image")"
     if vm_is_registered "$destination"; then
         printf 'Factory destination is already registered.\n' >&2
         return 1
     fi
     "$WINVM_OSASCRIPT" - "$destination" "$windows_iso" "$seed_iso" \
+        "$boot_image" \
         >/dev/null <<'APPLESCRIPT'
 on run argv
     set vmName to item 1 of argv
     set windowsIso to POSIX file (item 2 of argv)
     set seedIso to POSIX file (item 3 of argv)
+    set bootImage to POSIX file (item 4 of argv)
     tell application "UTM"
-        make new virtual machine with properties {backend:qemu, configuration:{name:vmName, architecture:"aarch64", memory:8192, cpu cores:4, hypervisor:true, uefi:true, drives:{{removable:true, source:windowsIso}, {removable:true, source:seedIso}, {interface:NVMe, guest size:131072}}, displays:{{hardware:"virtio-ramfb-gl", dynamic resolution:true}}, network interfaces:{{mode:shared}}}}
+        make new virtual machine with properties {backend:qemu, configuration:{name:vmName, architecture:"aarch64", memory:8192, cpu cores:4, hypervisor:true, uefi:true, drives:{{removable:true, source:windowsIso}, {removable:true, source:seedIso}, {removable:true, interface:USB, source:bootImage}, {interface:NVMe, guest size:131072}}, displays:{{hardware:"virtio-ramfb-gl", dynamic resolution:true}}, network interfaces:{{mode:shared}}}}
     end tell
 end run
 APPLESCRIPT
@@ -285,7 +288,7 @@ on run argv
         end repeat
         set retainedDrives to {}
         set removedCount to 0
-        if initialCount is 2 then
+        if initialCount is 3 then
             repeat with driveConfig in drives of vmConfig
                 if (removable of driveConfig) and removedCount is 0 then
                     set removedCount to 1
@@ -309,11 +312,11 @@ end run
 APPLESCRIPT
 )"
     IFS=$'\t' read -r initial removed remaining <<< "$result"
-    if [[ "$initial" != "2" || "$removed" != "1" || "$remaining" != "1" ]]; then
+    if [[ "$initial" != "3" || "$removed" != "1" || "$remaining" != "2" ]]; then
         printf 'UTM did not confirm exact installer-only detachment.\n' >&2
         return 1
     fi
-    printf 'factory installer detached: removed=1 seed_remaining=1\n'
+    printf 'factory installer detached: removed=1 seed_media_remaining=2\n'
 }
 
 vm_export_image() {

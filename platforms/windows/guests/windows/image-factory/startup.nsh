@@ -1,4 +1,8 @@
 @echo -off
+map -r
+if exist FS1:\EFI\Microsoft\Boot\bootmgfw.efi then
+  FS1:\EFI\Microsoft\Boot\bootmgfw.efi
+endif
 if exist FS2:\EFI\Microsoft\Boot\bootmgfw.efi then
   FS2:\EFI\Microsoft\Boot\bootmgfw.efi
 endif
@@ -23,4 +27,4 @@ endif
 if exist FS9:\EFI\Microsoft\Boot\bootmgfw.efi then
   FS9:\EFI\Microsoft\Boot\bootmgfw.efi
 endif
-FS0:\efi\microsoft\boot\cdboot_noprompt.efi
+FS0:\EFI\BOOT\BOOTAA64.EFI

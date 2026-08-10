@@ -40,7 +40,7 @@ Image lifecycle:
   delete --confirm NAME  Delete the exact configured stopped VM
 
 Image factory:
-  factory-create NAME WINDOWS_ISO SEED_ISO
+  factory-create NAME WINDOWS_ISO SEED_ISO BOOT_IMAGE
                          Create a stopped QEMU VM from explicit local media
   factory-detach-installer
                          Remove only the installer from a stopped candidate

@@ -40,17 +40,24 @@ scripts/image-factory.sh render-seed \
 ```
 
 The renderer XML-escapes all substituted values, rejects weak file
-permissions, validates the XML when `xmllint` is present, and builds an ISO
-with volume label `WINVM_SEED`. It copies UTM's Windows drivers and one
-guest-tools installer from explicit local media, but not UTM's separate answer
-file, so Setup sees one authoritative `Autounattend.xml`. That answer wipes
-only disk 0, creates EFI/MSR/Windows GPT partitions, selects the declared image
-index, injects the matching Windows 11 VirtIO drivers into both Windows PE and
-the offline installed image, suppresses automatic activation, creates the
-administrator, suppresses the otherwise separate OOBE network page, logs on
-once, installs UTM Guest Tools silently, and invokes the seed's OpenSSH
-bootstrap. Offline injection is material: WinPE storage access alone does not
-give Windows OOBE a NetKVM adapter.
+permissions, validates the XML when `xmllint` is present, and builds two
+purpose-specific media. `winvm-seed.iso`, labeled `WINVM_SEED`, carries the
+answer file, UTM's Windows drivers, one guest-tools installer, and first-logon
+bootstrap. `winvm-boot.img`, labeled `WINVM_BOOT`, is a tiny unpartitioned FAT
+USB volume carrying only `startup.nsh`. Live acceptance established that
+Windows Setup discovers the data ISO but UEFI does not, while UEFI discovers
+the direct FAT volume but Setup does not accept it as answer media. Keeping the
+roles explicit avoids depending on either unsupported cross-layer behavior.
+
+The data ISO does not include UTM's separate answer file, so Setup sees one
+authoritative `Autounattend.xml`. That answer wipes only disk 0, creates
+EFI/MSR/Windows GPT partitions, selects the declared image index, injects the
+matching Windows 11 VirtIO drivers into both Windows PE and the offline
+installed image, suppresses automatic activation, creates the administrator,
+suppresses the otherwise separate OOBE network page, logs on once, installs
+UTM Guest Tools silently, and invokes the seed's OpenSSH bootstrap. Offline
+injection is material: WinPE storage access alone does not give Windows OOBE a
+NetKVM adapter.
 
 Windows Setup does not define an empty product-key value for guaranteed quiet
 installation. For the currently supported `windows-11-pro` edition, the
@@ -60,15 +67,16 @@ activating Windows; activation remains suppressed and must be observed after
 installation. The renderer rejects arbitrary editions rather than accepting a
 possibly private activation key on its command line.
 
-The seed also supplies UEFI Shell `startup.nsh`. UTM maps the Windows installer
-as the first filesystem in this factory recipe, and the script launches the
-installer's `cdboot_noprompt.efi` entry directly on a blank disk. Before doing
-so, it checks the later UEFI filesystem mappings for an installed Windows Boot
-Manager and hands off to that entry when present. This avoids both an
-interactive firmware-shell stop and Windows media's `Press any key` prompt
-without forcing Setup media again during installation reboots. The exact
-Windows ISO must contain that standard no-prompt ARM64 loader; media validation
-is part of live acceptance rather than an assumption about every possible ISO.
+The FAT boot image supplies UEFI Shell `startup.nsh`. The factory maps the
+Windows installer as the first filesystem, the data seed as a second CD, and
+the boot image as a USB filesystem. The script refreshes mappings, prefers an
+installed Windows Boot Manager on any later filesystem, and otherwise launches
+the prepared installer's firmware-visible `EFI/BOOT/BOOTAA64.EFI`. This avoids
+both an interactive firmware-shell stop and Windows media's `Press any key`
+prompt without forcing Setup media again during installation reboots. The
+exact Windows ISO must contain that standard no-prompt ARM64 loader; media
+validation is part of live acceptance rather than an assumption about every
+possible ISO.
 
 The checked-in AppleScript configuration surface does not expose UTM's Windows
 wizard flags for TPM 2.0 and preloaded Secure Boot keys. The answer media uses
@@ -81,7 +89,17 @@ Validate a separately acquired Windows ISO before creation:
 
 ```bash
 scripts/image-factory.sh validate-media PRIVATE_WINDOWS_ISO
+scripts/image-factory.sh prepare-install-media PRIVATE_WINDOWS_ISO
 ```
+
+The preparation command preserves the verified source ISO and creates an
+ignored copy whose El Torito EFI image substitutes Microsoft's equal-size
+`cdboot_noprompt.efi` payload for the byte-verified prompted loader. This is
+necessary because UEFI maps the small El Torito image, not the ISO's main UDF
+tree; the seed cannot execute a loader path that exists only in UDF. The copy
+remains private, differs from Microsoft's published whole-ISO digest, and must
+not be described as the unmodified download. The Windows payload and both
+signed loaders come from the verified public ISO.
 
 The repository deliberately does not download or redistribute Windows. Answer
 files are associated with a particular Windows image and should be validated
@@ -90,26 +108,28 @@ edition or release as adopted.
 
 ## Create the factory target
 
-With the Windows and seed ISOs present:
+With the prepared installer and both seed media present:
 
 ```bash
-bin/winvm factory-create PRIVATE_NAME PRIVATE_WINDOWS_ISO \
-  .factory.local/winvm-seed.iso
+bin/winvm factory-create PRIVATE_NAME \
+  .factory.local/windows-install-noprompt.iso \
+  .factory.local/winvm-seed.iso \
+  .factory.local/winvm-boot.img
 bin/winvm pin-target candidate PRIVATE_NAME
 bin/winvm up
 ```
 
 The current UTM recipe creates an ARM64 QEMU VM with UEFI, a 128-GiB NVMe
-disk, shared networking, and removable Windows/seed media. Media compatibility,
-Windows edition/index, driver availability, and activation are caller-owned
-inputs and must be proven on the exact ISO.
+disk, shared networking, and removable installer, data-seed, and boot-seed
+media. Media compatibility, Windows edition/index, driver availability, and
+activation are caller-owned inputs and must be proven on the exact ISO.
 
 Windows Setup restarts after laying down the system disk, while first logon
 still needs the seed. If UEFI remains at `Start boot option`, stop the candidate
 through `bin/winvm down`, run `bin/winvm factory-detach-installer`, and start it
-again. That guarded transition requires exactly two removable drives, removes
-only the first factory-created installer, and independently requires exactly
-one seed drive to remain. It will not guess when the drive shape differs.
+again. That guarded transition requires exactly three removable drives,
+removes only the first factory-created installer, and independently requires
+both seed drives to remain. It will not guess when the drive shape differs.
 
 After Windows first-logon bootstrap completes, verify key-only SSH, remove the
 one-use answer media and Windows ISO with `bin/winvm factory-detach-media`
