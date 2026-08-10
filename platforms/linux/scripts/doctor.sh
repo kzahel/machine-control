@@ -88,6 +88,14 @@ else
     bad "AT-SPI desktop access"
 fi
 
+if resident_status="$($LINUXVM control '{"operation":"status"}' 2>/dev/null)" &&
+   [[ "$(jq -r '.accepted // false' <<<"$resident_status")" == true ]] &&
+   [[ "$(jq -r '.data.semanticState // ""' <<<"$resident_status")" == ready ]]; then
+    ok "persistent target-native resident"
+else
+    bad "persistent target-native resident"
+fi
+
 if (( failures > 0 )); then
     printf '\n%d LinuxVM access check(s) failed.\n' "$failures" >&2
     exit 1

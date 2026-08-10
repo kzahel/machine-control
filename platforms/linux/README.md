@@ -17,6 +17,7 @@ semantic AT-SPI inspection and actions behind one CLI.
 | Guest | Ubuntu 24.04 LTS ARM64 with GNOME Wayland |
 | Command channel | UTM `qemu-guest-agent` execution and file transfer |
 | Semantic UI | AT-SPI in the active desktop user's D-Bus session |
+| Resident facade | Active-user Unix socket with `machine-control/v0` envelopes |
 | Recovery | Normalized UTM capture, text, scan codes, mouse, and drag |
 
 The initial target is the existing local UTM VM named `Linux`. A future pass
@@ -30,6 +31,7 @@ git clone https://github.com/kzahel/linuxvm-testbed.git ~/code/linuxvm-testbed
 cd ~/code/linuxvm-testbed
 bin/linuxvm up
 bin/linuxvm deploy-ui
+bin/linuxvm deploy-resident
 bin/linuxvm doctor
 ```
 
@@ -45,6 +47,8 @@ bin/linuxvm status
 bin/linuxvm exec -- uname -a
 bin/linuxvm user-exec -- id
 bin/linuxvm gui-launch -- gnome-text-editor
+bin/linuxvm control '{"operation":"status"}'
+bin/linuxvm control-local '{"operation":"status"}'
 bin/linuxvm ip
 bin/linuxvm suspend
 ```
@@ -69,6 +73,20 @@ bin/linuxvm ui find Close --app gnome-terminal-server
 bin/linuxvm ui actions Close --app gnome-terminal-server
 bin/linuxvm ui press 'New Tab' --app gnome-terminal-server
 ```
+
+The persistent resident is the normal semantic contract. The outside wrapper
+and installed guest-local CLI reach the same mode-`0600` Unix socket,
+generation, snapshot references, routes, and result vocabulary:
+
+```bash
+bin/linuxvm control '{"operation":"applications"}'
+bin/linuxvm control \
+  '{"operation":"snapshot","target":"gnome-shell","query":"Activities","projection":"compact"}'
+```
+
+References are resident-generation and snapshot scoped. Provider restart or
+snapshot eviction produces a typed stale-reference refusal rather than acting
+on a newly resolved control.
 
 Use the provider-level path when AT-SPI is absent, the session is locked, or
 an application exposes an incomplete accessibility tree:
@@ -121,6 +139,8 @@ Host agent
   |
   +-- runuser + session D-Bus - AT-SPI tree, actions, text, values
   |
+  +-- active-user Unix socket -- persistent normalized resident facade
+  |
   +-- UTM window -------------- pixels, virtual HID, lock/setup recovery
 ```
 
@@ -156,6 +176,7 @@ bin/linuxui                     Guest AT-SPI wrapper
 providers/utm-macos/            Lifecycle, capture, files, and raw input
 guests/ubuntu/bootstrap/        Existing-image integration packages
 guests/ubuntu/ui/linuxui.py     Semantic accessibility helper
+guests/ubuntu/ui/linuxcontrol.py Persistent resident and socket client
 scripts/                        Deployment and diagnostics
 skills/drive-linuxvm/           Reusable agent operating skill
 ```

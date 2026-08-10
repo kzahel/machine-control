@@ -1,0 +1,15 @@
+[Unit]
+Description=LinuxVM target-native control resident
+After=graphical-session.target at-spi-dbus-bus.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+RuntimeDirectory=linuxvm-testbed
+RuntimeDirectoryMode=0700
+ExecStart=/usr/bin/python3 /usr/local/libexec/linuxvm-testbed/linuxcontrol.py serve --socket=%t/linuxvm-testbed/control.sock
+Restart=on-failure
+RestartSec=1
+
+[Install]
+WantedBy=default.target

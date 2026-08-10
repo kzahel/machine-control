@@ -79,6 +79,21 @@ Terminal, for example, exposes the window under `gnome-terminal-server`, while
 the launcher may separately appear as `gnome-terminal`. Callers must discover
 with `ui apps` instead of assuming.
 
+## Resident Facade
+
+`linuxcontrol.py` runs as an active-user systemd service and owns one private
+Unix socket beneath that user's runtime directory. The outside testbed wrapper
+and `/usr/local/bin/machine-control` inside the guest use the same newline-
+delimited request path. Local versus remote use therefore changes transport
+placement, not the operation or result vocabulary.
+
+The first resident slice normalizes status, capabilities, applications,
+windows, compact/full snapshots, and actions over native AT-SPI. Snapshot
+references bind to a random resident generation and bounded snapshot cache.
+A restart or evicted snapshot refuses the reference as stale. Action delivery
+is reported separately from effect because AT-SPI acknowledgement does not
+prove that an application changed.
+
 ## Outer Recovery
 
 The UTM window remains the lowest common denominator for:

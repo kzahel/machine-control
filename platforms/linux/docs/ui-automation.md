@@ -9,9 +9,10 @@ fallback. Neither path is sufficient alone.
 2. Use `linuxvm user-exec` for non-UI work owned by the desktop account.
 3. Use `linuxvm gui-launch` to start a graphical application through the
    active user's systemd manager.
-4. Use `linuxvm ui` for named controls, actions, text, and values.
-5. Use normalized screenshot and physical input when semantics are missing.
-6. Ask the user to enter passwords or other secrets directly in the guest.
+4. Use `linuxvm control` for resident semantics and normalized results.
+5. Use `linuxvm ui` for direct diagnostic AT-SPI commands.
+6. Use normalized screenshot and physical input when semantics are missing.
+7. Ask the user to enter passwords or other secrets directly in the guest.
 
 ## Launching GUI Applications
 
@@ -58,6 +59,23 @@ bin/linuxvm ui set-value Search 'release notes' --app org.gnome.Nautilus
 Queries are case-insensitive substrings over name, role, and description.
 Exact accessible-name matches win; otherwise the first tree-order match is
 used. Inspect `find` before acting when a name is repeated.
+
+## Resident Requests
+
+Use `linuxvm control` for ordinary agent automation. An agent already inside
+the guest invokes `/usr/local/bin/machine-control` with the identical JSON:
+
+```bash
+bin/linuxvm control '{"operation":"status"}'
+bin/linuxvm control '{"operation":"applications"}'
+bin/linuxvm control \
+  '{"operation":"snapshot","target":"org.gnome.Nautilus","query":"Search","projection":"compact"}'
+```
+
+The active-user resident owns one generation and bounded snapshot cache.
+Actions require an exact reference from that generation; do not re-resolve a
+stale path silently. Results report the native AT-SPI route and distinguish
+confirmed delivery from an independently unverifiable effect.
 
 ## Application Roots
 

@@ -12,11 +12,13 @@ find "$REPO_DIR/bin" "$REPO_DIR/scripts" "$REPO_DIR/providers" \
     while IFS= read -r script; do bash -n "$script"; done
 
 python3 -m py_compile "$REPO_DIR/guests/ubuntu/ui/linuxui.py"
+python3 -m py_compile "$REPO_DIR/guests/ubuntu/ui/linuxcontrol.py"
 swiftc -typecheck "$REPO_DIR/providers/utm-macos/host-control.swift"
 swiftc -typecheck "$REPO_DIR/providers/utm-macos/normalize-screenshot.swift"
 
 help_output="$("$LINUXVM" help)"
 [[ "$help_output" == *'gui-launch'* ]]
+[[ "$help_output" == *'deploy-resident'* ]]
 guard_status="$("$LINUXVM" guard-status)"
 jq -e '.mutationGuardRequired == false or
        .mutationTargetVerified == true' <<<"$guard_status" >/dev/null
@@ -30,6 +32,14 @@ done
 LINUXVM_FORBID_OUTER_UI=true "$LINUXVM" status >/dev/null
 LINUXVM_FORBID_OUTER_UI=true "$LINUXVM" host-state >/dev/null
 "$LINUXVM" doctor
+
+remote_status="$($LINUXVM control '{"operation":"status"}')"
+local_status="$($LINUXVM control-local '{"operation":"status"}')"
+jq -e '.schema == "machine-control/v0" and .accepted == true and
+       .actualRoute == "guest.user/linux.atspi" and
+       .hostInterference == "none"' <<<"$remote_status" >/dev/null
+test "$(jq -r '.generation' <<<"$remote_status")" = \
+    "$(jq -r '.generation' <<<"$local_status")"
 
 artifact_message='outer screenshot prohibited'
 if [[ "$(jq -r '.outerUIForbidden' <<<"$guard_status")" == false ]]; then

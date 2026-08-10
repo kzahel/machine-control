@@ -23,7 +23,9 @@ Lifecycle and transport:
 
 Desktop automation:
   ui COMMAND [ARG...]            AT-SPI semantic UI automation
-  deploy-ui | authorize-ui | desktop-user | doctor
+  control JSON | control-local JSON
+                                 Call the persistent resident facade
+  deploy-ui | deploy-resident | authorize-ui | desktop-user | doctor
   screenshot [OUTPUT.png]
   click X Y [left|right|middle] | drag X1 Y1 X2 Y2
   type TEXT | key NAME | scan CODE...
@@ -105,7 +107,11 @@ case "$command" in
     gui-launch) gui_launch "$@" ;;
     desktop-user) desktop_user ;;
     ui) exec "$BIN_DIR/linuxui" "$@" ;;
+    control|control-local)
+        user_exec /usr/local/bin/machine-control "$@"
+        ;;
     deploy-ui) exec "$LINUXVM_REPO_DIR/scripts/deploy-ui.sh" ;;
+    deploy-resident) exec "$LINUXVM_REPO_DIR/scripts/deploy-resident.sh" ;;
     authorize-ui)
         printf 'Linux AT-SPI needs no per-app authorization; run: bin/linuxvm deploy-ui\n'
         ;;

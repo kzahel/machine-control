@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+socket="${XDG_RUNTIME_DIR:?}/linuxvm-testbed/control.sock"
+exec /usr/bin/python3 /usr/local/libexec/linuxvm-testbed/linuxcontrol.py \
+    call --socket "$socket" "$@"
