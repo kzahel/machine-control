@@ -1,6 +1,6 @@
 # Tactical 008: macOS Ordinary-Session Resident Control
 
-Status: active.
+Status: complete.
 
 Topics: `macos-resident-control`, `architecture`, and
 `capabilities-and-results`.
@@ -125,4 +125,47 @@ remaining protected boundaries.
 
 ## Validation record
 
-Pending live execution.
+Completed on the guarded copy-on-write candidate.
+
+- The prepared source remained suspended and unchanged throughout the slice.
+  More than 200 GiB of host free space remained after the initial redundant
+  appliance cleanup; no implicit pruning or second appliance deletion was
+  needed.
+- The resident facade was deployed under a stable application identifier and
+  a user-owned `0600` Unix socket. Guest-local and `tart exec` calls reached
+  the same generation and returned the same `machine-control/v0` envelope.
+- Native Accessibility and Screen Recording were granted through normal macOS
+  Privacy & Security UI. A stale pre-existing Accessibility identity had to be
+  removed and requested again after the signing requirement changed. Rebuild
+  and full reboot then retained both grants. No password entered a command,
+  artifact, or repository, and no TCC database was modified.
+- Native and Cua adapters now normalize application, window, semantic element,
+  and capture data before returning it. Compact native queries filter rather
+  than returning the full application tree.
+- Identical native and Cua fixture cells passed for compact snapshot, semantic
+  press, independently observed file effect, and exact-window capture. Native
+  AX was deeper for Dock and Control Center; Cua returned typed, no-fallback
+  refusals for unsupported system-surface cells.
+- Native CoreGraphics text events reached the focused fixture and incremented
+  its independent key-event oracle but did not change the AppKit text value.
+  Cua did change the value, so default `input.text` uses Cua when ready. Native
+  key input, AX, Workspace, Quartz capture, Dock, and Control Center remain the
+  default routes. Explicit provider requests never fall back.
+- Remote and target-local conformance passed separately, including launch,
+  keyboard input, text insertion, checkbox/button/text-field semantics,
+  exact-window capture, resident restart, and stale-reference refusal.
+- The real-application workflow passed across Finder, System Settings,
+  TextEdit, Safari, and an application menu bar while preserving pre-existing
+  processes and cleaning owned windows and applications. The provider corpus
+  additionally opened, inspected, captured, and closed Control Center through
+  native semantics and exercised the Dock.
+- A normal guest shutdown followed by `macvm up` restored the logged-in Aqua
+  session without outer input. Native semantics, native capture, and Cua all
+  returned ready; a bounded Finder launch/snapshot/close effect passed.
+- The fixture application, file oracle, capture artifacts, caches, sockets at
+  shutdown, and old one-shot command scratch directories were removed. The
+  accepted candidate is stopped and the prepared source is still suspended.
+
+Remaining work is intentionally outside this ordinary-session tactical:
+protected authorization, lock/loginwindow, FileVault/preboot, multi-display
+and Spaces coverage, localization, and longer soak testing.

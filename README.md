@@ -22,6 +22,8 @@ matches the question:
   and truthful result envelopes shared by resident implementations.
 - [Windows runtime](#windows-runtime): the first resident implementation,
   build/install workflow, contract, and conformance entry points.
+- [macOS runtime](#macos-runtime): the accepted ordinary-session Tart slice,
+  native/Cua composition, and conformance entry points.
 - [System map](SYSTEM-MAP.md): which repository or program owns each part of
   the actual system.
 
@@ -357,6 +359,42 @@ public-ISO-to-new-base boundary is closed in completed
 ARM64 candidate completed unattended Setup, unactivated Windows 11 Pro,
 resident bootstrap, protected UAC/login, local and remote real-application
 acceptance, disk-only reboot, and exact disposable cleanup.
+
+## macOS runtime
+
+**Current:** The authoritative sibling
+[`macvm-testbed`](../macvm-testbed/README.md) packages a persistent
+ordinary-session macOS facade inside a stable `MacVM UI.app` identity. The
+same `machine-control/v0` request reaches its user-owned Unix socket from the
+guest-local client or through `tart exec`; neither route focuses Tart or moves
+or types through the host desktop.
+
+The accepted hybrid uses native Workspace, Accessibility, Quartz, and
+CoreGraphics routes for application/window inventory, compact semantic
+snapshots/actions, Dock and Control Center, exact-window capture, key input,
+and lifecycle. Cua is selected for default text insertion because identical
+fixture evidence showed native Unicode events arriving without changing the
+AppKit text value, while Cua produced the value. Explicit provider selection
+never falls back, and every result reports the actual route.
+
+```text
+guest-local caller or tart exec
+              |
+              v
+MacVM UI resident (logged-in Aqua user)
+  +-- native AX / Workspace / Quartz / CoreGraphics
+  +-- optional Cua adapter for measured operations
+  +-- generation-scoped references and bounded artifacts
+```
+
+The corpus under [`tests/macos`](tests/macos/README.md) proves local/remote
+parity, independent fixture effects, restart and stale-reference behavior,
+Finder, Dock, Control Center, System Settings, TextEdit, Safari, exact-window
+capture, provider comparison, cleanup, and reboot recovery. Normal macOS TCC
+UI was used for Accessibility and Screen Recording consent; no TCC database
+was edited. Protected authorization, lock/loginwindow, FileVault/preboot, and
+stronger resident administration remain later work. The completed execution
+record is [`Tactical 008`](docs/tactical/008-macos-ordinary-session-resident-control.md).
 
 ## Current position
 

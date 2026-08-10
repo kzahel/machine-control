@@ -2,22 +2,22 @@
 
 Topic: `macos-resident-control`
 
-Status: active ordinary-session implementation concern.
+Status: ordinary-session slice complete; protected-plane concern remains.
 
 ## Current state
 
-The authoritative [`macvm-testbed`](../../macvm-testbed/README.md) already
-provides Tart lifecycle, prepared-image bootstrap, `tart exec`, a stable
-consented Swift Accessibility helper, normalized outer screenshots, and
-explicit recovery input. The existing helper is target-native, but each
-command launches a fresh process, its result vocabulary is testbed-specific,
-and routine input fallbacks still depend on foregrounding Tart.
+The authoritative [`macvm-testbed`](../../macvm-testbed/README.md) now packages
+a persistent ordinary-session facade inside the stable MacVM UI application
+identity. Guest-local and `tart exec` callers use the same user-owned socket,
+generation, request vocabulary, and normalized result shape without routine
+Tart-window input.
 
-The [macOS platform report](../research/platforms/macos.md) records live Cua
-evidence and source-reviewed macOS-specific providers. Cua is a comparison and
-possible common-plane adapter, not a predetermined dependency. The existing
-native AX route is the implementation baseline; adopt Cua only for measured
-advantages behind the owned facade.
+Native Workspace, AX, Quartz, and CoreGraphics providers are ready for
+applications/windows, compact semantics/actions, Dock, Control Center,
+exact-window capture, key input, and lifecycle. Cua is installed as a
+replaceable adapter and is selected for default text insertion because the
+identical fixture oracle proved a value effect that native Unicode key events
+did not. Explicit provider requests never fall back.
 
 ## Decisions
 
@@ -37,10 +37,15 @@ advantages behind the owned facade.
 - Make guest-native AX/application APIs, capture, and input the ordinary path.
   Outer Tart pixels/input must fail closed unless bootstrap or recovery was
   explicitly selected.
+- Normalize provider data inside the facade. Compact projection changes detail,
+  not field names, and filtered semantic queries must not return an unrelated
+  full tree.
+- Route per measured operation. The current composition uses Cua for default
+  text insertion and native routes for the rest of the accepted surface.
 - Treat loginwindow, FileVault/preboot, secure input, authorization sheets,
   and arbitrary privileged administration as a later protected-plane slice.
 
-## First acceptance surface
+## Accepted ordinary-session surface
 
 The first complete slice covers a logged-in Aqua session and exercises:
 
@@ -54,8 +59,15 @@ The first complete slice covers a logged-in Aqua session and exercises:
 - bounded artifacts and owned-state cleanup; and
 - stopped retention of the accepted copy-on-write appliance.
 
-Execution is tracked in
+Completed execution is recorded in
 [`Tactical 008`](../docs/tactical/008-macos-ordinary-session-resident-control.md).
+
+The reusable corpus lives under [`tests/macos`](../tests/macos/README.md). It
+passes target-local and remote placement, real applications, native/Cua
+fixture comparison, Dock, Control Center, normal consent retention, resident
+restart, stale references, exact capture, cleanup, and unattended reboot
+recovery. The retained copy-on-write appliance is stopped; its prepared source
+remains suspended.
 
 ## Later boundaries
 

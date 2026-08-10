@@ -33,6 +33,17 @@ available when that pattern is absent. The four-app local/remote corpus requires
 independent UI, file, capture, and cleanup effects rather than successful API
 return alone.
 
+**Current — macOS exercise:** Tactical 008 projects native macOS and Cua
+adapters into the same application, window, semantic element, capture, route,
+generation, and result vocabulary. Compact projection keeps stable public
+field names and filters native queries. Identical fixture cells use a file
+oracle; they selected Cua for default text insertion after native delivery was
+observed without a text-value effect. Dock and Control Center instead select
+native AX, while explicit unsupported Cua requests return typed no-fallback
+refusals. Local and remote callers share one resident generation, and rebuild,
+resident restart, and full reboot preserve honest readiness while invalidating
+stale references where required.
+
 ## Contract and session envelope
 
 Local IPC, SSH, an authenticated tunnel, CLI/SDK calls, and MCP are facades or
