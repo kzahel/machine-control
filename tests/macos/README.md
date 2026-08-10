@@ -38,6 +38,11 @@ enforcement rather than a successful Full Disk Access decision.
 panels, a nested application sheet, and an application relaunch request. It
 alternates outside and guest-local callers and verifies files and fixture state
 independently.
+`artifact-workflows.sh` builds disposable guest artifacts and proves a
+quarantined-app Open Anyway flow, DMG mounting with Finder semantics, a Safari
+download approval, and a harmless Installer package with a strict resident
+authorization lease. It removes the mount, download, package receipt/payload,
+server, and working directory afterward.
 `real-applications.sh` sustains the same facade across Finder, System Settings,
 TextEdit, Safari, an application menu bar, exact-window artifacts, focus
 preservation, and owned-state cleanup.
@@ -65,6 +70,7 @@ tests/macos/privacy-consent.sh
 tests/macos/privacy-settings.sh
 tests/macos/privacy-appliance-posture.sh
 tests/macos/system-dialogs.sh
+tests/macos/artifact-workflows.sh
 tests/macos/real-applications.sh
 tests/macos/provider-comparison.sh
 tests/macos/administrator-sheet.sh
