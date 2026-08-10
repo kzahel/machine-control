@@ -2,8 +2,8 @@
 
 Status: first implemented platform; the resident Cua/native composition is
 adopted and conformance-tested on ARM64 VM and physical x64, WinApp remains a
-live external differential, and other candidates remain source review or
-search triage.
+live external differential, the public-ISO ARM64 factory path is accepted,
+and other candidates remain source review or search triage.
 
 Current decision topic:
 [`windows-resident-control.md`](../../topics/windows-resident-control.md).
@@ -178,6 +178,18 @@ and independent effects. Compact and digest-matched unchanged projections
 materially reduced repeated Calculator and Settings payloads without removing
 the full projection.
 
+**Current — public-ISO appliance acceptance:** Tactical 007 created a blank
+ARM64 target from Microsoft's public multi-edition ISO and reached unactivated
+Windows 11 Pro without routine guest input. The run proved injected drivers,
+staged installation/seed-media removal, key-only SSH, target-attested product
+installation, UAC, local/remote real applications, pre-login protected control,
+stock password login, and disk-only reboot. It also exposed two implementation
+facts now incorporated into the adopted stack: fresh OpenSSH host private keys
+need a well-known-SID ACL repair, and current packaged apps may require separate
+content and application-frame HWNDs for UIA versus capture/lifecycle. The exact
+execution record is
+[`Tactical 007`](../../docs/tactical/007-windows-iso-factory-acceptance.md).
+
 ## Architecture options
 
 ### Cua-centered resident stack
@@ -234,6 +246,6 @@ evidence shows that Cua/WinApp cannot be layered or upstreamed coherently.
    dedicated-appliance/local-user boundary.
 4. Revisit Cua release provenance and upstream deltas only when a concrete
    reliability, packaging, security, or missing-capability question changes.
-5. Supply explicit compatible Windows media and execute the implemented
-   unattended ISO-to-new-base path through first-logon bootstrap and product
-   acceptance.
+5. Repeat the accepted factory lane on another Windows build or x64 appliance
+   when that coverage is needed; include the corrected OpenSSH ACL bootstrap
+   in the initial seed rather than as an acceptance-run repair.

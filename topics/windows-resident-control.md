@@ -13,6 +13,8 @@ Target safety, native activation/window lifecycle, efficient repeated
 observation, expanded real-app acceptance, and generalized-image export are
 complete in
 [`Tactical 006`](../docs/tactical/006-windows-safety-launch-efficiency-and-image-factory.md).
+The public-ISO-to-new-base boundary is complete in
+[`Tactical 007`](../docs/tactical/007-windows-iso-factory-acceptance.md).
 
 **Current:** The implementation under [`src/`](../src) provides the first
 Windows service/session vertical slice. It composes pinned Cua at Medium
@@ -39,27 +41,28 @@ registered applications through `IApplicationActivationManager`, controls
 window lifecycle through UIA `WindowPattern` with independent readback, and
 supports full, compact, and digest-matched unchanged observations.
 
-Calculator, Settings, Character Map, and Notepad pass the same 51-call workflow
-from authenticated-remote and target-local placements, with independent app,
-semantic, window, file, capture, and cleanup effects. Calculator compact state
-was 66% of full and its unchanged response 17.7% of compact; Settings measured
-77.3% and 25.7% respectively.
+Calculator, Settings, Character Map, and Notepad pass from
+authenticated-remote and target-local placements with independent app,
+semantic, window, file, capture, and cleanup effects. The latest clean-ISO
+candidate exposed separate packaged-app content and frame HWNDs; activation
+now reports both rather than pretending either one is the complete surface.
+Native UIA uses the content HWND while full capture and lifecycle use the
+associated frame when present. Calculator compact/unchanged ratios were
+70.2%/6.0% remotely and 69.4%/5.3% locally; Settings measured 77.3%/25.6% in
+both placements.
 
 The authoritative testbed also generalized a live ARM64 candidate after
 explicit BitLocker and per-user AppX preparation, observed Sysprep shutdown,
 exported a stopped private UTM bundle and manifest, and reached Windows OOBE in
-a non-persistent boot. The unattended ISO-to-new-base path is implemented but
-not live-proven because no compatible local installation media was available;
-the exact remaining boundary is recorded in Tactical 006 and the testbed
+a non-persistent boot. A later blank ARM64 candidate completed the unattended
+path from Microsoft's public multi-edition ISO through Windows 11 Pro build
+26200, left unactivated in notification state. The public installation-only
+Pro setup key selected the edition; no customer activation key was used.
+Setup, injected drivers, staged media removal, first-login guest tools and SSH,
+target-attested MachineControl installation, UAC, local/remote applications,
+pre-login resident control, stock password login, disk-only reboot, and exact
+cleanup all have live evidence in Tactical 007 and the testbed
 [image-factory runbook](../../winvm-testbed/docs/image-factory.md).
-
-**Current:**
-[`Tactical 007`](../docs/tactical/007-windows-iso-factory-acceptance.md) is
-closing that boundary with Microsoft's public ARM64 multi-edition ISO,
-installed without a product key or activation. The lane must prove the actual
-image catalog, unattended Setup and drivers, first-logon resident access,
-target-attested MachineControl installation, ordinary local/remote control,
-and exact cleanup rather than treating media rendering as live acceptance.
 
 ## Scope
 
@@ -95,10 +98,12 @@ Its completed shell-acceptance slice lives in
   runtime dependency. No provider owns the project contract, lifecycle,
   protected authority, or recovery boundary.
 - Registered/package activation and application-frame association use owned
-  Windows Shell APIs. The activation result identifies a primary visible HWND
-  by preferring the process returned by Windows, because packaged applications
-  can expose multiple associated composition and frame windows. Native UIA
-  `WindowPattern` is the primary window-state route because live
+  Windows Shell APIs. The activation result identifies a settled primary
+  content HWND by preferring the process returned by Windows and separately
+  reports an associated `ApplicationFrameWindow` when present. This preserves
+  the exact UIA content root while giving capture and lifecycle operations the
+  complete frame surface. Native UIA `WindowPattern` is the primary
+  window-state route because live
   packaged-window acceptance showed intermittent Win32 `ShowWindowAsync`
   no-effects; Win32 remains a disclosed fallback.
 - Repeated observations may request an explicit compact projection and provide

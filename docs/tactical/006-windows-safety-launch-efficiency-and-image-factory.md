@@ -241,11 +241,10 @@ committed.
   mocked provider checks.
 - The UTM factory AppleScript parsed against the installed UTM dictionary.
 
-No compatible licensed Windows installation ISO was present locally. The
-ISO-to-new-base lane therefore stops honestly at: explicit media validation,
-`factory-create`, Setup/image-index and driver compatibility, first-logon SSH
-bootstrap, answer-media removal, and product installation on that newly
-created target. The renderer and provider boundary are implemented and tested,
-but this lane is not called live-proven until such media is supplied. See the
-authoritative testbed's
+**Boundary closed 2026-08-10:** Completed
+[`Tactical 007`](007-windows-iso-factory-acceptance.md) exercised the exact
+remaining lane with Microsoft's public ARM64 multi-edition ISO. It reached an
+unactivated Windows 11 Pro resident appliance, passed protected and ordinary
+product acceptance, rebooted disk-only, and was deleted after exact cleanup.
+See the authoritative testbed's
 [`image-factory.md`](../../../winvm-testbed/docs/image-factory.md).

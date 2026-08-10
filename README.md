@@ -322,9 +322,9 @@ This is the MachineControl-layer bootstrap. Windows OOBE, guest tools, SSH,
 appliance login policy, VM cloning, and image sealing remain owned by the
 authoritative testbed. Its
 [image-factory runbook](../winvm-testbed/docs/image-factory.md) now covers
-secret-safe unattended inputs, fail-closed UUID/role selection, BitLocker and
-AppX preflight, Sysprep shutdown, stopped export/manifest, and disposable OOBE
-verification.
+secret-safe unattended inputs, a live public-ISO-to-unactivated-Pro path,
+fail-closed UUID/role selection, BitLocker and AppX preflight, Sysprep shutdown,
+stopped export/manifest, and disposable OOBE verification.
 
 PIN/password login deliberately does not accept a secret in JSON, arguments,
 environment variables, or files. An authorized human uses the non-echoing
@@ -350,8 +350,11 @@ The completed safety and generalized-image slice is recorded in
 native registered/package activation and UIA window lifecycle, four-application
 local/remote acceptance, compact plus digest-matched unchanged observations,
 and a live generalized ARM64 export with disposable OOBE proof. The
-ISO-to-new-base route remains implemented but awaits explicit compatible
-installation media for live validation.
+public-ISO-to-new-base boundary is closed in completed
+[`Tactical 007`](docs/tactical/007-windows-iso-factory-acceptance.md): a blank
+ARM64 candidate completed unattended Setup, unactivated Windows 11 Pro,
+resident bootstrap, protected UAC/login, local and remote real-application
+acceptance, disk-only reboot, and exact disposable cleanup.
 
 ## Current position
 
