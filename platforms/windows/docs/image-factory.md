@@ -19,7 +19,8 @@ contents. `winvm factory-create` requires explicit readable media and an
 unregistered destination. Generalization and export require a provider UUID
 pin and `candidate` role; the source role cannot authorize either operation.
 Factory creation canonicalizes readable media to absolute paths before handing
-them to UTM's file-URL AppleScript contract.
+them to UTM's file-URL AppleScript contract and suppresses the provider's
+new-object output so the command does not disclose private target identity.
 
 The answer-media ISO contains a plaintext one-use setup password because that
 is the Windows Setup input contract. The renderer accepts that value only from

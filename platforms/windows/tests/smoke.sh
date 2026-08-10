@@ -126,11 +126,12 @@ touch "$temporary/factory-media/windows.iso" \
     "$temporary/factory-media/seed.iso"
 (
     cd "$temporary"
-    WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-factory-create" \
+    factory_output="$(WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-factory-create" \
     WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-factory-create" \
     WINVM_TEST_FACTORY_UTMCTL_MARKER="$temporary/factory-created" \
     "$provider" factory-create fixture \
-        factory-media/windows.iso factory-media/seed.iso >/dev/null
+        factory-media/windows.iso factory-media/seed.iso)"
+    [[ "$factory_output" == 'factory target created' ]]
 )
 
 delete_capture="$temporary/delete-target"

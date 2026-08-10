@@ -9,3 +9,4 @@ fi
 
 script="$(</dev/stdin)"
 [[ "$script" == *'make new virtual machine'* ]]
+printf 'provider-private-object-identity\n'

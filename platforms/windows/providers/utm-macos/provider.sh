@@ -199,7 +199,8 @@ factory_create() {
         printf 'Factory destination is already registered.\n' >&2
         return 1
     fi
-    "$WINVM_OSASCRIPT" - "$destination" "$windows_iso" "$seed_iso" <<'APPLESCRIPT'
+    "$WINVM_OSASCRIPT" - "$destination" "$windows_iso" "$seed_iso" \
+        >/dev/null <<'APPLESCRIPT'
 on run argv
     set vmName to item 1 of argv
     set windowsIso to POSIX file (item 2 of argv)
