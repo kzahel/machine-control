@@ -18,6 +18,7 @@ semantic AT-SPI inspection and actions behind one CLI.
 | Command channel | UTM `qemu-guest-agent` execution and file transfer |
 | Semantic UI | AT-SPI in the active desktop user's D-Bus session |
 | Resident facade | Active-user Unix socket with `machine-control/v0` envelopes |
+| Inner capture | GNOME Wayland display and active-window PNG artifacts |
 | Recovery | Normalized UTM capture, text, scan codes, mouse, and drag |
 
 The initial target is the existing local UTM VM named `Linux`. A future pass
@@ -49,6 +50,8 @@ bin/linuxvm user-exec -- id
 bin/linuxvm gui-launch -- gnome-text-editor
 bin/linuxvm control '{"operation":"status"}'
 bin/linuxvm control-local '{"operation":"status"}'
+capture="$(bin/linuxvm control '{"operation":"capture","target":"display"}')"
+bin/linuxvm artifact "$(jq -r '.data.artifact.id' <<<"$capture")"
 bin/linuxvm ip
 bin/linuxvm suspend
 ```
@@ -87,6 +90,13 @@ bin/linuxvm control \
 References are resident-generation and snapshot scoped. Provider restart or
 snapshot eviction produces a typed stale-reference refusal rather than acting
 on a newly resolved control.
+
+Resident capture runs `gnome-screenshot` in the active user session. It writes
+an owned, UUID-named PNG beneath `~/.cache/linuxvm-testbed/artifacts`; the
+result reports its guest path, dimensions, size, and digest. `linuxvm artifact`
+fetches only that bounded UUID namespace. `display` is full-display fidelity.
+`active_window` means the window active when GNOME performs the capture; it is
+not arbitrary hidden-window capture.
 
 Use the provider-level path when AT-SPI is absent, the session is locked, or
 an application exposes an incomplete accessibility tree:
@@ -139,7 +149,7 @@ Host agent
   |
   +-- runuser + session D-Bus - AT-SPI tree, actions, text, values
   |
-  +-- active-user Unix socket -- persistent normalized resident facade
+  +-- active-user Unix socket -- semantics and target-native capture
   |
   +-- UTM window -------------- pixels, virtual HID, lock/setup recovery
 ```
@@ -158,8 +168,8 @@ sentinel, then returns captured stdout, stderr, and the real exit code.
 ## Wayland And Accessibility
 
 This project does not use `xdotool`. GNOME applications publish semantic UI
-through AT-SPI, while UTM supplies the lower-level fallback outside the guest
-compositor. AT-SPI requires an active desktop session but no macOS-style
+through AT-SPI, and the resident captures through GNOME's in-session screenshot
+provider. AT-SPI requires an active desktop session but no macOS-style
 per-helper consent grant.
 
 Read [docs/ui-automation.md](docs/ui-automation.md) for application-root
@@ -194,7 +204,7 @@ Guest:
 
 - Ubuntu GNOME with an active Wayland desktop session
 - `qemu-guest-agent` and `spice-vdagent`
-- Python 3, PyGObject, and the AT-SPI introspection data
+- Python 3, PyGObject, the AT-SPI introspection data, and `gnome-screenshot`
 - A stable configured display size (1280×800 by default)
 
 SSH is optional and inactive on the original guest. It is not part of the

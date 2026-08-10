@@ -19,6 +19,7 @@ swiftc -typecheck "$REPO_DIR/providers/utm-macos/normalize-screenshot.swift"
 help_output="$("$LINUXVM" help)"
 [[ "$help_output" == *'gui-launch'* ]]
 [[ "$help_output" == *'deploy-resident'* ]]
+[[ "$help_output" == *'artifact ID'* ]]
 guard_status="$("$LINUXVM" guard-status)"
 jq -e '.mutationGuardRequired == false or
        .mutationTargetVerified == true' <<<"$guard_status" >/dev/null
@@ -40,6 +41,19 @@ jq -e '.schema == "machine-control/v0" and .accepted == true and
        .hostInterference == "none"' <<<"$remote_status" >/dev/null
 test "$(jq -r '.generation' <<<"$remote_status")" = \
     "$(jq -r '.generation' <<<"$local_status")"
+
+capture="$($LINUXVM control '{"operation":"capture","target":"display"}')"
+jq -e '.accepted == true and
+       .actualRoute == "guest.user/gnome-screenshot" and
+       .fidelity == "pixel_full_display" and
+       .data.artifact.mediaType == "image/png" and
+       .data.artifact.width > 0 and .data.artifact.height > 0' \
+    <<<"$capture" >/dev/null
+capture_id="$(jq -r '.data.artifact.id' <<<"$capture")"
+capture_path="$($LINUXVM artifact "$capture_id")"
+test -s "$capture_path"
+test "$(shasum -a 256 "$capture_path" | awk '{print $1}')" = \
+    "$(jq -r '.data.artifact.sha256' <<<"$capture")"
 
 artifact_message='outer screenshot prohibited'
 if [[ "$(jq -r '.outerUIForbidden' <<<"$guard_status")" == false ]]; then

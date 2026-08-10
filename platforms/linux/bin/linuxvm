@@ -25,6 +25,7 @@ Desktop automation:
   ui COMMAND [ARG...]            AT-SPI semantic UI automation
   control JSON | control-local JSON
                                  Call the persistent resident facade
+  artifact ID [OUTPUT.png]       Fetch a bounded resident capture artifact
   deploy-ui | deploy-resident | authorize-ui | desktop-user | doctor
   screenshot [OUTPUT.png]
   click X Y [left|right|middle] | drag X1 Y1 X2 Y2
@@ -88,9 +89,29 @@ gui_launch() {
     printf '%s\n' "$unit"
 }
 
+artifact() {
+    local artifact_id="${1:-}" output="${2:-}"
+    [[ "$artifact_id" =~ ^[0-9a-f]{8}-[0-9a-f-]{27}$ ]] || {
+        printf 'Usage: linuxvm artifact UUID [OUTPUT.png]\n' >&2
+        return 2
+    }
+    local user home remote
+    user="$(desktop_user)"
+    home="$("$PROVIDER" exec /usr/bin/getent passwd "$user" |
+        /usr/bin/awk -F: '{print $6}')"
+    [[ -n "$home" ]] || { printf 'Desktop home not found\n' >&2; return 1; }
+    remote="$home/.cache/linuxvm-testbed/artifacts/$artifact_id.png"
+    if [[ -z "$output" ]]; then
+        output="$LINUXVM_REPO_DIR/.artifacts/resident/$artifact_id.png"
+    fi
+    mkdir -p "$(dirname "$output")"
+    "$PROVIDER" pull "$remote" "$output" >/dev/null
+    printf '%s\n' "$output"
+}
+
 bootstrap_command() {
     cat <<'EOF'
-sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y qemu-guest-agent spice-vdagent python3-gi gir1.2-atspi-2.0 jq && sudo systemctl start qemu-guest-agent
+sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y qemu-guest-agent spice-vdagent python3-gi gir1.2-atspi-2.0 gnome-screenshot jq && sudo systemctl start qemu-guest-agent
 EOF
 }
 
@@ -110,6 +131,7 @@ case "$command" in
     control|control-local)
         user_exec /usr/local/bin/machine-control "$@"
         ;;
+    artifact) artifact "$@" ;;
     deploy-ui) exec "$LINUXVM_REPO_DIR/scripts/deploy-ui.sh" ;;
     deploy-resident) exec "$LINUXVM_REPO_DIR/scripts/deploy-resident.sh" ;;
     authorize-ui)

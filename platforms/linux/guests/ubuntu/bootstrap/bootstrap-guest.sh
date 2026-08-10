@@ -14,6 +14,7 @@ apt-get install -y \
     spice-vdagent \
     python3-gi \
     gir1.2-atspi-2.0 \
+    gnome-screenshot \
     jq
 
 # Ubuntu's qemu-guest-agent service is a static unit activated by the VirtIO

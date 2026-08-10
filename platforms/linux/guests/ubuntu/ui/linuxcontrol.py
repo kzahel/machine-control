@@ -5,9 +5,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 import socket
+import struct
+import subprocess
 import sys
 import time
 import uuid
@@ -20,6 +23,8 @@ import linuxui
 
 SCHEMA = "machine-control/v0"
 ROUTE = "guest.user/linux.atspi"
+CAPTURE_ROUTE = "guest.user/gnome-screenshot"
+ARTIFACT_DIRECTORY = Path.home() / ".cache/linuxvm-testbed/artifacts"
 
 
 def role_name(native: str) -> str:
@@ -114,7 +119,7 @@ class Resident:
         result = self.envelope(request, "status")
         result["data"] = {
             "semanticState": "ready",
-            "captureState": "unsupported",
+            "captureState": "ready",
             "inputState": "semantic_only",
             "sessionType": os.environ.get("XDG_SESSION_TYPE", "wayland"),
             "desktopName": os.environ.get("XDG_CURRENT_DESKTOP", "GNOME"),
@@ -135,15 +140,85 @@ class Resident:
                 "windows",
                 "snapshot",
                 "action",
+                "capture",
             ],
             "semantic": {
                 "route": ROUTE,
                 "fidelity": "semantic_native",
                 "sessionRequirement": "active_user_atspi",
             },
-            "capture": {"state": "unsupported"},
+            "capture": {
+                "state": "ready",
+                "route": CAPTURE_ROUTE,
+                "targets": ["display", "active_window"],
+                "artifactLifetime": "until_cleanup",
+                "sessionRequirement": "active_user_gnome_wayland",
+            },
             "input": {"state": "semantic_only"},
             "outerRecoveryRequired": False,
+        }
+        return result
+
+    def capture(self, request: dict[str, Any]) -> dict[str, Any]:
+        target = str(request.get("target") or "display")
+        if target not in ("display", "active_window"):
+            raise ControlFailure(
+                "unsupported_target",
+                "Capture target must be display or active_window",
+            )
+
+        ARTIFACT_DIRECTORY.mkdir(parents=True, exist_ok=True)
+        artifact_id = str(uuid.uuid4())
+        artifact_path = ARTIFACT_DIRECTORY / f"{artifact_id}.png"
+        command = ["/usr/bin/gnome-screenshot"]
+        if target == "active_window":
+            command.append("--window")
+        command.extend(("--file", str(artifact_path)))
+        completed = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=15,
+        )
+        if completed.returncode != 0 or not artifact_path.is_file():
+            artifact_path.unlink(missing_ok=True)
+            detail = completed.stderr.decode("utf-8", errors="replace").strip()
+            raise ControlFailure(
+                "capture_failed",
+                detail or "GNOME screenshot provider did not produce an artifact",
+            )
+
+        content = artifact_path.read_bytes()
+        if len(content) < 24 or content[:8] != b"\x89PNG\r\n\x1a\n":
+            artifact_path.unlink(missing_ok=True)
+            raise ControlFailure("capture_failed", "Capture artifact is not a PNG")
+        width, height = struct.unpack(">II", content[16:24])
+        result = self.envelope(request, "capture")
+        result.update(
+            {
+                "actualRoute": CAPTURE_ROUTE,
+                "fidelity": (
+                    "pixel_exact_active_window"
+                    if target == "active_window"
+                    else "pixel_full_display"
+                ),
+                "delivery": "confirmed",
+                "effect": "artifact_observed",
+            }
+        )
+        result["data"] = {
+            "artifact": {
+                "id": artifact_id,
+                "guestPath": str(artifact_path),
+                "mediaType": "image/png",
+                "byteLength": len(content),
+                "sha256": hashlib.sha256(content).hexdigest(),
+                "width": width,
+                "height": height,
+            },
+            "target": target,
+            "selection": "current_active_window" if target == "active_window" else None,
         }
         return result
 
@@ -294,6 +369,7 @@ class Resident:
                 "windows": self.windows,
                 "snapshot": self.snapshot,
                 "action": self.action,
+                "capture": self.capture,
             }
             if operation not in dispatch:
                 raise ControlFailure(

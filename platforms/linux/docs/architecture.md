@@ -94,6 +94,13 @@ A restart or evicted snapshot refuses the reference as stale. Action delivery
 is reported separately from effect because AT-SPI acknowledgement does not
 prove that an application changed.
 
+The same resident invokes Ubuntu's packaged `gnome-screenshot` from the active
+GNOME session for full-display and current-active-window PNGs. Artifacts live
+in a private cache namespace, carry dimensions and a digest in the result, and
+can be fetched by UUID through the outside wrapper without admitting arbitrary
+guest paths. This is target-native capture; it neither observes nor focuses the
+UTM window.
+
 ## Outer Recovery
 
 The UTM window remains the lowest common denominator for:

@@ -46,8 +46,10 @@ done
     "$STAGING.machine-control" "$STAGING.linuxvm-control.service"
 
 "$LINUXVM" user-exec -- /usr/bin/systemctl --user daemon-reload
-"$LINUXVM" user-exec -- /usr/bin/systemctl --user enable --now \
+"$LINUXVM" user-exec -- /usr/bin/systemctl --user enable \
     linuxvm-control.service >/dev/null
+"$LINUXVM" user-exec -- /usr/bin/systemctl --user restart \
+    linuxvm-control.service
 
 for _ in {1..30}; do
     if result="$($LINUXVM control-local '{"operation":"status"}' \
