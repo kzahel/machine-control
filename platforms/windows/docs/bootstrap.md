@@ -55,6 +55,12 @@ The idempotent script:
 7. validates the SSH configuration and starts `sshd` automatically.
 8. Writes `C:\Users\Public\winvm-openssh-report.json`.
 
+Current Windows media may install `sshd.exe` without first creating
+`ProgramData\ssh\sshd_config`. The bootstrap initializes that file from the
+capability's installed `sshd_config_default` before applying and validating the
+key-only policy. It also generates the capability's missing server host keys
+before fail-closed configuration validation.
+
 ## 3. Configure the Stable SSH Alias
 
 Print the OpenSSH client block with the Windows account name:

@@ -3,6 +3,10 @@
 set -euo pipefail
 
 readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+grep -Fq 'sshd_config_default' \
+    "$REPO_DIR/guests/windows/bootstrap-openssh.ps1"
+grep -Fq "'System32\OpenSSH\ssh-keygen.exe'" \
+    "$REPO_DIR/guests/windows/bootstrap-openssh.ps1"
 temporary="$(mktemp -d /tmp/winvm-smoke.XXXXXX)"
 trap 'rm -rf -- "$temporary"' EXIT
 

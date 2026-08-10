@@ -46,7 +46,17 @@ if ($isAdministrator) {
     & icacls.exe $authorizedKeysPath /inheritance:r /grant:r '*S-1-5-32-544:F' '*S-1-5-18:F' | Out-Null
 }
 
-$sshdConfigPath = Join-Path $env:ProgramData 'ssh\sshd_config'
+$sshdDirectory = Join-Path $env:ProgramData 'ssh'
+New-Item -ItemType Directory -Force -Path $sshdDirectory | Out-Null
+$sshdConfigPath = Join-Path $sshdDirectory 'sshd_config'
+if (-not (Test-Path -LiteralPath $sshdConfigPath)) {
+    $defaultSshdConfig = Join-Path $env:WINDIR `
+        'System32\OpenSSH\sshd_config_default'
+    if (-not (Test-Path -LiteralPath $defaultSshdConfig)) {
+        throw 'OpenSSH installed without sshd_config or sshd_config_default'
+    }
+    Copy-Item -LiteralPath $defaultSshdConfig -Destination $sshdConfigPath
+}
 $sshdConfig = Get-Content -LiteralPath $sshdConfigPath -Raw
 $matchStart = [regex]::Match($sshdConfig, '(?im)^\s*Match\s+')
 if ($matchStart.Success) {
@@ -72,6 +82,11 @@ foreach ($option in @(
 }
 
 Set-Content -LiteralPath $sshdConfigPath -Encoding ascii -Value ($globalConfig + $matchConfig)
+$sshKeygen = Join-Path $env:WINDIR 'System32\OpenSSH\ssh-keygen.exe'
+& $sshKeygen -A
+if ($LASTEXITCODE -ne 0) {
+    throw "OpenSSH host-key initialization failed with exit code $LASTEXITCODE"
+}
 & (Join-Path $env:WINDIR 'System32\OpenSSH\sshd.exe') -t
 if ($LASTEXITCODE -ne 0) {
     throw "sshd configuration validation failed with exit code $LASTEXITCODE"
