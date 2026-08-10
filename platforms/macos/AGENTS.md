@@ -27,7 +27,12 @@ requests it or the documented normal recovery paths have failed.
 MacVM Testbed never edits the guest TCC database. Host Screen Recording and
 Accessibility access, and guest Accessibility access for the deployed MacVM
 UI app, are explicit macOS consent decisions. An agent may navigate to and
-explain the consent surface; the user enters any password directly in the VM.
+explain the initial consent surface; the user enters any password directly in
+the VM while MacVM UI is not yet trusted. After Accessibility is granted, a
+matching normal Aqua administrator sheet uses `authorization.begin` and the
+interactive, non-echoing `authorization-submit` helper. Never place a
+credential in request JSON, arguments, environment, files, logs, captures, or
+result values, and never retry a failed credential automatically.
 
 ## Fresh Guest Boundary
 
