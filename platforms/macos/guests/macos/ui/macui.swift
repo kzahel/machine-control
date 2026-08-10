@@ -990,22 +990,53 @@ final class ResidentService {
     private func authorizationSheet(expectedRequester: String) throws
         -> AuthorizationSheet {
         try requireAccessibility()
-        let matching = runningApplications().filter {
-            $0.bundleIdentifier == "com.apple.SecurityAgent" && !$0.isTerminated
+        let candidates = runningApplications().filter {
+            ["com.apple.SecurityAgent", "com.apple.systempreferences"]
+                .contains($0.bundleIdentifier ?? "") && !$0.isTerminated && $0.isActive
         }
-        guard matching.count == 1, let app = matching.first, app.isActive else {
+        var matches: [AuthorizationSheet] = []
+        for app in candidates {
+            if let sheet = try? authorizationSheet(
+                    in: app, expectedRequester: expectedRequester) {
+                matches.append(sheet)
+            }
+        }
+        guard matches.count == 1 else {
             throw MacUIError.element(
-                "No unique active SecurityAgent authorization sheet is present")
+                "No unique active matching authorization sheet is present")
         }
+        return matches[0]
+    }
+
+    private func authorizationSheet(in app: NSRunningApplication,
+                                    expectedRequester: String) throws
+        -> AuthorizationSheet {
         let root = AXUIElementCreateApplication(app.processIdentifier)
         let records = traverse(root: root, maxDepth: 16, limit: 300)
         let text = records.flatMap { [$0.title, $0.description, $0.value] }
             .filter { !$0.isEmpty }
-        guard text.contains(expectedRequester),
-              text.contains("\(expectedRequester) wants to make changes."),
-              text.contains("Enter your password to allow this.") else {
-            throw MacUIError.element(
-                "SecurityAgent sheet did not match the expected requester")
+        let bundleID = app.bundleIdentifier ?? ""
+        let confirmTitle: String
+        switch bundleID {
+        case "com.apple.SecurityAgent":
+            guard text.contains(expectedRequester),
+                  text.contains("\(expectedRequester) wants to make changes."),
+                  text.contains("Enter your password to allow this.") else {
+                throw MacUIError.element(
+                    "SecurityAgent sheet did not match the expected requester")
+            }
+            confirmTitle = "OK"
+        case "com.apple.systempreferences":
+            guard text.contains(expectedRequester),
+                  text.contains(
+                    "\(expectedRequester) is trying to modify your system settings."),
+                  text.contains("Enter your password to allow this.") else {
+                throw MacUIError.element(
+                    "System Settings sheet did not match the expected requester")
+            }
+            confirmTitle = "Modify Settings"
+        default:
+            throw MacUIError.element("Unsupported authorization sheet owner")
         }
         let secureFields = records.filter {
             $0.role == "AXTextField" && $0.subrole == "AXSecureTextField"
@@ -1015,19 +1046,29 @@ final class ResidentService {
                 $0.actions.contains(kAXPressAction as String)
         }
         let confirmButtons = records.filter {
-            $0.role == "AXButton" && $0.title == "OK" &&
+            $0.role == "AXButton" && $0.title == confirmTitle &&
                 $0.actions.contains(kAXPressAction as String)
         }
         guard secureFields.count == 1, cancelButtons.count == 1,
               confirmButtons.count == 1 else {
             throw MacUIError.element(
-                "SecurityAgent sheet controls did not match the strict fingerprint")
+                "Authorization sheet controls did not match the strict fingerprint")
         }
         let windows = windowList(ownerPID: app.processIdentifier)
-        guard windows.count == 1,
-              let number = windows[0]["windowId"] as? NSNumber else {
+        let sheetWindows: [[String: Any]]
+        if bundleID == "com.apple.systempreferences" {
+            sheetWindows = windows.filter {
+                ($0["title"] as? String ?? "").isEmpty &&
+                    ($0["onScreen"] as? Bool == true) &&
+                    ($0["layer"] as? Int == 0)
+            }
+        } else {
+            sheetWindows = windows
+        }
+        guard sheetWindows.count == 1,
+              let number = sheetWindows[0]["windowId"] as? NSNumber else {
             throw MacUIError.element(
-                "SecurityAgent did not expose one exact on-screen window")
+                "Authorization owner did not expose one exact on-screen window")
         }
         return AuthorizationSheet(
             processID: app.processIdentifier,

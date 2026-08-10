@@ -14,8 +14,11 @@ for script in \
     scripts/deploy-ui.sh \
     scripts/deploy-fixture.sh \
     scripts/deploy-admin-fixture.sh \
+    scripts/deploy-privacy-fixture.sh \
     scripts/reset-admin-fixture.sh \
     scripts/remove-admin-fixture.sh \
+    scripts/reset-privacy-fixture.sh \
+    scripts/remove-privacy-fixture.sh \
     scripts/submit-authorization.sh \
     scripts/fetch-artifact.sh \
     scripts/doctor.sh \
@@ -30,6 +33,7 @@ done
     guests/macos/ui/Info.plist \
     guests/macos/fixture/Info.plist \
     guests/macos/admin-fixture/Info.plist \
+    guests/macos/privacy-fixture/Info.plist \
     >/dev/null
 
 /usr/bin/swiftc -typecheck providers/tart-macos/host-control.swift
@@ -39,6 +43,10 @@ done
 /usr/bin/swiftc -typecheck guests/macos/fixture/MachineControlFixture.swift
 /usr/bin/swiftc -typecheck -framework AppKit \
     guests/macos/admin-fixture/AdminAuthorizationFixture.swift
+/usr/bin/swiftc -typecheck -framework AppKit -framework ApplicationServices \
+    -framework AVFoundation -framework Network -framework ScreenCaptureKit \
+    -framework UserNotifications \
+    guests/macos/privacy-fixture/PrivacyConsentFixture.swift
 
 bin/macvm help >/dev/null
 bin/macui help >/dev/null

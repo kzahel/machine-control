@@ -20,6 +20,7 @@ macOS Accessibility inspection and actions.
 | Resident facade | Per-user Unix socket with `machine-control/v0` envelopes |
 | Composition | Native AX/Quartz/CGEvent plus optional installed Cua |
 | Administrator sheets | Strict `SecurityAgent` lease plus non-echoing one-shot credential channel |
+| Privacy fixtures | Signed API triggers and independent policy/hardware oracle |
 | Recovery | Tart-window screenshot and CoreGraphics keyboard/mouse input |
 
 The semantic helper has no provider-packaged exclusions for the Dock, menu
@@ -165,6 +166,7 @@ guests/macos/bootstrap/           Fresh-guest installation assets
 guests/macos/ui/macui.swift       Native Accessibility helper
 guests/macos/fixture/             Deterministic native conformance fixture
 guests/macos/admin-fixture/       Harmless administrator-sheet fixture
+guests/macos/privacy-fixture/     Privacy API and System Settings fixture
 scripts/                          Deployment and diagnostics
 skills/drive-macvm/               Reusable agent operating skill
 ```
@@ -203,6 +205,9 @@ Guest:
 - The repository share is read-only by default.
 - The UI helper is non-root and cannot bypass TCC or macOS integrity levels.
 - The resident socket is owned by the interactive user with mode `0600`.
+- Privacy resets use supported APIs and `tccutil`; the testbed never edits a
+  TCC database. Local Network and notification decisions are settings-managed
+  because `tccutil` does not expose a supported reset for them.
 - Ignored target-role/name guards can fail closed before clone mutation.
 - `force-stop` is an explicit recovery operation, never routine lifecycle.
 

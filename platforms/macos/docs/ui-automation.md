@@ -195,6 +195,28 @@ the resident is not trusted yet. Bootstrap consent remains a direct guest-user
 step. It also does not claim loginwindow, FileVault/preboot, Recovery, or
 unrestricted root authority.
 
+The same lease also recognizes the inline password window that System Settings
+uses when Privacy & Security changes require administrator approval. That
+variant strictly matches one active System Settings owner, exact requester and
+prompt text, one secure field, unique Cancel and Modify Settings buttons, and
+one untitled on-screen authorization window. It does not turn arbitrary
+System Settings UI into a credential target.
+
+## Privacy consent fixture
+
+`deploy-privacy-fixture` installs one signed app with explicit triggers for
+Accessibility, Screen Recording, Input Monitoring, Automation, notifications,
+Camera, Microphone, Documents, Downloads, Full Disk Access probing, and Local
+Network. `privacy-fixture-state` reads its independent file oracle. The oracle
+keeps consent result, API effect, and virtual hardware presence separate.
+
+Use `reset-privacy-fixture SERVICE` only for classes supported by `tccutil`.
+Camera, Microphone, and Automation can be reset and replayed directly. Local
+Network and notification policy have no supported `tccutil` reset and must be
+changed through System Settings. Full Disk Access is also settings-managed; a
+protected-data failure does not itself present an Allow dialog. Never edit or
+replace the TCC database to manufacture a fixture state.
+
 Accessibility does not erase all macOS integrity boundaries. Use the outer
 Tart input path for initial consent sheets that the not-yet-trusted resident
 cannot reach, and for explicit recovery. After Accessibility is granted, use
