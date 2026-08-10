@@ -43,6 +43,11 @@ quarantined-app Open Anyway flow, DMG mounting with Finder semantics, a Safari
 download approval, and a harmless Installer package with a strict resident
 authorization lease. It removes the mount, download, package receipt/payload,
 server, and working directory afterward.
+`framework-coverage.sh` proves compact semantic actions and independent effects
+through both caller placements on deterministic AppKit and SwiftUI fixtures.
+It links the already separate browser/web and custom-rendered acceptance cells,
+records observation size and latency, and reports Java and Electron as image
+omissions unless their build runtimes become available.
 `real-applications.sh` sustains the same facade across Finder, System Settings,
 TextEdit, Safari, an application menu bar, exact-window artifacts, focus
 preservation, and owned-state cleanup.
@@ -71,6 +76,7 @@ tests/macos/privacy-settings.sh
 tests/macos/privacy-appliance-posture.sh
 tests/macos/system-dialogs.sh
 tests/macos/artifact-workflows.sh
+tests/macos/framework-coverage.sh
 tests/macos/real-applications.sh
 tests/macos/provider-comparison.sh
 tests/macos/administrator-sheet.sh
