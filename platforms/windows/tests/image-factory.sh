@@ -36,6 +36,10 @@ test -f "$seed_mount/utm-guest-tools-fixture.exe"
 test -f "$seed_mount/Drivers/NetKVM/w11/ARM64/netkvm.inf"
 grep -Fq 'FS0:\efi\microsoft\boot\cdboot_noprompt.efi' \
     "$seed_mount/startup.nsh"
+grep -Fq 'FS2:\EFI\Microsoft\Boot\bootmgfw.efi' \
+    "$seed_mount/startup.nsh"
+grep -Fq 'FS9:\EFI\Microsoft\Boot\bootmgfw.efi' \
+    "$seed_mount/startup.nsh"
 grep -Fq '<WillShowUI>Never</WillShowUI>' \
     "$seed_mount/Autounattend.xml"
 grep -Fq '<Key>W269N-WFGWX-YVC9B-4J6C9-T83GX</Key>' \

@@ -59,11 +59,13 @@ possibly private activation key on its command line.
 
 The seed also supplies UEFI Shell `startup.nsh`. UTM maps the Windows installer
 as the first filesystem in this factory recipe, and the script launches the
-installer's `cdboot_noprompt.efi` entry directly. This avoids both an
-interactive firmware-shell stop and Windows media's `Press any key` prompt.
-The exact Windows ISO must contain that standard no-prompt ARM64 loader; media
-validation is part of live acceptance rather than an assumption about every
-possible ISO.
+installer's `cdboot_noprompt.efi` entry directly on a blank disk. Before doing
+so, it checks the later UEFI filesystem mappings for an installed Windows Boot
+Manager and hands off to that entry when present. This avoids both an
+interactive firmware-shell stop and Windows media's `Press any key` prompt
+without forcing Setup media again during installation reboots. The exact
+Windows ISO must contain that standard no-prompt ARM64 loader; media validation
+is part of live acceptance rather than an assumption about every possible ISO.
 
 The checked-in AppleScript configuration surface does not expose UTM's Windows
 wizard flags for TPM 2.0 and preloaded Secure Boot keys. The answer media uses
