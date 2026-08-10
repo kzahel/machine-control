@@ -127,6 +127,22 @@ function Wait-ActivatedPrimaryWindow {
         -TimeoutSeconds $TimeoutSeconds
 }
 
+function Wait-ActivatedFrameWindow {
+    param(
+        [Parameter(Mandatory = $true)]$Activation,
+        [Parameter(Mandatory = $true)]$PrimaryWindow,
+        [Parameter(Mandatory = $true)][string]$Label,
+        [int]$TimeoutSeconds = 15
+    )
+    $frame = $Activation.data.frameWindow
+    if (-not $frame) { return $PrimaryWindow }
+    $frameHwnd = [long]$frame.hwnd
+    return Wait-Window `
+        -Predicate { [long]$_.hwnd -eq $frameHwnd } `
+        -Label "$Label application frame" `
+        -TimeoutSeconds $TimeoutSeconds
+}
+
 function Wait-WindowGone {
     param([long]$Hwnd, [string]$Label, [int]$TimeoutSeconds = 10)
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
@@ -222,6 +238,7 @@ function Get-SnapshotEfficiency {
         [string]$Query,
         [int]$MaxDepth = 16,
         [int]$MaxElements = 180,
+        [switch]$SystemScope,
         [switch]$RequireMaterialReduction
     )
     if (-not $FullSnapshot.data.snapshotDigest -or
@@ -236,8 +253,10 @@ function Get-SnapshotEfficiency {
         maxDepth = $MaxDepth
         maxElements = $MaxElements
     }
-    if ($Query) {
+    if ($Query -or $SystemScope) {
         $compactRequest.scope = 'system'
+    }
+    if ($Query) {
         $compactRequest.query = $Query
     }
     $compact = Invoke-Control $compactRequest
@@ -344,8 +363,10 @@ $summary = [ordered]@{
 }
 $workflowError = $null
 $calculator = $null
+$calculatorFrame = $null
 $notepad = $null
 $settings = $null
+$settingsFrame = $null
 $settingsOwned = $false
 $characterMap = $null
 $capturePaths = [Collections.Generic.List[string]]::new()
@@ -381,6 +402,10 @@ try {
     $calculator = Wait-ActivatedPrimaryWindow `
         -Activation $calcLaunch `
         -Label 'Calculator'
+    $calculatorFrame = Wait-ActivatedFrameWindow `
+        -Activation $calcLaunch `
+        -PrimaryWindow $calculator `
+        -Label 'Calculator'
     $calcMetrics = [ordered]@{
         launch = Get-Metric $calcLaunch
         launch_route = 'Windows ApplicationActivationManager'
@@ -406,6 +431,7 @@ try {
 
     $calculatorEfficiencyFull = Invoke-Control @{
         operation = 'snapshot'
+        scope = 'system'
         hwnd = [long]$calculator.hwnd
         processId = [int]$calculator.processId
         maxDepth = 16
@@ -416,6 +442,7 @@ try {
     $calcMetrics.semantic_snapshot = Get-SnapshotEfficiency `
         -Window $calculator `
         -FullSnapshot $calculatorEfficiencyFull `
+        -SystemScope `
         -RequireMaterialReduction
 
     $display = Invoke-Control @{
@@ -437,8 +464,8 @@ try {
 
     $calcCapture = Invoke-Control @{
         operation = 'screenshot'
-        hwnd = [long]$calculator.hwnd
-        processId = [int]$calculator.processId
+        hwnd = [long]$calculatorFrame.hwnd
+        processId = [int]$calculatorFrame.processId
     }
     Assert-Accepted $calcCapture 'Calculator exact-window capture'
     if ($calcCapture.data.bytes -lt 1000 -or -not $calcCapture.data.sha256) {
@@ -453,7 +480,7 @@ try {
     foreach ($state in @('maximized', 'restored', 'minimized', 'restored')) {
         $stateResult = Invoke-Control @{
             operation = 'window.state'
-            hwnd = [long]$calculator.hwnd
+            hwnd = [long]$calculatorFrame.hwnd
             state = $state
         }
         Assert-Accepted $stateResult "Calculator $state"
@@ -471,11 +498,14 @@ try {
         effect = '56 observed through independent native UIA'
         confirmed_state_transitions = $confirmedWindowTransitions
         exact_window_capture = $true
+        split_window_surfaces = (
+            [long]$calculator.hwnd -ne [long]$calculatorFrame.hwnd)
         window_lifecycle = 'confirmed'
     }
     $summary.metrics.calculator = $calcMetrics
-    Close-Window -Window $calculator -Label 'Calculator'
+    Close-Window -Window $calculatorFrame -Label 'Calculator'
     $calculator = $null
+    $calculatorFrame = $null
 
     $settingsBefore = @(Get-Windows |
         Where-Object { $_.visible -and $_.title -eq 'Settings' })
@@ -491,6 +521,10 @@ try {
     }
     $settings = Wait-ActivatedPrimaryWindow `
         -Activation $settingsLaunch `
+        -Label 'Settings'
+    $settingsFrame = Wait-ActivatedFrameWindow `
+        -Activation $settingsLaunch `
+        -PrimaryWindow $settings `
         -Label 'Settings'
     $settingsOwned = @($settingsBefore |
         Where-Object { $_.hwnd -eq $settings.hwnd }).Count -eq 0
@@ -529,9 +563,10 @@ try {
         system_semantics = $settingsEfficiency
     }
     if ($settingsOwned) {
-        Close-Window -Window $settings -Label 'Settings'
+        Close-Window -Window $settingsFrame -Label 'Settings'
     }
     $settings = $null
+    $settingsFrame = $null
 
     $characterMapPath = Join-Path $env:WINDIR 'System32\charmap.exe'
     $characterMapLaunch = Invoke-Control @{
@@ -670,10 +705,15 @@ catch {
     $summary.error = $_.Exception.Message
 }
 finally {
-    if ($calculator) {
+    if ($calculator -or $calculatorFrame) {
         try {
-            Close-Window -Window $calculator -Label 'Calculator cleanup'
+            Close-Window -Window $(if ($calculatorFrame) {
+                $calculatorFrame
+            } else {
+                $calculator
+            }) -Label 'Calculator cleanup'
             $calculator = $null
+            $calculatorFrame = $null
         }
         catch { }
     }
@@ -684,12 +724,17 @@ finally {
         }
         catch { }
     }
-    if ($settings) {
+    if ($settings -or $settingsFrame) {
         try {
             if ($settingsOwned) {
-                Close-Window -Window $settings -Label 'Settings cleanup'
+                Close-Window -Window $(if ($settingsFrame) {
+                    $settingsFrame
+                } else {
+                    $settings
+                }) -Label 'Settings cleanup'
             }
             $settings = $null
+            $settingsFrame = $null
         }
         catch { }
     }
@@ -711,8 +756,9 @@ finally {
     $summary.round_trips = $script:roundTrips
     $summary.cleanup = [ordered]@{
         application_windows_closed = (
-            -not $calculator -and -not $notepad -and
-            -not $settings -and -not $characterMap)
+            -not $calculator -and -not $calculatorFrame -and
+            -not $notepad -and -not $settings -and
+            -not $settingsFrame -and -not $characterMap)
         document_removed = (-not (Test-Path -LiteralPath $documentPath))
         captures_removed = @($capturePaths |
             Where-Object { Test-Path -LiteralPath $_ }).Count -eq 0

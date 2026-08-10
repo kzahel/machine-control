@@ -471,6 +471,14 @@ internal static class DesktopController
             : Math.Max(0, (long)(DateTime.UtcNow - stableSince).TotalMilliseconds);
         var primaryWindowSettled = primaryWindow is not null &&
             primaryWindowStableMs >= (long)stableWindowDuration.TotalMilliseconds;
+        var frameWindow = visible
+            .Where(window => string.Equals(
+                window.ClassName,
+                "ApplicationFrameWindow",
+                StringComparison.Ordinal))
+            .OrderByDescending(window =>
+                window.Bounds.Width * window.Bounds.Height)
+            .FirstOrDefault();
         return Success(
             request,
             generation,
@@ -486,11 +494,15 @@ internal static class DesktopController
                 windows = visible,
                 visibleWindowCount = visible.Count,
                 primaryWindow,
+                frameWindow,
                 primaryWindowSelection = primaryWindow is null
                     ? "none"
                     : primaryWindow.ProcessId == (int)processId
                         ? "activation_process_largest_visible_window"
                         : "largest_visible_associated_window",
+                frameWindowSelection = frameWindow is null
+                    ? "none"
+                    : "associated_application_frame",
                 primaryWindowSettled,
                 primaryWindowStableMs,
             },

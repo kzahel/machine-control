@@ -10,8 +10,9 @@ The Windows suites exercise the same installed facade from two placements:
   restart, stale-reference, timeout, and disclosed fallback behavior.
 - `inbox-application-workflow.ps1` drives Calculator, Settings, Character Map,
   and Notepad through the resident facade. It proves native registered/package
-  activation with exact primary-window selection, classic launch, system
-  semantics, four UIA-confirmed window transitions, persisted document bytes,
+  activation with settled content and application-frame surfaces when Windows
+  splits a package across HWNDs, classic launch, system semantics, four
+  UIA-confirmed window transitions, persisted document bytes,
   reopen/readback, exact-window capture, full/compact/unchanged payload
   metrics, preservation of pre-existing state, and owned-artifact cleanup.
 - `provider-absence.ps1` is an explicitly confirmed, reversible package test.

@@ -194,6 +194,10 @@ try {
         @($cancelSemantics.data.elements).Count
     $summary.cancel.effect = 'confirmed'
 
+    # Let the first ShellExecute elevation request finish unwinding before the
+    # fixture starts another one. The secure desktop can already be Default
+    # while the cancelled request is still returning to the Medium process.
+    Start-Sleep -Milliseconds 500
     Invoke-SemanticName 'Request elevation' | Out-Null
     $approveDesktop = Wait-ForDesktop 'Winlogon'
     $approveCapture = Invoke-Control @{
