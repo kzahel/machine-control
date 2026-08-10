@@ -2,43 +2,32 @@
 
 Topic: `linux-resident-control`
 
-Status: active GNOME Wayland vertical slice; other compositors and protected
-login planes remain research-stage.
+Status: accepted Ubuntu GNOME Wayland logged-in appliance; other compositors,
+protected login planes, and physical Linux hardware remain research-stage.
 
 ## Current state
 
-The authoritative [`linuxvm-testbed`](../../linuxvm-testbed/README.md) already
-provides UTM lifecycle, root-equivalent QEMU guest-agent commands, durable
-launch into the active desktop user's systemd session, and on-demand AT-SPI
-inspection/actions. Those are useful foundations, but the current screenshot
-and coordinate-input fallback manipulates the outer UTM window. There is not
-yet an owned persistent resident facade or one common local/remote contract.
+The authoritative [`linuxvm-testbed`](../../linuxvm-testbed/README.md) now
+provides an accepted Ubuntu 24.04 GNOME 46 Wayland logged-in software-testing
+surface. A persistent active-user resident exposes the same
+`machine-control/v0` Unix-socket contract to guest-local and outside callers.
+It owns compact AT-SPI semantics, GNOME display and active-window capture,
+argv-only user-systemd application lifecycle, generation-bound references,
+and a bounded root appliance input broker available only to the active user.
+
+The guarded corpus covers GNOME Shell, dock, top bar, notifications, Files,
+Settings, a file chooser, Polkit detection/cancellation, GTK, Qt/XWayland,
+Chromium, and custom-rendered visual fallback. It verifies independent
+application or OS effects and fails closed on every outer UTM-window capture
+or input operation. A full reboot restores both resident services and rejects
+pre-reboot references as stale.
 
 ## Current goal
 
-**Decision:** Go deep first on the existing Ubuntu GNOME Wayland appliance.
-Prove a complete logged-in software-testing surface from inside the target
-before expanding to X11, KDE, Sway, nested compositors, GDM, or physical Linux
-hardware.
-
-The accepted surface should combine:
-
-- compact AT-SPI semantics for applications, windows, GNOME system UI, and
-  ordinary controls;
-- target-native display/window capture through a compositor-, portal-, or
-  otherwise explicitly authorized in-target route;
-- target-local pointer, keyboard, text, and scroll fallback through a truthful
-  GNOME/Wayland or dedicated-appliance route;
-- application/session lifecycle and root-capable non-UI administration;
-- explicit handling of Polkit and other protected desktop prompts;
-- deterministic GTK, Qt, Electron/browser, and sparse/custom fixtures with
-  independent effects; and
-- the same facade and result vocabulary for guest-local and outside callers.
-
-The conformance harness must prohibit UTM-window capture and input during
-ordinary acceptance. QEMU guest-agent transport remains an inner route when it
-only reaches components executing in the guest; it must not become an excuse
-to manipulate the graphical console from the host.
+**Decision:** Keep this accepted GNOME Wayland profile stable while extending
+Linux through separate compositor and authority profiles. The target selector
+may change, but guest-local and outside callers should retain the same facade,
+capability, result, and reference vocabulary.
 
 ## Decisions
 
@@ -48,17 +37,35 @@ to manipulate the graphical console from the host.
 - Reuse the owned facade and result concepts proven on Windows and macOS while
   keeping AT-SPI, D-Bus, PipeWire, portals, EIS/libei, and any dedicated
   appliance privilege explicit.
-- Evaluate Cua as a replaceable common provider against native AT-SPI. Select
-  routes by independent effects; do not assume one provider is best for every
-  control or framework.
+- Use the owned native resident as the default for this profile. It is deeper
+  for measured Qt semantics and reliable Unicode input and does not require an
+  interactive portal for dedicated-appliance input.
+- Keep Cua 0.17.0 as an optional composed provider for its rich Chromium
+  combined tree/image and GNOME Shell helper's arbitrary target-window
+  capture. The measured gaps do not justify a fork.
+- Report the input broker honestly as `root_test_appliance`. It is deliberate
+  dedicated-appliance authority, not same-user containment or a generic
+  workstation route.
+- Treat GNOME Settings' labelled but zero-bounds GTK 4 controls as a visual
+  fallback: fixed display capture, target-local HID, and an independent
+  `gsettings` effect. Do not invent semantic coordinates.
 - A private or nested compositor may later be a valuable isolated test target,
   but it is not a prerequisite for proving the existing logged-in GNOME
   appliance.
 - GDM, lock screen, encrypted preboot, and absent-user-session control are
   separate authority domains. They are not part of the first logged-in slice.
 
-## Immediate work
+## Known gaps and next work
 
-Execution is tracked in
-[`Tactical 012`](../docs/tactical/012-linux-gnome-wayland-resident-control.md).
-Continuing direction belongs here after that tactical completes.
+The native capture route supports the display and exact active window, not an
+arbitrary hidden window. Cua can supply arbitrary target-window capture when
+its GNOME Shell helper is deliberately installed. Portal/libei input is a
+viable bounded workstation route, but its consent/session lifetime and latency
+need a separate non-appliance profile.
+
+GDM, lock screen, encrypted preboot, absent-user sessions, other compositors,
+and physical hardware remain separate authority and compatibility profiles.
+The completed execution record is
+[`Tactical 012`](../docs/tactical/012-linux-gnome-wayland-resident-control.md),
+and exact differential evidence lives in the
+[Linux findings](../../machine-control-spike/docs/linux-findings.md).

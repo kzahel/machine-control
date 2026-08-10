@@ -1,6 +1,6 @@
 # Tactical 012: Linux GNOME Wayland Resident Control
 
-Status: active.
+Status: complete.
 
 Topics: `linux-resident-control`, `inner-first-routing`, and
 `capabilities-and-results`.
@@ -117,4 +117,41 @@ privilege, omissions, and deferred compositor/protected-plane work.
 
 ## Validation record
 
-Pending live implementation and acceptance.
+The accepted candidate used Ubuntu 24.04, GNOME 46, Wayland, and a fixed
+1280×800 display. The authoritative testbed implementation is the commit series
+from `8b8e148` through `ce59eb0`; exact Cua comparison evidence and its pinned
+probe were committed to `machine-control-spike` as `a16a868`.
+
+- The mutation guard bound the candidate role to its exact local identity, and
+  the ordinary acceptance environment rejected every outer screenshot, click,
+  drag, text, key, scan-code, and window-inspection operation. Read-only host
+  state remained unchanged.
+- Guest-local and outside calls returned the same interface, resident
+  generation, routes, references, and artifacts through the private active-user
+  socket. Resident restart and full reboot invalidated a pre-reboot reference
+  with the typed `stale_reference` refusal.
+- `tests/smoke.sh` and `tests/gnome-acceptance.sh` passed after a clean reboot.
+  The latter proved Shell overview, dock, top bar, notification, Files,
+  Settings, file chooser, Polkit cancellation, GTK, Qt/XWayland, Chromium, and
+  visual fallback through independent effects.
+- Full-display and exact-active-window capture ran in GNOME. Pointer, click,
+  drag, scroll, key, ASCII, and Unicode input ran through the target-resident
+  appliance broker; Unicode used a one-shot Wayland clipboard offer.
+- The pinned Cua 0.17.0 comparison produced verified GTK and Chromium actions,
+  portal/libei input, and arbitrary target-window capture through its GNOME
+  Shell helper. Native AT-SPI covered the measured Qt route, and native input
+  preserved Unicode that Cua omitted on this profile. Cua remained unmodified
+  and optional.
+- The input broker and resident recovered automatically after reboot. Cua,
+  its temporary GNOME Shell helper, fixtures, portal sessions, transient units,
+  owned guest caches, and generated acceptance artifacts were removed. The
+  candidate then reached the normal stopped state.
+
+## Final result
+
+The logged-in GNOME Wayland appliance meets the tactical's target-native
+software-testing boundary without ordinary host-console control. The owned
+resident is the accepted default; Cua is an optional composed route for its
+measured combined tree/image and arbitrary-window strengths. GDM, lock and
+encrypted-preboot planes, other compositors, and physical Linux hardware remain
+explicitly deferred profiles rather than hidden gaps in this acceptance.

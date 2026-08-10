@@ -15,7 +15,7 @@ Last corpus review: 2026-08-10.
 | --- | --- | --- |
 | Windows | `adopted` | The resident runtime packages Cua 0.17.0 as its Medium-integrity semantics/action/capture adapter. ARM64 VM and physical x64 conformance passed with independent effects, timeout/crash/absence behavior, local/remote parity, and native adapters for shell, state, session, protected, and cross-integrity gaps. |
 | macOS | `adopted` for default text insertion and the measured Electron semantic route; `conformance-tested` more broadly | The resident facade selects Cua text insertion because it produced the independent AppKit value effect that native Unicode delivery did not. Cua also produced a deterministic Electron button effect where native AX only acknowledged delivery. Native AX remains deeper for Dock, Control Center, and Swing. |
-| Linux | `source-reviewed` | X11, Sway, GNOME, KDE, and nested-compositor routes are implemented/documented separately; no local corpus conformance run yet. |
+| Linux | `conformance-tested` on Ubuntu 24.04 GNOME 46 Wayland | GTK and Chromium semantics/actions, foreground portal input, and GNOME Shell helper window capture passed independent effects. Native AT-SPI remained deeper for the measured Qt route, and native clipboard-backed input preserved Unicode that Cua's libei fallback omitted. |
 | ChromeOS/iOS/Android | Unsupported as first-class Cua Driver platforms | They require separate provider families or a future adapter. |
 
 Exact source and experiment evidence:
@@ -25,6 +25,7 @@ Exact source and experiment evidence:
 - [Windows findings](../../../machine-control-spike/docs/windows-findings.md)
 - [Windows shell findings](../../../machine-control-spike/docs/windows-shell-findings.md)
 - [macOS findings](../../../machine-control-spike/docs/macos-findings.md)
+- [Linux findings](../../../machine-control-spike/docs/linux-findings.md)
 - [Windows provider-composition result](../../docs/tactical/004-windows-provider-composition-and-agent-ergonomics.md)
 
 ## Architecture
@@ -86,6 +87,16 @@ accessibility action produced the effect. The accepted cell activates the
 target and polls Cua's newly frontmost semantic tree boundedly before acting;
 an empty projection or action acknowledgement without the file effect fails.
 
+[`Tactical 012`](../../docs/tactical/012-linux-gnome-wayland-resident-control.md)
+compared the same pinned 0.17.0 source against the owned resident on GNOME 46
+Wayland. Cua produced independently verified GTK and Chromium actions, rich
+combined browser semantics, foreground portal/libei input, and arbitrary
+target-window capture through its pinned WinRects GNOME Shell helper. The
+owned native route remained deeper for Qt/XWayland semantics and reliable
+Unicode input. Portal consent was itself controllable inside the target, but
+its setup and round-trip cost make the explicitly authorized appliance broker
+the better default for this dedicated VM. Cua remains optional and unmodified.
+
 ## Current disposition
 
 **Decision — adopted on Windows:** Treat Cua as the common normal-user runtime
@@ -97,6 +108,13 @@ measured taskbar, state, registry-visibility, fallback-capture, session, and
 protected behavior. Cua does not own provider arbitration, testbed lifecycle,
 cross-host coordination, protected authority, outer recovery, or the
 project-wide ergonomic contract.
+
+**Decision — optional on Linux GNOME Wayland:** Route ordinary GNOME appliance
+control through the owned resident and select Cua explicitly for its measured
+combined tree/image or arbitrary target-window strengths. Do not fork Cua for
+the accepted profile; preserve the provider boundary and revisit the fork gate
+only if broader Linux profiles expose repeated gaps that wrapping cannot
+address.
 
 The ARM64 and x64 package manifests pin the evaluated release artifacts by
 SHA-256 and include the upstream MIT license. The source review remains pinned

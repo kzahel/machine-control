@@ -24,6 +24,8 @@ matches the question:
   build/install workflow, contract, and conformance entry points.
 - [macOS runtime](#macos-runtime): the accepted Tart resident slice, including
   ordinary applications and normal administrator sheets.
+- [Linux runtime](#linux-runtime): the accepted Ubuntu GNOME Wayland resident
+  slice and its native/Cua routing decision.
 - [System map](SYSTEM-MAP.md): which repository or program owns each part of
   the actual system.
 
@@ -437,6 +439,40 @@ absent virtual camera/microphone hardware. Lock and preboot planes plus
 physical Mac concerns remain deliberately deferred. See the
 [macOS resident-control topic](topics/macos-resident-control.md#current-tart-goal)
 for continuing direction.
+
+## Linux runtime
+
+**Current:** The authoritative sibling
+[`linuxvm-testbed`](../linuxvm-testbed/README.md) implements an accepted Ubuntu
+24.04 GNOME 46 Wayland logged-in appliance. Guest-local and outside callers
+send the same `machine-control/v0` requests to a private active-user Unix
+socket and receive the same generation-scoped references, routes, artifacts,
+and result vocabulary. Ordinary acceptance prohibits UTM-window observation
+and input.
+
+The owned resident is the primary route: AT-SPI provides compact semantics,
+GNOME supplies full-display and exact-active-window capture, a bounded root
+appliance broker provides active-user virtual HID input, and user systemd owns
+argv-only application lifecycle. Independent fixtures cover GTK,
+Qt/XWayland, Chromium, and custom-rendered input. GNOME Shell, Settings, Files,
+notifications, file choosers, and Polkit detection/cancellation are also in the
+accepted corpus.
+
+Cua 0.17.0 was compared at an exact source pin rather than assumed to be the
+universal Linux route. It is useful as an optional composed provider for its
+rich combined Chromium tree/image and arbitrary target-window capture through
+its GNOME Shell helper. Native routes remain the default because they cover Qt
+semantics and Unicode input more reliably on this profile and avoid the
+interactive Remote Desktop portal for dedicated-appliance input. Cua need not
+be forked for the accepted slice.
+
+The resident and input broker recover automatically after a full reboot;
+pre-reboot references fail as `stale_reference`, and both smoke and GNOME
+acceptance suites pass again. GDM, lock and encrypted-preboot planes, other
+compositors, and physical Linux hardware remain explicit later profiles. See
+the [Linux topic](topics/linux-resident-control.md),
+[`Tactical 012`](docs/tactical/012-linux-gnome-wayland-resident-control.md),
+and the [exact provider findings](../machine-control-spike/docs/linux-findings.md).
 
 ## Current position
 
