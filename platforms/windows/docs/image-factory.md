@@ -46,6 +46,13 @@ index, injects the matching Windows 11 VirtIO drivers, suppresses automatic
 activation, creates the administrator, logs on once, installs UTM Guest Tools
 silently, and invokes the seed's OpenSSH bootstrap.
 
+The checked-in AppleScript configuration surface does not expose UTM's Windows
+wizard flags for TPM 2.0 and preloaded Secure Boot keys. The answer media uses
+the same Windows Setup hardware-check bypasses shipped on UTM's guest-tools
+media for this QEMU recipe. This is an explicit compatibility compromise for
+the dedicated test appliance, not a claim that the VM satisfies Microsoft's
+Windows 11 hardware baseline.
+
 Validate a separately acquired Windows ISO before creation:
 
 ```bash

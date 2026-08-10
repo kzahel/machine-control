@@ -36,6 +36,7 @@ test -f "$seed_mount/Drivers/NetKVM/w11/ARM64/netkvm.inf"
 grep -Fq 'E:\Drivers\NetKVM\w11\ARM64' "$seed_mount/Autounattend.xml"
 grep -Fq '<SkipAutoActivation>true</SkipAutoActivation>' \
     "$seed_mount/Autounattend.xml"
+grep -Fq 'BypassTPMCheck' "$seed_mount/Autounattend.xml"
 hdiutil detach "$seed_mount" >/dev/null
 
 bundle="$temporary/fixture.utm"
