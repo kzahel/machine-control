@@ -2,7 +2,8 @@
 
 Topic: `macos-resident-control`
 
-Status: full logged-in Aqua software-testing milestone accepted for Tart;
+Status: full logged-in Aqua software-testing milestone accepted for Tart,
+including Java Swing and Electron;
 lock/login, preboot, Recovery, and physical hardware are deferred.
 
 ## Current state
@@ -96,7 +97,11 @@ guest desktop from outside.
   not field names, and filtered semantic queries must not return an unrelated
   full tree.
 - Route per measured operation. The current composition uses Cua for default
-  text insertion and native routes for the rest of the accepted surface.
+  text insertion. Native AX supplies AppKit, SwiftUI, and Swing semantics. The
+  deterministic Electron cell explicitly uses Cua semantics after native AX
+  exposed and acknowledged its Chromium button without producing the
+  file-oracle effect; Cua produced that effect after target activation and
+  bounded semantic-readiness polling.
 - Treat loginwindow, FileVault/preboot, Recovery, another user's session, and
   bounded privileged APIs for less-trusted deployment profiles as later
   protected-plane slices. A normal Aqua `SecurityAgent` sheet is accepted only
@@ -165,16 +170,24 @@ The live corpus now includes:
   harmless package installation;
 - exact fail-closed authorization profiles for ordinary SecurityAgent,
   Installer, System Settings, and Gatekeeper's LocalAuthentication sheet;
-- compact AppKit and SwiftUI semantics through both placements, Safari/web,
-  and an in-guest pixel/input fallback for sparse custom-rendered UI; and
+- compact AppKit, SwiftUI, Java Swing, and Electron semantics through both
+  placements, Safari/web, and an in-guest pixel/input fallback for sparse
+  custom-rendered UI; and
 - resident restart, full unattended guest reboot, representative post-reboot
   replay, complete corpus cleanup, and normal candidate shutdown.
 
 The current image has SIP disabled, so protected-data policy UI is controllable
 but Full Disk Access and protected-folder enforcement cannot be proved on that
 image. Tart has no camera or microphone hardware; consent state and hardware
-absence are reported separately. Java and Electron build runtimes are absent,
-and the corpus fails if either later appears without a deterministic fixture.
+absence are reported separately.
+
+[`Tactical 011`](../docs/tactical/011-macos-java-electron-framework-coverage.md)
+closes the framework-runtime omission with pinned ARM64 Temurin, Node, and
+Electron distributions. Deterministic Swing and Electron apps supply file
+oracles and stable bundle identities. The four-framework corpus passed local
+and remote semantics plus exact-window capture before and after full reboot,
+with outer UI forbidden and the host oracle unchanged. Fixtures are removed
+after acceptance while the reusable runtimes remain installed.
 
 ## Later boundaries
 

@@ -45,11 +45,16 @@ Installer credential sheets use strict resident authorization leases when
 macOS presents them, so the script requires an interactive terminal. It
 removes the mount, download, package receipt/payload, server, and working
 directory afterward.
-`framework-coverage.sh` proves compact semantic actions and independent effects
-through both caller placements on deterministic AppKit and SwiftUI fixtures.
-It links the already separate browser/web and custom-rendered acceptance cells,
-records observation size and latency, and reports Java and Electron as image
-omissions unless their build runtimes become available.
+`framework-coverage.sh` requires the checksum-pinned runtime set and proves
+compact semantic actions, independent effects, and exact-window capture
+through both caller placements on deterministic AppKit, SwiftUI, Java Swing,
+and Electron fixtures. Native AX drives AppKit, SwiftUI, and Swing. The
+Electron cell explicitly activates the guest application and uses Cua's
+semantic route because live differential evidence found native AX acknowledged
+the Chromium button without producing its independent effect. The Cua target
+cache is polled boundedly after activation; an empty tree never passes. The
+script links the already separate browser/web and custom-rendered acceptance
+cells and records observation size and latency.
 `real-applications.sh` sustains the same facade across Finder, System Settings,
 TextEdit, Safari, an application menu bar, exact-window artifacts, focus
 preservation, and owned-state cleanup.

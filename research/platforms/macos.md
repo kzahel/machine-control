@@ -15,7 +15,7 @@ some protected surfaces are separate authority domains.
 
 | Candidate | Evidence | Depth | Current use |
 | --- | --- | --- | --- |
-| [Cua Driver](../providers/cua-driver.md) | `adopted` for default text insertion; `conformance-tested` more broadly | Exact-window state, AX, capture, background/foreground routes, sessions, effects, fixtures | Replaceable adapter behind the resident facade |
+| [Cua Driver](../providers/cua-driver.md) | `adopted` for default text insertion and the measured Electron semantic route; `conformance-tested` more broadly | Exact-window state, AX, capture, background/foreground routes, sessions, effects, fixtures | Replaceable adapter behind the resident facade |
 | [Open Computer Use](../providers/open-computer-use.md) | `source-reviewed` | Compact Computer Use facade, AX/ScreenCaptureKit, app-post and explicit SkyLight background route | First common-provider comparison set |
 | [Peekaboo](../providers/peekaboo.md) | `source-reviewed` | Deepest macOS exact-window/system-surface implementation and native fixture found | Platform depth benchmark |
 | [Touchpoint](../providers/touchpoint.md) | `source-reviewed` | Small AX/CGEvent/CDP facade; crop-based capture caveat | Common-provider alternative |
@@ -76,11 +76,21 @@ kept credential submission bounded. Full reboot and post-reboot replay passed
 with outer UI prohibited, followed by complete fixture/artifact cleanup and a
 normal stop.
 
-The evidence also fixes three environment omissions: SIP is disabled so
-protected-data enforcement cannot be measured, Tart exposes no virtual camera
-or microphone, and the accepted image has no Java or Electron build runtime.
-The corpus reports those facts separately and will not reinterpret them as
-successful application effects.
+[`Tactical 011`](../../docs/tactical/011-macos-java-electron-framework-coverage.md)
+adds adopted live evidence for deterministic Java Swing and Electron software.
+The appliance retains checksum-pinned ARM64 Temurin 21 LTS, Node 24 LTS, and
+Electron runtimes. Compact local and remote Swing semantics passed through
+native AX at roughly 1 KB per observation. Electron's Chromium controls were
+semantically visible to native AX, but native `AXPress` acknowledgement did not
+change the file oracle. Explicit Cua semantics produced the effect after guest
+activation and bounded tree-readiness polling, at roughly 1.6 KB per compact
+observation. Both paths and all exact-window captures passed again after full
+guest reboot with outer UI prohibited and no host-oracle change.
+
+The remaining environment omissions are separate: SIP is disabled so
+protected-data enforcement cannot be measured, and Tart exposes no virtual
+camera or microphone. The corpus will not reinterpret those facts as successful
+application effects.
 
 ## Current direction
 
@@ -92,5 +102,5 @@ materially better macOS route.
 
 **Open:** Extend evidence to occlusion/minimization, off-Space behavior,
 multiple displays, localization, lock/loginwindow, FileVault/preboot, bounded
-non-UI administration, a SIP-enabled protected-data image, Java/Electron when
-installed, private-API fragility, and longer background-interference soak runs.
+non-UI administration, a SIP-enabled protected-data image, private-API
+fragility, and longer background-interference soak runs.

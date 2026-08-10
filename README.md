@@ -423,9 +423,18 @@ System Settings, and Gatekeeper sheets encountered by the corpus. A full guest
 reboot restored the ready surface, post-reboot representative cells passed,
 fixtures and artifacts were removed, and the candidate stopped normally.
 
-The image honestly reports SIP-disabled protected-data enforcement, absent
-virtual camera/microphone hardware, and absent Java/Electron runtimes. Lock and
-preboot planes plus physical Mac concerns remain deliberately deferred. See the
+[`Tactical 011`](docs/tactical/011-macos-java-electron-framework-coverage.md)
+closes the former Java/Electron image omission with checksum-pinned, user-local
+ARM64 Temurin, Node, and Electron runtimes. Deterministic Swing and Electron
+fixtures now pass both caller placements, independent effect oracles, and
+exact-window capture before and after full reboot. Native AX is the effective
+Swing route. Electron uses explicit Cua semantics because native AX exposed and
+acknowledged its Chromium button without producing the independent click
+effect, while Cua did.
+
+The image still honestly reports SIP-disabled protected-data enforcement and
+absent virtual camera/microphone hardware. Lock and preboot planes plus
+physical Mac concerns remain deliberately deferred. See the
 [macOS resident-control topic](topics/macos-resident-control.md#current-tart-goal)
 for continuing direction.
 

@@ -14,7 +14,7 @@ Last corpus review: 2026-08-10.
 | Platform | Level | Evidence and limit |
 | --- | --- | --- |
 | Windows | `adopted` | The resident runtime packages Cua 0.17.0 as its Medium-integrity semantics/action/capture adapter. ARM64 VM and physical x64 conformance passed with independent effects, timeout/crash/absence behavior, local/remote parity, and native adapters for shell, state, session, protected, and cross-integrity gaps. |
-| macOS | `adopted` for default text insertion; `conformance-tested` more broadly | The resident facade runs identical native/Cua fixture cells and selects Cua for default text insertion because it produced the independent AppKit value effect that native Unicode delivery did not. Snapshot/action/capture cells also passed; native AX remains deeper for Dock and Control Center. |
+| macOS | `adopted` for default text insertion and the measured Electron semantic route; `conformance-tested` more broadly | The resident facade selects Cua text insertion because it produced the independent AppKit value effect that native Unicode delivery did not. Cua also produced a deterministic Electron button effect where native AX only acknowledged delivery. Native AX remains deeper for Dock, Control Center, and Swing. |
 | Linux | `source-reviewed` | X11, Sway, GNOME, KDE, and nested-compositor routes are implemented/documented separately; no local corpus conformance run yet. |
 | ChromeOS/iOS/Android | Unsupported as first-class Cua Driver platforms | They require separate provider families or a future adapter. |
 
@@ -77,6 +77,14 @@ facade's normalized application, window, semantic element, and capture
 vocabulary. Cua is the measured default only for `input.text`; native macOS
 routes remain the ordinary default for the rest of the accepted surface.
 Explicit provider selection fails closed rather than falling back.
+
+[`Tactical 011`](../../docs/tactical/011-macos-java-electron-framework-coverage.md)
+adds a live Electron differential cell. Native AX returned the labelled
+Chromium button and acknowledged `AXPress` without changing the independent
+oracle. Cua returned a compact semantic projection and its background
+accessibility action produced the effect. The accepted cell activates the
+target and polls Cua's newly frontmost semantic tree boundedly before acting;
+an empty projection or action acknowledgement without the file effect fails.
 
 ## Current disposition
 

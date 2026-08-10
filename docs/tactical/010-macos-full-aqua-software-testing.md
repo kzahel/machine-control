@@ -220,6 +220,12 @@ Declared appliance omissions are not acceptance failures:
   runtime. The framework corpus fails if either runtime later becomes available
   without gaining a deterministic fixture.
 
+The Java/Electron omission above describes this tactical's execution-time
+image. It was subsequently closed by
+[`Tactical 011`](011-macos-java-electron-framework-coverage.md) with pinned
+runtimes, deterministic fixtures, and pre/post-reboot acceptance. The SIP and
+virtual-hardware limitations remain.
+
 Lock/loginwindow, FileVault/preboot, Recovery, physical Mac hardware, multiple
 interactive users, and physical-device peripherals remain outside this
 tactical's explicit boundary. Continuing macOS direction is maintained in the
