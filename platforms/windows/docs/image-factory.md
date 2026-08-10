@@ -84,8 +84,11 @@ Windows edition/index, driver availability, and activation are caller-owned
 inputs and must be proven on the exact ISO.
 
 After Windows first-logon bootstrap completes, verify key-only SSH, remove the
-one-use answer media from the stopped VM configuration, rotate the setup
-credential, and install MachineControl through its UUID-bound bootstrap.
+one-use answer media and Windows ISO with `bin/winvm factory-detach-media`
+while the candidate is stopped, rotate the setup credential, and install
+MachineControl through its UUID-bound bootstrap. Detachment removes every
+removable drive through UTM's stopped configuration API and independently
+confirms that none remain.
 
 ## Generalize and export
 
