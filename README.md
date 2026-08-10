@@ -18,6 +18,8 @@ matches the question:
   a fork or owned replacement becomes justified.
 - [Implementation tacticals](docs/tactical/README.md): bounded work selected
   from the topics.
+- [Contract projections](contracts/README.md): the exercised v0 JSON request
+  and truthful result envelopes shared by resident implementations.
 - [Windows runtime](#windows-runtime): the first resident implementation,
   build/install workflow, contract, and conformance entry points.
 - [System map](SYSTEM-MAP.md): which repository or program owns each part of

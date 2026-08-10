@@ -144,6 +144,7 @@ run_fixture_workflow() {
         || fail "$placement capture returned no file artifact"
     "$TESTBED_DIR/bin/macvm" exec /bin/test -s "$capture_path" \
         || fail "$placement capture artifact was empty"
+    "$TESTBED_DIR/bin/macvm" exec /bin/rm -f "$capture_path"
 
     terminate_fixture "$placement"
 }

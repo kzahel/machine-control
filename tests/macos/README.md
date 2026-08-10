@@ -12,6 +12,9 @@ The deterministic AppKit fixture supplies both visible AX state and a separate
 file oracle. Tests do not treat an AX or input acknowledgement as proof of an
 application effect. The script also checks exact-window artifacts, resident
 restart, stale-reference refusal, and System Settings background behavior.
+`real-applications.sh` sustains the same facade across Finder, System Settings,
+TextEdit, Safari, an application menu bar, exact-window artifacts, focus
+preservation, and owned-state cleanup.
 
 Run it from this repository after selecting a guarded disposable/candidate VM
 in the testbed's ignored local configuration:
@@ -20,6 +23,7 @@ in the testbed's ignored local configuration:
 tests/macos/conformance.sh
 tests/macos/conformance.sh remote
 tests/macos/conformance.sh local
+tests/macos/real-applications.sh
 ```
 
 No target name, guest account, network endpoint, or captured artifact is

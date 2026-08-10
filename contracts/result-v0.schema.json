@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machine-control.invalid/contracts/result-v0.schema.json",
+  "title": "Machine Control Result v0",
+  "type": "object",
+  "required": [
+    "schema",
+    "requestId",
+    "operation",
+    "accepted",
+    "actualRoute",
+    "generation",
+    "hostInterference",
+    "uncertainty",
+    "elapsedMs"
+  ],
+  "properties": {
+    "schema": { "const": "machine-control/v0" },
+    "requestId": { "type": "string", "minLength": 1 },
+    "operation": { "type": "string", "minLength": 1 },
+    "accepted": { "type": "boolean" },
+    "actualRoute": { "type": "string", "minLength": 1 },
+    "generation": { "type": "string", "minLength": 1 },
+    "delivery": {
+      "enum": ["confirmed", "unknown", "refused", "not_applicable"]
+    },
+    "effect": {
+      "enum": [
+        "confirmed",
+        "partial",
+        "no_effect",
+        "unverifiable",
+        "unknown",
+        "refused",
+        "not_applicable"
+      ]
+    },
+    "fidelity": { "type": "string" },
+    "coordinateSpace": { "type": "string" },
+    "focusConsequence": { "type": "string" },
+    "cursorConsequence": { "type": "string" },
+    "hostInterference": { "type": "string", "minLength": 1 },
+    "uncertainty": { "type": "string", "minLength": 1 },
+    "retrySafety": { "type": "string" },
+    "fallbackUsed": { "type": "boolean" },
+    "agentRoundTrips": { "type": "integer", "minimum": 0 },
+    "retryCount": { "type": "integer", "minimum": 0 },
+    "staleReferenceEvents": { "type": "integer", "minimum": 0 },
+    "errorCode": { "type": "string" },
+    "message": { "type": "string" },
+    "providerAttempts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["provider", "outcome"],
+        "properties": {
+          "provider": { "type": "string" },
+          "operation": { "type": "string" },
+          "outcome": { "type": "string" },
+          "delivery": { "type": "string" },
+          "effect": { "type": "string" },
+          "elapsedMs": { "type": "integer", "minimum": 0 }
+        },
+        "additionalProperties": true
+      }
+    },
+    "evidence": {},
+    "data": {},
+    "elapsedMs": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": true
+}
