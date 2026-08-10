@@ -181,6 +181,10 @@ bound to that process, window, requester, context, resident generation, short
 expiry, and a single cancel or credential submission. A stale, expired, used,
 or changed-sheet lease fails closed.
 
+The default expiry is 30 seconds. Callers may request 250 milliseconds through
+120 seconds; the upper bound accommodates an attended non-echoing credential
+step without making a lease durable.
+
 `authorization-submit` requires an interactive terminal and reads one
 credential without echo. The secret travels over stdin and the resident's
 mode-`0600` socket with a staged descriptor handshake; it is never a JSON
@@ -208,7 +212,9 @@ System Settings UI into a credential target.
 Accessibility, Screen Recording, Input Monitoring, Automation, notifications,
 Camera, Microphone, Documents, Downloads, Full Disk Access probing, and Local
 Network. `privacy-fixture-state` reads its independent file oracle. The oracle
-keeps consent result, API effect, and virtual hardware presence separate.
+keeps consent result, API effect, and virtual hardware presence separate. Its
+Input Monitoring trigger attempts a real session event tap, and its Screen
+Recording trigger probes ScreenCaptureKit content after requesting access.
 
 Use `reset-privacy-fixture SERVICE` only for classes supported by `tccutil`.
 Camera, Microphone, and Automation can be reset and replayed directly. Local

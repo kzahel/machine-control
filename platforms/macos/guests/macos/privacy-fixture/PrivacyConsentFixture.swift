@@ -6,10 +6,19 @@ import Network
 import ScreenCaptureKit
 import UserNotifications
 
+func privacyEventTapCallback(_ proxy: CGEventTapProxy, _ type: CGEventType,
+                             _ event: CGEvent,
+                             _ userInfo: UnsafeMutableRawPointer?)
+    -> Unmanaged<CGEvent>? {
+    Unmanaged.passUnretained(event)
+}
+
 final class PrivacyFixtureController: NSObject, NSApplicationDelegate {
     private var services: [String: [String: Any]] = [:]
     private var lastService = "none"
     private var localBrowser: NWBrowser?
+    private var inputTap: CFMachPort?
+    private var inputTapSource: CFRunLoopSource?
     private let statusLabel = NSTextField(labelWithString: "Ready")
 
     private var stateURL: URL {
@@ -153,8 +162,21 @@ final class PrivacyFixtureController: NSObject, NSApplicationDelegate {
     @objc private func requestInputMonitoring(_ sender: Any?) {
         update("input-monitoring", ["event": "requested"])
         let granted = CGRequestListenEventAccess()
+        let mask = CGEventMask(1) << CGEventType.keyDown.rawValue
+        let tap = CGEvent.tapCreate(tap: .cgSessionEventTap,
+            place: .headInsertEventTap, options: .listenOnly,
+            eventsOfInterest: mask, callback: privacyEventTapCallback,
+            userInfo: nil)
+        if let tap {
+            let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+            CGEvent.tapEnable(tap: tap, enable: true)
+            inputTap = tap
+            inputTapSource = source
+        }
         update("input-monitoring", ["event": "request_returned",
-            "authorization": granted ? "authorized" : "not_authorized"])
+            "authorization": granted ? "authorized" : "not_authorized",
+            "tapAvailable": tap != nil])
     }
 
     @objc private func requestAutomation(_ sender: Any?) {

@@ -1357,7 +1357,7 @@ final class ResidentService {
                     break
                 }
                 let timeout = max(250, min(
-                    requestInt(request, "timeoutMs", default: 30_000), 30_000))
+                    requestInt(request, "timeoutMs", default: 30_000), 120_000))
                 let leaseID = generation + ":auth:" +
                     UUID().uuidString.lowercased()
                 let now = Date()
