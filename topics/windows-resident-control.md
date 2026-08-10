@@ -53,6 +53,14 @@ not live-proven because no compatible local installation media was available;
 the exact remaining boundary is recorded in Tactical 006 and the testbed
 [image-factory runbook](../../winvm-testbed/docs/image-factory.md).
 
+**Current:**
+[`Tactical 007`](../docs/tactical/007-windows-iso-factory-acceptance.md) is
+closing that boundary with Microsoft's public ARM64 multi-edition ISO,
+installed without a product key or activation. The lane must prove the actual
+image catalog, unattended Setup and drivers, first-logon resident access,
+target-attested MachineControl installation, ordinary local/remote control,
+and exact cleanup rather than treating media rendering as live acceptance.
+
 ## Scope
 
 This topic owns the current Windows proving-ground decisions, unresolved
