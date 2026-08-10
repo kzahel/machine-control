@@ -15,6 +15,8 @@ commits with no expected follow-up do not need a trailer or registry entry.
   acceptance, local/remote parity, recovery, and reproducible appliance proof.
 - `macos-resident-control` — macOS target-resident facade, native provider
   composition, local/remote parity, TCC identity, and Tart appliance proof.
+- `linux-resident-control` — Ubuntu GNOME Wayland resident facade, target-local
+  capture/input, and logged-in software-testing coverage.
 - `capabilities-and-results` — common capability, route, delivery, effect,
   uncertainty, reference, lease, and lifecycle result vocabulary.
 - `provider-landscape` — common-provider versus platform-depth decisions,

@@ -39,6 +39,8 @@ its `Topic:` trailers.
   coordination and the separation between agent placement and control target.
 - [`inner-first-routing.md`](inner-first-routing.md): ordinary resident routes,
   explicit outer recovery, and host-interference policy.
+- [`linux-resident-control.md`](linux-resident-control.md): active Ubuntu GNOME
+  Wayland resident-control vertical slice and compositor-specific boundaries.
 - [`macos-resident-control.md`](macos-resident-control.md): current macOS
   resident implementation and the active full logged-in Aqua Tart
   software-testing milestone with outer UI prohibited.
