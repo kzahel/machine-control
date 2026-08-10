@@ -45,7 +45,13 @@ grep -Fq '<WillShowUI>Never</WillShowUI>' \
 grep -Fq '<Key>W269N-WFGWX-YVC9B-4J6C9-T83GX</Key>' \
     "$seed_mount/Autounattend.xml"
 grep -Fq 'E:\Drivers\NetKVM\w11\ARM64' "$seed_mount/Autounattend.xml"
+grep -Fq 'Microsoft-Windows-PnpCustomizationsNonWinPE' \
+    "$seed_mount/Autounattend.xml"
+[[ "$(grep -Fc 'E:\Drivers\NetKVM\w11\ARM64' \
+    "$seed_mount/Autounattend.xml")" == '2' ]]
 grep -Fq '<SkipAutoActivation>true</SkipAutoActivation>' \
+    "$seed_mount/Autounattend.xml"
+grep -Fq '<HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>' \
     "$seed_mount/Autounattend.xml"
 grep -Fq 'BypassTPMCheck' "$seed_mount/Autounattend.xml"
 hdiutil detach "$seed_mount" >/dev/null

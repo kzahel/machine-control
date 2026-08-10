@@ -86,6 +86,30 @@
       </DriverPaths>
     </component>
   </settings>
+  <settings pass="offlineServicing">
+    <component name="Microsoft-Windows-PnpCustomizationsNonWinPE"
+               processorArchitecture="__ARCHITECTURE__"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral" versionScope="nonSxS">
+      <DriverPaths>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="1">
+          <Path>E:\Drivers\vioscsi\w11\__DRIVER_ARCHITECTURE__</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="2">
+          <Path>E:\Drivers\viostor\w11\__DRIVER_ARCHITECTURE__</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="3">
+          <Path>E:\Drivers\vioserial\w11\__DRIVER_ARCHITECTURE__</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="4">
+          <Path>E:\Drivers\NetKVM\w11\__DRIVER_ARCHITECTURE__</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="5">
+          <Path>E:\Drivers\Balloon\w11\__DRIVER_ARCHITECTURE__</Path>
+        </PathAndCredentials>
+      </DriverPaths>
+    </component>
+  </settings>
   <settings pass="specialize">
     <component name="Microsoft-Windows-Security-SPP-UX"
                processorArchitecture="__ARCHITECTURE__"
@@ -119,6 +143,7 @@
         <HideEULAPage>true</HideEULAPage>
         <HideLocalAccountScreen>true</HideLocalAccountScreen>
         <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
+        <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
         <ProtectYourPC>3</ProtectYourPC>
       </OOBE>
       <UserAccounts>

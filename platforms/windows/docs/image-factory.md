@@ -45,9 +45,12 @@ with volume label `WINVM_SEED`. It copies UTM's Windows drivers and one
 guest-tools installer from explicit local media, but not UTM's separate answer
 file, so Setup sees one authoritative `Autounattend.xml`. That answer wipes
 only disk 0, creates EFI/MSR/Windows GPT partitions, selects the declared image
-index, injects the matching Windows 11 VirtIO drivers, suppresses automatic
-activation, creates the administrator, logs on once, installs UTM Guest Tools
-silently, and invokes the seed's OpenSSH bootstrap.
+index, injects the matching Windows 11 VirtIO drivers into both Windows PE and
+the offline installed image, suppresses automatic activation, creates the
+administrator, suppresses the otherwise separate OOBE network page, logs on
+once, installs UTM Guest Tools silently, and invokes the seed's OpenSSH
+bootstrap. Offline injection is material: WinPE storage access alone does not
+give Windows OOBE a NetKVM adapter.
 
 Windows Setup does not define an empty product-key value for guaranteed quiet
 installation. For the currently supported `windows-11-pro` edition, the
