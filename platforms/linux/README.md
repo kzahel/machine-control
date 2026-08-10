@@ -55,6 +55,8 @@ capture="$(bin/linuxvm control '{"operation":"capture","target":"display"}')"
 bin/linuxvm artifact "$(jq -r '.data.artifact.id' <<<"$capture")"
 bin/linuxvm control '{"operation":"input.click","x":640,"y":400}'
 bin/linuxvm control '{"operation":"input.text","text":"Hello, 世界 👋"}'
+bin/linuxvm control \
+  '{"operation":"application.launch","command":["/usr/bin/nautilus","--new-window"],"expectTarget":"org.gnome.Nautilus"}'
 bin/linuxvm ip
 bin/linuxvm suspend
 ```
@@ -113,6 +115,13 @@ offer followed by virtual Ctrl+V and reports that clipboard side effect.
 button, unexposed drawing canvas, text entry, keyboard events, drag, and scroll
 effects are written independently to `bin/linuxvm fixture state`. The smoke
 suite uses this oracle instead of trusting provider acknowledgement.
+
+`application.launch` submits an argv array—not a shell string—to a uniquely
+named user-systemd transient unit and can wait boundedly for an expected
+AT-SPI application. Termination accepts only that owned unit namespace or the
+PID published by an exact AT-SPI target. `application.activate` prefers a
+desktop application's registered `desktopId`; GNOME Wayland may reject generic
+top-level AT-SPI focus, in which case the operation returns a typed refusal.
 
 Use the provider-level path when AT-SPI is absent, the session is locked, or
 an application exposes an incomplete accessibility tree:

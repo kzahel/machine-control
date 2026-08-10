@@ -47,6 +47,17 @@ jq -e '.schema == "machine-control/v0" and .accepted == true and
 test "$(jq -r '.generation' <<<"$remote_status")" = \
     "$(jq -r '.generation' <<<"$local_status")"
 
+lifecycle_launch="$($LINUXVM control \
+    '{"operation":"application.launch","command":["/usr/bin/zenity","--info","--title=Lifecycle Fixture","--text=Resident lifecycle fixture"],"expectTarget":"zenity"}')"
+jq -e '.accepted == true and .actualRoute ==
+       "guest.user/linux.systemd-atspi" and
+       .effect == "application_observed"' <<<"$lifecycle_launch" >/dev/null
+lifecycle_unit="$(jq -r '.data.unit' <<<"$lifecycle_launch")"
+lifecycle_stop="$($LINUXVM control "$(jq -nc --arg unit "$lifecycle_unit" \
+    '{operation:"application.terminate",unit:$unit}')")"
+jq -e '.accepted == true and .effect == "application_terminated"' \
+    <<<"$lifecycle_stop" >/dev/null
+
 capture="$($LINUXVM control '{"operation":"capture","target":"display"}')"
 jq -e '.accepted == true and
        .actualRoute == "guest.user/gnome-screenshot" and

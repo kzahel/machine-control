@@ -8,6 +8,8 @@ import asyncio
 import hashlib
 import json
 import os
+import re
+import signal
 import socket
 import struct
 import subprocess
@@ -32,6 +34,7 @@ CAPTURE_ROUTE = "guest.user/gnome-screenshot"
 ARTIFACT_DIRECTORY = Path.home() / ".cache/linuxvm-testbed/artifacts"
 INPUT_SOCKET = Path("/run/linuxvm-testbed/input.sock")
 INPUT_ROUTE = "guest.system/linux.uinput"
+APPLICATION_ROUTE = "guest.user/linux.systemd-atspi"
 
 
 def role_name(native: str) -> str:
@@ -197,6 +200,9 @@ class Resident:
                 "snapshot",
                 "action",
                 "capture",
+                "application.launch",
+                "application.activate",
+                "application.terminate",
                 "input.move",
                 "input.click",
                 "input.drag",
@@ -225,8 +231,229 @@ class Resident:
                 "sessionRequirement": "logged_in_unlocked_graphical_session",
                 "clipboardTextSideEffect": True,
             },
+            "applicationLifecycle": {
+                "state": "ready",
+                "route": APPLICATION_ROUTE,
+                "launch": "systemd_user_transient_unit",
+                "activation": "atspi_component_focus",
+                "termination": ["owned_transient_unit", "atspi_process"],
+            },
             "outerRecoveryRequired": False,
         }
+        return result
+
+    def find_application(self, query: str) -> Any | None:
+        folded = query.casefold()
+        for application in linuxui.application_roots(linuxui.desktop()):
+            name = linuxui.safe(application.get_name, "") or ""
+            if folded == name.casefold() or folded in name.casefold():
+                return application
+        return None
+
+    def application_launch(self, request: dict[str, Any]) -> dict[str, Any]:
+        command = request.get("command")
+        if (
+            not isinstance(command, list)
+            or not command
+            or len(command) > 64
+            or not all(isinstance(value, str) and value for value in command)
+        ):
+            raise ControlFailure(
+                "invalid_request", "Application command must be a nonempty string array"
+            )
+        unit = f"linuxvm-app-{uuid.uuid4().hex}.service"
+        completed = subprocess.run(
+            [
+                "/usr/bin/systemd-run",
+                "--user",
+                "--quiet",
+                "--collect",
+                "--property=ExitType=cgroup",
+                "--unit",
+                unit,
+                "--",
+                *command,
+            ],
+            capture_output=True,
+            check=False,
+            timeout=15,
+        )
+        if completed.returncode != 0:
+            detail = completed.stderr.decode("utf-8", errors="replace").strip()
+            raise ControlFailure("launch_failed", detail or "systemd-run failed")
+
+        expected = str(request.get("expectTarget") or "")
+        application = None
+        if expected:
+            deadline = time.monotonic() + min(
+                max(float(request.get("timeoutSeconds", 8)), 0), 30
+            )
+            while time.monotonic() < deadline:
+                application = self.find_application(expected)
+                if application is not None:
+                    break
+                time.sleep(0.1)
+        result = self.envelope(request, "application.launch")
+        result.update(
+            {
+                "actualRoute": APPLICATION_ROUTE,
+                "fidelity": "target_user_session",
+                "delivery": "confirmed",
+                "effect": "application_observed" if application else "unverifiable",
+                "uncertainty": "none" if application else "no_expected_target",
+            }
+        )
+        result["data"] = {
+            "unit": unit,
+            "application": (
+                {
+                    "name": linuxui.safe(application.get_name, "") or "",
+                    "processId": linuxui.safe(application.get_process_id, 0) or 0,
+                }
+                if application is not None
+                else None
+            ),
+        }
+        return result
+
+    def application_activate(self, request: dict[str, Any]) -> dict[str, Any]:
+        query = str(request.get("target") or "")
+        desktop_id = str(request.get("desktopId") or "")
+        if not query and not desktop_id:
+            raise ControlFailure(
+                "invalid_request", "Application target or desktopId is required"
+            )
+        if desktop_id:
+            if not re.fullmatch(r"[A-Za-z0-9_.-]+", desktop_id):
+                raise ControlFailure("invalid_request", "Desktop ID is invalid")
+            completed = subprocess.run(
+                ["/usr/bin/gtk-launch", desktop_id],
+                capture_output=True,
+                check=False,
+                timeout=15,
+            )
+            if completed.returncode != 0:
+                detail = completed.stderr.decode("utf-8", errors="replace").strip()
+                raise ControlFailure("activation_failed", detail or "gtk-launch failed")
+            if not query:
+                result = self.envelope(request, "application.activate")
+                result.update(
+                    {
+                        "actualRoute": APPLICATION_ROUTE,
+                        "fidelity": "desktop_application_activation",
+                        "delivery": "confirmed",
+                        "effect": "unverifiable",
+                        "uncertainty": "no_expected_target",
+                    }
+                )
+                result["data"] = {"desktopId": desktop_id}
+                return result
+        application = self.find_application(query)
+        if desktop_id and application is None:
+            deadline = time.monotonic() + min(
+                max(float(request.get("timeoutSeconds", 8)), 0), 30
+            )
+            while time.monotonic() < deadline:
+                application = self.find_application(query)
+                if application is not None:
+                    break
+                time.sleep(0.1)
+        if application is None:
+            raise ControlFailure("not_found", "Application is not present in AT-SPI")
+        candidates = [child for _, child in linuxui.children(application)]
+        if not candidates:
+            raise ControlFailure("not_found", "Application exposes no window")
+        window = candidates[0]
+        interfaces = linuxui.interfaces(window)
+        if desktop_id:
+            time.sleep(0.2)
+        else:
+            try:
+                focused = "Component" in interfaces and window.grab_focus()
+            except Exception as error:
+                raise ControlFailure(
+                    "activation_unsupported",
+                    "GNOME Wayland rejected AT-SPI top-level activation; use desktopId",
+                ) from error
+            if not focused:
+                raise ControlFailure(
+                    "activation_unsupported",
+                    "GNOME Wayland rejected AT-SPI top-level activation; use desktopId",
+                )
+        effect = "active" in linuxui.state_names(window) or "focused" in linuxui.state_names(
+            window
+        )
+        result = self.envelope(request, "application.activate")
+        result.update(
+            {
+                "actualRoute": APPLICATION_ROUTE,
+                "fidelity": (
+                    "desktop_application_activation"
+                    if desktop_id
+                    else "semantic_native"
+                ),
+                "delivery": "confirmed",
+                "effect": "window_active" if effect else "unverifiable",
+                "uncertainty": "none" if effect else "no_independent_active_state",
+            }
+        )
+        result["data"] = {
+            "application": linuxui.safe(application.get_name, "") or "",
+            "window": linuxui.safe(window.get_name, "") or "",
+            "desktopId": desktop_id or None,
+        }
+        return result
+
+    def application_terminate(self, request: dict[str, Any]) -> dict[str, Any]:
+        unit = str(request.get("unit") or "")
+        query = str(request.get("target") or "")
+        process_id = 0
+        if unit:
+            if not re.fullmatch(r"linuxvm-app-[0-9a-f]{32}\.service", unit):
+                raise ControlFailure("invalid_request", "Unit is not resident-owned")
+            completed = subprocess.run(
+                ["/usr/bin/systemctl", "--user", "stop", unit],
+                capture_output=True,
+                check=False,
+                timeout=15,
+            )
+            if completed.returncode != 0:
+                detail = completed.stderr.decode("utf-8", errors="replace").strip()
+                raise ControlFailure("termination_failed", detail or "Unit stop failed")
+        elif query:
+            application = self.find_application(query)
+            if application is None:
+                raise ControlFailure("not_found", "Application is not present in AT-SPI")
+            process_id = int(linuxui.safe(application.get_process_id, 0) or 0)
+            if process_id <= 1:
+                raise ControlFailure("termination_failed", "Application PID is invalid")
+            os.kill(process_id, signal.SIGTERM)
+        else:
+            raise ControlFailure("invalid_request", "Unit or target is required")
+
+        terminated = True
+        if query:
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                if self.find_application(query) is None:
+                    break
+                time.sleep(0.1)
+            else:
+                terminated = False
+
+        result = self.envelope(request, "application.terminate")
+        result.update(
+            {
+                "actualRoute": APPLICATION_ROUTE,
+                "fidelity": "target_user_session",
+                "delivery": "confirmed",
+                "effect": (
+                    "application_terminated" if terminated else "unverifiable"
+                ),
+                "uncertainty": "none" if terminated else "application_still_observed",
+            }
+        )
+        result["data"] = {"unit": unit or None, "processId": process_id or None}
         return result
 
     def input(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -538,6 +765,9 @@ class Resident:
                 "snapshot": self.snapshot,
                 "action": self.action,
                 "capture": self.capture,
+                "application.launch": self.application_launch,
+                "application.activate": self.application_activate,
+                "application.terminate": self.application_terminate,
             }
             if operation.startswith("input."):
                 result = self.input(request)

@@ -114,6 +114,13 @@ virtual Ctrl+V. This avoids keyboard-layout assumptions and reports the
 clipboard side effect. A deterministic GTK fixture writes each semantic,
 pointer, drag, scroll, key, and text effect to a separate JSON oracle.
 
+Application launch uses the active user's systemd manager with one owned
+transient unit per argv array. The result can wait for an independently
+observed AT-SPI application root. Termination is restricted to those owned
+unit names or an AT-SPI-published process. Registered desktop activation uses
+`gtk-launch`; generic AT-SPI top-level activation fails with a typed GNOME
+Wayland limitation instead of silently substituting a global click.
+
 ## Outer Recovery
 
 The UTM window remains the lowest common denominator for:
