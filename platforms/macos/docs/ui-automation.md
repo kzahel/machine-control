@@ -165,6 +165,9 @@ bin/macvm control \
 
 Its visible state is also persisted beneath the guest user's cache directory
 so conformance can prove an effect independently of action acknowledgement.
+The same fixture presents deterministic native Open, folder-selection, and
+Save panels, nested sheets, and an application relaunch request. Its oracle
+records only fixture basenames and effects, not arbitrary selected paths.
 
 ## Administrator Authorization Sheets
 
