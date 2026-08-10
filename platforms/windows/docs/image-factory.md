@@ -32,14 +32,19 @@ key. Then run, for Windows ARM64 image index 1:
 
 ```bash
 scripts/image-factory.sh render-seed \
-  arm64 APPLIANCE_USER 1 PRIVATE_SECRET_FILE CONTROLLER_PUBLIC_KEY
+  arm64 APPLIANCE_USER 1 PRIVATE_SECRET_FILE CONTROLLER_PUBLIC_KEY \
+  PRIVATE_UTM_GUEST_TOOLS_ISO
 ```
 
 The renderer XML-escapes all substituted values, rejects weak file
 permissions, validates the XML when `xmllint` is present, and builds an ISO
-with volume label `WINVM_SEED`. `Autounattend.xml` wipes only disk 0, creates
-EFI/MSR/Windows GPT partitions, selects the declared image index, creates the
-administrator, logs on once, and invokes the seed's first-logon bootstrap.
+with volume label `WINVM_SEED`. It copies UTM's Windows drivers and one
+guest-tools installer from explicit local media, but not UTM's separate answer
+file, so Setup sees one authoritative `Autounattend.xml`. That answer wipes
+only disk 0, creates EFI/MSR/Windows GPT partitions, selects the declared image
+index, injects the matching Windows 11 VirtIO drivers, suppresses automatic
+activation, creates the administrator, logs on once, installs UTM Guest Tools
+silently, and invokes the seed's OpenSSH bootstrap.
 
 Validate a separately acquired Windows ISO before creation:
 

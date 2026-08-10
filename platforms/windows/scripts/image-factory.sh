@@ -14,12 +14,14 @@ usage() {
     cat <<'EOF'
 Usage:
   image-factory.sh validate-media WINDOWS_ISO
-  image-factory.sh render-seed ARCH USERNAME IMAGE_INDEX SECRET_FILE PUBLIC_KEY
+  image-factory.sh render-seed ARCH USERNAME IMAGE_INDEX SECRET_FILE PUBLIC_KEY GUEST_TOOLS_ISO
 
 The rendered seed is written under ignored .factory.local. SECRET_FILE must be
 mode 0600, contain one non-empty line, and is never accepted as an argument or
-environment value. The output ISO contains plaintext setup credentials and
-must be detached and securely discarded after first-logon bootstrap.
+environment value. GUEST_TOOLS_ISO must be UTM Windows Guest Tools media. Its
+drivers and installer are copied into the private seed so Windows Setup sees
+one authoritative Autounattend.xml. The output contains plaintext setup
+credentials and must be detached and securely discarded after bootstrap.
 EOF
 }
 
@@ -55,9 +57,9 @@ validate_media() {
 }
 
 render_seed() {
-    if [[ $# -ne 5 ]]; then usage >&2; return 2; fi
+    if [[ $# -ne 6 ]]; then usage >&2; return 2; fi
     local architecture="$1" username="$2" image_index="$3"
-    local secret_file="$4" public_key="$5"
+    local secret_file="$4" public_key="$5" guest_tools_iso="$6"
     case "$architecture" in arm64|amd64) ;; *) usage >&2; return 2 ;; esac
     if [[ ! "$username" =~ ^[A-Za-z][A-Za-z0-9_.-]{0,31}$ ||
         ! "$image_index" =~ ^[1-9][0-9]*$ ]]; then
@@ -65,8 +67,9 @@ render_seed() {
         return 2
     fi
     if [[ ! -f "$secret_file" || ! -r "$secret_file" ||
-        ! -f "$public_key" || ! -r "$public_key" ]]; then
-        printf 'Secret file or public key is absent.\n' >&2
+        ! -f "$public_key" || ! -r "$public_key" ||
+        ! -f "$guest_tools_iso" || ! -r "$guest_tools_iso" ]]; then
+        printf 'Secret, public key, or guest-tools media is absent.\n' >&2
         return 1
     fi
     local mode
@@ -83,6 +86,12 @@ render_seed() {
         return 1
     fi
     local escaped_user escaped_password language="en-US"
+    local driver_architecture
+    if [[ "$architecture" == "arm64" ]]; then
+        driver_architecture="ARM64"
+    else
+        driver_architecture="amd64"
+    fi
     escaped_user="$(xml_escape "$username")"
     escaped_password="$(xml_escape "$password")"
     # The escaped values become replacement strings in the template
@@ -93,10 +102,34 @@ render_seed() {
     chmod 700 "$FACTORY_ROOT"
     local staging
     staging="$(mktemp -d "$FACTORY_ROOT/.seed.XXXXXX")"
-    trap 'rm -rf -- "$staging"' RETURN
+    local tools_mount="$staging/guest-tools" tools_attached=0
+    cleanup_seed_render() {
+        if [[ "$tools_attached" == "1" ]]; then
+            hdiutil detach "$tools_mount" >/dev/null 2>&1 || true
+        fi
+        rm -rf -- "$staging"
+    }
+    trap cleanup_seed_render RETURN
+    mkdir -p "$tools_mount"
+    hdiutil attach -readonly -nobrowse -mountpoint "$tools_mount" \
+        "$guest_tools_iso" >/dev/null
+    tools_attached=1
+    local installers=("$tools_mount"/utm-guest-tools-*.exe)
+    if [[ ! -d "$tools_mount/Drivers" || ${#installers[@]} -ne 1 ||
+        ! -f "${installers[0]}" ]]; then
+        printf 'Guest-tools media lacks Drivers or one UTM installer.\n' >&2
+        return 1
+    fi
+    cp -R "$tools_mount/Drivers" "$staging/Drivers"
+    chmod -R u+w "$staging/Drivers"
+    cp "${installers[0]}" "$staging/"
+    hdiutil detach "$tools_mount" >/dev/null
+    tools_attached=0
+    rmdir "$tools_mount"
     local content
     content="$(<"$TEMPLATE")"
     content="${content//__ARCHITECTURE__/$architecture}"
+    content="${content//__DRIVER_ARCHITECTURE__/$driver_architecture}"
     content="${content//__LANGUAGE__/$language}"
     content="${content//__IMAGE_INDEX__/$image_index}"
     content="${content//__USERNAME__/$escaped_user}"
@@ -107,7 +140,8 @@ render_seed() {
     cp "$WINVM_REPO_DIR/guests/windows/image-factory/bootstrap-first-logon.ps1" \
         "$staging/bootstrap-first-logon.ps1"
     cp "$public_key" "$staging/controller.pub"
-    chmod 600 "$staging"/*
+    find "$staging" -type d -exec chmod 700 {} +
+    find "$staging" -type f -exec chmod 600 {} +
     if command -v xmllint >/dev/null 2>&1; then
         xmllint --noout "$staging/Autounattend.xml"
     fi
