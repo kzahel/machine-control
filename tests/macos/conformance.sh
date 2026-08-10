@@ -86,7 +86,7 @@ run_fixture_workflow() {
         '{requestId:("fixture-launch-" + $app),operation:"application.launch",
           applicationId:$app}')")"
     require_accepted "$result" "$placement fixture launch"
-    jq -e '.effect == "confirmed" and .data.launch_state.window_ready == true' \
+    jq -e '.effect == "confirmed" and .data.application.running == true' \
         >/dev/null <<<"$result" || fail "$placement fixture window was not ready"
     state="$(wait_for_fixture '.count == 0 and .enabled == false and .text == ""' \
         'initial state')"
@@ -95,7 +95,8 @@ run_fixture_workflow() {
     result="$(control "$placement" "$(jq -nc --arg target "$FIXTURE_ID" \
         '{operation:"input.key",target:$target,key:"cmd-a"}')")"
     require_accepted "$result" "$placement guest-local hotkey"
-    jq -e '.actualRoute == "guest.user/macos.cua" and
+    jq -e '(.actualRoute == "guest.user/macos.coregraphics" or
+            .actualRoute == "guest.user/macos.cua") and
            .delivery == "confirmed" and .focusConsequence != null' \
         >/dev/null <<<"$result" || fail "$placement hotkey route was incomplete"
     state="$(fixture_state)"
@@ -107,6 +108,11 @@ run_fixture_workflow() {
         wait_for_fixture ".keyEventCount > $before_key_count" \
             'a received foreground key event' >/dev/null
     fi
+
+    reference="$(snapshot_reference "$placement" '' AXTextField)"
+    result="$(control "$placement" "$(jq -nc --arg reference "$reference" \
+        '{operation:"action",reference:$reference,action:"focus"}')")"
+    require_accepted "$result" "$placement text-field focus"
 
     result="$(control "$placement" "$(jq -nc --arg target "$FIXTURE_ID" \
         --arg text "raw-$placement" \
@@ -140,7 +146,7 @@ run_fixture_workflow() {
     jq -e '.fidelity == "exact_window" and
            .coordinateSpace == "window_pixels"' >/dev/null <<<"$result" \
         || fail "$placement capture did not report exact-window fidelity"
-    capture_path="$(jq -er '.data.screenshot_file_path' <<<"$result")" \
+    capture_path="$(jq -er '.data.artifactPath' <<<"$result")" \
         || fail "$placement capture returned no file artifact"
     "$TESTBED_DIR/bin/macvm" exec /bin/test -s "$capture_path" \
         || fail "$placement capture artifact was empty"

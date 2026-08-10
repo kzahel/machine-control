@@ -15,6 +15,10 @@ restart, stale-reference refusal, and System Settings background behavior.
 `real-applications.sh` sustains the same facade across Finder, System Settings,
 TextEdit, Safari, an application menu bar, exact-window artifacts, focus
 preservation, and owned-state cleanup.
+`provider-comparison.sh` runs identical compact snapshot, action, independent
+fixture-effect, and exact-window capture cells through native macOS and Cua
+routes. It then proves native Dock and Control Center reach while requiring
+any Cua gap to fail closed without fallback.
 
 Run it from this repository after selecting a guarded disposable/candidate VM
 in the testbed's ignored local configuration:
@@ -24,6 +28,7 @@ tests/macos/conformance.sh
 tests/macos/conformance.sh remote
 tests/macos/conformance.sh local
 tests/macos/real-applications.sh
+tests/macos/provider-comparison.sh
 ```
 
 No target name, guest account, network endpoint, or captured artifact is

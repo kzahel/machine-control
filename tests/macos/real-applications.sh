@@ -26,7 +26,8 @@ require_accepted() {
 was_running() {
     local bundle="$1"
     jq -e --arg bundle "$bundle" \
-        '.data.apps[] | select(.bundle_id == $bundle and .running == true)' \
+        '.data.applications[] |
+         select(.bundleId == $bundle and .running == true)' \
         >/dev/null <<<"$baseline"
 }
 
@@ -37,7 +38,7 @@ wait_for_window() {
             '{operation:"windows",target:$target}')")"
         if jq -e --arg title "$title" \
                 '.accepted == true and any(.data.windows[];
-                 .is_on_screen == true and (.title | contains($title)))' \
+                 .onScreen == true and (.title | contains($title)))' \
                 >/dev/null <<<"$result"; then
             printf '%s\n' "$result"
             return 0
@@ -52,7 +53,8 @@ wait_not_running() {
     for _ in {1..10}; do
         result="$(control '{"operation":"applications"}')"
         if jq -e --arg bundle "$bundle" \
-                'all(.data.apps[]; .bundle_id != $bundle or .running == false)' \
+                'all(.data.applications[];
+                 .bundleId != $bundle or .running == false)' \
                 >/dev/null <<<"$result"; then
             return 0
         fi
@@ -69,7 +71,7 @@ capture_and_remove() {
     jq -e '.fidelity == "exact_window" and
            .coordinateSpace == "window_pixels"' >/dev/null <<<"$result" \
         || fail "$target capture metadata was incomplete"
-    path="$(jq -er '.data.screenshot_file_path' <<<"$result")" \
+    path="$(jq -er '.data.artifactPath' <<<"$result")" \
         || fail "$target capture returned no artifact path"
     "$TESTBED_DIR/bin/macvm" exec /bin/test -s "$path" \
         || fail "$target capture artifact was empty"
@@ -123,7 +125,7 @@ require_accepted "$settings_verify" 'System Settings effect observation'
 jq -e 'any(.data.elements[]; .label == "Dark")' >/dev/null \
     <<<"$settings_verify" || fail 'Appearance pane effect was not observed'
 active_after_settings="$(control '{"operation":"applications"}')"
-jq -e 'any(.data.apps[]; .name == "Finder" and .active == true)' \
+jq -e 'any(.data.applications[]; .name == "Finder" and .active == true)' \
     >/dev/null <<<"$active_after_settings" \
     || fail 'background System Settings action stole guest focus from Finder'
 
