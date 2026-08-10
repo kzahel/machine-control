@@ -210,6 +210,11 @@ run_settings_class() {
     "$TESTBED_DIR/bin/macvm" reset-privacy-fixture "$service" >/dev/null
     launch_fixture
     press_button "$FIXTURE_ID" "$trigger"
+    if [[ "$service" == full-disk-access ]]; then
+        wait_for_state '.services["full-disk-access"].effect ==
+                        "protected_read_refused"' \
+            'initial Full Disk Access read refusal'
+    fi
     open_privacy_pane "$pane"
     if toggle_exists; then
         [[ "$(toggle_value)" == '0' ]] || fail "$service did not begin denied"
@@ -220,9 +225,16 @@ run_settings_class() {
         add_fixture_to_current_pane "privacy-$service"
     fi
     launch_fixture
-    wait_for_state ".services[\"$state_key\"].authorization == \"authorized\"" \
-        "$service authorized effect"
-    press_button "$FIXTURE_ID" "$trigger"
+    if [[ "$service" == full-disk-access ]]; then
+        press_button "$FIXTURE_ID" "$trigger"
+        wait_for_state '.services["full-disk-access"].effect ==
+                        "protected_read_succeeded"' \
+            'authorized Full Disk Access read'
+    else
+        wait_for_state ".services[\"$state_key\"].authorization == \"authorized\"" \
+            "$service authorized effect"
+        press_button "$FIXTURE_ID" "$trigger"
+    fi
     case "$service" in
         input-monitoring)
             wait_for_state '.services["input-monitoring"].tapAvailable == true' \
@@ -239,9 +251,201 @@ run_settings_class() {
     authorize_if_needed "privacy-$service-revoke"
     wait_for_toggle 0
     launch_fixture
-    wait_for_state ".services[\"$state_key\"].authorization != \"authorized\"" \
-        "$service revoked effect"
+    if [[ "$service" == full-disk-access ]]; then
+        press_button "$FIXTURE_ID" "$trigger"
+        wait_for_state '.services["full-disk-access"].effect ==
+                        "protected_read_refused"' \
+            'revoked Full Disk Access read refusal'
+    else
+        wait_for_state ".services[\"$state_key\"].authorization != \"authorized\"" \
+            "$service revoked effect"
+    fi
     "$TESTBED_DIR/bin/macvm" reset-privacy-fixture "$service" >/dev/null
+}
+
+run_local_network() {
+    open_privacy_pane 'Local Network'
+    toggle_exists || fail 'Local Network fixture was not registered'
+    if [[ "$(toggle_value)" == '1' ]]; then
+        press_toggle
+        authorize_if_needed 'privacy-local-network-baseline'
+        wait_for_toggle 0
+    fi
+    launch_fixture
+    press_button "$FIXTURE_ID" 'Local Network'
+    wait_for_state '.services["local-network"].effect |
+                    contains("PolicyDenied")' \
+        'denied Local Network browser'
+
+    open_privacy_pane 'Local Network'
+    [[ "$(toggle_value)" == '0' ]] || fail 'Local Network did not begin denied'
+    press_toggle
+    authorize_if_needed 'privacy-local-network'
+    wait_for_toggle 1
+    launch_fixture
+    press_button "$FIXTURE_ID" 'Local Network'
+    wait_for_state '.services["local-network"].effect | startswith("ready")' \
+        'authorized Local Network browser'
+
+    open_privacy_pane 'Local Network'
+    [[ "$(toggle_value)" == '1' ]] || fail 'Local Network grant did not persist'
+    press_toggle
+    authorize_if_needed 'privacy-local-network-revoke'
+    wait_for_toggle 0
+    launch_fixture
+    press_button "$FIXTURE_ID" 'Local Network'
+    wait_for_state '.services["local-network"].effect |
+                    contains("PolicyDenied")' \
+        'revoked Local Network browser'
+}
+
+run_full_disk_access() {
+    local sip_status
+    sip_status="$($TESTBED_DIR/bin/macvm exec /usr/bin/csrutil status)"
+    if [[ "$sip_status" == *enabled* ]]; then
+        run_settings_class full-disk-access 'Full Disk Access probe' \
+            'Full Disk Access' full-disk-access
+        return
+    fi
+
+    "$TESTBED_DIR/bin/macvm" reset-privacy-fixture full-disk-access >/dev/null
+    launch_fixture
+    press_button "$FIXTURE_ID" 'Full Disk Access probe'
+    wait_for_state '.services["full-disk-access"].effect ==
+                    "protected_read_succeeded"' \
+        'SIP-disabled Full Disk Access baseline'
+    open_privacy_pane 'Full Disk Access'
+    if toggle_exists; then
+        [[ "$(toggle_value)" == '0' ]] || fail 'Full Disk Access did not begin off'
+        press_toggle
+        authorize_if_needed 'privacy-full-disk-access'
+        wait_for_toggle 1
+    else
+        add_fixture_to_current_pane 'privacy-full-disk-access'
+    fi
+    launch_fixture
+    press_button "$FIXTURE_ID" 'Full Disk Access probe'
+    wait_for_state '.services["full-disk-access"].effect ==
+                    "protected_read_succeeded"' \
+        'SIP-disabled Full Disk Access enabled probe'
+    open_privacy_pane 'Full Disk Access'
+    [[ "$(toggle_value)" == '1' ]] || fail 'Full Disk Access grant did not persist'
+    press_toggle
+    authorize_if_needed 'privacy-full-disk-access-revoke'
+    wait_for_toggle 0
+    launch_fixture
+    press_button "$FIXTURE_ID" 'Full Disk Access probe'
+    wait_for_state '.services["full-disk-access"].effect ==
+                    "protected_read_succeeded"' \
+        'SIP-disabled Full Disk Access revoked probe'
+    "$TESTBED_DIR/bin/macvm" reset-privacy-fixture full-disk-access >/dev/null
+    printf '%s\n' \
+        'Full Disk Access UI passed; enforcement unavailable with SIP disabled.'
+}
+
+open_fixture_notification_settings() {
+    local snapshot reference result
+    control "$(jq -nc --arg target "$SETTINGS_ID" \
+        '{operation:"application.terminate",target:$target}')" \
+        >/dev/null 2>&1 || true
+    "$TESTBED_DIR/bin/macvm" exec /usr/bin/open \
+        'x-apple.systempreferences:com.apple.Notifications-Settings.extension'
+    for _ in {1..30}; do
+        snapshot="$(control "$(jq -nc --arg target "$SETTINGS_ID" \
+            '{operation:"snapshot",target:$target,
+              query:"Machine Control Privacy Fixture",
+              maxDepth:24,maxElements:900,projection:"compact"}')" \
+            2>/dev/null || true)"
+        reference="$(jq -r '[.data.elements[]? | select(
+            .role == "AXButton" and
+            (.label | startswith("Machine Control Privacy Fixture")) and
+            (.actions | index("AXPress")))][0].reference // empty' \
+            <<<"$snapshot")"
+        if [[ -n "$reference" ]]; then break; fi
+        sleep 0.1
+    done
+    [[ -n "${reference:-}" ]] || fail 'fixture notification settings were unavailable'
+    result="$(control "$(jq -nc --arg reference "$reference" \
+        '{operation:"action",reference:$reference,action:"press"}')")"
+    require_accepted "$result" 'fixture notification settings navigation'
+}
+
+notification_toggle_snapshot() {
+    control "$(jq -nc --arg target "$SETTINGS_ID" \
+        '{operation:"snapshot",target:$target,query:"allow-notifications",
+          maxDepth:20,maxElements:600,projection:"compact"}')"
+}
+
+notification_toggle_value() {
+    local snapshot
+    snapshot="$(notification_toggle_snapshot)"
+    require_accepted "$snapshot" 'Allow notifications snapshot'
+    jq -er '[.data.elements[] | select(
+        .role == "AXCheckBox" and
+        .identifier == "allow-notifications")][0].value' <<<"$snapshot"
+}
+
+press_notification_toggle() {
+    local snapshot reference result
+    snapshot="$(notification_toggle_snapshot)"
+    require_accepted "$snapshot" 'Allow notifications snapshot'
+    reference="$(jq -er '[.data.elements[] | select(
+        .role == "AXCheckBox" and
+        .identifier == "allow-notifications")][0].reference' <<<"$snapshot")"
+    result="$(control "$(jq -nc --arg reference "$reference" \
+        '{operation:"action",reference:$reference,action:"press"}')")"
+    require_accepted "$result" 'Allow notifications toggle'
+}
+
+wait_for_notification_toggle() {
+    local expected="$1" value
+    for _ in {1..30}; do
+        value="$(notification_toggle_value 2>/dev/null || true)"
+        [[ "$value" == "$expected" ]] && return 0
+        sleep 0.1
+    done
+    fail "Allow notifications did not reach $expected"
+}
+
+run_notifications() {
+    open_fixture_notification_settings
+    if [[ "$(notification_toggle_value)" == '1' ]]; then
+        press_notification_toggle
+        authorize_if_needed 'privacy-notifications-baseline'
+        wait_for_notification_toggle 0
+    fi
+    launch_fixture
+    wait_for_state '.services.notifications.authorization == "denied"' \
+        'denied notifications state'
+    press_button "$FIXTURE_ID" Notifications
+    wait_for_state '.services.notifications.authorization == "denied"' \
+        'denied notifications request'
+
+    open_fixture_notification_settings
+    [[ "$(notification_toggle_value)" == '0' ]] \
+        || fail 'notifications did not begin denied'
+    press_notification_toggle
+    authorize_if_needed 'privacy-notifications'
+    wait_for_notification_toggle 1
+    launch_fixture
+    wait_for_state '.services.notifications.authorization == "authorized"' \
+        'authorized notifications state'
+    press_button "$FIXTURE_ID" Notifications
+    wait_for_state '.services.notifications.effect == "presented"' \
+        'presented notification effect'
+
+    open_fixture_notification_settings
+    [[ "$(notification_toggle_value)" == '1' ]] \
+        || fail 'notification grant did not persist'
+    press_notification_toggle
+    authorize_if_needed 'privacy-notifications-revoke'
+    wait_for_notification_toggle 0
+    launch_fixture
+    wait_for_state '.services.notifications.authorization == "denied"' \
+        'revoked notifications state'
+    press_button "$FIXTURE_ID" Notifications
+    wait_for_state '.services.notifications.authorization == "denied"' \
+        'revoked notifications request'
 }
 
 cleanup() {
@@ -276,7 +480,7 @@ fi
 
 "$TESTBED_DIR/bin/macvm" deploy-privacy-fixture >/dev/null
 host_before="$($TESTBED_DIR/bin/macvm host-state)"
-for settings_class in ${MACOS_PRIVACY_SETTINGS_CLASSES:-accessibility input-monitoring screen-recording}; do
+for settings_class in ${MACOS_PRIVACY_SETTINGS_CLASSES:-accessibility input-monitoring screen-recording full-disk-access local-network notifications}; do
     case "$settings_class" in
         accessibility)
             run_settings_class accessibility Accessibility Accessibility \
@@ -289,6 +493,15 @@ for settings_class in ${MACOS_PRIVACY_SETTINGS_CLASSES:-accessibility input-moni
         screen-recording)
             run_settings_class screen-recording 'Screen Recording' \
                 'Screen & System Audio Recording' screen-recording
+            ;;
+        full-disk-access)
+            run_full_disk_access
+            ;;
+        local-network)
+            run_local_network
+            ;;
+        notifications)
+            run_notifications
             ;;
         *) fail "unknown privacy settings class: $settings_class" ;;
     esac

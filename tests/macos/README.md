@@ -30,6 +30,10 @@ relevant grants, and uses the resident's bounded one-shot credential lease only
 when macOS presents the strict inline administrator window. The credential
 cases are interactive and never put the secret in request JSON, arguments,
 environment, files, logs, captures, or results.
+`privacy-appliance-posture.sh` records the prepared image's relevant omission:
+SIP is disabled, and direct Documents, Downloads, and protected-data fixture
+reads are not refused after supported TCC resets. It treats that as unavailable
+enforcement rather than a successful Full Disk Access decision.
 `real-applications.sh` sustains the same facade across Finder, System Settings,
 TextEdit, Safari, an application menu bar, exact-window artifacts, focus
 preservation, and owned-state cleanup.
@@ -55,6 +59,7 @@ tests/macos/conformance.sh local
 tests/macos/aqua-visual-fallback.sh
 tests/macos/privacy-consent.sh
 tests/macos/privacy-settings.sh
+tests/macos/privacy-appliance-posture.sh
 tests/macos/real-applications.sh
 tests/macos/provider-comparison.sh
 tests/macos/administrator-sheet.sh
