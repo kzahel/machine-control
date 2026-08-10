@@ -21,6 +21,7 @@ macOS Accessibility inspection and actions.
 | Composition | Native AX/Quartz/CGEvent plus optional installed Cua |
 | Administrator sheets | Strict `SecurityAgent` lease plus non-echoing one-shot credential channel |
 | Privacy fixtures | Signed API triggers and independent policy/hardware oracle |
+| Framework fixtures | Deterministic AppKit and SwiftUI semantics with file oracles |
 | Recovery | Tart-window screenshot and CoreGraphics keyboard/mouse input |
 
 The semantic helper has no provider-packaged exclusions for the Dock, menu
@@ -167,6 +168,7 @@ guests/macos/ui/macui.swift       Native Accessibility helper
 guests/macos/fixture/             Deterministic native conformance fixture
 guests/macos/admin-fixture/       Harmless administrator-sheet fixture
 guests/macos/privacy-fixture/     Privacy API and System Settings fixture
+guests/macos/swiftui-fixture/     Deterministic SwiftUI semantic fixture
 scripts/                          Deployment and diagnostics
 skills/drive-macvm/               Reusable agent operating skill
 ```

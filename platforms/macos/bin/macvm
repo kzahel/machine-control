@@ -23,16 +23,19 @@ Start here:
   fixture-state          Read the deterministic fixture's file oracle
   admin-fixture-state    Read the administrator fixture's file oracle
   privacy-fixture-state  Read the privacy fixture's file oracle
+  swiftui-fixture-state  Read the SwiftUI fixture's file oracle
 
 Setup:
   deploy-ui              Compile and deploy the semantic UI helper
   deploy-fixture         Compile and deploy the deterministic native fixture
   deploy-admin-fixture   Compile and deploy the administrator fixture
   deploy-privacy-fixture Compile and deploy the privacy consent fixture
+  deploy-swiftui-fixture Compile and deploy the SwiftUI fixture
   reset-admin-fixture    Clear administrator fixture oracle state
   reset-privacy-fixture  Reset one privacy fixture consent class
   remove-admin-fixture   Remove administrator fixture and oracle state
   remove-privacy-fixture Remove the privacy fixture and oracle state
+  remove-swiftui-fixture Remove the SwiftUI fixture and oracle state
   authorize-ui           Request the guest Accessibility permission
 
 Out-of-band recovery:
@@ -67,10 +70,12 @@ case "$command" in
     deploy-fixture) exec "$REPO_DIR/scripts/deploy-fixture.sh" "$@" ;;
     deploy-admin-fixture) exec "$REPO_DIR/scripts/deploy-admin-fixture.sh" "$@" ;;
     deploy-privacy-fixture) exec "$REPO_DIR/scripts/deploy-privacy-fixture.sh" "$@" ;;
+    deploy-swiftui-fixture) exec "$REPO_DIR/scripts/deploy-swiftui-fixture.sh" "$@" ;;
     reset-admin-fixture) exec "$REPO_DIR/scripts/reset-admin-fixture.sh" "$@" ;;
     reset-privacy-fixture) exec "$REPO_DIR/scripts/reset-privacy-fixture.sh" "$@" ;;
     remove-admin-fixture) exec "$REPO_DIR/scripts/remove-admin-fixture.sh" "$@" ;;
     remove-privacy-fixture) exec "$REPO_DIR/scripts/remove-privacy-fixture.sh" "$@" ;;
+    remove-swiftui-fixture) exec "$REPO_DIR/scripts/remove-swiftui-fixture.sh" "$@" ;;
     authorize-ui) exec "$REPO_DIR/bin/macui" authorize "$@" ;;
     ui) exec "$REPO_DIR/bin/macui" "$@" ;;
     control) exec "$REPO_DIR/bin/macui" control "$@" ;;
@@ -88,6 +93,10 @@ case "$command" in
     privacy-fixture-state)
         macvm_exec /bin/cat \
             "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-privacy-fixture/state.json"
+        ;;
+    swiftui-fixture-state)
+        macvm_exec /bin/cat \
+            "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-swiftui-fixture/state.json"
         ;;
     exec) macvm_exec "$@" ;;
     shell) macvm_shell ;;
