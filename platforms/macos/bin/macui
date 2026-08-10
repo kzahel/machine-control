@@ -137,6 +137,12 @@ remote_scratch="$($MACVM_TART exec "$MACVM_NAME" \
 remote_output="$remote_scratch/output"
 remote_status_file="$remote_scratch/status"
 
+cleanup_remote_scratch() {
+    "$MACVM_TART" exec "$MACVM_NAME" /bin/rm -rf "$remote_scratch" \
+        >/dev/null 2>&1 || true
+}
+trap cleanup_remote_scratch EXIT
+
 launch_status=0
 "$MACVM_TART" exec "$MACVM_NAME" /usr/bin/open -n -W "$remote_app" \
     --args --output "$remote_output" --status "$remote_status_file" "$@" \
