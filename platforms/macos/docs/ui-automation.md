@@ -107,9 +107,14 @@ bin/macvm key cmd-shift-g
 bin/macvm key ctrl-option-delete
 ```
 
-Start the VM through `macvm up` so Tart receives `--capture-system-keys`.
-Without it, host macOS may consume shortcuts such as Command-Tab or
-Command-Shift-G.
+Target-resident keyboard input does not require Tart system-key capture. Keep
+`MACVM_CAPTURE_SYSTEM_KEYS=false` for ordinary use and all acceptance runs.
+Set it to `true` only for an attended outer recovery that specifically needs a
+host-reserved shortcut such as Command-Tab or Command-Shift-G, then suspend the
+VM afterward. A Tart system-key grab can outlive the expected window focus and
+temporarily prevent typing into other host applications. Acceptance mode
+suppresses `--capture-system-keys` even if an ignored local configuration asks
+for it.
 
 ## TCC And Integrity
 

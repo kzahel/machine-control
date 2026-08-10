@@ -104,7 +104,8 @@ ensure_running() {
     if [[ "$MACVM_SUSPENDABLE" == "true" ]]; then
         run_args+=(--suspendable)
     fi
-    if [[ "$MACVM_CAPTURE_SYSTEM_KEYS" == "true" ]]; then
+    if [[ "$MACVM_CAPTURE_SYSTEM_KEYS" == "true" &&
+          "$MACVM_FORBID_OUTER_UI" != "true" ]]; then
         run_args+=(--capture-system-keys)
     fi
     if [[ "$MACVM_SHARE_REPO" == "true" ]]; then

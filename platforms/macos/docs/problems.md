@@ -4,6 +4,26 @@ This is a living record of concrete gaps encountered while using MacVM
 Testbed. Keep observed behavior, effect, workaround, and a likely improvement
 direction together so later work can reproduce the problem.
 
+## Observed 2026-08-10 during inner-only Aqua acceptance
+
+### Tart system-key capture retained host keyboard focus
+
+Status: **mitigated 2026-08-10.** The testbed now defaults
+`MACVM_CAPTURE_SYSTEM_KEYS` to `false`, and outer-UI-forbidden launches suppress
+the Tart flag even if local configuration requests it. System-key capture is
+an attended outer-recovery option only.
+
+A long-running Tart process started with `--capture-system-keys` retained the
+host keyboard grab after focus moved to another host application. The host
+menu bar continued to identify Tart and other applications could not receive
+typing. Suspending the VM removed the Tart process and released the grab;
+restarting host SystemUIServer and Control Center restored the menu bar.
+
+Effect: a VM doing target-resident tests could still interfere with its
+controller host even though no host-side screenshot or input operation ran.
+The outer-UI command guard alone was insufficient while the Tart launch itself
+requested a global system-key capture.
+
 ## Observed 2026-08-04 during 200 OK `v0.1.6` smoke
 
 ### `macvm up` is not durable under process-group-reaping command runners
