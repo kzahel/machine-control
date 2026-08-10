@@ -2,8 +2,8 @@
 
 Topic: `macos-resident-control`
 
-Status: ordinary-session and normal administrator-sheet slices complete;
-login/preboot and broader administration remain.
+Status: full logged-in Aqua software-testing milestone active for Tart;
+lock/login, preboot, Recovery, and physical hardware are deferred.
 
 ## Current state
 
@@ -29,6 +29,51 @@ resident's mode-`0600` socket without placing the secret in JSON, arguments,
 environment, files, captures, logs, or results. The calling workflow remains
 responsible for independently proving its intended privileged effect.
 
+The dedicated Tart appliance also deliberately gives its test administrator
+passwordless `sudo` through the guest command channel and enabled SSH service.
+That provides functional target-native package, file, service, and command
+administration for the current disposable-appliance profile. It is not a claim
+that the common facade yet has a bounded privileged API suitable for a personal
+workstation.
+
+## Current Tart goal
+
+**Decision:** Until physical Mac testing becomes an active workstream, focus
+macOS implementation on complete software testing inside a prepared,
+continuously logged-in Tart Aqua session. After the one-time controller
+bootstrap, an agent must not need Tart-window capture, Tart-window input, or
+another host/hypervisor UI route to operate software or respond to a prompt.
+
+The caller may run inside the guest or reach the same resident from outside.
+That placement changes only transport. Both placements must have the same
+semantic, visual, input, administration, dialog, authorization, and effect
+vocabulary.
+
+This goal includes:
+
+- native semantic observation and actions wherever macOS exposes useful AX;
+- full-display and exact-window capture produced inside the guest;
+- target-local coordinate keyboard and pointer fallback for sparse,
+  custom-drawn, or otherwise non-semantic UI;
+- System Settings and the privacy/consent prompts relevant to software under
+  test, including repeatable Allow, Deny, reset, and effect verification;
+- administrator sheets, native open/save panels, notifications, installers,
+  disk-image and download workflows, menus, and other modal application UI;
+- representative AppKit, SwiftUI, Electron, web, Java, and custom-rendered
+  software paths as available in the appliance; and
+- local/remote parity, bounded artifacts, truthful failure, reboot recovery,
+  and zero host-desktop interference.
+
+Semantic control is preferred for efficiency, but in-guest pixels plus
+in-guest coordinate input are an accepted target-native fallback. The defining
+constraint is where observation and action execute, not whether every program
+has a rich accessibility tree.
+
+The conformance harness must be able to prohibit outer UI operations so a test
+cannot pass by silently focusing or driving the Tart window. Tart lifecycle and
+the guest-agent command transport remain allowed; they do not manipulate the
+guest desktop from outside.
+
 ## Decisions
 
 - Start from a copy-on-write clone of the prepared Tart base. Do not rebuild
@@ -53,8 +98,9 @@ responsible for independently proving its intended privileged effect.
 - Route per measured operation. The current composition uses Cua for default
   text insertion and native routes for the rest of the accepted surface.
 - Treat loginwindow, FileVault/preboot, Recovery, another user's session, and
-  arbitrary privileged administration as later protected-plane slices. A
-  normal Aqua `SecurityAgent` sheet is accepted only through its bounded
+  bounded privileged APIs for less-trusted deployment profiles as later
+  protected-plane slices. A normal Aqua `SecurityAgent` sheet is accepted only
+  through its bounded
   one-shot lease; it is not evidence of unrestricted root control.
 
 ## Accepted ordinary-session surface
@@ -103,7 +149,9 @@ the resident is trusted.
 
 ## Later boundaries
 
-- Bounded non-UI privileged administration and policy.
+- A bounded privileged facade for personal or less-trusted deployment profiles;
+  the disposable Tart appliance already has functional passwordless root shell
+  access.
 - Lock/loginwindow credential transport and session-state reporting.
 - FileVault and preboot recovery.
 - Multiple displays, Spaces, minimization/occlusion, localization, and long

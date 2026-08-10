@@ -405,10 +405,24 @@ logs, or results. Cancellation, wrong credentials, correct completion, expiry,
 reuse, changed sheets, resident restart, and full reboot were independently
 tested without Tart-window input. No privileged broker was necessary for this
 normal Aqua surface. Lock/loginwindow, FileVault/preboot, Recovery, and bounded
-non-UI privileged administration remain later work. Execution records are
+privileged-facade design for less-trusted machines remain later work. The
+dedicated Tart appliance already exposes passwordless root shell access for
+non-UI testing and cleanup. Execution records are
 [`Tactical 008`](docs/tactical/008-macos-ordinary-session-resident-control.md)
 and
 [`Tactical 009`](docs/tactical/009-macos-administrator-sheet-control.md).
+
+**Current Tart milestone:** Complete the entire logged-in Aqua
+software-testing surface without Tart-window capture or input. Semantic AX is
+the efficient default; capture and coordinate input executing inside the guest
+are the universal fallback. The scope includes application privacy prompts,
+System Settings, open/save panels, notifications, installers, downloads,
+Gatekeeper, menus, modal dialogs, administrator sheets, and representative
+semantic and custom-rendered software. Lock/login, FileVault/preboot, Recovery,
+and physical Mac concerns are deliberately deferred. The durable direction is
+in the [macOS resident-control topic](topics/macos-resident-control.md#current-tart-goal),
+and execution is tracked by
+[`Tactical 010`](docs/tactical/010-macos-full-aqua-software-testing.md).
 
 ## Current position
 

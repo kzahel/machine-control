@@ -60,6 +60,13 @@ correct credential followed by read-only privileged command completion. Lease
 expiry, reuse, sheet change, resident restart, full reboot, and cleanup also
 passed without outer input. This surface did not require a privileged broker.
 
+Live inspection of the dedicated prepared appliance also confirmed an enabled
+SSH service and unrestricted passwordless `sudo` for its test administrator:
+noninteractive `sudo` returned UID 0, and the effective rule reported
+`NOPASSWD: ALL`. This is adopted test-appliance administration reach, not a
+bounded privilege model for less-trusted machines. The ordinary host transport
+remains Tart's guest agent rather than SSH.
+
 ## Current direction
 
 **Decision:** Preserve Cua as a replaceable common-plane adapter and Peekaboo as

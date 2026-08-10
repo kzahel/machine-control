@@ -40,8 +40,8 @@ its `Topic:` trailers.
 - [`inner-first-routing.md`](inner-first-routing.md): ordinary resident routes,
   explicit outer recovery, and host-interference policy.
 - [`macos-resident-control.md`](macos-resident-control.md): current macOS
-  ordinary-session resident implementation, Tart boundary, and protected-plane
-  sequencing.
+  resident implementation and the active full logged-in Aqua Tart
+  software-testing milestone with outer UI prohibited.
 - [`platform-notes.md`](platform-notes.md): current decisions across desktop,
   mobile, headset, VM, and physical targets.
 - [`provider-landscape.md`](provider-landscape.md): cross-provider decisions,
