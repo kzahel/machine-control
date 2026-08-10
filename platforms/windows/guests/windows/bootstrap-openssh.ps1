@@ -87,6 +87,33 @@ $sshKeygen = Join-Path $env:WINDIR 'System32\OpenSSH\ssh-keygen.exe'
 if ($LASTEXITCODE -ne 0) {
     throw "OpenSSH host-key initialization failed with exit code $LASTEXITCODE"
 }
+
+# On a fresh local-account installation, ssh-keygen can leave explicit access
+# for the setup administrator on newly generated host private keys. Current
+# OpenSSH for Windows rejects those keys and the sshd service exits with 1067.
+# Build the private-key ACL from well-known SIDs so this is independent of the
+# account name and the Windows display language.
+$system = [Security.Principal.SecurityIdentifier]::new('S-1-5-18')
+$administrators = [Security.Principal.SecurityIdentifier]::new(
+    'S-1-5-32-544')
+$hostPrivateKeys = @(Get-ChildItem -LiteralPath $sshdDirectory -File |
+    Where-Object Name -Match '^ssh_host_.*_key$')
+if ($hostPrivateKeys.Count -eq 0) {
+    throw 'OpenSSH host-key initialization produced no private keys'
+}
+foreach ($hostPrivateKey in $hostPrivateKeys) {
+    $hostKeyAcl = [Security.AccessControl.FileSecurity]::new()
+    $hostKeyAcl.SetOwner($system)
+    $hostKeyAcl.SetAccessRuleProtection($true, $false)
+    foreach ($identity in @($system, $administrators)) {
+        $rule = [Security.AccessControl.FileSystemAccessRule]::new(
+            $identity,
+            [Security.AccessControl.FileSystemRights]::FullControl,
+            [Security.AccessControl.AccessControlType]::Allow)
+        [void]$hostKeyAcl.AddAccessRule($rule)
+    }
+    Set-Acl -LiteralPath $hostPrivateKey.FullName -AclObject $hostKeyAcl
+}
 & (Join-Path $env:WINDIR 'System32\OpenSSH\sshd.exe') -t
 if ($LASTEXITCODE -ne 0) {
     throw "sshd configuration validation failed with exit code $LASTEXITCODE"
