@@ -17,6 +17,7 @@ for script in \
     scripts/deploy-privacy-fixture.sh \
     scripts/deploy-swiftui-fixture.sh \
     scripts/reset-admin-fixture.sh \
+    scripts/remove-fixture.sh \
     scripts/remove-admin-fixture.sh \
     scripts/reset-privacy-fixture.sh \
     scripts/remove-privacy-fixture.sh \

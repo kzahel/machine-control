@@ -33,6 +33,7 @@ Setup:
   deploy-swiftui-fixture Compile and deploy the SwiftUI fixture
   reset-admin-fixture    Clear administrator fixture oracle state
   reset-privacy-fixture  Reset one privacy fixture consent class
+  remove-fixture         Remove the AppKit fixture and oracle state
   remove-admin-fixture   Remove administrator fixture and oracle state
   remove-privacy-fixture Remove the privacy fixture and oracle state
   remove-swiftui-fixture Remove the SwiftUI fixture and oracle state
@@ -73,6 +74,7 @@ case "$command" in
     deploy-swiftui-fixture) exec "$REPO_DIR/scripts/deploy-swiftui-fixture.sh" "$@" ;;
     reset-admin-fixture) exec "$REPO_DIR/scripts/reset-admin-fixture.sh" "$@" ;;
     reset-privacy-fixture) exec "$REPO_DIR/scripts/reset-privacy-fixture.sh" "$@" ;;
+    remove-fixture) exec "$REPO_DIR/scripts/remove-fixture.sh" "$@" ;;
     remove-admin-fixture) exec "$REPO_DIR/scripts/remove-admin-fixture.sh" "$@" ;;
     remove-privacy-fixture) exec "$REPO_DIR/scripts/remove-privacy-fixture.sh" "$@" ;;
     remove-swiftui-fixture) exec "$REPO_DIR/scripts/remove-swiftui-fixture.sh" "$@" ;;
