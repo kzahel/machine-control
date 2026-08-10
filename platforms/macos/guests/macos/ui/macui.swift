@@ -593,9 +593,45 @@ final class ResidentService {
             "processId": app.processIdentifier,
             "name": app.localizedName ?? NSNull(),
             "bundleId": app.bundleIdentifier ?? NSNull(),
+            "running": !app.isTerminated,
             "active": app.isActive,
             "hidden": app.isHidden,
             "terminated": app.isTerminated,
+        ]
+    }
+
+    private func cuaApplicationJSON(_ app: [String: Any]) -> [String: Any] {
+        let running = app["running"] as? Bool ?? false
+        return [
+            "processId": app["pid"] ?? 0,
+            "name": app["name"] ?? NSNull(),
+            "bundleId": app["bundle_id"] ?? NSNull(),
+            "running": running,
+            "active": app["active"] ?? false,
+            "hidden": app["hidden"] ?? false,
+            "terminated": !running,
+        ]
+    }
+
+    private func normalizedBounds(_ bounds: [String: Any]) -> [String: Any] {
+        [
+            "x": bounds["x"] ?? bounds["X"] ?? 0,
+            "y": bounds["y"] ?? bounds["Y"] ?? 0,
+            "width": bounds["width"] ?? bounds["Width"] ?? 0,
+            "height": bounds["height"] ?? bounds["Height"] ?? 0,
+        ]
+    }
+
+    private func cuaWindowJSON(_ window: [String: Any]) -> [String: Any] {
+        [
+            "windowId": window["window_id"] ?? 0,
+            "processId": window["pid"] ?? 0,
+            "owner": window["app_name"] ?? "",
+            "title": window["title"] ?? "",
+            "layer": window["layer"] ?? 0,
+            "bounds": normalizedBounds(
+                window["bounds"] as? [String: Any] ?? [:]),
+            "onScreen": window["is_on_screen"] ?? false,
         ]
     }
 
@@ -609,18 +645,20 @@ final class ResidentService {
 
     private func elementJSON(_ item: ElementRecord, reference: String,
                              compact: Bool) -> [String: Any] {
+        let label = item.title.isEmpty ? item.description : item.title
         if compact {
             var result: [String: Any] = [
-                "r": reference, "d": item.depth,
-                "t": item.role.isEmpty ? "AXUnknown" : item.role,
-                "n": item.title.isEmpty ? item.description : item.title,
-                "a": item.identifier,
-                "e": item.enabled ?? true,
-                "p": item.actions,
+                "reference": reference,
+                "depth": item.depth,
+                "role": item.role.isEmpty ? "AXUnknown" : item.role,
+                "label": label,
+                "identifier": item.identifier,
+                "enabled": item.enabled ?? true,
+                "actions": item.actions,
             ]
-            if !item.value.isEmpty { result["v"] = item.value }
+            if !item.value.isEmpty { result["value"] = item.value }
             if let rect = rectJSON(position: item.position, size: item.size) {
-                result["b"] = [rect["x"]!, rect["y"]!, rect["width"]!, rect["height"]!]
+                result["bounds"] = rect
             }
             return result
         }
@@ -628,6 +666,7 @@ final class ResidentService {
             "reference": reference,
             "depth": item.depth,
             "role": item.role.isEmpty ? "AXUnknown" : item.role,
+            "label": label,
             "subrole": item.subrole,
             "title": item.title,
             "description": item.description,
@@ -639,6 +678,37 @@ final class ResidentService {
         ]
         if let rect = rectJSON(position: item.position, size: item.size) {
             result["bounds"] = rect
+        }
+        return result
+    }
+
+    private func recordsMatchingQuery(_ records: [ElementRecord],
+                                      query: String?) -> [ElementRecord] {
+        guard let query, !query.isEmpty else { return records }
+        return records.filter { item in
+            [item.role, item.subrole, item.title, item.description,
+             item.value, item.identifier].contains {
+                $0.localizedCaseInsensitiveContains(query)
+            }
+        }
+    }
+
+    private func cuaElementJSON(_ element: [String: Any], reference: String,
+                                compact: Bool) -> [String: Any] {
+        var result: [String: Any] = [
+            "reference": reference,
+            "depth": element["depth"] ?? 0,
+            "role": element["role"] ?? "AXUnknown",
+            "label": element["label"] ?? element["name"] ?? "",
+            "enabled": element["enabled"] ?? true,
+        ]
+        for key in ["value", "identifier", "bounds", "actions"] {
+            if let value = element[key] { result[key] = value }
+        }
+        if !compact {
+            for key in ["subrole", "title", "description", "focused"] {
+                if let value = element[key] { result[key] = value }
+            }
         }
         return result
     }
@@ -774,12 +844,15 @@ final class ResidentService {
                 "owner": info[kCGWindowOwnerName as String] ?? "",
                 "title": info[kCGWindowName as String] ?? "",
                 "layer": info[kCGWindowLayer as String] ?? 0,
-                "bounds": bounds,
+                "bounds": normalizedBounds(bounds),
+                "onScreen": true,
             ]
         }
     }
 
-    private func launchApplication(_ query: String) throws -> NSRunningApplication {
+    private func launchApplication(_ query: String,
+                                   argument: String? = nil) throws
+        -> NSRunningApplication {
         let before = Set(runningApplications().map(\.processIdentifier))
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
@@ -788,6 +861,7 @@ final class ResidentService {
         } else {
             process.arguments = ["-a", query]
         }
+        if let argument, !argument.isEmpty { process.arguments?.append(argument) }
         try process.run()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
@@ -905,8 +979,11 @@ final class ResidentService {
             case "applications":
                 if useCua(request) {
                     let output = try cuaCall("list_apps", [:])
+                    let apps = output["apps"] as? [[String: Any]] ?? []
                     result = projectCuaResult(request, providerOperation: "list_apps",
-                                              providerResult: output,
+                                              providerResult: [
+                                                "applications": apps.map(cuaApplicationJSON)
+                                              ],
                                               route: "guest.user/macos.cua")
                     result["delivery"] = "not_applicable"
                     result["effect"] = "not_applicable"
@@ -926,8 +1003,11 @@ final class ResidentService {
                             ($0["pid"] as? NSNumber)?.intValue == pid
                         }
                     }
+                    let windows = output["windows"] as? [[String: Any]] ?? []
                     result = projectCuaResult(request, providerOperation: "list_windows",
-                                              providerResult: output,
+                                              providerResult: [
+                                                "windows": windows.map(cuaWindowJSON)
+                                              ],
                                               route: "guest.user/macos.cua")
                     result["delivery"] = "not_applicable"
                     result["effect"] = "not_applicable"
@@ -947,7 +1027,7 @@ final class ResidentService {
                                          message: "target is required for Cua snapshot")
                         break
                     }
-                    let (pid, _) = try cuaApplication(target)
+                    let (pid, name) = try cuaApplication(target)
                     let window = try cuaWindow(pid: pid)
                     guard let windowID = (window["window_id"] as? NSNumber)?.intValue else {
                         throw MacUIError.element("Cua window has no native identifier")
@@ -960,17 +1040,27 @@ final class ResidentService {
                     if let query = requestString(request, "query") { arguments["query"] = query }
                     var output = try cuaCall("get_window_state", arguments)
                     let snapshotID = output["snapshot_id"] as? String ?? "unknown"
+                    let compact = requestString(request, "projection") == "compact"
                     var projected: [[String: Any]] = []
-                    for var element in output["elements"] as? [[String: Any]] ?? [] {
+                    for element in output["elements"] as? [[String: Any]] ?? [] {
                         guard let token = element["element_token"] as? String else { continue }
                         let reference = "\(generation):cua:\(pid):\(windowID):\(token)"
                         cuaReferences[reference] = CuaReference(
                             pid: pid, windowID: windowID,
                             snapshotID: snapshotID, token: token)
-                        element["reference"] = reference
-                        projected.append(element)
+                        projected.append(cuaElementJSON(
+                            element, reference: reference, compact: compact))
                     }
-                    output["elements"] = projected
+                    let running = try? resolveApplication(target)
+                    output = [
+                        "application": running.map(applicationJSON) ??
+                            ["processId": pid, "name": name],
+                        "window": cuaWindowJSON(window),
+                        "snapshotId": snapshotID,
+                        "projection": compact ? "compact" : "full",
+                        "elements": projected,
+                        "truncated": output["truncated"] ?? false,
+                    ]
                     result = projectCuaResult(request,
                         providerOperation: "get_window_state", providerResult: output,
                         route: "guest.user/macos.cua")
@@ -980,7 +1070,9 @@ final class ResidentService {
                     result["coordinateSpace"] = "window_points_top_left"
                     break
                 }
-                let (app, records) = try applicationRecords(request)
+                let (app, allRecords) = try applicationRecords(request)
+                let records = recordsMatchingQuery(
+                    allRecords, query: requestString(request, "query"))
                 let remembered = remember(records)
                 let compact = requestString(request, "projection") == "compact"
                 result = base(request, route: "guest.user/macos.ax")
@@ -1119,9 +1211,13 @@ final class ResidentService {
                     result = projectCuaResult(request, providerOperation: "launch_app",
                                               providerResult: output,
                                               route: "guest.user/macos.cua")
+                    if let app = try? resolveApplication(query) {
+                        result["data"] = ["application": applicationJSON(app)]
+                    }
                     break
                 }
-                let app = try launchApplication(query)
+                let app = try launchApplication(
+                    query, argument: requestString(request, "arguments"))
                 result = base(request, route: "guest.user/macos.workspace")
                 result["delivery"] = "confirmed"
                 result["effect"] = "confirmed"
@@ -1232,7 +1328,10 @@ final class ResidentService {
                              as? [AXUIElement]) ?? []
                 result["effect"] = after.count < windows.count ? "confirmed" : "unknown"
             case "input.key", "input.text", "input.click":
-                if useCua(request) {
+                let providerWasExplicit = requestString(request, "provider") != nil
+                let preferCuaText = operation == "input.text" &&
+                    !providerWasExplicit && cuaPermissions() != nil
+                if preferCuaText || useCua(request) {
                     var arguments: [String: Any] = [:]
                     if let target = requestString(request, "target") {
                         let (pid, _) = try cuaApplication(target)
@@ -1357,6 +1456,13 @@ final class ResidentService {
                     result = projectCuaResult(request,
                         providerOperation: "get_window_state", providerResult: output,
                         route: "guest.user/macos.cua")
+                    let attributes = try FileManager.default.attributesOfItem(
+                        atPath: url.path)
+                    result["data"] = [
+                        "artifactPath": url.path,
+                        "bytes": attributes[.size] ?? 0,
+                        "window": cuaWindowJSON(window),
+                    ]
                     result["fidelity"] = "exact_window"
                     result["coordinateSpace"] = "window_pixels"
                     break

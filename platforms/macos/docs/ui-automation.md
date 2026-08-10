@@ -97,6 +97,7 @@ one-time setup. Do not copy, replace, or edit a TCC database.
 The resident facade reports the native helper and any installed Cua provider
 separately. A ready Cua route does not turn a missing native grant into
 success; capabilities and operation results name the provider actually used.
+An explicit `provider` request never falls back to another provider.
 
 ## Resident Requests
 
@@ -112,6 +113,19 @@ bin/macvm control \
 Inside the guest, `~/bin/machine-control` accepts the identical payload. A
 snapshot reference belongs to the resident generation that returned it. Do
 not cache it across resident or provider restart.
+
+Provider adapters normalize application, window, semantic element, and capture
+objects before returning them. Callers use `applications`, camel-case identity
+fields, `role`/`label`/`reference`, and `artifactPath` regardless of whether
+the result came from native macOS APIs or Cua. Compact projection removes
+detail; it does not rename the public fields.
+
+With both providers ready, the current measured default uses native macOS AX,
+Workspace, Quartz, and CoreGraphics routes. Text insertion is the one adopted
+Cua route: identical fixture evidence showed native Unicode key delivery
+without an AppKit text-value effect, while Cua produced the value. An explicit
+`provider: "macos-native"` request remains available and reports that native
+behavior honestly.
 
 The optional deterministic fixture is compiled inside the guest:
 
