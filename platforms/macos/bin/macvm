@@ -18,6 +18,7 @@ Start here:
   ui COMMAND [ARG...]    Inspect and control the macOS accessibility tree
   control JSON           Call the target-resident machine-control facade
   control-local JSON     Call it through the installed guest-local CLI
+  authorization-submit  Submit one credential through an active lease
   fixture-state          Read the deterministic fixture's file oracle
   admin-fixture-state    Read the administrator fixture's file oracle
 
@@ -62,6 +63,7 @@ case "$command" in
     ui) exec "$REPO_DIR/bin/macui" "$@" ;;
     control) exec "$REPO_DIR/bin/macui" control "$@" ;;
     control-local) exec "$REPO_DIR/bin/macui" control-local "$@" ;;
+    authorization-submit) exec "$REPO_DIR/scripts/submit-authorization.sh" "$@" ;;
     fixture-state)
         exec "$MACVM_TART" exec "$MACVM_NAME" /bin/cat \
             "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-fixture/state.json"

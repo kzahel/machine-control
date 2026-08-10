@@ -70,6 +70,16 @@ separately installed and consented Cua daemon is present, the facade can use
 its session-scoped AX, exact-window capture, and background input. Cua remains
 replaceable and is not bundled by this repository.
 
+Normal Aqua administrator sheets use a separate credential boundary. The
+resident first fingerprints the active `SecurityAgent` requester, prompt,
+secure field, buttons, process, and exact window, then issues a short-lived,
+generation-bound, single-use lease. A guest-local helper reads one credential
+without echo and streams it through a staged exchange on the same mode-`0600`
+socket. The secret is never part of the JSON facade or a process argument,
+environment variable, file, log, capture, or result. Target-local physical key
+events submit it; the fixture or calling workflow remains the authority for
+whether the intended privileged effect occurred.
+
 The helper is compiled and ad-hoc signed with an explicit stable designated
 requirement as `MacVM UI.app`. `tart exec` asks
 LaunchServices to run a fresh helper command, then collects its output and exit

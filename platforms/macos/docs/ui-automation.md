@@ -138,6 +138,40 @@ bin/macvm control \
 Its visible state is also persisted beneath the guest user's cache directory
 so conformance can prove an effect independently of action acknowledgement.
 
+## Administrator Authorization Sheets
+
+After the resident has Accessibility permission, a normal Aqua
+`SecurityAgent` administrator sheet can be controlled without Tart-window
+input. Begin only after independently triggering the intended operation and
+reading its context identifier:
+
+```bash
+bin/macvm control \
+  '{"operation":"authorization.begin","expectedRequester":"EXPECTED APP","contextId":"OPAQUE CONTEXT","timeoutMs":30000}'
+bin/macvm authorization-submit GENERATION_BOUND_LEASE_ID
+```
+
+`authorization.begin` requires one active `SecurityAgent` process, one exact
+on-screen window, the expected requester and prompt text, one
+`AXSecureTextField`, and unique Cancel and OK buttons. The returned lease is
+bound to that process, window, requester, context, resident generation, short
+expiry, and a single cancel or credential submission. A stale, expired, used,
+or changed-sheet lease fails closed.
+
+`authorization-submit` requires an interactive terminal and reads one
+credential without echo. The secret travels over stdin and the resident's
+mode-`0600` socket with a staged descriptor handshake; it is never a JSON
+field, command argument, environment variable, file, log, capture, or result
+value. The current target-local input mapping supports printable US-keyboard
+ASCII. The result reports only delivery, whether sheet dismissal was observed,
+the non-secret context, and uncertainty. The caller still verifies the
+intended privileged effect independently.
+
+This path does not help with the initial MacVM UI Accessibility grant because
+the resident is not trusted yet. Bootstrap consent remains a direct guest-user
+step. It also does not claim loginwindow, FileVault/preboot, Recovery, or
+unrestricted root authority.
+
 Accessibility does not erase all macOS integrity boundaries. Use the outer
 Tart input path for consent sheets and other UI that AX cannot reach. A user
 enters passwords and submits secure authorization sheets directly in the

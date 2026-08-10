@@ -394,12 +394,33 @@ struct CuaReference {
     let token: String
 }
 
+struct AuthorizationSheet {
+    let processID: pid_t
+    let windowID: Int
+    let requester: String
+    let secureField: AXUIElement
+    let cancelButton: AXUIElement
+    let confirmButton: AXUIElement
+}
+
+struct AuthorizationLease {
+    let id: String
+    let contextID: String
+    let requester: String
+    let processID: pid_t
+    let windowID: Int
+    let createdAt: Date
+    let expiresAt: Date
+    var used: Bool
+}
+
 final class ResidentService {
     let generation = UUID().uuidString.lowercased()
     private var snapshotNumber = 0
     private var references: [String: AXUIElement] = [:]
     private var cuaReferences: [String: CuaReference] = [:]
     private var referenceOrder: [String] = []
+    private var authorizationLeases: [String: AuthorizationLease] = [:]
 
     private func requestString(_ request: [String: Any], _ key: String) -> String? {
         guard let value = request[key] as? String, !value.isEmpty else { return nil }
@@ -776,7 +797,7 @@ final class ResidentService {
             "enter": 36, "return": 36, "l": 37, "j": 38, "'": 39,
             "k": 40, ";": 41, "\\": 42, ",": 43, "/": 44, "n": 45,
             "m": 46, ".": 47, "tab": 48, "space": 49, "delete": 51,
-            "escape": 53, "esc": 53, "left": 123, "right": 124,
+            "`": 50, "escape": 53, "esc": 53, "left": 123, "right": 124,
             "down": 125, "up": 126,
         ]
         return codes[name.lowercased()]
@@ -903,6 +924,235 @@ final class ResidentService {
         return root.appendingPathComponent("capture-\(UUID().uuidString.lowercased()).png")
     }
 
+    private func authorizationSheet(expectedRequester: String) throws
+        -> AuthorizationSheet {
+        try requireAccessibility()
+        let matching = runningApplications().filter {
+            $0.bundleIdentifier == "com.apple.SecurityAgent" && !$0.isTerminated
+        }
+        guard matching.count == 1, let app = matching.first, app.isActive else {
+            throw MacUIError.element(
+                "No unique active SecurityAgent authorization sheet is present")
+        }
+        let root = AXUIElementCreateApplication(app.processIdentifier)
+        let records = traverse(root: root, maxDepth: 16, limit: 300)
+        let text = records.flatMap { [$0.title, $0.description, $0.value] }
+            .filter { !$0.isEmpty }
+        guard text.contains(expectedRequester),
+              text.contains("\(expectedRequester) wants to make changes."),
+              text.contains("Enter your password to allow this.") else {
+            throw MacUIError.element(
+                "SecurityAgent sheet did not match the expected requester")
+        }
+        let secureFields = records.filter {
+            $0.role == "AXTextField" && $0.subrole == "AXSecureTextField"
+        }
+        let cancelButtons = records.filter {
+            $0.role == "AXButton" && $0.title == "Cancel" &&
+                $0.actions.contains(kAXPressAction as String)
+        }
+        let confirmButtons = records.filter {
+            $0.role == "AXButton" && $0.title == "OK" &&
+                $0.actions.contains(kAXPressAction as String)
+        }
+        guard secureFields.count == 1, cancelButtons.count == 1,
+              confirmButtons.count == 1 else {
+            throw MacUIError.element(
+                "SecurityAgent sheet controls did not match the strict fingerprint")
+        }
+        let windows = windowList(ownerPID: app.processIdentifier)
+        guard windows.count == 1,
+              let number = windows[0]["windowId"] as? NSNumber else {
+            throw MacUIError.element(
+                "SecurityAgent did not expose one exact on-screen window")
+        }
+        return AuthorizationSheet(
+            processID: app.processIdentifier,
+            windowID: number.intValue,
+            requester: expectedRequester,
+            secureField: secureFields[0].element,
+            cancelButton: cancelButtons[0].element,
+            confirmButton: confirmButtons[0].element)
+    }
+
+    private func authorizationLeaseForUse(_ request: [String: Any])
+        -> (AuthorizationLease?, [String: Any]?) {
+        guard let leaseID = requestString(request, "leaseId") else {
+            return (nil, refused(request, code: "invalid_request",
+                message: "leaseId is required",
+                route: "guest.user/macos.authorization"))
+        }
+        guard leaseID.hasPrefix(generation + ":auth:") else {
+            return (nil, refused(request, code: "stale_reference",
+                message: "Authorization lease belongs to another resident generation",
+                route: "guest.user/macos.authorization", stale: true))
+        }
+        guard var lease = authorizationLeases[leaseID] else {
+            return (nil, refused(request, code: "authorization_lease_missing",
+                message: "Authorization lease is not present",
+                route: "guest.user/macos.authorization"))
+        }
+        if lease.used {
+            return (nil, refused(request, code: "authorization_lease_used",
+                message: "Authorization lease has already been consumed",
+                route: "guest.user/macos.authorization"))
+        }
+        if Date() >= lease.expiresAt {
+            lease.used = true
+            authorizationLeases[leaseID] = lease
+            return (nil, refused(request, code: "authorization_lease_expired",
+                message: "Authorization lease expired",
+                route: "guest.user/macos.authorization"))
+        }
+        guard let sheet = try? authorizationSheet(
+                expectedRequester: lease.requester),
+              sheet.processID == lease.processID,
+              sheet.windowID == lease.windowID else {
+            lease.used = true
+            authorizationLeases[leaseID] = lease
+            return (nil, refused(request, code: "authorization_sheet_changed",
+                message: "Authorization sheet no longer matches the lease",
+                route: "guest.user/macos.authorization"))
+        }
+        return (lease, nil)
+    }
+
+    private func consumeAuthorizationLease(_ lease: AuthorizationLease) {
+        var consumed = lease
+        consumed.used = true
+        authorizationLeases[lease.id] = consumed
+    }
+
+    private func physicalKey(for byte: UInt8) -> (CGKeyCode, CGEventFlags)? {
+        let character = Character(UnicodeScalar(byte))
+        let string = String(character)
+        if byte >= 97 && byte <= 122, let code = keyCode(string) {
+            return (code, [])
+        }
+        if byte >= 65 && byte <= 90,
+           let code = keyCode(string.lowercased()) {
+            return (code, .maskShift)
+        }
+        if byte >= 48 && byte <= 57, let code = keyCode(string) {
+            return (code, [])
+        }
+        let punctuation: [UInt8: (String, Bool)] = [
+            32: ("space", false), 45: ("-", false), 95: ("-", true),
+            61: ("=", false), 43: ("=", true), 91: ("[", false),
+            123: ("[", true), 93: ("]", false), 125: ("]", true),
+            59: (";", false), 58: (";", true),
+            39: ("'", false), 34: ("'", true), 44: (",", false),
+            60: (",", true), 46: (".", false), 62: (".", true),
+            47: ("/", false), 63: ("/", true), 92: ("\\", false),
+            124: ("\\", true), 96: ("`", false), 126: ("`", true),
+            33: ("1", true), 64: ("2", true), 35: ("3", true),
+            36: ("4", true), 37: ("5", true), 94: ("6", true),
+            38: ("7", true), 42: ("8", true), 40: ("9", true),
+            41: ("0", true),
+        ]
+        guard let entry = punctuation[byte], let code = keyCode(entry.0) else {
+            return nil
+        }
+        return (code, entry.1 ? .maskShift : [])
+    }
+
+    private func sendCredential(_ credential: Data) throws {
+        for byte in credential {
+            guard let (code, flags) = physicalKey(for: byte),
+                  let down = CGEvent(keyboardEventSource: nil,
+                                     virtualKey: code, keyDown: true),
+                  let up = CGEvent(keyboardEventSource: nil,
+                                   virtualKey: code, keyDown: false) else {
+                throw MacUIError.usage(
+                    "Credential contains a character unavailable to the input route")
+            }
+            down.flags = flags
+            up.flags = flags
+            down.post(tap: .cghidEventTap)
+            up.post(tap: .cghidEventTap)
+            usleep(18_000)
+        }
+    }
+
+    func handleCredential(_ request: [String: Any], credential: Data)
+        -> [String: Any] {
+        let started = DispatchTime.now().uptimeNanoseconds
+        var result: [String: Any]
+        let (candidate, refusal) = authorizationLeaseForUse(request)
+        if let refusal {
+            result = refusal
+        } else if let lease = candidate {
+            consumeAuthorizationLease(lease)
+            if credential.isEmpty || credential.count > 256 {
+                result = refused(request, code: "credential_size_invalid",
+                    message: "Credential must contain 1 through 256 bytes",
+                    route: "guest.user/macos.authorization")
+            } else if let sheet = try? authorizationSheet(
+                        expectedRequester: lease.requester),
+                      sheet.processID == lease.processID,
+                      sheet.windowID == lease.windowID {
+                let focused = AXUIElementSetAttributeValue(
+                    sheet.secureField, kAXFocusedAttribute as CFString,
+                    kCFBooleanTrue)
+                if focused != .success {
+                    result = refused(request, code: "secure_field_unavailable",
+                        message: "Secure credential field could not be focused",
+                        route: "guest.user/macos.authorization")
+                } else {
+                    do {
+                        try sendKey("cmd-a")
+                        try sendKey("delete")
+                        try sendCredential(credential)
+                        usleep(120_000)
+                        let pressed = AXUIElementPerformAction(
+                            sheet.confirmButton, kAXPressAction as CFString)
+                        guard pressed == .success else {
+                            throw MacUIError.action(
+                                "Authorization confirmation was not delivered")
+                        }
+                        var dismissed = false
+                        for _ in 0..<30 {
+                            usleep(100_000)
+                            if (try? authorizationSheet(
+                                    expectedRequester: lease.requester)) == nil {
+                                dismissed = true
+                                break
+                            }
+                        }
+                        result = base(request,
+                            route: "guest.user/macos.authorization")
+                        result["delivery"] = "confirmed"
+                        result["effect"] = dismissed ? "confirmed" : "no_effect"
+                        result["uncertainty"] = dismissed ? "none" :
+                            "authorization_not_observed"
+                        result["retrySafety"] = "observe_before_retry"
+                        result["data"] = [
+                            "contextId": lease.contextID,
+                            "sheetDismissed": dismissed,
+                            "attemptConsumed": true,
+                        ]
+                    } catch {
+                        result = refused(request,
+                            code: "credential_delivery_failed",
+                            message: String(describing: error),
+                            route: "guest.user/macos.authorization")
+                    }
+                }
+            } else {
+                result = refused(request, code: "authorization_sheet_changed",
+                    message: "Authorization sheet no longer matches the lease",
+                    route: "guest.user/macos.authorization")
+            }
+        } else {
+            result = refused(request, code: "authorization_lease_missing",
+                message: "Authorization lease is not present",
+                route: "guest.user/macos.authorization")
+        }
+        result["elapsedMs"] = Int(
+            (DispatchTime.now().uptimeNanoseconds - started) / 1_000_000)
+        return result
+    }
+
     func handle(_ request: [String: Any]) -> [String: Any] {
         let started = DispatchTime.now().uptimeNanoseconds
         let operation = requestString(request, "operation") ?? ""
@@ -927,7 +1177,8 @@ final class ResidentService {
                                         "application.launch", "application.activate",
                                         "application.terminate", "input.key",
                                         "input.text", "input.click", "window.close",
-                                        "capture"]],
+                                        "capture", "authorization.begin",
+                                        "authorization.cancel"]],
                         ["id": "cua", "state": cua == nil ? "unavailable" : "ready",
                          "routeClass": "guest.user", "placement": "target_resident",
                          "operations": ["applications", "windows", "snapshot", "action",
@@ -939,16 +1190,22 @@ final class ResidentService {
                     "routing": [
                         ["operations": ["snapshot", "action"],
                          "provider": defaultSemanticProvider],
-                        ["operations": ["input.key", "input.text", "input.click"],
+                        ["operations": ["input.key", "input.click"],
                          "provider": AXIsProcessTrusted() ? "macos.coregraphics" :
                             (cua == nil ? "unavailable" : "cua")],
+                        ["operations": ["input.text"],
+                         "provider": cua == nil ? "macos.coregraphics" : "cua"],
                         ["operations": ["windows", "capture"],
                          "provider": defaultVisualProvider],
                         ["operations": ["applications", "application.launch",
                                          "application.activate", "application.terminate"],
-                         "provider": cua == nil ? "macos.workspace" : "cua"],
+                         "provider": AXIsProcessTrusted() ? "macos.workspace" :
+                            (cua == nil ? "unavailable" : "cua")],
                         ["operations": ["window.close"],
                          "provider": defaultSemanticProvider],
+                        ["operations": ["authorization.begin", "authorization.cancel"],
+                         "provider": AXIsProcessTrusted() ? "macos.authorization" :
+                            "unavailable"],
                     ],
                     "screenCaptureAuthorized": CGPreflightScreenCaptureAccess(),
                     "accessibilityAuthorized": AXIsProcessTrusted(),
@@ -975,6 +1232,98 @@ final class ResidentService {
                     "nativeCaptureState": CGPreflightScreenCaptureAccess() ?
                         "ready" : "unavailable",
                     "cuaState": cua == nil ? "unavailable" : "ready",
+                ]
+            case "authorization.begin":
+                guard let requester = requestString(request, "expectedRequester"),
+                      let contextID = requestString(request, "contextId") else {
+                    result = refused(request, code: "invalid_request",
+                        message: "expectedRequester and contextId are required",
+                        route: "guest.user/macos.authorization")
+                    break
+                }
+                guard let sheet = try? authorizationSheet(
+                        expectedRequester: requester) else {
+                    result = refused(request,
+                        code: "authorization_sheet_unavailable",
+                        message: "No exact matching authorization sheet is present",
+                        route: "guest.user/macos.authorization")
+                    break
+                }
+                let timeout = max(250, min(
+                    requestInt(request, "timeoutMs", default: 30_000), 30_000))
+                let leaseID = generation + ":auth:" +
+                    UUID().uuidString.lowercased()
+                let now = Date()
+                authorizationLeases[leaseID] = AuthorizationLease(
+                    id: leaseID, contextID: contextID, requester: requester,
+                    processID: sheet.processID, windowID: sheet.windowID,
+                    createdAt: now,
+                    expiresAt: now.addingTimeInterval(Double(timeout) / 1_000),
+                    used: false)
+                if authorizationLeases.count > 64 {
+                    let removable = authorizationLeases.values
+                        .filter { $0.used || $0.expiresAt <= now }
+                        .sorted { $0.createdAt < $1.createdAt }
+                    for lease in removable.prefix(
+                            authorizationLeases.count - 64) {
+                        authorizationLeases.removeValue(forKey: lease.id)
+                    }
+                }
+                result = base(request,
+                    route: "guest.user/macos.authorization")
+                result["delivery"] = "not_applicable"
+                result["effect"] = "not_applicable"
+                result["data"] = [
+                    "leaseId": leaseID,
+                    "contextId": contextID,
+                    "requester": requester,
+                    "processId": sheet.processID,
+                    "windowId": sheet.windowID,
+                    "secureInput": true,
+                    "expiresInMs": timeout,
+                ]
+            case "authorization.cancel":
+                let (candidate, refusal) = authorizationLeaseForUse(request)
+                if let refusal {
+                    result = refusal
+                    break
+                }
+                guard let lease = candidate,
+                      let sheet = try? authorizationSheet(
+                        expectedRequester: lease.requester),
+                      sheet.processID == lease.processID,
+                      sheet.windowID == lease.windowID else {
+                    result = refused(request,
+                        code: "authorization_sheet_changed",
+                        message: "Authorization sheet no longer matches the lease",
+                        route: "guest.user/macos.authorization")
+                    break
+                }
+                consumeAuthorizationLease(lease)
+                let delivery = AXUIElementPerformAction(
+                    sheet.cancelButton, kAXPressAction as CFString)
+                var dismissed = false
+                if delivery == .success {
+                    for _ in 0..<20 {
+                        usleep(100_000)
+                        if (try? authorizationSheet(
+                                expectedRequester: lease.requester)) == nil {
+                            dismissed = true
+                            break
+                        }
+                    }
+                }
+                result = base(request,
+                    route: "guest.user/macos.authorization")
+                result["delivery"] = delivery == .success ? "confirmed" : "unknown"
+                result["effect"] = dismissed ? "confirmed" : "unverifiable"
+                result["uncertainty"] = dismissed ? "none" :
+                    "sheet_dismissal_not_observed"
+                result["retrySafety"] = "observe_before_retry"
+                result["data"] = [
+                    "contextId": lease.contextID,
+                    "sheetDismissed": dismissed,
+                    "attemptConsumed": true,
                 ]
             case "applications":
                 if useCua(request) {
@@ -1622,7 +1971,19 @@ func runResidentServer(socketPath: String) throws -> Never {
                 guard let request = object as? [String: Any] else {
                     throw MacUIError.usage("Request must be a JSON object")
                 }
-                let response = service.handle(request)
+                let response: [String: Any]
+                if request["operation"] as? String == "authorization.submit" {
+                    try writeSocket(client, data: Data([0x06]))
+                    var credential = try readSocket(client, limit: 257)
+                    defer {
+                        credential.resetBytes(in: 0..<credential.count)
+                        credential.removeAll(keepingCapacity: false)
+                    }
+                    response = service.handleCredential(
+                        request, credential: credential)
+                } else {
+                    response = service.handle(request)
+                }
                 try writeSocket(client, data: encodeJSONLine(response))
                 if request["operation"] as? String == "server.stop" {
                     Darwin.close(descriptor)
@@ -1662,6 +2023,52 @@ func runResidentClient(socketPath: String, requestData: Data) throws {
     FileHandle.standardOutput.write(response)
 }
 
+func runCredentialClient(socketPath: String, leaseID: String) throws {
+    var credential = FileHandle.standardInput.readDataToEndOfFile()
+    defer {
+        credential.resetBytes(in: 0..<credential.count)
+        credential.removeAll(keepingCapacity: false)
+    }
+    while credential.last == 0x0a || credential.last == 0x0d {
+        credential.removeLast()
+    }
+    guard !credential.isEmpty, credential.count <= 256 else {
+        throw MacUIError.usage("Credential must contain 1 through 256 bytes")
+    }
+
+    let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
+    guard descriptor >= 0 else {
+        throw MacUIError.action("Unable to create Unix socket")
+    }
+    defer { Darwin.close(descriptor) }
+    var (address, length) = try unixAddress(socketPath)
+    guard withSockAddr(&address, length: length, {
+        Darwin.connect(descriptor, $0, $1)
+    }) == 0 else {
+        throw MacUIError.action("Resident service is unavailable")
+    }
+    let request: [String: Any] = [
+        "schema": "machine-control/v0",
+        "requestId": UUID().uuidString.lowercased(),
+        "operation": "authorization.submit",
+        "leaseId": leaseID,
+    ]
+    try writeSocket(descriptor, data: encodeJSONLine(request))
+    var acknowledgment: UInt8 = 0
+    var count: Int
+    repeat {
+        count = Darwin.read(descriptor, &acknowledgment, 1)
+    } while count < 0 && errno == EINTR
+    guard count == 1, acknowledgment == 0x06 else {
+        throw MacUIError.action(
+            "Resident did not accept the credential channel handshake")
+    }
+    try writeSocket(descriptor, data: credential)
+    _ = Darwin.shutdown(descriptor, SHUT_WR)
+    let response = try readSocket(descriptor)
+    FileHandle.standardOutput.write(response)
+}
+
 var arguments = Array(CommandLine.arguments.dropFirst())
 if arguments.count >= 4, arguments[0] == "--output",
    arguments[2] == "--status" {
@@ -1679,7 +2086,7 @@ guard let command = arguments.first else {
     fail(MacUIError.usage(usage()), status: 2)
 }
 
-if command == "serve" || command == "request" {
+if command == "serve" || command == "request" || command == "credential" {
     do {
         guard arguments.count >= 2 else {
             throw MacUIError.usage("Usage: macui \(command) SOCKET [JSON]")
@@ -1687,6 +2094,15 @@ if command == "serve" || command == "request" {
         let socketPath = arguments[1]
         if command == "serve" {
             try runResidentServer(socketPath: socketPath)
+        }
+        if command == "credential" {
+            guard arguments.count == 3 else {
+                throw MacUIError.usage(
+                    "Usage: macui credential SOCKET LEASE_ID")
+            }
+            try runCredentialClient(
+                socketPath: socketPath, leaseID: arguments[2])
+            exit(0)
         }
         let requestData: Data
         if arguments.count >= 3 {

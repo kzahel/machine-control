@@ -19,6 +19,7 @@ macOS Accessibility inspection and actions.
 | Semantic UI | Native AXUIElement helper in the interactive guest session |
 | Resident facade | Per-user Unix socket with `machine-control/v0` envelopes |
 | Composition | Native AX/Quartz/CGEvent plus optional installed Cua |
+| Administrator sheets | Strict `SecurityAgent` lease plus non-echoing one-shot credential channel |
 | Recovery | Tart-window screenshot and CoreGraphics keyboard/mouse input |
 
 The semantic helper has no provider-packaged exclusions for the Dock, menu
@@ -139,6 +140,7 @@ providers/tart-macos/             Lifecycle, capture, and raw input
 guests/macos/bootstrap/           Fresh-guest installation assets
 guests/macos/ui/macui.swift       Native Accessibility helper
 guests/macos/fixture/             Deterministic native conformance fixture
+guests/macos/admin-fixture/       Harmless administrator-sheet fixture
 scripts/                          Deployment and diagnostics
 skills/drive-macvm/               Reusable agent operating skill
 ```

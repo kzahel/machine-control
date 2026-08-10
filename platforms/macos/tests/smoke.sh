@@ -14,6 +14,7 @@ for script in \
     scripts/deploy-ui.sh \
     scripts/deploy-fixture.sh \
     scripts/deploy-admin-fixture.sh \
+    scripts/submit-authorization.sh \
     scripts/doctor.sh \
     guests/macos/ui/machine-control \
     guests/macos/bootstrap/bootstrap-guest.sh; do
