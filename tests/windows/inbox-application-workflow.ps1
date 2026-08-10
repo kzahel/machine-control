@@ -107,6 +107,26 @@ function Wait-Window {
     throw "$Label did not expose a visible window within $TimeoutSeconds seconds"
 }
 
+function Wait-ActivatedPrimaryWindow {
+    param(
+        [Parameter(Mandatory = $true)]$Activation,
+        [Parameter(Mandatory = $true)][string]$Label,
+        [int]$TimeoutSeconds = 15
+    )
+    $primary = $Activation.data.primaryWindow
+    if (-not $primary -or -not $primary.hwnd -or -not $primary.visible) {
+        throw "$Label activation did not identify a visible primary window"
+    }
+    if (-not $Activation.data.primaryWindowSettled) {
+        throw "$Label activation returned an unsettled primary window"
+    }
+    $primaryHwnd = [long]$primary.hwnd
+    return Wait-Window `
+        -Predicate { [long]$_.hwnd -eq $primaryHwnd } `
+        -Label "$Label primary window" `
+        -TimeoutSeconds $TimeoutSeconds
+}
+
 function Wait-WindowGone {
     param([long]$Hwnd, [string]$Label, [int]$TimeoutSeconds = 10)
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
@@ -249,7 +269,12 @@ function Get-SnapshotEfficiency {
     if ($RequireMaterialReduction -and
         ($compactRatio -ge 0.80 -or $unchangedRatio -ge 0.60)) {
         throw ('semantic payload reduction was not material: ' +
-            "compact=$compactRatio unchanged=$unchangedRatio")
+            "compact=$compactRatio unchanged=$unchangedRatio " +
+            "count=$($FullSnapshot.data.count) " +
+            "full_bytes=$($FullSnapshot._serializedBytes) " +
+            "compact_bytes=$($compact._serializedBytes) " +
+            "unchanged_bytes=$($unchanged._serializedBytes) " +
+            "degraded=$($FullSnapshot.data.degraded)")
     }
     return [ordered]@{
         full = Get-Metric $FullSnapshot
@@ -353,8 +378,8 @@ try {
         $calcLaunch.focusConsequence -ne 'may_change') {
         throw 'Calculator activation lacked native visible-window confirmation'
     }
-    $calculator = Wait-Window `
-        -Predicate { $_.visible -and $_.title -eq 'Calculator' } `
+    $calculator = Wait-ActivatedPrimaryWindow `
+        -Activation $calcLaunch `
         -Label 'Calculator'
     $calcMetrics = [ordered]@{
         launch = Get-Metric $calcLaunch
@@ -464,8 +489,8 @@ try {
     if ($settingsLaunch.effect -ne 'confirmed') {
         throw 'Settings activation lacked a visible-window effect'
     }
-    $settings = Wait-Window `
-        -Predicate { $_.visible -and $_.title -eq 'Settings' } `
+    $settings = Wait-ActivatedPrimaryWindow `
+        -Activation $settingsLaunch `
         -Label 'Settings'
     $settingsOwned = @($settingsBefore |
         Where-Object { $_.hwnd -eq $settings.hwnd }).Count -eq 0

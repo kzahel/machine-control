@@ -95,9 +95,12 @@ Its completed shell-acceptance slice lives in
   runtime dependency. No provider owns the project contract, lifecycle,
   protected authority, or recovery boundary.
 - Registered/package activation and application-frame association use owned
-  Windows Shell APIs. Native UIA `WindowPattern` is the primary window-state
-  route because live packaged-window acceptance showed intermittent Win32
-  `ShowWindowAsync` no-effects; Win32 remains a disclosed fallback.
+  Windows Shell APIs. The activation result identifies a primary visible HWND
+  by preferring the process returned by Windows, because packaged applications
+  can expose multiple associated composition and frame windows. Native UIA
+  `WindowPattern` is the primary window-state route because live
+  packaged-window acceptance showed intermittent Win32 `ShowWindowAsync`
+  no-effects; Win32 remains a disclosed fallback.
 - Repeated observations may request an explicit compact projection and provide
   a prior content digest. Matching unchanged state suppresses elements only
   when the digest scope matches; full fidelity remains caller-selectable.

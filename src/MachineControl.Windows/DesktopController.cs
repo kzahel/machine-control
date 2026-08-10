@@ -432,20 +432,45 @@ internal static class DesktopController
         var timeout = TimeSpan.FromMilliseconds(
             Math.Clamp(request.TimeoutMs ?? 10_000, 500, 30_000));
         var deadline = DateTime.UtcNow + timeout;
-        var windows = FindActivatedWindows(
-            desktop,
-            processId,
-            request.ApplicationId);
-        while (!windows.Any(window => window.Visible) &&
-            DateTime.UtcNow < deadline)
+        var stableWindowDuration = TimeSpan.FromMilliseconds(750);
+        var stableSince = DateTime.MinValue;
+        WindowRecord? primaryWindow = null;
+        var windows = new List<WindowRecord>();
+        var visible = new List<WindowRecord>();
+        while (DateTime.UtcNow < deadline)
         {
-            Thread.Sleep(100);
             windows = FindActivatedWindows(
                 desktop,
                 processId,
                 request.ApplicationId);
+            visible = windows.Where(window => window.Visible).ToList();
+            var candidate = SelectPrimaryActivatedWindow(visible, processId);
+            if (candidate is null)
+            {
+                primaryWindow = null;
+                stableSince = DateTime.MinValue;
+            }
+            else if (primaryWindow?.Hwnd != candidate.Hwnd)
+            {
+                primaryWindow = candidate;
+                stableSince = DateTime.UtcNow;
+            }
+            else
+            {
+                primaryWindow = candidate;
+                if (DateTime.UtcNow - stableSince >= stableWindowDuration)
+                {
+                    break;
+                }
+            }
+            Thread.Sleep(100);
         }
-        var visible = windows.Where(window => window.Visible).ToList();
+        var primaryWindowStableMs = primaryWindow is null ||
+            stableSince == DateTime.MinValue
+            ? 0
+            : Math.Max(0, (long)(DateTime.UtcNow - stableSince).TotalMilliseconds);
+        var primaryWindowSettled = primaryWindow is not null &&
+            primaryWindowStableMs >= (long)stableWindowDuration.TotalMilliseconds;
         return Success(
             request,
             generation,
@@ -460,12 +485,32 @@ internal static class DesktopController
                 processId,
                 windows = visible,
                 visibleWindowCount = visible.Count,
+                primaryWindow,
+                primaryWindowSelection = primaryWindow is null
+                    ? "none"
+                    : primaryWindow.ProcessId == (int)processId
+                        ? "activation_process_largest_visible_window"
+                        : "largest_visible_associated_window",
+                primaryWindowSettled,
+                primaryWindowStableMs,
             },
             fidelity: "registered_application_activation") with
         {
             FocusConsequence = "may_change",
         };
     }
+
+    private static WindowRecord? SelectPrimaryActivatedWindow(
+        IReadOnlyList<WindowRecord> visible,
+        uint processId) =>
+        visible
+            .Where(window => window.ProcessId == (int)processId)
+            .OrderByDescending(window =>
+                window.Bounds.Width * window.Bounds.Height)
+            .FirstOrDefault() ?? visible
+            .OrderByDescending(window =>
+                window.Bounds.Width * window.Bounds.Height)
+            .FirstOrDefault();
 
     private static List<WindowRecord> FindActivatedWindows(
         IntPtr desktop,
