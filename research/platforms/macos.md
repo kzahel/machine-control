@@ -1,7 +1,8 @@
 # macOS Control Research
 
-Status: ordinary-session resident composition is adopted and live-tested in a
-prepared Tart appliance; protected macOS planes remain open.
+Status: ordinary-session resident composition and normal Aqua administrator
+sheets are adopted and live-tested in a prepared Tart appliance; login and
+preboot planes remain open.
 
 ## Native foundation
 
@@ -49,6 +50,16 @@ not change its value; Cua did, so that one operation is now an adopted Cua
 route. Normal Accessibility and Screen Recording consent survived rebuild and
 full guest reboot under the stable application identity.
 
+[`Tactical 009`](../../docs/tactical/009-macos-administrator-sheet-control.md)
+adds `adopted` live evidence for normal Aqua `SecurityAgent` administrator
+sheets. Native AX exposed an exact window, requester and prompt text, one
+secure field, and unique Cancel and OK buttons. The existing non-root resident
+could cancel and submit the sheet with target-local input; a fixture file
+oracle distinguished cancellation, a wrong credential with no effect, and a
+correct credential followed by read-only privileged command completion. Lease
+expiry, reuse, sheet change, resident restart, full reboot, and cleanup also
+passed without outer input. This surface did not require a privileged broker.
+
 ## Current direction
 
 **Decision:** Preserve Cua as a replaceable common-plane adapter and Peekaboo as
@@ -58,6 +69,6 @@ conformance demonstrates a better effect. Commonality must not erase a
 materially better macOS route.
 
 **Open:** Extend evidence to occlusion/minimization, off-Space behavior,
-multiple displays, localization, protected authorization, lock/loginwindow,
-FileVault/preboot, private-API fragility, and longer background-interference
-soak runs.
+multiple displays, localization, lock/loginwindow, FileVault/preboot, bounded
+non-UI administration, private-API fragility, and longer
+background-interference soak runs.

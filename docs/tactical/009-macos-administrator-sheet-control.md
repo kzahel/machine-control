@@ -1,6 +1,6 @@
 # Tactical 009: macOS Administrator-Sheet Control
 
-Status: active.
+Status: complete.
 
 Topics: `macos-resident-control`, `architecture`, and
 `capabilities-and-results`.
@@ -127,4 +127,34 @@ this execution record.
 
 ## Validation record
 
-Pending live execution.
+Completed on a guarded copy-on-write macOS 26 Tart candidate with an English
+session and US keyboard layout. The prepared source remained suspended.
+
+- The harmless signed AppKit fixture invoked a read-only privileged command and
+  recorded requested, cancelled, authorized, and command-completed states in a
+  separate file oracle.
+- Native AX observed one active `SecurityAgent` process and exact on-screen
+  window with exact requester and prompt text, one `AXSecureTextField`, and
+  unique Cancel and OK buttons. The normal non-root Aqua resident cancelled and
+  submitted it; no root broker was required.
+- Wrong-requester, cancel, reused, 250 ms expiry, changed-sheet, missing-lease,
+  and resident-generation-change cases returned typed no-fallback refusals or
+  independently confirmed cancellation as specified.
+- A deliberately incorrect credential produced confirmed delivery,
+  `no_effect`, a still-visible sheet, an unchanged unauthorized fixture oracle,
+  and `observe_before_retry`; its lease could not be reused.
+- A fresh correct submission produced confirmed sheet dismissal, while the
+  independent oracle recorded authorization and read-only command completion.
+- Credential entry used only the interactive, non-echoing, one-shot descriptor
+  path. No credential was placed in JSON, arguments, environment, files,
+  captures, logs, results, or repository content.
+- Full guest shutdown/start restored native semantic and capture readiness and
+  completed a fresh authorization/cancel workflow with no Tart-window input.
+- The complete administrator-sheet suite, ordinary local/remote conformance,
+  real-application acceptance, native/Cua comparison, and testbed smoke checks
+  passed. Fixture application, source, oracle, and transient artifacts were
+  removed afterward.
+
+The accepted scope is a normal administrator sheet in a logged-in Aqua
+session. Loginwindow, FileVault/preboot, Recovery, another user's session, and
+general non-UI root administration were not claimed.

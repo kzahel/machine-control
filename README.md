@@ -22,8 +22,8 @@ matches the question:
   and truthful result envelopes shared by resident implementations.
 - [Windows runtime](#windows-runtime): the first resident implementation,
   build/install workflow, contract, and conformance entry points.
-- [macOS runtime](#macos-runtime): the accepted ordinary-session Tart slice,
-  native/Cua composition, and conformance entry points.
+- [macOS runtime](#macos-runtime): the accepted Tart resident slice, including
+  ordinary applications and normal administrator sheets.
 - [System map](SYSTEM-MAP.md): which repository or program owns each part of
   the actual system.
 
@@ -384,6 +384,7 @@ guest-local caller or tart exec
 MacVM UI resident (logged-in Aqua user)
   +-- native AX / Workspace / Quartz / CoreGraphics
   +-- optional Cua adapter for measured operations
+  +-- strict SecurityAgent leases and one-shot credential input
   +-- generation-scoped references and bounded artifacts
 ```
 
@@ -392,9 +393,22 @@ parity, independent fixture effects, restart and stale-reference behavior,
 Finder, Dock, Control Center, System Settings, TextEdit, Safari, exact-window
 capture, provider comparison, cleanup, and reboot recovery. Normal macOS TCC
 UI was used for Accessibility and Screen Recording consent; no TCC database
-was edited. Protected authorization, lock/loginwindow, FileVault/preboot, and
-stronger resident administration remain later work. The completed execution
-record is [`Tactical 008`](docs/tactical/008-macos-ordinary-session-resident-control.md).
+was edited.
+
+Normal Aqua administrator sheets are also accepted target-resident control.
+The facade fingerprints the exact active `SecurityAgent` requester, prompt,
+process, window, secure field, and buttons before returning a short-lived,
+generation-bound, single-use lease. An interactive helper reads one credential
+without echo and sends it over a staged exchange on the resident's private
+socket; credentials never enter JSON, arguments, environment, files, captures,
+logs, or results. Cancellation, wrong credentials, correct completion, expiry,
+reuse, changed sheets, resident restart, and full reboot were independently
+tested without Tart-window input. No privileged broker was necessary for this
+normal Aqua surface. Lock/loginwindow, FileVault/preboot, Recovery, and bounded
+non-UI privileged administration remain later work. Execution records are
+[`Tactical 008`](docs/tactical/008-macos-ordinary-session-resident-control.md)
+and
+[`Tactical 009`](docs/tactical/009-macos-administrator-sheet-control.md).
 
 ## Current position
 

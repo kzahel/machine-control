@@ -44,6 +44,16 @@ refusals. Local and remote callers share one resident generation, and rebuild,
 resident restart, and full reboot preserve honest readiness while invalidating
 stale references where required.
 
+**Current — protected interaction:** Tactical 009 exercises authorization as a
+separate, bounded capability rather than adding a credential field to the
+ordinary request envelope. `authorization.begin` binds a non-secret context,
+expected requester, exact sheet identity, resident generation, expiry, and
+single use. Credential bytes travel on a staged one-shot descriptor exchange.
+Results separately report delivery, sheet dismissal, uncertainty, retry
+safety, and the non-secret context; an independent fixture proves the intended
+privileged effect. Missing, expired, reused, changed-sheet, and stale-generation
+leases are typed refusals with no provider or outer fallback.
+
 ## Contract and session envelope
 
 Local IPC, SSH, an authenticated tunnel, CLI/SDK calls, and MCP are facades or

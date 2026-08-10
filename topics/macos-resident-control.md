@@ -2,7 +2,8 @@
 
 Topic: `macos-resident-control`
 
-Status: ordinary-session slice complete; protected-plane concern remains.
+Status: ordinary-session and normal administrator-sheet slices complete;
+login/preboot and broader administration remain.
 
 ## Current state
 
@@ -18,6 +19,15 @@ exact-window capture, key input, and lifecycle. Cua is installed as a
 replaceable adapter and is selected for default text insertion because the
 identical fixture oracle proved a value effect that native Unicode key events
 did not. Explicit provider requests never fall back.
+
+Normal logged-in Aqua administrator sheets are now part of the accepted inner
+surface. The resident strictly fingerprints the active `SecurityAgent`
+requester, prompt, process, exact window, secure field, and unique buttons
+before issuing a short-lived, generation-bound, single-use lease. A separate
+interactive helper reads one credential without echo and streams it over the
+resident's mode-`0600` socket without placing the secret in JSON, arguments,
+environment, files, captures, logs, or results. The calling workflow remains
+responsible for independently proving its intended privileged effect.
 
 ## Decisions
 
@@ -42,8 +52,10 @@ did not. Explicit provider requests never fall back.
   full tree.
 - Route per measured operation. The current composition uses Cua for default
   text insertion and native routes for the rest of the accepted surface.
-- Treat loginwindow, FileVault/preboot, secure input, authorization sheets,
-  and arbitrary privileged administration as a later protected-plane slice.
+- Treat loginwindow, FileVault/preboot, Recovery, another user's session, and
+  arbitrary privileged administration as later protected-plane slices. A
+  normal Aqua `SecurityAgent` sheet is accepted only through its bounded
+  one-shot lease; it is not evidence of unrestricted root control.
 
 ## Accepted ordinary-session surface
 
@@ -69,10 +81,30 @@ restart, stale references, exact capture, cleanup, and unattended reboot
 recovery. The retained copy-on-write appliance is stopped; its prepared source
 remains suspended.
 
+## Accepted administrator-sheet surface
+
+[`Tactical 009`](../docs/tactical/009-macos-administrator-sheet-control.md)
+adds normal Aqua administrator authorization to the same resident. A harmless
+native fixture records requested, cancelled, authorized, and command-completed
+states independently. Live conformance proves:
+
+- exact requester matching and typed refusal without visual or outer fallback;
+- native cancellation and independently observed dismissal;
+- single use, short expiry, changed-sheet detection, and generation invalidation;
+- one controlled wrong credential with `no_effect` and no automatic retry;
+- a correct credential with independently confirmed read-only privileged
+  command completion;
+- full guest reboot followed by a fresh bounded authorization workflow; and
+- fixture, oracle, and transient authorization artifact cleanup.
+
+The accepted appliance needed no root daemon or privileged broker for this
+surface. Initial Accessibility consent still cannot use the resident before
+the resident is trusted.
+
 ## Later boundaries
 
-- Protected administration and authorization leases.
-- Lock/loginwindow and credential transport.
+- Bounded non-UI privileged administration and policy.
+- Lock/loginwindow credential transport and session-state reporting.
 - FileVault and preboot recovery.
 - Multiple displays, Spaces, minimization/occlusion, localization, and long
   soak runs beyond the first acceptance corpus.
