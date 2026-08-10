@@ -30,6 +30,11 @@ launch.
 
 ### Tree formatting hides a control's value when it also has a label
 
+Status: **mitigated in the resident facade 2026-08-10.** Legacy text output is
+unchanged, but resident full and compact records carry label and value
+separately. A composed Cua result exposed both a System Settings checkbox
+label and its value during the live resident test.
+
 `macui` records title, description, and AX value, but `formatted(_:)` prints
 only the first non-empty member. A labeled checkbox or switch therefore shows
 its label but not its `0`/`1` value. Queries can still match the value, but a
@@ -66,7 +71,7 @@ recipe and consider deriving row text from named child cells when available.
 
 ### Semantic tree discovery and actions can disagree
 
-Status: **unresolved.** In Chrome, `macvm ui tree` exposed meaningful controls,
+Status: **mitigated in the resident facade 2026-08-10.** In Chrome, `macvm ui tree` exposed meaningful controls,
 including the address field, extension toolbar controls, and extension page
 content. Fresh `ui find`, `ui press`, and `ui set-value` invocations could not
 reliably rediscover some of those same controls, even with the same explicit
@@ -83,6 +88,11 @@ records were excluded, and add regressions for Chrome's address field,
 extension toolbar controls, and extension page buttons. A longer-lived
 guest-side helper may be worth evaluating if fresh AX references are the root
 cause.
+
+The resident holds generation-scoped references and its Cua adapter preserves
+the provider snapshot token through the subsequent action. Stale-reference
+conformance lives in the machine-control corpus; legacy one-shot commands
+remain diagnostic compatibility commands.
 
 ### Host keyboard modifier chords can degrade into literal input
 

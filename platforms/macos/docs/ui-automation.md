@@ -94,6 +94,36 @@ The signed MacVM UI app requires Accessibility permission. `macvm authorize-ui`
 requests the normal macOS flow; [bootstrap](bootstrap.md) records the exact
 one-time setup. Do not copy, replace, or edit a TCC database.
 
+The resident facade reports the native helper and any installed Cua provider
+separately. A ready Cua route does not turn a missing native grant into
+success; capabilities and operation results name the provider actually used.
+
+## Resident Requests
+
+Use `macvm control` for ordinary agent automation. A request and response use
+one compact JSON object:
+
+```bash
+bin/macvm control '{"operation":"capabilities"}'
+bin/macvm control \
+  '{"operation":"snapshot","target":"TextEdit","projection":"compact"}'
+```
+
+Inside the guest, `~/bin/machine-control` accepts the identical payload. A
+snapshot reference belongs to the resident generation that returned it. Do
+not cache it across resident or provider restart.
+
+The optional deterministic fixture is compiled inside the guest:
+
+```bash
+bin/macvm deploy-fixture
+bin/macvm control \
+  '{"operation":"application.launch","applicationId":"org.machine-control.fixture"}'
+```
+
+Its visible state is also persisted beneath the guest user's cache directory
+so conformance can prove an effect independently of action acknowledgement.
+
 Accessibility does not erase all macOS integrity boundaries. Use the outer
 Tart input path for consent sheets and other UI that AX cannot reach. A user
 enters passwords and submits secure authorization sheets directly in the

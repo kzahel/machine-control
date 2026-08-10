@@ -17,6 +17,10 @@ macvm_config_names=(
     MACVM_SHARE_REPO
     MACVM_GUEST_USER
     MACVM_UI_REMOTE_RELATIVE
+    MACVM_CONTROL_SOCKET_RELATIVE
+    MACVM_REQUIRE_MUTATION_GUARD
+    MACVM_TARGET_ROLE
+    MACVM_EXPECTED_NAME
 )
 macvm_environment_values=()
 for macvm_config_name in "${macvm_config_names[@]}"; do
@@ -46,11 +50,17 @@ MACVM_CAPTURE_SYSTEM_KEYS="${MACVM_CAPTURE_SYSTEM_KEYS:-true}"
 MACVM_SHARE_REPO="${MACVM_SHARE_REPO:-true}"
 MACVM_GUEST_USER="${MACVM_GUEST_USER:-admin}"
 MACVM_UI_REMOTE_RELATIVE="${MACVM_UI_REMOTE_RELATIVE:-Library/Application Support/macvm-testbed}"
+MACVM_CONTROL_SOCKET_RELATIVE="${MACVM_CONTROL_SOCKET_RELATIVE:-Library/Application Support/macvm-testbed/control.sock}"
+MACVM_REQUIRE_MUTATION_GUARD="${MACVM_REQUIRE_MUTATION_GUARD:-false}"
+MACVM_TARGET_ROLE="${MACVM_TARGET_ROLE:-unspecified}"
+MACVM_EXPECTED_NAME="${MACVM_EXPECTED_NAME:-}"
 
 export MACVM_REPO_DIR MACVM_CONFIG_FILE MACVM_NAME MACVM_TART
 export MACVM_BOOT_TIMEOUT MACVM_SUSPENDABLE MACVM_CAPTURE_SYSTEM_KEYS
 export MACVM_SHARE_REPO
 export MACVM_GUEST_USER MACVM_UI_REMOTE_RELATIVE
+export MACVM_CONTROL_SOCKET_RELATIVE
+export MACVM_REQUIRE_MUTATION_GUARD MACVM_TARGET_ROLE MACVM_EXPECTED_NAME
 
 macvm_require_command() {
     if ! command -v "$1" >/dev/null 2>&1; then
@@ -96,4 +106,31 @@ macvm_remote_ui_binary() {
 
 macvm_remote_ui_app() {
     printf '/Users/%s/Applications/MacVM UI.app\n' "$MACVM_GUEST_USER"
+}
+
+macvm_remote_control_socket() {
+    printf '/Users/%s/%s\n' "$MACVM_GUEST_USER" \
+        "$MACVM_CONTROL_SOCKET_RELATIVE"
+}
+
+macvm_remote_control_cli() {
+    printf '/Users/%s/bin/machine-control\n' "$MACVM_GUEST_USER"
+}
+
+macvm_assert_mutation_target() {
+    if [[ "$MACVM_REQUIRE_MUTATION_GUARD" != "true" ]]; then
+        return 0
+    fi
+    if [[ -z "$MACVM_EXPECTED_NAME" || "$MACVM_NAME" != "$MACVM_EXPECTED_NAME" ]]; then
+        printf 'Refusing mutation: selected VM does not match the expected name\n' >&2
+        return 1
+    fi
+    case "$MACVM_TARGET_ROLE" in
+        candidate|disposable) ;;
+        *)
+            printf 'Refusing mutation: target role is %s, not candidate/disposable\n' \
+                "$MACVM_TARGET_ROLE" >&2
+            return 1
+            ;;
+    esac
 }

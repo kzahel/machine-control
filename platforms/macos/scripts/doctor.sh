@@ -16,6 +16,10 @@ fail() {
     failures=$((failures + 1))
 }
 
+warn() {
+    printf '[warn] %s\n' "$*" >&2
+}
+
 printf 'vm=%s tart=%s guest-user=%s\n' \
     "$MACVM_NAME" "$MACVM_TART" "$MACVM_GUEST_USER"
 
@@ -92,12 +96,26 @@ else
         if [[ "$(printf '%s' "$health" | jq -r '.accessibilityTrusted')" == "true" ]]; then
             pass 'guest Accessibility access'
         else
-            fail "guest Accessibility access is missing; run: $MACVM_REPO_DIR/bin/macvm authorize-ui"
+            warn "native helper Accessibility access is missing; run: $MACVM_REPO_DIR/bin/macvm authorize-ui"
         fi
         printf '%s\n' "$health" | jq .
     else
         fail 'semantic UI health query failed'
     fi
+fi
+
+
+if resident="$($MACVM_REPO_DIR/bin/macui control '{"operation":"capabilities"}' 2>/dev/null)" \
+        && printf '%s' "$resident" | jq -e '.accepted == true' >/dev/null 2>&1; then
+    ready_providers="$(printf '%s' "$resident" | jq \
+        '[.data.providers[] | select(.state == "ready")] | length')"
+    if (( ready_providers > 0 )); then
+        pass "resident facade with $ready_providers ready provider(s)"
+    else
+        fail 'resident facade has no ready providers'
+    fi
+else
+    fail 'resident facade is unavailable'
 fi
 
 if (( failures > 0 )); then

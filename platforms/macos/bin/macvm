@@ -16,9 +16,11 @@ Start here:
   exec COMMAND [ARG...]  Run a command through the Tart guest agent
   shell                  Open an interactive zsh through the Tart guest agent
   ui COMMAND [ARG...]    Inspect and control the macOS accessibility tree
+  control JSON           Call the target-resident machine-control facade
 
 Setup:
   deploy-ui              Compile and deploy the semantic UI helper
+  deploy-fixture         Compile and deploy the deterministic native fixture
   authorize-ui           Request the guest Accessibility permission
 
 Out-of-band recovery:
@@ -50,8 +52,10 @@ case "$command" in
     help|-h|--help) usage ;;
     doctor) exec "$REPO_DIR/scripts/doctor.sh" "$@" ;;
     deploy-ui) exec "$REPO_DIR/scripts/deploy-ui.sh" "$@" ;;
+    deploy-fixture) exec "$REPO_DIR/scripts/deploy-fixture.sh" "$@" ;;
     authorize-ui) exec "$REPO_DIR/bin/macui" authorize "$@" ;;
     ui) exec "$REPO_DIR/bin/macui" "$@" ;;
+    control) exec "$REPO_DIR/bin/macui" control "$@" ;;
     exec) exec "$MACVM_TART" exec "$MACVM_NAME" "$@" ;;
     shell) exec "$MACVM_TART" exec -it "$MACVM_NAME" /bin/zsh -l ;;
     status|get|up|ip|screenshot|click|drag|type|key|suspend|shutdown|stop|force-stop)

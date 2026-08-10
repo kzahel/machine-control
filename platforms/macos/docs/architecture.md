@@ -12,7 +12,7 @@ bin/macvm
   +-- Tart guest agent
   |     command execution in the logged-in user session
   +-- guests/macos/ui/macui.swift
-        guest-native Accessibility inspection and actions
+        resident facade, guest-native providers, optional Cua adapter
 ```
 
 The host provider and guest driver are conceptually separate even though this
@@ -58,7 +58,20 @@ Every invocation gets new element references. Printed `@N` values are
 diagnostic, not durable selectors. State-changing commands rediscover the
 element from application, text, role, exactness, and occurrence arguments.
 
-The helper is compiled and ad-hoc signed as `MacVM UI.app`. `tart exec` asks
+The same application hosts the ordinary-session resident facade. A
+LaunchServices-started, `LSUIElement` process owns a mode-`0600` Unix socket in
+the interactive user's Application Support directory. The guest-local
+`~/bin/machine-control` client and host `macvm control` wrapper reach that same
+socket and generation. Resident references fail closed after restart.
+
+Provider selection is per operation and disclosed in every result. Native AX,
+Workspace, Quartz, and CGEvent routes are the platform baseline. If a
+separately installed and consented Cua daemon is present, the facade can use
+its session-scoped AX, exact-window capture, and background input. Cua remains
+replaceable and is not bundled by this repository.
+
+The helper is compiled and ad-hoc signed with an explicit stable designated
+requirement as `MacVM UI.app`. `tart exec` asks
 LaunchServices to run a fresh helper command, then collects its output and exit
 status from a private temporary directory. macOS therefore attributes
 Accessibility responsibility to the stable app identity rather than the
@@ -79,6 +92,7 @@ vanilla VM
   -> Tart guest launch daemon + launch agent
   -> tart exec
   -> deploy macui
+  -> start resident facade in the Aqua session
   -> explicit Accessibility grant
 ```
 
@@ -99,6 +113,11 @@ stage. See [bootstrap](bootstrap.md) for the operational contract.
 - normal shutdown and stop unload that transient job after Tart has completed
   the lifecycle transition. Suspend lets Tart exit naturally so its saved
   state is retained; the next `up` replaces the inactive launchd job.
+
+An optional ignored mutation guard combines an expected provider name with a
+`candidate` or `disposable` role. Deployment and control mutations then
+refuse if selection drifts. Tart clones preserve guest hardware identity, so
+the exact Tart name is the available host-side clone assertion.
 
 The VM's disk and suspended state are not a session-ownership authority.
 Restoring or cloning a VM that contains provider state must not make it an

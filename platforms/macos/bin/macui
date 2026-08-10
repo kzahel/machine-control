@@ -21,6 +21,8 @@ Commands:
   press QUERY [--app APP] [--role ROLE] [--nth N]
   focus QUERY [--app APP] [--role ROLE] [--nth N]
   set-value QUERY VALUE [--app APP] [--role ROLE] [--nth N]
+  resident-start | resident-stop | resident-restart
+  control JSON
   launch APP [ARG...]
 
 APP matches a localized application name, bundle id, or PID. Element queries
@@ -31,8 +33,69 @@ EOF
 
 remote_app="$(macvm_remote_ui_app)"
 remote_binary="$(macvm_remote_ui_binary)"
+remote_socket="$(macvm_remote_control_socket)"
+
+resident_request() {
+    local request="$1"
+    "$MACVM_TART" exec "$MACVM_NAME" "$remote_binary" request \
+        "$remote_socket" "$request"
+}
+
+resident_start() {
+    if resident_request '{"operation":"status"}' >/dev/null 2>&1; then
+        return 0
+    fi
+    "$MACVM_TART" exec "$MACVM_NAME" /bin/rm -f "$remote_socket"
+    "$MACVM_TART" exec "$MACVM_NAME" /usr/bin/open -n "$remote_app" \
+        --args serve "$remote_socket" >/dev/null
+    local attempt
+    for attempt in {1..50}; do
+        if resident_request '{"operation":"status"}' >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 0.1
+    done
+    printf 'MacVM resident service did not become ready\n' >&2
+    return 1
+}
+
+case "${1:-}" in
+    resident-start)
+        macvm_assert_mutation_target
+        resident_start
+        resident_request '{"operation":"status"}'
+        exit
+        ;;
+    resident-stop)
+        macvm_assert_mutation_target
+        if resident_request '{"operation":"server.stop"}' >/dev/null 2>&1; then
+            exit
+        fi
+        "$MACVM_TART" exec "$MACVM_NAME" /bin/rm -f "$remote_socket"
+        exit
+        ;;
+    resident-restart)
+        macvm_assert_mutation_target
+        "$0" resident-stop
+        resident_start
+        resident_request '{"operation":"status"}'
+        exit
+        ;;
+    control)
+        shift
+        if [[ $# -ne 1 ]]; then
+            printf 'Usage: macvm control JSON\n' >&2
+            exit 2
+        fi
+        macvm_assert_mutation_target
+        resident_start
+        resident_request "$1"
+        exit
+        ;;
+esac
 
 if [[ "${1:-}" == "launch" ]]; then
+    macvm_assert_mutation_target
     shift
     if [[ $# -lt 1 ]]; then
         printf 'Usage: macvm ui launch APP [ARG...]\n' >&2
@@ -42,6 +105,10 @@ if [[ "${1:-}" == "launch" ]]; then
     shift
     exec "$MACVM_TART" exec "$MACVM_NAME" /usr/bin/open -a "$app" --args "$@"
 fi
+
+case "${1:-}" in
+    press|focus|set-value) macvm_assert_mutation_target ;;
+esac
 
 if [[ "${1:-}" == "help" || "${1:-}" == "-h" || "${1:-}" == "--help" || $# -eq 0 ]]; then
     usage

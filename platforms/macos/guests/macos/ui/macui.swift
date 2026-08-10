@@ -1,6 +1,9 @@
 import AppKit
 import ApplicationServices
+import CoreGraphics
+import Darwin
 import Foundation
+import SystemConfiguration
 
 enum MacUIError: Error, CustomStringConvertible {
     case usage(String)
@@ -382,6 +385,1063 @@ func perform(_ action: CFString, on record: ElementRecord) throws {
     }
 }
 
+// MARK: - Persistent machine-control facade
+
+struct CuaReference {
+    let pid: Int
+    let windowID: Int
+    let snapshotID: String
+    let token: String
+}
+
+final class ResidentService {
+    let generation = UUID().uuidString.lowercased()
+    private var snapshotNumber = 0
+    private var references: [String: AXUIElement] = [:]
+    private var cuaReferences: [String: CuaReference] = [:]
+    private var referenceOrder: [String] = []
+
+    private func requestString(_ request: [String: Any], _ key: String) -> String? {
+        guard let value = request[key] as? String, !value.isEmpty else { return nil }
+        return value
+    }
+
+    private func requestInt(_ request: [String: Any], _ key: String,
+                            default fallback: Int) -> Int {
+        if let value = request[key] as? Int { return value }
+        if let value = request[key] as? NSNumber { return value.intValue }
+        return fallback
+    }
+
+    private var cuaExecutable: URL? {
+        let homeCandidate = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".local/bin/cua-driver-local")
+        if FileManager.default.isExecutableFile(atPath: homeCandidate.path) {
+            return homeCandidate
+        }
+        let applicationCandidate = URL(fileURLWithPath:
+            "/Applications/CuaDriverLocal.app/Contents/MacOS/cua-driver-local")
+        return FileManager.default.isExecutableFile(atPath: applicationCandidate.path) ?
+            applicationCandidate : nil
+    }
+
+    private func cuaCall(_ tool: String, _ arguments: [String: Any]) throws
+        -> [String: Any] {
+        guard let executable = cuaExecutable else {
+            throw MacUIError.application("Cua Driver is not installed")
+        }
+        let argumentData = try JSONSerialization.data(
+            withJSONObject: arguments, options: [.sortedKeys])
+        let process = Process()
+        let output = Pipe()
+        let errors = Pipe()
+        process.executableURL = executable
+        process.arguments = ["call", tool, String(decoding: argumentData, as: UTF8.self)]
+        process.standardOutput = output
+        process.standardError = errors
+        try process.run()
+        let outputData = output.fileHandleForReading.readDataToEndOfFile()
+        let errorData = errors.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            let message = String(decoding: errorData, as: UTF8.self)
+            throw MacUIError.action("Cua \(tool) failed: \(clean(message))")
+        }
+        let object = try JSONSerialization.jsonObject(with: outputData)
+        guard let result = object as? [String: Any] else {
+            throw MacUIError.action("Cua \(tool) returned non-object JSON")
+        }
+        return result
+    }
+
+    private func cuaPermissions() -> [String: Any]? {
+        guard let executable = cuaExecutable else { return nil }
+        let process = Process()
+        let output = Pipe()
+        process.executableURL = executable
+        process.arguments = ["permissions", "status", "--json"]
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            let data = output.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0,
+                  let object = try JSONSerialization.jsonObject(with: data)
+                    as? [String: Any], object["refusal"] == nil else { return nil }
+            return object
+        } catch { return nil }
+    }
+
+    private func useCua(_ request: [String: Any]) -> Bool {
+        let requested = requestString(request, "provider")
+        if requested == "macos-native" { return false }
+        if requested == "cua" { return true }
+        return !AXIsProcessTrusted() && cuaPermissions() != nil
+    }
+
+    private func cuaApplication(_ query: String) throws -> (Int, String) {
+        let apps = try cuaCall("list_apps", [:])["apps"] as? [[String: Any]] ?? []
+        let matching = apps.filter {
+            (($0["name"] as? String)?.localizedCaseInsensitiveContains(query) ?? false) ||
+            (($0["bundle_id"] as? String)?.localizedCaseInsensitiveContains(query) ?? false)
+        }
+        guard let app = matching.first(where: {
+            ($0["name"] as? String)?.caseInsensitiveCompare(query) == .orderedSame ||
+            ($0["bundle_id"] as? String)?.caseInsensitiveCompare(query) == .orderedSame
+        }) ?? (matching.count == 1 ? matching[0] : nil),
+              let pid = (app["pid"] as? NSNumber)?.intValue, pid > 0 else {
+            throw MacUIError.application("No unique running Cua application matches '\(query)'")
+        }
+        return (pid, app["name"] as? String ?? query)
+    }
+
+    private func cuaWindow(pid: Int) throws -> [String: Any] {
+        let windows = try cuaCall("list_windows", [:])["windows"]
+            as? [[String: Any]] ?? []
+        guard let window = windows.first(where: {
+            ($0["pid"] as? NSNumber)?.intValue == pid &&
+            ($0["layer"] as? NSNumber)?.intValue == 0 &&
+            ($0["is_on_screen"] as? Bool) == true &&
+            (($0["bounds"] as? [String: Any])?["width"] as? NSNumber)?.doubleValue ?? 0 > 1
+        }) else {
+            throw MacUIError.element("Cua found no on-screen window for pid \(pid)")
+        }
+        return window
+    }
+
+    private func projectCuaResult(_ request: [String: Any], providerOperation: String,
+                                  providerResult: [String: Any],
+                                  route: String) -> [String: Any] {
+        if let refusal = providerResult["refusal"] as? [String: Any] {
+            return refused(request,
+                code: refusal["code"] as? String ?? "provider_refused",
+                message: refusal["message"] as? String ?? "Cua refused the operation",
+                route: route)
+        }
+        if let code = providerResult["error"] as? String {
+            return refused(request, code: code.lowercased(),
+                           message: "Cua \(providerOperation) reported \(code)",
+                           route: route)
+        }
+        let delivery: String
+        if let value = providerResult["delivery"] as? String {
+            delivery = value
+        } else if providerResult["delivery"] != nil {
+            delivery = "confirmed"
+        } else {
+            delivery = "confirmed"
+        }
+        let effect = providerResult["effect"] as? String ?? "confirmed"
+        var result = base(request, route: route)
+        result["delivery"] = delivery
+        result["effect"] = effect
+        result["uncertainty"] = effect == "unverifiable" ?
+            "provider_effect_unverifiable" : "none"
+        result["providerAttempts"] = [[
+            "provider": "cua", "operation": providerOperation,
+            "outcome": "completed",
+            "delivery": delivery,
+            "effect": effect,
+        ]]
+        result["data"] = providerResult
+        return result
+    }
+
+    private func base(_ request: [String: Any], accepted: Bool = true,
+                      route: String = "guest.user/macos.resident") -> [String: Any] {
+        [
+            "schema": "machine-control/v0",
+            "requestId": requestString(request, "requestId") ?? UUID().uuidString.lowercased(),
+            "operation": requestString(request, "operation") ?? "unknown",
+            "accepted": accepted,
+            "actualRoute": route,
+            "desktop": "Aqua",
+            "generation": generation,
+            "hostInterference": "none",
+            "uncertainty": "none",
+            "retrySafety": "not_applicable",
+            "fallbackUsed": false,
+            "agentRoundTrips": 1,
+            "retryCount": 0,
+            "staleReferenceEvents": 0,
+        ]
+    }
+
+    private func refused(_ request: [String: Any], code: String,
+                         message: String, route: String = "guest.user/macos.resident",
+                         stale: Bool = false) -> [String: Any] {
+        var result = base(request, accepted: false, route: route)
+        result["delivery"] = "refused"
+        result["effect"] = "refused"
+        result["errorCode"] = code
+        result["message"] = message
+        result["staleReferenceEvents"] = stale ? 1 : 0
+        return result
+    }
+
+    private func applicationJSON(_ app: NSRunningApplication) -> [String: Any] {
+        [
+            "processId": app.processIdentifier,
+            "name": app.localizedName ?? NSNull(),
+            "bundleId": app.bundleIdentifier ?? NSNull(),
+            "active": app.isActive,
+            "hidden": app.isHidden,
+            "terminated": app.isTerminated,
+        ]
+    }
+
+    private func rectJSON(position: CGPoint?, size: CGSize?) -> [String: Any]? {
+        guard let position, let size else { return nil }
+        return [
+            "x": Double(position.x), "y": Double(position.y),
+            "width": Double(size.width), "height": Double(size.height),
+        ]
+    }
+
+    private func elementJSON(_ item: ElementRecord, reference: String,
+                             compact: Bool) -> [String: Any] {
+        if compact {
+            var result: [String: Any] = [
+                "r": reference, "d": item.depth,
+                "t": item.role.isEmpty ? "AXUnknown" : item.role,
+                "n": item.title.isEmpty ? item.description : item.title,
+                "a": item.identifier,
+                "e": item.enabled ?? true,
+                "p": item.actions,
+            ]
+            if !item.value.isEmpty { result["v"] = item.value }
+            if let rect = rectJSON(position: item.position, size: item.size) {
+                result["b"] = [rect["x"]!, rect["y"]!, rect["width"]!, rect["height"]!]
+            }
+            return result
+        }
+        var result: [String: Any] = [
+            "reference": reference,
+            "depth": item.depth,
+            "role": item.role.isEmpty ? "AXUnknown" : item.role,
+            "subrole": item.subrole,
+            "title": item.title,
+            "description": item.description,
+            "value": item.value,
+            "identifier": item.identifier,
+            "enabled": item.enabled ?? true,
+            "focused": item.focused ?? false,
+            "actions": item.actions,
+        ]
+        if let rect = rectJSON(position: item.position, size: item.size) {
+            result["bounds"] = rect
+        }
+        return result
+    }
+
+    private func remember(_ records: [ElementRecord]) -> (String, [[String: Any]], [[String: Any]]) {
+        snapshotNumber += 1
+        let snapshot = "s\(snapshotNumber)"
+        var full: [[String: Any]] = []
+        var compact: [[String: Any]] = []
+        for item in records {
+            let reference = "\(generation):\(snapshot):\(item.reference)"
+            references[reference] = item.element
+            referenceOrder.append(reference)
+            full.append(elementJSON(item, reference: reference, compact: false))
+            compact.append(elementJSON(item, reference: reference, compact: true))
+        }
+        while referenceOrder.count > 4_000 {
+            references.removeValue(forKey: referenceOrder.removeFirst())
+        }
+        return (snapshot, full, compact)
+    }
+
+    private func applicationRecords(_ request: [String: Any]) throws
+        -> (NSRunningApplication, [ElementRecord]) {
+        try requireAccessibility()
+        let app = try resolveApplication(requestString(request, "target"))
+        let root = AXUIElementCreateApplication(app.processIdentifier)
+        let depth = max(0, min(requestInt(request, "maxDepth", default: 8), 30))
+        let limit = max(1, min(requestInt(request, "maxElements", default: 500), 2_000))
+        return (app, traverse(root: root, maxDepth: depth, limit: limit))
+    }
+
+    private func observationFingerprint() -> String {
+        var parts: [String] = []
+        for app in runningApplications() {
+            parts.append("a:\(app.processIdentifier):\(app.isActive):\(app.isHidden)")
+            let root = AXUIElementCreateApplication(app.processIdentifier)
+            let windows = (attribute(root, kAXWindowsAttribute as CFString)
+                           as? [AXUIElement]) ?? []
+            for window in windows.prefix(12) {
+                parts.append("w:\(app.processIdentifier):" +
+                    stringAttribute(window, kAXTitleAttribute as CFString) + ":" +
+                    stringAttribute(window, kAXValueAttribute as CFString))
+            }
+        }
+        return parts.joined(separator: "|")
+    }
+
+    private func activateTarget(_ query: String?) throws -> NSRunningApplication? {
+        guard let query else { return nil }
+        let app = try resolveApplication(query)
+        _ = app.activate(options: [.activateIgnoringOtherApps])
+        usleep(120_000)
+        return app
+    }
+
+    private func keyCode(_ name: String) -> CGKeyCode? {
+        let codes: [String: CGKeyCode] = [
+            "a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5,
+            "z": 6, "x": 7, "c": 8, "v": 9, "b": 11, "q": 12,
+            "w": 13, "e": 14, "r": 15, "y": 16, "t": 17,
+            "1": 18, "2": 19, "3": 20, "4": 21, "6": 22, "5": 23,
+            "=": 24, "9": 25, "7": 26, "-": 27, "8": 28, "0": 29,
+            "]": 30, "o": 31, "u": 32, "[": 33, "i": 34, "p": 35,
+            "enter": 36, "return": 36, "l": 37, "j": 38, "'": 39,
+            "k": 40, ";": 41, "\\": 42, ",": 43, "/": 44, "n": 45,
+            "m": 46, ".": 47, "tab": 48, "space": 49, "delete": 51,
+            "escape": 53, "esc": 53, "left": 123, "right": 124,
+            "down": 125, "up": 126,
+        ]
+        return codes[name.lowercased()]
+    }
+
+    private func sendKey(_ chord: String) throws {
+        let parts = chord.lowercased().split(separator: "-").map(String.init)
+        guard let keyName = parts.last, let code = keyCode(keyName) else {
+            throw MacUIError.usage("Unsupported key chord: \(chord)")
+        }
+        var flags: CGEventFlags = []
+        for modifier in parts.dropLast() {
+            switch modifier {
+            case "cmd", "command": flags.insert(.maskCommand)
+            case "shift": flags.insert(.maskShift)
+            case "ctrl", "control": flags.insert(.maskControl)
+            case "option", "alt": flags.insert(.maskAlternate)
+            default: throw MacUIError.usage("Unsupported key modifier: \(modifier)")
+            }
+        }
+        guard let down = CGEvent(keyboardEventSource: nil, virtualKey: code,
+                                 keyDown: true),
+              let up = CGEvent(keyboardEventSource: nil, virtualKey: code,
+                               keyDown: false) else {
+            throw MacUIError.action("Unable to create keyboard event")
+        }
+        down.flags = flags
+        up.flags = flags
+        down.post(tap: .cghidEventTap)
+        up.post(tap: .cghidEventTap)
+    }
+
+    private func sendText(_ text: String) throws {
+        for character in text {
+            let units = Array(String(character).utf16)
+            guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 0,
+                                     keyDown: true),
+                  let up = CGEvent(keyboardEventSource: nil, virtualKey: 0,
+                                   keyDown: false) else {
+                throw MacUIError.action("Unable to create text event")
+            }
+            units.withUnsafeBufferPointer { buffer in
+                down.keyboardSetUnicodeString(stringLength: units.count,
+                                              unicodeString: buffer.baseAddress!)
+                up.keyboardSetUnicodeString(stringLength: units.count,
+                                            unicodeString: buffer.baseAddress!)
+            }
+            down.post(tap: .cghidEventTap)
+            up.post(tap: .cghidEventTap)
+        }
+    }
+
+    private func windowList(ownerPID: pid_t? = nil) -> [[String: Any]] {
+        guard let raw = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
+        ) as? [[String: Any]] else { return [] }
+        return raw.filter { info in
+            guard let ownerPID else { return true }
+            return (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == ownerPID
+        }.map { info in
+            let bounds = info[kCGWindowBounds as String] as? [String: Any] ?? [:]
+            return [
+                "windowId": info[kCGWindowNumber as String] ?? 0,
+                "processId": info[kCGWindowOwnerPID as String] ?? 0,
+                "owner": info[kCGWindowOwnerName as String] ?? "",
+                "title": info[kCGWindowName as String] ?? "",
+                "layer": info[kCGWindowLayer as String] ?? 0,
+                "bounds": bounds,
+            ]
+        }
+    }
+
+    private func launchApplication(_ query: String) throws -> NSRunningApplication {
+        let before = Set(runningApplications().map(\.processIdentifier))
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        if query.contains(".") && !query.contains("/") {
+            process.arguments = ["-b", query]
+        } else {
+            process.arguments = ["-a", query]
+        }
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw MacUIError.application("Application launch failed: \(query)")
+        }
+        for _ in 0..<30 {
+            if let app = try? resolveApplication(query) {
+                _ = app.activate(options: [.activateIgnoringOtherApps])
+                return app
+            }
+            if let app = runningApplications().first(where: {
+                !before.contains($0.processIdentifier) && $0.activationPolicy == .regular
+            }) {
+                return app
+            }
+            usleep(100_000)
+        }
+        throw MacUIError.application("Application did not become observable: \(query)")
+    }
+
+    private func artifactURL() throws -> URL {
+        let root = FileManager.default.urls(for: .cachesDirectory,
+                                             in: .userDomainMask)[0]
+            .appendingPathComponent("machine-control/artifacts", isDirectory: true)
+        try FileManager.default.createDirectory(at: root,
+                                                withIntermediateDirectories: true,
+                                                attributes: [.posixPermissions: 0o700])
+        let existing = (try? FileManager.default.contentsOfDirectory(
+            at: root, includingPropertiesForKeys: [.contentModificationDateKey]
+        )) ?? []
+        let ordered = existing.sorted {
+            let left = (try? $0.resourceValues(forKeys: [.contentModificationDateKey])
+                .contentModificationDate) ?? .distantPast
+            let right = (try? $1.resourceValues(forKeys: [.contentModificationDateKey])
+                .contentModificationDate) ?? .distantPast
+            return left < right
+        }
+        for url in ordered.dropLast(15) { try? FileManager.default.removeItem(at: url) }
+        return root.appendingPathComponent("capture-\(UUID().uuidString.lowercased()).png")
+    }
+
+    func handle(_ request: [String: Any]) -> [String: Any] {
+        let started = DispatchTime.now().uptimeNanoseconds
+        let operation = requestString(request, "operation") ?? ""
+        var result = refused(request, code: "internal_error",
+                             message: "Operation did not produce a result")
+        do {
+            switch operation {
+            case "capabilities":
+                let cua = cuaPermissions()
+                let defaultSemanticProvider = AXIsProcessTrusted() ? "macos.ax" :
+                    (cua == nil ? "unavailable" : "cua")
+                let defaultVisualProvider = CGPreflightScreenCaptureAccess() ?
+                    "macos.quartz" : (cua == nil ? "unavailable" : "cua")
+                result = base(request)
+                result["delivery"] = "not_applicable"
+                result["effect"] = "not_applicable"
+                result["data"] = [
+                    "providers": [
+                        ["id": "macos-native", "state": AXIsProcessTrusted() ? "ready" : "degraded",
+                         "routeClass": "guest.user", "placement": "target_resident",
+                         "operations": ["applications", "windows", "snapshot", "action",
+                                        "application.launch", "application.terminate", "input.key",
+                                        "input.text", "input.click", "capture"]],
+                        ["id": "cua", "state": cua == nil ? "unavailable" : "ready",
+                         "routeClass": "guest.user", "placement": "target_resident",
+                         "operations": ["applications", "windows", "snapshot", "action",
+                                        "application.launch", "application.terminate", "input.key",
+                                        "input.text", "input.click", "capture"]],
+                    ],
+                    "routing": [
+                        ["operations": ["snapshot", "action"],
+                         "provider": defaultSemanticProvider],
+                        ["operations": ["input.key", "input.text", "input.click"],
+                         "provider": AXIsProcessTrusted() ? "macos.coregraphics" :
+                            (cua == nil ? "unavailable" : "cua")],
+                        ["operations": ["windows", "capture"],
+                         "provider": defaultVisualProvider],
+                        ["operations": ["applications", "application.launch",
+                                         "application.terminate"],
+                         "provider": cua == nil ? "macos.workspace" : "cua"],
+                    ],
+                    "screenCaptureAuthorized": CGPreflightScreenCaptureAccess(),
+                    "accessibilityAuthorized": AXIsProcessTrusted(),
+                    "cuaPermissions": cua.map { $0 as Any } ?? NSNull(),
+                ]
+            case "status":
+                let cua = cuaPermissions()
+                let cuaAccessibility = cua?["accessibility"] as? Bool == true
+                let cuaCapture = cua?["screen_recording"] as? Bool == true
+                result = base(request)
+                result["delivery"] = "not_applicable"
+                result["effect"] = "not_applicable"
+                result["data"] = [
+                    "processId": ProcessInfo.processInfo.processIdentifier,
+                    "user": NSUserName(),
+                    "consoleUser": (SCDynamicStoreCopyConsoleUser(nil, nil, nil)
+                        as String?).map { $0 as Any } ?? NSNull(),
+                    "desktopState": "unlocked",
+                    "semanticState": AXIsProcessTrusted() || cuaAccessibility ?
+                        "ready" : "unavailable",
+                    "nativeSemanticState": AXIsProcessTrusted() ? "ready" : "unavailable",
+                    "captureState": CGPreflightScreenCaptureAccess() || cuaCapture ?
+                        "ready" : "unavailable",
+                    "nativeCaptureState": CGPreflightScreenCaptureAccess() ?
+                        "ready" : "unavailable",
+                    "cuaState": cua == nil ? "unavailable" : "ready",
+                ]
+            case "applications":
+                if useCua(request) {
+                    let output = try cuaCall("list_apps", [:])
+                    result = projectCuaResult(request, providerOperation: "list_apps",
+                                              providerResult: output,
+                                              route: "guest.user/macos.cua")
+                    result["delivery"] = "not_applicable"
+                    result["effect"] = "not_applicable"
+                    break
+                }
+                result = base(request, route: "guest.user/macos.workspace")
+                result["delivery"] = "not_applicable"
+                result["effect"] = "not_applicable"
+                result["data"] = ["applications": runningApplications().map(applicationJSON)]
+            case "windows":
+                if useCua(request) {
+                    var output = try cuaCall("list_windows", [:])
+                    if let target = requestString(request, "target") {
+                        let (pid, _) = try cuaApplication(target)
+                        let windows = output["windows"] as? [[String: Any]] ?? []
+                        output["windows"] = windows.filter {
+                            ($0["pid"] as? NSNumber)?.intValue == pid
+                        }
+                    }
+                    result = projectCuaResult(request, providerOperation: "list_windows",
+                                              providerResult: output,
+                                              route: "guest.user/macos.cua")
+                    result["delivery"] = "not_applicable"
+                    result["effect"] = "not_applicable"
+                    result["coordinateSpace"] = "global_display_points_top_left"
+                    break
+                }
+                let app = try requestString(request, "target").map(resolveApplication)
+                result = base(request, route: "guest.user/macos.quartz")
+                result["delivery"] = "not_applicable"
+                result["effect"] = "not_applicable"
+                result["coordinateSpace"] = "global_display_points_top_left"
+                result["data"] = ["windows": windowList(ownerPID: app?.processIdentifier)]
+            case "snapshot":
+                if useCua(request) {
+                    guard let target = requestString(request, "target") else {
+                        result = refused(request, code: "invalid_request",
+                                         message: "target is required for Cua snapshot")
+                        break
+                    }
+                    let (pid, _) = try cuaApplication(target)
+                    let window = try cuaWindow(pid: pid)
+                    guard let windowID = (window["window_id"] as? NSNumber)?.intValue else {
+                        throw MacUIError.element("Cua window has no native identifier")
+                    }
+                    var arguments: [String: Any] = [
+                        "pid": pid, "window_id": windowID, "include_screenshot": false,
+                        "max_depth": max(1, min(requestInt(request, "maxDepth", default: 12), 25)),
+                        "max_elements": max(1, min(requestInt(request, "maxElements", default: 500), 2_000)),
+                    ]
+                    if let query = requestString(request, "query") { arguments["query"] = query }
+                    var output = try cuaCall("get_window_state", arguments)
+                    let snapshotID = output["snapshot_id"] as? String ?? "unknown"
+                    var projected: [[String: Any]] = []
+                    for var element in output["elements"] as? [[String: Any]] ?? [] {
+                        guard let token = element["element_token"] as? String else { continue }
+                        let reference = "\(generation):cua:\(pid):\(windowID):\(token)"
+                        cuaReferences[reference] = CuaReference(
+                            pid: pid, windowID: windowID,
+                            snapshotID: snapshotID, token: token)
+                        element["reference"] = reference
+                        projected.append(element)
+                    }
+                    output["elements"] = projected
+                    result = projectCuaResult(request,
+                        providerOperation: "get_window_state", providerResult: output,
+                        route: "guest.user/macos.cua")
+                    result["delivery"] = "not_applicable"
+                    result["effect"] = "not_applicable"
+                    result["fidelity"] = "semantic_native"
+                    result["coordinateSpace"] = "window_points_top_left"
+                    break
+                }
+                let (app, records) = try applicationRecords(request)
+                let remembered = remember(records)
+                let compact = requestString(request, "projection") == "compact"
+                result = base(request, route: "guest.user/macos.ax")
+                result["delivery"] = "not_applicable"
+                result["effect"] = "not_applicable"
+                result["fidelity"] = "semantic_native"
+                result["coordinateSpace"] = "global_display_points_top_left"
+                result["data"] = [
+                    "application": applicationJSON(app),
+                    "snapshotId": remembered.0,
+                    "projection": compact ? "compact" : "full",
+                    "elements": compact ? remembered.2 : remembered.1,
+                    "truncated": records.count >= min(requestInt(
+                        request, "maxElements", default: 500), 2_000),
+                ]
+            case "action":
+                if let reference = requestString(request, "reference"),
+                   !reference.hasPrefix(generation + ":") {
+                    result = refused(request, code: "stale_reference",
+                                     message: "Reference belongs to another resident generation",
+                                     stale: true)
+                    break
+                }
+                if let reference = requestString(request, "reference"),
+                   let cuaReference = cuaReferences[reference] {
+                    let action = requestString(request, "action") ?? "press"
+                    var arguments: [String: Any] = [
+                        "pid": cuaReference.pid, "window_id": cuaReference.windowID,
+                        "element_token": cuaReference.token,
+                    ]
+                    let tool: String
+                    if action == "set_value" {
+                        guard let text = requestString(request, "text") else {
+                            result = refused(request, code: "invalid_request",
+                                             message: "text is required for set_value")
+                            break
+                        }
+                        arguments["text"] = text
+                        tool = "type_text"
+                    } else if action == "press" {
+                        arguments["action"] = "press"
+                        tool = "click"
+                    } else {
+                        result = refused(request, code: "unsupported_action",
+                                         message: "Cua action supports press or set_value")
+                        break
+                    }
+                    let output = try cuaCall(tool, arguments)
+                    result = projectCuaResult(request, providerOperation: tool,
+                                              providerResult: output,
+                                              route: "guest.user/macos.cua")
+                    break
+                }
+                if let reference = requestString(request, "reference"),
+                   reference.contains(":cua:") {
+                    result = refused(request, code: "stale_reference",
+                                     message: "Cua reference is no longer present in this generation",
+                                     route: "guest.user/macos.cua", stale: true)
+                    break
+                }
+                guard AXIsProcessTrusted() else {
+                    result = refused(request, code: "authorization_required",
+                                     message: "Accessibility access is not granted",
+                                     route: "guest.user/macos.ax")
+                    break
+                }
+                guard let reference = requestString(request, "reference") else {
+                    result = refused(request, code: "invalid_request",
+                                     message: "reference is required",
+                                     route: "guest.user/macos.ax")
+                    break
+                }
+                guard reference.hasPrefix(generation + ":"),
+                      let element = references[reference] else {
+                    result = refused(request, code: "stale_reference",
+                                     message: "Reference is not valid for this resident generation",
+                                     route: "guest.user/macos.ax", stale: true)
+                    break
+                }
+                let action = requestString(request, "action") ?? "press"
+                let before = observationFingerprint()
+                var delivery: AXError?
+                switch action {
+                case "press":
+                    delivery = AXUIElementPerformAction(element, kAXPressAction as CFString)
+                case "focus":
+                    delivery = AXUIElementSetAttributeValue(
+                        element, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+                case "set_value":
+                    guard let value = requestString(request, "text") else {
+                        result = refused(request, code: "invalid_request",
+                                         message: "text is required for set_value",
+                                         route: "guest.user/macos.ax")
+                        break
+                    }
+                    delivery = AXUIElementSetAttributeValue(
+                        element, kAXValueAttribute as CFString, value as CFString)
+                default:
+                    result = refused(request, code: "unsupported_action",
+                                     message: "Unsupported AX action: \(action)",
+                                     route: "guest.user/macos.ax")
+                    break
+                }
+                guard let delivery else { break }
+                guard delivery == .success else {
+                    result = refused(request, code: "delivery_failed",
+                                     message: "AX action failed with error \(delivery.rawValue)",
+                                     route: "guest.user/macos.ax")
+                    break
+                }
+                usleep(180_000)
+                let after = observationFingerprint()
+                result = base(request, route: "guest.user/macos.ax")
+                result["delivery"] = "confirmed"
+                result["effect"] = before == after ? "unverifiable" : "confirmed"
+                result["uncertainty"] = before == after ? "no_independent_state_change" : "none"
+                result["evidence"] = [["kind": "semantic_state",
+                                       "summary": before == after ?
+                                           "AX delivery acknowledged; no independent change observed" :
+                                           "application/window state changed after AX delivery"]]
+            case "application.launch":
+                guard let query = requestString(request, "applicationId") ??
+                        requestString(request, "target") else {
+                    result = refused(request, code: "invalid_request",
+                                     message: "applicationId or target is required")
+                    break
+                }
+                if useCua(request) {
+                    let key = query.contains(".") && !query.contains(" ") ?
+                        "bundle_id" : "name"
+                    let output = try cuaCall("launch_app", [key: query])
+                    result = projectCuaResult(request, providerOperation: "launch_app",
+                                              providerResult: output,
+                                              route: "guest.user/macos.cua")
+                    break
+                }
+                let app = try launchApplication(query)
+                result = base(request, route: "guest.user/macos.workspace")
+                result["delivery"] = "confirmed"
+                result["effect"] = "confirmed"
+                result["data"] = ["application": applicationJSON(app)]
+                result["evidence"] = [["kind": "process_state",
+                                       "summary": "Application is running"]]
+            case "application.terminate":
+                guard let query = requestString(request, "target") else {
+                    result = refused(request, code: "invalid_request",
+                                     message: "target is required")
+                    break
+                }
+                let app = try resolveApplication(query)
+                let pid = app.processIdentifier
+                let delivered = app.terminate()
+                for _ in 0..<20 where !app.isTerminated { usleep(100_000) }
+                result = base(request, route: "guest.user/macos.workspace")
+                result["delivery"] = delivered ? "confirmed" : "unknown"
+                result["effect"] = app.isTerminated ? "confirmed" : "unknown"
+                result["uncertainty"] = app.isTerminated ? "none" : "termination_not_observed"
+                result["data"] = ["processId": pid]
+            case "input.key", "input.text", "input.click":
+                if useCua(request) {
+                    var arguments: [String: Any] = [:]
+                    if let target = requestString(request, "target") {
+                        let (pid, _) = try cuaApplication(target)
+                        arguments["pid"] = pid
+                    } else {
+                        arguments["scope"] = "desktop"
+                    }
+                    let tool: String
+                    if operation == "input.key" {
+                        guard let key = requestString(request, "key") else {
+                            result = refused(request, code: "invalid_request",
+                                             message: "key is required"); break
+                        }
+                        let keys = key.split(separator: "-").map(String.init)
+                        if keys.count == 1 {
+                            arguments["key"] = keys[0]
+                            tool = "press_key"
+                        } else {
+                            arguments["keys"] = keys
+                            tool = "hotkey"
+                        }
+                    } else if operation == "input.text" {
+                        guard let text = requestString(request, "text") else {
+                            result = refused(request, code: "invalid_request",
+                                             message: "text is required"); break
+                        }
+                        arguments["text"] = text
+                        tool = "type_text"
+                    } else {
+                        let x = requestInt(request, "x", default: -1)
+                        let y = requestInt(request, "y", default: -1)
+                        guard x >= 0, y >= 0 else {
+                            result = refused(request, code: "invalid_request",
+                                             message: "non-negative x and y are required"); break
+                        }
+                        arguments["x"] = x; arguments["y"] = y
+                        tool = "click"
+                    }
+                    let output = try cuaCall(tool, arguments)
+                    result = projectCuaResult(request, providerOperation: tool,
+                                              providerResult: output,
+                                              route: "guest.user/macos.cua")
+                    result["focusConsequence"] = "provider_reported"
+                    result["cursorConsequence"] = "provider_reported"
+                    break
+                }
+                guard AXIsProcessTrusted() else {
+                    result = refused(request, code: "authorization_required",
+                                     message: "Accessibility access is required for input",
+                                     route: "guest.user/macos.coregraphics")
+                    break
+                }
+                _ = try activateTarget(requestString(request, "target"))
+                let before = observationFingerprint()
+                if operation == "input.key" {
+                    guard let key = requestString(request, "key") else {
+                        result = refused(request, code: "invalid_request",
+                                         message: "key is required"); break
+                    }
+                    try sendKey(key)
+                } else if operation == "input.text" {
+                    guard let text = requestString(request, "text") else {
+                        result = refused(request, code: "invalid_request",
+                                         message: "text is required"); break
+                    }
+                    try sendText(text)
+                } else {
+                    let x = requestInt(request, "x", default: -1)
+                    let y = requestInt(request, "y", default: -1)
+                    guard x >= 0, y >= 0 else {
+                        result = refused(request, code: "invalid_request",
+                                         message: "non-negative x and y are required"); break
+                    }
+                    let point = CGPoint(x: x, y: y)
+                    guard let down = CGEvent(mouseEventSource: nil,
+                        mouseType: .leftMouseDown, mouseCursorPosition: point,
+                        mouseButton: .left),
+                          let up = CGEvent(mouseEventSource: nil,
+                        mouseType: .leftMouseUp, mouseCursorPosition: point,
+                        mouseButton: .left) else {
+                        throw MacUIError.action("Unable to create pointer event")
+                    }
+                    down.post(tap: .cghidEventTap); up.post(tap: .cghidEventTap)
+                }
+                usleep(180_000)
+                let changed = before != observationFingerprint()
+                result = base(request, route: "guest.user/macos.coregraphics")
+                result["delivery"] = "confirmed"
+                result["effect"] = changed ? "confirmed" : "unverifiable"
+                result["uncertainty"] = changed ? "none" : "no_independent_state_change"
+                result["focusConsequence"] = requestString(request, "target") == nil ?
+                    "current_guest_focus" : "target_application_activated"
+                result["cursorConsequence"] = operation == "input.click" ?
+                    "guest_cursor_moved" : "none"
+            case "capture":
+                if useCua(request) {
+                    guard let target = requestString(request, "target") else {
+                        result = refused(request, code: "invalid_request",
+                                         message: "target is required for exact-window capture")
+                        break
+                    }
+                    let (pid, _) = try cuaApplication(target)
+                    let window = try cuaWindow(pid: pid)
+                    guard let windowID = (window["window_id"] as? NSNumber)?.intValue else {
+                        throw MacUIError.element("Cua window has no native identifier")
+                    }
+                    let url = try artifactURL()
+                    let output = try cuaCall("get_window_state", [
+                        "pid": pid, "window_id": windowID,
+                        "include_screenshot": true,
+                        "max_depth": 1, "max_elements": 1,
+                        "screenshot_out_file": url.path,
+                    ])
+                    result = projectCuaResult(request,
+                        providerOperation: "get_window_state", providerResult: output,
+                        route: "guest.user/macos.cua")
+                    result["fidelity"] = "exact_window"
+                    result["coordinateSpace"] = "window_pixels"
+                    break
+                }
+                guard CGPreflightScreenCaptureAccess() else {
+                    _ = CGRequestScreenCaptureAccess()
+                    result = refused(request, code: "authorization_required",
+                                     message: "Screen Recording access is not granted",
+                                     route: "guest.user/macos.quartz")
+                    break
+                }
+                let app = try requestString(request, "target").map(resolveApplication)
+                let windows = windowList(ownerPID: app?.processIdentifier)
+                let requestedWindow = requestInt(request, "windowId", default: 0)
+                let chosen = requestedWindow == 0 ? windows.first : windows.first {
+                    ($0["windowId"] as? NSNumber)?.intValue == requestedWindow
+                }
+                guard let chosen,
+                      let windowId = (chosen["windowId"] as? NSNumber)?.intValue else {
+                    result = refused(request, code: "window_not_found",
+                                     message: "No capturable window matched",
+                                     route: "guest.user/macos.quartz")
+                    break
+                }
+                let url = try artifactURL()
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+                process.arguments = ["-x", "-o", "-l", String(windowId), url.path]
+                try process.run(); process.waitUntilExit()
+                guard process.terminationStatus == 0,
+                      FileManager.default.fileExists(atPath: url.path) else {
+                    result = refused(request, code: "capture_failed",
+                                     message: "Exact-window capture failed",
+                                     route: "guest.user/macos.quartz")
+                    break
+                }
+                let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+                result = base(request, route: "guest.user/macos.quartz")
+                result["delivery"] = "confirmed"
+                result["effect"] = "confirmed"
+                result["fidelity"] = "exact_window"
+                result["coordinateSpace"] = "window_pixels"
+                result["data"] = ["artifactPath": url.path,
+                                  "bytes": attributes[.size] ?? 0,
+                                  "window": chosen]
+            case "server.stop":
+                result = base(request)
+                result["delivery"] = "confirmed"
+                result["effect"] = "confirmed"
+            default:
+                result = refused(request, code: "unsupported_operation",
+                                 message: "Unsupported operation: \(operation)")
+            }
+        } catch let error as MacUIError {
+            result = refused(request, code: "operation_failed", message: error.description)
+        } catch {
+            result = refused(request, code: "operation_failed", message: String(describing: error))
+        }
+        result["elapsedMs"] = Int((DispatchTime.now().uptimeNanoseconds - started) / 1_000_000)
+        return result
+    }
+}
+
+func encodeJSONLine(_ object: [String: Any]) throws -> Data {
+    var data = try JSONSerialization.data(withJSONObject: object,
+                                           options: [.sortedKeys])
+    data.append(0x0a)
+    return data
+}
+
+func unixAddress(_ path: String) throws -> (sockaddr_un, socklen_t) {
+    let bytes = Array(path.utf8CString)
+    var address = sockaddr_un()
+    guard bytes.count <= MemoryLayout.size(ofValue: address.sun_path) else {
+        throw MacUIError.usage("Unix socket path is too long")
+    }
+    address.sun_family = sa_family_t(AF_UNIX)
+    withUnsafeMutableBytes(of: &address.sun_path) { destination in
+        bytes.withUnsafeBytes { source in
+            destination.copyBytes(from: source)
+        }
+    }
+    let length = socklen_t(MemoryLayout<sa_family_t>.size + bytes.count)
+    return (address, length)
+}
+
+func withSockAddr<T>(_ address: inout sockaddr_un, length: socklen_t,
+                     _ body: (UnsafePointer<sockaddr>, socklen_t) throws -> T) rethrows -> T {
+    try withUnsafePointer(to: &address) {
+        try $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+            try body($0, length)
+        }
+    }
+}
+
+func readSocket(_ descriptor: Int32, limit: Int = 1_048_576) throws -> Data {
+    var result = Data()
+    var buffer = [UInt8](repeating: 0, count: 16_384)
+    while result.count < limit {
+        let count = Darwin.read(descriptor, &buffer, buffer.count)
+        if count == 0 { break }
+        if count < 0 {
+            if errno == EINTR { continue }
+            throw MacUIError.action("Socket read failed: \(String(cString: strerror(errno)))")
+        }
+        result.append(buffer, count: count)
+        if result.last == 0x0a { break }
+    }
+    guard result.count < limit else {
+        throw MacUIError.usage("Request exceeded \(limit) bytes")
+    }
+    return result
+}
+
+func writeSocket(_ descriptor: Int32, data: Data) throws {
+    try data.withUnsafeBytes { rawBuffer in
+        guard var pointer = rawBuffer.baseAddress else { return }
+        var remaining = rawBuffer.count
+        while remaining > 0 {
+            let count = Darwin.write(descriptor, pointer, remaining)
+            if count < 0 {
+                if errno == EINTR { continue }
+                throw MacUIError.action("Socket write failed: \(String(cString: strerror(errno)))")
+            }
+            remaining -= count
+            pointer = pointer.advanced(by: count)
+        }
+    }
+}
+
+func runResidentServer(socketPath: String) throws -> Never {
+    let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
+    guard descriptor >= 0 else { throw MacUIError.action("Unable to create Unix socket") }
+    unlink(socketPath)
+    var (address, length) = try unixAddress(socketPath)
+    guard withSockAddr(&address, length: length, {
+        Darwin.bind(descriptor, $0, $1)
+    }) == 0 else {
+        throw MacUIError.action("Unable to bind Unix socket: \(String(cString: strerror(errno)))")
+    }
+    guard chmod(socketPath, S_IRUSR | S_IWUSR) == 0,
+          listen(descriptor, 8) == 0 else {
+        throw MacUIError.action("Unable to listen on Unix socket")
+    }
+    let service = ResidentService()
+    while true {
+        let client = accept(descriptor, nil, nil)
+        if client < 0 {
+            if errno == EINTR { continue }
+            throw MacUIError.action("Socket accept failed: \(String(cString: strerror(errno)))")
+        }
+        autoreleasepool {
+            defer { Darwin.close(client) }
+            do {
+                let data = try readSocket(client)
+                let object = try JSONSerialization.jsonObject(with: data)
+                guard let request = object as? [String: Any] else {
+                    throw MacUIError.usage("Request must be a JSON object")
+                }
+                let response = service.handle(request)
+                try writeSocket(client, data: encodeJSONLine(response))
+                if request["operation"] as? String == "server.stop" {
+                    Darwin.close(descriptor)
+                    unlink(socketPath)
+                    exit(0)
+                }
+            } catch {
+                let response: [String: Any] = [
+                    "schema": "machine-control/v0", "operation": "unknown",
+                    "requestId": UUID().uuidString.lowercased(), "accepted": false,
+                    "actualRoute": "guest.user/macos.resident",
+                    "delivery": "refused", "effect": "refused",
+                    "uncertainty": "none", "errorCode": "invalid_request",
+                    "message": String(describing: error), "elapsedMs": 0,
+                ]
+                try? writeSocket(client, data: encodeJSONLine(response))
+            }
+        }
+    }
+}
+
+func runResidentClient(socketPath: String, requestData: Data) throws {
+    let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
+    guard descriptor >= 0 else { throw MacUIError.action("Unable to create Unix socket") }
+    defer { Darwin.close(descriptor) }
+    var (address, length) = try unixAddress(socketPath)
+    guard withSockAddr(&address, length: length, {
+        Darwin.connect(descriptor, $0, $1)
+    }) == 0 else {
+        throw MacUIError.action("Resident service is unavailable")
+    }
+    var line = requestData
+    if line.last != 0x0a { line.append(0x0a) }
+    try writeSocket(descriptor, data: line)
+    _ = Darwin.shutdown(descriptor, SHUT_WR)
+    let response = try readSocket(descriptor)
+    FileHandle.standardOutput.write(response)
+}
+
 var arguments = Array(CommandLine.arguments.dropFirst())
 if arguments.count >= 4, arguments[0] == "--output",
    arguments[2] == "--status" {
@@ -397,6 +1457,28 @@ if arguments.count >= 4, arguments[0] == "--output",
 }
 guard let command = arguments.first else {
     fail(MacUIError.usage(usage()), status: 2)
+}
+
+if command == "serve" || command == "request" {
+    do {
+        guard arguments.count >= 2 else {
+            throw MacUIError.usage("Usage: macui \(command) SOCKET [JSON]")
+        }
+        let socketPath = arguments[1]
+        if command == "serve" {
+            try runResidentServer(socketPath: socketPath)
+        }
+        let requestData: Data
+        if arguments.count >= 3 {
+            requestData = Data(arguments[2].utf8)
+        } else {
+            requestData = FileHandle.standardInput.readDataToEndOfFile()
+        }
+        try runResidentClient(socketPath: socketPath, requestData: requestData)
+        exit(0)
+    } catch {
+        fail(error)
+    }
 }
 
 do {

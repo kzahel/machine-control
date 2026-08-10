@@ -17,6 +17,8 @@ macOS Accessibility inspection and actions.
 | Guest | macOS 26 prepared or vanilla image |
 | Command channel | Tart guest agent through `tart exec` |
 | Semantic UI | Native AXUIElement helper in the interactive guest session |
+| Resident facade | Per-user Unix socket with `machine-control/v0` envelopes |
+| Composition | Native AX/Quartz/CGEvent plus optional installed Cua |
 | Recovery | Tart-window screenshot and CoreGraphics keyboard/mouse input |
 
 The semantic helper has no provider-packaged exclusions for the Dock, menu
@@ -45,6 +47,8 @@ The final authorization opens an explicit guest macOS consent flow. Follow
 bin/macvm doctor
 bin/macvm up
 bin/macvm exec /usr/bin/sw_vers
+bin/macvm control '{"operation":"capabilities"}'
+bin/macvm control '{"operation":"applications"}'
 bin/macvm shell
 bin/macvm suspend
 ```
@@ -64,6 +68,20 @@ bin/macvm ui find Downloads --app Safari
 bin/macvm ui press Downloads --app Safari
 bin/macvm ui launch TextEdit
 ```
+
+The resident facade is the normal agent path. It starts lazily in the Aqua
+session, reports the selected provider, and is callable through the host
+wrapper or the same guest-local CLI:
+
+```bash
+bin/macvm control '{"operation":"status"}'
+bin/macvm exec ~/bin/machine-control '{"operation":"status"}'
+```
+
+Both calls reach one socket and one resident generation. Semantic references
+are scoped to that generation and fail closed after restart. If the native
+app lacks a TCC grant but an installed Cua daemon is healthy, results disclose
+that composition and route rather than pretending the native provider ran.
 
 Use the provider-level path when semantic automation is unavailable:
 
@@ -88,12 +106,15 @@ Host agent
   |
   +-- tart exec -> macui ------- semantic Accessibility tree/actions
   |
+  +-- tart exec -> resident ---- owned facade over native/Cua providers
+  |
   +-- Tart window -------------- screenshot and injected input recovery
   |
   +-- tart CLI ----------------- lifecycle, IP, suspend, stop
 ```
 
-The UI helper is compiled and ad-hoc signed inside the guest as
+The UI helper is compiled and ad-hoc signed with an explicit stable designated
+requirement inside the guest as
 `~/Applications/MacVM UI.app`. Tart's interactive user agent requests each
 LaunchServices invocation and returns its output, while macOS sees one stable
 app identity for Accessibility consent. This avoids the Windows-style
@@ -117,6 +138,7 @@ bin/macui                         Guest semantic-control wrapper
 providers/tart-macos/             Lifecycle, capture, and raw input
 guests/macos/bootstrap/           Fresh-guest installation assets
 guests/macos/ui/macui.swift       Native Accessibility helper
+guests/macos/fixture/             Deterministic native conformance fixture
 scripts/                          Deployment and diagnostics
 skills/drive-macvm/               Reusable agent operating skill
 ```
@@ -149,6 +171,8 @@ Guest:
 - Guest authentication is entered directly into guest macOS consent UI.
 - The repository share is read-only by default.
 - The UI helper is non-root and cannot bypass TCC or macOS integrity levels.
+- The resident socket is owned by the interactive user with mode `0600`.
+- Ignored target-role/name guards can fail closed before clone mutation.
 - `force-stop` is an explicit recovery operation, never routine lifecycle.
 
 ## License
