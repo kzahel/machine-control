@@ -189,6 +189,18 @@ bound to that process, window, requester, context, resident generation, short
 expiry, and a single cancel or credential submission. A stale, expired, used,
 or changed-sheet lease fails closed.
 
+The strict SecurityAgent profiles currently admit the ordinary
+`REQUESTER wants to make changes` sheet with its OK button and Installer's
+exact `Installer is trying to install new software` sheet with its Install
+Software button. Other prompts fail closed even when they contain a secure
+field.
+
+The broker also admits the exact LocalAuthentication `Privacy & Security`
+sheet shown after Gatekeeper's Open Anyway action. It requires the fixed
+harm-warning and administrator-credential text, the titled on-screen window,
+and the exact Cancel and OK controls. Other LocalAuthentication prompts fail
+closed.
+
 The default expiry is 30 seconds. Callers may request 250 milliseconds through
 120 seconds; the upper bound accommodates an attended non-echoing credential
 step without making a lease durable.

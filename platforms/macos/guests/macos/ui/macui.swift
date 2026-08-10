@@ -803,7 +803,7 @@ final class ResidentService {
         return codes[name.lowercased()]
     }
 
-    private func sendKey(_ chord: String) throws {
+    private func sendKey(_ chord: String, processID: pid_t? = nil) throws {
         let parts = chord.lowercased().split(separator: "-").map(String.init)
         guard let keyName = parts.last, let code = keyCode(keyName) else {
             throw MacUIError.usage("Unsupported key chord: \(chord)")
@@ -826,8 +826,13 @@ final class ResidentService {
         }
         down.flags = flags
         up.flags = flags
-        down.post(tap: .cghidEventTap)
-        up.post(tap: .cghidEventTap)
+        if let processID {
+            down.postToPid(processID)
+            up.postToPid(processID)
+        } else {
+            down.post(tap: .cghidEventTap)
+            up.post(tap: .cghidEventTap)
+        }
     }
 
     private func sendText(_ text: String) throws {
@@ -991,8 +996,9 @@ final class ResidentService {
         -> AuthorizationSheet {
         try requireAccessibility()
         let candidates = runningApplications().filter {
-            ["com.apple.SecurityAgent", "com.apple.systempreferences"]
-                .contains($0.bundleIdentifier ?? "") && !$0.isTerminated && $0.isActive
+            ["com.apple.SecurityAgent", "com.apple.systempreferences",
+             "com.apple.LocalAuthentication.UIAgent"]
+                .contains($0.bundleIdentifier ?? "") && !$0.isTerminated
         }
         var matches: [AuthorizationSheet] = []
         for app in candidates {
@@ -1019,13 +1025,17 @@ final class ResidentService {
         let confirmTitle: String
         switch bundleID {
         case "com.apple.SecurityAgent":
+            let ordinaryPrompt =
+                text.contains("\(expectedRequester) wants to make changes.")
+            let installerPrompt = expectedRequester == "Installer" &&
+                text.contains("Installer is trying to install new software.")
             guard text.contains(expectedRequester),
-                  text.contains("\(expectedRequester) wants to make changes."),
-                  text.contains("Enter your password to allow this.") else {
+                  text.contains("Enter your password to allow this."),
+                  ordinaryPrompt != installerPrompt else {
                 throw MacUIError.element(
                     "SecurityAgent sheet did not match the expected requester")
             }
-            confirmTitle = "OK"
+            confirmTitle = installerPrompt ? "Install Software" : "OK"
         case "com.apple.systempreferences":
             guard text.contains(expectedRequester),
                   text.contains(
@@ -1035,6 +1045,17 @@ final class ResidentService {
                     "System Settings sheet did not match the expected requester")
             }
             confirmTitle = "Modify Settings"
+        case "com.apple.LocalAuthentication.UIAgent":
+            guard expectedRequester == "Privacy & Security",
+                  text.contains(expectedRequester),
+                  text.contains(
+                    "You are attempting to open an app that may cause harm to your Mac or compromise your privacy"),
+                  text.contains(
+                    "Enter an administrator’s username and password to allow this.") else {
+                throw MacUIError.element(
+                    "Privacy & Security sheet did not match the strict fingerprint")
+            }
+            confirmTitle = "OK"
         default:
             throw MacUIError.element("Unsupported authorization sheet owner")
         }
@@ -1055,15 +1076,21 @@ final class ResidentService {
                 "Authorization sheet controls did not match the strict fingerprint")
         }
         let windows = windowList(ownerPID: app.processIdentifier)
-        let sheetWindows: [[String: Any]]
-        if bundleID == "com.apple.systempreferences" {
-            sheetWindows = windows.filter {
-                ($0["title"] as? String ?? "").isEmpty &&
-                    ($0["onScreen"] as? Bool == true) &&
-                    ($0["layer"] as? Int == 0)
+        let sheetWindows = windows.filter {
+            let title = $0["title"] as? String ?? ""
+            let titleMatches: Bool
+            if bundleID == "com.apple.systempreferences" {
+                titleMatches = title.isEmpty
+            } else if bundleID == "com.apple.LocalAuthentication.UIAgent" {
+                titleMatches = title == expectedRequester
+            } else {
+                titleMatches = true
             }
-        } else {
-            sheetWindows = windows
+            let layer = $0["layer"] as? Int ?? -1
+            let layerMatches = bundleID == "com.apple.systempreferences" ?
+                layer == 0 : [0, 1_000].contains(layer)
+            return titleMatches && layerMatches &&
+                ($0["onScreen"] as? Bool == true)
         }
         guard sheetWindows.count == 1,
               let number = sheetWindows[0]["windowId"] as? NSNumber else {
@@ -1160,7 +1187,7 @@ final class ResidentService {
         return (code, entry.1 ? .maskShift : [])
     }
 
-    private func sendCredential(_ credential: Data) throws {
+    private func sendCredential(_ credential: Data, processID: pid_t) throws {
         for byte in credential {
             guard let (code, flags) = physicalKey(for: byte),
                   let down = CGEvent(keyboardEventSource: nil,
@@ -1172,8 +1199,8 @@ final class ResidentService {
             }
             down.flags = flags
             up.flags = flags
-            down.post(tap: .cghidEventTap)
-            up.post(tap: .cghidEventTap)
+            down.postToPid(processID)
+            up.postToPid(processID)
             usleep(18_000)
         }
     }
@@ -1195,6 +1222,9 @@ final class ResidentService {
                         expectedRequester: lease.requester),
                       sheet.processID == lease.processID,
                       sheet.windowID == lease.windowID {
+                _ = NSRunningApplication(processIdentifier: sheet.processID)?
+                    .activate()
+                usleep(120_000)
                 let focused = AXUIElementSetAttributeValue(
                     sheet.secureField, kAXFocusedAttribute as CFString,
                     kCFBooleanTrue)
@@ -1204,9 +1234,9 @@ final class ResidentService {
                         route: "guest.user/macos.authorization")
                 } else {
                     do {
-                        try sendKey("cmd-a")
-                        try sendKey("delete")
-                        try sendCredential(credential)
+                        try sendKey("cmd-a", processID: sheet.processID)
+                        try sendKey("delete", processID: sheet.processID)
+                        try sendCredential(credential, processID: sheet.processID)
                         usleep(120_000)
                         let pressed = AXUIElementPerformAction(
                             sheet.confirmButton, kAXPressAction as CFString)
