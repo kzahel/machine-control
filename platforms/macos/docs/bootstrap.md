@@ -175,6 +175,11 @@ when ordinary guest UI accepts them. That is a secure-input boundary, not an
 outer-control failure. The user performs any password submission directly;
 the agent resumes with the remaining non-secret UI.
 
+This direct-user requirement applies here because MacVM UI does not yet have
+Accessibility permission. Once the stable resident is trusted, matching normal
+Aqua administrator sheets use the bounded one-shot path documented in
+[macOS UI automation](ui-automation.md#administrator-authorization-sheets).
+
 System-key shortcuts require the VM to have been started through `macvm up`
 or another `tart run --capture-system-keys` invocation. If Command-Shift-G is
 consumed by the host, shut the guest down normally and restart it through the

@@ -83,6 +83,9 @@ Both calls reach one socket and one resident generation. Semantic references
 are scoped to that generation and fail closed after restart. If the native
 app lacks a TCC grant but an installed Cua daemon is healthy, results disclose
 that composition and route rather than pretending the native provider ran.
+Normal Aqua administrator sheets use the same resident through a strict,
+short-lived lease and an interactive non-echoing credential helper; see
+[macOS UI automation](docs/ui-automation.md#administrator-authorization-sheets).
 
 Use the provider-level path when semantic automation is unavailable:
 
@@ -169,8 +172,11 @@ Guest:
 
 ## Security
 
-- No password is stored or accepted by the CLI.
-- Guest authentication is entered directly into guest macOS consent UI.
+- No credential is accepted in JSON, arguments, environment, or files. The
+  administrator-sheet helper reads one credential from an interactive terminal
+  without echo and streams it directly to the resident.
+- Initial TCC consent still requires direct guest-user interaction because the
+  resident does not yet have Accessibility permission.
 - The repository share is read-only by default.
 - The UI helper is non-root and cannot bypass TCC or macOS integrity levels.
 - The resident socket is owned by the interactive user with mode `0600`.

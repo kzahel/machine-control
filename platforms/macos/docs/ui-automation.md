@@ -173,7 +173,9 @@ step. It also does not claim loginwindow, FileVault/preboot, Recovery, or
 unrestricted root authority.
 
 Accessibility does not erase all macOS integrity boundaries. Use the outer
-Tart input path for consent sheets and other UI that AX cannot reach. A user
-enters passwords and submits secure authorization sheets directly in the
-guest; the CLI has no password argument. Continue with the outer path after
-the secure sheet closes.
+Tart input path for initial consent sheets that the not-yet-trusted resident
+cannot reach, and for explicit recovery. After Accessibility is granted, use
+the bounded resident authorization path above for matching normal Aqua
+administrator sheets. Loginwindow, FileVault/preboot, Recovery, and other
+unimplemented protected surfaces still require another explicitly selected
+route or a user.
