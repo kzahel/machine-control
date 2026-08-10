@@ -23,6 +23,13 @@ Camera, Microphone, and Automation prompts. Each class proves both Don't Allow
 and Allow through native system-dialog semantics, distinguishes policy from
 Tart's missing camera/microphone hardware, and alternates outside and
 guest-local calls without host interference.
+`privacy-settings.sh` covers settings-managed Accessibility, Input Monitoring,
+and Screen Recording grants and revocation. It drives the Privacy & Security
+pane, proves a real event tap and ScreenCaptureKit enumeration after the
+relevant grants, and uses the resident's bounded one-shot credential lease only
+when macOS presents the strict inline administrator window. The credential
+cases are interactive and never put the secret in request JSON, arguments,
+environment, files, logs, captures, or results.
 `real-applications.sh` sustains the same facade across Finder, System Settings,
 TextEdit, Safari, an application menu bar, exact-window artifacts, focus
 preservation, and owned-state cleanup.
@@ -47,6 +54,7 @@ tests/macos/conformance.sh remote
 tests/macos/conformance.sh local
 tests/macos/aqua-visual-fallback.sh
 tests/macos/privacy-consent.sh
+tests/macos/privacy-settings.sh
 tests/macos/real-applications.sh
 tests/macos/provider-comparison.sh
 tests/macos/administrator-sheet.sh
