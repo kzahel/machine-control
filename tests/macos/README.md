@@ -34,6 +34,10 @@ environment, files, logs, captures, or results.
 SIP is disabled, and direct Documents, Downloads, and protected-data fixture
 reads are not refused after supported TCC resets. It treats that as unavailable
 enforcement rather than a successful Full Disk Access decision.
+`system-dialogs.sh` drives deterministic Open, folder-selection, and Save
+panels, a nested application sheet, and an application relaunch request. It
+alternates outside and guest-local callers and verifies files and fixture state
+independently.
 `real-applications.sh` sustains the same facade across Finder, System Settings,
 TextEdit, Safari, an application menu bar, exact-window artifacts, focus
 preservation, and owned-state cleanup.
@@ -60,6 +64,7 @@ tests/macos/aqua-visual-fallback.sh
 tests/macos/privacy-consent.sh
 tests/macos/privacy-settings.sh
 tests/macos/privacy-appliance-posture.sh
+tests/macos/system-dialogs.sh
 tests/macos/real-applications.sh
 tests/macos/provider-comparison.sh
 tests/macos/administrator-sheet.sh
