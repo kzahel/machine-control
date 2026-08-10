@@ -121,6 +121,18 @@ if WINVM_UTM_NAME='configured-name' \
     exit 1
 fi
 
+mkdir -p "$temporary/factory-media"
+touch "$temporary/factory-media/windows.iso" \
+    "$temporary/factory-media/seed.iso"
+(
+    cd "$temporary"
+    WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-factory-create" \
+    WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-factory-create" \
+    WINVM_TEST_FACTORY_UTMCTL_MARKER="$temporary/factory-created" \
+    "$provider" factory-create fixture \
+        factory-media/windows.iso factory-media/seed.iso >/dev/null
+)
+
 delete_capture="$temporary/delete-target"
 delete_marker="$temporary/delete-complete"
 env \

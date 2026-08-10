@@ -193,6 +193,8 @@ factory_create() {
             return 1
         fi
     done
+    windows_iso="$(cd "$(dirname "$windows_iso")" && pwd -P)/$(basename "$windows_iso")"
+    seed_iso="$(cd "$(dirname "$seed_iso")" && pwd -P)/$(basename "$seed_iso")"
     if vm_is_registered "$destination"; then
         printf 'Factory destination is already registered.\n' >&2
         return 1

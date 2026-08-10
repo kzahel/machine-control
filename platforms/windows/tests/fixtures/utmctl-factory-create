@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ "${1:-}" == "status" && -n "${WINVM_TEST_FACTORY_UTMCTL_MARKER:-}" ]]; then
+    if [[ ! -e "$WINVM_TEST_FACTORY_UTMCTL_MARKER" ]]; then
+        touch "$WINVM_TEST_FACTORY_UTMCTL_MARKER"
+        exit 1
+    fi
+    printf 'stopped\n'
+    exit 0
+fi
+
+exit 1

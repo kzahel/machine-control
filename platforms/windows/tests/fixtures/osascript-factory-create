@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ $# -ne 4 || "$1" != "-" || "$3" != /* || "$4" != /* ]]; then
+    printf 'Factory AppleScript did not receive absolute media paths.\n' >&2
+    exit 1
+fi
+
+script="$(</dev/stdin)"
+[[ "$script" == *'make new virtual machine'* ]]
