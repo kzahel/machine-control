@@ -69,15 +69,15 @@ case "$command" in
     control-local) exec "$REPO_DIR/bin/macui" control-local "$@" ;;
     authorization-submit) exec "$REPO_DIR/scripts/submit-authorization.sh" "$@" ;;
     fixture-state)
-        exec "$MACVM_TART" exec "$MACVM_NAME" /bin/cat \
+        macvm_exec /bin/cat \
             "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-fixture/state.json"
         ;;
     admin-fixture-state)
-        exec "$MACVM_TART" exec "$MACVM_NAME" /bin/cat \
+        macvm_exec /bin/cat \
             "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-admin-fixture/state.json"
         ;;
-    exec) exec "$MACVM_TART" exec "$MACVM_NAME" "$@" ;;
-    shell) exec "$MACVM_TART" exec -it "$MACVM_NAME" /bin/zsh -l ;;
+    exec) macvm_exec "$@" ;;
+    shell) macvm_shell ;;
     status|get|up|ip|screenshot|click|drag|type|key|suspend|shutdown|stop|force-stop)
         provider "$command" "$@"
         ;;

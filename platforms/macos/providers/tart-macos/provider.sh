@@ -130,7 +130,7 @@ ensure_running() {
 
 guest_ip() {
     ensure_running
-    "$MACVM_TART" ip "$MACVM_NAME" --wait "$MACVM_BOOT_TIMEOUT" --resolver agent
+    macvm_guest_ip
 }
 
 display_parts() {
@@ -148,6 +148,7 @@ host_control() {
 }
 
 input_click() {
+    macvm_assert_outer_ui_allowed
     if [[ $# -lt 2 || $# -gt 3 ]]; then
         printf 'Usage: macvm click X Y [left|right|middle]\n' >&2
         return 2
@@ -159,6 +160,7 @@ input_click() {
 }
 
 input_type() {
+    macvm_assert_outer_ui_allowed
     if [[ $# -ne 1 ]]; then
         printf 'Usage: macvm type TEXT\n' >&2
         return 2
@@ -167,6 +169,7 @@ input_type() {
 }
 
 input_drag() {
+    macvm_assert_outer_ui_allowed
     if [[ $# -ne 4 ]]; then
         printf 'Usage: macvm drag X1 Y1 X2 Y2\n' >&2
         return 2
@@ -177,6 +180,7 @@ input_drag() {
 }
 
 input_key() {
+    macvm_assert_outer_ui_allowed
     if [[ $# -ne 1 ]]; then
         printf 'Usage: macvm key CHORD\n' >&2
         return 2
@@ -189,7 +193,7 @@ guest_shutdown() {
     # A successful halt closes the guest-agent transport before `tart exec`
     # can receive a normal exit status. Treat that disconnect as expected and
     # use the observed VM state below as the authoritative result.
-    "$MACVM_TART" exec "$MACVM_NAME" /usr/bin/sudo /sbin/shutdown -h now \
+    macvm_exec /usr/bin/sudo /sbin/shutdown -h now \
         >/dev/null 2>&1 || true
     local deadline=$((SECONDS + MACVM_BOOT_TIMEOUT))
     while (( SECONDS < deadline )); do

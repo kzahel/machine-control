@@ -30,6 +30,6 @@ if [[ -z "$credential" ]]; then
     exit 2
 fi
 
-printf '%s' "$credential" | "$MACVM_TART" exec -i "$MACVM_NAME" \
+printf '%s' "$credential" | macvm_exec -i \
     "$(macvm_remote_ui_binary)" credential \
     "$(macvm_remote_control_socket)" "$lease_id"

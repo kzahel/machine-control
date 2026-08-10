@@ -16,18 +16,18 @@ remote_app="/Users/$MACVM_GUEST_USER/Applications/Machine Control Admin Fixture.
 remote_contents="$remote_app/Contents"
 remote_binary="$remote_contents/MacOS/AdminAuthorizationFixture"
 
-"$MACVM_TART" exec "$MACVM_NAME" /bin/mkdir -p \
+macvm_exec /bin/mkdir -p \
     "$(/usr/bin/dirname "$remote_source")" "$remote_contents/MacOS"
-"$MACVM_TART" exec -i "$MACVM_NAME" /usr/bin/tee "$remote_source" \
+macvm_exec -i /usr/bin/tee "$remote_source" \
     < "$source_file" >/dev/null
-"$MACVM_TART" exec -i "$MACVM_NAME" /usr/bin/tee \
+macvm_exec -i /usr/bin/tee \
     "$remote_contents/Info.plist" < "$info_file" >/dev/null
-"$MACVM_TART" exec "$MACVM_NAME" /usr/bin/xcrun swiftc -O \
+macvm_exec /usr/bin/xcrun swiftc -O \
     -framework AppKit -o "$remote_binary" "$remote_source"
-"$MACVM_TART" exec "$MACVM_NAME" /bin/chmod 755 "$remote_binary"
-"$MACVM_TART" exec "$MACVM_NAME" /usr/bin/codesign --force --deep --sign - \
+macvm_exec /bin/chmod 755 "$remote_binary"
+macvm_exec /usr/bin/codesign --force --deep --sign - \
     --identifier org.machine-control.admin-fixture "$remote_app"
-"$MACVM_TART" exec "$MACVM_NAME" \
+macvm_exec \
     /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
     -f "$remote_app"
 

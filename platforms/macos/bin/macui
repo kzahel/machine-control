@@ -37,7 +37,7 @@ remote_socket="$(macvm_remote_control_socket)"
 
 resident_request() {
     local request="$1"
-    "$MACVM_TART" exec "$MACVM_NAME" "$remote_binary" request \
+    macvm_exec "$remote_binary" request \
         "$remote_socket" "$request"
 }
 
@@ -45,8 +45,8 @@ resident_start() {
     if resident_request '{"operation":"status"}' >/dev/null 2>&1; then
         return 0
     fi
-    "$MACVM_TART" exec "$MACVM_NAME" /bin/rm -f "$remote_socket"
-    "$MACVM_TART" exec "$MACVM_NAME" /usr/bin/open -n "$remote_app" \
+    macvm_exec /bin/rm -f "$remote_socket"
+    macvm_exec /usr/bin/open -n "$remote_app" \
         --args serve "$remote_socket" >/dev/null
     local attempt
     for attempt in {1..50}; do
@@ -71,7 +71,7 @@ case "${1:-}" in
         if resident_request '{"operation":"server.stop"}' >/dev/null 2>&1; then
             exit
         fi
-        "$MACVM_TART" exec "$MACVM_NAME" /bin/rm -f "$remote_socket"
+        macvm_exec /bin/rm -f "$remote_socket"
         exit
         ;;
     resident-restart)
@@ -100,7 +100,7 @@ case "${1:-}" in
         fi
         macvm_assert_mutation_target
         resident_start
-        "$MACVM_TART" exec "$MACVM_NAME" "$(macvm_remote_control_cli)" "$1"
+        macvm_exec "$(macvm_remote_control_cli)" "$1"
         exit
         ;;
 esac
@@ -114,7 +114,8 @@ if [[ "${1:-}" == "launch" ]]; then
     fi
     app="$1"
     shift
-    exec "$MACVM_TART" exec "$MACVM_NAME" /usr/bin/open -a "$app" --args "$@"
+    macvm_exec /usr/bin/open -a "$app" --args "$@"
+    exit
 fi
 
 case "${1:-}" in
@@ -126,29 +127,28 @@ if [[ "${1:-}" == "help" || "${1:-}" == "-h" || "${1:-}" == "--help" || $# -eq 0
     exit 0
 fi
 
-if ! "$MACVM_TART" exec "$MACVM_NAME" /bin/test -x "$remote_binary"; then
+if ! macvm_exec /bin/test -x "$remote_binary"; then
     printf 'Semantic UI helper is not deployed. Run: %s/bin/macvm deploy-ui\n' \
         "$MACVM_REPO_DIR" >&2
     exit 1
 fi
 
-remote_scratch="$($MACVM_TART exec "$MACVM_NAME" \
-    /usr/bin/mktemp -d /tmp/macvm-ui.XXXXXX)"
+remote_scratch="$(macvm_exec /usr/bin/mktemp -d /tmp/macvm-ui.XXXXXX)"
 remote_output="$remote_scratch/output"
 remote_status_file="$remote_scratch/status"
 
 cleanup_remote_scratch() {
-    "$MACVM_TART" exec "$MACVM_NAME" /bin/rm -rf "$remote_scratch" \
+    macvm_exec /bin/rm -rf "$remote_scratch" \
         >/dev/null 2>&1 || true
 }
 trap cleanup_remote_scratch EXIT
 
 launch_status=0
-"$MACVM_TART" exec "$MACVM_NAME" /usr/bin/open -n -W "$remote_app" \
+macvm_exec /usr/bin/open -n -W "$remote_app" \
     --args --output "$remote_output" --status "$remote_status_file" "$@" \
     >/dev/null 2>&1 || launch_status=$?
 
-if ! remote_status="$($MACVM_TART exec "$MACVM_NAME" \
+if ! remote_status="$(macvm_exec \
         /bin/cat "$remote_status_file" 2>/dev/null)"; then
     if [[ "$launch_status" -ne 0 ]]; then
         printf 'Unable to launch %s through guest LaunchServices\n' \
@@ -159,7 +159,7 @@ if ! remote_status="$($MACVM_TART exec "$MACVM_NAME" \
     exit 1
 fi
 
-"$MACVM_TART" exec "$MACVM_NAME" /bin/cat "$remote_output" || true
+macvm_exec /bin/cat "$remote_output" || true
 if [[ ! "$remote_status" =~ ^[0-9]+$ ]]; then
     printf 'Unexpected MacVM UI status: %s\n' "$remote_status" >&2
     exit 1

@@ -3,11 +3,15 @@
 ## Control Order
 
 1. Use `macvm exec` for files, processes, packages, and system facts.
-2. Use `macvm ui` for a logged-in desktop and semantic controls.
-3. Use `screenshot`, `click`, `type`, and `key` when semantic control is
-   unavailable or when bootstrapping consent.
-4. Ask the user to enter a password directly in the guest or perform a consent
-   action rather than recording a credential or modifying TCC storage.
+2. Use `macvm control` for resident semantics, target-local capture, and
+   target-local input in a logged-in desktop.
+3. Use `macvm ui` for direct native Accessibility diagnosis.
+4. Use host-side `screenshot`, `click`, `type`, and `key` only for initial
+   bootstrap or explicitly selected recovery.
+
+Set `MACVM_FORBID_OUTER_UI=true` during ordinary software-test conformance.
+The guard rejects every host-side Tart screenshot/input operation while
+leaving lifecycle and the selected guest command transport available.
 
 ## Semantic Inspection
 

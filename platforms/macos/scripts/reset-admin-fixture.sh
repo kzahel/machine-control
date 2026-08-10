@@ -10,4 +10,4 @@ macvm_require_host
 macvm_assert_mutation_target
 
 remote_cache="/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-admin-fixture"
-"$MACVM_TART" exec "$MACVM_NAME" /bin/rm -rf "$remote_cache"
+macvm_exec /bin/rm -rf "$remote_cache"

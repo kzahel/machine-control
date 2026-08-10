@@ -44,41 +44,45 @@ fi
 pass "VM state: $state"
 pass "VM display: $(printf '%s' "$config_json" | jq -r '.Display')"
 
-host_control="$MACVM_REPO_DIR/providers/tart-macos/host-control.swift"
-if window_json="$(/usr/bin/swift "$host_control" window-info "$MACVM_NAME" 2>/dev/null)"; then
-    pass "visible Tart window: id $(printf '%s' "$window_json" | jq -r '.id')"
+if [[ "$MACVM_FORBID_OUTER_UI" == "true" ]]; then
+    pass 'outer UI is prohibited; host window capture/input is not required'
 else
-    fail 'no visible Tart window; screenshot and input require graphical tart run'
+    host_control="$MACVM_REPO_DIR/providers/tart-macos/host-control.swift"
+    if window_json="$(/usr/bin/swift "$host_control" window-info "$MACVM_NAME" 2>/dev/null)"; then
+        pass "visible Tart window: id $(printf '%s' "$window_json" | jq -r '.id')"
+    else
+        fail 'no visible Tart window; screenshot and input require graphical tart run'
+    fi
+
+    if permissions="$(/usr/bin/swift "$host_control" permissions 2>/dev/null)"; then
+        if [[ "$(printf '%s' "$permissions" | jq -r '.screenCapture')" == "true" ]]; then
+            pass 'host Screen Recording access'
+        else
+            fail 'host Screen Recording access is missing'
+        fi
+        if [[ "$(printf '%s' "$permissions" | jq -r '.postEvent')" == "true" ]]; then
+            pass 'host Accessibility input access'
+        else
+            fail 'host Accessibility input access is missing'
+        fi
+    else
+        fail 'unable to inspect host capture/input permissions'
+    fi
 fi
 
-if permissions="$(/usr/bin/swift "$host_control" permissions 2>/dev/null)"; then
-    if [[ "$(printf '%s' "$permissions" | jq -r '.screenCapture')" == "true" ]]; then
-        pass 'host Screen Recording access'
-    else
-        fail 'host Screen Recording access is missing'
-    fi
-    if [[ "$(printf '%s' "$permissions" | jq -r '.postEvent')" == "true" ]]; then
-        pass 'host Accessibility input access'
-    else
-        fail 'host Accessibility input access is missing'
-    fi
-else
-    fail 'unable to inspect host capture/input permissions'
-fi
-
-if ! "$MACVM_TART" exec "$MACVM_NAME" /usr/bin/true >/dev/null 2>&1; then
-    fail 'Tart guest agent is unavailable; follow docs/bootstrap.md'
+if ! macvm_exec /usr/bin/true >/dev/null 2>&1; then
+    fail "$MACVM_GUEST_TRANSPORT guest command channel is unavailable"
     exit "$failures"
 fi
-pass 'Tart guest-agent command channel'
+pass "$MACVM_GUEST_TRANSPORT guest command channel"
 
-if ip="$($MACVM_TART ip "$MACVM_NAME" --wait 5 --resolver agent 2>/dev/null)"; then
+if ip="$(macvm_guest_ip 2>/dev/null)"; then
     pass "guest IPv4: $ip"
 else
-    fail 'guest-agent IP resolution failed'
+    fail 'guest IP resolution failed'
 fi
 
-guest_user="$($MACVM_TART exec "$MACVM_NAME" /usr/bin/stat -f %Su /dev/console 2>/dev/null || true)"
+guest_user="$(macvm_exec /usr/bin/stat -f %Su /dev/console 2>/dev/null || true)"
 if [[ -n "$guest_user" && "$guest_user" != "root" && "$guest_user" != "loginwindow" ]]; then
     pass "interactive desktop user: $guest_user"
 else
@@ -86,7 +90,7 @@ else
 fi
 
 remote_binary="$(macvm_remote_ui_binary)"
-if ! "$MACVM_TART" exec "$MACVM_NAME" /bin/test -x "$remote_binary" \
+if ! macvm_exec /bin/test -x "$remote_binary" \
         >/dev/null 2>&1; then
     fail "semantic UI helper is absent; run: $MACVM_REPO_DIR/bin/macvm deploy-ui"
 else

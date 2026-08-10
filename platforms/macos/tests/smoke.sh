@@ -41,6 +41,17 @@ done
 
 bin/macvm help >/dev/null
 bin/macui help >/dev/null
+if MACVM_FORBID_OUTER_UI=true bin/macvm screenshot >/dev/null 2>&1; then
+    printf 'Outer-UI guard allowed a Tart screenshot\n' >&2
+    exit 1
+fi
+for command in click drag type key; do
+    if MACVM_FORBID_OUTER_UI=true bin/macvm "$command" >/dev/null 2>&1; then
+        printf 'Outer-UI guard allowed macvm %s\n' "$command" >&2
+        exit 1
+    fi
+done
+MACVM_FORBID_OUTER_UI=true bin/macvm status >/dev/null
 bin/macvm doctor
 
 artifact_dir="$REPO_DIR/.artifacts/smoke"

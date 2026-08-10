@@ -10,7 +10,9 @@ bin/macvm
   +-- providers/tart-macos/
   |     Tart lifecycle/IP, host window capture, host input
   +-- Tart guest agent
-  |     command execution in the logged-in user session
+  |     optional command execution in the logged-in user session
+  +-- authorized SSH
+  |     alternate command transport to the same target-resident surface
   +-- guests/macos/ui/macui.swift
         resident facade, guest-native providers, optional Cua adapter
 ```
@@ -62,7 +64,22 @@ The same application hosts the ordinary-session resident facade. A
 LaunchServices-started, `LSUIElement` process owns a mode-`0600` Unix socket in
 the interactive user's Application Support directory. The guest-local
 `~/bin/machine-control` client and host `macvm control` wrapper reach that same
-socket and generation. Resident references fail closed after restart.
+socket and generation. The host wrapper may arrive through Tart's guest agent
+or an explicitly configured authorized SSH transport; transport does not
+change the resident route or contract. Resident references fail closed after
+restart.
+
+## Guest Command Transports
+
+`MACVM_GUEST_TRANSPORT=tart` uses `tart exec` and guest-agent IP resolution.
+`MACVM_GUEST_TRANSPORT=ssh` uses batch-mode SSH, an optional ignored identity
+file, and either an ignored endpoint or Tart ARP/DHCP discovery. Both execute
+as the configured interactive guest user and both call the same resident.
+
+SSH is an alternate inner transport, not a desktop provider and not an outer
+pixel/input fallback. Real endpoints, keys, known-host policy overrides, and
+inventory remain in ignored local configuration. Tart still owns VM lifecycle
+regardless of command transport.
 
 Provider selection is per operation and disclosed in every result. Native AX,
 Workspace, Quartz, and CGEvent routes are the platform baseline. If a
@@ -81,11 +98,11 @@ events submit it; the fixture or calling workflow remains the authority for
 whether the intended privileged effect occurred.
 
 The helper is compiled and ad-hoc signed with an explicit stable designated
-requirement as `MacVM UI.app`. `tart exec` asks
-LaunchServices to run a fresh helper command, then collects its output and exit
-status from a private temporary directory. macOS therefore attributes
+requirement as `MacVM UI.app`. The selected host command transport asks
+LaunchServices to run a fresh helper command, then collects its output and
+exit status from a private temporary directory. macOS therefore attributes
 Accessibility responsibility to the stable app identity rather than the
-guest-agent parent process. MacVM Testbed does not modify TCC databases and
+transport's parent process. MacVM Testbed does not modify TCC databases and
 does not claim control of loginwindow or higher-integrity UI through AX.
 
 ## Bootstrap Boundary

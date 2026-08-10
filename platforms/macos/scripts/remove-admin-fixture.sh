@@ -13,6 +13,6 @@ remote_source="/Users/$MACVM_GUEST_USER/Library/Application Support/macvm-testbe
 remote_app="/Users/$MACVM_GUEST_USER/Applications/Machine Control Admin Fixture.app"
 remote_cache="/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-admin-fixture"
 
-"$MACVM_TART" exec "$MACVM_NAME" /bin/rm -rf \
+macvm_exec /bin/rm -rf \
     "$remote_app" "$remote_cache"
-"$MACVM_TART" exec "$MACVM_NAME" /bin/rm -f "$remote_source"
+macvm_exec /bin/rm -f "$remote_source"

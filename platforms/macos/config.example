@@ -18,3 +18,16 @@ MACVM_CONTROL_SOCKET_RELATIVE='Library/Application Support/macvm-testbed/control
 MACVM_REQUIRE_MUTATION_GUARD=false
 MACVM_TARGET_ROLE=unspecified
 MACVM_EXPECTED_NAME=
+
+# Fail closed if a software-test workflow tries to inspect or manipulate the
+# Tart graphical window. Lifecycle and tart exec remain available.
+MACVM_FORBID_OUTER_UI=false
+
+# Command transport is independent of Tart lifecycle. Prepared guests may use
+# either Tart's guest agent or an already-authorized SSH service/key. Keep real
+# endpoints and identity paths in ignored config.local.
+MACVM_GUEST_TRANSPORT=tart
+MACVM_SSH_HOST=
+MACVM_SSH_USER=admin
+MACVM_SSH_IDENTITY_FILE=
+MACVM_SSH_STRICT_HOST_KEY_CHECKING=accept-new

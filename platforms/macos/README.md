@@ -15,7 +15,7 @@ macOS Accessibility inspection and actions.
 | Host | Apple-silicon macOS |
 | VM provider | Tart 2.30+ / Virtualization.framework |
 | Guest | macOS 26 prepared or vanilla image |
-| Command channel | Tart guest agent through `tart exec` |
+| Command channel | Configurable Tart guest agent or authorized SSH |
 | Semantic UI | Native AXUIElement helper in the interactive guest session |
 | Resident facade | Per-user Unix socket with `machine-control/v0` envelopes |
 | Composition | Native AX/Quartz/CGEvent plus optional installed Cua |
@@ -87,6 +87,11 @@ Normal Aqua administrator sheets use the same resident through a strict,
 short-lived lease and an interactive non-echoing credential helper; see
 [macOS UI automation](docs/ui-automation.md#administrator-authorization-sheets).
 
+Set `MACVM_FORBID_OUTER_UI=true` for ordinary software-test acceptance. In
+that mode, Tart-window screenshot, click, drag, type, and key commands fail
+closed while lifecycle, the selected guest command transport, and resident
+control remain available.
+
 Use the provider-level path when semantic automation is unavailable:
 
 ```bash
@@ -106,11 +111,13 @@ independent of Retina scale and the host Tart title bar.
 ```text
 Host agent
   |
-  +-- tart exec ---------------- guest shell and file operations
+  +-- tart exec or SSH --------- guest shell and file operations
   |
-  +-- tart exec -> macui ------- semantic Accessibility tree/actions
+  +-- selected transport -> macui
+  |                              semantic Accessibility tree/actions
   |
-  +-- tart exec -> resident ---- owned facade over native/Cua providers
+  +-- selected transport -> resident
+  |                              owned facade over native/Cua providers
   |
   +-- Tart window -------------- screenshot and injected input recovery
   |
@@ -167,6 +174,8 @@ Guest:
 
 - macOS with a logged-in desktop user
 - Tart guest agent for `exec` and reliable IP discovery
+- or an explicitly authorized SSH account/key when SSH is selected as the
+  guest command transport
 - Xcode Command Line Tools to compile the semantic helper
 - Accessibility permission for the deployed MacVM UI app
 

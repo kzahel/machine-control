@@ -6,6 +6,8 @@ readonly PROVIDER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../scripts/common.sh
 source "$PROVIDER_DIR/../../scripts/common.sh"
 
+macvm_assert_outer_ui_allowed
+
 if [[ $# -gt 1 ]]; then
     printf 'Usage: macvm screenshot [OUTPUT.png]\n' >&2
     exit 2

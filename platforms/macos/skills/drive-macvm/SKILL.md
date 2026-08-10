@@ -14,10 +14,13 @@ credentials out of commands and preserve explicit macOS consent boundaries.
 2. Use `bin/macvm exec` for files, processes, packages, and system facts.
 3. Use `bin/macvm ui` for native applications and named Accessibility
    controls. Inspect with `windows`, `tree`, or `find` before acting.
-4. Use `screenshot`, `click`, `type`, and `key` for bootstrap, consent UI, or
-   recovery when semantic access is unavailable.
-5. Ask the user to enter passwords directly in the guest. Never include one in
-   chat, a command, `config.local`, or a repository file.
+4. Use target-resident capture and input when semantics are unavailable in a
+   healthy logged-in Aqua session.
+5. Use host-side `screenshot`, `click`, `type`, and `key` only for initial
+   bootstrap or explicitly selected recovery.
+6. Use the one-shot non-echoing authorization helper for matching normal Aqua
+   administrator sheets after Accessibility is granted. Never include a secret
+   in chat, a command, `config.local`, or a repository file.
 
 ## Start and inspect
 
@@ -50,6 +53,10 @@ after navigation or window recreation. Use `--exact`, `--role`, and `--nth`
 when a query is ambiguous.
 
 ## Use visual recovery
+
+For ordinary software testing, set `MACVM_FORBID_OUTER_UI=true` and use the
+resident's target-local capture and coordinate input. The commands below are
+an outer recovery route, not a fallback for a healthy logged-in resident.
 
 Capture a fresh image immediately before coordinate actions. Screenshot pixels
 map directly to guest coordinates:

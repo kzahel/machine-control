@@ -34,31 +34,31 @@ remote_binary="$(macvm_remote_ui_binary)"
 remote_control_cli="$(macvm_remote_control_cli)"
 remote_socket="$(macvm_remote_control_socket)"
 
-if ! "$MACVM_TART" exec "$MACVM_NAME" /usr/bin/true; then
-    printf 'Tart guest agent is unavailable; read docs/bootstrap.md\n' >&2
+if ! macvm_exec /usr/bin/true; then
+    printf 'Guest command transport is unavailable; read docs/bootstrap.md\n' >&2
     exit 1
 fi
 
-if ! "$MACVM_TART" exec "$MACVM_NAME" /usr/bin/xcrun --find swiftc >/dev/null; then
+if ! macvm_exec /usr/bin/xcrun --find swiftc >/dev/null; then
     printf 'Guest Xcode Command Line Tools are required to compile macui\n' >&2
     exit 1
 fi
 
 if (( ! force )) \
-        && "$MACVM_TART" exec "$MACVM_NAME" /bin/test -x "$remote_binary" \
+        && macvm_exec /bin/test -x "$remote_binary" \
             >/dev/null 2>&1 \
-        && "$MACVM_TART" exec "$MACVM_NAME" /bin/test -f "$remote_source" \
+        && macvm_exec /bin/test -f "$remote_source" \
             >/dev/null 2>&1 \
-        && "$MACVM_TART" exec "$MACVM_NAME" /bin/test -f \
+        && macvm_exec /bin/test -f \
             "$remote_contents/Info.plist" >/dev/null 2>&1; then
     local_source_hash="$(/usr/bin/shasum -a 256 "$source_file" | /usr/bin/awk '{print $1}')"
     local_info_hash="$(/usr/bin/shasum -a 256 "$info_file" | /usr/bin/awk '{print $1}')"
     remote_source_hash="$(
-        "$MACVM_TART" exec "$MACVM_NAME" /usr/bin/shasum -a 256 "$remote_source" \
+        macvm_exec /usr/bin/shasum -a 256 "$remote_source" \
             | /usr/bin/awk '{print $1}'
     )"
     remote_info_hash="$(
-        "$MACVM_TART" exec "$MACVM_NAME" /usr/bin/shasum -a 256 \
+        macvm_exec /usr/bin/shasum -a 256 \
             "$remote_contents/Info.plist" | /usr/bin/awk '{print $1}'
     )"
     if [[ "$local_source_hash" == "$remote_source_hash" \
@@ -74,23 +74,23 @@ fi
 # before replacement; an absent or older service is harmless here.
 "$MACVM_REPO_DIR/bin/macui" resident-stop >/dev/null 2>&1 || true
 
-"$MACVM_TART" exec "$MACVM_NAME" /bin/mkdir -p \
+macvm_exec /bin/mkdir -p \
     "$remote_directory" "$remote_contents/MacOS" "$remote_contents/Resources"
-"$MACVM_TART" exec -i "$MACVM_NAME" /usr/bin/tee "$remote_source" \
+macvm_exec -i /usr/bin/tee "$remote_source" \
     < "$source_file" >/dev/null
-"$MACVM_TART" exec -i "$MACVM_NAME" /usr/bin/tee "$remote_contents/Info.plist" \
+macvm_exec -i /usr/bin/tee "$remote_contents/Info.plist" \
     < "$info_file" >/dev/null
-"$MACVM_TART" exec "$MACVM_NAME" /bin/mkdir -p \
+macvm_exec /bin/mkdir -p \
     "$(/usr/bin/dirname "$remote_control_cli")"
-"$MACVM_TART" exec -i "$MACVM_NAME" /usr/bin/tee "$remote_control_cli" \
+macvm_exec -i /usr/bin/tee "$remote_control_cli" \
     < "$control_cli_file" >/dev/null
-"$MACVM_TART" exec "$MACVM_NAME" /usr/bin/xcrun swiftc -O \
+macvm_exec /usr/bin/xcrun swiftc -O \
     -framework AppKit -framework ApplicationServices -framework CoreGraphics \
     -framework SystemConfiguration \
     -o "$remote_binary" "$remote_source"
-"$MACVM_TART" exec "$MACVM_NAME" /bin/chmod 755 "$remote_binary"
-"$MACVM_TART" exec "$MACVM_NAME" /bin/chmod 755 "$remote_control_cli"
-"$MACVM_TART" exec "$MACVM_NAME" /usr/bin/codesign --force --deep \
+macvm_exec /bin/chmod 755 "$remote_binary"
+macvm_exec /bin/chmod 755 "$remote_control_cli"
+macvm_exec /usr/bin/codesign --force --deep \
     --sign - --identifier com.kzahel.macvm-testbed.ui \
     --requirements '=designated => identifier "com.kzahel.macvm-testbed.ui"' \
     "$remote_app"
