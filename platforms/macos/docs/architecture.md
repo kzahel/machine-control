@@ -69,6 +69,13 @@ or an explicitly configured authorized SSH transport; transport does not
 change the resident route or contract. Resident references fail closed after
 restart.
 
+The native provider enumerates active display bounds in global macOS points,
+captures the full display through Quartz in physical pixels, and posts pointer,
+scroll, and keyboard events through CoreGraphics inside the guest session.
+Retina scale is explicit in capture metadata. Resident artifacts are bounded
+to a private cache root and the host wrapper will fetch only paths beneath that
+root. These routes do not focus Tart or use the host pointer.
+
 ## Guest Command Transports
 
 `MACVM_GUEST_TRANSPORT=tart` uses `tart exec` and guest-agent IP resolution.

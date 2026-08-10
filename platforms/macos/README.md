@@ -92,7 +92,21 @@ that mode, Tart-window screenshot, click, drag, type, and key commands fail
 closed while lifecycle, the selected guest command transport, and resident
 control remain available.
 
-Use the provider-level path when semantic automation is unavailable:
+`bin/macvm host-state` is a read-only acceptance oracle for the controller
+host's cursor and frontmost application. It remains available under the guard
+so conformance tests can prove that target-resident input did not manipulate
+the host desktop; it does not observe guest pixels or inject input.
+
+A resident capture returns a guest artifact path. Fetch that bounded artifact
+without reading arbitrary guest files through the artifact interface:
+
+```bash
+result="$(bin/macvm control '{"operation":"capture","scope":"display"}')"
+bin/macvm artifact-fetch "$(jq -r '.data.artifactPath' <<<"$result")"
+```
+
+Use the provider-level Tart-window path only for bootstrap or explicit
+recovery when the resident surface is unavailable:
 
 ```bash
 bin/macvm screenshot

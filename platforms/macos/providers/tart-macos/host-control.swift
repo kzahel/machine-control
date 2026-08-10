@@ -11,6 +11,13 @@ struct TartWindow: Codable {
     let height: Double
 }
 
+struct HostState: Codable {
+    let cursorX: Double
+    let cursorY: Double
+    let frontmostPID: Int32?
+    let frontmostBundleIdentifier: String?
+}
+
 enum HostControlError: Error, CustomStringConvertible {
     case usage(String)
     case noWindow(String)
@@ -331,6 +338,19 @@ func printPermissions() throws {
     print(String(decoding: data, as: UTF8.self))
 }
 
+func printState() throws {
+    let cursor = CGEvent(source: nil)?.location ?? .zero
+    let frontmost = NSWorkspace.shared.frontmostApplication
+    let payload = HostState(
+        cursorX: Double(cursor.x),
+        cursorY: Double(cursor.y),
+        frontmostPID: frontmost?.processIdentifier,
+        frontmostBundleIdentifier: frontmost?.bundleIdentifier
+    )
+    let data = try JSONEncoder().encode(payload)
+    print(String(decoding: data, as: UTF8.self))
+}
+
 let arguments = Array(CommandLine.arguments.dropFirst())
 guard let command = arguments.first else {
     fail(HostControlError.usage("Usage: host-control.swift COMMAND [ARG...]"))
@@ -340,6 +360,8 @@ do {
     switch command {
     case "permissions":
         try printPermissions()
+    case "state":
+        try printState()
     case "window-info":
         guard arguments.count == 2 else {
             throw HostControlError.usage("Usage: host-control.swift window-info VM")

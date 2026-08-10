@@ -17,6 +17,7 @@ for script in \
     scripts/reset-admin-fixture.sh \
     scripts/remove-admin-fixture.sh \
     scripts/submit-authorization.sh \
+    scripts/fetch-artifact.sh \
     scripts/doctor.sh \
     guests/macos/ui/machine-control \
     guests/macos/bootstrap/bootstrap-guest.sh; do

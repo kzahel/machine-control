@@ -216,6 +216,7 @@ if [[ -n "$command" ]]; then shift; fi
 case "$command" in
     status) macvm_state ;;
     get) macvm_get_json ;;
+    host-state) host_control state ;;
     up) ensure_running; guest_ip ;;
     ip) guest_ip ;;
     screenshot) exec "$PROVIDER_DIR/screenshot" "$@" ;;

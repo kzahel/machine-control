@@ -43,7 +43,8 @@ bin/macvm ui tree --app SystemUIServer --interactive --depth 8
 ```
 
 Whether a particular item exposes a useful element still depends on macOS and
-the owning menu extra. Fall back to the outer visual path when it does not.
+the owning menu extra. Fall back to resident full-display capture and
+target-local coordinate input when it does not.
 
 ## State-Changing Actions
 
@@ -58,7 +59,25 @@ Element references printed as `@N` are ephemeral. Rediscover after navigation,
 window recreation, application launch, or any action that materially changes
 the tree.
 
-## Guest Coordinates
+## Target-local display capture and coordinates
+
+The resident reports display bounds in global macOS points and captures in
+display pixels. Retina displays therefore have distinct input and artifact
+dimensions with explicit scale factors:
+
+```bash
+result="$(bin/macvm control '{"operation":"capture","scope":"display"}')"
+path="$(bin/macvm artifact-fetch "$(jq -r '.data.artifactPath' <<<"$result")")"
+bin/macvm control \
+  '{"operation":"input.click","x":512,"y":384,"coordinateSpace":"global_display_points"}'
+```
+
+`input.move`, `input.click`, `input.drag`, and `input.scroll` post events from
+the resident in the guest Aqua session. Supplying `target` first activates a
+guest application. The result reports the actual CoreGraphics route and keeps
+delivery separate from any observed application effect.
+
+## Outer recovery coordinates
 
 `macvm screenshot` returns exactly the configured Tart display size. The
 coordinate system starts at the guest display's upper-left corner. Inspect a
@@ -71,8 +90,8 @@ bin/macvm drag 300 240 700 240
 ```
 
 Coordinate clicks and drags move the host pointer and foreground the Tart
-window. They should not be used while the user is actively operating another
-host app.
+window. They are recovery operations and fail closed when
+`MACVM_FORBID_OUTER_UI=true`.
 
 ## Keyboard Input
 

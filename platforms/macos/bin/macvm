@@ -19,6 +19,7 @@ Start here:
   control JSON           Call the target-resident machine-control facade
   control-local JSON     Call it through the installed guest-local CLI
   authorization-submit  Submit one credential through an active lease
+  artifact-fetch        Fetch one resident-created artifact to the host
   fixture-state          Read the deterministic fixture's file oracle
   admin-fixture-state    Read the administrator fixture's file oracle
 
@@ -38,7 +39,7 @@ Out-of-band recovery:
   key CHORD              Send a key or chord through the Tart window
 
 Lifecycle and discovery:
-  status | get | ip | suspend | shutdown | stop | force-stop
+  status | get | host-state | ip | suspend | shutdown | stop | force-stop
 
 Key examples:
   enter escape tab cmd-space cmd-tab cmd-shift-g ctrl-option-delete
@@ -68,6 +69,7 @@ case "$command" in
     control) exec "$REPO_DIR/bin/macui" control "$@" ;;
     control-local) exec "$REPO_DIR/bin/macui" control-local "$@" ;;
     authorization-submit) exec "$REPO_DIR/scripts/submit-authorization.sh" "$@" ;;
+    artifact-fetch) exec "$REPO_DIR/scripts/fetch-artifact.sh" "$@" ;;
     fixture-state)
         macvm_exec /bin/cat \
             "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-fixture/state.json"
@@ -78,7 +80,7 @@ case "$command" in
         ;;
     exec) macvm_exec "$@" ;;
     shell) macvm_shell ;;
-    status|get|up|ip|screenshot|click|drag|type|key|suspend|shutdown|stop|force-stop)
+    status|get|host-state|up|ip|screenshot|click|drag|type|key|suspend|shutdown|stop|force-stop)
         provider "$command" "$@"
         ;;
     *)

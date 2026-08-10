@@ -924,6 +924,69 @@ final class ResidentService {
         return root.appendingPathComponent("capture-\(UUID().uuidString.lowercased()).png")
     }
 
+    private func activeDisplayJSON() -> [[String: Any]] {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success,
+              count > 0 else { return [] }
+        var identifiers = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &identifiers, &count) == .success else {
+            return []
+        }
+        let main = CGMainDisplayID()
+        return identifiers.prefix(Int(count)).map { identifier in
+            let bounds = CGDisplayBounds(identifier)
+            let mode = CGDisplayCopyDisplayMode(identifier)
+            let pixelWidth = mode?.pixelWidth ?? CGDisplayPixelsWide(identifier)
+            let pixelHeight = mode?.pixelHeight ?? CGDisplayPixelsHigh(identifier)
+            return [
+                "displayId": identifier,
+                "main": identifier == main,
+                "bounds": [
+                    "x": Double(bounds.origin.x),
+                    "y": Double(bounds.origin.y),
+                    "width": Double(bounds.width),
+                    "height": Double(bounds.height),
+                ],
+                "pixelWidth": pixelWidth,
+                "pixelHeight": pixelHeight,
+                "scaleX": bounds.width > 0 ?
+                    Double(pixelWidth) / Double(bounds.width) : 1,
+                "scaleY": bounds.height > 0 ?
+                    Double(pixelHeight) / Double(bounds.height) : 1,
+            ]
+        }
+    }
+
+    private func pointIsOnActiveDisplay(_ point: CGPoint) -> Bool {
+        activeDisplayJSON().contains { display in
+            guard let bounds = display["bounds"] as? [String: Any],
+                  let x = bounds["x"] as? Double,
+                  let y = bounds["y"] as? Double,
+                  let width = bounds["width"] as? Double,
+                  let height = bounds["height"] as? Double else { return false }
+            return point.x >= x && point.x < x + width &&
+                point.y >= y && point.y < y + height
+        }
+    }
+
+    private func pointerButton(_ name: String?)
+        throws -> (CGMouseButton, CGEventType, CGEventType) {
+        switch name?.lowercased() ?? "left" {
+        case "left": return (.left, .leftMouseDown, .leftMouseUp)
+        case "right": return (.right, .rightMouseDown, .rightMouseUp)
+        case "middle", "center": return (.center, .otherMouseDown, .otherMouseUp)
+        default: throw MacUIError.usage("button must be left, right, or middle")
+        }
+    }
+
+    private func validateCoordinateSpace(_ request: [String: Any]) throws {
+        guard let space = requestString(request, "coordinateSpace") else { return }
+        guard space == "global_display_points" else {
+            throw MacUIError.usage(
+                "coordinateSpace must be global_display_points for target-local input")
+        }
+    }
+
     private func authorizationSheet(expectedRequester: String) throws
         -> AuthorizationSheet {
         try requireAccessibility()
@@ -1176,7 +1239,8 @@ final class ResidentService {
                          "operations": ["applications", "windows", "snapshot", "action",
                                         "application.launch", "application.activate",
                                         "application.terminate", "input.key",
-                                        "input.text", "input.click", "window.close",
+                                        "input.text", "input.click", "input.move",
+                                        "input.drag", "input.scroll", "window.close",
                                         "capture", "authorization.begin",
                                         "authorization.cancel"]],
                         ["id": "cua", "state": cua == nil ? "unavailable" : "ready",
@@ -1190,7 +1254,8 @@ final class ResidentService {
                     "routing": [
                         ["operations": ["snapshot", "action"],
                          "provider": defaultSemanticProvider],
-                        ["operations": ["input.key", "input.click"],
+                        ["operations": ["input.key", "input.click", "input.move",
+                                         "input.drag", "input.scroll"],
                          "provider": AXIsProcessTrusted() ? "macos.coregraphics" :
                             (cua == nil ? "unavailable" : "cua")],
                         ["operations": ["input.text"],
@@ -1209,6 +1274,7 @@ final class ResidentService {
                     ],
                     "screenCaptureAuthorized": CGPreflightScreenCaptureAccess(),
                     "accessibilityAuthorized": AXIsProcessTrusted(),
+                    "displays": activeDisplayJSON(),
                     "cuaPermissions": cua.map { $0 as Any } ?? NSNull(),
                 ]
             case "status":
@@ -1676,11 +1742,18 @@ final class ResidentService {
                 let after = (attribute(root, kAXWindowsAttribute as CFString)
                              as? [AXUIElement]) ?? []
                 result["effect"] = after.count < windows.count ? "confirmed" : "unknown"
-            case "input.key", "input.text", "input.click":
+            case "input.key", "input.text", "input.click", "input.move",
+                 "input.drag", "input.scroll":
                 let providerWasExplicit = requestString(request, "provider") != nil
                 let preferCuaText = operation == "input.text" &&
                     !providerWasExplicit && cuaPermissions() != nil
                 if preferCuaText || useCua(request) {
+                    if !["input.key", "input.text", "input.click"].contains(operation) {
+                        result = refused(request, code: "provider_unsupported",
+                            message: "Cua does not implement \(operation)",
+                            route: "guest.user/macos.cua")
+                        break
+                    }
                     var arguments: [String: Any] = [:]
                     if let target = requestString(request, "target") {
                         let (pid, _) = try cuaApplication(target)
@@ -1742,36 +1815,106 @@ final class ResidentService {
                     break
                 }
                 _ = try activateTarget(requestString(request, "target"))
+                try validateCoordinateSpace(request)
                 let before = observationFingerprint()
+                var inputData: [String: Any] = [:]
                 if operation == "input.key" {
                     guard let key = requestString(request, "key") else {
                         result = refused(request, code: "invalid_request",
                                          message: "key is required"); break
                     }
                     try sendKey(key)
+                    inputData["key"] = key
                 } else if operation == "input.text" {
                     guard let text = requestString(request, "text") else {
                         result = refused(request, code: "invalid_request",
                                          message: "text is required"); break
                     }
                     try sendText(text)
+                    inputData["characters"] = text.count
+                } else if operation == "input.scroll" {
+                    let deltaX = requestInt(request, "deltaX", default: 0)
+                    let deltaY = requestInt(request, "deltaY", default: 0)
+                    guard deltaX != 0 || deltaY != 0 else {
+                        result = refused(request, code: "invalid_request",
+                            message: "non-zero deltaX or deltaY is required")
+                        break
+                    }
+                    guard let event = CGEvent(scrollWheelEvent2Source: nil,
+                        units: .pixel, wheelCount: 2,
+                        wheel1: Int32(deltaY), wheel2: Int32(deltaX), wheel3: 0) else {
+                        throw MacUIError.action("Unable to create scroll event")
+                    }
+                    event.post(tap: .cghidEventTap)
+                    inputData["deltaX"] = deltaX
+                    inputData["deltaY"] = deltaY
                 } else {
                     let x = requestInt(request, "x", default: -1)
                     let y = requestInt(request, "y", default: -1)
-                    guard x >= 0, y >= 0 else {
-                        result = refused(request, code: "invalid_request",
-                                         message: "non-negative x and y are required"); break
-                    }
                     let point = CGPoint(x: x, y: y)
-                    guard let down = CGEvent(mouseEventSource: nil,
-                        mouseType: .leftMouseDown, mouseCursorPosition: point,
-                        mouseButton: .left),
-                          let up = CGEvent(mouseEventSource: nil,
-                        mouseType: .leftMouseUp, mouseCursorPosition: point,
-                        mouseButton: .left) else {
-                        throw MacUIError.action("Unable to create pointer event")
+                    guard pointIsOnActiveDisplay(point) else {
+                        result = refused(request, code: "invalid_request",
+                            message: "x and y must identify an active display point")
+                        break
                     }
-                    down.post(tap: .cghidEventTap); up.post(tap: .cghidEventTap)
+                    inputData["x"] = x
+                    inputData["y"] = y
+                    if operation == "input.move" {
+                        guard let move = CGEvent(mouseEventSource: nil,
+                            mouseType: .mouseMoved, mouseCursorPosition: point,
+                            mouseButton: .left) else {
+                            throw MacUIError.action("Unable to create pointer event")
+                        }
+                        move.post(tap: .cghidEventTap)
+                    } else {
+                        let (button, downType, upType) = try pointerButton(
+                            requestString(request, "button"))
+                        var dragEnd: CGPoint?
+                        if operation == "input.drag" {
+                            let x2 = requestInt(request, "x2", default: -1)
+                            let y2 = requestInt(request, "y2", default: -1)
+                            let end = CGPoint(x: x2, y: y2)
+                            guard pointIsOnActiveDisplay(end) else {
+                                result = refused(request, code: "invalid_request",
+                                    message: "x2 and y2 must identify an active display point")
+                                break
+                            }
+                            dragEnd = end
+                            inputData["x2"] = x2
+                            inputData["y2"] = y2
+                        }
+                        guard let down = CGEvent(mouseEventSource: nil,
+                            mouseType: downType, mouseCursorPosition: point,
+                            mouseButton: button) else {
+                            throw MacUIError.action("Unable to create pointer event")
+                        }
+                        down.post(tap: .cghidEventTap)
+                        if let end = dragEnd {
+                            let dragType: CGEventType = button == .left ?
+                                .leftMouseDragged : (button == .right ?
+                                    .rightMouseDragged : .otherMouseDragged)
+                            guard let drag = CGEvent(mouseEventSource: nil,
+                                mouseType: dragType, mouseCursorPosition: end,
+                                mouseButton: button),
+                                  let up = CGEvent(mouseEventSource: nil,
+                                mouseType: upType, mouseCursorPosition: end,
+                                mouseButton: button) else {
+                                throw MacUIError.action("Unable to create drag event")
+                            }
+                            usleep(80_000)
+                            drag.post(tap: .cghidEventTap)
+                            usleep(80_000)
+                            up.post(tap: .cghidEventTap)
+                        } else {
+                            guard let up = CGEvent(mouseEventSource: nil,
+                                mouseType: upType, mouseCursorPosition: point,
+                                mouseButton: button) else {
+                                throw MacUIError.action("Unable to create pointer event")
+                            }
+                            up.post(tap: .cghidEventTap)
+                        }
+                        inputData["button"] = requestString(request, "button") ?? "left"
+                    }
                 }
                 usleep(180_000)
                 let changed = before != observationFingerprint()
@@ -1781,9 +1924,70 @@ final class ResidentService {
                 result["uncertainty"] = changed ? "none" : "no_independent_state_change"
                 result["focusConsequence"] = requestString(request, "target") == nil ?
                     "current_guest_focus" : "target_application_activated"
-                result["cursorConsequence"] = operation == "input.click" ?
-                    "guest_cursor_moved" : "none"
+                result["cursorConsequence"] = ["input.click", "input.move",
+                    "input.drag"].contains(operation) ? "guest_cursor_moved" : "none"
+                result["coordinateSpace"] = ["input.click", "input.move",
+                    "input.drag"].contains(operation) ?
+                    "global_display_points" : "not_applicable"
+                result["data"] = inputData
             case "capture":
+                let captureScope = requestString(request, "scope") ??
+                    (requestString(request, "target") == nil ? "display" : "window")
+                guard ["display", "window"].contains(captureScope) else {
+                    result = refused(request, code: "invalid_request",
+                        message: "capture scope must be display or window")
+                    break
+                }
+                if captureScope == "display" {
+                    if requestString(request, "provider") == "cua" {
+                        result = refused(request, code: "provider_unsupported",
+                            message: "Cua does not implement full-display capture",
+                            route: "guest.user/macos.cua")
+                        break
+                    }
+                    guard CGPreflightScreenCaptureAccess() else {
+                        _ = CGRequestScreenCaptureAccess()
+                        result = refused(request, code: "authorization_required",
+                            message: "Screen Recording access is not granted",
+                            route: "guest.user/macos.quartz")
+                        break
+                    }
+                    let displays = activeDisplayJSON()
+                    guard let main = displays.first(where: {
+                        $0["main"] as? Bool == true
+                    }) else {
+                        result = refused(request, code: "display_not_found",
+                            message: "No active main display is available",
+                            route: "guest.user/macos.quartz")
+                        break
+                    }
+                    let url = try artifactURL()
+                    let process = Process()
+                    process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+                    process.arguments = ["-x", "-D", "1", url.path]
+                    try process.run(); process.waitUntilExit()
+                    guard process.terminationStatus == 0,
+                          FileManager.default.fileExists(atPath: url.path) else {
+                        result = refused(request, code: "capture_failed",
+                            message: "Full-display capture failed",
+                            route: "guest.user/macos.quartz")
+                        break
+                    }
+                    let attributes = try FileManager.default.attributesOfItem(
+                        atPath: url.path)
+                    result = base(request, route: "guest.user/macos.quartz")
+                    result["delivery"] = "confirmed"
+                    result["effect"] = "confirmed"
+                    result["fidelity"] = "full_display"
+                    result["coordinateSpace"] = "display_pixels"
+                    result["data"] = [
+                        "artifactPath": url.path,
+                        "bytes": attributes[.size] ?? 0,
+                        "display": main,
+                        "inputCoordinateSpace": "global_display_points",
+                    ]
+                    break
+                }
                 if useCua(request) {
                     guard let target = requestString(request, "target") else {
                         result = refused(request, code: "invalid_request",
