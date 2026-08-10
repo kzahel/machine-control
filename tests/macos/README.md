@@ -19,6 +19,13 @@ preservation, and owned-state cleanup.
 fixture-effect, and exact-window capture cells through native macOS and Cua
 routes. It then proves native Dock and Control Center reach while requiring
 any Cua gap to fail closed without fallback.
+`administrator-sheet.sh` proves that a normal Aqua administrator sheet can be
+identified, cancelled, and submitted entirely inside the guest. It exercises
+wrong-requester, cancellation, expiry, changed-sheet, resident-restart,
+incorrect-credential, correct-credential, reboot-recovery, and cleanup cases.
+The two credential cases are interactive by design: the secret is read without
+echo by the testbed's one-shot helper and never enters request JSON or this
+repository.
 
 Run it from this repository after selecting a guarded disposable/candidate VM
 in the testbed's ignored local configuration:
@@ -29,6 +36,8 @@ tests/macos/conformance.sh remote
 tests/macos/conformance.sh local
 tests/macos/real-applications.sh
 tests/macos/provider-comparison.sh
+tests/macos/administrator-sheet.sh
+tests/macos/administrator-sheet.sh session
 ```
 
 No target name, guest account, network endpoint, or captured artifact is

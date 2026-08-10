@@ -30,6 +30,9 @@
     "state": { "type": "string" },
     "deliveryMode": { "enum": ["background", "foreground"] },
     "expectedGeneration": { "type": "string" },
+    "expectedRequester": { "type": "string", "minLength": 1 },
+    "contextId": { "type": "string", "minLength": 1 },
+    "leaseId": { "type": "string", "minLength": 1 },
     "allowVisualFallback": { "type": "boolean" }
   },
   "additionalProperties": true
