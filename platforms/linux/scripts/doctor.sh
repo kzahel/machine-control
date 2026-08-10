@@ -22,22 +22,29 @@ fi
 status="$($PROVIDER status 2>/dev/null || true)"
 [[ "$status" == "started" ]] && ok "VM state: started" || bad "VM state: $status"
 
-permissions="$($PROVIDER permissions 2>/dev/null || true)"
-if [[ "$(jq -r '.screenCapture // false' <<<"$permissions" 2>/dev/null)" == "true" ]]; then
-    ok "host Screen Recording access"
+if [[ "$LINUXVM_FORBID_OUTER_UI" == "true" ]]; then
+    if $PROVIDER screenshot >/dev/null 2>&1; then
+        bad "outer UI guard"
+    else
+        ok "outer UI is prohibited; UTM window capture/input is not required"
+    fi
 else
-    bad "host Screen Recording access"
-fi
-if [[ "$(jq -r '.postEvent // false' <<<"$permissions" 2>/dev/null)" == "true" ]]; then
-    ok "host Accessibility input access"
-else
-    bad "host Accessibility input access"
-fi
-
-if $PROVIDER window-info >/dev/null 2>&1; then
-    ok "visible UTM window"
-else
-    bad "visible UTM window"
+    permissions="$($PROVIDER permissions 2>/dev/null || true)"
+    if [[ "$(jq -r '.screenCapture // false' <<<"$permissions" 2>/dev/null)" == "true" ]]; then
+        ok "host Screen Recording access"
+    else
+        bad "host Screen Recording access"
+    fi
+    if [[ "$(jq -r '.postEvent // false' <<<"$permissions" 2>/dev/null)" == "true" ]]; then
+        ok "host Accessibility input access"
+    else
+        bad "host Accessibility input access"
+    fi
+    if $PROVIDER window-info >/dev/null 2>&1; then
+        ok "visible UTM window"
+    else
+        bad "visible UTM window"
+    fi
 fi
 
 if $PROVIDER exec /usr/bin/id >/dev/null 2>&1; then

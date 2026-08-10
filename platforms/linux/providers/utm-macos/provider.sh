@@ -33,6 +33,7 @@ ensure_running() {
     local status
     status="$(vm_status || true)"
     if [[ "$status" != "started" ]]; then
+        linuxvm_assert_mutation_target
         "$LINUXVM_UTMCTL" start "$LINUXVM_UTM_NAME" >/dev/null
     fi
 
@@ -84,6 +85,7 @@ wait_for_vm_state() {
 }
 
 guest_shutdown() {
+    linuxvm_assert_mutation_target
     local status
     status="$(vm_status || true)"
     if [[ "$status" == "stopped" ]]; then
@@ -120,6 +122,7 @@ guest_ipv4() {
 }
 
 guest_reboot() {
+    linuxvm_assert_mutation_target
     wait_for_guest_agent
     local old_boot_id new_boot_id deadline
     old_boot_id="$("$LINUXVM_UTMCTL" exec "$LINUXVM_UTM_NAME" \
@@ -147,6 +150,7 @@ guest_exec() {
         printf 'Usage: linuxvm exec -- COMMAND [ARG...]\n' >&2
         return 2
     fi
+    linuxvm_assert_mutation_target
     wait_for_guest_agent
 
     local token remote_dir remote_stdout remote_stderr remote_status
@@ -206,6 +210,7 @@ guest_exec() {
 }
 
 guest_shell() {
+    linuxvm_assert_mutation_target
     wait_for_guest_agent
     "$LINUXVM_UTMCTL" exec "$LINUXVM_UTM_NAME" --input \
         --cmd /usr/bin/bash -l
@@ -217,6 +222,7 @@ file_push() {
         return 2
     fi
     [[ -r "$1" ]] || { printf 'Unreadable local file: %s\n' "$1" >&2; return 1; }
+    linuxvm_assert_mutation_target
     wait_for_guest_agent
     "$LINUXVM_UTMCTL" file push "$LINUXVM_UTM_NAME" "$2" <"$1"
 }
@@ -298,6 +304,24 @@ host_control() {
     /usr/bin/swift "$PROVIDER_DIR/host-control.swift" "$@"
 }
 
+guard_status() {
+    local mutation_verified=false
+    if [[ "$LINUXVM_REQUIRE_MUTATION_GUARD" == true ]] &&
+            linuxvm_assert_mutation_target >/dev/null 2>&1; then
+        mutation_verified=true
+    fi
+    jq -n --argjson outerUIForbidden \
+        "$([[ "$LINUXVM_FORBID_OUTER_UI" == true ]] && printf true || printf false)" \
+        --argjson mutationGuardRequired \
+        "$([[ "$LINUXVM_REQUIRE_MUTATION_GUARD" == true ]] && printf true || printf false)" \
+        --argjson mutationTargetVerified "$mutation_verified" \
+        --arg targetRole "$LINUXVM_TARGET_ROLE" \
+        '{outerUIForbidden:$outerUIForbidden,
+          mutationGuardRequired:$mutationGuardRequired,
+          mutationTargetVerified:$mutationTargetVerified,
+          targetRole:$targetRole}'
+}
+
 input_click() {
     if (( $# < 2 || $# > 3 )); then
         printf 'Usage: linuxvm click X Y [left|right|middle]\n' >&2
@@ -334,6 +358,7 @@ if [[ -n "$command" ]]; then shift; fi
 
 case "$command" in
     status) vm_status ;;
+    guard-status) guard_status ;;
     up)
         ensure_running
         if guest_agent_ready; then guest_ipv4; else printf 'started (guest agent unavailable)\n'; fi
@@ -343,26 +368,56 @@ case "$command" in
     shell) guest_shell ;;
     push) file_push "$@" ;;
     pull) file_pull "$@" ;;
-    screenshot) exec "$PROVIDER_DIR/screenshot" "$@" ;;
-    click) input_click "$@" ;;
-    drag) host_control drag "$LINUXVM_UTM_NAME" "$LINUXVM_DISPLAY_WIDTH" \
-        "$LINUXVM_DISPLAY_HEIGHT" "$@" ;;
-    type) input_text "$@" ;;
-    key) input_key "$@" ;;
-    scan) input_scan_codes "$@" ;;
+    screenshot)
+        linuxvm_assert_outer_ui_allowed
+        exec "$PROVIDER_DIR/screenshot" "$@"
+        ;;
+    click)
+        linuxvm_assert_outer_ui_allowed
+        input_click "$@"
+        ;;
+    drag)
+        linuxvm_assert_outer_ui_allowed
+        host_control drag "$LINUXVM_UTM_NAME" "$LINUXVM_DISPLAY_WIDTH" \
+            "$LINUXVM_DISPLAY_HEIGHT" "$@"
+        ;;
+    type)
+        linuxvm_assert_outer_ui_allowed
+        input_text "$@"
+        ;;
+    key)
+        linuxvm_assert_outer_ui_allowed
+        input_key "$@"
+        ;;
+    scan)
+        linuxvm_assert_outer_ui_allowed
+        input_scan_codes "$@"
+        ;;
     permissions) host_control permissions ;;
-    window-info) host_control window-info "$LINUXVM_UTM_NAME" ;;
-    suspend) "$LINUXVM_UTMCTL" suspend --save-state "$LINUXVM_UTM_NAME" ;;
+    window-info)
+        linuxvm_assert_outer_ui_allowed
+        host_control window-info "$LINUXVM_UTM_NAME"
+        ;;
+    host-state) host_control host-state ;;
+    suspend)
+        linuxvm_assert_mutation_target
+        "$LINUXVM_UTMCTL" suspend --save-state "$LINUXVM_UTM_NAME"
+        ;;
     reboot) guest_reboot ;;
     shutdown) guest_shutdown ;;
-    force-stop) "$LINUXVM_UTMCTL" stop --force "$LINUXVM_UTM_NAME" ;;
+    force-stop)
+        linuxvm_assert_mutation_target
+        "$LINUXVM_UTMCTL" stop --force "$LINUXVM_UTM_NAME"
+        ;;
     disposable)
+        linuxvm_assert_mutation_target
         [[ "$(vm_status)" == "stopped" ]] || {
             printf 'Disposable start requires a stopped VM\n' >&2; exit 1;
         }
         "$LINUXVM_UTMCTL" start "$LINUXVM_UTM_NAME" --disposable
         ;;
     clone)
+        linuxvm_assert_mutation_target
         (( $# == 1 )) || { printf 'Usage: linuxvm clone NEW_NAME\n' >&2; exit 2; }
         "$LINUXVM_UTMCTL" clone "$LINUXVM_UTM_NAME" --name "$1"
         ;;

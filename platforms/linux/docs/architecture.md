@@ -52,6 +52,13 @@ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/UID/bus
 
 It does not guess a Wayland socket or copy credentials.
 
+Ignored local configuration can require a candidate/disposable role and bind
+the selected UTM VM to both its exact name and UUID. Guest execution, file
+push, startup, restart, shutdown, suspend, force-stop, clone, and disposable
+operations then fail before mutation if any part of that identity is wrong.
+This protects a prepared source from a stale friendly-name selection; it is
+not an authorization boundary against someone who can edit local config.
+
 `linuxvm gui-launch` crosses the additional application-lifetime boundary. It
 verifies that the active user's systemd manager already has an imported
 `WAYLAND_DISPLAY` or `DISPLAY`, then creates a collected transient user
@@ -87,6 +94,12 @@ configured logical resolution. UTM's scripting API accepts those logical
 coordinates for clicks and also supplies text and raw PC scan codes. Because
 UTM exposes no drag command, CoreGraphics reverses the capture transform for
 drag gestures.
+
+`LINUXVM_FORBID_OUTER_UI=true` makes every UTM-window observation and input
+command fail closed. Doctor and smoke runs in that mode require neither a
+visible UTM console nor host Screen Recording/Accessibility permission. A
+separate read-only host-state oracle can prove that accepted target-resident
+operations left the host cursor and foreground application unchanged.
 
 Routine `shutdown` is synchronous from the caller's perspective: the provider
 requests a normal UTM guest power-down and polls until the state is `stopped`.

@@ -11,6 +11,13 @@ struct UTMWindow: Codable {
     let height: Double
 }
 
+struct HostState: Codable {
+    let cursorX: Double
+    let cursorY: Double
+    let frontmostApplication: String
+    let frontmostBundleIdentifier: String
+}
+
 enum ControlError: Error, CustomStringConvertible {
     case message(String)
     var description: String {
@@ -124,6 +131,15 @@ guard let command = args.first else { fail(ControlError.message("Missing command
 
 do {
     switch command {
+    case "host-state":
+        let cursor = NSEvent.mouseLocation
+        let application = NSWorkspace.shared.frontmostApplication
+        let payload = HostState(
+            cursorX: cursor.x,
+            cursorY: cursor.y,
+            frontmostApplication: application?.localizedName ?? "",
+            frontmostBundleIdentifier: application?.bundleIdentifier ?? "")
+        print(String(decoding: try JSONEncoder().encode(payload), as: UTF8.self))
     case "permissions":
         let payload = ["screenCapture": CGPreflightScreenCaptureAccess(),
                        "postEvent": CGPreflightPostEventAccess()]

@@ -13,6 +13,7 @@ Usage: linuxvm COMMAND [ARG...]
 
 Lifecycle and transport:
   status | up | ip | suspend | reboot | shutdown | force-stop
+  guard-status | host-state      Inspect acceptance safety without guest pixels
   exec -- COMMAND [ARG...]       Run a root command with reliable completion
   user-exec -- COMMAND [ARG...]  Run in the active Wayland desktop session
   gui-launch -- COMMAND [ARG...] Launch through the desktop user systemd manager
@@ -110,7 +111,7 @@ case "$command" in
         ;;
     doctor) exec "$LINUXVM_REPO_DIR/scripts/doctor.sh" ;;
     bootstrap-command) bootstrap_command ;;
-    status|up|ip|shell|push|pull|screenshot|click|drag|type|key|scan|permissions|window-info|suspend|reboot|shutdown|force-stop|clone|disposable)
+    status|guard-status|host-state|up|ip|shell|push|pull|screenshot|click|drag|type|key|scan|permissions|window-info|suspend|reboot|shutdown|force-stop|clone|disposable)
         exec "$PROVIDER" "$command" "$@"
         ;;
     *) printf 'Unknown command: %s\n' "$command" >&2; usage >&2; exit 2 ;;

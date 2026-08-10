@@ -85,8 +85,32 @@ The screenshot is normalized to the configured 1280×800 guest display. Its
 pixel `(x, y)` is the coordinate accepted by `click` and `drag`; UTM's macOS
 title bar is excluded.
 
+Keep this recovery route disabled during ordinary acceptance with
+`LINUXVM_FORBID_OUTER_UI=true`.
+
 `linuxvm shutdown` does not return until UTM reports `stopped`, or until the
 configured `LINUXVM_SHUTDOWN_TIMEOUT` expires.
+
+## Guarded Acceptance
+
+Ordinary target-native acceptance should select a clone in ignored
+`config.local` and bind mutation to both its exact name and UTM UUID:
+
+```bash
+LINUXVM_REQUIRE_MUTATION_GUARD=true
+LINUXVM_TARGET_ROLE=candidate
+LINUXVM_EXPECTED_NAME=EXPECTED_CLONE_NAME
+LINUXVM_EXPECTED_UUID=EXPECTED_CLONE_UUID
+LINUXVM_FORBID_OUTER_UI=true
+```
+
+`bin/linuxvm guard-status` reports whether the selected target passed that
+check without disclosing its name or UUID. Under the outer-UI guard,
+`screenshot`, `click`, `drag`, `type`, `key`, `scan`, and `window-info` fail
+closed. Lifecycle and QEMU guest-agent transport remain available because they
+do not observe or manipulate the graphical console. `host-state` is a
+read-only oracle for the controller host's cursor and frontmost application;
+it does not inspect guest pixels or inject input.
 
 ## Control Layers
 

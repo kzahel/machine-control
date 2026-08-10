@@ -17,12 +17,28 @@ swiftc -typecheck "$REPO_DIR/providers/utm-macos/normalize-screenshot.swift"
 
 help_output="$("$LINUXVM" help)"
 [[ "$help_output" == *'gui-launch'* ]]
+guard_status="$("$LINUXVM" guard-status)"
+jq -e '.mutationGuardRequired == false or
+       .mutationTargetVerified == true' <<<"$guard_status" >/dev/null
+for command in screenshot click drag type key scan window-info; do
+    if LINUXVM_FORBID_OUTER_UI=true "$LINUXVM" "$command" \
+            >/dev/null 2>&1; then
+        printf 'Outer-UI guard allowed linuxvm %s\n' "$command" >&2
+        exit 1
+    fi
+done
+LINUXVM_FORBID_OUTER_UI=true "$LINUXVM" status >/dev/null
+LINUXVM_FORBID_OUTER_UI=true "$LINUXVM" host-state >/dev/null
 "$LINUXVM" doctor
 
-artifact_dir="$REPO_DIR/.artifacts/smoke"
-mkdir -p "$artifact_dir"
-"$LINUXVM" screenshot "$artifact_dir/guest.png" >/dev/null
-test -s "$artifact_dir/guest.png"
+artifact_message='outer screenshot prohibited'
+if [[ "$(jq -r '.outerUIForbidden' <<<"$guard_status")" == false ]]; then
+    artifact_dir="$REPO_DIR/.artifacts/smoke"
+    mkdir -p "$artifact_dir"
+    "$LINUXVM" screenshot "$artifact_dir/guest.png" >/dev/null
+    test -s "$artifact_dir/guest.png"
+    artifact_message="screenshot: $artifact_dir/guest.png"
+fi
 
 completion="$($LINUXVM exec -- /usr/bin/bash -lc \
     'printf "start:"; sleep 2; printf "finish"')"
@@ -56,4 +72,4 @@ cmp "$local_probe" "$pulled_probe"
 "$LINUXVM" exec -- /usr/bin/rm -f "$remote_probe"
 rm -f "$local_probe" "$pulled_probe"
 
-printf 'LinuxVM smoke test passed; screenshot: %s\n' "$artifact_dir/guest.png"
+printf 'LinuxVM smoke test passed; %s\n' "$artifact_message"
