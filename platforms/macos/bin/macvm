@@ -26,6 +26,8 @@ Setup:
   deploy-ui              Compile and deploy the semantic UI helper
   deploy-fixture         Compile and deploy the deterministic native fixture
   deploy-admin-fixture   Compile and deploy the administrator fixture
+  reset-admin-fixture    Clear administrator fixture oracle state
+  remove-admin-fixture   Remove administrator fixture and oracle state
   authorize-ui           Request the guest Accessibility permission
 
 Out-of-band recovery:
@@ -59,6 +61,8 @@ case "$command" in
     deploy-ui) exec "$REPO_DIR/scripts/deploy-ui.sh" "$@" ;;
     deploy-fixture) exec "$REPO_DIR/scripts/deploy-fixture.sh" "$@" ;;
     deploy-admin-fixture) exec "$REPO_DIR/scripts/deploy-admin-fixture.sh" "$@" ;;
+    reset-admin-fixture) exec "$REPO_DIR/scripts/reset-admin-fixture.sh" "$@" ;;
+    remove-admin-fixture) exec "$REPO_DIR/scripts/remove-admin-fixture.sh" "$@" ;;
     authorize-ui) exec "$REPO_DIR/bin/macui" authorize "$@" ;;
     ui) exec "$REPO_DIR/bin/macui" "$@" ;;
     control) exec "$REPO_DIR/bin/macui" control "$@" ;;
