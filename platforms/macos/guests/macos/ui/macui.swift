@@ -842,12 +842,14 @@ final class ResidentService {
                         ["id": "macos-native", "state": AXIsProcessTrusted() ? "ready" : "degraded",
                          "routeClass": "guest.user", "placement": "target_resident",
                          "operations": ["applications", "windows", "snapshot", "action",
-                                        "application.launch", "application.terminate", "input.key",
+                                        "application.launch", "application.activate",
+                                        "application.terminate", "input.key",
                                         "input.text", "input.click", "capture"]],
                         ["id": "cua", "state": cua == nil ? "unavailable" : "ready",
                          "routeClass": "guest.user", "placement": "target_resident",
                          "operations": ["applications", "windows", "snapshot", "action",
-                                        "application.launch", "application.terminate", "input.key",
+                                        "application.launch", "application.activate",
+                                        "application.terminate", "input.key",
                                         "input.text", "input.click", "capture"]],
                     ],
                     "routing": [
@@ -859,7 +861,7 @@ final class ResidentService {
                         ["operations": ["windows", "capture"],
                          "provider": defaultVisualProvider],
                         ["operations": ["applications", "application.launch",
-                                         "application.terminate"],
+                                         "application.activate", "application.terminate"],
                          "provider": cua == nil ? "macos.workspace" : "cua"],
                     ],
                     "screenCaptureAuthorized": CGPreflightScreenCaptureAccess(),
@@ -1004,8 +1006,8 @@ final class ResidentService {
                                              message: "text is required for set_value")
                             break
                         }
-                        arguments["text"] = text
-                        tool = "type_text"
+                        arguments["value"] = text
+                        tool = "set_value"
                     } else if action == "press" {
                         arguments["action"] = "press"
                         tool = "click"
@@ -1097,7 +1099,11 @@ final class ResidentService {
                 if useCua(request) {
                     let key = query.contains(".") && !query.contains(" ") ?
                         "bundle_id" : "name"
-                    let output = try cuaCall("launch_app", [key: query])
+                    var arguments: [String: Any] = [key: query]
+                    if let url = requestString(request, "arguments") {
+                        arguments["urls"] = [url]
+                    }
+                    let output = try cuaCall("launch_app", arguments)
                     result = projectCuaResult(request, providerOperation: "launch_app",
                                               providerResult: output,
                                               route: "guest.user/macos.cua")
@@ -1125,14 +1131,50 @@ final class ResidentService {
                 result["effect"] = app.isTerminated ? "confirmed" : "unknown"
                 result["uncertainty"] = app.isTerminated ? "none" : "termination_not_observed"
                 result["data"] = ["processId": pid]
+            case "application.activate":
+                guard let query = requestString(request, "target") else {
+                    result = refused(request, code: "invalid_request",
+                                     message: "target is required")
+                    break
+                }
+                if useCua(request) {
+                    let (pid, _) = try cuaApplication(query)
+                    var arguments: [String: Any] = ["pid": pid]
+                    if let window = try? cuaWindow(pid: pid),
+                       let windowID = (window["window_id"] as? NSNumber)?.intValue {
+                        arguments["window_id"] = windowID
+                    }
+                    let output = try cuaCall("bring_to_front", arguments)
+                    result = projectCuaResult(request,
+                        providerOperation: "bring_to_front", providerResult: output,
+                        route: "guest.user/macos.cua")
+                    result["focusConsequence"] = "target_application_activated"
+                    break
+                }
+                let app = try resolveApplication(query)
+                let delivered = app.activate()
+                usleep(150_000)
+                result = base(request, route: "guest.user/macos.workspace")
+                result["delivery"] = delivered ? "confirmed" : "unknown"
+                result["effect"] = NSWorkspace.shared.frontmostApplication?
+                    .processIdentifier == app.processIdentifier ? "confirmed" : "unknown"
+                result["focusConsequence"] = "target_application_activated"
             case "input.key", "input.text", "input.click":
                 if useCua(request) {
                     var arguments: [String: Any] = [:]
                     if let target = requestString(request, "target") {
                         let (pid, _) = try cuaApplication(target)
                         arguments["pid"] = pid
+                        if let window = try? cuaWindow(pid: pid),
+                           let windowID = (window["window_id"] as? NSNumber)?.intValue {
+                            arguments["window_id"] = windowID
+                        }
                     } else {
                         arguments["scope"] = "desktop"
+                    }
+                    if let deliveryMode = requestString(request, "deliveryMode") ??
+                            requestString(request, "state") {
+                        arguments["delivery_mode"] = deliveryMode
                     }
                     let tool: String
                     if operation == "input.key" {

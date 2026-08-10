@@ -5,6 +5,10 @@ final class FixtureController: NSObject, NSApplicationDelegate, NSTextFieldDeleg
     private var count = 0
     private var enabled = false
     private var text = ""
+    private var keyEventCount = 0
+    private var lastKey = ""
+    private var keyMonitor: Any?
+    private var stateTimer: Timer?
     private let countLabel = NSTextField(labelWithString: "Count: 0")
     private let enabledLabel = NSTextField(labelWithString: "Enabled: false")
     private let textLabel = NSTextField(labelWithString: "Text: ")
@@ -56,7 +60,22 @@ final class FixtureController: NSObject, NSApplicationDelegate, NSTextFieldDeleg
         window.contentView = stack
         window.center()
         window.makeKeyAndOrderFront(nil)
+        window.makeFirstResponder(textField)
         NSApp.activate(ignoringOtherApps: true)
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) {
+            [weak self] event in
+            self?.keyEventCount += 1
+            self?.lastKey = event.charactersIgnoringModifiers ?? ""
+            self?.persist()
+            return event
+        }
+        stateTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) {
+            [weak self] _ in
+            guard let self, self.text != self.textField.stringValue else { return }
+            self.text = self.textField.stringValue
+            self.textLabel.stringValue = "Text: \(self.text)"
+            self.persist()
+        }
         persist()
     }
 
@@ -105,6 +124,8 @@ final class FixtureController: NSObject, NSApplicationDelegate, NSTextFieldDeleg
             "count": count,
             "enabled": enabled,
             "text": text,
+            "keyEventCount": keyEventCount,
+            "lastKey": lastKey,
             "pid": ProcessInfo.processInfo.processIdentifier,
         ]
         guard let data = try? JSONSerialization.data(
