@@ -88,11 +88,23 @@ else
     bad "AT-SPI desktop access"
 fi
 
-if resident_status="$($LINUXVM control '{"operation":"status"}' 2>/dev/null)" &&
-   [[ "$(jq -r '.accepted // false' <<<"$resident_status")" == true ]] &&
-   [[ "$(jq -r '.data.semanticState // ""' <<<"$resident_status")" == ready ]] &&
-   [[ "$(jq -r '.data.captureState // ""' <<<"$resident_status")" == ready ]] &&
-   [[ "$(jq -r '.data.inputState // ""' <<<"$resident_status")" == ready ]]; then
+resident_status=""
+for _ in {1..30}; do
+    if resident_status="$($LINUXVM control \
+            '{"operation":"status"}' 2>/dev/null)" &&
+       [[ "$(jq -r '.accepted // false' <<<"$resident_status")" == true ]] &&
+       [[ "$(jq -r '.data.semanticState // ""' \
+           <<<"$resident_status")" == ready ]] &&
+       [[ "$(jq -r '.data.captureState // ""' \
+           <<<"$resident_status")" == ready ]] &&
+       [[ "$(jq -r '.data.inputState // ""' \
+           <<<"$resident_status")" == ready ]]; then
+        break
+    fi
+    resident_status=""
+    sleep 1
+done
+if [[ -n "$resident_status" ]]; then
     ok "persistent target-native resident"
 else
     bad "persistent target-native resident"

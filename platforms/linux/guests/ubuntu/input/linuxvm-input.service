@@ -1,6 +1,6 @@
 [Unit]
 Description=LinuxVM dedicated-appliance input broker
-After=systemd-logind.service graphical.target
+After=systemd-logind.service
 
 [Service]
 Type=simple
