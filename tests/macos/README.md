@@ -12,6 +12,12 @@ The deterministic AppKit fixture supplies both visible AX state and a separate
 file oracle. Tests do not treat an AX or input acknowledgement as proof of an
 application effect. The script also checks exact-window artifacts, resident
 restart, stale-reference refusal, and System Settings background behavior.
+`aqua-visual-fallback.sh` runs with Tart-window pixels and input forbidden. It
+checks target-local full-display capture at Retina scale and move, click, drag,
+and scroll on a deliberately sparse custom AppKit surface. Its file oracle
+proves guest effects, while an independent read-only host oracle proves the
+host cursor and frontmost application did not change. Both outside and
+guest-local callers exercise the same resident.
 `real-applications.sh` sustains the same facade across Finder, System Settings,
 TextEdit, Safari, an application menu bar, exact-window artifacts, focus
 preservation, and owned-state cleanup.
@@ -34,6 +40,7 @@ in the testbed's ignored local configuration:
 tests/macos/conformance.sh
 tests/macos/conformance.sh remote
 tests/macos/conformance.sh local
+tests/macos/aqua-visual-fallback.sh
 tests/macos/real-applications.sh
 tests/macos/provider-comparison.sh
 tests/macos/administrator-sheet.sh
