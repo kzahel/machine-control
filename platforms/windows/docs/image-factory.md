@@ -2,8 +2,8 @@
 
 This factory has two related paths:
 
-1. create a Windows testbed base from explicit local installation media and a
-   locally rendered answer-media ISO; and
+1. create a Windows testbed base from explicit local installation media and
+   locally rendered answer and firmware-boot media; and
 2. generalize and export a configured candidate as a stopped UTM appliance.
 
 The first path removes the undocumented manual-OOBE dependency. The second
@@ -74,9 +74,10 @@ installed Windows Boot Manager on any later filesystem, and otherwise launches
 the prepared installer's firmware-visible `EFI/BOOT/BOOTAA64.EFI`. This avoids
 both an interactive firmware-shell stop and Windows media's `Press any key`
 prompt without forcing Setup media again during installation reboots. The
-exact Windows ISO must contain that standard no-prompt ARM64 loader; media
-validation is part of live acceptance rather than an assumption about every
-possible ISO.
+prepared installer exposes the no-prompt loader in its firmware-visible boot
+image. Preparation first proves that the official ISO contains both expected,
+equal-size Microsoft-signed loaders and that the embedded payload is exactly
+the prompted loader; media validation is not an assumption about every ISO.
 
 The checked-in AppleScript configuration surface does not expose UTM's Windows
 wizard flags for TPM 2.0 and preloaded Secure Boot keys. The answer media uses
@@ -127,9 +128,12 @@ activation are caller-owned inputs and must be proven on the exact ISO.
 Windows Setup restarts after laying down the system disk, while first logon
 still needs the seed. If UEFI remains at `Start boot option`, stop the candidate
 through `bin/winvm down`, run `bin/winvm factory-detach-installer`, and start it
-again. That guarded transition requires exactly three removable drives,
-removes only the first factory-created installer, and independently requires
-both seed drives to remain. It will not guess when the drive shape differs.
+again. At this pre-guest firmware boundary there may be no running OS capable
+of shutdown; after explicit operator authorization, `bin/winvm force-stop` is
+the bounded outer recovery route. That guarded transition requires exactly
+three removable drives, removes only the first factory-created installer, and
+independently requires both seed drives to remain. It will not guess when the
+drive shape differs.
 
 After Windows first-logon bootstrap completes, verify key-only SSH, remove the
 one-use answer media and Windows ISO with `bin/winvm factory-detach-media`
@@ -227,18 +231,73 @@ Windows country/region OOBE page; it was stopped cleanly without persisting
 that first boot. No screenshot, VM identity, endpoint, account, or bundle path
 is committed.
 
-No compatible Windows installation ISO was present locally, so the
-ISO-to-new-base lane has not been executed. Its exact remaining live boundary
-is media validation, `factory-create`, Windows Setup/image-index compatibility,
-first-logon OpenSSH bootstrap, answer-media removal, and subsequent product
-installation on that newly created target. The repository does not claim this
-lane is proven until explicit licensed media is supplied and that sequence
-passes.
+### Public ISO factory acceptance
+
+**Current (2026-08-10):** The ISO-to-new-base lane was exercised with
+Microsoft's current public English Windows 11 25H2 multi-edition ARM64 ISO.
+The source remained byte-for-byte unchanged throughout preparation; its
+published SHA-256 was independently rechecked as
+`638AA2C88E94385B00F4F178D071E3DF0B7D9E335577A83BD533B7F2EB65ADF0`
+before cleanup. Catalog index 3 installed Windows 11 Pro ARM64 build 26200.
+The public Pro installation-only setup key selected that edition, automatic
+activation was suppressed, and the installed system remained unactivated in
+notification state. No customer activation key was used.
+
+A blank UUID-pinned candidate booted the prepared installer and split seed
+media without guest input. Setup consumed `Autounattend.xml`, wiped only the
+blank NVMe disk, injected storage/network/guest-agent drivers, and completed
+its disk phase. At the expected UTM firmware boundary, a separately authorized
+UUID-bound force stop allowed installer-only detachment; both seed media were
+independently still present. The next boot completed specialization, OOBE, the
+one-time local login, and guest-tools installation without host-driven guest
+UI.
+
+The run exposed one fresh-media defect rather than hiding it: Windows OpenSSH
+9.5 generated host private keys with an explicit grant for the setup
+administrator and refused them with service exit 1067. The bootstrap now
+rebuilds those private-key ACLs from the language-independent SYSTEM and
+Administrators SIDs before `sshd -t`. That exact repair started `sshd` on the
+fresh target; rerunning the checked-in bootstrap produced its normal state and
+OpenSSH receipts, key-only SSH survived reboot, and password authentication
+remained disabled. The answer-file password was then rotated through a private
+file and never appeared in a command argument or durable evidence.
+
+MachineControl installed as an automatic LocalSystem service with a Medium
+ordinary helper, pinned Cua 0.17, and the native Windows provider. Default UAC
+policy remained enabled (`EnableLUA=1`, consent behavior 5, secure desktop 1).
+The live protected suite confirmed both cancellation and approval on
+`Winlogon`, target-native secure-desktop capture and semantics, and an
+independent High-integrity effect.
+
+Authenticated-remote and target-local runs both completed the Calculator,
+Settings, Character Map, and Notepad workflow with independent effects and
+owned-artifact cleanup. Current packaged Calculator exposed separate content
+and `ApplicationFrameWindow` surfaces; the facade now reports both, uses the
+content surface for UIA and the frame for full capture/lifecycle, and confirmed
+all four window transitions. Remote Calculator compact/unchanged payload ratios
+were 0.702/0.060 and target-local ratios were 0.694/0.053; Settings was
+0.773/0.256 in both placements.
+
+The installer had already been detached, so final media removal deleted the
+two remaining seed devices and independently observed zero removable drives.
+On the subsequent disk-only boot, key-only SSH and the resident protected
+route were available before login on `Winlogon`. The rotated password passed
+the stock Credential Provider in one target-native request, after which the
+Medium helper returned on `Default`; system input, Run-dialog semantics, and
+target-native capture remained functional.
+
+The exact disposable candidate was stopped and UUID-confirmed before deletion.
+The prior target selection and host-key file were restored byte-for-byte; the
+downloaded ISO, prepared copy, both seed images, one-use credentials, captures,
+and acceptance artifacts were deleted. The earlier generalized export and its
+manifest were not modified and remain stopped. `tests/smoke.sh` and
+`tests/image-factory.sh` pass with the final implementation.
 
 ## Authoritative references
 
 - [Microsoft Sysprep command-line options](https://learn.microsoft.com/windows-hardware/manufacture/desktop/sysprep-command-line-options?view=windows-11)
 - [Microsoft answer files overview](https://learn.microsoft.com/windows-hardware/customize/desktop/wsim/answer-files-overview)
+- [Microsoft Windows 11 Arm64 ISO download](https://www.microsoft.com/software-download/windows11arm64)
 - [Microsoft Windows Setup configuration passes](https://learn.microsoft.com/windows-hardware/manufacture/desktop/windows-setup-configuration-passes?view=windows-11)
 - [UTM scripting reference](https://docs.getutm.app/scripting/reference/)
 - [UTM scripting cheat sheet](https://docs.getutm.app/scripting/cheat-sheet/)
