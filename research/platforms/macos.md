@@ -1,8 +1,7 @@
 # macOS Control Research
 
-Status: ordinary-session resident composition and normal Aqua administrator
-sheets are adopted and live-tested in a prepared Tart appliance; login and
-preboot planes remain open.
+Status: full logged-in Aqua software-testing composition is adopted and
+live-tested in a prepared Tart appliance; login and preboot planes remain open.
 
 ## Native foundation
 
@@ -67,6 +66,22 @@ noninteractive `sudo` returned UID 0, and the effective rule reported
 bounded privilege model for less-trusted machines. The ordinary host transport
 remains Tart's guest agent rather than SSH.
 
+[`Tactical 010`](../../docs/tactical/010-macos-full-aqua-software-testing.md)
+adds adopted live evidence for the complete prepared-Tart software-testing
+plane. Native AX and target-local pixels/input covered privacy settings,
+panels, modal sheets, notifications, Safari downloads, DMGs, Gatekeeper,
+Installer, AppKit, SwiftUI, browser/web, and custom-rendered UI. Exact
+SecurityAgent, Installer, System Settings, and LocalAuthentication fingerprints
+kept credential submission bounded. Full reboot and post-reboot replay passed
+with outer UI prohibited, followed by complete fixture/artifact cleanup and a
+normal stop.
+
+The evidence also fixes three environment omissions: SIP is disabled so
+protected-data enforcement cannot be measured, Tart exposes no virtual camera
+or microphone, and the accepted image has no Java or Electron build runtime.
+The corpus reports those facts separately and will not reinterpret them as
+successful application effects.
+
 ## Current direction
 
 **Decision:** Preserve Cua as a replaceable common-plane adapter and Peekaboo as
@@ -77,5 +92,5 @@ materially better macOS route.
 
 **Open:** Extend evidence to occlusion/minimization, off-Space behavior,
 multiple displays, localization, lock/loginwindow, FileVault/preboot, bounded
-non-UI administration, private-API fragility, and longer
-background-interference soak runs.
+non-UI administration, a SIP-enabled protected-data image, Java/Electron when
+installed, private-API fragility, and longer background-interference soak runs.

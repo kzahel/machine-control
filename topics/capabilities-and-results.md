@@ -54,6 +54,17 @@ safety, and the non-secret context; an independent fixture proves the intended
 privileged effect. Missing, expired, reused, changed-sheet, and stale-generation
 leases are typed refusals with no provider or outer fallback.
 
+**Current — full macOS Aqua exercise:** Tactical 010 extends the same result
+vocabulary across settings-managed privacy, native panels and sheets,
+Gatekeeper, Safari downloads, DMGs, Installer, AppKit, SwiftUI, browser/web,
+and custom-rendered fallback. SecurityAgent, Installer, System Settings, and
+Gatekeeper authorization use exact profiles and one-shot leases. Compact
+framework observations report route, latency, round trips, and byte size;
+separate fixture/API/file oracles remain authoritative when an AX action's own
+effect is `unverifiable`. Hardware absence, SIP-disabled policy enforcement,
+and absent framework runtimes are explicit capability omissions rather than
+successful effects or generic failures.
+
 ## Contract and session envelope
 
 Local IPC, SSH, an authenticated tunnel, CLI/SDK calls, and MCP are facades or

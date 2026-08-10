@@ -2,7 +2,7 @@
 
 Topic: `macos-resident-control`
 
-Status: full logged-in Aqua software-testing milestone active for Tart;
+Status: full logged-in Aqua software-testing milestone accepted for Tart;
 lock/login, preboot, Recovery, and physical hardware are deferred.
 
 ## Current state
@@ -146,6 +146,35 @@ states independently. Live conformance proves:
 The accepted appliance needed no root daemon or privileged broker for this
 surface. Initial Accessibility consent still cannot use the resident before
 the resident is trusted.
+
+## Accepted full Aqua software-testing surface
+
+[`Tactical 010`](../docs/tactical/010-macos-full-aqua-software-testing.md)
+completes the current Tart goal. Outer screenshot and input are fail-closed in
+acceptance, while both guest-local and outside callers use the same resident
+for native semantics, exact and full-display capture, target-local input,
+applications, artifacts, and authorization.
+
+The live corpus now includes:
+
+- repeatable Camera, Microphone, Automation, Accessibility, Input Monitoring,
+  Screen Recording, Local Network, notifications, protected folders, and Full
+  Disk Access policy workflows through supported prompts and System Settings;
+- open/save/folder panels, menu and menu-extra surfaces, nested sheets,
+  relaunch, quarantine/Gatekeeper, Safari download approval, DMG mounting, and
+  harmless package installation;
+- exact fail-closed authorization profiles for ordinary SecurityAgent,
+  Installer, System Settings, and Gatekeeper's LocalAuthentication sheet;
+- compact AppKit and SwiftUI semantics through both placements, Safari/web,
+  and an in-guest pixel/input fallback for sparse custom-rendered UI; and
+- resident restart, full unattended guest reboot, representative post-reboot
+  replay, complete corpus cleanup, and normal candidate shutdown.
+
+The current image has SIP disabled, so protected-data policy UI is controllable
+but Full Disk Access and protected-folder enforcement cannot be proved on that
+image. Tart has no camera or microphone hardware; consent state and hardware
+absence are reported separately. Java and Electron build runtimes are absent,
+and the corpus fails if either later appears without a deterministic fixture.
 
 ## Later boundaries
 

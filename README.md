@@ -412,17 +412,22 @@ non-UI testing and cleanup. Execution records are
 and
 [`Tactical 009`](docs/tactical/009-macos-administrator-sheet-control.md).
 
-**Current Tart milestone:** Complete the entire logged-in Aqua
-software-testing surface without Tart-window capture or input. Semantic AX is
-the efficient default; capture and coordinate input executing inside the guest
-are the universal fallback. The scope includes application privacy prompts,
-System Settings, open/save panels, notifications, installers, downloads,
-Gatekeeper, menus, modal dialogs, administrator sheets, and representative
-semantic and custom-rendered software. Lock/login, FileVault/preboot, Recovery,
-and physical Mac concerns are deliberately deferred. The durable direction is
-in the [macOS resident-control topic](topics/macos-resident-control.md#current-tart-goal),
-and execution is tracked by
-[`Tactical 010`](docs/tactical/010-macos-full-aqua-software-testing.md).
+**Accepted Tart milestone:** [`Tactical 010`](docs/tactical/010-macos-full-aqua-software-testing.md)
+completes the logged-in Aqua software-testing surface without Tart-window
+capture or input. Native semantics plus in-guest visual fallback now cover the
+privacy and System Settings classes practicable in Tart, open/save/folder
+panels, notifications, Safari downloads, DMGs, Gatekeeper, Installer,
+relaunches, nested sheets, AppKit, SwiftUI, browser/web, and custom-rendered UI.
+Strict resident authorization covers the exact SecurityAgent, Installer,
+System Settings, and Gatekeeper sheets encountered by the corpus. A full guest
+reboot restored the ready surface, post-reboot representative cells passed,
+fixtures and artifacts were removed, and the candidate stopped normally.
+
+The image honestly reports SIP-disabled protected-data enforcement, absent
+virtual camera/microphone hardware, and absent Java/Electron runtimes. Lock and
+preboot planes plus physical Mac concerns remain deliberately deferred. See the
+[macOS resident-control topic](topics/macos-resident-control.md#current-tart-goal)
+for continuing direction.
 
 ## Current position
 

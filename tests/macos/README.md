@@ -40,9 +40,11 @@ alternates outside and guest-local callers and verifies files and fixture state
 independently.
 `artifact-workflows.sh` builds disposable guest artifacts and proves a
 quarantined-app Open Anyway flow, DMG mounting with Finder semantics, a Safari
-download approval, and a harmless Installer package with a strict resident
-authorization lease. It removes the mount, download, package receipt/payload,
-server, and working directory afterward.
+download approval, and a harmless Installer package. Exact Gatekeeper and
+Installer credential sheets use strict resident authorization leases when
+macOS presents them, so the script requires an interactive terminal. It
+removes the mount, download, package receipt/payload, server, and working
+directory afterward.
 `framework-coverage.sh` proves compact semantic actions and independent effects
 through both caller placements on deterministic AppKit and SwiftUI fixtures.
 It links the already separate browser/web and custom-rendered acceptance cells,

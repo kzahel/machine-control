@@ -1,6 +1,6 @@
 # Tactical 010: macOS Full Aqua Software Testing
 
-Status: active.
+Status: complete with declared appliance omissions.
 
 Topics: `macos-resident-control`, `inner-first-routing`, and
 `capabilities-and-results`.
@@ -172,4 +172,55 @@ macOS-enforced gaps, and explicitly deferred physical or non-Aqua planes.
 
 ## Validation record
 
-Pending implementation and live execution.
+Completed on a guarded copy-on-write Tart candidate. Every acceptance script
+set `MACVM_FORBID_OUTER_UI=true`; host screenshot and input commands therefore
+failed closed while guest shell transport, resident control, and lifecycle
+remained available. Each accepted result reported `hostInterference: none`,
+and the host cursor/frontmost-application oracle was unchanged.
+
+The completed corpus proved:
+
+- remote and guest-local parity through one resident generation for compact AX
+  semantics, exact-window capture, full-display capture, keyboard, pointer,
+  text, application lifecycle, artifacts, and truthful provider selection;
+- target-local visual fallback on a deliberately custom-rendered AppKit surface,
+  including move, click, drag, and scroll with an independent file oracle;
+- Camera, Microphone, Automation, Accessibility, Input Monitoring, Screen
+  Recording, Local Network, notifications, protected-folder, and Full Disk
+  Access policy surfaces through supported prompts or System Settings, with
+  allow/deny or grant/revoke, supported reset, and independent API/file effects;
+- native Open, Save, folder-selection, nested-sheet, relaunch, notification,
+  Safari-download, mounted-DMG, Gatekeeper, and harmless Installer workflows;
+- strict one-shot authorization for ordinary SecurityAgent, Installer,
+  System Settings, and Gatekeeper's exact LocalAuthentication sheet, with the
+  credential confined to the non-echoing staged channel;
+- compact AppKit and SwiftUI semantic workflows from both placements. A
+  representative post-reboot run returned roughly 1 KB observations at
+  40–122 ms while independent state files proved the effects;
+- a normal full guest shutdown and unattended bring-up into the logged-in Aqua
+  session, retained Accessibility/Screen Recording readiness, resident restart,
+  stale-reference invalidation, and successful post-reboot semantic, visual,
+  privacy, dialog, and framework cells; and
+- reset/removal of corpus-owned TCC state where supported, all fixture apps and
+  sources, mounts, downloads, package payload and receipt, capture artifacts,
+  caches, and file oracles before a final normal shutdown.
+
+During execution, Tart system-key capture was found to be able to retain host
+keyboard focus beyond the expected window interaction. The testbed now defaults
+it off, acceptance mode suppresses the flag even when local configuration asks
+for it, and post-reboot process inspection confirmed the flag was absent.
+
+Declared appliance omissions are not acceptance failures:
+
+- the prepared image has SIP disabled, so Full Disk Access and protected-folder
+  UI grant/revoke is controllable but protected-read enforcement is unavailable;
+- Tart exposes no camera or microphone hardware, although both consent decisions
+  and the separate no-hardware application effect are repeatable; and
+- the image has Swift/AppKit and Safari but no usable Java or Electron build
+  runtime. The framework corpus fails if either runtime later becomes available
+  without gaining a deterministic fixture.
+
+Lock/loginwindow, FileVault/preboot, Recovery, physical Mac hardware, multiple
+interactive users, and physical-device peripherals remain outside this
+tactical's explicit boundary. Continuing macOS direction is maintained in the
+[`macOS resident-control topic`](../../topics/macos-resident-control.md).
