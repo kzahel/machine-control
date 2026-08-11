@@ -131,19 +131,22 @@ observed ready or unready effect.
 **Current:** Platform-owned post-update commands now complement, rather than
 weaken, that common read-only contract. Windows, macOS, and Linux each expose a
 minimized audit, exact-candidate bounded repair, explicit reboot observation,
-and a heavier exact-source certification command. Linux and macOS refuse a
-stopped audit before their guest transports can start the target. A missing
-guest agent remains a separate recovery boundary.
+and a heavier exact-source certification command. Physical ChromeOS exposes a
+runtime audit and guarded repair but no image certification. Linux and macOS
+refuse a stopped audit before their guest transports can start the target. A
+missing guest agent remains a separate recovery boundary.
 
 The common `maintenance capabilities|audit|repair|certify` namespace declares
-and dispatches those appliance operations for the three desktop adapters. It
+and dispatches only operations available on the selected platform. It
 validates platform schemas and emits a minimized
 `machine-control-maintenance/v0` projection without boot epochs, concrete
 services, endpoints, or staging paths. Capability discovery does not execute
 an adapter. Repair reboot is optional and explicit; certification always owns
 its reboot proof. Launchd/TCC, systemd/dpkg, and Windows service/OpenSSH
-invariants remain platform-owned rather than becoming one misleading repair
-vocabulary.
+invariants and ChromeOS update/rootfs recovery remain platform-owned rather
+than becoming one misleading repair vocabulary. ChromeOS common repair refuses
+a pending update or read-only root image before mutation and leaves that
+physical-recovery-aware transition to the guided VT2 workflow.
 
 **Current:** `target validate-candidate` requires an exact adapter-side
 candidate-role and identity assertion with no workspace receipt ownership,
@@ -177,9 +180,11 @@ macOS and Linux examples now require an exact ignored/private
 candidate-or-disposable binding before any lifecycle mutation; a plausible
 example name alone cannot start, suspend, shut down, or stop a local VM.
 
-Android, iOS, and Quest retain `native` platform interfaces below the common
-layer but now emit the same minimized doctor envelope. The common client
-therefore exposes `target status|doctor|capabilities` for all three and only
+Android, ChromeOS, iOS, and Quest retain `native` platform interfaces below the
+common layer but now emit the same minimized doctor envelope. ChromeOS uses the
+desktop shape and separates current-boot SSH evidence from profile lock; the
+other three use the device shape. The common client therefore exposes
+`target status|doctor|capabilities` for all four and only
 dispatches a mutating lifecycle verb when that exact adapter declares it. iOS
 and Android currently declare full reboot; Quest deliberately does not. iOS
 full reboot is live-accepted for the passcode-free profile and preserves a
@@ -188,8 +193,8 @@ typed manual-first-unlock state for passcode-protected devices.
 iOS additionally has an explicit common `ios` operation family beside target
 lifecycle. This does not add application or semantic verbs to the portable
 lifecycle set and does not make Android or Quest inherit XCTest semantics.
-ChromeOS and Steam Deck remain behind the explicit `testbed --` escape until
-their own normalized projections exist.
+ChromeOS platform-specific desktop/login/recovery verbs and all Steam Deck
+operations remain behind the explicit `testbed --` escape.
 
 ## Failure behavior
 
@@ -208,7 +213,7 @@ their own normalized projections exist.
   not turn platform repair into an implicit ensure-ready fallback.
 - Add authorization and discovery above the current local registry without
   turning a logical alias into bearer authority.
-- Extend the device projection to ChromeOS and Steam Deck where it adds honest
-  value without fabricating lifecycle parity.
+- Extend the target projection to Steam Deck where it adds honest value without
+  fabricating lifecycle parity.
 - Integrate authorized target discovery with YepAnywhere without moving
   private inventory into this public repository.

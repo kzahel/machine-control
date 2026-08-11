@@ -12,6 +12,8 @@ CLI tools for bootstrapping, troubleshooting, and controlling a ChromeOS Chromeb
 ## Quick Reference
 
 ```bash
+machine-control --target chromeos target doctor  # Common minimized readiness
+machine-control --target chromeos maintenance audit --profile runtime
 chromeos doctor              # Health check — shows what's working/broken
 chromeos post-update         # Read-only focused audit after a ChromeOS update
 chromeos post-update --repair  # Guided repair across the required reboot
@@ -35,6 +37,12 @@ chromeos keep-awake [--lid-closed]  # Persistently disable idle/lid suspend
 chromeos restore-power       # Restore ChromeOS power defaults
 chromeos shell               # Interactive SSH session
 ```
+
+Use the root `machine-control` entry for portable readiness and maintenance.
+Use `chromeos` directly, or `machine-control --target chromeos testbed -- ...`,
+for platform-specific UI, login, ADB, power, bootstrap, and guided recovery.
+The common repair refuses pending-update and read-only-rootfs transitions
+without changing boot state.
 
 ## Troubleshooting Decision Tree
 

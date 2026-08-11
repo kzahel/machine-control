@@ -209,6 +209,15 @@ SSH/devtools configuration, and lack of an independent physical recovery
 path—remain real. They do not diminish its value as the reference for ordinary
 control, which is already effective in practice.
 
+The physical target now participates in common readiness and maintenance. Its
+doctor keeps connection, automatic current-boot SSH persistence, profile lock,
+and target-native desktop capabilities separate. Runtime maintenance reuses
+the focused platform audit and can perform a safe active-image repair; a proof
+reboot remains explicit. Pending-update and read-only-rootfs transitions refuse
+through the common path and retain the physical-recovery-aware VT2 workflow.
+Automatic startup evidence proves what happened after an observed ChromeOS
+boot. It does not claim that hardware which lost all power will turn itself on.
+
 ### Outside control first; in-target agents when useful
 
 An authorized outside agent must be able to select a machine and use its full
@@ -327,7 +336,9 @@ bin/machine-control --target ios target capabilities
 bin/machine-control --target ios ios runner prepare
 bin/machine-control --target ios ios application launch Settings --relaunch
 bin/machine-control --target ios ios snapshot --interactive
-bin/machine-control --target chromeos testbed -- doctor
+bin/machine-control --target chromeos target doctor
+bin/machine-control --target chromeos maintenance capabilities
+bin/machine-control --target chromeos maintenance audit --profile runtime
 ```
 
 For the accepted desktops, the common lifecycle subset is `status`, `up`,
@@ -336,10 +347,12 @@ For the accepted desktops, the common lifecycle subset is `status`, `up`,
 adapter-declared ordinary start; it reports every action and refuses to guess
 a repair for a running unhealthy target. On supported desktop appliances it
 recommends, but never invokes, `maintenance audit`. The common maintenance
-namespace discovers and dispatches the platform-owned Windows, macOS, and
-Linux audit, exact-candidate repair, optional explicit repair reboot, and
-exact-source certification compositions. It validates their typed output and
-removes private boot and staging observations rather than inventing one
+namespace discovers and dispatches platform-owned operations. Windows, macOS,
+and Linux expose audit, exact-candidate repair, optional explicit repair
+reboot, and exact-source certification. Physical ChromeOS exposes only its
+runtime audit and guarded repair; exact-source appliance certification is
+truthfully unavailable. The client validates typed output and removes private
+boot, endpoint, and staging observations rather than inventing one
 cross-platform service-repair vocabulary.
 
 `validate-candidate` records a fresh ready exact-candidate observation.
@@ -363,11 +376,13 @@ adapter still requires its private receipt and exact provider identity.
 
 Android, iOS, and Quest project connection, boot, interaction, runner,
 semantic, capture, input, and device-host route state through the common
-doctor. The common client derives their `status` and `capabilities`, and only
-dispatches lifecycle operations declared by the selected adapter. Native
-device targets still refuse common desktop operations; use the explicit
-`testbed --` namespace for platform-specific application, UI, protected, and
-recovery commands.
+doctor. Physical ChromeOS projects administration, automatic current-boot SSH
+evidence, profile lock, resident, semantic, capture, and input state as a
+desktop-shaped native target with no common lifecycle verbs. The common client
+derives `status` and `capabilities`, and only dispatches lifecycle operations
+declared by the selected adapter. Use the explicit `testbed --` namespace for
+platform-specific application, UI, protected, login, power, and recovery
+commands.
 
 Use `testbed --` and `os --` for explicit machine-specific lifecycle,
 bootstrap, recovery, or administration. Ordinary `desktop` operations never

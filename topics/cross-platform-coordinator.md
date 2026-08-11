@@ -132,6 +132,8 @@ dotfiles commit `4ef3ded`.
   re-run exact-archive checks after material coordinator or toolchain changes.
 - Use the same explicit maintenance namespace for retained macOS development
   appliances; do not fold platform repair into routine readiness.
+- Keep ChromeOS runtime readiness and maintenance portable across eligible
+  Unix controllers without inventing VM lifecycle or image certification.
 - Add direct local/remote resident routes only when their transport and
   authorization are explicit; do not disguise a macOS VM-lifecycle wrapper as
   a Windows-local adapter.

@@ -27,8 +27,9 @@ than a frozen cross-device wire protocol.
   state, and absence of workspace ownership. It intentionally omits the
   provider identity itself.
 - [`maintenance-capabilities-v0.schema.json`](maintenance-capabilities-v0.schema.json)
-  describes the read-only discovery of explicit appliance audit, repair, and
-  exact-source certification operations.
+  describes read-only discovery of explicit platform audit, repair, and
+  exact-source certification operations. Profiles and operations may be
+  unavailable when a physical target does not have an appliance image.
 - [`maintenance-result-v0.schema.json`](maintenance-result-v0.schema.json)
   is the common minimized projection of validated platform-owned maintenance
   evidence. It omits private boot, service, endpoint, and staging details.

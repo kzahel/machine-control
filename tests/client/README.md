@@ -21,11 +21,12 @@ snapshot, action, capture, and artifact operations all use the common client.
 Every run forces the relevant outer-UI prohibition and emits one minimized
 `machine-control-common-desktop-conformance/v0` result.
 
-Dependency-free tests also cover the common outer device projection: native
-Android, iOS, and Quest adapters may expose `target status`, `target doctor`,
-and `target capabilities` through `machine-control-doctor/v0` without claiming
-a desktop/resident process. A device lifecycle mutation is dispatched only
-when that doctor declares the exact operation.
+Dependency-free tests also cover native common projections. Android, iOS, and
+Quest expose device-shaped `target status`, `target doctor`, and
+`target capabilities` without claiming a desktop/resident process. ChromeOS
+exposes a desktop-shaped native doctor with current-boot SSH persistence,
+profile lock, and an empty common lifecycle set. A lifecycle mutation is
+dispatched only when that doctor declares the exact operation.
 
 The fake adapter also covers the explicitly iOS common family: platform
 gating, allowlisted request construction, standard-input transport that keeps
@@ -49,8 +50,10 @@ a cleanly stopped second identity assertion is eligible for private promotion.
 
 The maintenance fixtures prove that capability discovery never invokes an
 adapter, Windows/macOS/Linux audit and repair use the same common operation
-names, reboot remains repair-only and explicit, certification selects the
-exact-source platform composition, and valid unhealthy JSON preserves a
-nonzero result. The common projection removes private boot epochs, staging,
-and platform-only detail. `ensure-ready` only recommends the read-only audit;
-it still never performs maintenance itself.
+names, and ChromeOS can expose runtime audit/repair while refusing image
+certification before dispatch. Reboot remains repair-only and explicit,
+certification selects an available exact-source platform composition, and
+valid unhealthy JSON preserves a nonzero result. The common projection removes
+private boot epochs, endpoints, staging, and platform-only detail.
+`ensure-ready` only recommends the read-only audit; it still never performs
+maintenance itself.

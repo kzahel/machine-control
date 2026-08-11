@@ -154,6 +154,36 @@ keys, configuration, client, and post-update repair staging survive.
 Ordinary `doctor` also warns when ChromeOS reports an update waiting for
 reboot, so physical VT2 access can be planned before the root image changes.
 
+### Common readiness and maintenance
+
+From the repository root, use the common entry for portable observation and
+bounded maintenance:
+
+```bash
+bin/machine-control --target chromeos target status
+bin/machine-control --target chromeos target doctor
+bin/machine-control --target chromeos target capabilities
+bin/machine-control --target chromeos maintenance capabilities
+bin/machine-control --target chromeos maintenance audit --profile runtime
+bin/machine-control --target chromeos maintenance repair --profile runtime
+```
+
+The common doctor distinguishes SSH reachability, automatic startup evidence
+from the current boot, profile lock, and target-native semantics/capture/input.
+After a reboot, maintenance can be healthy while ordinary desktop readiness is
+false because ChromeOS is waiting at profile sign-in.
+
+`maintenance repair --reboot` is the explicit proof-reboot composition. It is
+accepted only on an already safe active image and succeeds only after SSH
+returns on a changed boot with automatic current-boot evidence. If an update is
+waiting or rootfs verification is enabled, common repair returns
+`guided_recovery_required` without changing boot state. Use the existing
+`post-update --repair` VT2 workflow for that boundary.
+
+This evidence starts after ChromeOS boots. A laptop that fully loses power may
+remain physically off or be governed by firmware, lid, and battery policy;
+software SSH autostart cannot make a powered-off device turn itself on.
+
 ## Usage
 
 ```bash
@@ -189,6 +219,7 @@ bin/chromeos --json adb-status
 
 Client-level commands such as `info`, `tap`, and `shortcut` already return JSON.
 Administrative recovery commands remain primarily human-oriented.
+The root `machine-control` entry always emits its common structured contracts.
 
 ### Functional verification and diagnostics
 
