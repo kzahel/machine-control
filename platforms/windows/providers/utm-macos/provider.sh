@@ -25,6 +25,13 @@ require_utmctl() {
     fi
 }
 
+require_outer_ui_allowed() {
+    if [[ "$WINVM_FORBID_OUTER_UI" == true ]]; then
+        printf 'Refusing host-side UTM screenshot/input: outer UI is forbidden\n' >&2
+        return 1
+    fi
+}
+
 vm_status() {
     "$WINVM_UTMCTL" status "$(utm_target_identifier)" 2>/dev/null
 }
@@ -849,11 +856,11 @@ case "$command" in
     assert-target) assert_target "$@" ;;
     up) assert_target up >/dev/null; guest_ipv4 ;;
     ip) assert_target inspect >/dev/null; guest_ipv4_once ;;
-    screenshot) exec "$PROVIDER_DIR/screenshot" "$@" ;;
-    type) assert_target input >/dev/null; input_text "$@" ;;
-    click) assert_target input >/dev/null; input_click "$@" ;;
-    key) assert_target input >/dev/null; input_key "$@" ;;
-    scan) assert_target input >/dev/null; input_scan_codes "$@" ;;
+    screenshot) require_outer_ui_allowed; exec "$PROVIDER_DIR/screenshot" "$@" ;;
+    type) require_outer_ui_allowed; assert_target input >/dev/null; input_text "$@" ;;
+    click) require_outer_ui_allowed; assert_target input >/dev/null; input_click "$@" ;;
+    key) require_outer_ui_allowed; assert_target input >/dev/null; input_key "$@" ;;
+    scan) require_outer_ui_allowed; assert_target input >/dev/null; input_scan_codes "$@" ;;
     stage-bootstrap) assert_target stage-bootstrap >/dev/null; stage_bootstrap "$@" ;;
     seal) assert_target seal >/dev/null; vm_seal "$@" ;;
     disposable-up) assert_target disposable-up >/dev/null; vm_disposable_up "$@" ;;

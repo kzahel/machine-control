@@ -18,8 +18,11 @@ scripts=(
     "$REPO_DIR/bin/winvm"
     "$REPO_DIR/bin/winui"
     "$REPO_DIR/scripts/common.sh"
+    "$REPO_DIR/scripts/control.sh"
     "$REPO_DIR/scripts/deploy-ui.sh"
+    "$REPO_DIR/scripts/doctor-json.sh"
     "$REPO_DIR/scripts/doctor.sh"
+    "$REPO_DIR/scripts/fetch-artifact.sh"
     "$REPO_DIR/scripts/generalize-windows.sh"
     "$REPO_DIR/scripts/image-factory.sh"
     "$REPO_DIR/scripts/image-manifest.sh"
@@ -35,6 +38,9 @@ done
 help_output="$(WINVM_UTM_NAME='Smoke Test VM' "$REPO_DIR/bin/winvm" help)"
 [[ "$help_output" == *'stage-bootstrap'* ]]
 [[ "$help_output" == *'deploy-ui'* ]]
+[[ "$help_output" == *'doctor [--json]'* ]]
+[[ "$help_output" == *'control-local JSON'* ]]
+[[ "$help_output" == *'artifact ID [PATH]'* ]]
 [[ "$help_output" == *'capabilities'* ]]
 [[ "$help_output" == *'down'* ]]
 [[ "$help_output" == *'seal'* ]]
@@ -50,6 +56,39 @@ help_output="$(WINVM_UTM_NAME='Smoke Test VM' "$REPO_DIR/bin/winvm" help)"
 [[ "$help_output" == *'target-id'* ]]
 [[ "$help_output" == *'pin-target ROLE'* ]]
 [[ "$help_output" == *'assert-target OP'* ]]
+
+for command in screenshot type click key scan; do
+    if WINVM_FORBID_OUTER_UI=true \
+            WINVM_UTMCTL=/usr/bin/true \
+            "$REPO_DIR/providers/utm-macos/provider.sh" "$command" \
+            >/dev/null 2>&1; then
+        printf 'Outer-UI guard allowed winvm %s\n' "$command" >&2
+        exit 1
+    fi
+done
+
+if "$REPO_DIR/scripts/control.sh" 'not-json' >/dev/null 2>&1; then
+    printf 'Control wrapper accepted invalid JSON\n' >&2
+    exit 1
+fi
+if "$REPO_DIR/scripts/fetch-artifact.sh" '../not-an-id' \
+        >/dev/null 2>&1; then
+    printf 'Artifact wrapper accepted an invalid identifier\n' >&2
+    exit 1
+fi
+
+set +e
+doctor_json="$(
+    WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-always-stopped" \
+    WINVM_FORBID_OUTER_UI=true \
+    "$REPO_DIR/scripts/doctor-json.sh"
+)"
+doctor_exit=$?
+set -e
+[[ "$doctor_exit" -eq 1 ]]
+jq -e '.schema == "machine-control-doctor/v0" and
+    .ready == false and .states.power == "off" and
+    .states.outer == "prohibited"' <<<"$doctor_json" >/dev/null
 
 config_output="$(
     WINVM_SSH_HOST=smoke-host \

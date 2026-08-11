@@ -11,10 +11,13 @@ usage() {
 Usage: winvm COMMAND [ARG...]
 
 Start here:
-  doctor                 Check lifecycle, network, SSH, and interactive UI
+  doctor [--json]        Check lifecycle, administration, desktop, and resident
   up                     Start/resume the VM and print its current IPv4 address
   ssh [ARG...]           Connect using the configured SSH alias
   ui COMMAND [ARG...]    Inspect and control the Windows accessibility tree
+  control JSON           Call the installed target-resident facade
+  control-local JSON     Call the same installed guest-local CLI
+  artifact ID [PATH]     Fetch one bounded resident capture artifact
 
 Setup:
   stage-bootstrap [KEY]  Stage OpenSSH bootstrap files through the provider
@@ -103,7 +106,21 @@ shift || true
 
 case "$command" in
     help|-h|--help) usage ;;
-    doctor) assert_target connect; exec "$REPO_DIR/scripts/doctor.sh" "$@" ;;
+    doctor)
+        if [[ "${1:-}" == "--json" ]]; then
+            exec "$REPO_DIR/scripts/doctor-json.sh"
+        fi
+        assert_target connect
+        exec "$REPO_DIR/scripts/doctor.sh" "$@"
+        ;;
+    control|control-local)
+        assert_target connect
+        exec "$REPO_DIR/scripts/control.sh" "$@"
+        ;;
+    artifact)
+        assert_target connect
+        exec "$REPO_DIR/scripts/fetch-artifact.sh" "$@"
+        ;;
     deploy-ui) assert_target deploy-ui; exec "$REPO_DIR/scripts/deploy-ui.sh" "$@" ;;
     stage-bootstrap) provider stage-bootstrap "$@" ;;
     ssh-config) print_ssh_config "$@" ;;

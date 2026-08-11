@@ -28,6 +28,9 @@ WINVM_GUEST_SHUTDOWN_GRACE=30
 # VM configuration; use disabled to declare a known provider limitation.
 WINVM_SUSPEND_POLICY=auto
 
+# Prohibit host UTM-window capture and input during ordinary acceptance.
+WINVM_FORBID_OUTER_UI=false
+
 # These normally do not need to change.
 WINVM_UI_PIPE_NAME=winvm-ui
 WINVM_UI_TASK_NAME='WinVM UI Relay'

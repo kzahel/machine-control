@@ -94,6 +94,7 @@ factory creation, Sysprep generalization, and stopped UTM export.
 
 ```bash
 bin/winvm doctor                  # Check every control layer
+bin/winvm doctor --json           # Minimized common readiness projection
 bin/winvm assert-target connect --json # Verify UUID pin and role policy
 bin/winvm up                      # Start/resume and print the guest IP
 bin/winvm capabilities --json     # Inspect lifecycle support and down policy
@@ -105,6 +106,27 @@ bin/winvm seal READY_NAME         # Clone a stopped VM as a stopped seal
 bin/winvm disposable-up           # Verify a seal without persisting changes
 bin/winvm delete --confirm NAME   # Delete only the exact configured stopped VM
 ```
+
+The installed MachineControl resident is also available through first-class
+testbed entry points:
+
+```bash
+bin/winvm control '{"operation":"status"}'
+bin/winvm control-local '{"operation":"status"}'
+capture="$(bin/winvm control '{"operation":"screenshot"}')"
+bin/winvm artifact "$(jq -r '.data.artifactId' <<<"$capture")"
+```
+
+Both control commands invoke the same guest-local installed client through the
+authorized SSH administration route. `artifact` accepts only the resident's
+32-hex-character capture identifier and the fixed resident artifact namespace;
+it is not an arbitrary guest file transfer command.
+
+`doctor --json` emits the minimized `machine-control-doctor/v0` projection for
+the common client. It reports independent power, administration, desktop,
+resident, semantic, capture, input, and outer states without publishing the
+configured machine identity, desktop user, or network address. It is read-only
+and exits nonzero when the accepted resident surface is not ready.
 
 Discover and operate semantic Windows controls:
 
@@ -127,6 +149,10 @@ bin/winvm key ctrl-shift-escape
 bin/winvm click 800 600 left
 bin/winvm scan 28 156             # Enter make/break scan codes
 ```
+
+Set `WINVM_FORBID_OUTER_UI=true` during ordinary acceptance. In that mode the
+provider refuses `screenshot`, `type`, `click`, `key`, and `scan` before they
+can observe or manipulate the host UTM window.
 
 Semantic automation is preferable to coordinates. UTM mouse coordinates are
 guest-display coordinates and exclude the UTM title bar. `winvm screenshot`
