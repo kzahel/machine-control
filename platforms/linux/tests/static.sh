@@ -37,6 +37,20 @@ if [[ "$(uname -s)" == Darwin ]]; then
         exit 1
     fi
     test ! -e "$mutation_marker"
+
+    ip_race_counter="$temporary/ip-race-counter"
+    ip_address="$(env \
+        LINUXVM_CONFIG_FILE=/dev/null \
+        LINUXVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl" \
+        LINUXVM_UTM_NAME=fixture-default \
+        LINUXVM_EXPECTED_NAME=fixture-default \
+        LINUXVM_EXPECTED_UUID=fixture-id \
+        LINUXVM_TARGET_ROLE=candidate \
+        LINUXVM_BOOT_TIMEOUT=5 \
+        MACHINE_CONTROL_UTM_IP_RACE_COUNTER="$ip_race_counter" \
+        "$REPO_DIR/bin/linuxvm" ip)"
+    [[ "$ip_address" == 192.0.2.10 ]]
+    [[ "$(<"$ip_race_counter")" == 2 ]]
 fi
 if [[ "$(uname -s)" == Darwin ]]; then
     workspace_caps="$(env \

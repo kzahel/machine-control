@@ -2,6 +2,31 @@
 
 set -euo pipefail
 
+if [[ -n "${MACHINE_CONTROL_UTM_IP_RACE_COUNTER:-}" ]]; then
+    case "${1:-}" in
+        status) printf '%s\n' started ;;
+        list)
+            printf '%s\n' 'UUID Status Name'
+            printf '%s\n' 'fixture-id started fixture-default'
+            ;;
+        exec) exit 0 ;;
+        ip-address)
+            count=0
+            if [[ -f "$MACHINE_CONTROL_UTM_IP_RACE_COUNTER" ]]; then
+                count="$(<"$MACHINE_CONTROL_UTM_IP_RACE_COUNTER")"
+            fi
+            count=$((count + 1))
+            printf '%s\n' "$count" >"$MACHINE_CONTROL_UTM_IP_RACE_COUNTER"
+            if (( count > 1 )); then printf '%s\n' 192.0.2.10; fi
+            ;;
+        *)
+            printf 'Unexpected IP-race fake UTM command: %s\n' "${1:-}" >&2
+            exit 2
+            ;;
+    esac
+    exit 0
+fi
+
 case "${1:-}" in
     status)
         printf '%s\n' stopped

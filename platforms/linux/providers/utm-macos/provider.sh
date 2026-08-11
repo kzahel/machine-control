@@ -109,16 +109,23 @@ guest_shutdown() {
 }
 
 guest_ipv4() {
-    wait_for_guest_agent
+    ensure_running
+    local deadline=$((SECONDS + LINUXVM_BOOT_TIMEOUT))
     local addresses ip
-    addresses="$("$LINUXVM_UTMCTL" ip-address "$LINUXVM_UTM_NAME")"
-    ip="$(printf '%s\n' "$addresses" | awk \
-        '/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }')"
-    if [[ -z "$ip" ]]; then
-        printf 'No guest IPv4 address reported for %s\n' "$LINUXVM_UTM_NAME" >&2
-        return 1
-    fi
-    printf '%s\n' "$ip"
+    while (( SECONDS < deadline )); do
+        addresses="$("$LINUXVM_UTMCTL" ip-address \
+            "$LINUXVM_UTM_NAME" 2>/dev/null || true)"
+        ip="$(printf '%s\n' "$addresses" | awk \
+            '/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }')"
+        if [[ -n "$ip" ]]; then
+            printf '%s\n' "$ip"
+            return 0
+        fi
+        sleep 1
+    done
+    printf 'Timed out waiting for %s to report an IPv4 address\n' \
+        "$LINUXVM_UTM_NAME" >&2
+    return 1
 }
 
 guest_reboot() {
