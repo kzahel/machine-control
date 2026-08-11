@@ -15,6 +15,7 @@ BASH = shutil.which("bash")
 
 
 @unittest.skipIf(BASH is None, "post-update audit tests require Bash")
+@unittest.skipIf(os.name == "nt", "post-update SSH fixture requires POSIX execution")
 class PostUpdateAuditTests(unittest.TestCase):
     def run_audit(self, snapshot, ssh_up=True):
         with tempfile.TemporaryDirectory() as directory:
