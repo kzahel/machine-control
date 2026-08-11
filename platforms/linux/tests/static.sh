@@ -161,42 +161,45 @@ grep -q '^post-update audit --profile runtime --json ' "$maintenance_log"
 
 : >"$maintenance_log"
 printf 'started\n' >"$maintenance_state"
-certification="$(${maintenance_env[@]} \
-    LINUXVM_CERTIFY_LINUXVM="$maintenance" \
-    LINUXVM_CERTIFY_ALLOW_DIRTY_FOR_TESTS=1 \
-    LINUXVM_CERTIFY_CHECK_TIMEOUT=60 \
-    "$REPO_DIR/scripts/certify-appliance.sh" --json)"
-jq -e '.healthy == true and .final_power == "off" and
-    .reboot.changedBootIdObserved == true and
-    .guest_checks.portable_checks == "passed" and
-    .guest_checks.native_checks == "passed" and
-    .guest_checks.staging_removed == true' <<<"$certification" >/dev/null
-grep -q '^reboot ' "$maintenance_log"
-grep -q ' portable ' "$maintenance_log"
-grep -q ' native ' "$maintenance_log"
-grep -q '^shutdown ' "$maintenance_log"
-! grep -Eq '(^| )(clone|workspace-|screenshot|click|type|key)( |$)' \
-    "$maintenance_log"
+if git -C "$REPO_DIR/../.." rev-parse --is-inside-work-tree \
+        >/dev/null 2>&1; then
+    certification="$(${maintenance_env[@]} \
+        LINUXVM_CERTIFY_LINUXVM="$maintenance" \
+        LINUXVM_CERTIFY_ALLOW_DIRTY_FOR_TESTS=1 \
+        LINUXVM_CERTIFY_CHECK_TIMEOUT=60 \
+        "$REPO_DIR/scripts/certify-appliance.sh" --json)"
+    jq -e '.healthy == true and .final_power == "off" and
+        .reboot.changedBootIdObserved == true and
+        .guest_checks.portable_checks == "passed" and
+        .guest_checks.native_checks == "passed" and
+        .guest_checks.staging_removed == true' <<<"$certification" >/dev/null
+    grep -q '^reboot ' "$maintenance_log"
+    grep -q ' portable ' "$maintenance_log"
+    grep -q ' native ' "$maintenance_log"
+    grep -q '^shutdown ' "$maintenance_log"
+    ! grep -Eq '(^| )(clone|workspace-|screenshot|click|type|key)( |$)' \
+        "$maintenance_log"
 
-: >"$maintenance_log"
-printf 'started\n' >"$maintenance_state"
-set +e
-failed_certification="$(${maintenance_env[@]} \
-    MACHINE_CONTROL_LINUXVM_NATIVE_FAIL=1 \
-    LINUXVM_CERTIFY_LINUXVM="$maintenance" \
-    LINUXVM_CERTIFY_ALLOW_DIRTY_FOR_TESTS=1 \
-    LINUXVM_CERTIFY_CHECK_TIMEOUT=60 \
-    "$REPO_DIR/scripts/certify-appliance.sh" --json)"
-failed_certification_status=$?
-set -e
-[[ "$failed_certification_status" -eq 1 ]]
-jq -e '.healthy == false and .final_power == "running" and
-    .guest_checks.failure == "native_checks_failed" and
-    .guest_checks.staging_removed == true' \
-    <<<"$failed_certification" >/dev/null
-! grep -q '^shutdown ' "$maintenance_log"
-grep -q '/usr/bin/rm -rf -- /var/tmp/machine-control-certify-' \
-    "$maintenance_log"
+    : >"$maintenance_log"
+    printf 'started\n' >"$maintenance_state"
+    set +e
+    failed_certification="$(${maintenance_env[@]} \
+        MACHINE_CONTROL_LINUXVM_NATIVE_FAIL=1 \
+        LINUXVM_CERTIFY_LINUXVM="$maintenance" \
+        LINUXVM_CERTIFY_ALLOW_DIRTY_FOR_TESTS=1 \
+        LINUXVM_CERTIFY_CHECK_TIMEOUT=60 \
+        "$REPO_DIR/scripts/certify-appliance.sh" --json)"
+    failed_certification_status=$?
+    set -e
+    [[ "$failed_certification_status" -eq 1 ]]
+    jq -e '.healthy == false and .final_power == "running" and
+        .guest_checks.failure == "native_checks_failed" and
+        .guest_checks.staging_removed == true' \
+        <<<"$failed_certification" >/dev/null
+    ! grep -q '^shutdown ' "$maintenance_log"
+    grep -q '/usr/bin/rm -rf -- /var/tmp/machine-control-certify-' \
+        "$maintenance_log"
+fi
 
 if ${maintenance_env[@]} \
         LINUXVM_BOOTSTRAP_LINUXVM="$maintenance" \
