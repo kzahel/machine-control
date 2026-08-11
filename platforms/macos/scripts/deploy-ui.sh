@@ -60,14 +60,12 @@ if ! macvm_exec /usr/bin/xcrun --find swiftc >/dev/null; then
     exit 1
 fi
 
-if (( ! force )) \
-        && macvm_exec /bin/test -x "$remote_binary" \
-            >/dev/null 2>&1 \
-        && macvm_exec /bin/test -f "$remote_source" \
-            >/dev/null 2>&1 \
-        && macvm_exec /bin/test -f \
-            "$remote_contents/Info.plist" >/dev/null 2>&1 \
-        && macvm_exec /bin/test -f "$remote_resident_plist" \
+binary_current=false
+plist_current=false
+if (( ! force )) &&
+        macvm_exec /bin/test -x "$remote_binary" >/dev/null 2>&1 &&
+        macvm_exec /bin/test -f "$remote_source" >/dev/null 2>&1 &&
+        macvm_exec /bin/test -f "$remote_contents/Info.plist" \
             >/dev/null 2>&1; then
     local_source_hash="$(/usr/bin/shasum -a 256 "$source_file" | /usr/bin/awk '{print $1}')"
     local_info_hash="$(/usr/bin/shasum -a 256 "$info_file" | /usr/bin/awk '{print $1}')"
@@ -79,18 +77,41 @@ if (( ! force )) \
         macvm_exec /usr/bin/shasum -a 256 \
             "$remote_contents/Info.plist" | /usr/bin/awk '{print $1}'
     )"
+    if [[ "$local_source_hash" == "$remote_source_hash" \
+            && "$local_info_hash" == "$remote_info_hash" ]]; then
+        binary_current=true
+    fi
+fi
+if [[ "$binary_current" == true ]] &&
+        macvm_exec /bin/test -f "$remote_resident_plist" \
+            >/dev/null 2>&1; then
     local_plist_hash="$(/usr/bin/shasum -a 256 "$local_resident_plist" | \
         /usr/bin/awk '{print $1}')"
     remote_plist_hash="$(macvm_exec /usr/bin/shasum -a 256 \
         "$remote_resident_plist" | /usr/bin/awk '{print $1}')"
-    if [[ "$local_source_hash" == "$remote_source_hash" \
-            && "$local_info_hash" == "$remote_info_hash" \
-            && "$local_plist_hash" == "$remote_plist_hash" ]]; then
-        printf 'MacVM UI is already current at %s\n' "$remote_app"
-        "$MACVM_REPO_DIR/bin/macui" resident-start >/dev/null
-        "$MACVM_REPO_DIR/bin/macui" control '{"operation":"status"}'
-        exit 0
+    if [[ "$local_plist_hash" == "$remote_plist_hash" ]]; then
+        plist_current=true
     fi
+fi
+if [[ "$binary_current" == true && "$plist_current" == true ]]; then
+    printf 'MacVM UI is already current at %s\n' "$remote_app"
+    "$MACVM_REPO_DIR/bin/macui" resident-start >/dev/null
+    "$MACVM_REPO_DIR/bin/macui" control '{"operation":"status"}'
+    exit 0
+fi
+
+if [[ "$binary_current" == true ]]; then
+    "$MACVM_REPO_DIR/bin/macui" resident-stop >/dev/null 2>&1 || true
+    macvm_exec /bin/mkdir -p \
+        "$remote_directory" "$(/usr/bin/dirname "$remote_resident_plist")"
+    macvm_exec -i /usr/bin/tee "$remote_resident_plist" \
+        < "$local_resident_plist" >/dev/null
+    macvm_exec /bin/chmod 600 "$remote_resident_plist"
+    macvm_exec /usr/bin/plutil -lint "$remote_resident_plist" >/dev/null
+    printf 'Installed resident LaunchAgent for current %s\n' "$remote_app"
+    "$MACVM_REPO_DIR/bin/macui" resident-start >/dev/null
+    "$MACVM_REPO_DIR/bin/macui" control '{"operation":"status"}'
+    exit 0
 fi
 
 # A prior resident may still have the old executable mapped. Ask it to stop
