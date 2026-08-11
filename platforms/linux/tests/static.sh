@@ -197,6 +197,15 @@ grep -q '/usr/bin/rm -rf -- /var/tmp/machine-control-certify-' \
     "$maintenance_log"
 
 if ${maintenance_env[@]} \
+        LINUXVM_BOOTSTRAP_LINUXVM="$maintenance" \
+        LINUXVM_BOOTSTRAP_TIMEOUT=299 \
+        "$REPO_DIR/scripts/bootstrap-appliance.sh" --json \
+        >/dev/null 2>&1; then
+    printf 'Linux bootstrap accepted an invalid timeout\n' >&2
+    exit 1
+fi
+
+if ${maintenance_env[@]} \
         LINUXVM_CERTIFY_LINUXVM="$maintenance" \
         LINUXVM_CERTIFY_ALLOW_DIRTY_FOR_TESTS=1 \
         LINUXVM_CERTIFY_CHECK_TIMEOUT=59 \

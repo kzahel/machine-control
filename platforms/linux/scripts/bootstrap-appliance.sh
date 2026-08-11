@@ -35,6 +35,13 @@ while (( $# > 0 )); do
     esac
 done
 
+bootstrap_timeout="${LINUXVM_BOOTSTRAP_TIMEOUT:-1800}"
+if [[ ! "$bootstrap_timeout" =~ ^[0-9]+$ ||
+      "$bootstrap_timeout" -lt 300 || "$bootstrap_timeout" -gt 3600 ]]; then
+    printf 'LINUXVM_BOOTSTRAP_TIMEOUT must be 300-3600 seconds.\n' >&2
+    exit 2
+fi
+
 linuxvm_require_command jq
 linuxvm_assert_candidate_target
 if [[ "$($LINUXVM status 2>/dev/null || true)" != started ]]; then
@@ -57,8 +64,9 @@ trap cleanup EXIT INT TERM
 
 "$LINUXVM" push "$GUEST_BOOTSTRAP" "$remote_bootstrap"
 staged=true
-bootstrap_output="$($LINUXVM exec -- /usr/bin/bash "$remote_bootstrap" \
-    --profile "$profile")"
+bootstrap_output="$(LINUXVM_EXEC_TIMEOUT="$bootstrap_timeout" \
+    "$LINUXVM" exec -- /usr/bin/bash "$remote_bootstrap" \
+        --profile "$profile")"
 bootstrap="$(printf '%s\n' "$bootstrap_output" | tail -n 1)"
 if ! jq -e --arg profile "$profile" \
         '.schema == "machine-control-linux-bootstrap/v0" and

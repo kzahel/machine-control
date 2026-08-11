@@ -39,7 +39,7 @@ log="$(mktemp /var/tmp/machine-control-bootstrap.XXXXXX.log)"
 trap 'rm -f -- "$log"' EXIT
 if ! apt-get update >"$log" 2>&1 ||
         ! apt-get install -y "${packages[@]}" >>"$log" 2>&1; then
-    printf 'Ubuntu package profile installation failed; inspect the target-local apt log\n' >&2
+    printf 'Ubuntu package profile installation failed\n' >&2
     exit 1
 fi
 
