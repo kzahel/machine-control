@@ -28,6 +28,10 @@ case. [Apple Configurator manual
 preparation](https://support.apple.com/en-ca/guide/apple-configurator-mac/cad99bc2a859/mac)
 can supervise without enrolling in device management, but that optional
 erase-and-prepare route is not required for ordinary CoreDevice/XCTest control.
+Apple's [developer-account
+overview](https://developer.apple.com/help/account/basics/about-your-developer-account)
+documents free Personal Team testing and its current seven-day App ID, device,
+and installation-profile lifetime plus resource limits.
 
 ## Current direction
 
@@ -51,6 +55,20 @@ interaction gate, and ready connection/interaction. XCTest preparation passed
 again without local device interaction. Passcode-free unattended reboot
 recovery is therefore accepted for this combination.
 
+**Current — live-tested common operations:** A bounded `ios` family now maps
+common target selection to typed CoreDevice/XCTest operations. Runner prepare,
+Settings launch, Home, interactive semantic snapshot, a Settings selector
+press, a separate foreground snapshot, termination, and daemon recovery passed
+on the passcode-free phone. Results kept delivery separate from effect and did
+not expose the provider's device descriptor.
+
+**Current — source-reviewed and unit-tested signing lifecycle:** The adapter
+observes the exact matching cached runner's embedded provisioning dates.
+Personal Team policy refreshes matching rebuildable derived products within 48
+hours of expiry because Agent Device 0.20.5's cache key does not include profile
+expiration. The current accepted runner uses a long-lived Developer Program
+profile; free-team initial provisioning and renewal remain a live-test gap.
+
 **Current — boundary:** A passcode-protected phone remains supported after its
 local first unlock. Its full reboot restores Apple's local passcode gate; the
 adapter does not enter the credential and reports protected interaction plus
@@ -63,5 +81,7 @@ device-family identity with capability differences. Keep passcode, biometrics,
 payments, account recovery, signing, and protected authorization visible as
 distinct gates. Test a fresh passcoded post-reboot projection on a separate
 fixture when available, and separately evaluate optional Apple Configurator
-supervision and free Personal Team signing/reprovisioning. Neither is required
-for the accepted passcode-free CoreDevice/XCTest route.
+supervision. Physically accept free Personal Team initial provisioning and
+near-expiry reprovisioning without conflating it with supervision or passcode
+policy. Neither is required for the accepted passcode-free CoreDevice/XCTest
+route.

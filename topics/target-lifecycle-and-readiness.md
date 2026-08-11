@@ -167,6 +167,10 @@ dispatches a mutating lifecycle verb when that exact adapter declares it. iOS
 and Android currently declare full reboot; Quest deliberately does not. iOS
 full reboot is live-accepted for the passcode-free profile and preserves a
 typed manual-first-unlock state for passcode-protected devices.
+
+iOS additionally has an explicit common `ios` operation family beside target
+lifecycle. This does not add application or semantic verbs to the portable
+lifecycle set and does not make Android or Quest inherit XCTest semantics.
 ChromeOS and Steam Deck remain behind the explicit `testbed --` escape until
 their own normalized projections exist.
 

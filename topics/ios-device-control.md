@@ -19,8 +19,10 @@ Android, desktop-resident, or generic mobile implementation.
 physical-iPhone adapter over CoreDevice and pinned Agent Device XCTest. It now
 emits `machine-control-doctor/v0` with device connection, boot, interaction,
 runner, semantic, capture, input, and device-host route state. The common
-client exposes `target status|doctor|capabilities` while application and UI
-operations remain explicit native iOS commands.
+client exposes `target status|doctor|capabilities` plus a bounded `ios` family
+for runner preparation, application install/launch/termination, semantic
+snapshot/press/fill, and Home. These remain explicitly iOS operations rather
+than Android or desktop parity.
 
 Read-only selection now merges the ordinary CoreDevice list with Apple's
 lower-level Developer Mode inventory and deduplicates CoreDevice and hardware
@@ -35,11 +37,23 @@ premature built-in wait failure as the final effect. Connection, current
 passcode requirement, unlocked-since-boot, interaction gate, runner cache, and
 runner authentication remain separate observations.
 
+Signing account class is an operator declaration, not an inference from a team
+identifier. Doctor separately reports `developer_program`, `personal_team`, or
+`unspecified` policy and the matching cached runner's observed embedded-profile
+lifetime. Expired profiles make the cache unavailable. A declared Personal
+Team refreshes only the exact matching rebuildable cache once 48 hours or less
+remain; explicit `prepare --refresh` provides the same bounded recovery.
+
 ## Decisions
 
 **Decision:** Preserve CoreDevice/XCTest/Agent Device. Share only outer target,
 authorization, readiness, capability/result/evidence, artifact, and generation
 vocabulary with other platforms.
+
+**Decision:** Use an explicitly named common `ios` family for ordinary
+operations that benefit from target selection and normalized results. Do not
+promote that family into a generic mobile abstraction unless another device
+independently proves the same semantics useful.
 
 **Decision:** Support two honest profiles through one native provider:
 
@@ -76,6 +90,15 @@ A second XCTest preparation installed/launched/health-checked the runner and
 cleaned its lease. No blocking authentication dialog affected either launch;
 whether a nonblocking presentation was briefly visible was not watched.
 
+**Current — live-tested common facade:** Common runner preparation returned a
+confirmed XCTest health-check. Common application launch, Home, interactive
+SpringBoard snapshot, semantic Settings press, subsequent 17-node Settings
+foreground snapshot, application termination, and owned-daemon recovery all
+succeeded. The settled press had no semantic diff, so its own effect remained
+`unverifiable`; the following snapshot is separate evidence. The matching
+runner profile was observed as valid and long-lived. The capability result did
+not emit the provider's device descriptor.
+
 **Current — live-tested boundary, passcoded:** Before passcode removal, a full
 reboot visibly required the local device passcode and the phone did not become
 ordinary automation-ready before that first unlock. The new normalized
@@ -90,8 +113,10 @@ phone to passcode-free operation.
   test coverage on the accepted passcode-free phone.
 - Add a typed common bootstrap capability if more device families need pairing;
   until then keep iOS `pair` as an explicit native recovery operation.
-- Test free Personal Team signing/reprovisioning independently of the accepted
-  paid-team runner cache and independently of passcode policy.
+- Live-test free Personal Team initial provisioning and automatic near-expiry
+  rebuild independently of the accepted Developer Program runner cache and
+  independently of passcode policy. The seven-day lifecycle and bounded cache
+  refresh are implemented and unit-tested, not yet physically accepted.
 - Source-review and live-test free Apple Configurator supervision only if
   repeatable erase-and-prepare or supervision-only policy becomes necessary.
 - Decide physical/simulator identity and capability differences only after the

@@ -65,6 +65,16 @@ and sets retry count to zero even for timeout or unknown delivery. Correct-PIN
 effect remains unit-tested rather than live-tested, so the result vocabulary is
 accepted while physical credential conformance remains open.
 
+**Current — explicit iOS control exercise:** Tactical 019 projects pinned
+Agent Device and CoreDevice results through `machine-control/v0` without
+calling iOS a desktop or generic mobile provider. Capabilities declare actual
+route and mutability. Runner preparation has a confirmed health-check;
+installation uses installed-app inventory readback; snapshots are observations;
+and semantic actions confirm effect only when their own settled diff changes.
+A following snapshot remains separate evidence. CoreDevice exposes no usable
+public boot generation here, so results report generation unavailable and
+preserve provider-scoped `refsGeneration` for semantic references.
+
 **Current — full macOS Aqua exercise:** Tacticals 010 and 011 extend the same result
 vocabulary across settings-managed privacy, native panels and sheets,
 Gatekeeper, Safari downloads, DMGs, Installer, AppKit, SwiftUI, browser/web,

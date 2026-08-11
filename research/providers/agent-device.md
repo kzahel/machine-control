@@ -11,7 +11,7 @@ Last corpus review: 2026-08-11.
 
 | Platform | Level | Evidence and limit |
 | --- | --- | --- |
-| iOS | `adopted` | The canonical iOS platform uses Agent Device as its semantic XCTest provider; runner preparation passed before and after a live passcode-free full reboot. |
+| iOS | `adopted` | The canonical iOS platform uses Agent Device as its semantic XCTest provider; runner preparation passed before and after a live passcode-free full reboot, and typed common launch/snapshot/action/termination passed. |
 | Android and device variants | `upstream-claimed` | Broad CLI support is documented; this corpus has not independently tested the generic Android backend. |
 | macOS | `source-reviewed` | Desktop helper and public command paths were inspected; exact selected-window control is absent. |
 | Linux/web | `upstream-claimed` | Not candidates to replace the stronger current desktop/device foundations without platform evidence. |
@@ -49,6 +49,12 @@ iOS is fully compatible with the North Star.
 **Decision:** Continue adopting Agent Device through the iOS testbed. Treat its
 macOS work as implementation context, not evidence that it should become the
 desktop spine.
+
+**Current:** The iOS adapter now allowlists a useful Agent Device subset behind
+the common client and sanitizes its structured results. Agent Device's semantic
+`refsGeneration` remains provider-scoped. Its Apple runner cache key covers
+build and signing settings but not provisioning expiry, so the adapter owns a
+bounded matching-cache refresh policy for declared Personal Teams.
 
 **Open:** Determine whether its Android route should wrap or complement the
 project's ADB/UIAutomator adapter and whether simulator and physical-device

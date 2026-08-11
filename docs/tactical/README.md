@@ -58,3 +58,4 @@ the commits' `Topic:` trailers and register that exact string in
 | [`016-device-readiness-and-android-unlock.md`](016-device-readiness-and-android-unlock.md) | complete | Common outer device doctor, shared Android-family ADB transport, guarded Android PIN unlock, and bounded iOS reboot/reconnect evidence |
 | [`017-vm-workspaces-and-storage-policy.md`](017-vm-workspaces-and-storage-policy.md) | complete | Portable persistent/isolated/candidate workspace intent, provider capabilities, storage policy, and guarded UTM/Tart implementations |
 | [`018-appliance-readiness-and-promotion.md`](018-appliance-readiness-and-promotion.md) | complete | Reuse-in-place Windows/Linux readiness, bounded ensure-ready, exact candidate promotion, and live UTM disposable outcomes |
+| [`019-ios-runner-and-common-control.md`](019-ios-runner-and-common-control.md) | complete | Explicit iOS common controls, runner signing-lifetime refresh, and passcode-state conformance |

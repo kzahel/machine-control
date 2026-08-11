@@ -30,6 +30,8 @@ Validated combination:
 | Passcode-protected operation | Ordinary CoreDevice and XCTest control worked after a local first unlock; a full reboot visibly restored the passcode gate |
 | Passcode-free reboot recovery | Common `target reboot` observed full disconnect/reconnect in 38.5 seconds, doctor reported no interaction gate and unlocked-since-boot, and XCTest preparation passed again without device interaction |
 | Pairing bootstrap | Developer Mode discovery plus explicit CoreDevice pairing recovered a trusted passcode-free device without exposing its identifier |
+| Common iOS facade | Typed common capabilities, runner preparation, Settings launch, Home, interactive snapshot, semantic Settings press, foreground readback, termination, and owned-daemon recovery passed without exposing the device identity |
+| Signing lifetime | The matching cached runner's embedded profile was observed as valid and long-lived; Personal Team seven-day refresh behavior is unit-tested but not yet live-tested |
 
 Healthy initial snapshots measured 313–569 ms. The later JSTorrent run reported
 approximately 4.4-second p95 snapshots while the runner/device was under load.

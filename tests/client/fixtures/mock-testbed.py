@@ -266,7 +266,11 @@ elif command in {"up", "suspend", "shutdown", "force-stop", "reboot"}:
         state_path.write_text(next_state, encoding="utf-8")
     print("private-adapter-detail")
 elif command in {"control", "control-local"}:
-    request = json.loads(arguments[1])
+    request = (
+        json.load(sys.stdin)
+        if len(arguments) == 1
+        else json.loads(arguments[1])
+    )
     result = {
         "schema": "machine-control/v0",
         "requestId": request.get("requestId", "fixture-request"),

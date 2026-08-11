@@ -240,9 +240,11 @@ device routes already in the system:
   discovers the configured phone and routes agents to the canonical iOS
   platform adapter, which uses CoreDevice and a semantic XCTest runner for
   lifecycle, observation, actions, leases, and recovery. Its common doctor is
-  adopted; passcode-free full-reboot reconnect and post-boot XCTest recovery
-  are live-proven, while passcode-protected devices truthfully require one
-  local first unlock after reboot.
+  adopted, and an explicit common `ios` family now exposes runner preparation,
+  application operations, semantic snapshots/actions, and Home without
+  pretending these are desktop operations. Passcode-free full-reboot reconnect
+  and post-boot XCTest recovery are live-proven, while passcode-protected
+  devices truthfully require one local first unlock after reboot.
 - **Android begins with ADB.** The canonical physical-handheld adapter and
   Quest now share neutral ADB discovery/transport while retaining distinct
   keyguard, lifecycle, and safety policy. Android installation, shell,
@@ -320,6 +322,9 @@ bin/machine-control --target linux desktop capture \
   --scope window --target active_window
 bin/machine-control --target android target doctor
 bin/machine-control --target ios target capabilities
+bin/machine-control --target ios ios runner prepare
+bin/machine-control --target ios ios application launch Settings --relaunch
+bin/machine-control --target ios ios snapshot --interactive
 bin/machine-control --target chromeos testbed -- doctor
 ```
 

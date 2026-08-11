@@ -16,7 +16,10 @@ exit. Do not invoke bare `agent-device` against testbed state.
 The 0.20.5 Apple compilation cache remains user-wide at
 `~/.agent-device/apple-runner/derived`; it is not controlled by
 `AGENT_DEVICE_STATE_DIR`. Its signing/build inputs participate in the cache
-key. Recovery deliberately leaves those reusable build products intact.
+key, but profile expiration does not. The wrapper therefore inspects embedded
+profile dates and refreshes only the exact matching derived cache when a
+declared Personal Team is near expiry or `prepare --refresh` is requested.
+Recovery deliberately leaves those reusable build products intact.
 
 ## Device selection
 

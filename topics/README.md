@@ -46,8 +46,8 @@ its `Topic:` trailers.
 - [`inner-first-routing.md`](inner-first-routing.md): ordinary resident routes,
   explicit outer recovery, and host-interference policy.
 - [`ios-device-control.md`](ios-device-control.md): adopted CoreDevice/XCTest
-  physical-device control, common readiness, protected-authentication
-  boundaries, and unattended reboot evidence.
+  physical-device control, common iOS operations, signing lifetime,
+  protected-authentication boundaries, and unattended reboot evidence.
 - [`linux-resident-control.md`](linux-resident-control.md): accepted Ubuntu
   GNOME Wayland logged-in appliance and remaining compositor, portal,
   protected-plane, and physical-hardware profiles.

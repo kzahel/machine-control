@@ -3,8 +3,9 @@
 `ios-device-testbed` is a project-neutral CLI for diagnosing and safely driving
 a stock physical iPhone from a Mac. It wraps a pinned
 [Agent Device](https://github.com/callstack/agent-device) XCTest runner with
-explicit hardware selection, paid-team signing settings, isolated daemon state,
-private configuration, and a recoverable exclusive lease.
+explicit hardware selection, declared Developer Program or Personal Team
+signing, isolated daemon state, private configuration, and a recoverable
+exclusive lease.
 
 This directory is the canonical public source. The former
 `ios-device-testbed` repository is retained only as legacy history and a
@@ -54,6 +55,35 @@ bin/ios-device doctor
 `probe`, `status`, and `doctor` are read-only with respect to the phone.
 `prepare` builds, signs, installs, starts, and health-checks the XCTest runner,
 then stops the dedicated daemon while retaining its cached signed products.
+For a declared Personal Team, it automatically rebuilds the exact matching
+cache when the embedded seven-day profile has at most 48 hours remaining. Use
+`prepare --refresh` for an explicit bounded rebuild.
+
+## Common iOS workflow
+
+The target-selecting client exposes a bounded, explicitly iOS surface. It is
+not a generic mobile or desktop abstraction:
+
+```bash
+bin/machine-control --target ios ios capabilities
+bin/machine-control --target ios ios runner prepare
+bin/machine-control --target ios ios application launch Settings --relaunch
+bin/machine-control --target ios ios snapshot --interactive
+bin/machine-control --target ios ios press 'label=General' --settle
+bin/machine-control --target ios ios home
+bin/machine-control --target ios ios application terminate Settings
+```
+
+These commands send one allowlisted request to the authoritative adapter and
+return `machine-control/v0` with the actual XCTest or CoreDevice route,
+delivery, effect, uncertainty, retry safety, and sanitized provider data. A
+settled action confirms effect only when its own semantic diff changed;
+otherwise use a following snapshot or assertion as separate evidence.
+
+`ios fill` carries its request to the adapter over standard input, but Agent
+Device's downstream CLI does not provide a protected one-shot secret channel.
+Use it only for non-secret application text. It must never carry an iOS
+passcode, biometric response, account credential, or another protected secret.
 
 ## Normal agent workflow
 
@@ -112,7 +142,7 @@ probe [--json]                 Stable read-only connection state
 status [--json]                Device, matching build-cache, and lease status
 doctor [--json]                Xcode, signing, device, unlock, and runner checks
 pair [--timeout SECONDS]       Explicit exact-device CoreDevice pairing
-prepare                        Build/sign/install/health-check the XCTest runner
+prepare [--refresh]            Build/sign/install/health-check the XCTest runner
 reboot [--timeout SECONDS]     Full reboot with observed disconnect/reconnect
 session -- COMMAND             Run under an exclusive recoverable device lease
 recover [--force]              Stop the dedicated daemon and clear a stale lease
@@ -180,7 +210,10 @@ Apple team or runner bundle configuration.
 Agent Device 0.20.5 keeps its signed Apple build products in the user-wide
 `~/.agent-device/apple-runner/derived` cache. Its cache key separates relevant
 build/signing inputs; the testbed owns daemon and lease isolation, not that
-upstream compilation cache. `recover` never deletes the shared cache.
+upstream compilation cache. Doctor inspects the matching cached products'
+embedded profile lifetime without exposing its identity. `prepare --refresh`
+and automatic Personal Team renewal delete only matching derived products,
+which are safe to rebuild. `recover` never deletes the shared cache.
 
 Screenshots, recordings, logs, and session state may contain private UI,
 credentials, device identifiers, or request data. Keep them local and review

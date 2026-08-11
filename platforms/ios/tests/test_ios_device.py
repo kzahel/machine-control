@@ -7,6 +7,7 @@ import stat
 import tempfile
 import unittest
 from contextlib import redirect_stdout
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -167,6 +168,39 @@ class CommandTests(unittest.TestCase):
             agent_device=root / "agent-device",
             signing_identity="Apple Development",
         )
+
+    def make_runner_cache(
+        self, root: Path, *, team: str = "TEAM123", name: str = "cache-test"
+    ) -> Path:
+        directory = (
+            root
+            / ".agent-device"
+            / "apple-runner"
+            / "derived"
+            / "ios-device"
+            / name
+        )
+        product = directory / "Build" / "Products" / "Runner.xctestrun"
+        product.parent.mkdir(parents=True)
+        product.touch()
+        (directory / "embedded.mobileprovision").touch()
+        (directory / ".agent-device-runner-cache.json").write_text(
+            json.dumps(
+                {
+                    "packageVersion": ios_device.PINNED_AGENT_DEVICE_VERSION,
+                    "runnerBundleBuildSettings": [
+                        "AGENT_DEVICE_IOS_RUNNER_APP_BUNDLE_ID=com.example.runner",
+                        "AGENT_DEVICE_IOS_RUNNER_TEST_BUNDLE_ID=com.example.runner.uitests",
+                    ],
+                    "runnerSigningBuildSettings": [
+                        "CODE_SIGN_STYLE=Automatic",
+                        f"DEVELOPMENT_TEAM={team}",
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return directory
 
     @mock.patch("ios_device.selected_device_name", return_value="iPhone")
     def test_agent_argv_adds_explicit_physical_target(
@@ -417,36 +451,7 @@ class CommandTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             config = self.config(root)
-            product = (
-                root
-                / ".agent-device"
-                / "apple-runner"
-                / "derived"
-                / "ios-device"
-                / "cache-test"
-                / "Build"
-                / "Products"
-                / "Runner.xctestrun"
-            )
-            product.parent.mkdir(parents=True)
-            product.touch()
-            manifest = product.parents[2] / ".agent-device-runner-cache.json"
-            manifest.write_text(
-                json.dumps(
-                    {
-                        "packageVersion": ios_device.PINNED_AGENT_DEVICE_VERSION,
-                        "runnerBundleBuildSettings": [
-                            "AGENT_DEVICE_IOS_RUNNER_APP_BUNDLE_ID=com.example.runner",
-                            "AGENT_DEVICE_IOS_RUNNER_TEST_BUNDLE_ID=com.example.runner.uitests",
-                        ],
-                        "runnerSigningBuildSettings": [
-                            "CODE_SIGN_STYLE=Automatic",
-                            "DEVELOPMENT_TEAM=TEAM123",
-                        ],
-                    }
-                ),
-                encoding="utf-8",
-            )
+            self.make_runner_cache(root)
             with mock.patch.object(ios_device.Path, "home", return_value=root):
                 self.assertTrue(ios_device.runner_cache_available(config))
 
@@ -454,6 +459,202 @@ class CommandTests(unittest.TestCase):
                     **{**config.__dict__, "team_id": "OTHERTEAM"}
                 )
                 self.assertFalse(ios_device.runner_cache_available(wrong_team))
+
+    def test_personal_team_cache_refreshes_before_profile_expiry(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.make_runner_cache(root)
+            config = ios_device.Config(
+                **{**self.config(root).__dict__, "signing_profile": "personal_team"}
+            )
+            now = datetime(2026, 8, 11, tzinfo=timezone.utc)
+            dates = (now - timedelta(days=5), now + timedelta(hours=20))
+            with (
+                mock.patch.object(ios_device.Path, "home", return_value=root),
+                mock.patch(
+                    "ios_device.provisioning_profile_dates", return_value=dates
+                ),
+            ):
+                observed = ios_device.runner_cache_observation(config, now=now)
+        self.assertTrue(observed["available"])
+        self.assertEqual(observed["observedLifetime"], "short_lived")
+        self.assertTrue(observed["refreshRecommended"])
+        self.assertFalse(observed["declarationMismatch"])
+
+    def test_expired_profile_makes_matching_cache_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.make_runner_cache(root)
+            config = self.config(root)
+            now = datetime(2026, 8, 11, tzinfo=timezone.utc)
+            dates = (now - timedelta(days=8), now - timedelta(days=1))
+            with (
+                mock.patch.object(ios_device.Path, "home", return_value=root),
+                mock.patch(
+                    "ios_device.provisioning_profile_dates", return_value=dates
+                ),
+            ):
+                observed = ios_device.runner_cache_observation(config, now=now)
+        self.assertFalse(observed["available"])
+        self.assertTrue(observed["expired"])
+        self.assertTrue(observed["refreshRecommended"])
+
+    def test_runner_refresh_removes_only_matching_derived_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            matching = self.make_runner_cache(root, name="cache-matching")
+            other = self.make_runner_cache(
+                root, team="OTHERTEAM", name="cache-unrelated"
+            )
+            with mock.patch.object(ios_device.Path, "home", return_value=root):
+                removed = ios_device.refresh_matching_runner_cache(
+                    self.config(root)
+                )
+            self.assertEqual(removed, 1)
+            self.assertFalse(matching.exists())
+            self.assertTrue(other.exists())
+
+    def test_passcoded_state_becomes_ready_after_local_first_unlock(self) -> None:
+        before = ios_device.interaction_observation(
+            connected=True,
+            locked={"passcodeRequired": True, "unlockedSinceBoot": False},
+        )
+        after = ios_device.interaction_observation(
+            connected=True,
+            locked={"passcodeRequired": False, "unlockedSinceBoot": True},
+        )
+        self.assertEqual(
+            before, ("protected", False, "manual_first_unlock_required")
+        )
+        self.assertEqual(after, ("unlocked", True, "none_observed"))
+
+    @mock.patch("ios_device.run_agent_json")
+    def test_typed_capabilities_strip_provider_device_identity(
+        self, run_json: mock.Mock
+    ) -> None:
+        run_json.return_value = (
+            {
+                "success": True,
+                "data": {
+                    "device": {
+                        "platform": "ios",
+                        "kind": "device",
+                        "id": "PRIVATE-DEVICE-ID",
+                        "name": "Private Phone",
+                    },
+                    "availableCommands": ["snapshot", "open"],
+                },
+            },
+            12,
+            "",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            result = ios_device.provider_control_result(
+                self.config(Path(directory)),
+                "capabilities",
+                ["capabilities"],
+                observation=True,
+            )
+        rendered = json.dumps(result)
+        self.assertTrue(result["accepted"])
+        self.assertNotIn("PRIVATE-DEVICE-ID", rendered)
+        self.assertNotIn("Private Phone", rendered)
+        self.assertIn("semantic.snapshot", rendered)
+
+    @mock.patch("ios_device.run_agent_json")
+    def test_typed_provider_failure_omits_private_error_details(
+        self, run_json: mock.Mock
+    ) -> None:
+        run_json.return_value = (
+            {
+                "success": False,
+                "error": {
+                    "code": "COMMAND_FAILED",
+                    "message": "runner failed for iPhone on TEAM123",
+                    "details": {
+                        "deviceId": "PRIVATE-DEVICE-ID",
+                        "logPath": "/private/controller/path",
+                    },
+                },
+            },
+            9,
+            "",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            result = ios_device.provider_control_result(
+                self.config(Path(directory)),
+                "semantic.snapshot",
+                ["snapshot"],
+                observation=True,
+            )
+        rendered = json.dumps(result)
+        self.assertFalse(result["accepted"])
+        self.assertEqual(result["delivery"], "unknown")
+        self.assertNotIn("PRIVATE-DEVICE-ID", rendered)
+        self.assertNotIn("/private/controller/path", rendered)
+        self.assertNotIn("TEAM123", rendered)
+        self.assertNotIn("iPhone", result["message"])
+
+    @mock.patch("ios_device.run_agent_json")
+    def test_settled_semantic_change_confirms_effect(
+        self, run_json: mock.Mock
+    ) -> None:
+        run_json.return_value = (
+            {
+                "success": True,
+                "data": {
+                    "settle": {
+                        "settled": True,
+                        "diff": {"summary": {"additions": 1, "removals": 0}},
+                    }
+                },
+            },
+            5,
+            "",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            result = ios_device.provider_control_result(
+                self.config(Path(directory)),
+                "semantic.press",
+                ["press", "label=General", "--settle"],
+            )
+        self.assertEqual(result["delivery"], "confirmed")
+        self.assertEqual(result["effect"], "confirmed")
+
+    @mock.patch("ios_device.stop_daemon")
+    @mock.patch("ios_device.provider_control_result")
+    @mock.patch("ios_device.refresh_matching_runner_cache", return_value=1)
+    @mock.patch(
+        "ios_device.runner_cache_observation",
+        return_value={"refreshRecommended": True},
+    )
+    def test_personal_team_prepare_refreshes_before_health_check(
+        self,
+        _observation: mock.Mock,
+        refresh: mock.Mock,
+        provider: mock.Mock,
+        _stop: mock.Mock,
+    ) -> None:
+        provider.return_value = {"accepted": True}
+        with tempfile.TemporaryDirectory() as directory:
+            config = ios_device.Config(
+                **{
+                    **self.config(Path(directory)).__dict__,
+                    "signing_profile": "personal_team",
+                }
+            )
+            result = ios_device.execute_control_request(
+                config, {"operation": "runner.prepare", "refresh": False}
+            )
+        self.assertTrue(result["accepted"])
+        refresh.assert_called_once_with(config)
+        provider.assert_called_once()
+
+    def test_invalid_signing_profile_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ios_device.TestbedError, "SIGNING_PROFILE"):
+            ios_device.load_config(
+                {"IOS_DEVICE_TESTBED_SIGNING_PROFILE": "free-ish"}
+            )
 
 
 class LeaseTests(unittest.TestCase):

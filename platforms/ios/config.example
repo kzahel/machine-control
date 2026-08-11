@@ -9,6 +9,9 @@
 # validated profile uses a paid team; a Personal Team is short-lived.
 # export IOS_DEVICE_TESTBED_TEAM_ID=<apple-developer-team-id>
 # export IOS_DEVICE_TESTBED_RUNNER_BUNDLE_ID=com.example.iosdevicetestbed.runner
+# Declare account policy; the adapter does not infer it from a team identifier.
+# export IOS_DEVICE_TESTBED_SIGNING_PROFILE=developer_program
+# export IOS_DEVICE_TESTBED_SIGNING_PROFILE=personal_team
 
 # Optional overrides. Defaults keep Agent Device state isolated from ~/.agent-device.
 # export IOS_DEVICE_TESTBED_STATE_DIR="$HOME/.ios-device-testbed"

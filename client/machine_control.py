@@ -434,6 +434,7 @@ def run_adapter(
     arguments: list[str],
     *,
     accept_json_failure: bool = False,
+    input_text: str | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], Any | None, int]:
     command = resolved_adapter_command(target)
     if command is None:
@@ -445,6 +446,7 @@ def run_adapter(
             text=True,
             capture_output=True,
             check=False,
+            input=input_text,
             env={**os.environ, **target.get("environment", {})},
         )
     except OSError as error:
@@ -1248,7 +1250,7 @@ def parse_options(
         return parser.parse_args(arguments)
     except SystemExit as error:
         raise ClientError(
-            "usage", "Invalid desktop command arguments"
+            "usage", "Invalid command arguments"
         ) from error
 
 
@@ -1503,6 +1505,125 @@ def add_client_projection(
         ),
     }
     return value
+
+
+def ios_request(arguments: list[str]) -> dict[str, Any]:
+    if not arguments:
+        raise ClientError("usage", "ios requires an operation")
+    command, rest = arguments[0], arguments[1:]
+    if command in {"capabilities", "home"}:
+        if rest:
+            raise ClientError("usage", f"ios {command} accepts no arguments")
+        return {
+            "operation": (
+                "capabilities" if command == "capabilities" else "navigation.home"
+            )
+        }
+    if command == "runner":
+        if not rest or rest[0] != "prepare":
+            raise ClientError("usage", "ios runner requires prepare")
+        options = parse_options(
+            rest[1:], [(('--refresh',), {"action": "store_true"})]
+        )
+        return {"operation": "runner.prepare", "refresh": options.refresh}
+    if command == "application":
+        if not rest or rest[0] not in {"install", "launch", "terminate"}:
+            raise ClientError(
+                "usage", "ios application requires install, launch, or terminate"
+            )
+        action, values = rest[0], rest[1:]
+        if action == "install":
+            if len(values) != 1:
+                raise ClientError(
+                    "usage", "ios application install requires PATH.app"
+                )
+            return {"operation": "application.install", "path": values[0]}
+        if action == "launch":
+            options = parse_options(
+                values,
+                [
+                    (("application",), {}),
+                    (("--relaunch",), {"action": "store_true"}),
+                ],
+            )
+            return {
+                "operation": "application.launch",
+                "application": options.application,
+                "relaunch": options.relaunch,
+            }
+        options = parse_options(values, [(("application",), {"nargs": "?"})])
+        request: dict[str, Any] = {"operation": "application.terminate"}
+        if options.application:
+            request["application"] = options.application
+        return request
+    if command == "snapshot":
+        options = parse_options(
+            rest,
+            [
+                (("--interactive", "-i"), {"action": "store_true"}),
+                (("--depth", "-d"), {"type": int}),
+                (("--scope", "-s"), {}),
+            ],
+        )
+        request = {
+            "operation": "semantic.snapshot",
+            "interactive": options.interactive,
+        }
+        if options.depth is not None:
+            request["depth"] = options.depth
+        if options.scope is not None:
+            request["scope"] = options.scope
+        return request
+    if command in {"press", "fill"}:
+        definitions: list[tuple[tuple[str, ...], dict[str, Any]]] = [
+            (("target",), {}),
+        ]
+        if command == "fill":
+            definitions.append((("text",), {}))
+        definitions.append((("--settle",), {"action": "store_true"}))
+        options = parse_options(rest, definitions)
+        request = {
+            "operation": f"semantic.{command}",
+            "target": options.target,
+            "settle": options.settle,
+        }
+        if command == "fill":
+            request["text"] = options.text
+        return request
+    raise ClientError(
+        "unsupported_ios_command", f"Unsupported iOS command '{command}'"
+    )
+
+
+def handle_ios(
+    alias: str, target: dict[str, Any], arguments: list[str]
+) -> int:
+    if target["platform"] != "ios" or target.get("interface") != "native":
+        raise ClientError(
+            "unsupported_ios_target",
+            "The ios command family requires a native physical-iOS target",
+        )
+    request = ios_request(arguments)
+    serialized = json.dumps(request, separators=(",", ":"), ensure_ascii=False)
+    completed, parsed, elapsed_ms = run_adapter(
+        target,
+        ["control"],
+        accept_json_failure=True,
+        input_text=serialized,
+    )
+    value = validate_resident(parsed, "ios")
+    value = add_client_projection(
+        value,
+        alias,
+        target,
+        str(request["operation"]),
+        len(serialized.encode("utf-8")),
+        len(completed.stdout.strip().encode("utf-8")),
+        elapsed_ms,
+        False,
+    )
+    emit(value)
+    return 0 if value["accepted"] else 1
 
 
 def _workspace_adapter_call(
@@ -1772,6 +1893,9 @@ Commands:
   desktop call|call-local JSON     Translate a common resident request
   desktop raw|raw-local JSON       Send a provider-native resident request
   desktop artifact HANDLE [PATH]   Fetch a bounded resident artifact
+  ios capabilities|runner prepare [--refresh]
+  ios application install|launch|terminate
+  ios snapshot|press|fill|home     Typed physical-iOS XCTest operations
   testbed -- ARG...                Explicit testbed escape hatch
   os -- ARG...                     Explicit guest administration escape hatch
 """
@@ -1877,6 +2001,8 @@ def main(argv: list[str] | None = None) -> int:
             return handle_workspace(alias, target, remainder[1:])
         if operation == "desktop":
             return handle_desktop(alias, target, remainder[1:])
+        if operation == "ios":
+            return handle_ios(alias, target, remainder[1:])
         if operation == "testbed":
             return exec_escape(target, remainder[1:], os_escape=False)
         if operation == "os":

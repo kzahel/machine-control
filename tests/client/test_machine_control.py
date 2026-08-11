@@ -155,6 +155,61 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertEqual(value["errorCode"], "unsupported_target_operation")
 
+    def test_ios_common_capabilities_use_typed_adapter_stdin(self):
+        log = self.directory / "arguments.json"
+        self.write_registry("ios", interface="native")
+        result, value = self.run_cli(
+            "--target", "fixture", "ios", "capabilities",
+            extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["operation"], "capabilities")
+        self.assertEqual(value["client"]["logicalTarget"], "fixture")
+        self.assertEqual(json.loads(log.read_text(encoding="utf-8")), ["control"])
+        self.assertEqual(
+            value["data"]["request"], {"operation": "capabilities"}
+        )
+
+    def test_ios_common_fill_is_not_placed_in_adapter_arguments(self):
+        log = self.directory / "arguments.json"
+        self.write_registry("ios", interface="native")
+        result, value = self.run_cli(
+            "--target", "fixture", "ios", "fill", "label=Query",
+            "fixture text", "--settle",
+            extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(json.loads(log.read_text(encoding="utf-8")), ["control"])
+        self.assertEqual(
+            value["data"]["request"],
+            {
+                "operation": "semantic.fill",
+                "target": "label=Query",
+                "text": "fixture text",
+                "settle": True,
+            },
+        )
+
+    def test_ios_common_family_refuses_non_ios_target_without_dispatch(self):
+        log = self.directory / "arguments.json"
+        self.write_registry("android", interface="native")
+        result, value = self.run_cli(
+            "--target", "fixture", "ios", "capabilities",
+            extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(value["errorCode"], "unsupported_ios_target")
+        self.assertFalse(log.exists())
+
+    def test_ios_result_requires_common_host_interference(self):
+        self.write_registry("ios", interface="native")
+        result, value = self.run_cli(
+            "--target", "fixture", "ios", "capabilities",
+            extra_env={"MACHINE_CONTROL_MOCK_OMIT_HOST_INTERFERENCE": "1"},
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(value["errorCode"], "invalid_resident_result")
+
     def test_desktop_reboot_remains_platform_escape(self):
         result, value = self.run_cli(
             "--target", "fixture", "target", "reboot"

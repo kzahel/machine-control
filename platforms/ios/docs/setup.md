@@ -5,8 +5,9 @@
 - A Mac with full Xcode and the matching iOS platform support.
 - Node.js 24 or newer, pnpm 11, and Python 3.10 or newer.
 - An Apple development team signed into Xcode. The validated long-lived setup
-  uses a paid team; a free Personal Team is a distinct short-lived signing
-  profile that requires periodic reprovisioning and remains to be accepted.
+  uses an Apple Developer Program team. A free Personal Team is supported as a
+  distinct short-lived signing profile, but remains to be physically accepted
+  with a separate free account/team.
 - An Apple Development certificate with its private key available in the login
   Keychain.
 
@@ -67,7 +68,12 @@ Copy `config.example` to ignored `config.local` and set:
 export IOS_DEVICE_TESTBED_DEVICE=iPhone
 export IOS_DEVICE_TESTBED_TEAM_ID=<apple-team-id>
 export IOS_DEVICE_TESTBED_RUNNER_BUNDLE_ID=com.example.iosdevicetestbed.runner
+export IOS_DEVICE_TESTBED_SIGNING_PROFILE=developer_program
 ```
+
+Use `personal_team` for a free Xcode Personal Team. The declaration controls
+renewal policy only; the adapter deliberately does not infer account class from
+the team identifier. Xcode account sign-in and team selection remain manual.
 
 Use a unique physical-device name. Agent Device 0.20.5 rejected the physical
 UDID returned by its own inventory while accepting the unique device name.
@@ -78,8 +84,27 @@ testbed. It is separate from every application under test.
 
 ## Provisioning lifetime
 
-A free Personal Team normally gives short-lived development provisioning. The
-validated controller uses a paid team, so weekly reprovisioning is not expected.
-Certificates, membership, and Xcode-managed profiles still expire on their
-normal longer schedules. Run `doctor` before a campaign and `prepare` after an
-Xcode, iOS, Agent Device, certificate, or provisioning change.
+Apple's [developer-account
+documentation](https://developer.apple.com/help/account/basics/about-your-developer-account)
+states that a free Personal Team permits on-device Xcode testing but limits it
+to ten App IDs, three devices, and three installed apps per device; its App
+IDs, device registrations, and install profiles expire after seven days.
+XCTest runner products consume the same finite signing resources, so reserve
+capacity for both the runner and applications under test.
+
+Doctor reports the configured account policy separately from the embedded
+profile's observed lifetime and expiration. A matching expired runner cache is
+not ready. With `personal_team`, `prepare` removes only this team/bundle's
+matching derived products and rebuilds when no more than 48 hours remain:
+
+```bash
+bin/ios-device doctor
+bin/ios-device prepare
+bin/ios-device prepare --refresh  # explicit recovery/reprovisioning
+```
+
+The current physical acceptance uses a long-lived Developer Program profile,
+so weekly reprovisioning is not expected. Certificates, membership, and
+Xcode-managed profiles still expire on their normal schedules. Run `doctor`
+before a campaign and `prepare` after an Xcode, iOS, Agent Device, certificate,
+or provisioning change.

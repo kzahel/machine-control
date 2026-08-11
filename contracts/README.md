@@ -32,6 +32,12 @@ is still v0. They may not omit route, generation, delivery/effect separation,
 host interference, uncertainty, or typed refusal merely because an upstream
 provider uses a different response shape.
 
+The physical-iOS adapter now returns this result envelope for its explicitly
+iOS application and XCTest operations. `generation: unavailable` is honest
+when CoreDevice supplies no public boot generation; semantic payloads preserve
+Agent Device's provider-scoped `refsGeneration` instead of fabricating a
+target generation.
+
 Transport is outside these schemas. Local IPC, a CLI, SSH, `tart exec`, an
 authenticated carrier, and MCP may all carry the same request and result.
 The current dependency-free projection is

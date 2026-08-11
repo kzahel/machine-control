@@ -27,6 +27,12 @@ and `target capabilities` through `machine-control-doctor/v0` without claiming
 a desktop/resident process. A device lifecycle mutation is dispatched only
 when that doctor declares the exact operation.
 
+The fake adapter also covers the explicitly iOS common family: platform
+gating, allowlisted request construction, standard-input transport that keeps
+fill text out of adapter arguments, strict `machine-control/v0` result
+validation, and logical-target/client metadata. Provider-native passthrough
+remains behind `testbed --`; Android and Quest do not inherit iOS operations.
+
 The fake VM adapter covers the additive workspace surface on macOS, Linux, and
 Windows: strict capabilities, configured and explicit intent, opaque selection
 of later adapter calls, normalized mechanisms, typed refusal, private-field

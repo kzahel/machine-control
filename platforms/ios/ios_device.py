@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import platform
+import plistlib
 import re
 import secrets
 import shutil
@@ -20,6 +21,8 @@ from pathlib import Path
 
 LEASE_SCHEMA = 1
 PINNED_AGENT_DEVICE_VERSION = "0.20.5"
+SIGNING_PROFILES = {"unspecified", "developer_program", "personal_team"}
+PERSONAL_TEAM_REFRESH_SECONDS = 2 * 24 * 60 * 60
 REPO_ROOT = Path(os.environ.get("IOS_DEVICE_TESTBED_ROOT", Path(__file__).parent))
 IDENTIFIER_PATTERNS = (
     re.compile(r"\b[0-9A-Fa-f]{8}-[0-9A-Fa-f-]{15,}\b"),
@@ -40,6 +43,7 @@ class Config:
     state_dir: Path
     agent_device: Path
     signing_identity: str
+    signing_profile: str = "unspecified"
 
     @property
     def agent_state_dir(self) -> Path:
@@ -82,6 +86,14 @@ def load_config(env: dict[str, str] | None = None) -> Config:
         if configured_agent
         else REPO_ROOT / "node_modules" / ".bin" / "agent-device"
     )
+    signing_profile = values.get(
+        "IOS_DEVICE_TESTBED_SIGNING_PROFILE", "unspecified"
+    ).strip()
+    if signing_profile not in SIGNING_PROFILES:
+        raise TestbedError(
+            "IOS_DEVICE_TESTBED_SIGNING_PROFILE must be unspecified, "
+            "developer_program, or personal_team"
+        )
     return Config(
         device_selector=values.get("IOS_DEVICE_TESTBED_DEVICE", "").strip(),
         team_id=values.get("IOS_DEVICE_TESTBED_TEAM_ID", "").strip(),
@@ -93,6 +105,7 @@ def load_config(env: dict[str, str] | None = None) -> Config:
         signing_identity=values.get(
             "IOS_DEVICE_TESTBED_SIGNING_IDENTITY", "Apple Development"
         ).strip(),
+        signing_profile=signing_profile,
     )
 
 
@@ -100,6 +113,22 @@ def redact(text: str) -> str:
     for pattern in IDENTIFIER_PATTERNS:
         text = pattern.sub("<identifier>", text)
     return text
+
+
+def redact_config(text: str, config: Config) -> str:
+    value = redact(text)
+    private_values = {
+        config.device_selector,
+        config.team_id,
+        config.runner_bundle_id,
+        str(config.state_dir),
+        str(config.agent_device),
+        str(Path.home()),
+    }
+    for private in sorted(private_values, key=len, reverse=True):
+        if private:
+            value = value.replace(private, "<private>")
+    return value
 
 
 def run_capture(
@@ -359,18 +388,23 @@ def probe(config: Config, *, json_output: bool = False) -> int:
     return 0 if summary["available"] else 1
 
 
-def runner_cache_available(config: Config) -> bool:
+def runner_cache_root() -> Path:
     # Agent Device 0.20.5 isolates daemon/session state with AGENT_DEVICE_STATE_DIR
     # but intentionally retains Apple build products in its user-wide cache.
-    derived = Path.home() / ".agent-device" / "apple-runner" / "derived" / "ios-device"
+    return Path.home() / ".agent-device" / "apple-runner" / "derived" / "ios-device"
+
+
+def matching_runner_cache_directories(config: Config) -> list[Path]:
+    derived = runner_cache_root()
     if not derived.is_dir() or not config.team_id or not config.runner_bundle_id:
-        return False
+        return []
     expected_settings = {
         f"AGENT_DEVICE_IOS_RUNNER_APP_BUNDLE_ID={config.runner_bundle_id}",
         f"AGENT_DEVICE_IOS_RUNNER_TEST_BUNDLE_ID={config.runner_bundle_id}.uitests",
         "CODE_SIGN_STYLE=Automatic",
         f"DEVELOPMENT_TEAM={config.team_id}",
     }
+    matches: list[Path] = []
     for manifest_path in derived.glob("*/.agent-device-runner-cache.json"):
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -385,8 +419,103 @@ def runner_cache_available(config: Config) -> bool:
             and expected_settings <= settings
             and any(manifest_path.parent.rglob("*.xctestrun"))
         ):
-            return True
-    return False
+            matches.append(manifest_path.parent)
+    return matches
+
+
+def provisioning_profile_dates(path: Path) -> tuple[datetime, datetime] | None:
+    try:
+        result = run_capture(
+            ["security", "cms", "-D", "-i", str(path)], check=False
+        )
+    except OSError:
+        return None
+    if result.returncode:
+        return None
+    try:
+        document = plistlib.loads(result.stdout.encode("utf-8"))
+    except (ValueError, plistlib.InvalidFileException):
+        return None
+    created = document.get("CreationDate")
+    expires = document.get("ExpirationDate")
+    if not isinstance(created, datetime) or not isinstance(expires, datetime):
+        return None
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    return created.astimezone(timezone.utc), expires.astimezone(timezone.utc)
+
+
+def runner_cache_observation(
+    config: Config, *, now: datetime | None = None
+) -> dict[str, object]:
+    current = now or datetime.now(timezone.utc)
+    matches = matching_runner_cache_directories(config)
+    cache_dates: list[tuple[datetime, datetime]] = []
+    for directory in matches:
+        dates = [
+            observed
+            for profile in directory.rglob("embedded.mobileprovision")
+            if (observed := provisioning_profile_dates(profile)) is not None
+        ]
+        if dates:
+            cache_dates.append(min(dates, key=lambda item: item[1]))
+    selected = max(cache_dates, key=lambda item: item[1]) if cache_dates else None
+    remaining = (
+        int((selected[1] - current).total_seconds()) if selected else None
+    )
+    lifetime = (
+        int((selected[1] - selected[0]).total_seconds()) if selected else None
+    )
+    lifetime_class = "unknown"
+    if lifetime is not None:
+        lifetime_class = "short_lived" if lifetime <= 10 * 86400 else "long_lived"
+    all_profiles_observed = bool(matches) and len(cache_dates) == len(matches)
+    expired = (
+        all_profiles_observed
+        and bool(cache_dates)
+        and all(expires <= current for _, expires in cache_dates)
+    )
+    refresh_recommended = expired or (
+        config.signing_profile == "personal_team"
+        and all_profiles_observed
+        and remaining is not None
+        and remaining <= PERSONAL_TEAM_REFRESH_SECONDS
+    )
+    profile_mismatch = (
+        config.signing_profile == "personal_team" and lifetime_class == "long_lived"
+    ) or (
+        config.signing_profile == "developer_program"
+        and lifetime_class == "short_lived"
+    )
+    return {
+        "available": bool(matches) and not expired,
+        "profileObserved": selected is not None,
+        "profileExpiration": selected[1].isoformat() if selected else None,
+        "secondsRemaining": remaining,
+        "profileLifetimeSeconds": lifetime,
+        "observedLifetime": lifetime_class,
+        "expired": expired,
+        "refreshRecommended": refresh_recommended,
+        "declarationMismatch": profile_mismatch,
+    }
+
+
+def runner_cache_available(config: Config) -> bool:
+    return bool(runner_cache_observation(config)["available"])
+
+
+def refresh_matching_runner_cache(config: Config) -> int:
+    root = runner_cache_root().resolve()
+    removed = 0
+    for directory in matching_runner_cache_directories(config):
+        resolved = directory.resolve()
+        if resolved.parent != root or not resolved.name.startswith("cache-"):
+            raise TestbedError("refusing to refresh an unexpected runner cache path")
+        shutil.rmtree(resolved)
+        removed += 1
+    return removed
 
 
 def lock_state(device_name: str) -> dict[str, object]:
@@ -506,6 +635,24 @@ def doctor_checks(config: Config) -> list[Check]:
             None if config.team_id else "Set IOS_DEVICE_TESTBED_TEAM_ID in config.local.",
         )
     )
+    profile_labels = {
+        "unspecified": "not declared",
+        "developer_program": "Apple Developer Program",
+        "personal_team": "free Personal Team",
+    }
+    checks.append(
+        Check(
+            "signing profile",
+            "warn" if config.signing_profile == "unspecified" else "ok",
+            profile_labels[config.signing_profile],
+            (
+                "Set IOS_DEVICE_TESTBED_SIGNING_PROFILE to developer_program "
+                "or personal_team."
+                if config.signing_profile == "unspecified"
+                else None
+            ),
+        )
+    )
     checks.append(
         Check(
             "runner bundle",
@@ -602,7 +749,8 @@ def doctor_checks(config: Config) -> list[Check]:
             )
         )
 
-    cache_available = runner_cache_available(config)
+    cache = runner_cache_observation(config)
+    cache_available = bool(cache["available"])
     checks.append(
         Check(
             "XCTest build cache",
@@ -611,6 +759,40 @@ def doctor_checks(config: Config) -> list[Check]:
             None if cache_available else "Run bin/ios-device prepare.",
         )
     )
+    if bool(cache["profileObserved"]):
+        if bool(cache["expired"]):
+            profile_status = "error"
+            profile_detail = "expired"
+            profile_fix = "Run bin/ios-device prepare --refresh."
+        elif bool(cache["declarationMismatch"]):
+            profile_status = "warn"
+            profile_detail = "lifetime differs from the declared signing profile"
+            profile_fix = "Check IOS_DEVICE_TESTBED_SIGNING_PROFILE."
+        elif bool(cache["refreshRecommended"]):
+            profile_status = "warn"
+            profile_detail = "expires soon"
+            profile_fix = "Run bin/ios-device prepare before unattended work."
+        else:
+            profile_status = "ok"
+            profile_detail = f"valid ({cache['observedLifetime']})"
+            profile_fix = None
+        checks.append(
+            Check(
+                "runner provisioning",
+                profile_status,
+                profile_detail,
+                profile_fix,
+            )
+        )
+    elif cache_available:
+        checks.append(
+            Check(
+                "runner provisioning",
+                "warn",
+                "embedded profile lifetime unavailable",
+                "Run prepare --refresh if the runner stops launching.",
+            )
+        )
     return checks
 
 
@@ -664,7 +846,8 @@ def common_doctor_document(
         connected=connected,
         locked=locked,
     )
-    cache_available = runner_cache_available(config)
+    cache = runner_cache_observation(config)
+    cache_available = bool(cache["available"])
     runner_available = (
         connected and developer_mode and cache_available and interaction_ready
     )
@@ -741,6 +924,26 @@ def common_doctor_document(
             "interactionGate": interaction_gate,
             "runnerCacheAvailable": cache_available,
             "runnerAuthentication": "unverified_until_launch",
+            "runnerProvisioning": {
+                "declaredSigningProfile": config.signing_profile,
+                "profileObserved": cache["profileObserved"],
+                "profileExpiration": cache["profileExpiration"],
+                "secondsRemaining": cache["secondsRemaining"],
+                "observedLifetime": cache["observedLifetime"],
+                "refreshRecommended": cache["refreshRecommended"],
+                "declarationMismatch": cache["declarationMismatch"],
+            },
+            "iosOperations": [
+                "capabilities",
+                "runner.prepare",
+                "application.install",
+                "application.launch",
+                "application.terminate",
+                "semantic.snapshot",
+                "semantic.press",
+                "semantic.fill",
+                "navigation.home",
+            ],
         },
     }
 
@@ -957,11 +1160,14 @@ def with_command_lease(config: Config, action: Callable[[], int]) -> int:
         release_lease(config, lease)
 
 
-def prepare(config: Config) -> int:
+def prepare(config: Config, *, refresh: bool = False) -> int:
     require_mutation_config(config)
 
     def action() -> int:
         try:
+            cache = runner_cache_observation(config)
+            if refresh or bool(cache["refreshRecommended"]):
+                refresh_matching_runner_cache(config)
             return run_agent(
                 config,
                 ["prepare", "ios-runner", "--timeout", "240000"],
@@ -1270,6 +1476,519 @@ FORWARDED_COMMANDS = {
     "terminate": "close",
 }
 
+IOS_CONTROL_OPERATIONS = {
+    "capabilities",
+    "runner.prepare",
+    "application.install",
+    "application.launch",
+    "application.terminate",
+    "semantic.snapshot",
+    "semantic.press",
+    "semantic.fill",
+    "navigation.home",
+}
+
+SENSITIVE_PROVIDER_KEYS = {
+    "deviceid",
+    "udid",
+    "serial",
+    "serialnumber",
+    "ecid",
+    "teamid",
+    "logpath",
+    "requestlogpath",
+    "runnerlogpath",
+    "ownerstatedir",
+    "xctestrunpath",
+    "jsonpath",
+}
+
+
+def sanitize_provider_value(value: object) -> object:
+    if isinstance(value, list):
+        return [sanitize_provider_value(item) for item in value]
+    if not isinstance(value, dict):
+        return redact(value) if isinstance(value, str) else value
+    device_descriptor = (
+        str(value.get("platform", "")).casefold() == "ios"
+        and str(value.get("kind", "")).casefold() in {"device", "physical"}
+    )
+    sanitized: dict[str, object] = {}
+    for key, item in value.items():
+        folded = key.casefold()
+        if folded in SENSITIVE_PROVIDER_KEYS:
+            continue
+        if device_descriptor and folded in {"id", "name"}:
+            continue
+        sanitized[key] = sanitize_provider_value(item)
+    return sanitized
+
+
+def require_control_string(
+    request: dict[str, object], key: str, *, optional: bool = False
+) -> str | None:
+    value = request.get(key)
+    if value is None and optional:
+        return None
+    if not isinstance(value, str) or not value:
+        raise TestbedError(f"iOS control operation requires nonempty {key}")
+    return value
+
+
+def control_capabilities(upstream: object) -> dict[str, object]:
+    available = []
+    if isinstance(upstream, dict):
+        commands = upstream.get("availableCommands")
+        if isinstance(commands, list):
+            available = sorted(
+                command for command in commands if isinstance(command, str)
+            )
+    return {
+        "operations": [
+            {
+                "operation": "capabilities",
+                "route": "ios.xctest",
+                "mutating": False,
+            },
+            {
+                "operation": "runner.prepare",
+                "route": "ios.xctest",
+                "mutating": True,
+                "effect": "runner health check",
+            },
+            {
+                "operation": "application.install",
+                "route": "ios.coredevice",
+                "mutating": True,
+                "effect": "installed-app inventory",
+            },
+            {
+                "operation": "application.launch",
+                "route": "ios.xctest",
+                "mutating": True,
+            },
+            {
+                "operation": "application.terminate",
+                "route": "ios.xctest",
+                "mutating": True,
+            },
+            {
+                "operation": "semantic.snapshot",
+                "route": "ios.xctest",
+                "mutating": False,
+                "references": "provider_snapshot_scoped",
+            },
+            {
+                "operation": "semantic.press",
+                "route": "ios.xctest",
+                "mutating": True,
+                "references": "provider_snapshot_scoped",
+            },
+            {
+                "operation": "semantic.fill",
+                "route": "ios.xctest",
+                "mutating": True,
+                "secretTransport": "unsupported",
+            },
+            {
+                "operation": "navigation.home",
+                "route": "ios.xctest",
+                "mutating": True,
+            },
+        ],
+        "upstreamAvailableCommands": available,
+        "protectedAuthentication": "human_only",
+    }
+
+
+def provider_settle_effect(data: object) -> str:
+    if not isinstance(data, dict):
+        return "unverifiable"
+    settle = data.get("settle")
+    if not isinstance(settle, dict) or settle.get("settled") is not True:
+        return "unverifiable"
+    diff = settle.get("diff")
+    summary = diff.get("summary") if isinstance(diff, dict) else None
+    if not isinstance(summary, dict):
+        return "unverifiable"
+    values = (summary.get("additions"), summary.get("removals"))
+    changed = sum(value for value in values if isinstance(value, int))
+    return "confirmed" if changed > 0 else "unverifiable"
+
+
+def ios_result(
+    operation: str,
+    *,
+    accepted: bool,
+    route: str,
+    elapsed_ms: int,
+    delivery: str,
+    effect: str,
+    uncertainty: str,
+    data: object | None = None,
+    error_code: str | None = None,
+    message: str | None = None,
+) -> dict[str, object]:
+    result: dict[str, object] = {
+        "schema": "machine-control/v0",
+        "requestId": secrets.token_hex(12),
+        "operation": operation,
+        "accepted": accepted,
+        "actualRoute": f"host.device/{route}",
+        "generation": "unavailable",
+        "delivery": delivery,
+        "effect": effect,
+        "hostInterference": "none",
+        "uncertainty": uncertainty,
+        "retrySafety": (
+            "observation_safe"
+            if effect == "not_applicable"
+            else "not_needed"
+            if effect == "confirmed"
+            else "observe_before_retry"
+        ),
+        "fallbackUsed": False,
+        "retryCount": 0,
+        "providerAttempts": [
+            {
+                "provider": route,
+                "operation": operation,
+                "outcome": "accepted" if accepted else "failed",
+                "delivery": delivery,
+                "effect": effect,
+                "elapsedMs": elapsed_ms,
+            }
+        ],
+        "elapsedMs": elapsed_ms,
+        "data": sanitize_provider_value(data or {}),
+    }
+    if error_code:
+        result["errorCode"] = error_code
+    if message:
+        result["message"] = redact(message)
+    return result
+
+
+def run_agent_json(
+    config: Config, arguments: Sequence[str]
+) -> tuple[dict[str, object] | None, int, str]:
+    started = time.monotonic()
+    result = run_capture(
+        agent_argv(config, [*arguments, "--json"]),
+        env=agent_environment(config),
+        check=False,
+    )
+    elapsed_ms = int((time.monotonic() - started) * 1000)
+    try:
+        parsed = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        parsed = None
+    return (
+        parsed if isinstance(parsed, dict) else None,
+        elapsed_ms,
+        result.stderr.strip(),
+    )
+
+
+def provider_control_result(
+    config: Config,
+    operation: str,
+    arguments: Sequence[str],
+    *,
+    observation: bool = False,
+    confirmed_effect: bool = False,
+) -> dict[str, object]:
+    document, elapsed_ms, stderr = run_agent_json(config, arguments)
+    if document is None:
+        return ios_result(
+            operation,
+            accepted=False,
+            route="ios.xctest",
+            elapsed_ms=elapsed_ms,
+            delivery="unknown",
+            effect="unknown",
+            uncertainty="the provider returned no valid structured response",
+            error_code="invalid_provider_response",
+            message=redact_config(
+                stderr or "Agent Device returned invalid JSON", config
+            ),
+        )
+    success = document.get("success") is True or document.get("ok") is True
+    if not success:
+        error = document.get("error")
+        error_data = error if isinstance(error, dict) else {}
+        provider_code = str(error_data.get("code", "PROVIDER_FAILED"))
+        refused = provider_code in {
+            "INVALID_ARGS",
+            "UNSUPPORTED_OPERATION",
+            "UNSUPPORTED_PLATFORM",
+            "APP_NOT_INSTALLED",
+            "SESSION_NOT_FOUND",
+        }
+        return ios_result(
+            operation,
+            accepted=False,
+            route="ios.xctest",
+            elapsed_ms=elapsed_ms,
+            delivery="refused" if refused else "unknown",
+            effect="refused" if refused else "unknown",
+            uncertainty=(
+                "none" if refused else "provider failure left delivery uncertain"
+            ),
+            error_code=f"agent_device_{provider_code.casefold()}",
+            message=redact_config(
+                str(error_data.get("message", stderr or "Agent Device failed")),
+                config,
+            ),
+            data={
+                "hint": error_data.get("hint")
+                if isinstance(error_data.get("hint"), str)
+                else None
+            },
+        )
+    provider_data = document.get("data")
+    data = (
+        control_capabilities(provider_data)
+        if operation == "capabilities"
+        else provider_data
+    )
+    effect = (
+        "not_applicable"
+        if observation
+        else "confirmed"
+        if confirmed_effect
+        else provider_settle_effect(provider_data)
+        if operation in {"semantic.press", "semantic.fill"}
+        else "unverifiable"
+    )
+    return ios_result(
+        operation,
+        accepted=True,
+        route="ios.xctest",
+        elapsed_ms=elapsed_ms,
+        delivery="not_applicable" if observation else "confirmed",
+        effect=effect,
+        uncertainty=(
+            "none"
+            if observation or effect == "confirmed"
+            else "provider delivery succeeded without an independent effect oracle"
+        ),
+        data=data,
+    )
+
+
+def installed_app_present(device_name: str, bundle_id: str) -> bool:
+    document = devicectl_json(
+        [
+            "device",
+            "info",
+            "apps",
+            "--device",
+            device_name,
+            "--bundle-id",
+            bundle_id,
+        ]
+    )
+    result = document.get("result")
+    apps = result.get("apps") if isinstance(result, dict) else None
+    return isinstance(apps, list) and bool(apps)
+
+
+def install_control_result(config: Config, path_text: str) -> dict[str, object]:
+    started = time.monotonic()
+    path = Path(path_text).expanduser().resolve()
+    if not path.is_dir() or path.suffix != ".app":
+        raise TestbedError("application.install requires an existing .app directory")
+    info_path = path / "Info.plist"
+    try:
+        with info_path.open("rb") as handle:
+            info = plistlib.load(handle)
+    except (OSError, plistlib.InvalidFileException) as error:
+        raise TestbedError(
+            "application.install could not read the app Info.plist"
+        ) from error
+    bundle_id = info.get("CFBundleIdentifier")
+    if not isinstance(bundle_id, str) or not bundle_id:
+        raise TestbedError("application.install app has no bundle identifier")
+    device_name = selected_device_name(config)
+    try:
+        devicectl_json(
+            ["device", "install", "app", "--device", device_name, str(path)]
+        )
+    except TestbedError as error:
+        return ios_result(
+            "application.install",
+            accepted=False,
+            route="ios.coredevice",
+            elapsed_ms=int((time.monotonic() - started) * 1000),
+            delivery="unknown",
+            effect="unknown",
+            uncertainty="CoreDevice failure left installation delivery uncertain",
+            error_code="coredevice_install_failed",
+            message=redact_config(str(error), config),
+        )
+    try:
+        observed = installed_app_present(device_name, bundle_id)
+    except TestbedError:
+        observed = False
+    elapsed_ms = int((time.monotonic() - started) * 1000)
+    return ios_result(
+        "application.install",
+        accepted=True,
+        route="ios.coredevice",
+        elapsed_ms=elapsed_ms,
+        delivery="confirmed",
+        effect="confirmed" if observed else "unknown",
+        uncertainty=(
+            "none"
+            if observed
+            else "installation succeeded but inventory readback failed"
+        ),
+        data={"applicationId": bundle_id, "installed": observed},
+    )
+
+
+def execute_control_request(
+    config: Config, request: dict[str, object]
+) -> dict[str, object]:
+    operation = request.get("operation")
+    if not isinstance(operation, str) or operation not in IOS_CONTROL_OPERATIONS:
+        raise TestbedError("unsupported typed iOS control operation")
+    if operation == "capabilities":
+        return provider_control_result(
+            config, operation, ["capabilities"], observation=True
+        )
+    if operation == "runner.prepare":
+        refresh = request.get("refresh", False)
+        if not isinstance(refresh, bool):
+            raise TestbedError("runner.prepare refresh must be boolean")
+        cache = runner_cache_observation(config)
+        if refresh or bool(cache["refreshRecommended"]):
+            refresh_matching_runner_cache(config)
+        try:
+            return provider_control_result(
+                config,
+                operation,
+                ["prepare", "ios-runner", "--timeout", "240000"],
+                confirmed_effect=True,
+            )
+        finally:
+            stop_daemon(config)
+    if operation == "application.install":
+        path = require_control_string(request, "path")
+        assert path is not None
+        return install_control_result(config, path)
+    if operation == "application.launch":
+        application = require_control_string(request, "application")
+        assert application is not None
+        relaunch = request.get("relaunch", False)
+        if not isinstance(relaunch, bool):
+            raise TestbedError("application.launch relaunch must be boolean")
+        return provider_control_result(
+            config,
+            operation,
+            ["open", application, *(["--relaunch"] if relaunch else [])],
+        )
+    if operation == "application.terminate":
+        application = require_control_string(request, "application", optional=True)
+        return provider_control_result(
+            config,
+            operation,
+            ["close", *([application] if application else [])],
+        )
+    if operation == "semantic.snapshot":
+        interactive = request.get("interactive", False)
+        depth = request.get("depth")
+        scope = request.get("scope")
+        if not isinstance(interactive, bool):
+            raise TestbedError("semantic.snapshot interactive must be boolean")
+        if depth is not None and (
+            not isinstance(depth, int) or isinstance(depth, bool) or depth <= 0
+        ):
+            raise TestbedError("semantic.snapshot depth must be a positive integer")
+        if scope is not None and (not isinstance(scope, str) or not scope):
+            raise TestbedError("semantic.snapshot scope must be a nonempty string")
+        arguments = ["snapshot"]
+        if interactive:
+            arguments.append("-i")
+        if depth is not None:
+            arguments.extend(["--depth", str(depth)])
+        if scope is not None:
+            arguments.extend(["--scope", scope])
+        return provider_control_result(
+            config, operation, arguments, observation=True
+        )
+    if operation in {"semantic.press", "semantic.fill"}:
+        target = require_control_string(request, "target")
+        assert target is not None
+        settle = request.get("settle", False)
+        if not isinstance(settle, bool):
+            raise TestbedError(f"{operation} settle must be boolean")
+        arguments = ["press", target]
+        if operation == "semantic.fill":
+            text = require_control_string(request, "text")
+            assert text is not None
+            arguments = ["fill", target, text]
+        if settle:
+            arguments.append("--settle")
+        return provider_control_result(config, operation, arguments)
+    return provider_control_result(config, operation, ["home"])
+
+
+def control(config: Config) -> int:
+    try:
+        request = json.load(sys.stdin)
+    except json.JSONDecodeError:
+        result = ios_result(
+            "ios.control",
+            accepted=False,
+            route="ios.adapter",
+            elapsed_ms=0,
+            delivery="refused",
+            effect="refused",
+            uncertainty="none",
+            error_code="invalid_ios_request",
+            message="typed iOS control requires one JSON object on stdin",
+        )
+        print(json.dumps(result, indent=2))
+        return 1
+    if not isinstance(request, dict):
+        result = ios_result(
+            "ios.control",
+            accepted=False,
+            route="ios.adapter",
+            elapsed_ms=0,
+            delivery="refused",
+            effect="refused",
+            uncertainty="none",
+            error_code="invalid_ios_request",
+            message="typed iOS control requires one JSON object on stdin",
+        )
+        print(json.dumps(result, indent=2))
+        return 1
+
+    result: dict[str, object]
+    try:
+        require_mutation_config(config)
+        result = with_command_lease(
+            config, lambda: execute_control_request(config, request)
+        )
+    except TestbedError as error:
+        operation = str(request.get("operation", "ios.control"))
+        result = ios_result(
+            operation,
+            accepted=False,
+            route="ios.adapter",
+            elapsed_ms=0,
+            delivery="refused",
+            effect="refused",
+            uncertainty="none",
+            error_code="invalid_ios_request",
+            message=redact_config(str(error), config),
+        )
+    print(json.dumps(result, indent=2))
+    return 0 if bool(result["accepted"]) else 1
+
 
 def forward(config: Config, command: str, args: Sequence[str]) -> int:
     underlying = FORWARDED_COMMANDS[command]
@@ -1295,7 +2014,8 @@ def build_parser() -> argparse.ArgumentParser:
     for name in ("probe", "status", "doctor"):
         subparser = subparsers.add_parser(name)
         subparser.add_argument("--json", action="store_true")
-    subparsers.add_parser("prepare")
+    prepare_parser = subparsers.add_parser("prepare")
+    prepare_parser.add_argument("--refresh", action="store_true")
     pair_parser = subparsers.add_parser("pair")
     pair_parser.add_argument("--timeout", type=int, default=60)
     reboot_parser = subparsers.add_parser("reboot")
@@ -1308,6 +2028,7 @@ def build_parser() -> argparse.ArgumentParser:
     install_parser.add_argument("app_path")
     normal_parser = subparsers.add_parser("normal-launch")
     normal_parser.add_argument("bundle_id")
+    subparsers.add_parser("control")
     agent_parser = subparsers.add_parser("agent")
     agent_parser.add_argument("agent_args", nargs=argparse.REMAINDER)
     for name in FORWARDED_COMMANDS:
@@ -1342,7 +2063,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "doctor":
             return doctor(config, json_output=args.json)
         if args.command == "prepare":
-            return prepare(config)
+            return prepare(config, refresh=args.refresh)
         if args.command == "pair":
             return pair_device(config, args.timeout)
         if args.command == "reboot":
@@ -1355,6 +2076,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return install_app(config, args.app_path)
         if args.command == "normal-launch":
             return normal_launch(config, args.bundle_id)
+        if args.command == "control":
+            return control(config)
         raise TestbedError(f"unsupported command: {args.command}")
     except TestbedError as error:
         print(f"error: {redact(str(error))}", file=sys.stderr)

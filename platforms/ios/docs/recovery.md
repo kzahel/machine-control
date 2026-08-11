@@ -78,13 +78,29 @@ inspection. Agent Device 0.20.5 stores Apple build products separately under
 `ios-device` cache entry if upstream diagnostics specifically identify it.
 Never delete broad user directories.
 
+If doctor reports an expired or nearly expired runner profile, run:
+
+```bash
+bin/ios-device prepare --refresh
+```
+
+This refreshes only derived runner products whose pinned Agent Device version,
+team, and bundle settings exactly match this testbed. It does not remove
+accounts, signing identities, provisioning profiles, or unrelated caches. A
+declared Personal Team performs this bounded refresh automatically once the
+matching profile has at most 48 hours remaining.
+
 ## Signing failure
 
-- Verify the paid developer account is still signed into Xcode.
+- Verify the intended Developer Program or Personal Team account is still
+  signed into Xcode.
 - Verify a valid Apple Development identity and private key exist in Keychain.
 - Verify the phone remains registered to the team and the managed profile has
   not expired.
 - Verify `config.local` selects the correct team and unique runner bundle ID.
+- Verify `IOS_DEVICE_TESTBED_SIGNING_PROFILE` declares `developer_program` or
+  `personal_team`; a lifetime mismatch warns rather than silently changing
+  signing teams.
 - If this is a new phone, register it through Xcode before retrying `prepare`.
 
 Never copy certificates, private keys, profiles, account credentials, or signed
