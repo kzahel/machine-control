@@ -97,6 +97,15 @@ original private seal pin was restored byte-for-byte, and no outer UI input
 was used. Hosted Windows CI therefore owns the current native Windows build
 proof; it does not substitute for restoring a controller-ready live appliance.
 
+**Current (2026-08-11):** Hosted run `31481111956` passed all six public jobs
+at commit `5ed134a`: portable coordinator checks and matching native checks on
+macOS, Linux, and Windows. The Windows native job parsed the PowerShell corpus
+and built all three .NET projects with .NET 8. Five ChromeOS post-update tests
+use a POSIX fake-SSH fixture and are explicitly skipped only on Windows; both
+Unix coordinator jobs execute them. Private-inventory run `31480390146` passed
+its macOS/Linux/Windows registry matrix and portable agent-config job at
+dotfiles commit `4ef3ded`.
+
 ## Current direction
 
 - Provide one portable root check command that owns correct suite working

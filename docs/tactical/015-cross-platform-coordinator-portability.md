@@ -140,3 +140,12 @@ byte-for-byte, and temporary host-key material was removed. A fresh
 controller-ready derivative must be provisioned before repeating the exact
 archive checks inside UTM. Hosted Windows CI is the current native build proof,
 but is not recorded as live-appliance evidence.
+
+Hosted public run `31481111956` passed all six coordinator/native jobs on
+macOS, Linux, and Windows at commit `5ed134a`. Windows parsed the PowerShell
+corpus and built all three .NET projects with .NET 8. The portable Windows job
+executes the common coordinator and dependency-free device logic; five
+ChromeOS post-update cases are explicitly skipped there because their fake SSH
+fixture requires native POSIX execution, and both Unix jobs cover them. Private
+inventory run `31480390146` passed its three-controller registry matrix and
+portable agent-config check at dotfiles commit `4ef3ded`.
