@@ -167,30 +167,31 @@ try {
     $result.failure = 'archive_expand_failed'
     Expand-Archive -LiteralPath $archive -DestinationPath $source
     $result.failure = 'source_entry_failed'
-    Push-Location $source
-    try {
-        $result.failure = 'portable_execution_failed'
-        & py.exe -3 bin\check --portable *> `
-            (Join-Path $stage 'portable.log')
-        if ($LASTEXITCODE -ne 0) {
-            $result.failure = 'portable_checks_failed'
-            throw 'portable checks failed'
-        }
-        $result.portable_checks = 'passed'
-        $result.failure = 'native_execution_failed'
-        & py.exe -3 bin\check --native *> `
-            (Join-Path $stage 'native.log')
-        if ($LASTEXITCODE -ne 0) {
-            $result.failure = 'native_checks_failed'
-            throw 'native checks failed'
-        }
-        $result.native_checks = 'passed'
-        $result.healthy = $true
-        $result.failure = $null
+    $python = (Get-Command py.exe -ErrorAction Stop).Source
+    $result.failure = 'portable_execution_failed'
+    $portable = Start-Process -FilePath $python `
+        -ArgumentList @('-3', 'bin\check', '--portable') `
+        -WorkingDirectory $source -Wait -PassThru -NoNewWindow `
+        -RedirectStandardOutput (Join-Path $stage 'portable.out.log') `
+        -RedirectStandardError (Join-Path $stage 'portable.err.log')
+    if ($portable.ExitCode -ne 0) {
+        $result.failure = 'portable_checks_failed'
+        throw 'portable checks failed'
     }
-    finally {
-        Pop-Location
+    $result.portable_checks = 'passed'
+    $result.failure = 'native_execution_failed'
+    $native = Start-Process -FilePath $python `
+        -ArgumentList @('-3', 'bin\check', '--native') `
+        -WorkingDirectory $source -Wait -PassThru -NoNewWindow `
+        -RedirectStandardOutput (Join-Path $stage 'native.out.log') `
+        -RedirectStandardError (Join-Path $stage 'native.err.log')
+    if ($native.ExitCode -ne 0) {
+        $result.failure = 'native_checks_failed'
+        throw 'native checks failed'
     }
+    $result.native_checks = 'passed'
+    $result.healthy = $true
+    $result.failure = $null
 }
 catch {
     if (-not $result.failure) { $result.failure = 'guest_execution_failed' }
