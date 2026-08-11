@@ -131,15 +131,13 @@ checks, and a direct target-list invocation that reported Linux as the
 controller platform. Temporary guest source was removed and the appliance was
 shut down.
 
-The live Windows condition is not complete. The configured Windows target is a
-generalized seal whose disposable boot correctly reached OOBE but offered no
-authorized SSH or guest-agent command route. The other preserved acceptance
-bundles had the same inner-route limitation. No outer input was used. Every
-disposable boot was stopped, the original ignored seal pin was restored
-byte-for-byte, and temporary host-key material was removed. A fresh
-controller-ready derivative must be provisioned before repeating the exact
-archive checks inside UTM. Hosted Windows CI is the current native build proof,
-but is not recorded as live-appliance evidence.
+The original live Windows attempt found only a generalized seal with no
+authorized administration route. Tactical 018 later recovered the retained
+stateful candidate and supplied its missing public Python and .NET 8 build
+toolchains. The first exact-archive retry exposed that the native check runner
+did not bypass Windows' default per-process script-execution restriction;
+`bin/check` now supplies `-ExecutionPolicy Bypass` only to the checked-in static
+script invocation. Tactical 018 owns the final exact-source and reboot record.
 
 Hosted public run `31481111956` passed all six coordinator/native jobs on
 macOS, Linux, and Windows at commit `5ed134a`. Windows parsed the PowerShell
