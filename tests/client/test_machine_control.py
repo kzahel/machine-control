@@ -134,6 +134,20 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(value["operation"], "set_value")
         self.assertEqual(value["data"]["request"]["value"], "Hello, 世界")
 
+    def test_desktop_target_does_not_replace_machine_target(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "desktop", "snapshot",
+            "--target", "fixture-application",
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(
+            value["client"]["logicalTarget"], "fixture"
+        )
+        self.assertEqual(
+            value["data"]["request"]["target"],
+            "fixture-application",
+        )
+
     def test_local_placement_is_reported(self):
         result, value = self.run_cli(
             "--target", "fixture", "desktop", "call-local",

@@ -781,18 +781,59 @@ Commands:
 """
 
 
+def parse_global_options(
+    arguments: list[str],
+) -> tuple[argparse.Namespace, list[str]]:
+    """Parse only options before COMMAND.
+
+    Desktop operations also use ``--target`` for an application or window.
+    Keeping the global parse bounded by COMMAND prevents that resource selector
+    from replacing the logical machine selector.
+    """
+    values: dict[str, Any] = {
+        "registry": None,
+        "target": None,
+        "help": False,
+    }
+    index = 0
+    while index < len(arguments):
+        token = arguments[index]
+        if token == "--help":
+            values["help"] = True
+            index += 1
+            continue
+        matched = False
+        for option, name in (("--registry", "registry"), ("--target", "target")):
+            if token == option:
+                if index + 1 >= len(arguments):
+                    raise ClientError("usage", f"{option} requires a value")
+                values[name] = arguments[index + 1]
+                index += 2
+                matched = True
+                break
+            if token.startswith(f"{option}="):
+                value = token.partition("=")[2]
+                if not value:
+                    raise ClientError("usage", f"{option} requires a value")
+                values[name] = value
+                index += 1
+                matched = True
+                break
+        if matched:
+            continue
+        break
+    return argparse.Namespace(**values), arguments[index:]
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--registry")
-    parser.add_argument("--target")
-    parser.add_argument("--help", action="store_true")
-    known, remainder = parser.parse_known_args(arguments)
-    if known.help or not remainder:
-        print(usage(), end="")
-        return 0 if known.help else 2
-    operation = remainder[0]
+    remainder: list[str] = []
     try:
+        known, remainder = parse_global_options(arguments)
+        if known.help or not remainder:
+            print(usage(), end="")
+            return 0 if known.help else 2
+        operation = remainder[0]
         targets = load_registry(known.registry)
         if operation == "targets":
             if len(remainder) != 1:
@@ -825,7 +866,13 @@ def main(argv: list[str] | None = None) -> int:
             "unsupported_command", f"Unsupported command '{operation}'"
         )
     except ClientError as error:
-        emit(refusal(operation, error.code, str(error)))
+        emit(
+            refusal(
+                remainder[0] if remainder else "client",
+                error.code,
+                str(error),
+            )
+        )
         return error.exit_code
     except ValueError:
         emit(
