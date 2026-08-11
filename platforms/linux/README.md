@@ -46,6 +46,7 @@ UTM window and needs no SSH access.
 
 ```bash
 bin/linuxvm doctor
+bin/linuxvm doctor --json
 bin/linuxvm status
 bin/linuxvm exec -- uname -a
 bin/linuxvm user-exec -- id
@@ -105,6 +106,12 @@ GNOME has imported the real display environment. The root input broker is
 enabled independently under `multi-user.target`. `doctor` waits boundedly for
 autologin, Wayland, AT-SPI, capture, and input readiness because the QEMU guest
 agent can return before the desktop session is complete.
+
+`doctor --json` emits the minimized `machine-control-doctor/v0` projection for
+the common client. It reports power, administration, desktop, resident,
+semantic, capture, input, and outer states without publishing the configured
+machine identity, desktop user, or network address. It is read-only and exits
+nonzero when the accepted resident surface is not ready.
 
 Resident capture runs `gnome-screenshot` in the active user session. It writes
 an owned, UUID-named PNG beneath `~/.cache/linuxvm-testbed/artifacts`; the

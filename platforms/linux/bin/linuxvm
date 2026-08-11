@@ -28,7 +28,7 @@ Desktop automation:
   artifact ID [OUTPUT.png]       Fetch a bounded resident capture artifact
   fixture [gtk|qt|browser] ACTION
                                  Manage deterministic effect-oracle fixtures
-  deploy-ui | deploy-resident | authorize-ui | desktop-user | doctor
+  deploy-ui | deploy-resident | authorize-ui | desktop-user | doctor [--json]
   screenshot [OUTPUT.png]
   click X Y [left|right|middle] | drag X1 Y1 X2 Y2
   type TEXT | key NAME | scan CODE...
@@ -190,7 +190,12 @@ case "$command" in
     authorize-ui)
         printf 'Linux AT-SPI needs no per-app authorization; run: bin/linuxvm deploy-ui\n'
         ;;
-    doctor) exec "$LINUXVM_REPO_DIR/scripts/doctor.sh" ;;
+    doctor)
+        if [[ "${1:-}" == "--json" ]]; then
+            exec "$LINUXVM_REPO_DIR/scripts/doctor-json.sh"
+        fi
+        exec "$LINUXVM_REPO_DIR/scripts/doctor.sh"
+        ;;
     bootstrap-command) bootstrap_command ;;
     status|guard-status|host-state|up|ip|shell|push|pull|screenshot|click|drag|type|key|scan|permissions|window-info|suspend|reboot|shutdown|force-stop|clone|disposable)
         exec "$PROVIDER" "$command" "$@"
