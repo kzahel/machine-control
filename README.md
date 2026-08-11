@@ -21,7 +21,8 @@ matches the question:
 - [Contract projections](contracts/README.md): the exercised v0 JSON request
   and truthful result envelopes shared by resident implementations.
 - [Unified desktop client](topics/unified-desktop-client.md): the common target
-  entry points and explicit platform escape hatches now being implemented.
+  entry points, accepted three-desktop conformance, and explicit platform
+  escape hatches.
 - [Target lifecycle and readiness](topics/target-lifecycle-and-readiness.md):
   portable lifecycle/doctor vocabulary over authoritative testbed adapters.
 - [Windows runtime](#windows-runtime): the first resident implementation,
@@ -272,6 +273,38 @@ without pretending that every target has the same control technology. Reusable
 machine-control contracts and resident providers live here. YepAnywhere,
 testbed inventory, target lifecycle/recovery repositories, and native device
 runners retain their separate ownership boundaries.
+
+## Common desktop entry
+
+**Current:** [`bin/machine-control`](bin/machine-control) provides one local
+target-selecting lifecycle, readiness, and resident-control entry point for
+the accepted Windows, macOS, and Linux testbeds. Portable defaults resolve the
+three sibling testbed CLIs; an ignored `targets.local.json` or an explicit
+registry can add logical targets without committing private inventory.
+
+```bash
+bin/machine-control targets
+bin/machine-control --target windows target doctor
+bin/machine-control --target macos desktop snapshot \
+  --target org.example.Application --query Save
+bin/machine-control --target linux desktop capture \
+  --scope window --target active_window
+```
+
+The common lifecycle subset is `status`, `up`, `suspend`, `shutdown`,
+`force-stop`, `doctor`, and `capabilities`. Desktop commands cover status,
+capabilities, application/window inventory and lifecycle, semantic snapshots
+and actions, target-local input/capture, and bounded artifact retrieval. Each
+result preserves the resident's actual operation, provider route, delivery,
+effect, uncertainty, generation, and host-interference report while adding a
+separate client/transport projection.
+
+Use `testbed --` and `os --` for explicit machine-specific lifecycle,
+bootstrap, recovery, or administration. Ordinary `desktop` operations never
+fall back to VM-window capture or host input. The executable
+[common conformance workflow](tests/client/README.md) passes on all three
+desktops with outer UI prohibited; see its
+[minimized evidence](docs/evidence/desktop-common-entry.md).
 
 ## Windows runtime
 

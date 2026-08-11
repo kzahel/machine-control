@@ -1,6 +1,6 @@
 # Tactical 013: Unified Desktop Entry and Conformance
 
-Status: active.
+Status: complete.
 
 Topics: `target-lifecycle-and-readiness`, `unified-desktop-client`, and
 `capabilities-and-results`.
@@ -95,4 +95,55 @@ evidence, deviations, and next work.
 
 ## Validation record
 
-Pending implementation and live conformance.
+Completed 2026-08-11.
+
+- Thirteen dependency-free adapter tests pass selection, lifecycle
+  normalization, doctor validation, operation translation, local placement,
+  artifact bounds, escape-hatch argument preservation, typed failures,
+  compatibility disclosure, and separation of logical versus desktop target
+  selectors.
+- Each authoritative testbed's complete smoke suite passed after adding its
+  doctor or resident wrapper. The guarded readiness paths separately passed
+  with outer UI prohibited.
+- One executable common workflow passed on Windows, macOS, and Linux. It used
+  only the common client for target status/doctor, resident capabilities,
+  local/outside status, application launch, semantic snapshot/action, input,
+  target-native capture, and bounded artifact retrieval.
+- All three semantic presses produced independent fixture effects. macOS and
+  Linux Unicode input produced independently observed values. Every retrieved
+  artifact was a nonempty PNG.
+- The local and outside routes returned the same resident generation on every
+  platform. All accepted operations reported no host interference.
+- Common `target shutdown` cleanly stopped all three mutated candidates, and
+  subsequent common status reported them off.
+
+Minimized routes and efficiency observations are retained in
+[`desktop-common-entry.md`](../evidence/desktop-common-entry.md). Raw live
+output, identifiers, addresses, users, paths, generations, and artifact
+handles were not committed.
+
+## Result
+
+The repository now owns a dependency-free target-selecting client, target and
+doctor schemas, portable sibling defaults, explicit local inventory override,
+friendly desktop commands, result validation, bounded artifacts, and named
+testbed/OS escape hatches. The testbeds remain authoritative for identity,
+lifecycle, transport, bootstrap, protected policy, and recovery.
+
+Windows, macOS, and Linux expose the same ordinary agent entry shape while
+retaining different resident providers and platform-specific capabilities.
+Outer VM input/capture is prohibited throughout the shared workflow rather
+than merely avoided by convention.
+
+## Deviations and remaining work
+
+- The retained Windows seal predates mandatory `hostInterference`. The client
+  discloses a Windows-only compatibility projection for that image; newly
+  published runtimes contain the source fix.
+- The shared Windows fixture has no editable text field, so Unicode is
+  reported as untested in this corpus. The accepted Windows-specific suite
+  remains the evidence for that capability.
+- A network service, MCP server, SDK matrix, YepAnywhere integration,
+  mutating `ensure-ready`, ChromeOS/device adapters, and private authorized
+  inventory discovery remain future slices. They were explicit boundaries,
+  not incomplete work in this tactical.

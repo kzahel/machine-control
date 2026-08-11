@@ -20,3 +20,7 @@ provider uses a different response shape.
 
 Transport is outside these schemas. Local IPC, a CLI, SSH, `tart exec`, an
 authenticated carrier, and MCP may all carry the same request and result.
+The current dependency-free projection is
+[`bin/machine-control`](../bin/machine-control); its adapter tests and guarded
+three-desktop workflow are documented in
+[`tests/client`](../tests/client/README.md).

@@ -2,7 +2,8 @@
 
 Topic: `unified-desktop-client`
 
-Status: proposed three-desktop client over accepted resident implementations.
+Status: accepted first three-desktop client over the current resident
+implementations.
 
 ## Goal
 
@@ -22,7 +23,7 @@ machine-control --target <logical-target> desktop input ...
 
 ## Common surface
 
-**Proposal:** The first portable desktop subset covers:
+**Current:** The first portable desktop subset covers:
 
 - `status`, `capabilities`, application and window inventory;
 - compact/full semantic snapshots with generation-bound references;
@@ -93,8 +94,8 @@ output path.
 
 ## Conformance
 
-The first shared workflow should run through the same client on all three
-accepted desktops:
+The shared workflow runs through the same client on all three accepted
+desktops:
 
 1. inspect doctor and resident capabilities;
 2. launch or reset a deterministic application fixture;
@@ -108,6 +109,28 @@ accepted desktops:
 
 Platform-specific setup and independent-effect readers remain testbed-owned
 hooks. A provider acknowledgement is never the correctness oracle.
+
+**Current:** The guarded live corpus passed on Windows, macOS, and Linux.
+Every target reported outer UI prohibited, local and outside status agreed on
+one resident generation, semantic presses produced independently observed
+effects, and target-native captures were retrieved as valid PNG artifacts.
+macOS and Linux also confirmed Unicode fixture effects. The Windows fixture
+does not contain an editable field, so that shared cell reports the omission;
+the deeper Windows corpus already covers Unicode input. See the
+[minimized evidence](../docs/evidence/desktop-common-entry.md) and executable
+[`live-desktop-conformance.sh`](../tests/client/live-desktop-conformance.sh).
+
+## Remaining direction
+
+- Add an authenticated remote carrier, SDK, or MCP projection only after the
+  local contract stays stable under real application campaigns.
+- Expand friendly normalization when repeated workflows demonstrate a common
+  field or selector; retain `desktop raw` for honest provider-specific calls.
+- Bring ChromeOS and device-host providers into the same inventory,
+  authorization, capability, and result experience without forcing desktop
+  lifecycle semantics onto them.
+- Use the captured latency and result-size baseline to reduce transport
+  overhead, especially on the current Windows and Linux administrative routes.
 
 ## Non-goals
 

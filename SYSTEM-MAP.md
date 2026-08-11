@@ -21,7 +21,7 @@ into a raw proxy for every testbed CLI.
 
 | Repository | Current role | Does not own |
 | --- | --- | --- |
-| [`machine-control`](README.md) | Cross-platform architecture/research plus the owned target-resident facade, provider boundary, Windows service/session implementation, typed protected broker, fixtures, and conformance corpus | Testbed lifecycle/bootstrap/recovery, private deployment inventory, YA delegation, or product assertions |
+| [`machine-control`](README.md) | Cross-platform architecture/research, the target-selecting common client and contracts, owned resident facades/provider boundaries, Windows service/session implementation, fixtures, and conformance corpus | Testbed lifecycle/bootstrap/recovery, private deployment inventory, YA delegation, or product assertions |
 
 **Current:** The Windows-first runtime establishes the implementation boundary
 between authenticated local/remote callers, a Medium interactive-session
@@ -31,23 +31,27 @@ elevated applications, lock, logout, and Windows boot recovery. The dual-boot
 testbed must explicitly reselect Windows after one-shot EFI `BootNext`; a
 generic reboot otherwise returns to its default OS.
 
-This is not yet one implementation shared by Windows, macOS, Linux, and
-ChromeOS. Later platform adapters should reuse the contract and conformance
-shape here where that is honest; they must not move their target-specific
-lifecycle or recovery ownership into this repository.
+**Current:** One common client now selects and validates the Windows, macOS,
+and Linux testbed adapters, while each adapter retains its own lifecycle and
+guest transport. The three residents pass one guarded common semantic,
+effect, capture, artifact, and local/outside parity workflow. This is a shared
+contract and entry experience, not one universal resident implementation.
+ChromeOS and device providers remain the next adapter families; they must not
+move target-specific lifecycle or recovery ownership into this repository.
 
 ## Desktop VM testbeds
 
 | Repository | Administration/inner control | Outer control |
 | --- | --- | --- |
-| [`winvm-testbed`](../winvm-testbed/README.md) | PowerShell/SSH administration plus WinApp UI Automation in the interactive Windows session | UTM/QEMU lifecycle, screenshot, keyboard, scan codes, and pointer recovery |
-| [`macvm-testbed`](../macvm-testbed/README.md) | `tart exec` plus guest Accessibility helper | Tart lifecycle, screenshot, pointer, and keyboard recovery |
-| [`linuxvm-testbed`](../linuxvm-testbed/README.md) | QEMU guest agent, user-session execution, and AT-SPI | UTM lifecycle, normalized screenshot, keyboard, and pointer recovery |
+| [`winvm-testbed`](../winvm-testbed/README.md) | Authoritative UTM lifecycle, minimized doctor, PowerShell/SSH administration, and bounded access to the Windows resident | UTM/QEMU screenshot, keyboard, scan codes, and pointer remain explicit recovery routes |
+| [`macvm-testbed`](../macvm-testbed/README.md) | Authoritative Tart lifecycle, minimized doctor, selected guest administration, and bounded access to the macOS resident | Tart screenshot, pointer, and keyboard remain explicit recovery routes |
+| [`linuxvm-testbed`](../linuxvm-testbed/README.md) | Authoritative UTM lifecycle, minimized doctor, guest/session execution, and bounded access to the Linux resident | UTM screenshot, keyboard, and pointer remain explicit recovery routes |
 
-These repositories already implement the right broad ordering: administration,
-then semantic desktop control, then outer pixels/input. The main missing
-property is enforcement that ordinary worker agents do not reach the outer
-route merely because it is convenient.
+These repositories implement the right broad ordering: lifecycle and
+administration, then resident semantic/capture/input control, with outer
+pixels/input named only for bootstrap and recovery. Their guarded doctor and
+common conformance paths now enforce that ordinary control does not reach the
+outer route merely because it is convenient.
 
 ## Physical and device testbeds
 

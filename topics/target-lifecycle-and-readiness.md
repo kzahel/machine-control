@@ -2,7 +2,8 @@
 
 Topic: `target-lifecycle-and-readiness`
 
-Status: proposed common entry surface over authoritative testbed adapters.
+Status: current common entry surface for the accepted Windows, macOS, and
+Linux testbed adapters.
 
 ## Scope
 
@@ -43,7 +44,7 @@ results, exit behavior, and preservation of typed adapter extensions.
 
 ## Lifecycle vocabulary
 
-**Proposal:** The portable subset is `status`, `up`, `suspend`, `shutdown`,
+**Current:** The portable subset is `status`, `up`, `suspend`, `shutdown`,
 `force-stop`, `doctor`, and `capabilities`. An adapter reports unsupported
 operations instead of silently substituting a materially different transition.
 
@@ -89,6 +90,23 @@ VM/device identifier, credential, or private route. Human-oriented native
 testbed output may remain more diagnostic locally; the common JSON projection
 is deliberately minimized for agent use and durable evidence.
 
+## Current implementation
+
+[`bin/machine-control`](../bin/machine-control) selects a logical target from
+portable sibling defaults or an ignored
+[`machine-control-targets/v0`](../contracts/targets-v0.schema.json) registry.
+It delegates every lifecycle operation to the selected authoritative testbed,
+returns a `machine-control-target/v0` projection with both normalized and raw
+adapter state, and validates each testbed's
+[`machine-control-doctor/v0`](../contracts/doctor-v0.schema.json) document.
+
+The three adapters independently inspect power, administration, logged-in
+desktop, resident, semantic, capture, input, and outer-route policy. Powered
+off is a valid minimized doctor result with `ready: false`; doctor does not
+start or repair the target. Live acceptance proved common clean shutdown and
+subsequent `powerState: off` on all three profiles. See the
+[three-desktop evidence](../docs/evidence/desktop-common-entry.md).
+
 ## Failure behavior
 
 - Missing inventory, target, adapter, or command returns a typed refusal.
@@ -102,6 +120,8 @@ is deliberately minimized for agent use and durable evidence.
 
 - Determine when `ensure-ready` is useful as an explicitly mutating compound
   operation after the individual lifecycle and doctor paths are proven.
+- Add authorization and discovery above the current local registry without
+  turning a logical alias into bearer authority.
 - Add physical/device lifecycle profiles without making desktop VM fields
   mandatory.
 - Integrate authorized target discovery with YepAnywhere without moving
