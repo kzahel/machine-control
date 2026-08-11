@@ -26,6 +26,12 @@ than a frozen cross-device wire protocol.
   is the minimized adapter-to-client proof of an exact candidate role, power
   state, and absence of workspace ownership. It intentionally omits the
   provider identity itself.
+- [`maintenance-capabilities-v0.schema.json`](maintenance-capabilities-v0.schema.json)
+  describes the read-only discovery of explicit appliance audit, repair, and
+  exact-source certification operations.
+- [`maintenance-result-v0.schema.json`](maintenance-result-v0.schema.json)
+  is the common minimized projection of validated platform-owned maintenance
+  evidence. It omits private boot, service, endpoint, and staging details.
 
 Platform adapters may add fields under the permissive schema while the corpus
 is still v0. They may not omit route, generation, delivery/effect separation,

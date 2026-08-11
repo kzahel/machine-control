@@ -46,3 +46,11 @@ invent a running-target repair. A reported start failure still receives an
 independent final doctor observation without exposing adapter diagnostics.
 Candidate tests require a fresh running-ready observation and prove that only
 a cleanly stopped second identity assertion is eligible for private promotion.
+
+The maintenance fixtures prove that capability discovery never invokes an
+adapter, Windows/macOS/Linux audit and repair use the same common operation
+names, reboot remains repair-only and explicit, certification selects the
+exact-source platform composition, and valid unhealthy JSON preserves a
+nonzero result. The common projection removes private boot epochs, staging,
+and platform-only detail. `ensure-ready` only recommends the read-only audit;
+it still never performs maintenance itself.

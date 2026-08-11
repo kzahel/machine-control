@@ -55,8 +55,8 @@ TCC, systemd, and Windows service policy remain platform-owned.
   unattended macOS installation, image sealing, or generated repositories.
 - Do not create, clone, snapshot, derive, compact, rename, or delete a VM.
 - Do not define a generic repair vocabulary for platform services. The common
-  layer exposes operation intent while retaining each complete platform
-  report as typed platform-owned evidence.
+  layer validates the complete platform result as input but projects only
+  stable, minimized platform-owned evidence.
 - Do not make maintenance support an inventory property. It is an owned
   platform-adapter capability keyed by the selected platform and interface,
   so private inventory continues to contain only routes and concrete target

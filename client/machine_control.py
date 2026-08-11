@@ -24,6 +24,8 @@ TARGET_RESULT_SCHEMA = "machine-control-target/v0"
 CANDIDATE_ASSERTION_SCHEMA = "machine-control-candidate-assertion/v0"
 WORKSPACE_CAPABILITIES_SCHEMA = "machine-control-workspace-capabilities/v0"
 WORKSPACE_RESULT_SCHEMA = "machine-control-workspace/v0"
+MAINTENANCE_CAPABILITIES_SCHEMA = "machine-control-maintenance-capabilities/v0"
+MAINTENANCE_RESULT_SCHEMA = "machine-control-maintenance/v0"
 CLIENT_VERSION = "0.2.0"
 CONTROLLER_PLATFORMS = {"darwin", "linux", "windows"}
 LAUNCHERS = {"auto", "direct", "python", "powershell", "bash"}
@@ -109,6 +111,30 @@ SUPPORTED_PLATFORMS = {
     "steamdeck"
 }
 DEVICE_DOCTOR_PLATFORMS = {"android", "ios", "quest"}
+
+MAINTENANCE_ADAPTERS: dict[str, dict[str, str]] = {
+    "windows": {
+        "orchestrationSchema":
+            "machine-control-windows-post-update-orchestration/v0",
+        "postUpdateSchema": "machine-control-windows-post-update/v0",
+        "certificationSchema":
+            "machine-control-windows-appliance-certification/v0",
+    },
+    "macos": {
+        "orchestrationSchema":
+            "machine-control-macos-post-update-orchestration/v0",
+        "postUpdateSchema": "machine-control-macos-post-update/v0",
+        "certificationSchema":
+            "machine-control-macos-appliance-certification/v0",
+    },
+    "linux": {
+        "orchestrationSchema":
+            "machine-control-linux-post-update-orchestration/v0",
+        "postUpdateSchema": "machine-control-linux-post-update/v0",
+        "certificationSchema":
+            "machine-control-linux-appliance-certification/v0",
+    },
+}
 
 POWER_STATES = {"off", "starting", "running", "suspended", "unknown"}
 READINESS_STATES = {"ready", "degraded", "unavailable", "unknown"}
@@ -962,6 +988,15 @@ def ensure_ready(alias: str, target: dict[str, Any]) -> int:
     }
     if not final["ready"]:
         data["errorCode"] = "readiness_repair_required"
+        if (
+            target.get("interface", "machine-control-v0") == "machine-control-v0"
+            and target["platform"] in MAINTENANCE_ADAPTERS
+        ):
+            data["recommendedActions"] = [{
+                "operation": "maintenance.audit",
+                "profile": "development",
+                "mutatesTarget": False,
+            }]
     emit(target_result(alias, target, "ensure-ready", data, elapsed_ms))
     return 0 if final["ready"] else 1
 
@@ -1098,6 +1133,354 @@ def doctor(alias: str, target: dict[str, Any]) -> tuple[dict[str, Any], int]:
         "elapsedMs": elapsed_ms,
     }
     return value, 0 if value["ready"] else 1
+
+
+def maintenance_spec(target: dict[str, Any]) -> dict[str, str]:
+    if target.get("interface", "machine-control-v0") != "machine-control-v0":
+        raise ClientError(
+            "unsupported_maintenance_interface",
+            "This target does not expose the appliance maintenance interface",
+        )
+    spec = MAINTENANCE_ADAPTERS.get(target["platform"])
+    if spec is None:
+        raise ClientError(
+            "unsupported_maintenance_platform",
+            "This platform does not declare appliance maintenance operations",
+        )
+    return spec
+
+
+def maintenance_capabilities(
+    alias: str, target: dict[str, Any]
+) -> dict[str, Any]:
+    maintenance_spec(target)
+    return {
+        "schema": MAINTENANCE_CAPABILITIES_SCHEMA,
+        "target": target_view(alias, target),
+        "profiles": ["runtime", "development"],
+        "operations": {
+            "audit": {
+                "availability": "available",
+                "mutatesTarget": False,
+                "requiresExactCandidate": False,
+                "reboot": "prohibited",
+            },
+            "repair": {
+                "availability": "available",
+                "mutatesTarget": True,
+                "requiresExactCandidate": True,
+                "reboot": "optional_explicit",
+            },
+            "certify": {
+                "availability": "available",
+                "mutatesTarget": True,
+                "requiresExactCandidate": True,
+                "reboot": "required",
+                "requiresCleanCommittedSource": True,
+            },
+        },
+    }
+
+
+def _maintenance_checks(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        raise ClientError(
+            "invalid_maintenance_result",
+            "Platform maintenance checks must be an array",
+            1,
+        )
+    allowed = {
+        "id", "required", "status", "healthy", "observed", "state", "repair"
+    }
+    projected: list[dict[str, Any]] = []
+    for check in value:
+        if not isinstance(check, dict) or not isinstance(check.get("id"), str):
+            raise ClientError(
+                "invalid_maintenance_result",
+                "Platform maintenance checks are invalid",
+                1,
+            )
+        item = {key: check[key] for key in allowed if key in check}
+        if not all(
+            isinstance(item.get(key), bool)
+            for key in ("required", "healthy")
+            if key in item
+        ) or not all(
+            isinstance(item.get(key), str)
+            for key in ("status", "observed", "state", "repair")
+            if key in item
+        ):
+            raise ClientError(
+                "invalid_maintenance_result",
+                "Platform maintenance check fields are invalid",
+                1,
+            )
+        projected.append(item)
+    return projected
+
+
+def validate_maintenance_result(
+    value: Any,
+    target: dict[str, Any],
+    operation: str,
+    profile: str,
+    reboot_requested: bool = False,
+) -> dict[str, Any]:
+    spec = maintenance_spec(target)
+    schema_key = (
+        "certificationSchema" if operation == "certify" else "orchestrationSchema"
+    )
+    if not isinstance(value, dict) or value.get("schema") != spec[schema_key]:
+        raise ClientError(
+            "invalid_maintenance_result",
+            f"Platform maintenance must return {spec[schema_key]}",
+            1,
+        )
+    if not isinstance(value.get("healthy"), bool):
+        raise ClientError(
+            "invalid_maintenance_result",
+            "Platform maintenance healthy must be boolean",
+            1,
+        )
+
+    if operation == "certify":
+        if value["healthy"] and (
+            value.get("profile") != profile or value.get("final_power") != "off"
+        ):
+            raise ClientError(
+                "invalid_maintenance_result",
+                "Healthy certification did not prove its profile and stopped state",
+                1,
+            )
+        if value["healthy"]:
+            source = value.get("source")
+            guest = value.get("guest_checks")
+            reboot = value.get("reboot")
+            reboot_observed = isinstance(reboot, dict) and any(
+                reboot.get(key) is True
+                for key in (
+                    "observed", "changedBootIdObserved",
+                    "changedBootEpochObserved",
+                )
+            )
+            if (
+                not isinstance(source, dict)
+                or not all(
+                    isinstance(source.get(key), str) and source[key]
+                    for key in ("revision", "archive_sha256")
+                )
+                or not isinstance(guest, dict)
+                or guest.get("healthy") is not True
+                or guest.get("source_digest_match") is not True
+                or guest.get("portable_checks") != "passed"
+                or guest.get("native_checks") != "passed"
+                or guest.get("staging_removed") is not True
+                or not reboot_observed
+            ):
+                raise ClientError(
+                    "invalid_maintenance_result",
+                    "Healthy certification evidence is incomplete",
+                    1,
+                )
+        return value
+
+    if value.get("operation") != operation:
+        raise ClientError(
+            "invalid_maintenance_result",
+            "Platform maintenance operation does not match the request",
+            1,
+        )
+    reboot = value.get("reboot")
+    if not isinstance(reboot, dict) or not all(
+        isinstance(reboot.get(key), bool) for key in ("requested", "observed")
+    ) or reboot.get("requested") is not reboot_requested:
+        raise ClientError(
+            "invalid_maintenance_result",
+            "Platform maintenance reboot evidence is invalid",
+            1,
+        )
+    post_update = value.get("post_update")
+    if post_update is not None:
+        if (
+            not isinstance(post_update, dict)
+            or post_update.get("schema") != spec["postUpdateSchema"]
+            or post_update.get("profile") != profile
+            or not isinstance(post_update.get("healthy"), bool)
+        ):
+            raise ClientError(
+                "invalid_maintenance_result",
+                "Platform post-update evidence is invalid",
+                1,
+            )
+        _maintenance_checks(post_update.get("checks"))
+    doctor_result = value.get("doctor")
+    if doctor_result is not None and (
+        not isinstance(doctor_result, dict)
+        or doctor_result.get("schema") != DOCTOR_SCHEMA
+        or not isinstance(doctor_result.get("ready"), bool)
+    ):
+        raise ClientError(
+            "invalid_maintenance_result",
+            "Platform maintenance doctor evidence is invalid",
+            1,
+        )
+    if value["healthy"] and (
+        not isinstance(post_update, dict)
+        or post_update.get("healthy") is not True
+        or not isinstance(doctor_result, dict)
+        or doctor_result.get("ready") is not True
+        or (reboot_requested and reboot.get("observed") is not True)
+    ):
+        raise ClientError(
+            "invalid_maintenance_result",
+            "Healthy maintenance evidence is incomplete",
+            1,
+        )
+    return value
+
+
+def _maintenance_projection(
+    value: dict[str, Any], operation: str, profile: str
+) -> dict[str, Any]:
+    data: dict[str, Any] = {
+        "profile": profile,
+        "healthy": value["healthy"],
+        "platformResultSchema": value["schema"],
+    }
+    if operation != "certify":
+        data["route"] = value.get("route", "unknown")
+        data["reboot"] = value["reboot"]
+        post_update = value.get("post_update")
+        if isinstance(post_update, dict):
+            data["checks"] = _maintenance_checks(post_update["checks"])
+            repairs = post_update.get("repairs")
+            if isinstance(repairs, list):
+                data["repairs"] = [
+                    {
+                        key: item[key]
+                        for key in ("id", "status")
+                        if key in item
+                    }
+                    for item in repairs
+                    if isinstance(item, dict)
+                ]
+        doctor_result = value.get("doctor")
+        if isinstance(doctor_result, dict):
+            data["readiness"] = {
+                "ready": doctor_result["ready"],
+                "states": doctor_result.get("states", {}),
+            }
+    else:
+        source = value.get("source")
+        if isinstance(source, dict):
+            data["source"] = {
+                key: source[key]
+                for key in ("revision", "archive_sha256")
+                if isinstance(source.get(key), str)
+            }
+        reboot = value.get("reboot")
+        data["reboot"] = {
+            "observed": bool(
+                isinstance(reboot, dict)
+                and (
+                    reboot.get("observed") is True
+                    or reboot.get("changedBootIdObserved") is True
+                    or reboot.get("changedBootEpochObserved") is True
+                )
+            )
+        }
+        guest = value.get("guest_checks")
+        if isinstance(guest, dict):
+            data["guestChecks"] = {
+                key: guest[key]
+                for key in (
+                    "schema", "healthy", "source_digest_match",
+                    "portable_checks", "native_checks", "staging_removed",
+                    "failure",
+                )
+                if key in guest
+            }
+        if isinstance(value.get("final_power"), str):
+            data["finalPower"] = value["final_power"]
+        if isinstance(value.get("failed_stage"), str):
+            data["failedStage"] = value["failed_stage"]
+    if isinstance(value.get("failure"), str):
+        data["failure"] = value["failure"]
+    return data
+
+
+def handle_maintenance(
+    alias: str, target: dict[str, Any], arguments: list[str]
+) -> int:
+    if not arguments:
+        raise ClientError("usage", "maintenance requires an operation")
+    operation = arguments[0]
+    if operation == "capabilities":
+        if len(arguments) != 1:
+            raise ClientError("usage", "maintenance capabilities takes no options")
+        emit(maintenance_capabilities(alias, target))
+        return 0
+    if operation not in {"audit", "repair", "certify"}:
+        raise ClientError(
+            "unsupported_maintenance_operation",
+            f"Unsupported maintenance operation '{operation}'",
+        )
+    maintenance_spec(target)
+    profile = "development"
+    reboot = False
+    index = 1
+    while index < len(arguments):
+        option = arguments[index]
+        if option == "--profile" and index + 1 < len(arguments):
+            profile = arguments[index + 1]
+            if profile not in {"development", "runtime"}:
+                raise ClientError(
+                    "invalid_maintenance_profile",
+                    "Maintenance profile must be development or runtime",
+                )
+            index += 2
+            continue
+        if option == "--reboot":
+            reboot = True
+            index += 1
+            continue
+        raise ClientError("usage", f"Unsupported maintenance option '{option}'")
+    if reboot and operation != "repair":
+        raise ClientError(
+            "invalid_maintenance_reboot",
+            "--reboot is valid only with maintenance repair",
+        )
+    if operation in {"repair", "certify"} and "_workspaceHandle" in target:
+        raise ClientError(
+            "maintenance_inventory_target_required",
+            "Maintenance mutation requires the exact private inventory target",
+        )
+    adapter_arguments = (
+        ["appliance-certify", "--profile", profile, "--json"]
+        if operation == "certify"
+        else [
+            "post-update", operation, "--profile", profile,
+            *(["--reboot"] if reboot else []), "--json",
+        ]
+    )
+    completed, parsed, elapsed_ms = run_adapter(
+        target, adapter_arguments, accept_json_failure=True
+    )
+    value = validate_maintenance_result(
+        parsed, target, operation, profile, reboot_requested=reboot
+    )
+    emit({
+        "schema": MAINTENANCE_RESULT_SCHEMA,
+        "operation": f"maintenance.{operation}",
+        "accepted": True,
+        "target": target_view(alias, target),
+        "adapter": {
+            "kind": "authoritative_testbed",
+            "elapsedMs": elapsed_ms,
+        },
+        "data": _maintenance_projection(value, operation, profile),
+    })
+    return 0 if completed.returncode == 0 and value["healthy"] else 1
 
 
 def handle_target(
@@ -1886,6 +2269,7 @@ Commands:
   targets                         List logical targets without private paths
   target status|up|suspend|shutdown|force-stop|reboot|doctor|capabilities
          ensure-ready|validate-candidate|prepare-promotion
+  maintenance capabilities|audit|repair [--reboot]|certify [--profile ...]
   workspace capabilities|acquire|inventory|release|gc --dry-run
   desktop status|capabilities|applications|windows|snapshot|action|capture
   desktop input text|key|click|move|drag|scroll
@@ -1997,6 +2381,8 @@ def main(argv: list[str] | None = None) -> int:
             }
         if operation == "target":
             return handle_target(alias, target, remainder[1:])
+        if operation == "maintenance":
+            return handle_maintenance(alias, target, remainder[1:])
         if operation == "workspace":
             return handle_workspace(alias, target, remainder[1:])
         if operation == "desktop":

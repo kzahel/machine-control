@@ -174,6 +174,95 @@ if command == "workspace-gc" and arguments[1:] == ["--dry-run", "--json"]:
     }))
     raise SystemExit(0)
 
+if command == "post-update":
+    operation = arguments[1] if len(arguments) > 1 else ""
+    profile = (
+        arguments[arguments.index("--profile") + 1]
+        if "--profile" in arguments
+        else "development"
+    )
+    platform_name = os.environ.get("MACHINE_CONTROL_MOCK_PLATFORM", "linux")
+    malformed = bool(os.environ.get("MACHINE_CONTROL_MOCK_BAD_MAINTENANCE"))
+    healthy = not bool(os.environ.get("MACHINE_CONTROL_MOCK_UNHEALTHY_MAINTENANCE"))
+    value = {
+        "schema": (
+            "wrong"
+            if malformed
+            else f"machine-control-{platform_name}-post-update-orchestration/v0"
+        ),
+        "operation": operation,
+        "route": "fixture_guest_transport",
+        "healthy": healthy,
+        "reboot": {
+            "requested": "--reboot" in arguments,
+            "observed": "--reboot" in arguments and healthy,
+        },
+        "post_update": {
+            "schema": f"machine-control-{platform_name}-post-update/v0",
+            "mode": operation,
+            "profile": profile,
+            "healthy": healthy,
+            "boot_epoch_utc": "private-observation-must-not-project",
+            "checks": [{
+                "id": "fixture_service",
+                "required": True,
+                "status": "pass" if healthy else "fail",
+                "observed": "ready" if healthy else "unavailable",
+                "privateDetail": "must-not-project",
+            }],
+            "repairs": (
+                [{"id": "fixture_service", "status": "not_needed"}]
+                if operation == "repair"
+                else []
+            ),
+        },
+        "doctor": {
+            "schema": "machine-control-doctor/v0",
+            "ready": healthy,
+            "states": {"power": "running"},
+        },
+    }
+    if not healthy:
+        value["failure"] = "fixture_unhealthy"
+    print(json.dumps(value))
+    raise SystemExit(0 if healthy else 1)
+
+if command == "appliance-certify":
+    profile = (
+        arguments[arguments.index("--profile") + 1]
+        if "--profile" in arguments
+        else "development"
+    )
+    platform_name = os.environ.get("MACHINE_CONTROL_MOCK_PLATFORM", "linux")
+    healthy = not bool(os.environ.get("MACHINE_CONTROL_MOCK_UNHEALTHY_MAINTENANCE"))
+    value = {
+        "schema": f"machine-control-{platform_name}-appliance-certification/v0",
+        "healthy": healthy,
+        "profile": profile,
+        "source": {
+            "revision": "0123456789abcdef",
+            "archive_sha256": "0" * 64,
+        },
+        "reboot": {
+            "observed": healthy,
+            "privateBootEpoch": "must-not-project",
+        },
+        "guest_checks": {
+            "schema": f"machine-control-{platform_name}-appliance-guest-certification/v0",
+            "healthy": healthy,
+            "source_digest_match": healthy,
+            "portable_checks": "passed" if healthy else "failed",
+            "native_checks": "passed" if healthy else "not_run",
+            "staging_removed": True,
+            "privateStage": "must-not-project",
+        },
+        "final_power": "off" if healthy else "running",
+    }
+    if not healthy:
+        value["failed_stage"] = "guest_checks"
+    print(json.dumps(value))
+    raise SystemExit(0 if healthy else 1)
+
 if command == "doctor" and arguments[1:] == ["--json"]:
     if os.environ.get("MACHINE_CONTROL_MOCK_BAD_DOCTOR"):
         print('{"schema":"wrong"}')

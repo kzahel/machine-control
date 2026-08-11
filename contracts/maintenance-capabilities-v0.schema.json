@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machine-control.invalid/contracts/maintenance-capabilities-v0.schema.json",
+  "title": "Machine Control Maintenance Capabilities v0",
+  "type": "object",
+  "required": ["schema", "target", "profiles", "operations"],
+  "properties": {
+    "schema": { "const": "machine-control-maintenance-capabilities/v0" },
+    "target": { "type": "object" },
+    "profiles": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "enum": ["runtime", "development"] }
+    },
+    "operations": {
+      "type": "object",
+      "required": ["audit", "repair", "certify"],
+      "properties": {
+        "audit": { "$ref": "#/$defs/operation" },
+        "repair": { "$ref": "#/$defs/operation" },
+        "certify": { "$ref": "#/$defs/operation" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "operation": {
+      "type": "object",
+      "required": [
+        "availability", "mutatesTarget", "requiresExactCandidate", "reboot"
+      ],
+      "properties": {
+        "availability": { "enum": ["available", "unavailable"] },
+        "mutatesTarget": { "type": "boolean" },
+        "requiresExactCandidate": { "type": "boolean" },
+        "reboot": {
+          "enum": ["prohibited", "optional_explicit", "required"]
+        },
+        "requiresCleanCommittedSource": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

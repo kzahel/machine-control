@@ -280,6 +280,125 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(
             value["data"]["errorCode"], "readiness_repair_required"
         )
+        self.assertEqual(
+            value["data"]["recommendedActions"],
+            [{
+                "operation": "maintenance.audit",
+                "profile": "development",
+                "mutatesTarget": False,
+            }],
+        )
+
+    def test_maintenance_capabilities_do_not_dispatch(self):
+        log = self.directory / "arguments.json"
+        result, value = self.run_cli(
+            "--target", "fixture", "maintenance", "capabilities",
+            extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(
+            value["schema"], "machine-control-maintenance-capabilities/v0"
+        )
+        self.assertFalse(value["operations"]["audit"]["mutatesTarget"])
+        self.assertTrue(
+            value["operations"]["certify"]["requiresCleanCommittedSource"]
+        )
+        self.assertFalse(log.exists())
+
+    def test_maintenance_audit_dispatches_and_minimizes_platform_result(self):
+        log = self.directory / "arguments.json"
+        for platform_name in ("windows", "macos", "linux"):
+            with self.subTest(platform=platform_name):
+                self.write_registry(platform_name)
+                result, value = self.run_cli(
+                    "--target", "fixture", "maintenance", "audit",
+                    "--profile", "runtime",
+                    extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+                )
+                self.assertEqual(result.returncode, 0)
+                self.assertEqual(
+                    value["schema"], "machine-control-maintenance/v0"
+                )
+                self.assertTrue(value["data"]["healthy"])
+                self.assertEqual(value["data"]["profile"], "runtime")
+                self.assertEqual(
+                    json.loads(log.read_text(encoding="utf-8")),
+                    [
+                        "post-update", "audit", "--profile", "runtime",
+                        "--json",
+                    ],
+                )
+                self.assertNotIn("private-observation", result.stdout)
+                self.assertNotIn("privateDetail", result.stdout)
+
+    def test_maintenance_repair_preserves_explicit_reboot(self):
+        log = self.directory / "arguments.json"
+        result, value = self.run_cli(
+            "--target", "fixture", "maintenance", "repair", "--reboot",
+            extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertTrue(value["data"]["reboot"]["requested"])
+        self.assertEqual(
+            json.loads(log.read_text(encoding="utf-8")),
+            [
+                "post-update", "repair", "--profile", "development",
+                "--reboot", "--json",
+            ],
+        )
+
+    def test_maintenance_certify_projects_exact_source_without_private_state(self):
+        log = self.directory / "arguments.json"
+        result, value = self.run_cli(
+            "--target", "fixture", "maintenance", "certify",
+            extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertTrue(value["data"]["reboot"]["observed"])
+        self.assertEqual(value["data"]["finalPower"], "off")
+        self.assertEqual(
+            json.loads(log.read_text(encoding="utf-8")),
+            ["appliance-certify", "--profile", "development", "--json"],
+        )
+        self.assertNotIn("privateBootEpoch", result.stdout)
+        self.assertNotIn("privateStage", result.stdout)
+
+    def test_maintenance_preserves_valid_unhealthy_result_and_exit(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "maintenance", "audit",
+            extra_env={"MACHINE_CONTROL_MOCK_UNHEALTHY_MAINTENANCE": "1"},
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertFalse(value["data"]["healthy"])
+        self.assertEqual(value["data"]["failure"], "fixture_unhealthy")
+
+    def test_maintenance_rejects_invalid_platform_result(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "maintenance", "audit",
+            extra_env={"MACHINE_CONTROL_MOCK_BAD_MAINTENANCE": "1"},
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(value["errorCode"], "invalid_maintenance_result")
+
+    def test_maintenance_refuses_native_target_before_dispatch(self):
+        log = self.directory / "arguments.json"
+        self.write_registry("chromeos", interface="native")
+        result, value = self.run_cli(
+            "--target", "fixture", "maintenance", "audit",
+            extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(
+            value["errorCode"], "unsupported_maintenance_interface"
+        )
+        self.assertFalse(log.exists())
+
+    def test_maintenance_reboot_is_repair_only(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "maintenance", "audit", "--reboot"
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(value["errorCode"], "invalid_maintenance_reboot")
 
     def test_ensure_ready_observes_after_reported_start_failure(self):
         state = self.directory / "power-state"
