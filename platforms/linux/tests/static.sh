@@ -38,15 +38,17 @@ if [[ "$(uname -s)" == Darwin ]]; then
     fi
     test ! -e "$mutation_marker"
 fi
-workspace_caps="$(env \
-    LINUXVM_CONFIG_FILE=/dev/null \
-    LINUXVM_UTMCTL=/usr/bin/true \
-    LINUXVM_WORKSPACE_STATE_DIR="$temporary/capabilities" \
-    LINUXVM_WORKSPACE_DEVELOPMENT_PROVEN=false \
-    "$REPO_DIR/bin/linuxvm" workspace-capabilities --json)"
-jq -e '.schema == "machine-control-workspace-capabilities/v0" and
-    .intents.persistent.availability == "unavailable"' \
-    <<<"$workspace_caps" >/dev/null
+if [[ "$(uname -s)" == Darwin ]]; then
+    workspace_caps="$(env \
+        LINUXVM_CONFIG_FILE=/dev/null \
+        LINUXVM_UTMCTL=/usr/bin/true \
+        LINUXVM_WORKSPACE_STATE_DIR="$temporary/capabilities" \
+        LINUXVM_WORKSPACE_DEVELOPMENT_PROVEN=false \
+        "$REPO_DIR/bin/linuxvm" workspace-capabilities --json)"
+    jq -e '.schema == "machine-control-workspace-capabilities/v0" and
+        .intents.persistent.availability == "unavailable"' \
+        <<<"$workspace_caps" >/dev/null
+fi
 
 workspace_handle="$($PYTHON "$REPO_DIR/../../providers/workspaces/receipts.py" \
     --state-dir "$temporary/selection" create \
