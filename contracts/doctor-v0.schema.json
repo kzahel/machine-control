@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machine-control.invalid/contracts/doctor-v0.schema.json",
+  "title": "Machine Control Doctor v0",
+  "type": "object",
+  "required": ["schema", "ready", "target", "states", "checks", "lifecycleOperations", "extensions"],
+  "properties": {
+    "schema": { "const": "machine-control-doctor/v0" },
+    "ready": { "type": "boolean" },
+    "target": {
+      "type": "object",
+      "required": ["platform", "profile"],
+      "properties": {
+        "logicalTarget": { "type": "string" },
+        "platform": { "type": "string", "minLength": 1 },
+        "profile": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "states": {
+      "type": "object",
+      "required": ["power", "administration", "desktop", "resident", "semantic", "capture", "input", "outer"],
+      "properties": {
+        "power": { "enum": ["off", "starting", "running", "suspended", "unknown"] },
+        "administration": { "$ref": "#/$defs/readiness" },
+        "desktop": { "enum": ["unlocked", "locked", "protected", "no_session", "unknown"] },
+        "resident": { "$ref": "#/$defs/readiness" },
+        "semantic": { "$ref": "#/$defs/readiness" },
+        "capture": { "$ref": "#/$defs/readiness" },
+        "input": { "$ref": "#/$defs/readiness" },
+        "outer": { "enum": ["ready", "observation_only", "prohibited", "unavailable", "unknown"] }
+      },
+      "additionalProperties": true
+    },
+    "resident": {
+      "type": ["object", "null"],
+      "properties": {
+        "contract": { "type": "string" },
+        "generation": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "status"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["pass", "warn", "fail", "skip"] },
+          "summary": { "type": "string" },
+          "errorCode": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "lifecycleOperations": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "extensions": { "type": "object" }
+  },
+  "$defs": {
+    "readiness": { "enum": ["ready", "degraded", "unavailable", "unknown"] }
+  },
+  "additionalProperties": true
+}

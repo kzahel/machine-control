@@ -7,7 +7,11 @@ than a frozen cross-device wire protocol.
 - [`request-v0.schema.json`](request-v0.schema.json) describes the common
   request envelope and currently exercised desktop fields.
 - [`result-v0.schema.json`](result-v0.schema.json) describes the truthful
-  result envelope shared by the Windows and macOS slices.
+  result envelope shared by the Windows, macOS, and Linux slices.
+- [`doctor-v0.schema.json`](doctor-v0.schema.json) describes the minimized,
+  independent readiness dimensions emitted by authoritative testbeds.
+- [`targets-v0.schema.json`](targets-v0.schema.json) describes ignored local
+  target selection. It contains adapter commands, never bearer authority.
 
 Platform adapters may add fields under the permissive schema while the corpus
 is still v0. They may not omit route, generation, delivery/effect separation,

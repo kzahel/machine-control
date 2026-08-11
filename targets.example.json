@@ -1,0 +1,11 @@
+{
+  "schema": "machine-control-targets/v0",
+  "includeDefaults": true,
+  "targets": {
+    "another-linux": {
+      "platform": "linux",
+      "profile": "ubuntu-gnome-wayland",
+      "command": ["../another-linux-testbed/bin/linuxvm"]
+    }
+  }
+}

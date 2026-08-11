@@ -1,10 +1,16 @@
 artifacts/
 bin/
+!/bin/
+/bin/*
+!/bin/machine-control
 !tests/fixtures/asserted-testbed/bin/
 !tests/fixtures/asserted-testbed/bin/winvm
 obj/
 publish/
 .cache/
+targets.local.json
+__pycache__/
+*.pyc
 *.user
 *.suo
 .DS_Store

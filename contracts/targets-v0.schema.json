@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machine-control.invalid/contracts/targets-v0.schema.json",
+  "title": "Machine Control Local Target Registry v0",
+  "type": "object",
+  "required": ["schema", "targets"],
+  "properties": {
+    "schema": { "const": "machine-control-targets/v0" },
+    "includeDefaults": { "type": "boolean" },
+    "targets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["platform", "profile", "command"],
+        "properties": {
+          "platform": { "enum": ["windows", "macos", "linux"] },
+          "profile": { "type": "string", "minLength": 1 },
+          "command": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
