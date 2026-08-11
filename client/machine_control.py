@@ -24,18 +24,46 @@ DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
     "windows": {
         "platform": "windows",
         "profile": "windows-11-desktop",
-        "command": [str(ROOT.parent / "winvm-testbed" / "bin" / "winvm")],
+        "command": [str(ROOT / "platforms" / "windows" / "bin" / "winvm")],
     },
     "macos": {
         "platform": "macos",
         "profile": "macos-aqua-tart",
-        "command": [str(ROOT.parent / "macvm-testbed" / "bin" / "macvm")],
+        "command": [str(ROOT / "platforms" / "macos" / "bin" / "macvm")],
     },
     "linux": {
         "platform": "linux",
         "profile": "ubuntu-gnome-wayland",
-        "command": [str(ROOT.parent / "linuxvm-testbed" / "bin" / "linuxvm")],
+        "command": [str(ROOT / "platforms" / "linux" / "bin" / "linuxvm")],
     },
+    "chromeos": {
+        "platform": "chromeos",
+        "profile": "chromeos-developer-device",
+        "interface": "native",
+        "command": [str(ROOT / "platforms" / "chromeos" / "bin" / "chromeos")],
+    },
+    "ios": {
+        "platform": "ios",
+        "profile": "ios-coredevice-xctest",
+        "interface": "native",
+        "command": [str(ROOT / "platforms" / "ios" / "bin" / "ios-device")],
+    },
+    "quest": {
+        "platform": "quest",
+        "profile": "quest-adb-device",
+        "interface": "native",
+        "command": [str(ROOT / "platforms" / "quest" / "bin" / "quest")],
+    },
+    "steamdeck": {
+        "platform": "steamdeck",
+        "profile": "steamos-devkit-device",
+        "interface": "native",
+        "command": [str(ROOT / "platforms" / "steamdeck" / "bin" / "steamdeck")],
+    },
+}
+
+SUPPORTED_PLATFORMS = {
+    "windows", "macos", "linux", "chromeos", "ios", "quest", "steamdeck"
 }
 
 POWER_STATES = {"off", "starting", "running", "suspended", "unknown"}
@@ -67,8 +95,59 @@ def refusal(operation: str, code: str, message: str) -> dict[str, Any]:
     }
 
 
-def load_registry(path_text: str | None) -> dict[str, dict[str, Any]]:
+def provider_path(path_text: str | None = None) -> Path | None:
+    value = path_text or os.environ.get("MACHINE_CONTROL_INVENTORY_PROVIDER")
+    if value:
+        return Path(value).expanduser().resolve()
+    candidate = ROOT.parent / "dotfiles" / "testbeds" / "testbeds.py"
+    return candidate if candidate.is_file() else None
+
+
+def provider_command(path: Path) -> list[str]:
+    if path.suffix == ".py":
+        return [sys.executable, str(path)]
+    return [str(path)]
+
+
+def provider_registry(path: Path) -> dict[str, Any]:
+    try:
+        completed = subprocess.run(
+            [*provider_command(path), "machine-control-registry"],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ClientError(
+            "inventory_provider_failed",
+            "Private inventory provider could not be executed",
+        ) from error
+    if completed.returncode != 0:
+        raise ClientError(
+            "inventory_provider_failed",
+            "Private inventory provider rejected the registry request",
+        )
+    try:
+        value = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise ClientError(
+            "inventory_provider_failed",
+            "Private inventory provider returned invalid JSON",
+        ) from error
+    if not isinstance(value, dict):
+        raise ClientError(
+            "inventory_provider_failed",
+            "Private inventory provider returned an invalid registry",
+        )
+    return value
+
+
+def load_registry(
+    path_text: str | None, provider_text: str | None = None
+) -> dict[str, dict[str, Any]]:
     path: Path | None = None
+    document: dict[str, Any] | None = None
     if path_text:
         path = Path(path_text).expanduser().resolve()
     elif os.environ.get("MACHINE_CONTROL_TARGETS_FILE"):
@@ -77,16 +156,22 @@ def load_registry(path_text: str | None) -> dict[str, dict[str, Any]]:
         ).expanduser().resolve()
     elif (ROOT / "targets.local.json").exists():
         path = ROOT / "targets.local.json"
+    else:
+        inventory_provider = provider_path(provider_text)
+        if inventory_provider is not None:
+            document = provider_registry(inventory_provider)
 
     targets = {key: dict(value) for key, value in DEFAULT_TARGETS.items()}
-    if path is None:
+    if path is None and document is None:
         return targets
-    try:
-        document = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise ClientError(
-            "invalid_registry", f"Target registry could not be read: {error}"
-        ) from error
+    if path is not None:
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise ClientError(
+                "invalid_registry", f"Target registry could not be read: {error}"
+            ) from error
+    assert document is not None
     if not isinstance(document, dict) or document.get("schema") != TARGET_SCHEMA:
         raise ClientError(
             "invalid_registry", f"Target registry must use {TARGET_SCHEMA}"
@@ -107,9 +192,15 @@ def load_registry(path_text: str | None) -> dict[str, dict[str, Any]]:
         platform = value.get("platform")
         profile = value.get("profile")
         command = value.get("command")
-        if platform not in {"windows", "macos", "linux"}:
+        interface = value.get("interface", "machine-control-v0")
+        environment = value.get("environment", {})
+        if platform not in SUPPORTED_PLATFORMS:
             raise ClientError(
                 "invalid_registry", f"Target '{alias}' has an unsupported platform"
+            )
+        if interface not in {"machine-control-v0", "native"}:
+            raise ClientError(
+                "invalid_registry", f"Target '{alias}' has an invalid interface"
             )
         if not isinstance(profile, str) or not profile:
             raise ClientError(
@@ -123,6 +214,15 @@ def load_registry(path_text: str | None) -> dict[str, dict[str, Any]]:
             raise ClientError(
                 "invalid_registry", f"Target '{alias}' requires a command array"
             )
+        if not isinstance(environment, dict) or not all(
+            isinstance(key, str)
+            and key
+            and isinstance(item, str)
+            for key, item in environment.items()
+        ):
+            raise ClientError(
+                "invalid_registry", f"Target '{alias}' has an invalid environment"
+            )
         resolved = list(command)
         command_path = Path(resolved[0]).expanduser()
         if "/" in resolved[0] and not command_path.is_absolute():
@@ -130,7 +230,9 @@ def load_registry(path_text: str | None) -> dict[str, dict[str, Any]]:
         targets[alias] = {
             "platform": platform,
             "profile": profile,
+            "interface": interface,
             "command": resolved,
+            "environment": dict(environment),
         }
     return targets
 
@@ -140,6 +242,7 @@ def target_view(alias: str, target: dict[str, Any]) -> dict[str, Any]:
         "logicalTarget": alias,
         "platform": target["platform"],
         "profile": target["profile"],
+        "interface": target.get("interface", "machine-control-v0"),
     }
 
 
@@ -184,6 +287,7 @@ def run_adapter(
             text=True,
             capture_output=True,
             check=False,
+            env={**os.environ, **target.get("environment", {})},
         )
     except OSError as error:
         raise ClientError(
@@ -359,6 +463,12 @@ def handle_target(
     if not arguments:
         raise ClientError("usage", "target requires an operation")
     operation = arguments[0]
+    if target.get("interface", "machine-control-v0") != "machine-control-v0":
+        raise ClientError(
+            "unsupported_target_operation",
+            "This target uses its native testbed interface; use inventory for "
+            "readiness or testbed -- for platform commands",
+        )
     allowed = {
         "status",
         "up",
@@ -716,6 +826,11 @@ def artifact(
 def handle_desktop(
     alias: str, target: dict[str, Any], arguments: list[str]
 ) -> int:
+    if target.get("interface", "machine-control-v0") != "machine-control-v0":
+        raise ClientError(
+            "unsupported_desktop_interface",
+            "This target does not expose the common desktop interface",
+        )
     if arguments and arguments[0] == "artifact":
         return artifact(alias, target, arguments[1:])
     raw = bool(arguments and arguments[0] in {"raw", "raw-local"})
@@ -759,15 +874,40 @@ def exec_escape(
         command = [*target["command"], "ps", *values]
     elif target["platform"] == "macos":
         command = [*target["command"], "exec", *values]
-    else:
+    elif target["platform"] == "linux":
         command = [*target["command"], "exec", "--", *values]
-    return subprocess.run(command, check=False).returncode
+    else:
+        raise ClientError(
+            "unsupported_os_escape",
+            "This target does not expose a generic guest OS command route",
+        )
+    return subprocess.run(
+        command,
+        check=False,
+        env={**os.environ, **target.get("environment", {})},
+    ).returncode
+
+
+def run_inventory(path_text: str | None, arguments: list[str]) -> int:
+    path = provider_path(path_text)
+    if path is None:
+        raise ClientError(
+            "inventory_provider_unavailable",
+            "No private inventory provider is configured",
+        )
+    if not arguments:
+        raise ClientError("usage", "inventory requires a provider command")
+    return subprocess.run(
+        [*provider_command(path), *arguments], check=False
+    ).returncode
 
 
 def usage() -> str:
-    return """Usage: machine-control [--registry PATH] [--target ALIAS] COMMAND ...
+    return """Usage: machine-control [--registry PATH] [--inventory-provider PATH]
+                       [--target ALIAS] COMMAND ...
 
 Commands:
+  inventory list|status|guide|doctor  Use the private deployment inventory
   targets                         List logical targets without private paths
   target status|up|suspend|shutdown|force-stop|doctor|capabilities
   desktop status|capabilities|applications|windows|snapshot|action|capture
@@ -792,6 +932,7 @@ def parse_global_options(
     """
     values: dict[str, Any] = {
         "registry": None,
+        "inventory_provider": None,
         "target": None,
         "help": False,
     }
@@ -803,7 +944,11 @@ def parse_global_options(
             index += 1
             continue
         matched = False
-        for option, name in (("--registry", "registry"), ("--target", "target")):
+        for option, name in (
+            ("--registry", "registry"),
+            ("--inventory-provider", "inventory_provider"),
+            ("--target", "target"),
+        ):
             if token == option:
                 if index + 1 >= len(arguments):
                     raise ClientError("usage", f"{option} requires a value")
@@ -834,7 +979,9 @@ def main(argv: list[str] | None = None) -> int:
             print(usage(), end="")
             return 0 if known.help else 2
         operation = remainder[0]
-        targets = load_registry(known.registry)
+        if operation == "inventory":
+            return run_inventory(known.inventory_provider, remainder[1:])
+        targets = load_registry(known.registry, known.inventory_provider)
         if operation == "targets":
             if len(remainder) != 1:
                 raise ClientError("usage", "targets accepts no arguments")

@@ -52,6 +52,8 @@ if command == "doctor" and arguments[1:] == ["--json"]:
 
 if command == "status":
     print("running")
+elif command == "probe":
+    print("ready")
 elif command in {"up", "suspend", "shutdown", "force-stop"}:
     print("private-adapter-detail")
 elif command in {"control", "control-local"}:

@@ -5,7 +5,16 @@
     "another-linux": {
       "platform": "linux",
       "profile": "ubuntu-gnome-wayland",
-      "command": ["../another-linux-testbed/bin/linuxvm"]
+      "command": ["./platforms/linux/bin/linuxvm"]
+    },
+    "development-chromeos": {
+      "platform": "chromeos",
+      "profile": "chromeos-developer-device",
+      "interface": "native",
+      "command": ["./platforms/chromeos/bin/chromeos"],
+      "environment": {
+        "CHROMEBOOK_HOST": "example-chromeos-device"
+      }
     }
   }
 }

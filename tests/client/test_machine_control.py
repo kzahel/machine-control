@@ -24,15 +24,20 @@ class ClientTests(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
-    def write_registry(self, platform):
+    def write_registry(self, platform, *, interface=None, environment=None):
+        target = {
+            "platform": platform,
+            "profile": "fixture",
+            "command": [sys.executable, str(MOCK)]
+        }
+        if interface is not None:
+            target["interface"] = interface
+        if environment is not None:
+            target["environment"] = environment
         self.registry.write_text(json.dumps({
             "schema": "machine-control-targets/v0",
             "targets": {
-                "fixture": {
-                    "platform": platform,
-                    "profile": "fixture",
-                    "command": [sys.executable, str(MOCK)]
-                }
+                "fixture": target
             }
         }), encoding="utf-8")
 
@@ -63,6 +68,28 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(value["targets"][0]["logicalTarget"], "fixture")
         self.assertNotIn("command", value["targets"][0])
         self.assertNotIn(str(self.directory), result.stdout)
+
+    def test_lists_native_target_without_private_environment(self):
+        self.write_registry(
+            "chromeos",
+            interface="native",
+            environment={"CHROMEBOOK_HOST": "private-fixture-host"},
+        )
+        result, value = self.run_cli("targets")
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["targets"][0]["interface"], "native")
+        self.assertNotIn("private-fixture-host", result.stdout)
+
+    def test_native_target_uses_explicit_testbed_escape(self):
+        self.write_registry("chromeos", interface="native")
+        result, _ = self.run_cli(
+            "--target", "fixture", "target", "status"
+        )
+        self.assertEqual(result.returncode, 2)
+        result, _ = self.run_cli(
+            "--target", "fixture", "testbed", "--", "probe"
+        )
+        self.assertEqual(result.returncode, 0)
 
     def test_doctor_adds_logical_target(self):
         result, value = self.run_cli(
