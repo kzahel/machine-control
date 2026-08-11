@@ -356,6 +356,7 @@ function Invoke-RepairAction {
         [Parameter(Mandatory = $true)][string]$Id,
         [Parameter(Mandatory = $true)][scriptblock]$Action,
         [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
         [System.Collections.Generic.List[object]]$Results
     )
     try {

@@ -18,17 +18,18 @@ if not ready_file.exists():
 command = arguments[-1] if arguments else ""
 if command.startswith("shutdown.exe /r"):
     raise SystemExit(0)
-if "EncodedCommand " not in command:
+if "post-update.ps1" not in command:
     raise SystemExit(0)
 
-encoded = command.rsplit("EncodedCommand ", 1)[1]
-script = base64.b64decode(encoded).decode("utf-16le")
-if "post-update.ps1" not in script:
-    raise SystemExit(0)
+if "EncodedCommand " in command:
+    encoded = command.rsplit("EncodedCommand ", 1)[1]
+    script = base64.b64decode(encoded).decode("utf-16le")
+else:
+    script = command
 
-nonce_match = re.search(r"-Nonce '([a-z0-9-]+)'", script)
-mode_match = re.search(r"-Mode '(Audit|Repair)'", script)
-profile_match = re.search(r"-Profile '(Development|Runtime)'", script)
+nonce_match = re.search(r"-Nonce '?([a-z0-9-]+)'?", script)
+mode_match = re.search(r"-Mode '?(Audit|Repair)'?", script)
+profile_match = re.search(r"-Profile '?(Development|Runtime)'?", script)
 if not (nonce_match and mode_match and profile_match):
     raise SystemExit(2)
 

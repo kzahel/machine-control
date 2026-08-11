@@ -91,20 +91,16 @@ validate_guest_report() {
 }
 
 run_guest_over_ssh() {
-    local mode="$1" expected_mode encoded output status
+    local mode="$1" expected_mode output status
     case "$mode" in
         Audit) expected_mode=audit ;;
         Repair) expected_mode=repair ;;
         *) return 2 ;;
     esac
-    read -r -d '' script <<POWERSHELL || true
-& '$GUEST_SCRIPT' -Mode '$mode' -Profile '$profile_title' -Nonce '$nonce'
-POWERSHELL
-    encoded="$(printf '%s' "$script" | winvm_encode_powershell)"
     set +e
     output="$($WINVM_SSH_BIN -o BatchMode=yes -o ConnectTimeout=15 \
         "$WINVM_SSH_HOST" \
-        "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand $encoded" \
+        "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"$GUEST_SCRIPT\" -Mode '$mode' -Profile '$profile_title' -Nonce '$nonce'" \
         2>/dev/null)"
     status=$?
     set -e
