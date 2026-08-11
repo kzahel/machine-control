@@ -7,6 +7,9 @@ description: Operate, diagnose, bootstrap, and recover the Tart macOS VM through
 
 Operate the configured VM through `bin/macvm` from the repository root. Keep
 credentials out of commands and preserve explicit macOS consent boundaries.
+Lifecycle mutations require ignored/private configuration that binds the
+candidate or disposable role to the exact selected VM name; never disable the
+default mutation guard to make a public example work.
 
 ## Choose the control layer
 

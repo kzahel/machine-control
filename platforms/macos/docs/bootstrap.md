@@ -29,8 +29,11 @@ brew install cirruslabs/cli/tart
 cd ~/code/machine-control/platforms/macos
 ```
 
-Copy `config.example` to ignored `config.local` only when the VM name or
-defaults differ. Do not put a password in that file.
+Copy `config.example` to ignored `config.local` before a lifecycle mutation.
+Set `MACVM_NAME` and `MACVM_EXPECTED_NAME` to the same exact local VM name and
+set `MACVM_TARGET_ROLE=candidate`. The mutation guard is on by default, so an
+unconfigured public example cannot start or stop a VM. Do not put a password
+in that file.
 
 The first screenshot and input operation may cause host macOS to request:
 
@@ -51,6 +54,7 @@ the Tart guest agent:
 
 ```bash
 tart clone ghcr.io/cirruslabs/macos-tahoe-base:latest tahoe-base
+# Configure tahoe-base as the exact candidate in config.local first.
 bin/macvm up
 bin/macvm exec /usr/bin/sw_vers
 bin/macvm deploy-ui
@@ -71,7 +75,8 @@ Use this path when the guest must be built from Apple installation media:
 
 ```bash
 tart create --from-ipsw=latest macos-clean
-MACVM_NAME=macos-clean bin/macvm up
+MACVM_NAME=macos-clean MACVM_EXPECTED_NAME=macos-clean \
+    MACVM_TARGET_ROLE=candidate bin/macvm up
 ```
 
 `macvm up` launches the graphical VM with:

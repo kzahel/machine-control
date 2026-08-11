@@ -99,6 +99,7 @@ ensure_running() {
         printf 'Tart VM not found: %s\n' "$MACVM_NAME" >&2
         return 1
     fi
+    macvm_assert_mutation_target
 
     local -a run_args=()
     if [[ "$MACVM_SUSPENDABLE" == "true" ]]; then
@@ -190,6 +191,7 @@ input_key() {
 }
 
 guest_shutdown() {
+    macvm_assert_mutation_target
     ensure_running
     # A successful halt closes the guest-agent transport before `tart exec`
     # can receive a normal exit status. Treat that disconnect as expected and
@@ -225,9 +227,20 @@ case "$command" in
     drag) input_drag "$@" ;;
     type) input_type "$@" ;;
     key) input_key "$@" ;;
-    suspend) "$MACVM_TART" suspend "$MACVM_NAME" ;;
+    suspend)
+        macvm_assert_mutation_target
+        "$MACVM_TART" suspend "$MACVM_NAME"
+        ;;
     shutdown) guest_shutdown ;;
-    stop) "$MACVM_TART" stop "$MACVM_NAME" --timeout 30; unload_launchd_runner ;;
-    force-stop) "$MACVM_TART" stop "$MACVM_NAME" --timeout 0; unload_launchd_runner ;;
+    stop)
+        macvm_assert_mutation_target
+        "$MACVM_TART" stop "$MACVM_NAME" --timeout 30
+        unload_launchd_runner
+        ;;
+    force-stop)
+        macvm_assert_mutation_target
+        "$MACVM_TART" stop "$MACVM_NAME" --timeout 0
+        unload_launchd_runner
+        ;;
     *) usage >&2; exit 2 ;;
 esac

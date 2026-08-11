@@ -8,6 +8,9 @@ description: Operate, diagnose, bootstrap, upgrade, and recover the UTM Ubuntu W
 Operate the configured UTM guest through `bin/linuxvm` from the repository
 root. Keep credentials out of commands and distinguish root guest-agent work
 from non-root desktop-session work.
+Lifecycle mutations require ignored/private configuration that binds the
+candidate or disposable role to the exact selected VM name and UUID; never
+disable the default mutation guard to make a public example work.
 
 ## Choose the control layer
 

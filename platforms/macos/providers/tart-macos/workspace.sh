@@ -22,7 +22,8 @@ tart_state() {
 }
 
 development_available() {
-    [[ -n "$MACVM_WORKSPACE_DEVELOPMENT_NAME" &&
+    [[ "$MACVM_WORKSPACE_DEVELOPMENT_PROVEN" == "true" &&
+       -n "$MACVM_WORKSPACE_DEVELOPMENT_NAME" &&
        "$MACVM_WORKSPACE_DEVELOPMENT_NAME" == "$MACVM_NAME" &&
        "$MACVM_REQUIRE_MUTATION_GUARD" == "true" &&
        "$MACVM_EXPECTED_NAME" == "$MACVM_WORKSPACE_DEVELOPMENT_NAME" &&

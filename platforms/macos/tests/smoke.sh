@@ -84,6 +84,20 @@ source guests/macos/framework-runtimes/versions.env
 
 bin/macvm help >/dev/null
 bin/macui help >/dev/null
+default_guard="$(env MACVM_CONFIG_FILE=/dev/null bash -c \
+    'source "$1"; printf "%s|%s|%s" "$MACVM_REQUIRE_MUTATION_GUARD" "$MACVM_TARGET_ROLE" "$MACVM_EXPECTED_NAME"' \
+    _ "$REPO_DIR/scripts/common.sh")"
+[[ "$default_guard" == 'true|unspecified|' ]]
+mutation_marker="$temporary/tart-mutated"
+if env MACVM_CONFIG_FILE=/dev/null \
+        MACVM_TART="$REPO_DIR/tests/fixtures/tart" \
+        MACVM_NAME=fixture-default \
+        MACHINE_CONTROL_TART_MUTATION_MARKER="$mutation_marker" \
+        bin/macvm up >/dev/null 2>&1; then
+    printf 'Default macOS configuration allowed a lifecycle mutation\n' >&2
+    exit 1
+fi
+test ! -e "$mutation_marker"
 workspace_caps="$(env \
     MACVM_CONFIG_FILE=/dev/null \
     MACVM_TART=/usr/bin/true \

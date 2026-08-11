@@ -35,6 +35,8 @@ daily command or UI contracts.
 
 ```bash
 cd ~/code/machine-control/platforms/linux
+# Copy config.example to ignored config.local, then bind the selected VM's
+# exact name and UUID with LINUXVM_TARGET_ROLE=candidate.
 bin/linuxvm up
 bin/linuxvm deploy-ui
 bin/linuxvm deploy-resident
@@ -44,6 +46,10 @@ bin/linuxvm doctor
 If `up` reports that the guest agent is unavailable, follow
 [the existing-image bootstrap](docs/bootstrap.md). It starts from the visible
 UTM window and needs no SSH access.
+
+Lifecycle commands fail closed until ignored/private configuration binds the
+candidate or disposable role to an exact VM name and UUID. Read-only status
+remains available without that authority.
 
 ## Daily Use
 
@@ -207,7 +213,9 @@ LINUXVM_EXPECTED_UUID=EXPECTED_CLONE_UUID
 LINUXVM_FORBID_OUTER_UI=true
 ```
 
-`bin/linuxvm guard-status` reports whether the selected target passed that
+The mutation guard is on by default; the remaining values deliberately have
+no public defaults. `bin/linuxvm guard-status` reports whether the selected
+target passed that
 check without disclosing its name or UUID. Under the outer-UI guard,
 `screenshot`, `click`, `drag`, `type`, `key`, `scan`, and `window-info` fail
 closed. Lifecycle and QEMU guest-agent transport remain available because they

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+case "${1:-}" in
+    status)
+        printf '%s\n' stopped
+        ;;
+    list)
+        printf '%s\n' 'UUID Status Name'
+        printf '%s\n' 'fixture-id stopped fixture-default'
+        ;;
+    start|stop|suspend|clone)
+        : >"${MACHINE_CONTROL_UTM_MUTATION_MARKER:?}"
+        ;;
+    *)
+        printf 'Unexpected fake UTM command: %s\n' "${1:-}" >&2
+        exit 2
+        ;;
+esac

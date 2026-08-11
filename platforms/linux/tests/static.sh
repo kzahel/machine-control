@@ -22,6 +22,22 @@ find "$REPO_DIR/bin" "$REPO_DIR/scripts" "$REPO_DIR/providers" \
     "$REPO_DIR/guests/ubuntu/fixtures/browser_fixture.py"
 
 "$REPO_DIR/bin/linuxvm" help >/dev/null
+default_guard="$(env LINUXVM_CONFIG_FILE=/dev/null bash -c \
+    'source "$1"; printf "%s|%s|%s|%s" "$LINUXVM_REQUIRE_MUTATION_GUARD" "$LINUXVM_TARGET_ROLE" "$LINUXVM_EXPECTED_NAME" "$LINUXVM_EXPECTED_UUID"' \
+    _ "$REPO_DIR/scripts/common.sh")"
+[[ "$default_guard" == 'true|unspecified||' ]]
+if [[ "$(uname -s)" == Darwin ]]; then
+    mutation_marker="$temporary/utm-mutated"
+    if env LINUXVM_CONFIG_FILE=/dev/null \
+            LINUXVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl" \
+            LINUXVM_UTM_NAME=fixture-default \
+            MACHINE_CONTROL_UTM_MUTATION_MARKER="$mutation_marker" \
+            "$REPO_DIR/bin/linuxvm" up >/dev/null 2>&1; then
+        printf 'Default Linux configuration allowed a lifecycle mutation\n' >&2
+        exit 1
+    fi
+    test ! -e "$mutation_marker"
+fi
 workspace_caps="$(env \
     LINUXVM_CONFIG_FILE=/dev/null \
     LINUXVM_UTMCTL=/usr/bin/true \

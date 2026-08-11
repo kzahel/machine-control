@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+case "${1:-}" in
+    get)
+        printf '%s\n' '{"State":"stopped","Display":"1280x800"}'
+        ;;
+    run|stop|suspend|delete|clone)
+        : >"${MACHINE_CONTROL_TART_MUTATION_MARKER:?}"
+        ;;
+    ip)
+        printf '%s\n' '192.0.2.1'
+        ;;
+    *)
+        printf 'Unexpected fake Tart command: %s\n' "${1:-}" >&2
+        exit 2
+        ;;
+esac

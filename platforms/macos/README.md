@@ -38,6 +38,8 @@ integrity boundaries still apply.
 brew install cirruslabs/cli/tart
 tart clone ghcr.io/cirruslabs/macos-tahoe-base:latest tahoe-base
 cd ~/code/machine-control/platforms/macos
+# Copy config.example to ignored config.local, then bind the selected VM as
+# an exact candidate with matching MACVM_NAME and MACVM_EXPECTED_NAME.
 bin/macvm up
 bin/macvm deploy-ui
 bin/macvm authorize-ui
@@ -46,6 +48,9 @@ bin/macvm doctor
 
 The final authorization opens an explicit guest macOS consent flow. Follow
 [the bootstrap guide](docs/bootstrap.md); do not attempt to edit TCC storage.
+Lifecycle commands fail closed until ignored/private configuration binds an
+exact candidate or disposable name. Public example defaults cannot start,
+stop, suspend, or shut down a VM.
 
 ## Daily Use
 

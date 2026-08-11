@@ -15,7 +15,7 @@ MACVM_CONTROL_SOCKET_RELATIVE='Library/Application Support/macvm-testbed/control
 
 # For automation that mutates a clone, fail closed if selection drifts. Keep
 # the real expected name in ignored config.local.
-MACVM_REQUIRE_MUTATION_GUARD=false
+MACVM_REQUIRE_MUTATION_GUARD=true
 MACVM_TARGET_ROLE=unspecified
 MACVM_EXPECTED_NAME=
 
@@ -37,6 +37,7 @@ MACVM_SSH_STRICT_HOST_KEY_CHECKING=accept-new
 # isolated or candidate derivation. Concrete names remain in ignored/private
 # configuration.
 MACVM_WORKSPACE_DEVELOPMENT_NAME=tahoe-base
+MACVM_WORKSPACE_DEVELOPMENT_PROVEN=false
 MACVM_WORKSPACE_READY_BASE_NAME=
 MACVM_WORKSPACE_READY_BASE_PROVEN=false
 # Set true only when intentionally deriving from the stopped development VM.
