@@ -60,9 +60,11 @@ Every invocation gets new element references. Printed `@N` values are
 diagnostic, not durable selectors. State-changing commands rediscover the
 element from application, text, role, exactness, and occurrence arguments.
 
-The same application hosts the ordinary-session resident facade. A
-LaunchServices-started, `LSUIElement` process owns a mode-`0600` Unix socket in
-the interactive user's Application Support directory. The guest-local
+The same application hosts the ordinary-session resident facade. A per-user
+Aqua LaunchAgent starts the stable signed `LSUIElement` process at login and
+keeps it available after reboot or a crash. The process owns a mode-`0600` Unix
+socket in the interactive user's Application Support directory. Doctor probes
+that socket without bootstrapping the job. The guest-local
 `~/bin/machine-control` client and host `macvm control` wrapper reach that same
 socket and generation. The host wrapper may arrive through Tart's guest agent
 or an explicitly configured authorized SSH transport; transport does not
@@ -128,7 +130,7 @@ vanilla VM
   -> Tart guest launch daemon + launch agent
   -> tart exec
   -> deploy macui
-  -> start resident facade in the Aqua session
+  -> install and start the resident Aqua LaunchAgent
   -> explicit Accessibility grant
 ```
 

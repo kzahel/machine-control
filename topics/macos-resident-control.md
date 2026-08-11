@@ -10,7 +10,9 @@ lock/login, preboot, Recovery, and physical hardware are deferred.
 
 The authoritative [`platforms/macos`](../platforms/macos/README.md) now packages
 a persistent ordinary-session facade inside the stable MacVM UI application
-identity. Guest-local and `tart exec` callers use the same user-owned socket,
+identity. A per-user Aqua LaunchAgent starts and keeps that signed resident
+available after login, reboot, or a crash; doctor observes it without starting
+it. Guest-local and `tart exec` callers use the same user-owned socket,
 generation, request vocabulary, and normalized result shape without routine
 Tart-window input.
 
@@ -79,12 +81,12 @@ guest desktop from outside.
 
 - Start from a copy-on-write clone of the prepared Tart base. Do not rebuild
   macOS from IPSW merely to prove the ordinary resident contract.
-- Keep Tart lifecycle, bootstrap, consent, and recovery in macvm-testbed.
+- Keep Tart lifecycle, bootstrap, consent, and recovery in the canonical
+  `platforms/macos` implementation.
   Reaching a target-resident process through `tart exec` is an inner route;
   Tart-window input is outer recovery.
-- Put the stable operation/result facade and reusable conformance corpus in
-  this repository. A macOS-native runner may remain in macvm-testbed when its
-  packaging and TCC identity are inseparable from that testbed.
+- Keep the stable operation/result facade, TCC-bound packaging, lifecycle, and
+  reusable conformance corpus together in this canonical repository.
 - Reuse the Windows contract shape where it is exercised and honest: explicit
   applications/windows, compact semantics, capture, input, window state,
   actual route, delivery, effect, uncertainty, generation, and cleanup.

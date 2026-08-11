@@ -311,6 +311,8 @@ bin/machine-control targets
 bin/machine-control inventory status
 bin/machine-control --target windows target doctor
 bin/machine-control --target windows target ensure-ready
+bin/machine-control --target windows maintenance capabilities
+bin/machine-control --target windows maintenance audit
 bin/machine-control --target windows target prepare-promotion
 bin/machine-control --target windows workspace acquire --intent persistent
 bin/machine-control --target macos workspace acquire --intent isolated
@@ -332,15 +334,23 @@ For the accepted desktops, the common lifecycle subset is `status`, `up`,
 `suspend`, `shutdown`, `force-stop`, `doctor`, and `capabilities`.
 `ensure-ready` is the distinct mutating composition of read-only doctor and an
 adapter-declared ordinary start; it reports every action and refuses to guess
-a repair for a running unhealthy target. `validate-candidate` records a fresh
-ready exact-candidate observation. `prepare-promotion` repeats that observation,
-cleanly shuts down, and verifies the same private adapter selection in its
-stopped handoff state. It does not rewrite private inventory. Desktop commands cover status,
-capabilities, application/window inventory and lifecycle, semantic snapshots
-and actions, target-local input/capture, and bounded artifact retrieval. Each
-result preserves the resident's actual operation, provider route, delivery,
-effect, uncertainty, generation, and host-interference report while adding a
-separate client/transport projection.
+a repair for a running unhealthy target. On supported desktop appliances it
+recommends, but never invokes, `maintenance audit`. The common maintenance
+namespace discovers and dispatches the platform-owned Windows, macOS, and
+Linux audit, exact-candidate repair, optional explicit repair reboot, and
+exact-source certification compositions. It validates their typed output and
+removes private boot and staging observations rather than inventing one
+cross-platform service-repair vocabulary.
+
+`validate-candidate` records a fresh ready exact-candidate observation.
+`prepare-promotion` repeats that observation, cleanly shuts down, and verifies
+the same private adapter selection in its stopped handoff state. It does not
+rewrite private inventory. Desktop commands cover status, capabilities,
+application/window inventory and lifecycle, semantic snapshots and actions,
+target-local input/capture, and bounded artifact retrieval. Each result
+preserves the resident's actual operation, provider route, delivery, effect,
+uncertainty, generation, and host-interference report while adding a separate
+client/transport projection.
 
 VM workspace commands keep caller intent separate from hypervisor mechanics.
 `persistent` reuses a stateful development VM, `isolated` requests that
@@ -473,12 +483,28 @@ acceptance, disk-only reboot, and exact disposable cleanup.
 
 ## macOS runtime
 
-**Current:** The authoritative sibling
-[`platforms/macos`](platforms/macos/README.md) packages a persistent
-ordinary-session macOS facade inside a stable `MacVM UI.app` identity. The
-same `machine-control/v0` request reaches its user-owned Unix socket from the
-guest-local client or through `tart exec`; neither route focuses Tart or moves
+**Current:** The canonical
+[`platforms/macos`](platforms/macos/README.md) implementation packages a
+persistent ordinary-session macOS facade inside a stable `MacVM UI.app`
+identity. The same `machine-control/v0` request reaches its user-owned Unix
+socket from the guest-local client or through `tart exec`; neither route
+focuses Tart or moves
 or types through the host desktop.
+
+The stable signed resident runs as a persistent per-user Aqua LaunchAgent, so
+it returns after login and reboot without a doctor side effect. Doctor is a
+read-only probe. `macvm bootstrap --profile development|runtime` deploys the
+exact resident and maintenance support without invoking an interactive package
+installer or changing TCC; missing tools or consent remain explicit. Bounded
+post-update audit/repair and exact-source certification are exposed directly
+and through the common maintenance namespace.
+
+```bash
+platforms/macos/bin/macvm bootstrap --profile development
+bin/machine-control --target macos maintenance audit
+bin/machine-control --target macos maintenance repair
+bin/machine-control --target macos maintenance certify
+```
 
 The accepted hybrid uses native Workspace, Accessibility, Quartz, and
 CoreGraphics routes for application/window inventory, compact semantic

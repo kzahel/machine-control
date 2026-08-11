@@ -59,6 +59,7 @@ bin/macvm doctor
 bin/macvm doctor --json
 bin/macvm up
 bin/macvm exec /usr/bin/sw_vers
+bin/macvm post-update audit
 bin/macvm control '{"operation":"capabilities"}'
 bin/macvm control '{"operation":"applications"}'
 bin/macvm shell
@@ -81,8 +82,10 @@ bin/macvm ui press Downloads --app Safari
 bin/macvm ui launch TextEdit
 ```
 
-The resident facade is the normal agent path. It starts lazily in the Aqua
-session, reports the selected provider, and is callable through the host
+The resident facade is the normal agent path. Deployment installs its stable
+signed identity as a per-user Aqua LaunchAgent with `RunAtLoad` and `KeepAlive`,
+so it returns after login, reboot, or a crash without using doctor as a start
+operation. It reports the selected provider and is callable through the host
 wrapper or the same guest-local CLI:
 
 ```bash
@@ -101,17 +104,36 @@ The accepted logged-in Aqua corpus also covers settings-managed privacy,
 native panels and sheets, notifications, Safari downloads, DMGs, Gatekeeper,
 Installer, AppKit, SwiftUI, Java Swing, Electron, and target-local visual
 fallback. The execution
-record and original environment omissions live in the sibling machine-control
-repository's
-[`Tactical 010`](../machine-control/docs/tactical/010-macos-full-aqua-software-testing.md);
+record and original environment omissions live in
+[`Tactical 010`](../../docs/tactical/010-macos-full-aqua-software-testing.md);
 the Java/Electron closure is
-[`Tactical 011`](../machine-control/docs/tactical/011-macos-java-electron-framework-coverage.md).
+[`Tactical 011`](../../docs/tactical/011-macos-java-electron-framework-coverage.md).
 
 `doctor --json` emits the minimized `machine-control-doctor/v0` projection for
 the common client. It reports independent power, administration, Aqua desktop,
 resident, semantic, capture, input, and outer states without publishing the
 configured machine identity, guest user, or network address. It is read-only
 and exits nonzero when the accepted resident surface is not ready.
+
+After a macOS, Tart guest-agent, Xcode tools, or repository update, use the
+bounded maintenance lifecycle:
+
+```bash
+bin/macvm bootstrap --profile development
+bin/macvm post-update audit --profile development
+bin/macvm post-update repair --profile development
+bin/macvm appliance-certify --profile development
+```
+
+Audit refuses a stopped VM before guest execution and does not start or repair
+the resident. Repair requires the exact retained candidate, redeploys only the
+stable checked-in resident/support identity, and may restart only enumerated
+installed launchd jobs. It never edits TCC, installs Homebrew or an OS package,
+handles a credential, uses Tart-window input, or reboots unless `--reboot` is
+explicit. Certification requires clean committed source, observes a changed
+guest boot epoch, verifies a digest-bound archive, runs portable and macOS
+native checks with isolated state and bounded timeouts, removes staging, and
+shuts down only after success.
 
 Set `MACVM_FORBID_OUTER_UI=true` for ordinary software-test acceptance. In
 that mode, Tart-window screenshot, click, drag, type, and key commands fail

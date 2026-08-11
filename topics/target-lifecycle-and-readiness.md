@@ -129,13 +129,21 @@ read-only doctor and keeps reported delivery separate from the independently
 observed ready or unready effect.
 
 **Current:** Platform-owned post-update commands now complement, rather than
-weaken, that common read-only contract. Windows and Linux each expose a
+weaken, that common read-only contract. Windows, macOS, and Linux each expose a
 minimized audit, exact-candidate bounded repair, explicit reboot observation,
-and a heavier exact-source certification command. Linux refuses a stopped
-audit before its guest-agent transport can auto-start the target and treats a
-missing guest agent as a separate recovery boundary. These commands remain
-platform-owned because systemd/dpkg and Windows service/OpenSSH invariants are
-not one portable repair vocabulary.
+and a heavier exact-source certification command. Linux and macOS refuse a
+stopped audit before their guest transports can start the target. A missing
+guest agent remains a separate recovery boundary.
+
+The common `maintenance capabilities|audit|repair|certify` namespace declares
+and dispatches those appliance operations for the three desktop adapters. It
+validates platform schemas and emits a minimized
+`machine-control-maintenance/v0` projection without boot epochs, concrete
+services, endpoints, or staging paths. Capability discovery does not execute
+an adapter. Repair reboot is optional and explicit; certification always owns
+its reboot proof. Launchd/TCC, systemd/dpkg, and Windows service/OpenSSH
+invariants remain platform-owned rather than becoming one misleading repair
+vocabulary.
 
 **Current:** `target validate-candidate` requires an exact adapter-side
 candidate-role and identity assertion with no workspace receipt ownership,
@@ -194,13 +202,10 @@ their own normalized projections exist.
 
 ## Open work
 
-- Add narrowly named, idempotent inner repair operations only where live
-  evidence establishes an honest precondition and effect contract. Start-only
-  readiness remains the portable default. Windows Tactical 020 is the first
-  platform-owned implementation: it is deliberately separate from common
-  `ensure-ready`, candidate-only for mutation, and prohibited from credentials,
-  outer input, force-stop, missing-component installation, or pending-reboot
-  suppression.
+- Add maintenance support to another platform only where live evidence
+  establishes an honest platform-owned precondition and effect contract.
+  Start-only readiness remains the portable default; the common client must
+  not turn platform repair into an implicit ensure-ready fallback.
 - Add authorization and discovery above the current local registry without
   turning a logical alias into bearer authority.
 - Extend the device projection to ChromeOS and Steam Deck where it adds honest

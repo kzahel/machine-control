@@ -260,16 +260,50 @@ reset autonomously.
 After updating Tart, the guest agent, macOS, or the UI helper:
 
 ```bash
-bin/macvm deploy-ui
-bin/macvm doctor
-tests/smoke.sh
+bin/macvm bootstrap --profile development
+bin/macvm post-update audit --profile development
 ```
 
-`deploy-ui` compares the installed sources and skips compilation and signing
-when the app is already current. `--force` always rebuilds. A changed or forced
-ad-hoc build keeps the `com.kzahel.macvm-testbed.ui` bundle identifier, but
-macOS may still retain the old code requirement with a misleading enabled
-switch. If semantic control loses trust after a rebuild:
+Bootstrap verifies Xcode/Swift plus the declared profile tools, deploys the
+checked-in resident and maintenance support idempotently, and installs the
+stable resident as a per-user Aqua LaunchAgent. It does not launch an
+interactive installer, install Homebrew, or change consent. Missing tools are
+reported as a bounded failure. Runtime omits development-tool readiness;
+development additionally requires Git and Python for exact-source checks.
+
+The post-update audit is read-only and refuses a stopped VM before its selected
+guest transport can start anything. It verifies the guest-agent daemon and
+interactive agent, logged-in Aqua session, signed resident bundle, resident
+LaunchAgent/socket, semantic and capture consent effects, target-native status,
+and profile tools. macOS does not expose one reliable local pending-reboot
+marker, so that check is explicitly optional and not observable rather than
+silently reported clear.
+
+If audit identifies a launchd/startup failure on the exact retained candidate:
+
+```bash
+bin/macvm post-update repair --profile development
+# Request a reboot only when it is actually intended:
+bin/macvm post-update repair --profile development --reboot
+```
+
+Repair redeploys the same signed application identity and checked-in support,
+then starts or restarts only the enumerated existing launchd jobs. It does not
+edit TCC or acquire tools. A missing guest command transport remains a separate
+bootstrap/recovery boundary because the operation cannot repair the route it
+needs to run.
+
+For the heavier exact-source, reboot, native-check, cleanup, and clean-shutdown
+proof, start from a clean commit and run:
+
+```bash
+bin/macvm appliance-certify --profile development
+```
+
+`deploy-ui` still accepts `--force`. A changed or forced ad-hoc build keeps the
+`com.kzahel.macvm-testbed.ui` bundle identifier, but macOS may retain the old
+code requirement with a misleading enabled switch. If semantic control loses
+trust after a rebuild:
 
 1. select the stale **MacVM UI** row and remove it with `-`;
 2. rerun `bin/macvm authorize-ui`;
