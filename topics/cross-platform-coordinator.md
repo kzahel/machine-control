@@ -2,7 +2,8 @@
 
 Topic: `cross-platform-coordinator`
 
-Status: active portability and native-validation slice.
+Status: portable coordinator and native CI implemented; Windows appliance
+readiness remains open.
 
 ## Scope
 
@@ -78,12 +79,32 @@ separate interactive agent session. Routine hosted CI performs the same
 non-mutating checks. It does not boot VMs, contact physical devices, use
 private inventory, or replay guarded live application-control corpora.
 
+## Current evidence
+
+**Current (2026-08-11):** The root portable and native checks pass on the
+macOS controller. The exact committed source archive was transferred through
+the guarded Linux UTM adapter, matched by SHA-256 inside the guest, and passed
+the portable corpus, the Linux-native static/compile checks, and a direct
+coordinator invocation reporting a Linux controller. The guest was cleaned
+and shut down afterward.
+
+The registered Windows images are not presently controller-ready validation
+appliances. The configured generalized seal boots to OOBE, exposes neither the
+old key-only authorization nor QEMU guest-agent execution, and correctly
+refuses a persistent boot. Preserved acceptance images expose the same absent
+inner administration channel. Their disposable boots were stopped, the
+original private seal pin was restored byte-for-byte, and no outer UI input
+was used. Hosted Windows CI therefore owns the current native Windows build
+proof; it does not substitute for restoring a controller-ready live appliance.
+
 ## Current direction
 
 - Provide one portable root check command that owns correct suite working
   directories and records intentional skips.
-- Run that command on hosted macOS, Linux, and Windows.
+- Keep the root command green on hosted macOS, Linux, and Windows.
 - Keep live target rehearsals deliberate and controller-owned.
+- Provision a fresh controller-ready derivative from the generalized Windows
+  seal, then rerun the exact-archive portable and native checks inside it.
 - Add direct local/remote resident routes only when their transport and
   authorization are explicit; do not disguise a macOS VM-lifecycle wrapper as
   a Windows-local adapter.

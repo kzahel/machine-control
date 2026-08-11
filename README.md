@@ -709,9 +709,10 @@ to a proprietary agent product, it cannot be the only expression of the
 target-native contract.
 
 This repository is the current synthesis and reusable implementation. It links
-to disposable third-party evidence in the spike. Public lifecycle/recovery
-behavior moves here one platform at a time; until each explicit cutover, its
-external testbed remains authoritative.
+to disposable third-party evidence in the spike. The platform testbeds listed
+under `platforms/` have completed their explicit cutovers and own their public
+lifecycle/recovery behavior here. Their former standalone repositories are
+legacy; a future focused repository must be generated one-way from this source.
 
 ## Non-goals
 

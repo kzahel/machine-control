@@ -6,10 +6,10 @@ requirement that every component always be present.
 
 The accepted consolidation direction is recorded in
 [`repository-consolidation-and-publication.md`](topics/repository-consolidation-and-publication.md).
-Until each platform completes its explicit cutover, the external testbed
-listed below remains authoritative. After cutover, its public implementation
-lives under `machine-control`; private deployment inventory remains in
-dotfiles, and any focused external repository is legacy or generated one-way.
+The platform testbeds listed below have completed their explicit cutovers, so
+their public implementation lives under `machine-control`; private deployment
+inventory remains in dotfiles, and any focused external repository is legacy
+or generated one-way.
 
 ## Coordination and inventory
 
@@ -43,11 +43,10 @@ and Linux testbed adapters, while each adapter retains its own lifecycle and
 guest transport. The three residents pass one guarded common semantic,
 effect, capture, artifact, and local/outside parity workflow. This is a shared
 contract and entry experience, not one universal resident implementation.
-ChromeOS and device providers remain the next adapter families. Until each
-repository cutover, their target-specific lifecycle and recovery remain in the
-external authoritative testbed. Consolidation later moves that public logic
-under its platform directory here without flattening platform semantics into
-one generic implementation.
+ChromeOS and device providers remain the next families to receive more common
+facade coverage. Their target-specific lifecycle and recovery already live in
+their authoritative platform directories here; broader facade coverage must
+not flatten their platform semantics into one generic implementation.
 
 ## Desktop VM testbeds
 

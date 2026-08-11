@@ -1,6 +1,6 @@
 # Tactical 015: Cross-Platform Coordinator Portability
 
-Status: active.
+Status: implemented with one live-appliance follow-up.
 
 Topics: `cross-platform-coordinator`, `target-lifecycle-and-readiness`, and
 `unified-desktop-client`.
@@ -115,4 +115,28 @@ after public-safety and clean-worktree checks pass.
 
 ## Result
 
-Active. Implementation and native acceptance remain to be completed.
+The coordinator now normalizes Darwin, Linux, and Windows controller hosts;
+types every adapter's eligible controller platforms and launcher; reports
+route support without private commands or environment; and refuses an
+unsupported controller before adapter lookup. The private inventory emits the
+same route facts for its current controller. A root `bin/check` owns portable
+unit/syntax checks and dispatches bounded native checks, including all three
+Windows .NET builds. Public CI contains independent portable and native jobs
+for macOS, Linux, and Windows.
+
+The macOS portable/native checks passed. Commit `c25c699` was exported without
+Git metadata, transferred through the guard-pinned Linux UTM adapter, and
+matched by SHA-256 in the guest. It passed the portable corpus, Linux-native
+checks, and a direct target-list invocation that reported Linux as the
+controller platform. Temporary guest source was removed and the appliance was
+shut down.
+
+The live Windows condition is not complete. The configured Windows target is a
+generalized seal whose disposable boot correctly reached OOBE but offered no
+authorized SSH or guest-agent command route. The other preserved acceptance
+bundles had the same inner-route limitation. No outer input was used. Every
+disposable boot was stopped, the original ignored seal pin was restored
+byte-for-byte, and temporary host-key material was removed. A fresh
+controller-ready derivative must be provisioned before repeating the exact
+archive checks inside UTM. Hosted Windows CI is the current native build proof,
+but is not recorded as live-appliance evidence.
