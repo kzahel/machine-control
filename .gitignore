@@ -3,6 +3,7 @@ bin/
 !/bin/
 /bin/*
 !/bin/machine-control
+!/bin/check
 !tests/fixtures/asserted-testbed/bin/
 !tests/fixtures/asserted-testbed/bin/winvm
 obj/

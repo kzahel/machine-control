@@ -2,6 +2,12 @@
 
 set -euo pipefail
 
+mode="${1:-}"
+if [[ -n "$mode" && "$mode" != "--static" ]]; then
+    printf 'Usage: tests/smoke.sh [--static]\n' >&2
+    exit 2
+fi
+
 readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR"
 
@@ -85,6 +91,10 @@ for command in click drag type key; do
         exit 1
     fi
 done
+if [[ "$mode" == "--static" ]]; then
+    printf 'macOS native static checks passed\n'
+    exit 0
+fi
 MACVM_FORBID_OUTER_UI=true bin/macvm status >/dev/null
 bin/macvm doctor
 bin/macvm doctor --json | /usr/bin/jq -e \

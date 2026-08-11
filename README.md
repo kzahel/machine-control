@@ -277,8 +277,8 @@ applications across physical machines, virtual machines, and attached devices
 without pretending that every target has the same control technology. It is
 the canonical destination for public reusable contracts, resident providers,
 and platform testbed implementation. Existing external testbed repositories
-remain authoritative until their explicit cutovers. Private concrete inventory
-remains in dotfiles, and YepAnywhere retains agent-session coordination.
+are legacy after their completed cutovers. Private concrete inventory remains
+in dotfiles, and YepAnywhere retains agent-session coordination.
 
 ## Common desktop entry
 
@@ -289,6 +289,12 @@ points for ChromeOS, iOS, Quest, and Steam Deck. Portable defaults resolve the
 seven in-repository platform CLIs. On a configured controller, an optional
 private inventory provider supplies concrete selectors and environment without
 exposing them in the portable target list.
+
+The coordinator runs through Python on macOS, Linux, and Windows. On Windows,
+use `py -3 bin/machine-control` when the extensionless script is not directly
+executable. Target listing reports the current controller platform separately
+from the target platform and refuses an ineligible adapter route before
+command lookup or execution.
 
 ```bash
 bin/machine-control targets
@@ -320,6 +326,18 @@ fall back to VM-window capture or host input. The executable
 [common conformance workflow](tests/client/README.md) passes on all three
 desktops with outer UI prohibited; see its
 [minimized evidence](docs/evidence/desktop-common-entry.md).
+
+Run the dependency-light coordinator and platform checks from one entrypoint:
+
+```bash
+python3 bin/check --portable
+python3 bin/check --native
+```
+
+Use `py -3 bin/check` on Windows. Portable checks run on all three controller
+operating systems. Native checks build and parse Windows code on Windows,
+type-check macOS code and metadata on macOS, and compile Linux resident code
+and shell surfaces on Linux. Routine checks do not contact a VM or device.
 
 ## Windows runtime
 

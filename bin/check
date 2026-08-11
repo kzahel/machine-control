@@ -1,0 +1,172 @@
+#!/usr/bin/env python3
+"""Dependency-light portable and target-native repository checks."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+import platform
+import shutil
+import subprocess
+import sys
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def run(label: str, command: list[str], cwd: Path = ROOT) -> None:
+    print(f"\n== {label} ==", flush=True)
+    environment = {
+        **os.environ,
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHON": sys.executable,
+    }
+    completed = subprocess.run(command, cwd=cwd, env=environment, check=False)
+    if completed.returncode != 0:
+        raise SystemExit(completed.returncode)
+
+
+def tracked_files() -> list[Path]:
+    completed = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=ROOT,
+        capture_output=True,
+        check=True,
+    )
+    return [
+        ROOT / value.decode("utf-8")
+        for value in completed.stdout.split(b"\0")
+        if value
+    ]
+
+
+def validate_json() -> None:
+    print("\n== tracked JSON ==", flush=True)
+    count = 0
+    for path in tracked_files():
+        if path.suffix == ".json":
+            json.loads(path.read_text(encoding="utf-8"))
+            count += 1
+    print(f"validated {count} JSON files")
+
+
+def validate_shell() -> None:
+    bash = shutil.which("bash")
+    if bash is None:
+        print("\n== tracked Bash syntax ==\nskip: bash is unavailable")
+        return
+    scripts: list[Path] = []
+    for path in tracked_files():
+        if not path.is_file():
+            continue
+        if path.suffix == ".sh":
+            scripts.append(path)
+            continue
+        try:
+            first_line = path.open(encoding="utf-8").readline()
+        except (OSError, UnicodeDecodeError):
+            continue
+        if "bash" in first_line:
+            scripts.append(path)
+    run(
+        f"tracked Bash syntax ({len(scripts)} files)",
+        [bash, "-n", *[str(path) for path in scripts]],
+    )
+
+
+def portable_checks() -> None:
+    suites = [
+        ("common coordinator", ROOT, ROOT / "tests" / "client"),
+        (
+            "ChromeOS dependency-free",
+            ROOT / "platforms" / "chromeos",
+            ROOT / "platforms" / "chromeos" / "tests",
+        ),
+        (
+            "iOS dependency-free",
+            ROOT / "platforms" / "ios",
+            ROOT / "platforms" / "ios" / "tests",
+        ),
+        (
+            "Quest dependency-free",
+            ROOT / "platforms" / "quest",
+            ROOT / "platforms" / "quest" / "tests",
+        ),
+        (
+            "Steam Deck dependency-free",
+            ROOT / "platforms" / "steamdeck",
+            ROOT / "platforms" / "steamdeck" / "tests",
+        ),
+    ]
+    for label, cwd, tests in suites:
+        run(
+            label,
+            [
+                sys.executable,
+                "-m",
+                "unittest",
+                "discover",
+                "-s",
+                str(tests),
+                "-v",
+            ],
+            cwd,
+        )
+    validate_json()
+    validate_shell()
+    run("working-tree whitespace", ["git", "diff", "--check"])
+
+
+def native_checks() -> None:
+    system = platform.system().lower()
+    if system == "darwin":
+        run(
+            "macOS native static",
+            ["bash", "tests/smoke.sh", "--static"],
+            ROOT / "platforms" / "macos",
+        )
+        return
+    if system == "linux":
+        run(
+            "Linux native static",
+            ["bash", "tests/static.sh"],
+            ROOT / "platforms" / "linux",
+        )
+        return
+    if system == "windows":
+        powershell = shutil.which("pwsh") or shutil.which("powershell.exe")
+        if powershell is None:
+            raise SystemExit("PowerShell is required for Windows native checks")
+        run(
+            "Windows native static and build",
+            [
+                powershell,
+                "-NoLogo",
+                "-NoProfile",
+                "-File",
+                str(ROOT / "tests" / "windows" / "static.ps1"),
+            ],
+        )
+        return
+    raise SystemExit(f"unsupported native-check platform: {system}")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--portable", action="store_true")
+    parser.add_argument("--native", action="store_true")
+    args = parser.parse_args()
+    portable = args.portable or not (args.portable or args.native)
+    native = args.native or not (args.portable or args.native)
+    if portable:
+        portable_checks()
+    if native:
+        native_checks()
+    print("\nall requested checks passed")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
