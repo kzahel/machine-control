@@ -1,6 +1,11 @@
+from pathlib import Path
+import sys
 import unittest
 from unittest import mock
 
+
+PLATFORM_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PLATFORM_ROOT))
 import client
 
 

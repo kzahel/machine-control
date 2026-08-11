@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+
+import json
+import os
+from pathlib import Path
+
+
+state_path = Path(os.environ["FAKE_CHROMEOS_STATE"])
+state = state_path.read_text(encoding="utf-8").strip()
+session = os.environ.get("FAKE_CHROMEOS_SESSION", "locked")
+
+if state == "ssh_unreachable":
+    value = {
+        "ok": False,
+        "host": "private-device.invalid",
+        "passed": 0,
+        "failed": 1,
+        "checks": [{
+            "status": "fail",
+            "name": "Cannot connect to private-device.invalid via SSH",
+            "fix": "private recovery detail",
+        }],
+    }
+else:
+    checks = [
+        {"status": "ok", "name": "SSH connection to private-device.invalid"},
+        {"status": "ok", "name": "Stateful VT2 SSH fallback is available"},
+        {
+            "status": "ok",
+            "name": "SSH starts through openssh-server after network connection",
+        },
+        {
+            "status": "ok" if session == "unlocked" else "warn",
+            "name": (
+                "ChromeOS user session active"
+                if session == "unlocked"
+                else "ChromeOS is waiting at sign-in; private profile detail"
+            ),
+        },
+        {"status": "ok", "name": "Rootfs is writable"},
+        {"status": "ok", "name": "Remote debugging configured in chrome_dev.conf"},
+        {"status": "ok", "name": "DevTools port 9222 listening"},
+        {
+            "status": "ok",
+            "name": "Remote Python available at /private/python/path",
+        },
+        {
+            "status": "ok",
+            "name": "client.py deployed at /private/client/path",
+        },
+    ]
+    value = {
+        "ok": True,
+        "host": "private-device.invalid",
+        "passed": 8,
+        "failed": 0,
+        "checks": checks,
+    }
+
+print(json.dumps(value))

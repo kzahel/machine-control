@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+
+import json
+import os
+from pathlib import Path
+import sys
+
+
+state_path = Path(os.environ["FAKE_CHROMEOS_STATE"])
+log_value = os.environ.get("FAKE_CHROMEOS_MUTATION_LOG")
+log_path = Path(log_value) if log_value else None
+state = state_path.read_text(encoding="utf-8").strip()
+arguments = sys.argv[1:]
+
+
+def log(action):
+    if log_path is None:
+        return
+    existing = (
+        log_path.read_text(encoding="utf-8").splitlines()
+        if log_path.exists() else []
+    )
+    log_path.write_text("\n".join([*existing, action]) + "\n", encoding="utf-8")
+
+
+if "--repair" in arguments:
+    log("repair")
+    if state == "repair_required_safe":
+        state_path.write_text("reboot_verification_required", encoding="utf-8")
+        print("active image repaired")
+        raise SystemExit(1)
+    print("repair was not expected", file=sys.stderr)
+    raise SystemExit(1)
+
+if "--verify-reboot" in arguments:
+    log("verify-reboot")
+    if state in {"ready", "reboot_verification_required"}:
+        state_path.write_text("ready", encoding="utf-8")
+        print("changed boot and automatic startup proved")
+        raise SystemExit(0)
+    print("proof reboot precondition failed", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def check(status, name, **extra):
+    return {"status": status, "name": name, **extra}
+
+
+checks = [
+    check("ok", "SSH is reachable"),
+    check("ok", "No ChromeOS update is waiting for reboot"),
+    check("ok", "Stateful VT2 SSH fallback is available"),
+    check("ok", "Rootfs is writable"),
+    check("ok", "SSH autostart job is installed and running"),
+    check("ok", "Current ChromeOS release was prepared by the bootstrap"),
+    check("ok", "Current boot automatically started SSH after network connection"),
+    check("ok", "Remote debugging is configured"),
+    check("ok", "DevTools port 9222 is listening"),
+]
+ok = state == "ready"
+status = state
+
+if state == "ssh_unreachable":
+    checks = [check(
+        "fail", "SSH is unreachable",
+        fix="private VT2 recovery detail",
+    )]
+elif state == "update_pending":
+    checks[1] = check(
+        "warn", "ChromeOS update is waiting for reboot",
+        detail="private release detail",
+    )
+elif state == "repair_required_rootfs":
+    checks[3] = check(
+        "fail", "Rootfs verification is enabled",
+        detail="private partition detail",
+    )
+    status = "repair_required"
+elif state == "repair_required_safe":
+    checks[7] = check(
+        "fail", "Remote debugging configuration is missing",
+        detail="private config detail",
+    )
+    status = "repair_required"
+elif state == "reboot_verification_required":
+    checks[6] = check(
+        "warn", "Current boot has no automatic SSH startup evidence",
+        detail="private boot detail",
+    )
+
+value = {
+    "ok": ok,
+    "host": "private-device.invalid",
+    "release": "private-release",
+    "boot_id": "private-boot-id",
+    "update_operation": "private-update-operation",
+    "status": status,
+    "failed": sum(item["status"] == "fail" for item in checks),
+    "warned": sum(item["status"] == "warn" for item in checks),
+    "checks": checks,
+}
+print(json.dumps(value))
+raise SystemExit(0 if ok else 1)
