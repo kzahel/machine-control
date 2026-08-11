@@ -33,7 +33,7 @@ class PostUpdateAuditTests(unittest.TestCase):
             fake_ssh.chmod(fake_ssh.stat().st_mode | stat.S_IXUSR)
             env = os.environ.copy()
             env.update({
-                "PATH": f"{fake_bin}:{env['PATH']}",
+                "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
                 "CHROMEBOOK_HOST": "fake-chromebook",
                 "FAKE_SSH_UP": "yes" if ssh_up else "no",
                 "FAKE_SNAPSHOT": textwrap.dedent(snapshot).strip(),
