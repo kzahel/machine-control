@@ -59,3 +59,4 @@ the commits' `Topic:` trailers and register that exact string in
 | [`017-vm-workspaces-and-storage-policy.md`](017-vm-workspaces-and-storage-policy.md) | complete | Portable persistent/isolated/candidate workspace intent, provider capabilities, storage policy, and guarded UTM/Tart implementations |
 | [`018-appliance-readiness-and-promotion.md`](018-appliance-readiness-and-promotion.md) | complete | Reuse-in-place Windows/Linux readiness, bounded ensure-ready, exact candidate promotion, and live UTM disposable outcomes |
 | [`019-ios-runner-and-common-control.md`](019-ios-runner-and-common-control.md) | complete | Explicit iOS common controls, runner signing-lifetime refresh, and passcode-state conformance |
+| [`020-windows-post-update-and-appliance-certification.md`](020-windows-post-update-and-appliance-certification.md) | active | Minimized Windows post-update audit/repair, reproducible development bootstrap, and on-demand appliance certification |
