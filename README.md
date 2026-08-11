@@ -308,6 +308,8 @@ command lookup or execution.
 bin/machine-control targets
 bin/machine-control inventory status
 bin/machine-control --target windows target doctor
+bin/machine-control --target windows target ensure-ready
+bin/machine-control --target windows target prepare-promotion
 bin/machine-control --target windows workspace acquire --intent persistent
 bin/machine-control --target macos workspace acquire --intent isolated
 bin/machine-control --target macos --workspace w-EXAMPLE123 desktop status
@@ -322,8 +324,13 @@ bin/machine-control --target chromeos testbed -- doctor
 ```
 
 For the accepted desktops, the common lifecycle subset is `status`, `up`,
-`suspend`, `shutdown`,
-`force-stop`, `doctor`, and `capabilities`. Desktop commands cover status,
+`suspend`, `shutdown`, `force-stop`, `doctor`, and `capabilities`.
+`ensure-ready` is the distinct mutating composition of read-only doctor and an
+adapter-declared ordinary start; it reports every action and refuses to guess
+a repair for a running unhealthy target. `validate-candidate` records a fresh
+ready exact-candidate observation. `prepare-promotion` repeats that observation,
+cleanly shuts down, and verifies the same private adapter selection in its
+stopped handoff state. It does not rewrite private inventory. Desktop commands cover status,
 capabilities, application/window inventory and lifecycle, semantic snapshots
 and actions, target-local input/capture, and bounded artifact retrieval. Each
 result preserves the resident's actual operation, provider route, delivery,

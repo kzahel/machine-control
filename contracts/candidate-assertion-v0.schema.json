@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machine-control.invalid/contracts/candidate-assertion-v0.schema.json",
+  "title": "Machine Control Candidate Assertion v0",
+  "type": "object",
+  "required": [
+    "schema", "identityPin", "role", "powerState", "workspaceOwnership"
+  ],
+  "properties": {
+    "schema": { "const": "machine-control-candidate-assertion/v0" },
+    "identityPin": { "const": "verified" },
+    "role": { "const": "candidate" },
+    "powerState": {
+      "enum": ["off", "starting", "running", "suspended", "unknown"]
+    },
+    "workspaceOwnership": { "enum": ["clear", "present"] }
+  },
+  "additionalProperties": false
+}

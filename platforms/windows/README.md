@@ -98,6 +98,7 @@ factory creation, Sysprep generalization, and stopped UTM export.
 ```bash
 bin/winvm doctor                  # Check every control layer
 bin/winvm doctor --json           # Minimized common readiness projection
+bin/winvm candidate-status --json # Minimized role/identity/power assertion
 bin/winvm assert-target connect --json # Verify UUID pin and role policy
 bin/winvm up                      # Start/resume and print the guest IP
 bin/winvm capabilities --json     # Inspect lifecycle support and down policy
@@ -188,6 +189,19 @@ pin together. `pin-target ROLE --configured` returns to the target named in
 An assertion is a local safety interlock, not a credential. SSH keys and the
 provider's authorization remain the security boundary. Keep real UUIDs and
 role selection in `.target.local`; do not paste them into documentation or Git.
+
+From the repository root, the common client combines these guards with fresh
+readiness evidence:
+
+```bash
+bin/machine-control --target windows target ensure-ready
+bin/machine-control --target windows target validate-candidate
+bin/machine-control --target windows target prepare-promotion
+```
+
+The last command cleanly stops the candidate and reports whether it is
+eligible for a private-inventory role update. It neither changes that inventory
+nor boots or clones a seal.
 
 ## What Survives a Reboot
 

@@ -56,6 +56,7 @@ remains available without that authority.
 ```bash
 bin/linuxvm doctor
 bin/linuxvm doctor --json
+bin/linuxvm candidate-status --json
 bin/linuxvm status
 bin/linuxvm exec -- uname -a
 bin/linuxvm user-exec -- id
@@ -199,6 +200,13 @@ semantic-coordinate claim.
 
 `linuxvm shutdown` does not return until UTM reports `stopped`, or until the
 configured `LINUXVM_SHUTDOWN_TIMEOUT` expires.
+
+From the repository root, `target ensure-ready` may make the ordinary guarded
+`up` transition and then repeat doctor; it never uses the outer UTM route or
+guesses a guest-agent repair. `target validate-candidate` combines a fresh
+running-ready doctor with the exact candidate assertion. `target
+prepare-promotion` then cleanly shuts down and reasserts the stopped selection
+before private inventory may classify it as a development/ready base.
 
 ## Guarded Acceptance
 

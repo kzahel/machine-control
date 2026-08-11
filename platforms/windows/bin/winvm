@@ -12,6 +12,8 @@ Usage: winvm COMMAND [ARG...]
 
 Start here:
   doctor [--json]        Check lifecycle, administration, desktop, and resident
+  candidate-status --json
+                         Emit a minimized exact-candidate assertion
   up                     Start/resume the VM and print its current IPv4 address
   ssh [ARG...]           Connect using the configured SSH alias
   ui COMMAND [ARG...]    Inspect and control the Windows accessibility tree
@@ -115,6 +117,7 @@ case "$command" in
         assert_target connect
         exec "$REPO_DIR/scripts/doctor.sh" "$@"
         ;;
+    candidate-status) exec "$REPO_DIR/scripts/candidate-status.sh" "$@" ;;
     control|control-local)
         assert_target connect
         exec "$REPO_DIR/scripts/control.sh" "$@"

@@ -14,6 +14,7 @@ Usage: linuxvm COMMAND [ARG...]
 Lifecycle and transport:
   status | up | ip | suspend | reboot | shutdown | force-stop
   guard-status | host-state      Inspect acceptance safety without guest pixels
+  candidate-status --json       Emit a minimized exact-candidate assertion
   exec -- COMMAND [ARG...]       Run a root command with reliable completion
   user-exec -- COMMAND [ARG...]  Run in the active Wayland desktop session
   gui-launch -- COMMAND [ARG...] Launch through the desktop user systemd manager
@@ -198,6 +199,7 @@ case "$command" in
         fi
         exec "$LINUXVM_REPO_DIR/scripts/doctor.sh"
         ;;
+    candidate-status) exec "$LINUXVM_REPO_DIR/scripts/candidate-status.sh" "$@" ;;
     bootstrap-command) bootstrap_command ;;
     workspace-capabilities|workspace-acquire|workspace-inventory|workspace-release|workspace-gc)
         exec "$LINUXVM_REPO_DIR/providers/$LINUXVM_PROVIDER/workspace.sh" \

@@ -22,6 +22,10 @@ than a frozen cross-device wire protocol.
   acquire, inventory, release, and garbage-collection dry-run results. Its
   handles are opaque selectors backed by private provider receipts, not bearer
   authority.
+- [`candidate-assertion-v0.schema.json`](candidate-assertion-v0.schema.json)
+  is the minimized adapter-to-client proof of an exact candidate role, power
+  state, and absence of workspace ownership. It intentionally omits the
+  provider identity itself.
 
 Platform adapters may add fields under the permissive schema while the corpus
 is still v0. They may not omit route, generation, delivery/effect separation,

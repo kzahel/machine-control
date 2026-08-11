@@ -10,6 +10,13 @@ arguments = sys.argv[1:]
 if path := os.environ.get("MACHINE_CONTROL_MOCK_LOG"):
     Path(path).write_text(json.dumps(arguments), encoding="utf-8")
 command = arguments[0] if arguments else ""
+state_path_value = os.environ.get("MACHINE_CONTROL_MOCK_STATE_FILE")
+state_path = Path(state_path_value) if state_path_value else None
+power_state = (
+    state_path.read_text(encoding="utf-8").strip()
+    if state_path is not None and state_path.exists()
+    else "running"
+)
 expected_workspace = os.environ.get("MACHINE_CONTROL_MOCK_EXPECT_WORKSPACE")
 if expected_workspace is not None and os.environ.get(
     "MACHINE_CONTROL_WORKSPACE_HANDLE"
@@ -171,13 +178,21 @@ if command == "doctor" and arguments[1:] == ["--json"]:
     if os.environ.get("MACHINE_CONTROL_MOCK_BAD_DOCTOR"):
         print('{"schema":"wrong"}')
         raise SystemExit(1)
-    ready = not bool(os.environ.get("MACHINE_CONTROL_MOCK_NOT_READY"))
+    ready = (
+        power_state == "running"
+        and not bool(os.environ.get("MACHINE_CONTROL_MOCK_NOT_READY"))
+    )
     target_platform = os.environ.get(
         "MACHINE_CONTROL_MOCK_PLATFORM", "linux"
     )
     is_device = target_platform in {"android", "ios", "quest"}
+    reported_power = (
+        power_state
+        if state_path is not None
+        else ("running" if ready else "off")
+    )
     states = {
-        "power": "running" if ready else "off",
+        "power": reported_power,
         "administration": "ready" if ready else "unavailable",
         "semantic": "ready" if ready else "unavailable",
         "capture": "ready" if ready else "unavailable",
@@ -222,11 +237,30 @@ if command == "doctor" and arguments[1:] == ["--json"]:
     }))
     raise SystemExit(0 if ready else 1)
 
+if command == "candidate-status" and arguments[1:] == ["--json"]:
+    print(json.dumps({
+        "schema": "machine-control-candidate-assertion/v0",
+        "identityPin": "verified",
+        "role": "candidate",
+        "powerState": power_state,
+        "workspaceOwnership": "clear",
+    }))
+    raise SystemExit(0)
+
 if command == "status":
-    print("running")
+    print(power_state)
 elif command == "probe":
     print("ready")
 elif command in {"up", "suspend", "shutdown", "force-stop", "reboot"}:
+    if state_path is not None:
+        next_state = {
+            "up": "running",
+            "suspend": "suspended",
+            "shutdown": "off",
+            "force-stop": "off",
+            "reboot": "running",
+        }[command]
+        state_path.write_text(next_state, encoding="utf-8")
     print("private-adapter-detail")
 elif command in {"control", "control-local"}:
     request = json.loads(arguments[1])

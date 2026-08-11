@@ -21,6 +21,7 @@ TARGET_SCHEMA = "machine-control-targets/v0"
 DOCTOR_SCHEMA = "machine-control-doctor/v0"
 RESULT_SCHEMA = "machine-control/v0"
 TARGET_RESULT_SCHEMA = "machine-control-target/v0"
+CANDIDATE_ASSERTION_SCHEMA = "machine-control-candidate-assertion/v0"
 WORKSPACE_CAPABILITIES_SCHEMA = "machine-control-workspace-capabilities/v0"
 WORKSPACE_RESULT_SCHEMA = "machine-control-workspace/v0"
 CLIENT_VERSION = "0.2.0"
@@ -887,6 +888,168 @@ def target_result(
     }
 
 
+def readiness_observation(value: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "ready": value["ready"],
+        "states": value["states"],
+        "resident": value.get("resident"),
+    }
+
+
+def ensure_ready(alias: str, target: dict[str, Any]) -> int:
+    initial, _ = doctor(alias, target)
+    elapsed_ms = initial["adapter"]["elapsedMs"]
+    actions: list[dict[str, str]] = []
+    final = initial
+    completion = "ready" if initial["ready"] else "repair_required"
+
+    if not initial["ready"] and initial["states"]["power"] in {
+        "off", "suspended", "starting"
+    }:
+        if "up" not in initial["lifecycleOperations"]:
+            raise ClientError(
+                "readiness_start_unsupported",
+                "The target does not declare an ordinary start operation",
+            )
+        _, _, start_ms = run_adapter(target, ["up"])
+        elapsed_ms += start_ms
+        actions.append({
+            "id": "start",
+            "adapterOperation": "up",
+            "status": "completed",
+        })
+        final, _ = doctor(alias, target)
+        elapsed_ms += final["adapter"]["elapsedMs"]
+        completion = "ready" if final["ready"] else "repair_required"
+
+    data: dict[str, Any] = {
+        "ready": final["ready"],
+        "completion": completion,
+        "initial": readiness_observation(initial),
+        "actions": actions,
+        "final": readiness_observation(final),
+        "uncertainty": "none",
+    }
+    if not final["ready"]:
+        data["errorCode"] = "readiness_repair_required"
+    emit(target_result(alias, target, "ensure-ready", data, elapsed_ms))
+    return 0 if final["ready"] else 1
+
+
+def candidate_assertion(target: dict[str, Any]) -> tuple[dict[str, Any], int]:
+    _, parsed, elapsed_ms = run_adapter(target, ["candidate-status", "--json"])
+    if not isinstance(parsed, dict) or parsed.get("schema") != CANDIDATE_ASSERTION_SCHEMA:
+        raise ClientError(
+            "invalid_candidate_assertion",
+            "Candidate assertion has an invalid schema",
+            1,
+        )
+    expected = {
+        "identityPin": "verified",
+        "role": "candidate",
+        "workspaceOwnership": "clear",
+    }
+    if any(parsed.get(key) != value for key, value in expected.items()):
+        raise ClientError(
+            "candidate_not_qualified",
+            "The adapter did not verify an unowned exact candidate target",
+            1,
+        )
+    power = parsed.get("powerState")
+    if power not in POWER_STATES:
+        raise ClientError(
+            "invalid_candidate_assertion",
+            "Candidate assertion has an invalid power state",
+            1,
+        )
+    if set(parsed) != {
+        "schema", "identityPin", "role", "powerState", "workspaceOwnership"
+    }:
+        raise ClientError(
+            "invalid_candidate_assertion",
+            "Candidate assertion contains unexpected fields",
+            1,
+        )
+    return parsed, elapsed_ms
+
+
+def candidate_result(
+    alias: str,
+    target: dict[str, Any],
+    operation: str,
+    assertion: dict[str, Any],
+    readiness: dict[str, Any],
+    actions: list[dict[str, str]],
+    elapsed_ms: int,
+    eligible: bool,
+) -> dict[str, Any]:
+    return target_result(
+        alias,
+        target,
+        operation,
+        {
+            "identityPin": assertion["identityPin"],
+            "role": assertion["role"],
+            "workspaceOwnership": assertion["workspaceOwnership"],
+            "readiness": readiness_observation(readiness),
+            "actions": actions,
+            "finalPowerState": assertion["powerState"],
+            "eligibleForPrivatePromotion": eligible,
+            "uncertainty": "none",
+        },
+        elapsed_ms,
+    )
+
+
+def handle_candidate(
+    alias: str, target: dict[str, Any], operation: str
+) -> int:
+    if "_workspaceHandle" in target:
+        raise ClientError(
+            "candidate_inventory_target_required",
+            "Candidate promotion requires the private inventory target, "
+            "not a workspace handle",
+        )
+    assertion, elapsed_ms = candidate_assertion(target)
+    if assertion["powerState"] != "running":
+        raise ClientError(
+            "candidate_must_be_running",
+            "Candidate validation requires a running exact target",
+            1,
+        )
+    readiness, _ = doctor(alias, target)
+    elapsed_ms += readiness["adapter"]["elapsedMs"]
+    if not readiness["ready"]:
+        emit(candidate_result(
+            alias, target, operation, assertion, readiness, [], elapsed_ms, False
+        ))
+        return 1
+    if operation == "validate-candidate":
+        emit(candidate_result(
+            alias, target, operation, assertion, readiness, [], elapsed_ms, False
+        ))
+        return 0
+
+    _, _, shutdown_ms = run_adapter(target, ["shutdown"])
+    stopped, stopped_ms = candidate_assertion(target)
+    elapsed_ms += shutdown_ms + stopped_ms
+    if stopped["powerState"] != "off":
+        raise ClientError(
+            "candidate_not_stopped",
+            "Candidate did not reach the required stopped handoff state",
+            1,
+        )
+    actions = [{
+        "id": "clean-shutdown",
+        "adapterOperation": "shutdown",
+        "status": "completed",
+    }]
+    emit(candidate_result(
+        alias, target, operation, stopped, readiness, actions, elapsed_ms, True
+    ))
+    return 0
+
+
 def doctor(alias: str, target: dict[str, Any]) -> tuple[dict[str, Any], int]:
     completed, parsed, elapsed_ms = run_adapter(
         target, ["doctor", "--json"], accept_json_failure=True
@@ -934,9 +1097,15 @@ def handle_target(
         "force-stop",
         "doctor",
         "capabilities",
+        "ensure-ready",
+        "validate-candidate",
+        "prepare-promotion",
     }
     if native_device:
         allowed.add("reboot")
+        allowed.difference_update({
+            "ensure-ready", "validate-candidate", "prepare-promotion"
+        })
     if operation not in allowed or len(arguments) != 1:
         raise ClientError(
             "unsupported_target_operation",
@@ -946,6 +1115,10 @@ def handle_target(
         value, exit_code = doctor(alias, target)
         emit(value)
         return exit_code
+    if operation == "ensure-ready":
+        return ensure_ready(alias, target)
+    if operation in {"validate-candidate", "prepare-promotion"}:
+        return handle_candidate(alias, target, operation)
     if native_device:
         value, _ = doctor(alias, target)
         if operation == "status":
@@ -1563,6 +1736,7 @@ Commands:
   inventory list|status|guide|doctor  Use the private deployment inventory
   targets                         List logical targets without private paths
   target status|up|suspend|shutdown|force-stop|reboot|doctor|capabilities
+         ensure-ready|validate-candidate|prepare-promotion
   workspace capabilities|acquire|inventory|release|gc --dry-run
   desktop status|capabilities|applications|windows|snapshot|action|capture
   desktop input text|key|click|move|drag|scroll

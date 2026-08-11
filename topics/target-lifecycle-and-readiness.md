@@ -21,6 +21,7 @@ The common surface should make the frequent workflow consistent:
 machine-control --target <logical-target> target status
 machine-control --target <logical-target> target up
 machine-control --target <logical-target> target doctor
+machine-control --target <logical-target> target ensure-ready
 machine-control --target <logical-target> target shutdown
 ```
 
@@ -113,6 +114,25 @@ VM/device identifier, credential, or private route. Human-oriented native
 testbed output may remain more diagnostic locally; the common JSON projection
 is deliberately minimized for agent use and durable evidence.
 
+## Explicit readiness and candidate handoff
+
+**Current:** `target ensure-ready` is the explicitly mutating counterpart to
+`doctor`. It first preserves the complete normalized doctor observation. When
+the target is off, suspended, or still starting and the adapter declares
+`up`, it requests that one ordinary start transition and runs doctor again.
+The result records the initial and final states, its bounded action list,
+completion, and uncertainty. A running unhealthy target returns
+`readiness_repair_required`; the client never guesses a bootstrap, login,
+consent, credential, outer-input, or force-stop action.
+
+**Current:** `target validate-candidate` requires an exact adapter-side
+candidate-role and identity assertion with no workspace receipt ownership,
+then obtains a fresh running-ready doctor observation. It is evidence, not
+promotion authority. `target prepare-promotion` performs the same observation,
+requests a clean shutdown, and requires a second exact assertion in the off
+state. Only that stopped result is eligible for a subsequent private-inventory
+role update. A `--workspace` handle is rejected for promotion preparation.
+
 ## Current implementation
 
 [`bin/machine-control`](../bin/machine-control) selects a logical target from
@@ -158,8 +178,9 @@ their own normalized projections exist.
 
 ## Open work
 
-- Determine when `ensure-ready` is useful as an explicitly mutating compound
-  operation after the individual lifecycle and doctor paths are proven.
+- Add narrowly named, idempotent inner repair operations only where live
+  evidence establishes an honest precondition and effect contract. Start-only
+  readiness remains the portable default.
 - Add authorization and discovery above the current local registry without
   turning a logical alias into bearer authority.
 - Extend the device projection to ChromeOS and Steam Deck where it adds honest

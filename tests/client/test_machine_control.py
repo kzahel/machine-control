@@ -147,6 +147,14 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertEqual(value["errorCode"], "unsupported_target_operation")
 
+    def test_native_device_refuses_desktop_readiness_mutation(self):
+        self.write_registry("ios", interface="native")
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "ensure-ready"
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(value["errorCode"], "unsupported_target_operation")
+
     def test_desktop_reboot_remains_platform_escape(self):
         result, value = self.run_cli(
             "--target", "fixture", "target", "reboot"
@@ -178,6 +186,67 @@ class ClientTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 1)
         self.assertEqual(value["errorCode"], "invalid_doctor_result")
+
+    def test_ensure_ready_is_noop_when_already_ready(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "ensure-ready"
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertTrue(value["data"]["ready"])
+        self.assertEqual(value["data"]["actions"], [])
+        self.assertEqual(value["data"]["completion"], "ready")
+
+    def test_ensure_ready_starts_an_off_target(self):
+        state = self.directory / "power-state"
+        state.write_text("off", encoding="utf-8")
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "ensure-ready",
+            extra_env={"MACHINE_CONTROL_MOCK_STATE_FILE": str(state)},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertTrue(value["data"]["ready"])
+        self.assertEqual(value["data"]["initial"]["states"]["power"], "off")
+        self.assertEqual(value["data"]["actions"][0]["id"], "start")
+        self.assertEqual(state.read_text(encoding="utf-8"), "running")
+
+    def test_ensure_ready_does_not_guess_a_running_repair(self):
+        state = self.directory / "power-state"
+        state.write_text("running", encoding="utf-8")
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "ensure-ready",
+            extra_env={
+                "MACHINE_CONTROL_MOCK_NOT_READY": "1",
+                "MACHINE_CONTROL_MOCK_STATE_FILE": str(state),
+            },
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertFalse(value["data"]["ready"])
+        self.assertEqual(value["data"]["actions"], [])
+        self.assertEqual(
+            value["data"]["errorCode"], "readiness_repair_required"
+        )
+
+    def test_candidate_validation_requires_running_ready_candidate(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "validate-candidate"
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["data"]["identityPin"], "verified")
+        self.assertFalse(value["data"]["eligibleForPrivatePromotion"])
+        self.assertEqual(value["data"]["finalPowerState"], "running")
+
+    def test_prepare_promotion_observes_ready_then_stopped_identity(self):
+        state = self.directory / "power-state"
+        state.write_text("running", encoding="utf-8")
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "prepare-promotion",
+            extra_env={"MACHINE_CONTROL_MOCK_STATE_FILE": str(state)},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertTrue(value["data"]["eligibleForPrivatePromotion"])
+        self.assertEqual(value["data"]["finalPowerState"], "off")
+        self.assertEqual(value["data"]["actions"][0]["id"], "clean-shutdown")
+        self.assertEqual(state.read_text(encoding="utf-8"), "off")
 
     def test_lifecycle_suppresses_adapter_network_output(self):
         result, value = self.run_cli(
