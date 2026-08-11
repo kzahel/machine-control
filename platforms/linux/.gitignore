@@ -1,0 +1,4 @@
+.artifacts/
+config.local
+*.pyc
+__pycache__/

@@ -1,0 +1,13 @@
+[Unit]
+Description=LinuxVM deterministic GTK control fixture
+After=graphical-session.target at-spi-dbus-bus.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/libexec/linuxvm-testbed/control_fixture.py
+Restart=on-failure
+RestartSec=1
+
+[Install]
+WantedBy=default.target

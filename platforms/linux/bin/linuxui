@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../scripts/common.sh
+source "$BIN_DIR/../scripts/common.sh"
+
+if (( $# == 0 )); then
+    cat <<'EOF' >&2
+Usage: linuxui COMMAND [ARG...]
+
+Commands: health, apps, windows, tree, find, actions, press, focus, set-value
+EOF
+    exit 2
+fi
+
+exec "$BIN_DIR/linuxvm" user-exec -- /usr/bin/python3 "$LINUXVM_UI_REMOTE" "$@"

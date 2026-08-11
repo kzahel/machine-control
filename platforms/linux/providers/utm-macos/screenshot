@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly PROVIDER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../scripts/common.sh
+source "$PROVIDER_DIR/../../scripts/common.sh"
+
+if (( $# > 1 )); then
+    printf 'Usage: linuxvm screenshot [OUTPUT.png]\n' >&2
+    exit 2
+fi
+
+if (( $# == 1 )); then
+    output="$1"
+    mkdir -p "$(dirname "$output")"
+else
+    output_dir="$(mktemp -d /tmp/linuxvm-utm.XXXXXX)"
+    output="$output_dir/screenshot.png"
+fi
+
+raw_dir="$(mktemp -d /tmp/linuxvm-utm-raw.XXXXXX)"
+raw="$raw_dir/window.png"
+trap 'rm -rf "$raw_dir"' EXIT
+
+window_info="$(/usr/bin/swift "$PROVIDER_DIR/host-control.swift" \
+    window-info "$LINUXVM_UTM_NAME")"
+window_id="$(jq -r '.id' <<<"$window_info")"
+window_width="$(jq -r '.width' <<<"$window_info")"
+window_height="$(jq -r '.height' <<<"$window_info")"
+
+/usr/sbin/screencapture -x -o -l "$window_id" "$raw"
+/usr/bin/swift "$PROVIDER_DIR/normalize-screenshot.swift" \
+    "$raw" "$output" "$LINUXVM_DISPLAY_WIDTH" "$LINUXVM_DISPLAY_HEIGHT" \
+    "$window_width" "$window_height"
+
+[[ -s "$output" ]] || { printf 'No screenshot created at %s\n' "$output" >&2; exit 1; }
+printf '%s\n' "$output"

@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../scripts/common.sh
+source "$BIN_DIR/../scripts/common.sh"
+readonly PROVIDER="$(linuxvm_provider_path)"
+
+usage() {
+    cat <<'EOF'
+Usage: linuxvm COMMAND [ARG...]
+
+Lifecycle and transport:
+  status | up | ip | suspend | reboot | shutdown | force-stop
+  guard-status | host-state      Inspect acceptance safety without guest pixels
+  exec -- COMMAND [ARG...]       Run a root command with reliable completion
+  user-exec -- COMMAND [ARG...]  Run in the active Wayland desktop session
+  gui-launch -- COMMAND [ARG...] Launch through the desktop user systemd manager
+  shell                          Stdin-forwarded root shell (no PTY)
+  push LOCAL REMOTE | pull REMOTE [LOCAL]
+  clone NEW_NAME | disposable
+
+Desktop automation:
+  ui COMMAND [ARG...]            AT-SPI semantic UI automation
+  control JSON | control-local JSON
+                                 Call the persistent resident facade
+  artifact ID [OUTPUT.png]       Fetch a bounded resident capture artifact
+  fixture [gtk|qt|browser] ACTION
+                                 Manage deterministic effect-oracle fixtures
+  deploy-ui | deploy-resident | authorize-ui | desktop-user | doctor [--json]
+  screenshot [OUTPUT.png]
+  click X Y [left|right|middle] | drag X1 Y1 X2 Y2
+  type TEXT | key NAME | scan CODE...
+
+Bootstrap:
+  bootstrap-command              Print the initial visible-terminal command
+EOF
+}
+
+desktop_user() {
+    if [[ -n "$LINUXVM_DESKTOP_USER" ]]; then
+        printf '%s\n' "$LINUXVM_DESKTOP_USER"
+        return
+    fi
+    "$PROVIDER" exec /usr/bin/bash -lc \
+        "loginctl list-sessions --no-legend | awk '\$6 == \"active\" { print \$3; exit }'"
+}
+
+user_exec() {
+    if [[ "${1:-}" == "--" ]]; then shift; fi
+    (( $# > 0 )) || { printf 'Usage: linuxvm user-exec -- COMMAND [ARG...]\n' >&2; return 2; }
+    local user uid
+    user="$(desktop_user)"
+    [[ -n "$user" ]] || { printf 'No active desktop user found\n' >&2; return 1; }
+    uid="$("$PROVIDER" exec /usr/bin/id -u "$user")"
+    "$PROVIDER" exec /usr/sbin/runuser -u "$user" -- /usr/bin/env \
+        "XDG_RUNTIME_DIR=/run/user/$uid" \
+        "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus" "$@"
+}
+
+gui_launch() {
+    if [[ "${1:-}" == "--" ]]; then shift; fi
+    (( $# > 0 )) || {
+        printf 'Usage: linuxvm gui-launch -- COMMAND [ARG...]\n' >&2
+        return 2
+    }
+
+    local user uid manager_environment unit token
+    user="$(desktop_user)"
+    [[ -n "$user" ]] || { printf 'No active desktop user found\n' >&2; return 1; }
+    uid="$("$PROVIDER" exec /usr/bin/id -u "$user")"
+
+    manager_environment="$("$PROVIDER" exec /usr/sbin/runuser -u "$user" -- \
+        /usr/bin/env \
+        "XDG_RUNTIME_DIR=/run/user/$uid" \
+        "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus" \
+        /usr/bin/systemctl --user show-environment)"
+    if ! grep -Eq '^(WAYLAND_DISPLAY|DISPLAY)=.+' <<<"$manager_environment"; then
+        printf 'The desktop user manager has no imported Wayland/X11 display; log into GNOME and retry\n' >&2
+        return 1
+    fi
+
+    token="$(date +%s).$$.$RANDOM"
+    unit="linuxvm-gui-$token.service"
+    "$PROVIDER" exec /usr/sbin/runuser -u "$user" -- /usr/bin/env \
+        "XDG_RUNTIME_DIR=/run/user/$uid" \
+        "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus" \
+        /usr/bin/systemd-run --user --quiet --collect \
+            --property=ExitType=cgroup --unit "$unit" -- "$@"
+    printf '%s\n' "$unit"
+}
+
+artifact() {
+    local artifact_id="${1:-}" output="${2:-}"
+    [[ "$artifact_id" =~ ^[0-9a-f]{8}-[0-9a-f-]{27}$ ]] || {
+        printf 'Usage: linuxvm artifact UUID [OUTPUT.png]\n' >&2
+        return 2
+    }
+    local user home remote
+    user="$(desktop_user)"
+    home="$("$PROVIDER" exec /usr/bin/getent passwd "$user" |
+        /usr/bin/awk -F: '{print $6}')"
+    [[ -n "$home" ]] || { printf 'Desktop home not found\n' >&2; return 1; }
+    remote="$home/.cache/linuxvm-testbed/artifacts/$artifact_id.png"
+    if [[ -z "$output" ]]; then
+        output="$LINUXVM_REPO_DIR/.artifacts/resident/$artifact_id.png"
+    fi
+    mkdir -p "$(dirname "$output")"
+    "$PROVIDER" pull "$remote" "$output" >/dev/null
+    printf '%s\n' "$output"
+}
+
+fixture() {
+    local user home kind action service state_directory
+    user="$(desktop_user)"
+    home="$("$PROVIDER" exec /usr/bin/getent passwd "$user" |
+        /usr/bin/awk -F: '{print $6}')"
+    [[ -n "$home" ]] || { printf 'Desktop home not found\n' >&2; return 1; }
+    kind=gtk
+    action="${1:-}"
+    if [[ "$action" =~ ^(gtk|qt|browser)$ ]]; then
+        kind="$action"
+        action="${2:-}"
+    fi
+    case "$kind" in
+        gtk)
+            service=linuxvm-fixture.service
+            state_directory=fixture
+            ;;
+        qt)
+            service=linuxvm-qt-fixture.service
+            state_directory=qt-fixture
+            ;;
+        browser)
+            service=linuxvm-browser-fixture.service
+            state_directory=browser-fixture
+            ;;
+    esac
+    case "$action" in
+        start)
+            user_exec /usr/bin/systemctl --user start "$service"
+            ;;
+        stop)
+            user_exec /usr/bin/systemctl --user stop "$service"
+            ;;
+        reset)
+            user_exec /usr/bin/systemctl --user stop "$service"
+            user_exec /usr/bin/rm -f \
+                "$home/.cache/linuxvm-testbed/$state_directory/state.json"
+            user_exec /usr/bin/systemctl --user start "$service"
+            ;;
+        state)
+            user_exec /usr/bin/cat \
+                "$home/.cache/linuxvm-testbed/$state_directory/state.json"
+            ;;
+        *)
+            printf 'Usage: linuxvm fixture [gtk|qt|browser] start|stop|reset|state\n' >&2
+            return 2
+            ;;
+    esac
+}
+
+bootstrap_command() {
+    cat <<'EOF'
+sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y qemu-guest-agent spice-vdagent python3-gi gir1.2-atspi-2.0 gnome-screenshot python3-evdev python3-pyqt5 wl-clipboard jq && sudo systemctl start qemu-guest-agent
+EOF
+}
+
+command="${1:-help}"
+if (( $# > 0 )); then shift; fi
+
+case "$command" in
+    help|-h|--help) usage ;;
+    exec)
+        [[ "${1:-}" == "--" ]] && shift
+        "$PROVIDER" exec "$@"
+        ;;
+    user-exec) user_exec "$@" ;;
+    gui-launch) gui_launch "$@" ;;
+    desktop-user) desktop_user ;;
+    ui) exec "$BIN_DIR/linuxui" "$@" ;;
+    control|control-local)
+        user_exec /usr/local/bin/machine-control "$@"
+        ;;
+    artifact) artifact "$@" ;;
+    fixture) fixture "$@" ;;
+    deploy-ui) exec "$LINUXVM_REPO_DIR/scripts/deploy-ui.sh" ;;
+    deploy-resident) exec "$LINUXVM_REPO_DIR/scripts/deploy-resident.sh" ;;
+    authorize-ui)
+        printf 'Linux AT-SPI needs no per-app authorization; run: bin/linuxvm deploy-ui\n'
+        ;;
+    doctor)
+        if [[ "${1:-}" == "--json" ]]; then
+            exec "$LINUXVM_REPO_DIR/scripts/doctor-json.sh"
+        fi
+        exec "$LINUXVM_REPO_DIR/scripts/doctor.sh"
+        ;;
+    bootstrap-command) bootstrap_command ;;
+    status|guard-status|host-state|up|ip|shell|push|pull|screenshot|click|drag|type|key|scan|permissions|window-info|suspend|reboot|shutdown|force-stop|clone|disposable)
+        exec "$PROVIDER" "$command" "$@"
+        ;;
+    *) printf 'Unknown command: %s\n' "$command" >&2; usage >&2; exit 2 ;;
+esac
