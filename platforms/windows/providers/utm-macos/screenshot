@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly PROVIDER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../scripts/common.sh
+source "$PROVIDER_DIR/../../scripts/common.sh"
+
+if [[ $# -gt 1 ]]; then
+    printf 'Usage: utm-screenshot [OUTPUT.png]\n' >&2
+    exit 2
+fi
+
+if [[ $# -eq 1 ]]; then
+    output="$1"
+    output_directory="$(dirname "$output")"
+    mkdir -p "$output_directory"
+else
+    output_directory="$(mktemp -d /tmp/winvm-utm.XXXXXX)"
+    output="$output_directory/screenshot.png"
+fi
+
+raw_directory="$(mktemp -d /tmp/winvm-utm-raw.XXXXXX)"
+raw="$raw_directory/window.png"
+trap 'rm -rf "$raw_directory"' EXIT
+
+window_info="$(/usr/bin/swift "$PROVIDER_DIR/window-id.swift" \
+    "$WINVM_UTM_NAME" --json)"
+window_id="$(jq -r '.id' <<<"$window_info")"
+window_width="$(jq -r '.width' <<<"$window_info")"
+window_height="$(jq -r '.height' <<<"$window_info")"
+
+/usr/sbin/screencapture -x -o -l "$window_id" "$raw"
+/usr/bin/swift "$PROVIDER_DIR/normalize-screenshot.swift" \
+    "$raw" "$output" "$WINVM_DISPLAY_WIDTH" "$WINVM_DISPLAY_HEIGHT" \
+    "$window_width" "$window_height"
+
+if [[ ! -s "$output" ]]; then
+    printf 'macOS did not create a normalized UTM capture at %s\n' "$output" >&2
+    exit 1
+fi
+
+printf '%s\n' "$output"

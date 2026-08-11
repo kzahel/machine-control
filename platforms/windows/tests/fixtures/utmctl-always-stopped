@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ "${1:-}" == "status" ]]; then
+    printf 'stopped\n'
+    exit 0
+fi
+
+exit 1

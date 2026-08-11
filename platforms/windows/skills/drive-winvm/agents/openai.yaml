@@ -1,0 +1,4 @@
+interface:
+  display_name: "Drive Windows VM"
+  short_description: "Start, diagnose, and control a Windows VM"
+  default_prompt: "Use $drive-winvm to start, diagnose, and control the configured Windows VM."

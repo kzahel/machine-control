@@ -1,0 +1,7 @@
+.DS_Store
+config.local
+.target.local
+.target.local.*
+.factory.local/
+*.log
+*.png

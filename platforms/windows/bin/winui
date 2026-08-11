@@ -1,0 +1,185 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../scripts/common.sh
+source "$REPO_DIR/scripts/common.sh"
+
+readonly REMOTE_CLIENT='$env:LOCALAPPDATA\winvm-testbed\ui-client.ps1'
+readonly REQUEST_TIMEOUT_MS="${WINUI_TIMEOUT_MS:-120000}"
+
+usage() {
+    cat <<'EOF'
+Usage: winui COMMAND [ARG...]
+
+Commands:
+  health                         Show relay/session health
+  windows                        List visible Windows windows as JSON
+  launch EXE [ARG...]            Launch a GUI process in session 1
+  screenshot TARGET-ARG...       Capture a window/element to a local PNG
+  inspect|search|invoke|click    Run the matching winapp ui command
+  set-value|get-value|focus      Run the matching winapp ui command
+  scroll|scroll-into-view        Run the matching winapp ui command
+  wait-for|get-property          Run the matching winapp ui command
+  get-focused|list-windows       Run the matching winapp ui command
+  ui ARG...                      Run arbitrary winapp ui arguments
+  winapp ARG...                  Run arbitrary winapp arguments
+  relay-stop                     Ask the session-1 relay to exit
+
+Examples:
+  winui windows
+  winui launch notepad.exe
+  winui inspect -a notepad --interactive
+  winui invoke Close -a notepad
+  winui screenshot -a notepad
+
+Use `winvm screenshot` to capture the entire visible provider window.
+EOF
+}
+
+require_tools() {
+    local tool
+    for tool in jq base64 ssh; do
+        winvm_require_command "$tool"
+    done
+}
+
+make_request() {
+    local operation="$1"
+    shift
+    jq -cn \
+        --arg op "$operation" \
+        --argjson timeout "$REQUEST_TIMEOUT_MS" \
+        --args \
+        '{op:$op, timeout_ms:$timeout, arguments:$ARGS.positional}' \
+        -- "$@"
+}
+
+send_request() {
+    local request="$1"
+    local request_base64 response ssh_exit
+    request_base64="$(printf '%s' "$request" | base64 | tr -d '\n')"
+
+    set +e
+    response="$(ssh \
+        -o BatchMode=yes \
+        "$WINVM_SSH_HOST" \
+        "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"$REMOTE_CLIENT\" -RequestBase64 $request_base64 -PipeName $WINVM_UI_PIPE_NAME")"
+    ssh_exit=$?
+    set -e
+
+    if ! printf '%s' "$response" | jq -e . >/dev/null 2>&1; then
+        printf 'UI relay returned invalid JSON (ssh exit %s):\n%s\n' "$ssh_exit" "$response" >&2
+        return 1
+    fi
+
+    printf '%s\n' "$response"
+}
+
+response_error() {
+    local response="$1"
+    local message stdout stderr
+    message="$(printf '%s' "$response" | jq -r '.error // empty')"
+    stdout="$(printf '%s' "$response" | jq -r '.stdout // empty')"
+    stderr="$(printf '%s' "$response" | jq -r '.stderr // empty')"
+
+    if [[ -n "$message" ]]; then printf '%s\n' "$message" >&2; fi
+    if [[ -n "$stdout" ]]; then printf '%s\n' "$stdout" >&2; fi
+    if [[ -n "$stderr" ]]; then printf '%s\n' "$stderr" >&2; fi
+    return "$(printf '%s' "$response" | jq -r '.exit_code // 1')"
+}
+
+print_winapp_response() {
+    local response="$1"
+    if ! printf '%s' "$response" | jq -e '.ok == true' >/dev/null; then
+        response_error "$response"
+        return $?
+    fi
+
+    local stdout stderr
+    stdout="$(printf '%s' "$response" | jq -r '.stdout // empty')"
+    stderr="$(printf '%s' "$response" | jq -r '.stderr // empty')"
+    if [[ -n "$stdout" ]]; then printf '%s\n' "$stdout"; fi
+    if [[ -n "$stderr" ]]; then printf '%s\n' "$stderr" >&2; fi
+}
+
+capture_response() {
+    local response="$1"
+    if ! printf '%s' "$response" | jq -e '.ok == true and (.data_base64 | length > 0)' >/dev/null; then
+        response_error "$response"
+        return $?
+    fi
+
+    local capture_directory capture_path
+    capture_directory="$(mktemp -d /tmp/winvm-ui.XXXXXX)"
+    capture_path="$capture_directory/screenshot.png"
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        printf '%s' "$response" | jq -r '.data_base64' | base64 -D > "$capture_path"
+    else
+        printf '%s' "$response" | jq -r '.data_base64' | base64 --decode > "$capture_path"
+    fi
+    printf '%s\n' "$capture_path"
+}
+
+require_tools
+"$REPO_DIR/bin/winvm" assert-target connect >/dev/null
+command="${1:-}"
+if [[ -n "$command" ]]; then
+    shift
+fi
+
+case "$command" in
+    health)
+        response="$(send_request "$(make_request health)")"
+        if ! printf '%s' "$response" | jq -e '.ok == true' >/dev/null; then
+            response_error "$response"
+            exit $?
+        fi
+        printf '%s' "$response" | jq .
+        ;;
+    windows)
+        response="$(send_request "$(make_request winapp ui list-windows --json)")"
+        print_winapp_response "$response"
+        ;;
+    launch)
+        if [[ $# -lt 1 ]]; then
+            usage >&2
+            exit 2
+        fi
+        response="$(send_request "$(make_request launch "$@")")"
+        if ! printf '%s' "$response" | jq -e '.ok == true' >/dev/null; then
+            response_error "$response"
+            exit $?
+        fi
+        printf '%s' "$response" | jq .
+        ;;
+    screenshot)
+        if [[ $# -lt 1 ]]; then
+            printf 'A WinApp target is required; use -a APP or -w HWND. For the whole VM, use: winvm screenshot\n' >&2
+            exit 2
+        fi
+        response="$(send_request "$(make_request capture "$@")")"
+        capture_response "$response"
+        ;;
+    inspect|search|invoke|click|set-value|get-value|focus|scroll|scroll-into-view|wait-for|get-property|get-focused|list-windows)
+        response="$(send_request "$(make_request winapp ui "$command" "$@")")"
+        print_winapp_response "$response"
+        ;;
+    ui)
+        response="$(send_request "$(make_request winapp ui "$@")")"
+        print_winapp_response "$response"
+        ;;
+    winapp)
+        response="$(send_request "$(make_request winapp "$@")")"
+        print_winapp_response "$response"
+        ;;
+    relay-stop)
+        response="$(send_request "$(make_request shutdown)")"
+        printf '%s' "$response" | jq .
+        ;;
+    *)
+        usage >&2
+        exit 2
+        ;;
+esac

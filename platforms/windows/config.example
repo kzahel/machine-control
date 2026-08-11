@@ -1,0 +1,36 @@
+# Copy this file to config.local only when the defaults do not match your VM.
+# config.local is ignored by Git. Environment variables override these values.
+
+WINVM_PROVIDER=utm-macos
+WINVM_GUEST_DRIVER=windows
+WINVM_UTM_NAME=Windows
+# Mutating commands fail closed until both values identify the configured VM.
+# Obtain the UUID locally with: bin/winvm target-id
+# Roles are source, candidate, or seal. Keep the real UUID in config.local.
+WINVM_EXPECTED_UTM_ID=
+WINVM_TARGET_ROLE=unclassified
+
+# Source mutation and a persistent retained-seal boot are exceptional recovery
+# actions. Prefer one-command environment overrides instead of storing these.
+WINVM_ALLOW_SOURCE_MUTATION=0
+WINVM_ALLOW_PERSISTENT_SEAL_BOOT=0
+WINVM_UTMCTL=/Applications/UTM.app/Contents/MacOS/utmctl
+WINVM_DISPLAY_WIDTH=1399
+WINVM_DISPLAY_HEIGHT=985
+WINVM_SSH_HOST=winvm
+WINVM_SSH_PORT=22
+WINVM_BOOT_TIMEOUT=120
+WINVM_SHUTDOWN_TIMEOUT=120
+WINVM_GUEST_SHUTDOWN_GRACE=30
+
+# auto: report known UTM/QEMU blockers and use guest shutdown unless suspend is
+# positively enabled. Use enabled only after validating suspend for the exact
+# VM configuration; use disabled to declare a known provider limitation.
+WINVM_SUSPEND_POLICY=auto
+
+# Prohibit host UTM-window capture and input during ordinary acceptance.
+WINVM_FORBID_OUTER_UI=false
+
+# These normally do not need to change.
+WINVM_UI_PIPE_NAME=winvm-ui
+WINVM_UI_TASK_NAME='WinVM UI Relay'
