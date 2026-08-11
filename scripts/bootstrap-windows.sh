@@ -5,7 +5,9 @@ set -euo pipefail
 usage() {
     cat <<'EOF'
 Usage: bootstrap-windows.sh (--testbed PATH | --allow-unattested-target)
-                            [--check-target] SSH_TARGET [win-arm64|win-x64]
+                            [--check-target]
+                            [--profile development|runtime]
+                            SSH_TARGET [win-arm64|win-x64]
 
 Build, verify, transfer, install, and probe MachineControl on a testbed-ready
 Windows target. When the runtime identifier is omitted, target architecture is
@@ -15,13 +17,16 @@ detected through PowerShell over the authenticated SSH carrier.
 installation on a candidate and binds it to SSH_TARGET. The conspicuous
 --allow-unattested-target escape hatch is for explicitly selected physical or
 non-integrated targets. --check-target validates the assertion without making
-or connecting to the target.
+or connecting to the target. The default development profile installs and
+verifies Python 3 and the .NET 8 SDK before installing the resident runtime;
+runtime installs only the resident package.
 EOF
 }
 
 testbed_root=""
 allow_unattested=0
 check_target_only=0
+profile=development
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --testbed)
@@ -36,6 +41,15 @@ while [[ $# -gt 0 ]]; do
         --check-target)
             check_target_only=1
             shift
+            ;;
+        --profile)
+            if [[ $# -lt 2 ||
+                ( "$2" != development && "$2" != runtime ) ]]; then
+                usage >&2
+                exit 2
+            fi
+            profile="$2"
+            shift 2
             ;;
         --help|-h)
             usage
@@ -149,6 +163,7 @@ POWERSHELL
     esac
 fi
 readonly runtime_id="$requested_rid"
+readonly bootstrap_profile="$profile"
 
 "$repo_root/scripts/publish-windows.sh" "$runtime_id"
 
@@ -228,6 +243,7 @@ $stage = Join-Path $env:USERPROFILE '__REMOTE_STAGE__'
 $archive = Join-Path $stage 'runtime.zip'
 $expanded = Join-Path $stage 'expanded'
 $runtimeId = '__RUNTIME_ID__'
+$profile = '__BOOTSTRAP_PROFILE__'
 $result = $null
 try {
     Expand-Archive -LiteralPath $archive -DestinationPath $expanded
@@ -246,6 +262,22 @@ try {
     }
     if (-not (Test-Path -LiteralPath (Join-Path $providerRoot 'LICENSE.md'))) {
         throw 'transferred provider license is absent'
+    }
+
+    $development = $null
+    if ($profile -eq 'development') {
+        $developmentScript = Join-Path $source `
+            'support\bootstrap-development.ps1'
+        $developmentJson = & powershell.exe -NoLogo -NoProfile `
+            -NonInteractive -ExecutionPolicy Bypass `
+            -File $developmentScript | Out-String
+        if ($LASTEXITCODE -ne 0) {
+            throw 'development tool bootstrap failed'
+        }
+        $development = $developmentJson | ConvertFrom-Json
+        if (-not $development.healthy) {
+            throw 'development tool verification failed'
+        }
     }
 
     $installer = Join-Path $stage 'install-windows.ps1'
@@ -310,6 +342,8 @@ try {
     $result = [ordered]@{
         schema = 'machine-control-bootstrap/v0'
         installed = $true
+        profile = $profile
+        development = $development
         runtime_id = $runtimeId
         service_state = $service.State
         service_start_mode = $service.StartMode
@@ -333,6 +367,7 @@ $result | ConvertTo-Json -Compress -Depth 10
 POWERSHELL
 install_script="${install_script//__REMOTE_STAGE__/$remote_stage_name}"
 install_script="${install_script//__RUNTIME_ID__/$runtime_id}"
+install_script="${install_script//__BOOTSTRAP_PROFILE__/$bootstrap_profile}"
 install_script="${install_script//__RUNTIME_DIGEST__/$runtime_digest}"
 remote_powershell "$install_script"
 remote_stage_created=0

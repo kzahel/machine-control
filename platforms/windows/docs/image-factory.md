@@ -138,9 +138,21 @@ drive shape differs.
 After Windows first-logon bootstrap completes, verify key-only SSH, remove the
 one-use answer media and Windows ISO with `bin/winvm factory-detach-media`
 while the candidate is stopped, rotate the setup credential, and install
-MachineControl through its UUID-bound bootstrap. Detachment removes every
-removable drive through UTM's stopped configuration API and independently
-confirms that none remain.
+the development appliance through its UUID-bound bootstrap:
+
+```bash
+../../scripts/bootstrap-windows.sh --testbed . \
+  --profile development winvm
+bin/winvm post-update audit --json
+```
+
+The unattended first-logon script makes the installed QEMU guest-agent service
+automatic and establishes hardened key-only SSH. Authenticated controller
+bootstrap then acquires and verifies public development packages and installs
+the resident; this avoids placing mutable network packages or credentials on
+one-use factory media. The runtime-only profile remains explicit. Detachment
+removes every removable drive through UTM's stopped configuration API and
+independently confirms that none remain.
 
 ## Generalize and export
 

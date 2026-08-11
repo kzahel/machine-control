@@ -128,7 +128,7 @@ role_allows_operation() {
             [[ "$role" == "candidate" || "$role" == "seal" ]] ||
                 { [[ "$role" == "source" ]] && source_mutation_authorized; }
             ;;
-        stage-bootstrap|deploy-ui|product-install|generalize|input|force-stop|factory-detach-installer|factory-detach-media)
+        stage-bootstrap|deploy-ui|product-install|post-update-repair|generalize|input|force-stop|factory-detach-installer|factory-detach-media)
             [[ "$role" == "candidate" ]] ||
                 { [[ "$role" == "source" ]] && source_mutation_authorized; }
             ;;
@@ -844,6 +844,53 @@ Then configure the SSH alias and run: bin/winvm doctor
 EOF
 }
 
+post_update_guest_agent() {
+    local profile="${1:-}" nonce="${2:-}"
+    if [[ ( "$profile" != "Development" && "$profile" != "Runtime" ) ||
+        ! "$nonce" =~ ^[A-Za-z0-9-]{8,64}$ ]]; then
+        printf 'Usage: provider.sh post-update-guest-agent Development|Runtime NONCE\n' >&2
+        return 2
+    fi
+    winvm_require_command jq || return
+    ensure_running
+
+    local guest_script="C:\\Users\\Public\\winvm-post-update-$nonce.ps1"
+    local guest_report="C:\\ProgramData\\MachineControl\\reports\\post-update-$nonce.json"
+    local pulled_report
+    pulled_report="$(mktemp "${TMPDIR:-/tmp}/winvm-post-update.XXXXXX")"
+
+    "$WINVM_UTMCTL" file push "$(utm_target_identifier)" \
+        "$guest_script" < \
+        "$WINVM_REPO_DIR/guests/windows/post-update.ps1"
+
+    # UTM guest execution has returned false success on an earlier appliance.
+    # Ignore this delivery result and accept only a fresh nonce-bound report
+    # retrieved independently through guest-agent file transfer.
+    "$WINVM_UTMCTL" exec "$(utm_target_identifier)" --cmd \
+        powershell.exe -NoLogo -NoProfile -NonInteractive \
+        -ExecutionPolicy Bypass -File "$guest_script" \
+        -Mode Repair -Profile "$profile" -Nonce "$nonce" \
+        -ReportPath "$guest_report" >/dev/null 2>&1 || true
+
+    local deadline=$((SECONDS + WINVM_POST_UPDATE_REPORT_TIMEOUT))
+    while (( SECONDS < deadline )); do
+        if "$WINVM_UTMCTL" file pull "$(utm_target_identifier)" \
+                "$guest_report" >"$pulled_report" 2>/dev/null &&
+            jq -e --arg nonce "$nonce" \
+                '.schema == "machine-control-windows-post-update/v0" and
+                 .mode == "repair" and .nonce == $nonce' \
+                "$pulled_report" >/dev/null; then
+            cat "$pulled_report"
+            rm -f -- "$pulled_report"
+            return 0
+        fi
+        sleep 2
+    done
+    rm -f -- "$pulled_report"
+    printf 'Guest-agent repair produced no fresh attested report.\n' >&2
+    return 1
+}
+
 require_utmctl
 command="${1:-}"
 if [[ -n "$command" ]]; then shift; fi
@@ -862,6 +909,7 @@ case "$command" in
     key) require_outer_ui_allowed; assert_target input >/dev/null; input_key "$@" ;;
     scan) require_outer_ui_allowed; assert_target input >/dev/null; input_scan_codes "$@" ;;
     stage-bootstrap) assert_target stage-bootstrap >/dev/null; stage_bootstrap "$@" ;;
+    post-update-guest-agent) assert_target post-update-repair >/dev/null; post_update_guest_agent "$@" ;;
     seal) assert_target seal >/dev/null; vm_seal "$@" ;;
     disposable-up) assert_target disposable-up >/dev/null; vm_disposable_up "$@" ;;
     export-image) assert_target export-image >/dev/null; vm_export_image "$@" ;;

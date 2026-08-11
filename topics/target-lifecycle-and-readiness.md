@@ -187,7 +187,11 @@ their own normalized projections exist.
 
 - Add narrowly named, idempotent inner repair operations only where live
   evidence establishes an honest precondition and effect contract. Start-only
-  readiness remains the portable default.
+  readiness remains the portable default. Windows Tactical 020 is the first
+  platform-owned implementation: it is deliberately separate from common
+  `ensure-ready`, candidate-only for mutation, and prohibited from credentials,
+  outer input, force-stop, missing-component installation, or pending-reboot
+  suppression.
 - Add authorization and discovery above the current local registry without
   turning a logical alias into bearer authority.
 - Extend the device projection to ChromeOS and Steam Deck where it adds honest

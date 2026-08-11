@@ -11,6 +11,13 @@ grep -Fq "SecurityIdentifier]::new('S-1-5-18')" \
     "$REPO_DIR/guests/windows/bootstrap-openssh.ps1"
 grep -Fq "Where-Object Name -Match '^ssh_host_.*_key$'" \
     "$REPO_DIR/guests/windows/bootstrap-openssh.ps1"
+grep -Fq "'machine-control-windows-post-update/v0'" \
+    "$REPO_DIR/guests/windows/post-update.ps1"
+grep -Fq "'Python.Python.3.13'" \
+    "$REPO_DIR/guests/windows/bootstrap-development.ps1"
+grep -Fq "'Microsoft.DotNet.SDK.8'" \
+    "$REPO_DIR/guests/windows/bootstrap-development.ps1"
+grep -Fq 'post-update.ps1' "$REPO_DIR/../../scripts/publish-windows.sh"
 temporary="$(mktemp -d /tmp/winvm-smoke.XXXXXX)"
 trap 'rm -rf -- "$temporary"' EXIT
 
@@ -26,6 +33,7 @@ scripts=(
     "$REPO_DIR/scripts/generalize-windows.sh"
     "$REPO_DIR/scripts/image-factory.sh"
     "$REPO_DIR/scripts/image-manifest.sh"
+    "$REPO_DIR/scripts/post-update.sh"
     "$REPO_DIR/providers/utm-macos/provider.sh"
     "$REPO_DIR/providers/utm-macos/workspace.sh"
     "$REPO_DIR/providers/utm-macos/screenshot"
@@ -42,6 +50,7 @@ help_output="$(WINVM_UTM_NAME='Smoke Test VM' "$REPO_DIR/bin/winvm" help)"
 [[ "$help_output" == *'doctor [--json]'* ]]
 [[ "$help_output" == *'control-local JSON'* ]]
 [[ "$help_output" == *'artifact ID [PATH]'* ]]
+[[ "$help_output" == *'post-update audit|repair'* ]]
 [[ "$help_output" == *'capabilities'* ]]
 [[ "$help_output" == *'down'* ]]
 [[ "$help_output" == *'seal'* ]]
@@ -249,12 +258,17 @@ candidate_json="$(assert_target candidate up --json)"
 [[ "$(jq -r '.authorized' <<< "$candidate_json")" == 'true' ]]
 [[ "$(jq -r '.transport.ssh_alias' <<< "$candidate_json")" == 'winvm' ]]
 assert_target candidate product-install >/dev/null
+assert_target candidate post-update-repair >/dev/null
 assert_target candidate generalize >/dev/null
 assert_target candidate export-image >/dev/null
 assert_target candidate factory-detach-installer >/dev/null
 assert_target candidate factory-detach-media >/dev/null
 if assert_target seal product-install >/dev/null 2>&1; then
     printf 'Seal unexpectedly authorized persistent product installation.\n' >&2
+    exit 1
+fi
+if assert_target seal post-update-repair >/dev/null 2>&1; then
+    printf 'Seal unexpectedly authorized post-update repair.\n' >&2
     exit 1
 fi
 if assert_target seal factory-detach-media >/dev/null 2>&1; then
@@ -307,6 +321,54 @@ env "${identity_provider_env[@]}" \
     WINVM_TARGET_ROLE=source \
     WINVM_ALLOW_SOURCE_MUTATION=1 \
     "$provider" assert-target up >/dev/null
+
+post_update_environment=(
+    WINVM_CONFIG_FILE=/dev/null
+    WINVM_TARGET_FILE="$temporary/absent-post-update-target"
+    WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-target-id"
+    WINVM_EXPECTED_UTM_ID=11111111-2222-3333-4444-555555555555
+    WINVM_TARGET_ROLE=candidate
+    WINVM_SSH_BIN="$REPO_DIR/tests/fixtures/ssh-post-update"
+    WINVM_POST_UPDATE_DOCTOR="$REPO_DIR/tests/fixtures/doctor-ready"
+    WINVM_TEST_SSH_READY_FILE="$temporary/post-update-ssh-ready"
+    WINVM_TEST_QGA_REPORT_FILE="$temporary/post-update-qga-report"
+)
+touch "$temporary/post-update-ssh-ready"
+post_update_audit="$(env "${post_update_environment[@]}" \
+    WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-post-update" \
+    "$REPO_DIR/bin/winvm" post-update audit --json)"
+jq -e '.operation == "audit" and .route == "key_only_ssh" and
+    .healthy == true and .reboot.requested == false and
+    .post_update.mode == "audit" and .doctor.ready == true' \
+    <<<"$post_update_audit" >/dev/null
+
+rm -f -- "$temporary/post-update-ssh-ready" \
+    "$temporary/post-update-qga-report"
+post_update_repair="$(env "${post_update_environment[@]}" \
+    WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-post-update" \
+    "$REPO_DIR/bin/winvm" post-update repair --json)"
+jq -e '.operation == "repair" and .route == "utm_guest_agent" and
+    .healthy == true and .post_update.mode == "repair" and
+    .doctor.ready == true' <<<"$post_update_repair" >/dev/null
+
+rm -f -- "$temporary/post-update-qga-report"
+if env "${post_update_environment[@]}" \
+        WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-post-update" \
+        WINVM_POST_UPDATE_REPORT_TIMEOUT=1 \
+        WINVM_TEST_QGA_WRONG_NONCE=1 \
+        "$provider" post-update-guest-agent Development fixednonce \
+        >/dev/null 2>&1; then
+    printf 'Guest-agent repair accepted a mismatched report nonce.\n' >&2
+    exit 1
+fi
+
+if env "${post_update_environment[@]}" \
+        WINVM_UTMCTL=/usr/bin/true \
+        "$REPO_DIR/bin/winvm" post-update audit --reboot \
+        >/dev/null 2>&1; then
+    printf 'Post-update audit unexpectedly accepted reboot.\n' >&2
+    exit 1
+fi
 if assert_target source delete >/dev/null 2>&1; then
     printf 'Source delete unexpectedly passed role policy.\n' >&2
     exit 1

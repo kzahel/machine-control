@@ -21,6 +21,14 @@ $guestToolsProcess = Start-Process -FilePath $guestTools[0].FullName `
 if ($guestToolsProcess.ExitCode -notin @(0, 3010)) {
     throw "UTM guest-tools installer exited with $($guestToolsProcess.ExitCode)"
 }
+$guestAgent = Get-Service -Name qemu-ga -ErrorAction SilentlyContinue
+if (-not $guestAgent) {
+    throw 'UTM guest tools did not install the QEMU guest agent service'
+}
+Set-Service -Name qemu-ga -StartupType Automatic
+if ($guestAgent.Status -ne 'Running') {
+    Start-Service -Name qemu-ga
+}
 
 $programDataRoot = Join-Path $env:ProgramData 'WinVM-Factory'
 New-Item -ItemType Directory -Force -Path $programDataRoot | Out-Null
@@ -36,6 +44,9 @@ if ($LASTEXITCODE -ne 0) {
     completed = $true
     guest_tools_installer = $guestTools[0].Name
     guest_tools_exit_code = $guestToolsProcess.ExitCode
+    guest_agent_state = (Get-Service -Name qemu-ga).Status.ToString()
+    guest_agent_start_mode = (Get-CimInstance Win32_Service `
+        -Filter "Name='qemu-ga'").StartMode
     ssh_bootstrap_report = $report
     seed_removal_required = $true
 } | ConvertTo-Json | Set-Content -LiteralPath `

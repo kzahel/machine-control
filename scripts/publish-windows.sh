@@ -40,6 +40,12 @@ for fixture in MachineControl.Fixture MachineControl.ElevatedFixture; do
     --output "$staged_root/fixtures"
 done
 
+mkdir -p "$staged_root/support"
+cp -- \
+  "$repo_root/platforms/windows/guests/windows/post-update.ps1" \
+  "$repo_root/platforms/windows/guests/windows/bootstrap-development.ps1" \
+  "$staged_root/support/"
+
 if [[ "$publish_root" != "$publish_parent/$runtime_id" ]]; then
   printf 'Refusing unexpected publish path: %s\n' "$publish_root" >&2
   exit 1

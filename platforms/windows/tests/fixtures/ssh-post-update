@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+
+import base64
+import json
+import os
+from pathlib import Path
+import re
+import sys
+
+
+arguments = sys.argv[1:]
+ready_file = Path(os.environ["WINVM_TEST_SSH_READY_FILE"])
+if arguments and arguments[-1] == "exit":
+    raise SystemExit(0 if ready_file.exists() else 255)
+if not ready_file.exists():
+    raise SystemExit(255)
+
+command = arguments[-1] if arguments else ""
+if command.startswith("shutdown.exe /r"):
+    raise SystemExit(0)
+if "EncodedCommand " not in command:
+    raise SystemExit(0)
+
+encoded = command.rsplit("EncodedCommand ", 1)[1]
+script = base64.b64decode(encoded).decode("utf-16le")
+if "post-update.ps1" not in script:
+    raise SystemExit(0)
+
+nonce_match = re.search(r"-Nonce '([a-z0-9-]+)'", script)
+mode_match = re.search(r"-Mode '(Audit|Repair)'", script)
+profile_match = re.search(r"-Profile '(Development|Runtime)'", script)
+if not (nonce_match and mode_match and profile_match):
+    raise SystemExit(2)
+
+print(json.dumps({
+    "schema": "machine-control-windows-post-update/v0",
+    "nonce": nonce_match.group(1),
+    "mode": mode_match.group(1).lower(),
+    "profile": profile_match.group(1).lower(),
+    "healthy": True,
+    "reboot_required": False,
+    "boot_epoch_utc": "2026-01-01T00:00:00.0000000Z",
+    "initial_healthy": True,
+    "checks": [],
+    "repairs": [],
+}, separators=(",", ":")))

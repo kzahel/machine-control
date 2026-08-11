@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+jq -cn '{
+    schema:"machine-control-doctor/v0",
+    ready:true,
+    target:{platform:"windows",profile:"windows-11-desktop"},
+    states:{
+        power:"running",administration:"ready",desktop:"unlocked",
+        resident:"ready",semantic:"ready",capture:"ready",input:"ready",
+        outer:"prohibited"
+    },
+    checks:[]
+}'

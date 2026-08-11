@@ -15,6 +15,16 @@ result="$($BOOTSTRAP --testbed "$FIXTURE_TESTBED" \
     --check-target fixture-target win-arm64)"
 [[ "$result" == 'target assertion passed' ]]
 
+runtime_result="$($BOOTSTRAP --testbed "$FIXTURE_TESTBED" \
+    --check-target --profile runtime fixture-target win-x64)"
+[[ "$runtime_result" == 'target assertion passed' ]]
+
+if "$BOOTSTRAP" --testbed "$FIXTURE_TESTBED" --check-target \
+        --profile unsupported fixture-target win-arm64 >/dev/null 2>&1; then
+    printf 'Bootstrap unexpectedly accepted an unknown profile.\n' >&2
+    exit 1
+fi
+
 if "$BOOTSTRAP" --testbed "$FIXTURE_TESTBED" \
     --check-target wrong-target win-arm64 >/dev/null 2>&1; then
     printf 'Bootstrap unexpectedly accepted a mismatched SSH alias.\n' >&2

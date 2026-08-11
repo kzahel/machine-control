@@ -20,6 +20,8 @@ Start here:
   control JSON           Call the installed target-resident facade
   control-local JSON     Call the same installed guest-local CLI
   artifact ID [PATH]     Fetch one bounded resident capture artifact
+  post-update audit|repair [--reboot]
+                         Audit or restore bounded startup invariants
 
 Setup:
   stage-bootstrap [KEY]  Stage OpenSSH bootstrap files through the provider
@@ -126,6 +128,7 @@ case "$command" in
         assert_target connect
         exec "$REPO_DIR/scripts/fetch-artifact.sh" "$@"
         ;;
+    post-update) exec "$REPO_DIR/scripts/post-update.sh" "$@" ;;
     deploy-ui) assert_target deploy-ui; exec "$REPO_DIR/scripts/deploy-ui.sh" "$@" ;;
     stage-bootstrap) provider stage-bootstrap "$@" ;;
     ssh-config) print_ssh_config "$@" ;;

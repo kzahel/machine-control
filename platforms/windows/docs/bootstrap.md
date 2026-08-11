@@ -92,7 +92,46 @@ ssh -vv \
 
 The expected result is `Permission denied (publickey)`.
 
-## 4. Install Interactive UI Automation
+## 4. Install the Resident and Development Profile
+
+From the Windows platform directory, use the UUID-attested controller
+bootstrap:
+
+```bash
+../../scripts/bootstrap-windows.sh --testbed . \
+  --profile development winvm
+```
+
+The `development` profile idempotently installs Python 3 and the .NET 8 SDK
+through their exact WinGet package identifiers, verifies both commands, then
+builds, transfers, transactionally installs, and probes the MachineControl
+resident. Use `--profile runtime` only when the appliance intentionally should
+not build the repository. Both profiles install the guest-native post-update
+support scripts beside the runtime.
+
+Audit the installed startup contract without changing the guest:
+
+```bash
+bin/winvm post-update audit --json
+```
+
+After a Windows or package update, an explicitly selected candidate may run
+the bounded idempotent repair and an optional reboot proof:
+
+```bash
+bin/winvm post-update repair --json
+bin/winvm post-update repair --reboot --json
+```
+
+Repair prefers key-only SSH. If SSH is unavailable, the UTM provider may stage
+the same guest-native script and execute it through the QEMU guest agent. UTM's
+process result is not trusted: the controller requires a fresh caller-nonce
+report pulled through the independent file channel and then requires SSH plus
+the full doctor to return. Repair never enters a credential, uses the UTM
+window, force-stops the VM, installs an absent component, or clears a
+pending-reboot marker.
+
+## 5. Install the Optional WinApp Comparison Relay
 
 Keep the Windows desktop logged in, then run:
 
@@ -103,9 +142,10 @@ bin/winvm doctor
 
 The deployer installs `Microsoft.WinAppCli`, copies the relay files to the
 current Windows user's Local AppData, and registers `WinVM UI Relay` as a
-non-elevated interactive-logon scheduled task.
+non-elevated interactive-logon scheduled task. This legacy differential route
+is optional; the MachineControl resident owns the ordinary interactive helper.
 
-## 5. Remove Bootstrap Staging Files
+## 6. Remove Bootstrap Staging Files
 
 After verification:
 
@@ -123,8 +163,9 @@ Remove-Item -Force -ErrorAction SilentlyContinue -LiteralPath @(
 
 On the original guest, `utmctl ip-address`, `file push`, and `file pull` worked,
 while `utmctl exec` returned success without launching a process or creating
-probe files. Verify side effects before trusting guest-agent execution. This
-project deliberately switches to SSH rather than relying on it.
+probe files. Ordinary work deliberately uses SSH. The bounded post-update
+fallback accepts guest-agent execution only when a fresh nonce-bound report is
+independently pulled and SSH plus the full resident doctor subsequently return.
 
 ### The stock OpenSSH firewall rule is insufficient
 
@@ -152,10 +193,11 @@ in this repository or command output.
 ## Recovery Order
 
 1. `bin/winvm doctor`
-2. PowerShell over `bin/winvm ssh`
-3. Guest-agent IP discovery and file transfer
-4. `bin/winvm screenshot`, `type`, `key`, `scan`, and `click`
-5. The smallest necessary manual action in UTM
+2. `bin/winvm post-update audit --json`
+3. `bin/winvm post-update repair --json` on an exact candidate
+4. PowerShell over `bin/winvm ssh`
+5. Guest-agent IP discovery and file transfer
+6. Explicit outer recovery only when separately authorized
 
 Do not otherwise weaken authentication or disable Windows security controls to
 recover access. See [auto-logon.md](auto-logon.md) when the user explicitly

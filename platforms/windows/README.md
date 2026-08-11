@@ -76,16 +76,31 @@ print and add the SSH entry, replacing the username:
 bin/winvm ssh-config WINDOWS_USER
 ```
 
-After `ssh winvm` works and the Windows desktop is logged in:
+After `ssh winvm` works, install the target-resident runtime and reproducible
+development profile:
+
+```bash
+../../scripts/bootstrap-windows.sh --testbed . \
+  --profile development winvm
+bin/winvm post-update audit --json
+bin/winvm doctor
+```
+
+The default `development` profile installs and verifies Python 3 and the .NET
+8 SDK before transactionally installing the resident. Select `--profile
+runtime` for an appliance that intentionally omits build tooling.
+
+The older WinApp comparison relay remains available when a differential test
+specifically needs it:
 
 ```bash
 bin/winvm deploy-ui
 bin/winvm doctor
 ```
 
-The deployment installs Microsoft WinApp CLI with `winget`, copies the relay,
-registers its interactive-logon scheduled task, and verifies the named-pipe
-path from SSH session 0 to the desktop session.
+That optional deployment installs Microsoft WinApp CLI with `winget`, copies
+the relay, registers its interactive-logon scheduled task, and verifies its
+named-pipe path. It is not required by the installed MachineControl resident.
 
 See [docs/bootstrap.md](docs/bootstrap.md) for the complete fresh-guest and
 recovery procedure. See [docs/auto-logon.md](docs/auto-logon.md) for the
@@ -99,6 +114,9 @@ factory creation, Sysprep generalization, and stopped UTM export.
 bin/winvm doctor                  # Check every control layer
 bin/winvm doctor --json           # Minimized common readiness projection
 bin/winvm candidate-status --json # Minimized role/identity/power assertion
+bin/winvm post-update audit --json # Read-only startup/toolchain/readiness audit
+bin/winvm post-update repair --json # Bounded candidate-only inner repair
+bin/winvm post-update repair --reboot --json # Repair and prove new boot epoch
 bin/winvm assert-target connect --json # Verify UUID pin and role policy
 bin/winvm up                      # Start/resume and print the guest IP
 bin/winvm capabilities --json     # Inspect lifecycle support and down policy
@@ -205,8 +223,16 @@ nor boots or clones a seal.
 
 ## What Survives a Reboot
 
-- OpenSSH starts automatically and remains usable before desktop login.
-- The UI relay starts at interactive user login.
+- The QEMU guest agent and hardened OpenSSH services start automatically;
+  OpenSSH remains usable before desktop login.
+- The MachineControl service starts automatically and creates its Medium
+  interactive helper after the dedicated appliance logs in.
+- An installed legacy WinApp relay starts at interactive user login, but it is
+  optional and is not the ordinary resident route.
+- `post-update audit` verifies these claims after OS or package updates without
+  starting a stopped target. `post-update repair` may restore only the declared
+  installed-service, SSH-policy, and firewall invariants; it does not install
+  missing components or clear a pending reboot.
 - `winvm down` uses suspend only when the provider positively declares it
   available. Known UTM/QEMU blockers such as GPU displays and NVMe disks select
   a clean guest shutdown instead.

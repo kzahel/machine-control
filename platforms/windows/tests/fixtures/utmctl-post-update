@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+command="${1:-}"
+shift || true
+case "$command" in
+    status)
+        printf 'started\n'
+        ;;
+    file)
+        operation="${1:-}"
+        shift || true
+        case "$operation" in
+            push) cat >/dev/null ;;
+            pull)
+                [[ -f "$WINVM_TEST_QGA_REPORT_FILE" ]]
+                cat "$WINVM_TEST_QGA_REPORT_FILE"
+                ;;
+            *) exit 2 ;;
+        esac
+        ;;
+    exec)
+        nonce=""
+        profile=""
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -Nonce) nonce="$2"; shift 2 ;;
+                -Profile) profile="$2"; shift 2 ;;
+                *) shift ;;
+            esac
+        done
+        case "$profile" in
+            Development) normalized_profile=development ;;
+            Runtime) normalized_profile=runtime ;;
+            *) exit 2 ;;
+        esac
+        if [[ "${WINVM_TEST_QGA_WRONG_NONCE:-0}" == 1 ]]; then
+            nonce=wrongnonce
+        fi
+        printf '%s\n' \
+            "{\"schema\":\"machine-control-windows-post-update/v0\",\"nonce\":\"$nonce\",\"mode\":\"repair\",\"profile\":\"$normalized_profile\",\"healthy\":true,\"reboot_required\":false,\"boot_epoch_utc\":\"2026-01-01T00:00:00.0000000Z\",\"initial_healthy\":true,\"checks\":[],\"repairs\":[]}" \
+            >"$WINVM_TEST_QGA_REPORT_FILE"
+        touch "$WINVM_TEST_SSH_READY_FILE"
+        # Deliberately disagree with the attested side effect. The provider
+        # must use the pulled nonce-bound report, not this delivery status.
+        exit 1
+        ;;
+    *)
+        exit 2
+        ;;
+esac
