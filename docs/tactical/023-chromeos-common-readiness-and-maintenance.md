@@ -133,4 +133,36 @@ commit coherent stages, and push.
 
 ## Result
 
-Pending implementation and live evidence.
+Implementation and fixture validation are complete. Final live reboot evidence
+is pending the explicitly confirmed physical-recovery step below.
+
+The common client now accepts the ChromeOS native target for
+`status|doctor|capabilities`, uses a platform-owned minimized doctor, and
+supports partial maintenance declarations. ChromeOS exposes only the runtime
+profile and `audit|repair`; certification is unavailable and refuses before
+adapter execution. Windows, macOS, and Linux retain their previous complete
+appliance surfaces.
+
+The ChromeOS adapter composes the existing focused audit and changed-boot SSH
+proof. Common doctor reports connection, boot persistence, profile lock,
+resident, semantic, capture, input, and outer policy independently. Common
+repair refuses pending-update and read-only-rootfs transitions before mutation,
+performs only the existing safe active-image repair, and invokes the proof
+reboot only with `--reboot`. Twenty-five ChromeOS dependency-free tests and 62
+common-client tests cover the operation and refusal boundaries, root entrypoint
+composition, and private-field minimization.
+
+The first live preflight found SSH reachable with an unlocked profile, target-
+native client, capture, and input available. It also found the current active
+image unprepared: rootfs verification enabled, no installed SSH autostart job,
+no prepared-release marker, no automatic current-boot startup evidence, and no
+configured/listening DevTools route. No update was waiting for reboot. Common
+repair returned `guided_recovery_required`; a second audit was identical, which
+proved the refusal neither changed nor rebooted the device.
+
+The completion-gated proof reboot was therefore not run. The authoritative
+next step is the existing guided flow: explicitly approve staging the bootstrap
+and disabling rootfs verification, reboot, run the staged bootstrap from
+physical VT2, re-audit, and only then run one common proof reboot. This requires
+physical access and the device's developer-console authentication. The tactical
+remains active until that sequence is confirmed and completed.
