@@ -1,0 +1,33 @@
+# Copy to config.local only when these defaults do not match your Tart VM.
+# config.local is ignored by Git. Environment variables override its values.
+
+MACVM_NAME=tahoe-base
+MACVM_TART=/opt/homebrew/bin/tart
+MACVM_BOOT_TIMEOUT=120
+MACVM_SUSPENDABLE=true
+MACVM_CAPTURE_SYSTEM_KEYS=false
+MACVM_SHARE_REPO=true
+
+# Tart's base images run the interactive guest agent as admin.
+MACVM_GUEST_USER=admin
+MACVM_UI_REMOTE_RELATIVE='Library/Application Support/macvm-testbed'
+MACVM_CONTROL_SOCKET_RELATIVE='Library/Application Support/macvm-testbed/control.sock'
+
+# For automation that mutates a clone, fail closed if selection drifts. Keep
+# the real expected name in ignored config.local.
+MACVM_REQUIRE_MUTATION_GUARD=false
+MACVM_TARGET_ROLE=unspecified
+MACVM_EXPECTED_NAME=
+
+# Fail closed if a software-test workflow tries to inspect or manipulate the
+# Tart graphical window. Lifecycle and tart exec remain available.
+MACVM_FORBID_OUTER_UI=false
+
+# Command transport is independent of Tart lifecycle. Prepared guests may use
+# either Tart's guest agent or an already-authorized SSH service/key. Keep real
+# endpoints and identity paths in ignored config.local.
+MACVM_GUEST_TRANSPORT=tart
+MACVM_SSH_HOST=
+MACVM_SSH_USER=admin
+MACVM_SSH_IDENTITY_FILE=
+MACVM_SSH_STRICT_HOST_KEY_CHECKING=accept-new

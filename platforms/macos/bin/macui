@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../scripts/common.sh
+source "$REPO_DIR/scripts/common.sh"
+
+usage() {
+    cat <<'EOF'
+Usage: macvm ui COMMAND [ARG...]
+
+Commands:
+  health
+  authorize
+  apps
+  windows [--app APP]
+  tree [--app APP] [--depth N] [--limit N] [--interactive]
+  find QUERY [--app APP] [--role ROLE] [--depth N] [--limit N]
+  actions QUERY [--app APP] [--role ROLE] [--nth N]
+  press QUERY [--app APP] [--role ROLE] [--nth N]
+  focus QUERY [--app APP] [--role ROLE] [--nth N]
+  set-value QUERY VALUE [--app APP] [--role ROLE] [--nth N]
+  resident-start | resident-stop | resident-restart
+  control JSON | control-local JSON
+  launch APP [ARG...]
+
+APP matches a localized application name, bundle id, or PID. Element queries
+are case-insensitive text matches unless --exact is supplied. References shown
+by tree/find are diagnostic and valid only for that invocation.
+EOF
+}
+
+remote_app="$(macvm_remote_ui_app)"
+remote_binary="$(macvm_remote_ui_binary)"
+remote_socket="$(macvm_remote_control_socket)"
+
+resident_request() {
+    local request="$1"
+    macvm_exec "$remote_binary" request \
+        "$remote_socket" "$request"
+}
+
+resident_start() {
+    if resident_request '{"operation":"status"}' >/dev/null 2>&1; then
+        return 0
+    fi
+    macvm_exec /bin/rm -f "$remote_socket"
+    macvm_exec /usr/bin/open -n "$remote_app" \
+        --args serve "$remote_socket" >/dev/null
+    local attempt
+    for attempt in {1..50}; do
+        if resident_request '{"operation":"status"}' >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 0.1
+    done
+    printf 'MacVM resident service did not become ready\n' >&2
+    return 1
+}
+
+case "${1:-}" in
+    resident-start)
+        macvm_assert_mutation_target
+        resident_start
+        resident_request '{"operation":"status"}'
+        exit
+        ;;
+    resident-stop)
+        macvm_assert_mutation_target
+        if resident_request '{"operation":"server.stop"}' >/dev/null 2>&1; then
+            exit
+        fi
+        macvm_exec /bin/rm -f "$remote_socket"
+        exit
+        ;;
+    resident-restart)
+        macvm_assert_mutation_target
+        "$0" resident-stop
+        resident_start
+        resident_request '{"operation":"status"}'
+        exit
+        ;;
+    control)
+        shift
+        if [[ $# -ne 1 ]]; then
+            printf 'Usage: macvm control JSON\n' >&2
+            exit 2
+        fi
+        macvm_assert_mutation_target
+        resident_start
+        resident_request "$1"
+        exit
+        ;;
+    control-local)
+        shift
+        if [[ $# -ne 1 ]]; then
+            printf 'Usage: macvm control-local JSON\n' >&2
+            exit 2
+        fi
+        macvm_assert_mutation_target
+        resident_start
+        macvm_exec "$(macvm_remote_control_cli)" "$1"
+        exit
+        ;;
+esac
+
+if [[ "${1:-}" == "launch" ]]; then
+    macvm_assert_mutation_target
+    shift
+    if [[ $# -lt 1 ]]; then
+        printf 'Usage: macvm ui launch APP [ARG...]\n' >&2
+        exit 2
+    fi
+    app="$1"
+    shift
+    macvm_exec /usr/bin/open -a "$app" --args "$@"
+    exit
+fi
+
+case "${1:-}" in
+    press|focus|set-value) macvm_assert_mutation_target ;;
+esac
+
+if [[ "${1:-}" == "help" || "${1:-}" == "-h" || "${1:-}" == "--help" || $# -eq 0 ]]; then
+    usage
+    exit 0
+fi
+
+if ! macvm_exec /bin/test -x "$remote_binary"; then
+    printf 'Semantic UI helper is not deployed. Run: %s/bin/macvm deploy-ui\n' \
+        "$MACVM_REPO_DIR" >&2
+    exit 1
+fi
+
+remote_scratch="$(macvm_exec /usr/bin/mktemp -d /tmp/macvm-ui.XXXXXX)"
+remote_output="$remote_scratch/output"
+remote_status_file="$remote_scratch/status"
+
+cleanup_remote_scratch() {
+    macvm_exec /bin/rm -rf "$remote_scratch" \
+        >/dev/null 2>&1 || true
+}
+trap cleanup_remote_scratch EXIT
+
+launch_status=0
+macvm_exec /usr/bin/open -n -W "$remote_app" \
+    --args --output "$remote_output" --status "$remote_status_file" "$@" \
+    >/dev/null 2>&1 || launch_status=$?
+
+if ! remote_status="$(macvm_exec \
+        /bin/cat "$remote_status_file" 2>/dev/null)"; then
+    if [[ "$launch_status" -ne 0 ]]; then
+        printf 'Unable to launch %s through guest LaunchServices\n' \
+            "$remote_app" >&2
+        exit "$launch_status"
+    fi
+    printf 'MacVM UI did not report command status\n' >&2
+    exit 1
+fi
+
+macvm_exec /bin/cat "$remote_output" || true
+if [[ ! "$remote_status" =~ ^[0-9]+$ ]]; then
+    printf 'Unexpected MacVM UI status: %s\n' "$remote_status" >&2
+    exit 1
+fi
+exit "$remote_status"

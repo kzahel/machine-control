@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleDevelopmentRegion</key><string>en</string>
+<key>CFBundleExecutable</key><string>PrivacyConsentFixture</string>
+<key>CFBundleIdentifier</key><string>org.machine-control.privacy-fixture</string>
+<key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+<key>CFBundleName</key><string>Machine Control Privacy Fixture</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>0.1.0</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>LSMinimumSystemVersion</key><string>13.0</string>
+<key>NSAppleEventsUsageDescription</key>
+<string>Verify that an agent can control an Automation consent decision.</string>
+<key>NSCameraUsageDescription</key>
+<string>Verify that an agent can control a Camera consent decision.</string>
+<key>NSMicrophoneUsageDescription</key>
+<string>Verify that an agent can control a Microphone consent decision.</string>
+<key>NSLocalNetworkUsageDescription</key>
+<string>Verify that an agent can control a Local Network consent decision.</string>
+<key>NSBonjourServices</key><array><string>_machine-control._tcp</string></array>
+<key>NSUserNotificationAlertStyle</key><string>alert</string>
+</dict></plist>

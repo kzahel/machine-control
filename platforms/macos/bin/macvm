@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../scripts/common.sh
+source "$REPO_DIR/scripts/common.sh"
+
+usage() {
+    cat <<'EOF'
+Usage: macvm COMMAND [ARG...]
+
+Start here:
+  doctor [--json]        Check Tart, guest agent, desktop, capture, and UI access
+  up                     Start/resume the VM and print its current IPv4 address
+  exec COMMAND [ARG...]  Run a command through the Tart guest agent
+  shell                  Open an interactive zsh through the Tart guest agent
+  ui COMMAND [ARG...]    Inspect and control the macOS accessibility tree
+  control JSON           Call the target-resident machine-control facade
+  control-local JSON     Call it through the installed guest-local CLI
+  authorization-submit  Submit one credential through an active lease
+  artifact-fetch        Fetch one resident-created artifact to the host
+  fixture-state          Read the deterministic fixture's file oracle
+  admin-fixture-state    Read the administrator fixture's file oracle
+  privacy-fixture-state  Read the privacy fixture's file oracle
+  swiftui-fixture-state  Read the SwiftUI fixture's file oracle
+  electron-fixture-state Read the Electron fixture's file oracle
+  java-fixture-state     Read the Java Swing fixture's file oracle
+  framework-runtime-status
+                         Inspect the pinned Java, Node, and Electron runtimes
+
+Setup:
+  deploy-ui              Compile and deploy the semantic UI helper
+  deploy-fixture         Compile and deploy the deterministic native fixture
+  deploy-admin-fixture   Compile and deploy the administrator fixture
+  deploy-privacy-fixture Compile and deploy the privacy consent fixture
+  deploy-swiftui-fixture Compile and deploy the SwiftUI fixture
+  deploy-electron-fixture Deploy the deterministic Electron fixture
+  deploy-java-fixture    Build and deploy the deterministic Swing fixture
+  install-framework-runtimes
+                         Install checksum-pinned ARM64 framework runtimes
+  reset-admin-fixture    Clear administrator fixture oracle state
+  reset-privacy-fixture  Reset one privacy fixture consent class
+  remove-fixture         Remove the AppKit fixture and oracle state
+  remove-admin-fixture   Remove administrator fixture and oracle state
+  remove-privacy-fixture Remove the privacy fixture and oracle state
+  remove-swiftui-fixture Remove the SwiftUI fixture and oracle state
+  remove-electron-fixture Remove the Electron fixture and oracle state
+  remove-java-fixture    Remove the Java fixture and oracle state
+  authorize-ui           Request the guest Accessibility permission
+
+Out-of-band recovery:
+  screenshot [PATH]      Capture the Tart guest display to a PNG
+  click X Y [BUTTON]     Click guest-display coordinates
+  drag X1 Y1 X2 Y2       Drag between guest-display coordinates
+  type TEXT              Type US-keyboard ASCII through the Tart window
+  key CHORD              Send a key or chord through the Tart window
+
+Lifecycle and discovery:
+  status | get | host-state | ip | suspend | shutdown | stop | force-stop
+
+Key examples:
+  enter escape tab cmd-space cmd-tab cmd-shift-g ctrl-option-delete
+
+Configuration:
+  Copy config.example to config.local, or set MACVM_* environment variables.
+EOF
+}
+
+provider() {
+    exec "$REPO_DIR/providers/tart-macos/provider.sh" "$@"
+}
+
+command="${1:-help}"
+shift || true
+
+case "$command" in
+    help|-h|--help) usage ;;
+    doctor)
+        if [[ "${1:-}" == "--json" ]]; then
+            exec "$REPO_DIR/scripts/doctor-json.sh"
+        fi
+        exec "$REPO_DIR/scripts/doctor.sh" "$@"
+        ;;
+    deploy-ui) exec "$REPO_DIR/scripts/deploy-ui.sh" "$@" ;;
+    deploy-fixture) exec "$REPO_DIR/scripts/deploy-fixture.sh" "$@" ;;
+    deploy-admin-fixture) exec "$REPO_DIR/scripts/deploy-admin-fixture.sh" "$@" ;;
+    deploy-privacy-fixture) exec "$REPO_DIR/scripts/deploy-privacy-fixture.sh" "$@" ;;
+    deploy-swiftui-fixture) exec "$REPO_DIR/scripts/deploy-swiftui-fixture.sh" "$@" ;;
+    deploy-electron-fixture) exec "$REPO_DIR/scripts/deploy-electron-fixture.sh" "$@" ;;
+    deploy-java-fixture) exec "$REPO_DIR/scripts/deploy-java-fixture.sh" "$@" ;;
+    install-framework-runtimes) exec "$REPO_DIR/scripts/install-framework-runtimes.sh" "$@" ;;
+    framework-runtime-status) exec "$REPO_DIR/scripts/framework-runtime-status.sh" "$@" ;;
+    reset-admin-fixture) exec "$REPO_DIR/scripts/reset-admin-fixture.sh" "$@" ;;
+    reset-privacy-fixture) exec "$REPO_DIR/scripts/reset-privacy-fixture.sh" "$@" ;;
+    remove-fixture) exec "$REPO_DIR/scripts/remove-fixture.sh" "$@" ;;
+    remove-admin-fixture) exec "$REPO_DIR/scripts/remove-admin-fixture.sh" "$@" ;;
+    remove-privacy-fixture) exec "$REPO_DIR/scripts/remove-privacy-fixture.sh" "$@" ;;
+    remove-swiftui-fixture) exec "$REPO_DIR/scripts/remove-swiftui-fixture.sh" "$@" ;;
+    remove-electron-fixture) exec "$REPO_DIR/scripts/remove-electron-fixture.sh" "$@" ;;
+    remove-java-fixture) exec "$REPO_DIR/scripts/remove-java-fixture.sh" "$@" ;;
+    authorize-ui) exec "$REPO_DIR/bin/macui" authorize "$@" ;;
+    ui) exec "$REPO_DIR/bin/macui" "$@" ;;
+    control) exec "$REPO_DIR/bin/macui" control "$@" ;;
+    control-local) exec "$REPO_DIR/bin/macui" control-local "$@" ;;
+    authorization-submit) exec "$REPO_DIR/scripts/submit-authorization.sh" "$@" ;;
+    artifact-fetch) exec "$REPO_DIR/scripts/fetch-artifact.sh" "$@" ;;
+    fixture-state)
+        macvm_exec /bin/cat \
+            "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-fixture/state.json"
+        ;;
+    admin-fixture-state)
+        macvm_exec /bin/cat \
+            "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-admin-fixture/state.json"
+        ;;
+    privacy-fixture-state)
+        macvm_exec /bin/cat \
+            "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-privacy-fixture/state.json"
+        ;;
+    swiftui-fixture-state)
+        macvm_exec /bin/cat \
+            "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-swiftui-fixture/state.json"
+        ;;
+    electron-fixture-state)
+        macvm_exec /bin/cat \
+            "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-electron-fixture/state.json"
+        ;;
+    java-fixture-state)
+        macvm_exec /bin/cat \
+            "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-java-fixture/state.json"
+        ;;
+    exec) macvm_exec "$@" ;;
+    shell) macvm_shell ;;
+    status|get|host-state|up|ip|screenshot|click|drag|type|key|suspend|shutdown|stop|force-stop)
+        provider "$command" "$@"
+        ;;
+    *)
+        printf 'Unknown command: %s\n\n' "$command" >&2
+        usage >&2
+        exit 2
+        ;;
+esac

@@ -1,0 +1,8 @@
+#!/bin/bash
+
+set -euo pipefail
+
+readonly app="$HOME/Applications/MacVM UI.app"
+readonly socket="$HOME/Library/Application Support/macvm-testbed/control.sock"
+
+exec "$app/Contents/MacOS/macui" request "$socket" "$@"
