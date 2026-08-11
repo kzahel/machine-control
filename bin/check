@@ -29,17 +29,47 @@ def run(label: str, command: list[str], cwd: Path = ROOT) -> None:
 
 
 def tracked_files() -> list[Path]:
+    if in_git_checkout():
+        completed = subprocess.run(
+            ["git", "ls-files", "-z"],
+            cwd=ROOT,
+            capture_output=True,
+            check=True,
+        )
+        return [
+            ROOT / value.decode("utf-8")
+            for value in completed.stdout.split(b"\0")
+            if value
+        ]
+
+    ignored = {".build", ".git", "__pycache__", "node_modules", "obj"}
+    files: list[Path] = []
+    for path in ROOT.rglob("*"):
+        relative = path.relative_to(ROOT)
+        if any(part in ignored for part in relative.parts):
+            continue
+        if relative.parts[:2] == ("src", "bin") or (
+            relative.parts
+            and relative.parts[0] == "src"
+            and "bin" in relative.parts[1:]
+        ):
+            continue
+        if path.is_file():
+            files.append(path)
+    return sorted(files)
+
+
+def in_git_checkout() -> bool:
+    if shutil.which("git") is None:
+        return False
     completed = subprocess.run(
-        ["git", "ls-files", "-z"],
+        ["git", "rev-parse", "--is-inside-work-tree"],
         cwd=ROOT,
         capture_output=True,
-        check=True,
+        text=True,
+        check=False,
     )
-    return [
-        ROOT / value.decode("utf-8")
-        for value in completed.stdout.split(b"\0")
-        if value
-    ]
+    return completed.returncode == 0 and completed.stdout.strip() == "true"
 
 
 def validate_json() -> None:
@@ -116,7 +146,10 @@ def portable_checks() -> None:
         )
     validate_json()
     validate_shell()
-    run("working-tree whitespace", ["git", "diff", "--check"])
+    if in_git_checkout():
+        run("working-tree whitespace", ["git", "diff", "--check"])
+    else:
+        print("\n== working-tree whitespace ==\nskip: source archive has no Git metadata")
 
 
 def native_checks() -> None:

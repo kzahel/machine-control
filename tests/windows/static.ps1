@@ -9,7 +9,7 @@ $Repository = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 $parseFailures = [System.Collections.Generic.List[string]]::new()
 Get-ChildItem -LiteralPath $Repository -Recurse -File -Filter '*.ps1' |
     Where-Object {
-        $_.FullName -notmatch '[\\/](obj|bin|node_modules|\.git)[\\/]'
+        $_.FullName -notmatch '[\\/](obj|node_modules|\.git)[\\/]'
     } |
     ForEach-Object {
         $tokens = $null
