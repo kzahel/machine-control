@@ -39,6 +39,31 @@ administration for the current disposable-appliance profile. It is not a claim
 that the common facade yet has a bounded privileged API suitable for a personal
 workstation.
 
+## Current maintenance and certification
+
+**Current:** `macvm bootstrap`, `post-update audit|repair`, and
+`appliance-certify` provide the retained appliance with a bounded operational
+surface beside ordinary lifecycle and desktop control. Audit is read-only and
+refuses a stopped target. Repair is exact-candidate only, is limited to the
+checked-in resident and enumerated launchd support, and reboots only when the
+caller explicitly asks. Neither path edits TCC or installs missing developer
+tools.
+
+The stable signed resident is installed as a per-user Aqua LaunchAgent with
+`RunAtLoad` and `KeepAlive`; doctor only observes it. Deployment preserves an
+already-current signed application when adding or repairing the LaunchAgent,
+so routine migration does not needlessly change the identity to which macOS
+consent is attached.
+
+**Current (2026-08-11):** The live development-profile rehearsal reused the
+retained Tart candidate without a clone or workspace. A stopped audit did not
+start it. Bootstrap, common audit, and no-reboot repair were healthy.
+Exact-commit certification observed a real reboot, verified the source digest,
+passed portable and macOS-native guest checks in isolated state, removed
+staging, and left the candidate off. The common entry point is
+`machine-control --target TARGET maintenance ...`; launchd and TCC policy
+remain owned here.
+
 ## Current Tart goal
 
 **Decision:** Until physical Mac testing becomes an active workstream, focus

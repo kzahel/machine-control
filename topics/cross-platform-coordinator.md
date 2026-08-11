@@ -2,7 +2,7 @@
 
 Topic: `cross-platform-coordinator`
 
-Status: portable coordinator, native CI, and live Windows/Linux appliance
+Status: portable coordinator, native CI, and live Windows/Linux/macOS appliance
 execution implemented.
 
 ## Scope
@@ -104,6 +104,15 @@ runs portable and Windows-native checks after a changed boot epoch, removes
 staging, and shuts down only after success. Routine hosted CI remains
 non-mutating and does not acquire a private VM.
 
+**Current (2026-08-11):** Tactical 022 adds one common maintenance namespace
+over the platform-owned Windows, Linux, and macOS operations. A live macOS
+rehearsal reused the retained candidate without a clone or workspace, proved
+that stopped audit does not start it, bootstrapped the development profile,
+and returned healthy common audit and no-reboot repair results. Certification
+of exact commit `fd70fe2` observed a changed boot epoch, matched the committed
+archive digest, passed portable and macOS-native checks inside the guest,
+removed staging, and left the candidate off.
+
 **Current (2026-08-11):** Hosted run `31481111956` passed all six public jobs
 at commit `5ed134a`: portable coordinator checks and matching native checks on
 macOS, Linux, and Windows. The Windows native job parsed the PowerShell corpus
@@ -121,6 +130,8 @@ dotfiles commit `4ef3ded`.
 - Keep live target rehearsals deliberate and controller-owned.
 - Keep the retained Windows and Linux development appliances reproducible and
   re-run exact-archive checks after material coordinator or toolchain changes.
+- Use the same explicit maintenance namespace for retained macOS development
+  appliances; do not fold platform repair into routine readiness.
 - Add direct local/remote resident routes only when their transport and
   authorization are explicit; do not disguise a macOS VM-lifecycle wrapper as
   a Windows-local adapter.

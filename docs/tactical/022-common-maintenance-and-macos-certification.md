@@ -1,6 +1,6 @@
 # Tactical 022: Common Maintenance and macOS Certification
 
-Status: active.
+Status: complete.
 
 Topics: `target-lifecycle-and-readiness`, `cross-platform-coordinator`, and
 `macos-resident-control`.
@@ -151,4 +151,38 @@ commit coherent stages and push.
 
 ## Result
 
-Pending implementation and live evidence.
+Completed on 2026-08-11.
+
+The common client now owns a non-invoking maintenance capability document and
+validated `audit`, `repair`, and `certify` dispatch for the Windows, Linux, and
+macOS appliance adapters. Results use the minimized common maintenance schema;
+platform service names, boot observations, endpoints, and staging locations do
+not escape the adapter result. Unsupported targets fail before dispatch, and
+`ensure-ready` remains start-only while recommending a separate read-only audit
+when appropriate.
+
+The macOS implementation installs the stable signed resident as a per-user Aqua
+LaunchAgent with `RunAtLoad` and `KeepAlive`. Doctor is now strictly
+observational. Bootstrap, audit, repair, optional reboot, and exact-source
+certification have typed JSON contracts and preserve the TCC identity: a
+migration that only needs the new LaunchAgent does not rebuild or re-sign an
+otherwise current application. Repair changes only the enumerated resident and
+launchd support, never TCC or development-tool installation.
+
+The fixture corpus proves stopped-audit non-mutation, exact-candidate repair,
+nonce/profile validation, explicit reboot, clean-source and archive-digest
+requirements, isolated guest state, bounded cleanup, and success-only
+shutdown. Common fixtures cover all three platform mappings, invalid results,
+unhealthy-result preservation, unsupported refusal, and non-mutating
+capability discovery and readiness recommendations.
+
+The bounded live rehearsal reused the one retained candidate without acquiring
+a workspace or creating a VM. A stopped audit returned `target_not_running`
+and left the candidate off. Development bootstrap then produced a healthy
+11-check audit. A common read-only audit and idempotent repair were healthy
+without requesting a reboot. Common certification of exact revision
+`fd70fe2f516e24b702d65406e5f212b39e746bca` observed a changed boot epoch,
+matched the archive digest, passed portable and macOS-native checks inside the
+guest, removed staging, and shut down successfully. Final inventory contained
+zero workspaces, the candidate was off, and no host certification stage
+remained.
