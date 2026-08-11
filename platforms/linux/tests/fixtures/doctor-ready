@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+jq -cn '{schema:"machine-control-doctor/v0",ready:true}'

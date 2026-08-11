@@ -32,11 +32,16 @@ Desktop automation:
   fixture [gtk|qt|browser] ACTION
                                  Manage deterministic effect-oracle fixtures
   deploy-ui | deploy-resident | authorize-ui | desktop-user | doctor [--json]
+  post-update audit|repair [--reboot]
+                                 Audit or restore installed startup invariants
+  appliance-certify             Reboot and check exact source on the candidate
   screenshot [OUTPUT.png]
   click X Y [left|right|middle] | drag X1 Y1 X2 Y2
   type TEXT | key NAME | scan CODE...
 
 Bootstrap:
+  bootstrap [--profile development|runtime]
+                                 Install package profile and resident stack
   bootstrap-command              Print the initial visible-terminal command
 EOF
 }
@@ -200,6 +205,9 @@ case "$command" in
         exec "$LINUXVM_REPO_DIR/scripts/doctor.sh"
         ;;
     candidate-status) exec "$LINUXVM_REPO_DIR/scripts/candidate-status.sh" "$@" ;;
+    post-update) exec "$LINUXVM_REPO_DIR/scripts/post-update.sh" "$@" ;;
+    bootstrap) exec "$LINUXVM_REPO_DIR/scripts/bootstrap-appliance.sh" "$@" ;;
+    appliance-certify) exec "$LINUXVM_REPO_DIR/scripts/certify-appliance.sh" "$@" ;;
     bootstrap-command) bootstrap_command ;;
     workspace-capabilities|workspace-acquire|workspace-inventory|workspace-release|workspace-gc)
         exec "$LINUXVM_REPO_DIR/providers/$LINUXVM_PROVIDER/workspace.sh" \

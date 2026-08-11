@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+log="${MACHINE_CONTROL_LINUXVM_LOG:?}"
+state="${MACHINE_CONTROL_LINUXVM_STATE:?}"
+printf '%q ' "$@" >>"$log"
+printf '\n' >>"$log"
+
+power() {
+    if [[ -f "$state" ]]; then
+        cat "$state"
+    else
+        printf '%s\n' "${MACHINE_CONTROL_LINUXVM_INITIAL_POWER:-started}"
+    fi
+}
+
+ready_audit() {
+    jq -cn '{
+        schema:"machine-control-linux-post-update-orchestration/v0",
+        operation:"audit",route:"qemu_guest_agent",healthy:true,
+        reboot:{requested:false,observed:false},
+        post_update:{
+            schema:"machine-control-linux-post-update/v0",healthy:true
+        },
+        doctor:{schema:"machine-control-doctor/v0",ready:true}
+    }'
+}
+
+command="${1:-}"
+if (( $# > 0 )); then shift; fi
+case "$command" in
+    status) power ;;
+    up) printf 'started\n' >"$state" ;;
+    reboot) printf 'started\n' >"$state" ;;
+    shutdown) printf 'stopped\n' >"$state" ;;
+    push|deploy-resident) ;;
+    post-update) ready_audit ;;
+    exec)
+        [[ "${1:-}" == -- ]] && shift
+        if [[ " $* " == *' /usr/local/libexec/linuxvm-testbed/post-update '* ]]; then
+            mode=audit
+            profile=development
+            nonce=missing
+            while (( $# > 0 )); do
+                case "$1" in
+                    --mode) mode="$2"; shift 2 ;;
+                    --profile) profile="$2"; shift 2 ;;
+                    --nonce) nonce="$2"; shift 2 ;;
+                    *) shift ;;
+                esac
+            done
+            if [[ "${MACHINE_CONTROL_LINUXVM_BAD_NONCE:-0}" == 1 ]]; then
+                nonce=aaaaaaaaaaaaaaaaaaaaaaaa
+            fi
+            jq -cn --arg mode "$mode" --arg profile "$profile" \
+                --arg nonce "$nonce" '{
+                    schema:"machine-control-linux-post-update/v0",
+                    mode:$mode,profile:$profile,nonce:$nonce,healthy:true,
+                    checks:[{id:"fixture",required:true,status:"pass",
+                        observed:"ready",repair:"not_needed"}]
+                }'
+        elif [[ " $* " == *'machine-control-bootstrap-'* ]]; then
+            profile=development
+            while (( $# > 0 )); do
+                if [[ "$1" == --profile ]]; then profile="$2"; break; fi
+                shift
+            done
+            jq -cn --arg profile "$profile" '{
+                schema:"machine-control-linux-bootstrap/v0",healthy:true,
+                profile:$profile,guestAgent:"active",
+                packageProfile:"installed"
+            }'
+        elif [[ " $* " == *' portable '* &&
+                "${MACHINE_CONTROL_LINUXVM_PORTABLE_FAIL:-0}" == 1 ]]; then
+            exit 1
+        elif [[ " $* " == *' portable '* &&
+                "${MACHINE_CONTROL_LINUXVM_PORTABLE_TIMEOUT:-0}" == 1 ]]; then
+            exit 124
+        elif [[ " $* " == *' native '* &&
+                "${MACHINE_CONTROL_LINUXVM_NATIVE_FAIL:-0}" == 1 ]]; then
+            exit 1
+        fi
+        ;;
+    *) printf 'Unexpected fixture command: %s\n' "$command" >&2; exit 2 ;;
+esac

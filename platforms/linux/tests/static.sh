@@ -19,9 +19,17 @@ find "$REPO_DIR/bin" "$REPO_DIR/scripts" "$REPO_DIR/providers" \
     "$REPO_DIR/guests/ubuntu/input/linuxinputd.py" \
     "$REPO_DIR/guests/ubuntu/fixtures/control_fixture.py" \
     "$REPO_DIR/guests/ubuntu/fixtures/qt_fixture.py" \
-    "$REPO_DIR/guests/ubuntu/fixtures/browser_fixture.py"
+    "$REPO_DIR/guests/ubuntu/fixtures/browser_fixture.py" \
+    "$REPO_DIR/guests/ubuntu/bootstrap/post_update.py"
+
+"$PYTHON" -m unittest discover -s "$REPO_DIR/tests" \
+    -p 'test_*.py' -v
 
 "$REPO_DIR/bin/linuxvm" help >/dev/null
+help_output="$($REPO_DIR/bin/linuxvm help)"
+[[ "$help_output" == *'post-update audit|repair'* ]]
+[[ "$help_output" == *'appliance-certify'* ]]
+[[ "$help_output" == *'bootstrap [--profile'* ]]
 default_guard="$(env LINUXVM_CONFIG_FILE=/dev/null bash -c \
     'source "$1"; printf "%s|%s|%s|%s" "$LINUXVM_REQUIRE_MUTATION_GUARD" "$LINUXVM_TARGET_ROLE" "$LINUXVM_EXPECTED_NAME" "$LINUXVM_EXPECTED_UUID"' \
     _ "$REPO_DIR/scripts/common.sh")"
@@ -78,4 +86,123 @@ selection="$({ env \
     bash -c 'source "$1"; printf "%s|%s|%s\n" "$LINUXVM_UTM_NAME" "$LINUXVM_EXPECTED_UUID" "$LINUXVM_TARGET_ROLE"' \
         _ "$REPO_DIR/scripts/common.sh"; } 2>/dev/null)"
 [[ "$selection" == 'fixture-workspace|fixture-workspace-id|disposable' ]]
+
+maintenance="$REPO_DIR/tests/fixtures/linuxvm-maintenance"
+doctor_ready="$REPO_DIR/tests/fixtures/doctor-ready"
+maintenance_log="$temporary/maintenance.log"
+maintenance_state="$temporary/maintenance.state"
+maintenance_env=(
+    env
+    LINUXVM_CONFIG_FILE=/dev/null
+    LINUXVM_REQUIRE_MUTATION_GUARD=false
+    LINUXVM_TARGET_ROLE=candidate
+    MACHINE_CONTROL_LINUXVM_LOG="$maintenance_log"
+    MACHINE_CONTROL_LINUXVM_STATE="$maintenance_state"
+)
+
+audit="$(${maintenance_env[@]} \
+    LINUXVM_POST_UPDATE_LINUXVM="$maintenance" \
+    LINUXVM_POST_UPDATE_DOCTOR="$doctor_ready" \
+    "$REPO_DIR/scripts/post-update.sh" audit --json)"
+jq -e '.healthy == true and .operation == "audit" and
+    .route == "qemu_guest_agent" and .reboot.observed == false' \
+    <<<"$audit" >/dev/null
+grep -q '^status ' "$maintenance_log"
+! grep -q '^up ' "$maintenance_log"
+
+: >"$maintenance_log"
+printf 'stopped\n' >"$maintenance_state"
+set +e
+stopped_audit="$(${maintenance_env[@]} \
+    LINUXVM_POST_UPDATE_LINUXVM="$maintenance" \
+    LINUXVM_POST_UPDATE_DOCTOR="$doctor_ready" \
+    "$REPO_DIR/scripts/post-update.sh" audit --json)"
+stopped_status=$?
+set -e
+[[ "$stopped_status" -eq 1 ]]
+jq -e '.failure == "target_not_running" and .healthy == false' \
+    <<<"$stopped_audit" >/dev/null
+[[ "$(wc -l <"$maintenance_log" | tr -d ' ')" -eq 1 ]]
+
+: >"$maintenance_log"
+repair="$(${maintenance_env[@]} \
+    LINUXVM_POST_UPDATE_LINUXVM="$maintenance" \
+    LINUXVM_POST_UPDATE_DOCTOR="$doctor_ready" \
+    "$REPO_DIR/scripts/post-update.sh" repair --reboot --json)"
+jq -e '.healthy == true and .operation == "repair" and
+    .reboot == {requested:true,observed:true} and
+    .post_update.mode == "audit"' <<<"$repair" >/dev/null
+grep -q '^up ' "$maintenance_log"
+grep -q '^reboot ' "$maintenance_log"
+
+: >"$maintenance_log"
+set +e
+bad_nonce="$(${maintenance_env[@]} \
+    MACHINE_CONTROL_LINUXVM_BAD_NONCE=1 \
+    LINUXVM_POST_UPDATE_LINUXVM="$maintenance" \
+    LINUXVM_POST_UPDATE_DOCTOR="$doctor_ready" \
+    "$REPO_DIR/scripts/post-update.sh" audit --json 2>/dev/null)"
+bad_nonce_status=$?
+set -e
+[[ "$bad_nonce_status" -eq 1 ]]
+jq -e '.failure == "guest_agent_or_support_unavailable"' \
+    <<<"$bad_nonce" >/dev/null
+
+: >"$maintenance_log"
+bootstrap="$(${maintenance_env[@]} \
+    LINUXVM_BOOTSTRAP_LINUXVM="$maintenance" \
+    "$REPO_DIR/scripts/bootstrap-appliance.sh" --profile runtime --json)"
+jq -e '.healthy == true and .profile == "runtime" and
+    .guest.profile == "runtime"' <<<"$bootstrap" >/dev/null
+grep -q '^deploy-resident ' "$maintenance_log"
+grep -q '^post-update audit --profile runtime --json ' "$maintenance_log"
+
+: >"$maintenance_log"
+printf 'started\n' >"$maintenance_state"
+certification="$(${maintenance_env[@]} \
+    LINUXVM_CERTIFY_LINUXVM="$maintenance" \
+    LINUXVM_CERTIFY_ALLOW_DIRTY_FOR_TESTS=1 \
+    LINUXVM_CERTIFY_CHECK_TIMEOUT=60 \
+    "$REPO_DIR/scripts/certify-appliance.sh" --json)"
+jq -e '.healthy == true and .final_power == "off" and
+    .reboot.changedBootIdObserved == true and
+    .guest_checks.portable_checks == "passed" and
+    .guest_checks.native_checks == "passed" and
+    .guest_checks.staging_removed == true' <<<"$certification" >/dev/null
+grep -q '^reboot ' "$maintenance_log"
+grep -q ' portable ' "$maintenance_log"
+grep -q ' native ' "$maintenance_log"
+grep -q '^shutdown ' "$maintenance_log"
+! grep -Eq '(^| )(clone|workspace-|screenshot|click|type|key)( |$)' \
+    "$maintenance_log"
+
+: >"$maintenance_log"
+printf 'started\n' >"$maintenance_state"
+set +e
+failed_certification="$(${maintenance_env[@]} \
+    MACHINE_CONTROL_LINUXVM_NATIVE_FAIL=1 \
+    LINUXVM_CERTIFY_LINUXVM="$maintenance" \
+    LINUXVM_CERTIFY_ALLOW_DIRTY_FOR_TESTS=1 \
+    LINUXVM_CERTIFY_CHECK_TIMEOUT=60 \
+    "$REPO_DIR/scripts/certify-appliance.sh" --json)"
+failed_certification_status=$?
+set -e
+[[ "$failed_certification_status" -eq 1 ]]
+jq -e '.healthy == false and .final_power == "running" and
+    .guest_checks.failure == "native_checks_failed" and
+    .guest_checks.staging_removed == true' \
+    <<<"$failed_certification" >/dev/null
+! grep -q '^shutdown ' "$maintenance_log"
+grep -q '/usr/bin/rm -rf -- /var/tmp/machine-control-certify-' \
+    "$maintenance_log"
+
+if ${maintenance_env[@]} \
+        LINUXVM_CERTIFY_LINUXVM="$maintenance" \
+        LINUXVM_CERTIFY_ALLOW_DIRTY_FOR_TESTS=1 \
+        LINUXVM_CERTIFY_CHECK_TIMEOUT=59 \
+        "$REPO_DIR/scripts/certify-appliance.sh" --json \
+        >/dev/null 2>&1; then
+    printf 'Linux certification accepted an invalid timeout\n' >&2
+    exit 1
+fi
 printf 'Linux native static checks passed\n'

@@ -191,6 +191,14 @@ linuxvm_assert_mutation_target() {
     esac
 }
 
+linuxvm_assert_candidate_target() {
+    linuxvm_assert_mutation_target || return
+    if [[ "$LINUXVM_TARGET_ROLE" != candidate ]]; then
+        printf 'Refusing operation: exact target role is not candidate\n' >&2
+        return 1
+    fi
+}
+
 linuxvm_assert_outer_ui_allowed() {
     if [[ "$LINUXVM_FORBID_OUTER_UI" == "true" ]]; then
         printf 'Outer UTM capture/input is prohibited for this operation\n' >&2

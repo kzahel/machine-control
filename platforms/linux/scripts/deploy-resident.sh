@@ -19,6 +19,7 @@ readonly QT_FIXTURE_SOURCE="$LINUXVM_REPO_DIR/guests/ubuntu/fixtures/qt_fixture.
 readonly QT_FIXTURE_UNIT_SOURCE="$LINUXVM_REPO_DIR/guests/ubuntu/fixtures/linuxvm-qt-fixture.service"
 readonly BROWSER_FIXTURE_SOURCE="$LINUXVM_REPO_DIR/guests/ubuntu/fixtures/browser_fixture.py"
 readonly BROWSER_FIXTURE_UNIT_SOURCE="$LINUXVM_REPO_DIR/guests/ubuntu/fixtures/linuxvm-browser-fixture.service"
+readonly POST_UPDATE_SOURCE="$LINUXVM_REPO_DIR/guests/ubuntu/bootstrap/post_update.py"
 readonly STAGING="/var/tmp/linuxvm-resident.$$"
 
 linuxvm_assert_mutation_target
@@ -44,7 +45,7 @@ for source in "$UI_SOURCE" "$CONTROL_SOURCE" "$CLIENT_SOURCE" "$UNIT_SOURCE" \
         "$INPUT_SOURCE" "$INPUT_UNIT_SOURCE" "$FIXTURE_SOURCE" \
         "$FIXTURE_UNIT_SOURCE" "$QT_FIXTURE_SOURCE" \
         "$QT_FIXTURE_UNIT_SOURCE" "$BROWSER_FIXTURE_SOURCE" \
-        "$BROWSER_FIXTURE_UNIT_SOURCE"; do
+        "$BROWSER_FIXTURE_UNIT_SOURCE" "$POST_UPDATE_SOURCE"; do
     "$LINUXVM" push "$source" "$STAGING.$(/usr/bin/basename "$source")"
 done
 
@@ -56,6 +57,8 @@ done
     "$STAGING.linuxcontrol.py" /usr/local/libexec/linuxvm-testbed/linuxcontrol.py
 "$LINUXVM" exec -- /usr/bin/install -m 0755 \
     "$STAGING.linuxinputd.py" /usr/local/libexec/linuxvm-testbed/linuxinputd.py
+"$LINUXVM" exec -- /usr/bin/install -m 0755 \
+    "$STAGING.post_update.py" /usr/local/libexec/linuxvm-testbed/post-update
 "$LINUXVM" exec -- /usr/bin/install -m 0755 \
     "$STAGING.control_fixture.py" \
     /usr/local/libexec/linuxvm-testbed/control_fixture.py
@@ -90,7 +93,7 @@ done
     "$STAGING.control_fixture.py" "$STAGING.linuxvm-fixture.service" \
     "$STAGING.qt_fixture.py" "$STAGING.linuxvm-qt-fixture.service" \
     "$STAGING.browser_fixture.py" \
-    "$STAGING.linuxvm-browser-fixture.service"
+    "$STAGING.linuxvm-browser-fixture.service" "$STAGING.post_update.py"
 
 "$LINUXVM" exec -- /usr/bin/systemctl daemon-reload
 "$LINUXVM" exec -- /usr/bin/systemctl enable linuxvm-input.service >/dev/null
