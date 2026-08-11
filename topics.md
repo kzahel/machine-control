@@ -25,3 +25,6 @@ commits with no expected follow-up do not need a trailer or registry entry.
   lifecycle verbs, normalized doctor state, and authoritative testbed adapters.
 - `unified-desktop-client` — common desktop entry points, operation
   translation, bounded artifacts, conformance, and explicit escape hatches.
+- `repository-consolidation-and-publication` — canonical public platform
+  sources, private inventory, history-preserving imports, atomic cutover, and
+  optional generated testbed distributions.

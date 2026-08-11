@@ -4,12 +4,19 @@ This map answers two questions: “which program should do this?” and “where
 should a change live?” It describes current ownership, not a deployment
 requirement that every component always be present.
 
+The accepted consolidation direction is recorded in
+[`repository-consolidation-and-publication.md`](topics/repository-consolidation-and-publication.md).
+Until each platform completes its explicit cutover, the external testbed
+listed below remains authoritative. After cutover, its public implementation
+lives under `machine-control`; private deployment inventory remains in
+dotfiles, and any focused external repository is legacy or generated one-way.
+
 ## Coordination and inventory
 
 | Component | Current role | Does not own |
 | --- | --- | --- |
 | [`~/code/yepanywhere`](../yepanywhere/README.md) | Agent provider sessions, user supervision, relay transport, peer identity/grants, and proposed cross-host delegation | VM/device implementation details; generic hypervisor or desktop drivers |
-| [`~/code/dotfiles/testbeds`](../dotfiles/testbeds/README.md) | Portable discovery of configured testbeds and read-only availability; link to each authoritative guide | Lifecycle implementation, UI control, recovery, product assertions |
+| [`~/code/dotfiles/testbeds`](../dotfiles/testbeds/README.md) | Private concrete testbed inventory, controller availability, and portable discovery; link to each current authoritative guide | Public lifecycle implementation, UI control, recovery, product assertions |
 | Consuming application repository | Builds, fixtures, test intent, application-specific assertions, and cross-platform campaign logic | Machine provisioning and generic control transport |
 
 YepAnywhere's delegation direction is documented in
@@ -21,7 +28,7 @@ into a raw proxy for every testbed CLI.
 
 | Repository | Current role | Does not own |
 | --- | --- | --- |
-| [`machine-control`](README.md) | Cross-platform architecture/research, the target-selecting common client and contracts, owned resident facades/provider boundaries, Windows service/session implementation, fixtures, and conformance corpus | Testbed lifecycle/bootstrap/recovery, private deployment inventory, YA delegation, or product assertions |
+| [`machine-control`](README.md) | Cross-platform architecture/research, the target-selecting common client and contracts, owned resident facades/provider boundaries, Windows service/session implementation, fixtures, conformance corpus, and post-cutover public platform/testbed implementation | Pre-cutover external testbed implementation, private deployment inventory, YA delegation, or product assertions |
 
 **Current:** The Windows-first runtime establishes the implementation boundary
 between authenticated local/remote callers, a Medium interactive-session
@@ -36,8 +43,11 @@ and Linux testbed adapters, while each adapter retains its own lifecycle and
 guest transport. The three residents pass one guarded common semantic,
 effect, capture, artifact, and local/outside parity workflow. This is a shared
 contract and entry experience, not one universal resident implementation.
-ChromeOS and device providers remain the next adapter families; they must not
-move target-specific lifecycle or recovery ownership into this repository.
+ChromeOS and device providers remain the next adapter families. Until each
+repository cutover, their target-specific lifecycle and recovery remain in the
+external authoritative testbed. Consolidation later moves that public logic
+under its platform directory here without flattening platform semantics into
+one generic implementation.
 
 ## Desktop VM testbeds
 
@@ -91,10 +101,11 @@ does not mean a provider has passed on every advertised platform.
 When adding a capability:
 
 1. Put target-specific lifecycle, bootstrap, and recovery in the authoritative
-   testbed.
+   platform/testbed source: the external repository before its consolidation
+   cutover and its platform directory here afterward.
 2. Put reusable resident semantic behavior and provider adapters here; keep a
-   target-specific native runner in its authoritative testbed when it is not a
-   reusable machine-control component.
+   target-specific native runner in its authoritative platform/testbed source
+   when it is not a reusable machine-control component.
 3. Put cross-provider capability vocabulary and conformance expectations here
    beside the implementation they govern.
 4. Put worker creation, peer authorization, observation, and supervision in

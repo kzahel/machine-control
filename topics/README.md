@@ -49,6 +49,10 @@ its `Topic:` trailers.
   mobile, headset, VM, and physical targets.
 - [`provider-landscape.md`](provider-landscape.md): cross-provider decisions,
   common-spine direction, exact-window requirements, and validation shortlist.
+- [`repository-consolidation-and-publication.md`](repository-consolidation-and-publication.md):
+  canonical public implementation, private inventory, history-preserving
+  platform imports, atomic cutover, and optional generated testbed
+  distributions.
 - [`target-lifecycle-and-readiness.md`](target-lifecycle-and-readiness.md):
   common target selection, lifecycle verbs, machine-readable doctor state, and
   authoritative-testbed boundaries.

@@ -99,9 +99,13 @@ guest-resident provider, or an outer provider.
 Preserve these rules:
 
 - YepAnywhere owns agent-session coordination and cross-host delegation.
-- Dotfiles owns testbed discovery and availability declarations only.
-- Each `*-testbed` repository remains authoritative for its target's lifecycle,
-  transport, bootstrap, recovery, and safe operating policy.
+- Dotfiles owns private concrete testbed inventory, discovery, and availability
+  declarations only.
+- Until a platform completes an explicit repository-consolidation cutover, its
+  existing `*-testbed` repository remains authoritative for lifecycle,
+  transport, bootstrap, recovery, and safe operating policy. After cutover,
+  the platform directory here owns that public implementation; an external
+  repository is legacy or a generated one-way distribution.
 - Agent placement and control-target selection are independent. An authorized
   outside agent must have the full ordinary resident or device-native control
   surface. Spawn a worker on the target when substantial local development or
@@ -182,8 +186,9 @@ Use a research/topic/tactical convention:
   slices and execution records.
 - Disposable third-party experiments and exact upstream source pins remain in
   `machine-control-spike`; adopted reusable runtime code and its conformance
-  suites live here; target lifecycle/bootstrap/recovery evidence stays in the
-  authoritative testbed repository.
+  suites live here. Target lifecycle/bootstrap/recovery evidence stays with its
+  authoritative platform/testbed implementation: in the external repository
+  before consolidation cutover and in the platform directory here afterward.
 
 Provider-first and platform-first research are complementary. A provider may
 be the best common architectural spine without being the deepest route on
@@ -196,7 +201,8 @@ specific provider, platform, capability, and route. Keep upstream claims,
 source review, builds, live tests, conformance evidence, and adoption distinct.
 Record the repository's declared top-level license and any relevant narrower
 terms in every provider dossier, while keeping third-party revision audits in
-the spike and target-specific lifecycle audits in the owning testbed.
+the spike and target-specific lifecycle audits in the owning platform/testbed
+source.
 
 Before working on a continuing concern, read its topic and relevant provider
 dossier/platform report. Update the corpus when work changes a provider fact,

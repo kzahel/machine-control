@@ -25,6 +25,9 @@ matches the question:
   escape hatches.
 - [Target lifecycle and readiness](topics/target-lifecycle-and-readiness.md):
   portable lifecycle/doctor vocabulary over authoritative testbed adapters.
+- [Repository consolidation and focused publications](topics/repository-consolidation-and-publication.md):
+  canonical public platform sources, private inventory, history-preserving
+  cutovers, and optional generated testbed distributions.
 - [Windows runtime](#windows-runtime): the first resident implementation,
   build/install workflow, contract, and conformance entry points.
 - [macOS runtime](#macos-runtime): the accepted Tart resident slice, including
@@ -269,10 +272,11 @@ of the project.
 
 This repository explains and implements how agents should develop and test
 applications across physical machines, virtual machines, and attached devices
-without pretending that every target has the same control technology. Reusable
-machine-control contracts and resident providers live here. YepAnywhere,
-testbed inventory, target lifecycle/recovery repositories, and native device
-runners retain their separate ownership boundaries.
+without pretending that every target has the same control technology. It is
+the canonical destination for public reusable contracts, resident providers,
+and platform testbed implementation. Existing external testbed repositories
+remain authoritative until their explicit cutovers. Private concrete inventory
+remains in dotfiles, and YepAnywhere retains agent-session coordination.
 
 ## Common desktop entry
 
@@ -559,7 +563,7 @@ controller YA session
   |
   +-- device-host provider ---> iOS / Android / headset native runner
   |
-  +-- authoritative testbed ---> outer lifecycle/recovery provider
+  +-- platform/testbed -------> outer lifecycle/recovery provider
                                    - boot/resume/repair
                                    - framebuffer or screenshot
                                    - HID/input only when recovery requires it
@@ -676,12 +680,14 @@ to a proprietary agent product, it cannot be the only expression of the
 target-native contract.
 
 This repository is the current synthesis and reusable implementation. It links
-to disposable third-party evidence in the spike and lifecycle/recovery
-behavior owned by the testbeds instead of duplicating those responsibilities.
+to disposable third-party evidence in the spike. Public lifecycle/recovery
+behavior moves here one platform at a time; until each explicit cutover, its
+external testbed remains authoritative.
 
 ## Non-goals
 
-- Replacing the standalone testbed CLIs.
+- Flattening platform-specific testbed CLIs and semantics into one misleading
+  generic implementation. Their canonical source may still move here.
 - Moving target-specific lifecycle or recovery into YepAnywhere.
 - Merging controller and worker transcripts into one provider session.
 - Making screenshot-and-coordinate control the least common denominator.

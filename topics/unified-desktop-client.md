@@ -63,11 +63,13 @@ machine-control --target <logical-target> testbed -- <native arguments>
 machine-control --target <logical-target> os -- <native arguments>
 ```
 
-`testbed` invokes the authoritative testbed CLI for lifecycle, image, device,
-or recovery operations outside the portable subset. `os` invokes the
-testbed-owned guest administration route and reports its platform and
-privilege. PowerShell is not presented as Bash; UAC, TCC, Polkit, GDM,
-loginwindow, and provider-specific operations remain explicit capabilities.
+`testbed` invokes the authoritative platform/testbed CLI for lifecycle, image,
+device, or recovery operations outside the portable subset. `os` invokes the
+platform-owned guest administration route and reports its platform and
+privilege. Before repository-consolidation cutover that implementation may be
+in an external testbed; afterward it lives under the platform directory here.
+PowerShell is not presented as Bash; UAC, TCC, Polkit, GDM, loginwindow, and
+provider-specific operations remain explicit capabilities.
 
 Outer screenshot or input commands are not reachable through ordinary
 `desktop` fallback. They remain named testbed recovery operations and retain
@@ -134,8 +136,9 @@ the deeper Windows corpus already covers Unicode input. See the
 
 ## Non-goals
 
-- Do not centralize VM/device bootstrap, lifecycle implementation, or private
-  inventory.
+- Do not collapse platform-specific VM/device bootstrap or lifecycle into one
+  misleading generic implementation. Canonical source may live here while
+  platform semantics remain separate. Never centralize private inventory here.
 - Do not replace native resident providers or their security boundaries.
 - Do not make a generic shell or arbitrary privileged command part of the
   desktop contract.

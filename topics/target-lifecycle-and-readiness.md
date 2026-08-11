@@ -10,7 +10,10 @@ Linux testbed adapters.
 This topic owns the agent-facing vocabulary for selecting a target, inspecting
 its readiness, and requesting ordinary lifecycle transitions. It does not own
 hypervisor, physical-device, bootstrap, recovery, or private-inventory logic.
-Those remain in the authoritative testbed.
+Platform-specific logic remains in the authoritative platform/testbed adapter:
+in the external repository before consolidation cutover and in its platform
+directory here afterward. Private inventory remains outside this public
+repository.
 
 The common surface should make the frequent workflow consistent:
 
@@ -29,10 +32,11 @@ must not disclose real infrastructure.
 ## Ownership boundary
 
 **Decision:** The common client dispatches lifecycle and readiness requests to
-the authoritative testbed adapter. It does not invoke Tart, UTM, SSH, QEMU,
-CoreDevice, ADB, or a device directly.
+the authoritative platform/testbed adapter. Repository placement does not
+change this adapter boundary. The common client does not invoke Tart, UTM,
+SSH, QEMU, CoreDevice, ADB, or a device directly.
 
-The testbed retains:
+The platform/testbed adapter retains:
 
 - exact target identity, UUID/serial pinning, role and mutation guards;
 - start, resume, suspend, shutdown, stop, clone, disposable, and delete policy;
