@@ -34,6 +34,8 @@ EOF
 remote_app="$(macvm_remote_ui_app)"
 remote_binary="$(macvm_remote_ui_binary)"
 remote_socket="$(macvm_remote_control_socket)"
+remote_resident_plist="$(macvm_remote_resident_plist)"
+resident_label="$(macvm_remote_resident_label)"
 
 resident_request() {
     local request="$1"
@@ -41,13 +43,27 @@ resident_request() {
         "$remote_socket" "$request"
 }
 
+resident_domain() {
+    printf 'gui/%s\n' "$(macvm_exec /usr/bin/id -u)"
+}
+
 resident_start() {
     if resident_request '{"operation":"status"}' >/dev/null 2>&1; then
         return 0
     fi
     macvm_exec /bin/rm -f "$remote_socket"
-    macvm_exec /usr/bin/open -n "$remote_app" \
-        --args serve "$remote_socket" >/dev/null
+    if macvm_exec /bin/test -f "$remote_resident_plist" \
+            >/dev/null 2>&1; then
+        local domain
+        domain="$(resident_domain)"
+        macvm_exec /bin/launchctl bootstrap "$domain" \
+            "$remote_resident_plist" >/dev/null 2>&1 || true
+        macvm_exec /bin/launchctl kickstart -k \
+            "$domain/$resident_label" >/dev/null
+    else
+        macvm_exec /usr/bin/open -n "$remote_app" \
+            --args serve "$remote_socket" >/dev/null
+    fi
     local attempt
     for attempt in {1..50}; do
         if resident_request '{"operation":"status"}' >/dev/null 2>&1; then
@@ -68,8 +84,14 @@ case "${1:-}" in
         ;;
     resident-stop)
         macvm_assert_mutation_target
-        if resident_request '{"operation":"server.stop"}' >/dev/null 2>&1; then
-            exit
+        if macvm_exec /bin/test -f "$remote_resident_plist" \
+                >/dev/null 2>&1; then
+            macvm_exec /bin/launchctl bootout \
+                "$(resident_domain)/$resident_label" \
+                >/dev/null 2>&1 || true
+        else
+            resident_request '{"operation":"server.stop"}' \
+                >/dev/null 2>&1 || true
         fi
         macvm_exec /bin/rm -f "$remote_socket"
         exit

@@ -28,6 +28,9 @@ Start here:
   java-fixture-state     Read the Java Swing fixture's file oracle
   framework-runtime-status
                          Inspect the pinned Java, Node, and Electron runtimes
+  post-update audit|repair [--reboot]
+                         Audit or restore installed startup invariants
+  appliance-certify      Reboot and check exact source on the candidate
 
 Setup:
   deploy-ui              Compile and deploy the semantic UI helper
@@ -48,6 +51,8 @@ Setup:
   remove-electron-fixture Remove the Electron fixture and oracle state
   remove-java-fixture    Remove the Java fixture and oracle state
   authorize-ui           Request the guest Accessibility permission
+  bootstrap [--profile development|runtime]
+                         Deploy resident/support and verify the tool profile
 
 Out-of-band recovery:
   screenshot [PATH]      Capture the Tart guest display to a PNG
@@ -58,6 +63,7 @@ Out-of-band recovery:
 
 Lifecycle and discovery:
   status | get | host-state | ip | suspend | shutdown | stop | force-stop
+  candidate-status --json
   workspace-capabilities | workspace-acquire | workspace-inventory
   workspace-release | workspace-gc
 
@@ -93,6 +99,10 @@ case "$command" in
     deploy-java-fixture) exec "$REPO_DIR/scripts/deploy-java-fixture.sh" "$@" ;;
     install-framework-runtimes) exec "$REPO_DIR/scripts/install-framework-runtimes.sh" "$@" ;;
     framework-runtime-status) exec "$REPO_DIR/scripts/framework-runtime-status.sh" "$@" ;;
+    post-update) exec "$REPO_DIR/scripts/post-update.sh" "$@" ;;
+    bootstrap) exec "$REPO_DIR/scripts/bootstrap-appliance.sh" "$@" ;;
+    appliance-certify) exec "$REPO_DIR/scripts/certify-appliance.sh" "$@" ;;
+    candidate-status) exec "$REPO_DIR/scripts/candidate-status.sh" "$@" ;;
     reset-admin-fixture) exec "$REPO_DIR/scripts/reset-admin-fixture.sh" "$@" ;;
     reset-privacy-fixture) exec "$REPO_DIR/scripts/reset-privacy-fixture.sh" "$@" ;;
     remove-fixture) exec "$REPO_DIR/scripts/remove-fixture.sh" "$@" ;;

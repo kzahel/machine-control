@@ -39,6 +39,7 @@ macvm_config_names=(
     MACVM_WORKSPACE_MAX_RETAINED
     MACVM_WORKSPACE_CANDIDATE_PREFIX
     MACVM_WORKSPACE_GUEST_TRANSPORT
+    MACVM_CERTIFY_CHECK_TIMEOUT
 )
 macvm_environment_values=()
 for macvm_config_name in "${macvm_config_names[@]}"; do
@@ -90,6 +91,7 @@ MACVM_WORKSPACE_MAX_TEMPORARY="${MACVM_WORKSPACE_MAX_TEMPORARY:-1}"
 MACVM_WORKSPACE_MAX_RETAINED="${MACVM_WORKSPACE_MAX_RETAINED:-2}"
 MACVM_WORKSPACE_CANDIDATE_PREFIX="${MACVM_WORKSPACE_CANDIDATE_PREFIX:-machine-control-macos}"
 MACVM_WORKSPACE_GUEST_TRANSPORT="${MACVM_WORKSPACE_GUEST_TRANSPORT:-tart}"
+MACVM_CERTIFY_CHECK_TIMEOUT="${MACVM_CERTIFY_CHECK_TIMEOUT:-1200}"
 
 macvm_apply_workspace_selection() {
     local handle="${MACHINE_CONTROL_WORKSPACE_HANDLE:-}"
@@ -149,6 +151,7 @@ export MACVM_WORKSPACE_ALLOW_SHARED_BASE
 export MACVM_WORKSPACE_STORAGE_PATH MACVM_WORKSPACE_MIN_FREE_BYTES
 export MACVM_WORKSPACE_MAX_TEMPORARY MACVM_WORKSPACE_MAX_RETAINED
 export MACVM_WORKSPACE_CANDIDATE_PREFIX MACVM_WORKSPACE_GUEST_TRANSPORT
+export MACVM_CERTIFY_CHECK_TIMEOUT
 export MACHINE_CONTROL_WORKSPACE_HANDLE
 
 macvm_require_command() {
@@ -291,6 +294,25 @@ macvm_remote_control_cli() {
     printf '/Users/%s/bin/machine-control\n' "$MACVM_GUEST_USER"
 }
 
+macvm_remote_resident_label() {
+    printf 'com.kzahel.macvm-testbed.resident\n'
+}
+
+macvm_remote_resident_plist() {
+    printf '/Users/%s/Library/LaunchAgents/%s.plist\n' \
+        "$MACVM_GUEST_USER" "$(macvm_remote_resident_label)"
+}
+
+macvm_remote_post_update_script() {
+    printf '/Users/%s/Library/Application Support/macvm-testbed/post-update.sh\n' \
+        "$MACVM_GUEST_USER"
+}
+
+macvm_resident_request() {
+    macvm_exec "$(macvm_remote_ui_binary)" request \
+        "$(macvm_remote_control_socket)" "$1"
+}
+
 macvm_assert_mutation_target() {
     if [[ "$MACVM_REQUIRE_MUTATION_GUARD" != "true" ]]; then
         return 0
@@ -307,6 +329,18 @@ macvm_assert_mutation_target() {
             return 1
             ;;
     esac
+}
+
+macvm_assert_candidate_target() {
+    macvm_assert_mutation_target
+    if [[ "$MACVM_TARGET_ROLE" != candidate ]]; then
+        printf 'Refusing mutation: target role is not candidate\n' >&2
+        return 1
+    fi
+    if [[ -n "${MACHINE_CONTROL_WORKSPACE_HANDLE:-}" ]]; then
+        printf 'Refusing candidate mutation through a workspace selector\n' >&2
+        return 1
+    fi
 }
 
 macvm_assert_outer_ui_allowed() {

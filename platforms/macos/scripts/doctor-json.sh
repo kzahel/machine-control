@@ -68,7 +68,7 @@ fi
 
 control_status=""
 if [[ "$desktop" == unlocked ]] &&
-        control_status="$($MACVM control \
+        control_status="$(macvm_resident_request \
             '{"operation":"status"}' 2>/dev/null)" &&
         jq -e '.schema == "machine-control/v0" and .accepted == true' \
             <<<"$control_status" >/dev/null 2>&1; then

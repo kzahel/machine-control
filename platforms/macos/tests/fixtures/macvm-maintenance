@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+log="${MACHINE_CONTROL_MACVM_LOG:?}"
+state="${MACHINE_CONTROL_MACVM_STATE:?}"
+reboot_marker="$state.reboot"
+printf '%q ' "$@" >>"$log"
+printf '\n' >>"$log"
+
+power() {
+    if [[ -f "$state" ]]; then cat "$state"; else printf 'running\n'; fi
+}
+
+ready_audit() {
+    local profile="${1:-development}"
+    jq -cn --arg profile "$profile" '{
+        schema:"machine-control-macos-post-update-orchestration/v0",
+        operation:"audit",route:"selected_guest_transport",healthy:true,
+        reboot:{requested:false,observed:false},
+        post_update:{schema:"machine-control-macos-post-update/v0",
+            mode:"audit",profile:$profile,healthy:true,checks:[]},
+        doctor:{schema:"machine-control-doctor/v0",ready:true}
+    }'
+}
+
+command="${1:-}"
+if (( $# > 0 )); then shift; fi
+case "$command" in
+    status) power ;;
+    up) printf 'running\n' >"$state" ;;
+    shutdown) printf 'stopped\n' >"$state" ;;
+    candidate-status)
+        jq -cn --arg power "$(power)" '{
+            schema:"machine-control-candidate-assertion/v0",
+            identityPin:"verified",role:"candidate",powerState:$power,
+            workspaceOwnership:"clear"
+        }'
+        ;;
+    post-update)
+        profile=development
+        while (( $# > 0 )); do
+            case "$1" in
+                --profile) profile="$2"; shift 2 ;;
+                *) shift ;;
+            esac
+        done
+        ready_audit "$profile"
+        ;;
+    exec)
+        [[ "${1:-}" == -i ]] && shift
+        if [[ "${1:-}" == *'/post-update.sh' ]]; then
+            mode=audit
+            profile=development
+            nonce=missing
+            while (( $# > 0 )); do
+                case "$1" in
+                    --mode) mode="$2"; shift 2 ;;
+                    --profile) profile="$2"; shift 2 ;;
+                    --nonce) nonce="$2"; shift 2 ;;
+                    *) shift ;;
+                esac
+            done
+            if [[ "${MACHINE_CONTROL_MACVM_BAD_NONCE:-0}" == 1 ]]; then
+                nonce=aaaaaaaaaaaaaaaaaaaaaaaa
+            fi
+            jq -cn --arg mode "$mode" --arg profile "$profile" \
+                --arg nonce "$nonce" '{
+                    schema:"machine-control-macos-post-update/v0",
+                    mode:$mode,profile:$profile,nonce:$nonce,healthy:true,
+                    checks:[{id:"fixture",required:true,healthy:true,
+                        state:"ready"}],repairs:[]
+                }'
+        elif [[ "${1:-}" == /usr/sbin/sysctl ]]; then
+            if [[ -f "$reboot_marker" ]]; then
+                printf '{ sec = 2, usec = 0 } Mon Jan  1 00:00:02 2026\n'
+            else
+                printf '{ sec = 1, usec = 0 } Mon Jan  1 00:00:01 2026\n'
+            fi
+        elif [[ " $* " == *' /sbin/shutdown -r now '* ]]; then
+            touch "$reboot_marker"
+        elif [[ "${1:-}" == /usr/bin/tee ]]; then
+            /bin/cat >/dev/null
+        elif [[ "${1:-}" == /usr/bin/python3 ]]; then
+            if [[ " $* " == *' native '* &&
+                  "${MACHINE_CONTROL_MACVM_NATIVE_FAIL:-0}" == 1 ]]; then
+                exit 1
+            fi
+            if [[ " $* " == *' portable '* &&
+                  "${MACHINE_CONTROL_MACVM_PORTABLE_TIMEOUT:-0}" == 1 ]]; then
+                exit 124
+            fi
+        fi
+        ;;
+    *) printf 'Unexpected fixture command: %s\n' "$command" >&2; exit 2 ;;
+esac

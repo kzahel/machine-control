@@ -109,7 +109,7 @@ else
 fi
 
 
-if resident="$($MACVM_REPO_DIR/bin/macui control '{"operation":"capabilities"}' 2>/dev/null)" \
+if resident="$(macvm_resident_request '{"operation":"capabilities"}' 2>/dev/null)" \
         && printf '%s' "$resident" | jq -e '.accepted == true' >/dev/null 2>&1; then
     ready_providers="$(printf '%s' "$resident" | jq \
         '[.data.providers[] | select(.state == "ready")] | length')"

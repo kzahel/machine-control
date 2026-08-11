@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+jq -cn '{schema:"machine-control-doctor/v0",ready:true,
+    states:{power:"running",administration:"ready",desktop:"unlocked",
+        resident:"ready",semantic:"ready",capture:"ready",input:"ready",
+        outer:"prohibited"}}'
