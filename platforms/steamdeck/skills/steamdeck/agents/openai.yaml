@@ -1,0 +1,4 @@
+interface:
+  display_name: "Steam Deck"
+  short_description: "Deploy and control a Steam Deck test device"
+  default_prompt: "Use $steamdeck to diagnose the device and deploy a staged Linux game safely."

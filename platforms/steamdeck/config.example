@@ -1,0 +1,6 @@
+# Copy to config.local only when SSH config is not sufficient.
+# Never commit private addresses or key paths.
+
+export STEAMDECK_HOST=steamdeck
+# export STEAMDECK_USER=deck
+# export STEAMDECK_KEY="$HOME/.ssh/id_ed25519"
