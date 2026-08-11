@@ -154,6 +154,18 @@ one-use factory media. The runtime-only profile remains explicit. Detachment
 removes every removable drive through UTM's stopped configuration API and
 independently confirms that none remain.
 
+After committing the exact controller source, finish the development-appliance
+handoff with:
+
+```bash
+bin/winvm appliance-certify --json
+```
+
+This on-demand path audits without repair, proves a reboot, runs the exact
+committed portable and Windows-native source inside the guest, removes its
+staging, and leaves the accepted candidate cleanly stopped. It does not derive
+another VM or replace the separate Sysprep/export procedure below.
+
 ## Generalize and export
 
 Preflight the explicitly pinned candidate:

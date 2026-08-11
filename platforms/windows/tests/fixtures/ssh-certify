@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+
+import base64
+import json
+import os
+from pathlib import Path
+import sys
+
+
+arguments = sys.argv[1:]
+command = arguments[-1] if arguments else ""
+if command.startswith("shutdown.exe /r"):
+    Path(os.environ["WINVM_TEST_CERTIFY_REBOOT_FILE"]).touch()
+    raise SystemExit(0)
+if command == "exit":
+    raise SystemExit(0)
+if "EncodedCommand " not in command:
+    raise SystemExit(0)
+
+encoded = command.rsplit("EncodedCommand ", 1)[1]
+script = base64.b64decode(encoded).decode("utf-16le")
+if "machine-control-windows-appliance-guest-certification/v0" not in script:
+    raise SystemExit(0)
+
+failed = os.environ.get("WINVM_TEST_CERTIFY_GUEST_FAIL") == "1"
+print(json.dumps({
+    "schema": "machine-control-windows-appliance-guest-certification/v0",
+    "healthy": not failed,
+    "source_digest_match": True,
+    "portable_checks": "failed" if failed else "passed",
+    "native_checks": "not_run" if failed else "passed",
+    "staging_removed": True,
+    "failure": "portable_checks_failed" if failed else None,
+}, separators=(",", ":")))
+raise SystemExit(1 if failed else 0)

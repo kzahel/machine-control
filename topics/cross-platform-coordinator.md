@@ -97,6 +97,13 @@ now contains Python and .NET 8 as reproducible public development tooling; the
 check runner supplies a per-process PowerShell execution policy rather than
 changing the appliance's machine or user policy.
 
+**Current (2026-08-11):** Tactical 020 adds an on-demand Windows appliance
+certification composition around the same portable entry point. It accepts
+only a clean committed archive, verifies its digest in the exact candidate,
+runs portable and Windows-native checks after a changed boot epoch, removes
+staging, and shuts down only after success. Routine hosted CI remains
+non-mutating and does not acquire a private VM.
+
 **Current (2026-08-11):** Hosted run `31481111956` passed all six public jobs
 at commit `5ed134a`: portable coordinator checks and matching native checks on
 macOS, Linux, and Windows. The Windows native job parsed the PowerShell corpus

@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+command="${1:-}"
+shift || true
+case "$command" in
+    assert-target)
+        [[ "${1:-}" == appliance-certify ]]
+        ;;
+    status)
+        if [[ -f "$WINVM_TEST_CERTIFY_STOPPED_FILE" ]]; then
+            printf 'stopped\n'
+        else
+            printf 'started\n'
+        fi
+        ;;
+    up)
+        rm -f -- "$WINVM_TEST_CERTIFY_STOPPED_FILE"
+        printf '192.0.2.1\n'
+        ;;
+    post-update)
+        [[ "${1:-}" == audit ]]
+        if [[ -f "$WINVM_TEST_CERTIFY_REBOOT_FILE" ]]; then
+            epoch='2026-01-02T00:00:00.0000000Z'
+        else
+            epoch='2026-01-01T00:00:00.0000000Z'
+        fi
+        jq -cn --arg epoch "$epoch" '{
+            schema:"machine-control-windows-post-update-orchestration/v0",
+            operation:"audit",route:"key_only_ssh",healthy:true,
+            reboot:{requested:false,observed:false},
+            post_update:{
+                schema:"machine-control-windows-post-update/v0",
+                healthy:true,boot_epoch_utc:$epoch,checks:[]
+            },
+            doctor:{schema:"machine-control-doctor/v0",ready:true}
+        }'
+        ;;
+    shutdown)
+        touch "$WINVM_TEST_CERTIFY_STOPPED_FILE"
+        printf 'stopped\n'
+        ;;
+    *)
+        exit 2
+        ;;
+esac

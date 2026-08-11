@@ -35,9 +35,17 @@ path used before these suites. It requires a UUID-pinned candidate assertion
 from the authoritative testbed, or the explicit `--allow-unattested-target`
 mode for physical and non-integrated targets. It detects ARM64/x64, builds and
 verifies the matching package, installs through administrative SSH, waits for
-the Medium helper and adopted providers, and removes transfer staging. It
-assumes a testbed-ready Windows base; it is not an OOBE or credential
-bootstrap.
+the Medium helper and adopted providers, and removes transfer staging. Its
+default `development` profile first installs and verifies Python 3 plus .NET
+8; `runtime` explicitly omits that toolchain. It assumes a testbed-ready
+Windows base; it is not an OOBE or credential bootstrap.
+
+`platforms/windows/bin/winvm appliance-certify` is the heavier retained-image
+acceptance path. It requires a clean commit and exact candidate, observes a
+changed boot epoch, runs `bin/check --portable` and `bin/check --native` from a
+digest-bound archive in the guest, removes staging, and shuts down only after
+success. Fixture coverage proves the successful handoff and that a guest-check
+failure does not request shutdown.
 
 Run its host-side target-safety checks with:
 

@@ -117,6 +117,7 @@ bin/winvm candidate-status --json # Minimized role/identity/power assertion
 bin/winvm post-update audit --json # Read-only startup/toolchain/readiness audit
 bin/winvm post-update repair --json # Bounded candidate-only inner repair
 bin/winvm post-update repair --reboot --json # Repair and prove new boot epoch
+bin/winvm appliance-certify --json # Reboot, exact-source checks, clean shutdown
 bin/winvm assert-target connect --json # Verify UUID pin and role policy
 bin/winvm up                      # Start/resume and print the guest IP
 bin/winvm capabilities --json     # Inspect lifecycle support and down policy
@@ -241,6 +242,15 @@ nor boots or clones a seal.
 - A cold boot normally requires one manual Windows login. A dedicated test
   appliance may use explicitly authorized guest-local auto-logon, but its
   credential must never be stored in this repository or command output.
+
+`appliance-certify` is the occasional, deliberately heavier acceptance path.
+It requires the exact candidate and a clean committed checkout, audits without
+repairing, observes a changed Windows boot epoch and full doctor readiness,
+transfers a digest-bound `git archive` of that commit, runs the portable and
+Windows-native checks inside the guest, removes unique staging, and requests a
+clean shutdown. It creates no clone, workspace, snapshot, or seal. A failed
+certification leaves the candidate running for diagnosis while still trying
+to remove source staging.
 
 ## Application Limits
 

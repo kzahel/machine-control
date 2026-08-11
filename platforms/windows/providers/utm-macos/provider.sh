@@ -128,7 +128,7 @@ role_allows_operation() {
             [[ "$role" == "candidate" || "$role" == "seal" ]] ||
                 { [[ "$role" == "source" ]] && source_mutation_authorized; }
             ;;
-        stage-bootstrap|deploy-ui|product-install|post-update-repair|generalize|input|force-stop|factory-detach-installer|factory-detach-media)
+        stage-bootstrap|deploy-ui|product-install|post-update-repair|appliance-certify|generalize|input|force-stop|factory-detach-installer|factory-detach-media)
             [[ "$role" == "candidate" ]] ||
                 { [[ "$role" == "source" ]] && source_mutation_authorized; }
             ;;

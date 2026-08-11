@@ -131,6 +131,19 @@ the full doctor to return. Repair never enters a credential, uses the UTM
 window, force-stops the VM, installs an absent component, or clears a
 pending-reboot marker.
 
+For an occasional complete proof after material controller, toolchain, or
+Windows changes, commit the source tree and run:
+
+```bash
+bin/winvm appliance-certify --json
+```
+
+Certification does not repair. It audits, reboots, requires a changed boot
+epoch and common-doctor readiness, transfers a digest-bound archive of the
+exact commit, runs portable and Windows-native checks in the guest, removes
+staging, and cleanly shuts down only on success. Failure leaves the appliance
+running for diagnosis and never creates another VM.
+
 ## 5. Install the Optional WinApp Comparison Relay
 
 Keep the Windows desktop logged in, then run:

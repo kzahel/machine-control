@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+source_path="${2:-}"
+[[ "${1:-}" == -q && -f "$source_path" && "${3:-}" == *:*/source.zip ]]

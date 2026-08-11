@@ -25,6 +25,7 @@ scripts=(
     "$REPO_DIR/bin/winvm"
     "$REPO_DIR/bin/winui"
     "$REPO_DIR/scripts/common.sh"
+    "$REPO_DIR/scripts/certify-appliance.sh"
     "$REPO_DIR/scripts/control.sh"
     "$REPO_DIR/scripts/deploy-ui.sh"
     "$REPO_DIR/scripts/doctor-json.sh"
@@ -51,6 +52,7 @@ help_output="$(WINVM_UTM_NAME='Smoke Test VM' "$REPO_DIR/bin/winvm" help)"
 [[ "$help_output" == *'control-local JSON'* ]]
 [[ "$help_output" == *'artifact ID [PATH]'* ]]
 [[ "$help_output" == *'post-update audit|repair'* ]]
+[[ "$help_output" == *'appliance-certify'* ]]
 [[ "$help_output" == *'capabilities'* ]]
 [[ "$help_output" == *'down'* ]]
 [[ "$help_output" == *'seal'* ]]
@@ -259,6 +261,7 @@ candidate_json="$(assert_target candidate up --json)"
 [[ "$(jq -r '.transport.ssh_alias' <<< "$candidate_json")" == 'winvm' ]]
 assert_target candidate product-install >/dev/null
 assert_target candidate post-update-repair >/dev/null
+assert_target candidate appliance-certify >/dev/null
 assert_target candidate generalize >/dev/null
 assert_target candidate export-image >/dev/null
 assert_target candidate factory-detach-installer >/dev/null
@@ -269,6 +272,10 @@ if assert_target seal product-install >/dev/null 2>&1; then
 fi
 if assert_target seal post-update-repair >/dev/null 2>&1; then
     printf 'Seal unexpectedly authorized post-update repair.\n' >&2
+    exit 1
+fi
+if assert_target seal appliance-certify >/dev/null 2>&1; then
+    printf 'Seal unexpectedly authorized appliance certification.\n' >&2
     exit 1
 fi
 if assert_target seal factory-detach-media >/dev/null 2>&1; then
@@ -359,6 +366,35 @@ if env "${post_update_environment[@]}" \
         "$provider" post-update-guest-agent Development fixednonce \
         >/dev/null 2>&1; then
     printf 'Guest-agent repair accepted a mismatched report nonce.\n' >&2
+    exit 1
+fi
+
+certify_environment=(
+    WINVM_CERTIFY_ALLOW_DIRTY_FOR_TESTS=1
+    WINVM_CERTIFY_WINVM="$REPO_DIR/tests/fixtures/winvm-certify"
+    WINVM_SSH_BIN="$REPO_DIR/tests/fixtures/ssh-certify"
+    WINVM_SCP_BIN="$REPO_DIR/tests/fixtures/scp-certify"
+    WINVM_TEST_CERTIFY_REBOOT_FILE="$temporary/certify-rebooted"
+    WINVM_TEST_CERTIFY_STOPPED_FILE="$temporary/certify-stopped"
+)
+certification="$(env "${certify_environment[@]}" \
+    "$REPO_DIR/bin/winvm" appliance-certify --json)"
+jq -e '.schema == "machine-control-windows-appliance-certification/v0" and
+    .healthy == true and .reboot.observed == true and
+    .guest_checks.portable_checks == "passed" and
+    .guest_checks.native_checks == "passed" and .final_power == "off"' \
+    <<<"$certification" >/dev/null
+[[ -f "$temporary/certify-stopped" ]]
+
+rm -f -- "$temporary/certify-rebooted" "$temporary/certify-stopped"
+if env "${certify_environment[@]}" WINVM_TEST_CERTIFY_GUEST_FAIL=1 \
+        "$REPO_DIR/bin/winvm" appliance-certify --json \
+        >/dev/null 2>&1; then
+    printf 'Appliance certification accepted failed guest checks.\n' >&2
+    exit 1
+fi
+if [[ -f "$temporary/certify-stopped" ]]; then
+    printf 'Failed appliance certification unexpectedly shut down the target.\n' >&2
     exit 1
 fi
 
