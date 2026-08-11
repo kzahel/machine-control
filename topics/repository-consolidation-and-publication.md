@@ -2,7 +2,8 @@
 
 Topic: `repository-consolidation-and-publication`
 
-Status: accepted direction; platform migrations have not started.
+Status: current canonical monorepo and private-inventory boundary; focused
+generated publications remain optional future work.
 
 ## Scope
 
@@ -81,20 +82,27 @@ the platform's completion conditions.
 
 ## Initial source classification
 
-**Current:** remote inspection during planning found these repositories public,
-unarchived, and using one simple `main` history without tags or merge commits:
+**Current:** the committed histories of these repositories have been imported
+under their canonical platform prefixes and the external repositories are
+marked legacy:
 
 - `winvm-testbed`, `macvm-testbed`, `linuxvm-testbed`, `steamdeck-testbed`,
   `quest-testbed`, and `ios-device-testbed`, each with an MIT license; and
-- `chromeos-testbed`, which currently has no top-level license and therefore
-  requires a licensing decision before import or generated redistribution.
+- `chromeos-testbed`, licensed MIT before import and sanitized during history
+  rewriting to omit obsolete deployment-specific intent-test material and use
+  a generic public SSH selector.
+
+The final pre-publication scan also generalized one Linux example username and
+removed an embedded ChromeOS controller public key throughout the unpushed
+migration history. Deployment-specific access material is now supplied only by
+the private inventory boundary.
 
 `hardware-kvm-testbed` is currently private and has no top-level license. It
 must not receive the abbreviated public-source review described below. Its
 portable implementation, if adopted here, requires an intentional sanitized
 publication review; preserving its private history is not a goal.
 
-Visibility and licensing must be rechecked at each freeze point. Public
+Visibility and licensing were checked at each freeze point. Public
 visibility shows that material has already been disclosed; it does not prove
 that the history is free of deployment data, that every bundled artifact may
 be republished, or that it is suitable for permanent inclusion in another
@@ -218,32 +226,32 @@ authority changes one platform at a time.
 
 ## Migration sequence
 
-**Proposal:** proceed in these stages:
+**Current:** the consolidation completed these stages:
 
-1. **Foundation:** finalize the inventory interface between the public common
-   client and private dotfiles overlay; add platform-directory conventions and
-   reusable import/audit tooling.
-2. **Desktop rehearsal:** migrate Linux first as a meaningful but relatively
-   small accepted common-client target. Use the result to correct the process.
-3. **Active desktops:** migrate macOS and Windows separately, including their
+1. **Foundation:** finalized the inventory interface between the public common
+   client and private dotfiles overlay and added platform-directory
+   conventions and reusable import/audit tooling.
+2. **Desktop rehearsal:** migrated Linux first as a meaningful but relatively
+   small accepted common-client target, then used the result to correct the
+   process.
+3. **Active desktops:** migrated macOS and Windows separately, including their
    resident and image/lifecycle relationships, without disrupting the existing
    Windows-first runtime.
-4. **ChromeOS:** resolve licensing, import ChromeOS, validate its update and
-   recovery workflows, and mark the existing repository legacy. Treat a
-   generated focused distribution as a later publication task, not part of the
-   authority cutover.
-5. **Attached and physical devices:** migrate iOS, Quest, and Steam Deck with
+4. **ChromeOS:** resolved licensing, imported ChromeOS, validated its basic
+   recovery workflows, and marked the existing repository legacy. A generated
+   focused distribution remains a later publication task rather than part of
+   the authority cutover.
+5. **Attached and physical devices:** migrated iOS, Quest, and Steam Deck with
    their native device-host boundaries intact.
 6. **Private candidate:** separately review whether any portable
    hardware-KVM implementation should be published here from a sanitized
    snapshot.
-7. **Agent handoff:** once the common CLI covers the full current inventory,
-   update durable agent instructions to start there and reduce
-   `dotfiles/testbeds` to private inventory/deployment and compatibility roles.
+7. **Agent handoff:** updated durable agent instructions to start with the
+   common CLI and reduced `dotfiles/testbeds` to private inventory/deployment
+   and compatibility roles.
 
-The exact platform order may change when a tactical discovers a dependency,
-but a smaller pilot should precede the repositories with the most active image
-and recovery machinery.
+The private hardware-KVM candidate and generated focused publications remain
+future work.
 
 ## Optional focused publications
 
