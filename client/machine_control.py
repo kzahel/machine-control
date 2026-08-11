@@ -397,6 +397,8 @@ def target_view(alias: str, target: dict[str, Any]) -> dict[str, Any]:
     }
     if "workspaceDefaultIntent" in target:
         view["workspaceDefaultIntent"] = target["workspaceDefaultIntent"]
+    if "_workspaceHandle" in target:
+        view["workspaceHandle"] = target["_workspaceHandle"]
     return view
 
 
@@ -1341,6 +1343,11 @@ def _workspace_intent(arguments: list[str]) -> str | None:
 def handle_workspace(
     alias: str, target: dict[str, Any], arguments: list[str]
 ) -> int:
+    if target.get("_workspaceHandle") is not None:
+        raise ClientError(
+            "workspace_selection_conflict",
+            "Workspace management cannot run through an already selected workspace",
+        )
     if target.get("interface", "machine-control-v0") != "machine-control-v0":
         raise ClientError(
             "unsupported_workspace_interface",
@@ -1550,7 +1557,7 @@ def run_inventory(path_text: str | None, arguments: list[str]) -> int:
 
 def usage() -> str:
     return """Usage: machine-control [--registry PATH] [--inventory-provider PATH]
-                       [--target ALIAS] COMMAND ...
+                       [--target ALIAS] [--workspace HANDLE] COMMAND ...
 
 Commands:
   inventory list|status|guide|doctor  Use the private deployment inventory
@@ -1581,6 +1588,7 @@ def parse_global_options(
         "registry": None,
         "inventory_provider": None,
         "target": None,
+        "workspace": None,
         "help": False,
     }
     index = 0
@@ -1595,6 +1603,7 @@ def parse_global_options(
             ("--registry", "registry"),
             ("--inventory-provider", "inventory_provider"),
             ("--target", "target"),
+            ("--workspace", "workspace"),
         ):
             if token == option:
                 if index + 1 >= len(arguments):
@@ -1646,6 +1655,20 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         alias, target = select_target(targets, known.target)
+        if known.workspace is not None:
+            if not _valid_workspace_handle(known.workspace):
+                raise ClientError(
+                    "invalid_workspace_handle",
+                    "--workspace requires an opaque workspace handle",
+                )
+            target = {
+                **target,
+                "environment": {
+                    **target.get("environment", {}),
+                    "MACHINE_CONTROL_WORKSPACE_HANDLE": known.workspace,
+                },
+                "_workspaceHandle": known.workspace,
+            }
         if operation == "target":
             return handle_target(alias, target, remainder[1:])
         if operation == "workspace":

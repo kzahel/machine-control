@@ -10,6 +10,12 @@ arguments = sys.argv[1:]
 if path := os.environ.get("MACHINE_CONTROL_MOCK_LOG"):
     Path(path).write_text(json.dumps(arguments), encoding="utf-8")
 command = arguments[0] if arguments else ""
+expected_workspace = os.environ.get("MACHINE_CONTROL_MOCK_EXPECT_WORKSPACE")
+if expected_workspace is not None and os.environ.get(
+    "MACHINE_CONTROL_WORKSPACE_HANDLE"
+) != expected_workspace:
+    print("workspace selector was not forwarded", file=sys.stderr)
+    raise SystemExit(2)
 
 if command == "workspace-capabilities" and arguments[1:] == ["--json"]:
     value = {

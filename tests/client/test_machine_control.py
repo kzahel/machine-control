@@ -304,6 +304,40 @@ class ClientTests(unittest.TestCase):
             value["errorCode"], "workspace_gc_requires_dry_run"
         )
 
+    def test_workspace_handle_selects_later_adapter_calls(self):
+        handle = "w-fixture-isolated"
+        result, value = self.run_cli(
+            "--target", "fixture", "--workspace", handle,
+            "desktop", "status",
+            extra_env={"MACHINE_CONTROL_MOCK_EXPECT_WORKSPACE": handle},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["client"]["logicalTarget"], "fixture")
+
+        result, value = self.run_cli(
+            "--target", "fixture", "--workspace", handle,
+            "target", "status",
+            extra_env={"MACHINE_CONTROL_MOCK_EXPECT_WORKSPACE": handle},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["target"]["workspaceHandle"], handle)
+
+    def test_invalid_workspace_selector_fails_before_adapter(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "--workspace", "../private",
+            "target", "status",
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(value["errorCode"], "invalid_workspace_handle")
+
+    def test_workspace_management_refuses_selected_workspace(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "--workspace", "w-fixture-isolated",
+            "workspace", "inventory",
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(value["errorCode"], "workspace_selection_conflict")
+
     def test_windows_translates_common_request(self):
         self.write_registry("windows")
         result, value = self.run_cli(

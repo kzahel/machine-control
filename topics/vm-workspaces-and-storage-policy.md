@@ -118,12 +118,20 @@ machine-control --target <alias> workspace acquire --intent <intent>
 machine-control --target <alias> workspace inventory
 machine-control --target <alias> workspace release <opaque-handle>
 machine-control --target <alias> workspace gc --dry-run
+machine-control --target <alias> --workspace <opaque-handle> target doctor
+machine-control --target <alias> --workspace <opaque-handle> desktop status
 ```
 
 `capabilities` and `inventory` are read-only. `acquire` and `release` are
 explicitly mutating. Garbage collection begins as dry-run only; automatic or
 confirmed cleanup must never broaden its selection beyond adapter-owned
 receipts.
+
+The returned handle explicitly selects later target, desktop, testbed, or OS
+calls. The coordinator forwards it as an adapter selector. The adapter still
+requires its private receipt and a fresh exact provider-identity match; the
+handle grants no authority by itself. Workspace-management operations reject
+an already selected handle to avoid ambiguous nested acquisition or release.
 
 The normalized acquire result reports requested intent, actual mechanism,
 retention, whether cleanup is automatic, and storage preflight confidence. It
