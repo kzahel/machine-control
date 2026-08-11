@@ -36,6 +36,7 @@ class ClientTests(unittest.TestCase):
         controller_platforms=None,
         launcher="auto",
         command=None,
+        workspace_default_intent="persistent",
     ):
         target = {
             "platform": platform,
@@ -45,6 +46,8 @@ class ClientTests(unittest.TestCase):
             "launcher": launcher,
             "command": command or [sys.executable, str(MOCK)],
         }
+        if workspace_default_intent is not None:
+            target["workspaceDefaultIntent"] = workspace_default_intent
         if interface is not None:
             target["interface"] = interface
         if environment is not None:
@@ -89,6 +92,9 @@ class ClientTests(unittest.TestCase):
         self.assertTrue(value["targets"][0]["adapterAvailable"])
         self.assertNotIn("command", value["targets"][0])
         self.assertNotIn(str(self.directory), result.stdout)
+        self.assertEqual(
+            value["targets"][0]["workspaceDefaultIntent"], "persistent"
+        )
 
     def test_lists_native_target_without_private_environment(self):
         self.write_registry(
@@ -180,6 +186,123 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertEqual(value["data"]["powerState"], "running")
         self.assertNotIn("private-adapter-detail", result.stdout)
+
+    def test_workspace_capabilities_are_validated_and_projected(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "workspace", "capabilities"
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(
+            value["schema"], "machine-control-workspace-capabilities/v0"
+        )
+        self.assertEqual(value["defaultIntent"], "persistent")
+        self.assertEqual(value["target"]["logicalTarget"], "fixture")
+        self.assertEqual(
+            value["intents"]["isolated"]["mechanisms"][0]["kind"],
+            "provider_disposable_overlay",
+        )
+
+    def test_workspace_acquire_uses_configured_default(self):
+        log = self.directory / "arguments.json"
+        result, value = self.run_cli(
+            "--target", "fixture", "workspace", "acquire",
+            extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["data"]["requestedIntent"], "persistent")
+        self.assertEqual(
+            json.loads(log.read_text(encoding="utf-8")),
+            ["workspace-acquire", "--intent", "persistent", "--json"],
+        )
+
+    def test_workspace_acquire_accepts_explicit_isolated_intent(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "workspace", "acquire",
+            "--intent", "isolated",
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(
+            value["data"]["actualMechanism"],
+            "provider_disposable_overlay",
+        )
+        self.assertEqual(value["data"]["retention"], "discardOnRelease")
+
+    def test_workspace_acquire_requires_intent_without_default(self):
+        self.write_registry("linux", workspace_default_intent=None)
+        result, value = self.run_cli(
+            "--target", "fixture", "workspace", "acquire"
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(value["errorCode"], "workspace_intent_required")
+
+    def test_native_target_refuses_workspace_interface(self):
+        self.write_registry("ios", interface="native")
+        result, value = self.run_cli(
+            "--target", "fixture", "workspace", "capabilities"
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(value["errorCode"], "unsupported_workspace_interface")
+
+    def test_workspace_refusal_is_preserved(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "workspace", "acquire",
+            "--intent", "candidate",
+            extra_env={"MACHINE_CONTROL_MOCK_WORKSPACE_REFUSAL": "1"},
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertFalse(value["accepted"])
+        self.assertEqual(value["errorCode"], "intent_unavailable")
+
+    def test_workspace_result_rejects_private_provider_fields(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "workspace", "acquire",
+            extra_env={"MACHINE_CONTROL_MOCK_PRIVATE_WORKSPACE_FIELD": "1"},
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(value["errorCode"], "invalid_workspace_result")
+        self.assertNotIn("private-vm-fixture", result.stdout)
+
+    def test_workspace_capability_omission_is_typed(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "workspace", "capabilities",
+            extra_env={"MACHINE_CONTROL_MOCK_BAD_WORKSPACE_CAPABILITIES": "1"},
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(value["errorCode"], "invalid_workspace_capabilities")
+
+    def test_workspace_inventory_and_gc_dry_run(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "workspace", "inventory"
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["data"]["counts"]["temporary"], 1)
+        result, value = self.run_cli(
+            "--target", "fixture", "workspace", "gc", "--dry-run"
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertTrue(value["data"]["dryRun"])
+
+    def test_workspace_release_validates_opaque_handle(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "workspace", "release", "not-a-handle"
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(value["errorCode"], "invalid_workspace_handle")
+        result, value = self.run_cli(
+            "--target", "fixture", "workspace", "release",
+            "w-fixture-isolated",
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["data"]["disposition"], "discarded")
+
+    def test_workspace_gc_is_dry_run_only(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "workspace", "gc"
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(
+            value["errorCode"], "workspace_gc_requires_dry_run"
+        )
 
     def test_windows_translates_common_request(self):
         self.write_registry("windows")

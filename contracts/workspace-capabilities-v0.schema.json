@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machine-control.invalid/contracts/workspace-capabilities-v0.schema.json",
+  "title": "Machine Control Workspace Capabilities v0",
+  "type": "object",
+  "required": ["schema", "intents", "limits", "storage", "extensions"],
+  "properties": {
+    "schema": { "const": "machine-control-workspace-capabilities/v0" },
+    "intents": {
+      "type": "object",
+      "required": ["persistent", "isolated", "candidate"],
+      "properties": {
+        "persistent": { "$ref": "#/$defs/intent" },
+        "isolated": { "$ref": "#/$defs/intent" },
+        "candidate": { "$ref": "#/$defs/intent" }
+      },
+      "additionalProperties": false
+    },
+    "limits": {
+      "type": "object",
+      "required": [
+        "maxTemporaryWorkspaces",
+        "maxRetainedWorkspaces",
+        "fullCopyFallback"
+      ],
+      "properties": {
+        "maxTemporaryWorkspaces": { "type": "integer", "minimum": 0 },
+        "maxRetainedWorkspaces": { "type": "integer", "minimum": 1 },
+        "fullCopyFallback": {
+          "enum": ["prohibited", "explicit", "allowed"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "storage": {
+      "type": "object",
+      "required": ["measurement"],
+      "properties": {
+        "measurement": {
+          "enum": ["exact", "estimate", "unavailable"]
+        },
+        "freeBytes": { "type": ["integer", "null"], "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "extensions": { "type": "object" },
+    "defaultIntent": {
+      "enum": ["persistent", "isolated", "candidate"]
+    },
+    "target": { "type": "object" },
+    "adapter": { "type": "object" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "intent": {
+      "type": "object",
+      "required": ["availability", "retention", "mechanisms", "reasons"],
+      "properties": {
+        "availability": { "enum": ["available", "unavailable"] },
+        "retention": { "enum": ["retained", "discardOnRelease"] },
+        "mechanisms": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/mechanism" }
+        },
+        "reasons": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "additionalProperties": false
+    },
+    "mechanism": {
+      "type": "object",
+      "required": [
+        "kind",
+        "costClass",
+        "sourceMustBeStopped",
+        "concurrentWithSource"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "existing_instance",
+            "provider_disposable_overlay",
+            "filesystem_cow_clone",
+            "qcow_backing_overlay",
+            "full_copy",
+            "fresh_provision"
+          ]
+        },
+        "costClass": {
+          "enum": ["overlay", "copy_on_write", "full_copy", "unknown"]
+        },
+        "sourceMustBeStopped": { "type": "boolean" },
+        "concurrentWithSource": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import platform as host_platform
+import re
 import shutil
 import subprocess
 import sys
@@ -20,9 +21,20 @@ TARGET_SCHEMA = "machine-control-targets/v0"
 DOCTOR_SCHEMA = "machine-control-doctor/v0"
 RESULT_SCHEMA = "machine-control/v0"
 TARGET_RESULT_SCHEMA = "machine-control-target/v0"
+WORKSPACE_CAPABILITIES_SCHEMA = "machine-control-workspace-capabilities/v0"
+WORKSPACE_RESULT_SCHEMA = "machine-control-workspace/v0"
 CLIENT_VERSION = "0.2.0"
 CONTROLLER_PLATFORMS = {"darwin", "linux", "windows"}
 LAUNCHERS = {"auto", "direct", "python", "powershell", "bash"}
+WORKSPACE_INTENTS = {"persistent", "isolated", "candidate"}
+WORKSPACE_MECHANISMS = {
+    "existing_instance",
+    "provider_disposable_overlay",
+    "filesystem_cow_clone",
+    "qcow_backing_overlay",
+    "full_copy",
+    "fresh_provision",
+}
 
 DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
     "windows": {
@@ -30,6 +42,7 @@ DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
         "profile": "windows-11-desktop",
         "controllerPlatforms": ["darwin"],
         "launcher": "direct",
+        "workspaceDefaultIntent": "persistent",
         "command": [str(ROOT / "platforms" / "windows" / "bin" / "winvm")],
     },
     "macos": {
@@ -37,6 +50,7 @@ DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
         "profile": "macos-aqua-tart",
         "controllerPlatforms": ["darwin"],
         "launcher": "direct",
+        "workspaceDefaultIntent": "persistent",
         "command": [str(ROOT / "platforms" / "macos" / "bin" / "macvm")],
     },
     "linux": {
@@ -44,6 +58,7 @@ DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
         "profile": "ubuntu-gnome-wayland",
         "controllerPlatforms": ["darwin"],
         "launcher": "direct",
+        "workspaceDefaultIntent": "persistent",
         "command": [str(ROOT / "platforms" / "linux" / "bin" / "linuxvm")],
     },
     "chromeos": {
@@ -291,6 +306,7 @@ def load_registry(
         environment = value.get("environment", {})
         controller_platforms = value.get("controllerPlatforms")
         launcher = value.get("launcher", "auto")
+        workspace_default_intent = value.get("workspaceDefaultIntent")
         if platform not in SUPPORTED_PLATFORMS:
             raise ClientError(
                 "invalid_registry", f"Target '{alias}' has an unsupported platform"
@@ -315,6 +331,14 @@ def load_registry(
         if launcher not in LAUNCHERS:
             raise ClientError(
                 "invalid_registry", f"Target '{alias}' has an invalid launcher"
+            )
+        if (
+            workspace_default_intent is not None
+            and workspace_default_intent not in WORKSPACE_INTENTS
+        ):
+            raise ClientError(
+                "invalid_registry",
+                f"Target '{alias}' has an invalid workspaceDefaultIntent",
             )
         if not isinstance(profile, str) or not profile:
             raise ClientError(
@@ -355,12 +379,14 @@ def load_registry(
             "command": resolved,
             "environment": dict(environment),
         }
+        if workspace_default_intent is not None:
+            targets[alias]["workspaceDefaultIntent"] = workspace_default_intent
     return targets
 
 
 def target_view(alias: str, target: dict[str, Any]) -> dict[str, Any]:
     current = controller_platform()
-    return {
+    view = {
         "logicalTarget": alias,
         "platform": target["platform"],
         "profile": target["profile"],
@@ -369,6 +395,9 @@ def target_view(alias: str, target: dict[str, Any]) -> dict[str, Any]:
         "controllerPlatforms": list(target["controllerPlatforms"]),
         "controllerSupported": current in target["controllerPlatforms"],
     }
+    if "workspaceDefaultIntent" in target:
+        view["workspaceDefaultIntent"] = target["workspaceDefaultIntent"]
+    return view
 
 
 def command_available(target: dict[str, Any]) -> bool:
@@ -547,6 +576,279 @@ def validate_resident(value: Any, platform: str) -> dict[str, Any]:
         )
     if compatibility_fields:
         value["_clientCompatibilityFields"] = compatibility_fields
+    return value
+
+
+def _nonnegative_integer(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def validate_workspace_capabilities(value: Any) -> dict[str, Any]:
+    top_keys = {"schema", "intents", "limits", "storage", "extensions"}
+    if (
+        not isinstance(value, dict)
+        or value.get("schema") != WORKSPACE_CAPABILITIES_SCHEMA
+        or set(value) != top_keys
+    ):
+        raise ClientError(
+            "invalid_workspace_capabilities",
+            f"Workspace capabilities must use {WORKSPACE_CAPABILITIES_SCHEMA}",
+            1,
+        )
+    intents = value.get("intents")
+    if not isinstance(intents, dict) or set(intents) != WORKSPACE_INTENTS:
+        raise ClientError(
+            "invalid_workspace_capabilities",
+            "Workspace capabilities must describe every portable intent",
+            1,
+        )
+    mechanism_keys = {
+        "kind",
+        "costClass",
+        "sourceMustBeStopped",
+        "concurrentWithSource",
+    }
+    for intent_name, intent in intents.items():
+        if not isinstance(intent, dict) or set(intent) != {
+            "availability", "retention", "mechanisms", "reasons"
+        }:
+            raise ClientError(
+                "invalid_workspace_capabilities",
+                f"Workspace intent '{intent_name}' is invalid",
+                1,
+            )
+        availability = intent.get("availability")
+        retention = intent.get("retention")
+        mechanisms = intent.get("mechanisms")
+        reasons = intent.get("reasons")
+        if availability not in {"available", "unavailable"}:
+            raise ClientError(
+                "invalid_workspace_capabilities",
+                f"Workspace intent '{intent_name}' availability is invalid",
+                1,
+            )
+        expected_retention = (
+            "discardOnRelease" if intent_name == "isolated" else "retained"
+        )
+        if retention != expected_retention:
+            raise ClientError(
+                "invalid_workspace_capabilities",
+                f"Workspace intent '{intent_name}' retention is invalid",
+                1,
+            )
+        if (
+            not isinstance(mechanisms, list)
+            or (availability == "available") != bool(mechanisms)
+            or not isinstance(reasons, list)
+            or not all(isinstance(reason, str) and reason for reason in reasons)
+        ):
+            raise ClientError(
+                "invalid_workspace_capabilities",
+                f"Workspace intent '{intent_name}' support detail is invalid",
+                1,
+            )
+        seen: set[str] = set()
+        for mechanism in mechanisms:
+            if not isinstance(mechanism, dict) or set(mechanism) != mechanism_keys:
+                raise ClientError(
+                    "invalid_workspace_capabilities",
+                    f"Workspace intent '{intent_name}' mechanism is invalid",
+                    1,
+                )
+            kind = mechanism.get("kind")
+            if kind not in WORKSPACE_MECHANISMS or kind in seen:
+                raise ClientError(
+                    "invalid_workspace_capabilities",
+                    f"Workspace intent '{intent_name}' mechanism kind is invalid",
+                    1,
+                )
+            seen.add(kind)
+            if mechanism.get("costClass") not in {
+                "overlay", "copy_on_write", "full_copy", "unknown"
+            } or not all(
+                isinstance(mechanism.get(field), bool)
+                for field in ("sourceMustBeStopped", "concurrentWithSource")
+            ):
+                raise ClientError(
+                    "invalid_workspace_capabilities",
+                    f"Workspace intent '{intent_name}' mechanism detail is invalid",
+                    1,
+                )
+    limits = value.get("limits")
+    if not isinstance(limits, dict) or set(limits) != {
+        "maxTemporaryWorkspaces",
+        "maxRetainedWorkspaces",
+        "fullCopyFallback",
+    }:
+        raise ClientError(
+            "invalid_workspace_capabilities", "Workspace limits are invalid", 1
+        )
+    if (
+        not _nonnegative_integer(limits.get("maxTemporaryWorkspaces"))
+        or not _nonnegative_integer(limits.get("maxRetainedWorkspaces"))
+        or limits["maxRetainedWorkspaces"] < 1
+        or limits.get("fullCopyFallback")
+        not in {"prohibited", "explicit", "allowed"}
+    ):
+        raise ClientError(
+            "invalid_workspace_capabilities", "Workspace limits are invalid", 1
+        )
+    storage = value.get("storage")
+    if not isinstance(storage, dict) or not set(storage).issubset(
+        {"measurement", "freeBytes"}
+    ) or "measurement" not in storage:
+        raise ClientError(
+            "invalid_workspace_capabilities", "Workspace storage is invalid", 1
+        )
+    free_bytes = storage.get("freeBytes")
+    if storage.get("measurement") not in {
+        "exact", "estimate", "unavailable"
+    } or (free_bytes is not None and not _nonnegative_integer(free_bytes)):
+        raise ClientError(
+            "invalid_workspace_capabilities", "Workspace storage is invalid", 1
+        )
+    if not isinstance(value.get("extensions"), dict):
+        raise ClientError(
+            "invalid_workspace_capabilities",
+            "Workspace extensions must be an object",
+            1,
+        )
+    return value
+
+
+def _valid_workspace_handle(value: Any) -> bool:
+    return isinstance(value, str) and re.fullmatch(
+        r"w-[A-Za-z0-9][A-Za-z0-9._-]{7,127}", value
+    ) is not None
+
+
+def _validate_workspace_item(value: Any) -> None:
+    if not isinstance(value, dict) or set(value) != {
+        "handle", "intent", "actualMechanism", "retention", "state", "cleanup"
+    }:
+        raise ClientError(
+            "invalid_workspace_result", "Workspace inventory item is invalid", 1
+        )
+    if (
+        not _valid_workspace_handle(value.get("handle"))
+        or value.get("intent") not in WORKSPACE_INTENTS
+        or value.get("actualMechanism") not in WORKSPACE_MECHANISMS
+        or value.get("retention") not in {"retained", "discardOnRelease"}
+        or value.get("state") not in {"off", "running", "unknown"}
+        or value.get("cleanup") not in {"none", "release", "pending"}
+    ):
+        raise ClientError(
+            "invalid_workspace_result", "Workspace inventory item is invalid", 1
+        )
+
+
+def validate_workspace_result(value: Any, operation: str) -> dict[str, Any]:
+    allowed_keys = {
+        "schema", "operation", "accepted", "uncertainty", "data",
+        "errorCode", "message",
+    }
+    if (
+        not isinstance(value, dict)
+        or value.get("schema") != WORKSPACE_RESULT_SCHEMA
+        or value.get("operation") != operation
+        or not set(value).issubset(allowed_keys)
+        or not isinstance(value.get("accepted"), bool)
+        or value.get("uncertainty") not in {"none", "bounded", "unknown"}
+        or not isinstance(value.get("data"), dict)
+    ):
+        raise ClientError(
+            "invalid_workspace_result",
+            f"Workspace result must use {WORKSPACE_RESULT_SCHEMA}",
+            1,
+        )
+    data = value["data"]
+    if not value["accepted"]:
+        if (
+            data
+            or not isinstance(value.get("errorCode"), str)
+            or not value["errorCode"]
+            or not isinstance(value.get("message"), str)
+            or not value["message"]
+        ):
+            raise ClientError(
+                "invalid_workspace_result", "Workspace refusal is invalid", 1
+            )
+        return value
+    if "errorCode" in value or "message" in value:
+        raise ClientError(
+            "invalid_workspace_result", "Accepted workspace result has an error", 1
+        )
+    if operation == "acquire":
+        if set(data) != {
+            "handle", "requestedIntent", "actualMechanism", "retention",
+            "cleanup", "storage",
+        } or not _valid_workspace_handle(data.get("handle")):
+            raise ClientError(
+                "invalid_workspace_result", "Workspace acquisition is invalid", 1
+            )
+        storage = data.get("storage")
+        if (
+            data.get("requestedIntent") not in WORKSPACE_INTENTS
+            or data.get("actualMechanism") not in WORKSPACE_MECHANISMS
+            or data.get("retention") not in {"retained", "discardOnRelease"}
+            or data.get("cleanup")
+            not in {"none", "explicitRelease", "providerDiscardOnStop"}
+            or not isinstance(storage, dict)
+            or set(storage) != {"costClass", "measurement", "preflight"}
+            or storage.get("costClass")
+            not in {"overlay", "copy_on_write", "full_copy", "unknown"}
+            or storage.get("measurement")
+            not in {"exact", "estimate", "unavailable"}
+            or storage.get("preflight") not in {"pass", "warn", "unavailable"}
+        ):
+            raise ClientError(
+                "invalid_workspace_result", "Workspace acquisition is invalid", 1
+            )
+    elif operation == "inventory":
+        if set(data) != {"workspaces", "counts"}:
+            raise ClientError(
+                "invalid_workspace_result", "Workspace inventory is invalid", 1
+            )
+        workspaces = data.get("workspaces")
+        counts = data.get("counts")
+        if (
+            not isinstance(workspaces, list)
+            or not isinstance(counts, dict)
+            or set(counts) != {"temporary", "retained"}
+            or not all(_nonnegative_integer(counts.get(key)) for key in counts)
+        ):
+            raise ClientError(
+                "invalid_workspace_result", "Workspace inventory is invalid", 1
+            )
+        for item in workspaces:
+            _validate_workspace_item(item)
+    elif operation == "release":
+        if (
+            set(data) != {"handle", "disposition"}
+            or not _valid_workspace_handle(data.get("handle"))
+            or data.get("disposition")
+            not in {"retained", "discarded", "alreadyAbsent"}
+        ):
+            raise ClientError(
+                "invalid_workspace_result", "Workspace release is invalid", 1
+            )
+    elif operation == "gc":
+        if set(data) != {"dryRun", "candidates", "count"}:
+            raise ClientError(
+                "invalid_workspace_result", "Workspace GC result is invalid", 1
+            )
+        candidates = data.get("candidates")
+        if (
+            data.get("dryRun") is not True
+            or not isinstance(candidates, list)
+            or not _nonnegative_integer(data.get("count"))
+            or data["count"] != len(candidates)
+        ):
+            raise ClientError(
+                "invalid_workspace_result", "Workspace GC result is invalid", 1
+            )
+        for item in candidates:
+            _validate_workspace_item(item)
     return value
 
 
@@ -1000,6 +1302,133 @@ def add_client_projection(
     return value
 
 
+def _workspace_adapter_call(
+    target: dict[str, Any], arguments: list[str]
+) -> tuple[Any, int]:
+    try:
+        _, parsed, elapsed_ms = run_adapter(
+            target, arguments, accept_json_failure=True
+        )
+    except ClientError as error:
+        if error.code == "adapter_failed":
+            raise ClientError(
+                "workspace_adapter_failed",
+                "The authoritative adapter could not complete the workspace request",
+                error.exit_code,
+            ) from error
+        raise
+    if parsed is None:
+        raise ClientError(
+            "invalid_workspace_result",
+            "The authoritative adapter returned no workspace JSON",
+            1,
+        )
+    return parsed, elapsed_ms
+
+
+def _workspace_intent(arguments: list[str]) -> str | None:
+    if not arguments:
+        return None
+    if len(arguments) == 1 and arguments[0].startswith("--intent="):
+        return arguments[0].partition("=")[2]
+    if len(arguments) == 2 and arguments[0] == "--intent":
+        return arguments[1]
+    raise ClientError(
+        "usage", "workspace acquire accepts only --intent INTENT"
+    )
+
+
+def handle_workspace(
+    alias: str, target: dict[str, Any], arguments: list[str]
+) -> int:
+    if target.get("interface", "machine-control-v0") != "machine-control-v0":
+        raise ClientError(
+            "unsupported_workspace_interface",
+            "This target does not expose the VM workspace interface",
+        )
+    if not arguments:
+        raise ClientError("usage", "workspace requires an operation")
+    operation, rest = arguments[0], arguments[1:]
+    if operation == "capabilities":
+        if rest:
+            raise ClientError(
+                "usage", "workspace capabilities accepts no arguments"
+            )
+        parsed, elapsed_ms = _workspace_adapter_call(
+            target, ["workspace-capabilities", "--json"]
+        )
+        value = validate_workspace_capabilities(parsed)
+        default_intent = target.get("workspaceDefaultIntent")
+        if default_intent is not None:
+            value["defaultIntent"] = default_intent
+        value["target"] = target_view(alias, target)
+        value["adapter"] = {
+            "kind": "authoritative_testbed",
+            "elapsedMs": elapsed_ms,
+        }
+        emit(value)
+        return 0
+    if operation == "acquire":
+        intent = _workspace_intent(rest) or target.get("workspaceDefaultIntent")
+        if intent is None:
+            raise ClientError(
+                "workspace_intent_required",
+                "Workspace intent is required because this target has no default",
+            )
+        if intent not in WORKSPACE_INTENTS:
+            raise ClientError(
+                "invalid_workspace_intent",
+                f"Unsupported workspace intent '{intent}'",
+            )
+        adapter_arguments = [
+            "workspace-acquire", "--intent", intent, "--json"
+        ]
+    elif operation == "inventory":
+        if rest:
+            raise ClientError("usage", "workspace inventory accepts no arguments")
+        adapter_arguments = ["workspace-inventory", "--json"]
+    elif operation == "release":
+        if len(rest) != 1 or not _valid_workspace_handle(rest[0]):
+            raise ClientError(
+                "invalid_workspace_handle",
+                "workspace release requires one opaque workspace handle",
+            )
+        adapter_arguments = [
+            "workspace-release", "--handle", rest[0], "--json"
+        ]
+    elif operation == "gc":
+        if rest != ["--dry-run"]:
+            raise ClientError(
+                "workspace_gc_requires_dry_run",
+                "Workspace garbage collection currently requires --dry-run",
+            )
+        adapter_arguments = ["workspace-gc", "--dry-run", "--json"]
+    else:
+        raise ClientError(
+            "unsupported_workspace_operation",
+            f"Unsupported workspace operation '{operation}'",
+        )
+    parsed, elapsed_ms = _workspace_adapter_call(target, adapter_arguments)
+    value = validate_workspace_result(parsed, operation)
+    if (
+        operation == "acquire"
+        and value["accepted"]
+        and value["data"]["requestedIntent"] != intent
+    ):
+        raise ClientError(
+            "workspace_intent_mismatch",
+            "Adapter workspace intent does not match the request",
+            1,
+        )
+    value["target"] = target_view(alias, target)
+    value["adapter"] = {
+        "kind": "authoritative_testbed",
+        "elapsedMs": elapsed_ms,
+    }
+    emit(value)
+    return 0 if value["accepted"] else 1
+
+
 def artifact(
     alias: str, target: dict[str, Any], arguments: list[str]
 ) -> int:
@@ -1127,6 +1556,7 @@ Commands:
   inventory list|status|guide|doctor  Use the private deployment inventory
   targets                         List logical targets without private paths
   target status|up|suspend|shutdown|force-stop|reboot|doctor|capabilities
+  workspace capabilities|acquire|inventory|release|gc --dry-run
   desktop status|capabilities|applications|windows|snapshot|action|capture
   desktop input text|key|click|move|drag|scroll
   desktop application launch|activate|terminate
@@ -1218,6 +1648,8 @@ def main(argv: list[str] | None = None) -> int:
         alias, target = select_target(targets, known.target)
         if operation == "target":
             return handle_target(alias, target, remainder[1:])
+        if operation == "workspace":
+            return handle_workspace(alias, target, remainder[1:])
         if operation == "desktop":
             return handle_desktop(alias, target, remainder[1:])
         if operation == "testbed":

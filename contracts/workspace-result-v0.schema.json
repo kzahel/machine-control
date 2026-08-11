@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machine-control.invalid/contracts/workspace-result-v0.schema.json",
+  "title": "Machine Control Workspace Result v0",
+  "type": "object",
+  "required": ["schema", "operation", "accepted", "uncertainty", "data"],
+  "properties": {
+    "schema": { "const": "machine-control-workspace/v0" },
+    "operation": { "enum": ["acquire", "inventory", "release", "gc"] },
+    "accepted": { "type": "boolean" },
+    "uncertainty": { "enum": ["none", "bounded", "unknown"] },
+    "errorCode": { "type": "string", "minLength": 1 },
+    "message": { "type": "string", "minLength": 1 },
+    "data": { "type": "object" },
+    "target": { "type": "object" },
+    "adapter": { "type": "object" }
+  },
+  "additionalProperties": false
+}

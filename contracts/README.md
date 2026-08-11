@@ -15,6 +15,13 @@ than a frozen cross-device wire protocol.
   identical.
 - [`targets-v0.schema.json`](targets-v0.schema.json) describes ignored local
   target selection. It contains adapter commands, never bearer authority.
+- [`workspace-capabilities-v0.schema.json`](workspace-capabilities-v0.schema.json)
+  describes provider-neutral persistent, isolated, and candidate workspace
+  support without naming the hypervisor or a concrete VM.
+- [`workspace-result-v0.schema.json`](workspace-result-v0.schema.json) describes
+  acquire, inventory, release, and garbage-collection dry-run results. Its
+  handles are opaque selectors backed by private provider receipts, not bearer
+  authority.
 
 Platform adapters may add fields under the permissive schema while the corpus
 is still v0. They may not omit route, generation, delivery/effect separation,

@@ -11,6 +11,156 @@ if path := os.environ.get("MACHINE_CONTROL_MOCK_LOG"):
     Path(path).write_text(json.dumps(arguments), encoding="utf-8")
 command = arguments[0] if arguments else ""
 
+if command == "workspace-capabilities" and arguments[1:] == ["--json"]:
+    value = {
+        "schema": "machine-control-workspace-capabilities/v0",
+        "intents": {
+            "persistent": {
+                "availability": "available",
+                "retention": "retained",
+                "mechanisms": [{
+                    "kind": "existing_instance",
+                    "costClass": "unknown",
+                    "sourceMustBeStopped": False,
+                    "concurrentWithSource": True,
+                }],
+                "reasons": [],
+            },
+            "isolated": {
+                "availability": "available",
+                "retention": "discardOnRelease",
+                "mechanisms": [{
+                    "kind": "provider_disposable_overlay",
+                    "costClass": "overlay",
+                    "sourceMustBeStopped": True,
+                    "concurrentWithSource": False,
+                }],
+                "reasons": [],
+            },
+            "candidate": {
+                "availability": "available",
+                "retention": "retained",
+                "mechanisms": [{
+                    "kind": "full_copy",
+                    "costClass": "full_copy",
+                    "sourceMustBeStopped": True,
+                    "concurrentWithSource": True,
+                }],
+                "reasons": [],
+            },
+        },
+        "limits": {
+            "maxTemporaryWorkspaces": 1,
+            "maxRetainedWorkspaces": 2,
+            "fullCopyFallback": "explicit",
+        },
+        "storage": {
+            "measurement": "estimate",
+            "freeBytes": 1073741824,
+        },
+        "extensions": {},
+    }
+    if os.environ.get("MACHINE_CONTROL_MOCK_BAD_WORKSPACE_CAPABILITIES"):
+        value["intents"].pop("isolated")
+    print(json.dumps(value))
+    raise SystemExit(0)
+
+if command == "workspace-acquire":
+    intent = arguments[2] if len(arguments) == 4 else ""
+    if os.environ.get("MACHINE_CONTROL_MOCK_WORKSPACE_REFUSAL"):
+        print(json.dumps({
+            "schema": "machine-control-workspace/v0",
+            "operation": "acquire",
+            "accepted": False,
+            "uncertainty": "none",
+            "errorCode": "intent_unavailable",
+            "message": "The requested workspace intent is unavailable",
+            "data": {},
+        }))
+        raise SystemExit(1)
+    mechanisms = {
+        "persistent": ("existing_instance", "retained", "none", "unknown"),
+        "isolated": (
+            "provider_disposable_overlay",
+            "discardOnRelease",
+            "providerDiscardOnStop",
+            "overlay",
+        ),
+        "candidate": (
+            "full_copy", "retained", "explicitRelease", "full_copy"
+        ),
+    }
+    mechanism, retention, cleanup, cost = mechanisms[intent]
+    data = {
+        "handle": f"w-fixture-{intent}",
+        "requestedIntent": intent,
+        "actualMechanism": mechanism,
+        "retention": retention,
+        "cleanup": cleanup,
+        "storage": {
+            "costClass": cost,
+            "measurement": "estimate",
+            "preflight": "pass",
+        },
+    }
+    if os.environ.get("MACHINE_CONTROL_MOCK_PRIVATE_WORKSPACE_FIELD"):
+        data["providerVmName"] = "private-vm-fixture"
+    print(json.dumps({
+        "schema": "machine-control-workspace/v0",
+        "operation": "acquire",
+        "accepted": True,
+        "uncertainty": "none",
+        "data": data,
+    }))
+    raise SystemExit(0)
+
+if command == "workspace-inventory" and arguments[1:] == ["--json"]:
+    print(json.dumps({
+        "schema": "machine-control-workspace/v0",
+        "operation": "inventory",
+        "accepted": True,
+        "uncertainty": "none",
+        "data": {
+            "workspaces": [{
+                "handle": "w-fixture-isolated",
+                "intent": "isolated",
+                "actualMechanism": "provider_disposable_overlay",
+                "retention": "discardOnRelease",
+                "state": "running",
+                "cleanup": "release",
+            }],
+            "counts": {"temporary": 1, "retained": 0},
+        },
+    }))
+    raise SystemExit(0)
+
+if command == "workspace-release" and len(arguments) == 4:
+    print(json.dumps({
+        "schema": "machine-control-workspace/v0",
+        "operation": "release",
+        "accepted": True,
+        "uncertainty": "none",
+        "data": {
+            "handle": arguments[2],
+            "disposition": "discarded",
+        },
+    }))
+    raise SystemExit(0)
+
+if command == "workspace-gc" and arguments[1:] == ["--dry-run", "--json"]:
+    print(json.dumps({
+        "schema": "machine-control-workspace/v0",
+        "operation": "gc",
+        "accepted": True,
+        "uncertainty": "none",
+        "data": {
+            "dryRun": True,
+            "candidates": [],
+            "count": 0,
+        },
+    }))
+    raise SystemExit(0)
+
 if command == "doctor" and arguments[1:] == ["--json"]:
     if os.environ.get("MACHINE_CONTROL_MOCK_BAD_DOCTOR"):
         print('{"schema":"wrong"}')
