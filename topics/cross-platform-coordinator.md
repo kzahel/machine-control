@@ -2,8 +2,8 @@
 
 Topic: `cross-platform-coordinator`
 
-Status: portable coordinator and native CI implemented; Windows appliance
-readiness remains open.
+Status: portable coordinator, native CI, and live Windows/Linux appliance
+execution implemented.
 
 ## Scope
 
@@ -88,14 +88,14 @@ the portable corpus, the Linux-native static/compile checks, and a direct
 coordinator invocation reporting a Linux controller. The guest was cleaned
 and shut down afterward.
 
-The registered Windows images are not presently controller-ready validation
-appliances. The configured generalized seal boots to OOBE, exposes neither the
-old key-only authorization nor QEMU guest-agent execution, and correctly
-refuses a persistent boot. Preserved acceptance images expose the same absent
-inner administration channel. Their disposable boots were stopped, the
-original private seal pin was restored byte-for-byte, and no outer UI input
-was used. Hosted Windows CI therefore owns the current native Windows build
-proof; it does not substitute for restoring a controller-ready live appliance.
+**Current (2026-08-11):** Tactical 018 reused a retained Windows candidate
+without cloning it, restored key-only administration and automatic services,
+and proved full common readiness after a changed OS boot epoch. An exact
+committed archive matched by SHA-256 inside Windows and passed the portable
+corpus plus all Windows-native .NET 8 builds. The dedicated stateful appliance
+now contains Python and .NET 8 as reproducible public development tooling; the
+check runner supplies a per-process PowerShell execution policy rather than
+changing the appliance's machine or user policy.
 
 **Current (2026-08-11):** Hosted run `31481111956` passed all six public jobs
 at commit `5ed134a`: portable coordinator checks and matching native checks on
@@ -112,8 +112,8 @@ dotfiles commit `4ef3ded`.
   directories and records intentional skips.
 - Keep the root command green on hosted macOS, Linux, and Windows.
 - Keep live target rehearsals deliberate and controller-owned.
-- Provision a fresh controller-ready derivative from the generalized Windows
-  seal, then rerun the exact-archive portable and native checks inside it.
+- Keep the retained Windows and Linux development appliances reproducible and
+  re-run exact-archive checks after material coordinator or toolchain changes.
 - Add direct local/remote resident routes only when their transport and
   authorization are explicit; do not disguise a macOS VM-lifecycle wrapper as
   a Windows-local adapter.

@@ -169,13 +169,18 @@ start also proved cleanup-pending receipt retention and guarded operator
 release; derived targets now rediscover their own endpoint instead of
 inheriting the development VM's fixed SSH endpoint.
 
-**Current:** neither configured UTM target is presently an authorized
-controller-ready derivation base. Linux guest-agent/resident readiness failed
-its bounded live check, and the Windows target is a generalized seal. No live
-UTM disposable was created. The first newly proven UTM ready base should repeat
-the same small outcome test without making disposable mode the ordinary task
-default. A future libvirt provider repeats it with its chosen overlay
-mechanism.
+**Current:** the retained Windows and Linux candidates each passed a fresh
+running-ready observation, clean shutdown, and exact stopped identity
+assertion. Private inventory lets each single stateful VM serve as both its
+development target and stopped ready base, permits one temporary workspace,
+reserves provider storage headroom, and prohibits implicit full-copy fallback.
+
+Each UTM base also passed one minimal disposable-outcome rehearsal. A marker
+created in provider disposable mode was absent after release and persistent
+restart; both receipt inventories ended empty and both bases ended stopped.
+This validates discard-on-release without making a disposable VM the default
+for ordinary stateful work. A future provider repeats the outcome with its own
+declared overlay mechanism.
 
 ## Open work
 
@@ -184,7 +189,5 @@ mechanism.
   per-workspace precision.
 - Decide when an isolated failure should be retained automatically versus
   stopped with only its receipt retained for operator-directed recovery.
-- Run the minimal live UTM disposable outcome rehearsal after an existing
-  Windows or Linux target is independently re-proven controller-ready.
 - Add a libvirt/Linux host provider only when an authorized host is available
   for real capability and cleanup validation.

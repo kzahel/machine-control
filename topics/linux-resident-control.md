@@ -22,6 +22,14 @@ application or OS effects and fails closed on every outer UTM-window capture
 or input operation. A full reboot restores both resident services and rejects
 pre-reboot references as stale.
 
+**Current:** Tactical 018 re-proved the retained appliance without cloning or
+outer input. Its static device-activated QEMU guest-agent, GNOME auto-login,
+resident, semantics, capture, and input all returned after a boot-ID-changing
+reboot while outer UI remained prohibited. The same exact candidate reached a
+clean stopped promotion handoff and passed a disposable-marker outcome. A live
+restart also exposed and fixed the bounded provider race in which guest
+execution preceded UTM's first IPv4 result.
+
 ## Current goal
 
 **Decision:** Keep this accepted GNOME Wayland profile stable while extending

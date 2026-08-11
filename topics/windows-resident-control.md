@@ -16,6 +16,16 @@ complete in
 The public-ISO-to-new-base boundary is complete in
 [`Tactical 007`](../docs/tactical/007-windows-iso-factory-acceptance.md).
 
+**Current:** [`Tactical 018`](../docs/tactical/018-appliance-readiness-and-promotion.md)
+reused one retained stateful candidate rather than creating another large VM.
+It restored key-only SSH, automatic guest-agent/SSH services, and the complete
+resident surface; a changed Windows boot epoch returned administration,
+interactive desktop, semantics, capture, and input with a new generation. The
+exact committed source matched inside Windows and passed portable plus native
+.NET 8 checks. A fresh ready observation and clean stopped identity assertion
+promoted that same private target to development/ready-base duty, and a
+disposable marker proved discard-on-release.
+
 **Current:** The implementation under [`src/`](../src) provides the first
 Windows service/session vertical slice. It composes pinned Cua at Medium
 integrity with owned native UIA/Win32 ordinary and protected routes behind one

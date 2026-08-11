@@ -1,6 +1,6 @@
 # Tactical 018: Appliance Readiness and Promotion
 
-Status: active.
+Status: complete.
 
 Topics: `windows-resident-control`, `linux-resident-control`,
 `cross-platform-coordinator`, `target-lifecycle-and-readiness`, and
@@ -141,5 +141,52 @@ and verify hosted CI.
 
 ## Result
 
-Active. Record exact implementation, minimized live evidence, deviations, and
-remaining manual or storage work here before completion.
+Completed on 2026-08-11 without creating, deleting, renaming, or compacting a
+VM. The capacity audit rejected a full Windows clone because it would cross
+the configured storage reserve; the existing retained Windows and Linux
+candidates were repaired and promoted in place instead.
+
+The common client now exposes explicitly mutating `target ensure-ready`, fresh
+`target validate-candidate`, and stopped `target prepare-promotion` results.
+Readiness records initial/final doctor states and bounded actions, starts only
+through the adapter-declared `up` operation, and reports repair required rather
+than guessing a running-target bootstrap. Promotion rejects workspace handles,
+requires a minimized exact candidate assertion with no receipt ownership,
+observes full running readiness, cleanly shuts down, and repeats the identity
+assertion in the off state. Private inventory remains the only role authority.
+
+The retained Windows candidate required one bounded outer recovery after both
+ordinary SSH and the first normal provider shutdown path were unavailable.
+The guest-agent path staged the checked-in idempotent OpenSSH bootstrap; an
+explicit elevated PowerShell launch restored key-only SSH and automatic
+services. Thereafter every operation used the inner route. A changed Windows
+boot epoch returned SSH, the interactive desktop, resident, UI Automation,
+capture, and input with a new generation. The exact committed archive matched
+SHA-256 in the guest and passed portable and Windows-native checks after the
+stateful development appliance received public Python 3.13 and .NET 8 tooling.
+The run also fixed the check runner to use a per-process PowerShell policy.
+All named guest and host staging artifacts were removed.
+
+Linux needed no outer recovery. Its static device-activated QEMU guest-agent
+returned on guarded start, followed by auto-login GNOME Wayland, AT-SPI,
+resident, capture, and input with outer UI prohibited. The platform reboot
+observed a changed boot ID and a new resident generation. A later persistent
+restart exposed a race where guest execution preceded the first UTM IPv4
+sample; the provider now polls addresses within its existing boot timeout, a
+delayed-address fixture covers the behavior, and the live off-to-ready retry
+passed.
+
+Both exact candidates produced a fresh running-ready validation and clean
+stopped promotion handoff. Private policy now lets each single stateful VM
+double as its ready base, permits one temporary workspace, reserves 64 GiB,
+and prohibits implicit full-copy fallback. Each base then passed one UTM
+disposable rehearsal: a target-local marker existed during the isolated run,
+was absent after release and persistent restart, and the receipt inventory
+ended empty. Both persistent targets were left stopped.
+
+Final validation passed the portable corpus, macOS native checks, Windows
+provider smoke tests, Linux provider static tests including the delayed-IP
+race, Windows ARM64/x64 publishes, and private-inventory unit tests. The live
+Windows archive independently passed the portable and native build corpus from
+inside Windows. Public diff inspection found no concrete target identity,
+endpoint, account, path, receipt, or captured UI.

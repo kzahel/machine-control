@@ -1,6 +1,6 @@
 # Tactical 015: Cross-Platform Coordinator Portability
 
-Status: implemented with one live-appliance follow-up.
+Status: complete.
 
 Topics: `cross-platform-coordinator`, `target-lifecycle-and-readiness`, and
 `unified-desktop-client`.
