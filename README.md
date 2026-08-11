@@ -240,7 +240,9 @@ device routes already in the system:
   discovers the configured phone and routes agents to the canonical iOS
   platform adapter, which uses CoreDevice and a semantic XCTest runner for
   lifecycle, observation, actions, leases, and recovery. Its common doctor is
-  adopted; unattended full-reboot reconnect remains an evidenced gap.
+  adopted; passcode-free full-reboot reconnect and post-boot XCTest recovery
+  are live-proven, while passcode-protected devices truthfully require one
+  local first unlock after reboot.
 - **Android begins with ADB.** The canonical physical-handheld adapter and
   Quest now share neutral ADB discovery/transport while retaining distinct
   keyguard, lifecycle, and safety policy. Android installation, shell,

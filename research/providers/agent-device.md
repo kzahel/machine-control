@@ -5,13 +5,13 @@ Upstream: [callstack/agent-device](https://github.com/callstack/agent-device)
 Declared license: [MIT](https://github.com/callstack/agent-device/blob/main/LICENSE)
 for the repository.
 
-Last corpus review: 2026-08-05.
+Last corpus review: 2026-08-11.
 
 ## Evidence by platform
 
 | Platform | Level | Evidence and limit |
 | --- | --- | --- |
-| iOS | `adopted` | `ios-device-testbed` uses Agent Device as its semantic XCTest provider. |
+| iOS | `adopted` | The canonical iOS platform uses Agent Device as its semantic XCTest provider; runner preparation passed before and after a live passcode-free full reboot. |
 | Android and device variants | `upstream-claimed` | Broad CLI support is documented; this corpus has not independently tested the generic Android backend. |
 | macOS | `source-reviewed` | Desktop helper and public command paths were inspected; exact selected-window control is absent. |
 | Linux/web | `upstream-claimed` | Not candidates to replace the stronger current desktop/device foundations without platform evidence. |

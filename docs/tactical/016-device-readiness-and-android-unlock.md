@@ -98,10 +98,10 @@ truthful common result with no automatic retry.
 ### 5 — add iOS reboot and reconnect readiness
 
 Stop only testbed-owned runner state, acquire the existing device lease, issue
-a full CoreDevice reboot with wait-for-device, and re-observe connection, lock,
-unlocked-since-boot, and runner-cache state. Keep any XCTest local-authentication
-gate visible as degraded or unavailable readiness rather than attempting to
-bypass it.
+a full CoreDevice reboot, independently observe disconnect and return of the
+same phone, and re-observe connection, lock, unlocked-since-boot, and
+runner-cache state. Keep any XCTest local-authentication gate visible as
+degraded or unavailable readiness rather than attempting to bypass it.
 
 ### 6 — validate and publish current truth
 
@@ -152,14 +152,17 @@ one `app_process` over ADB standard input, submits once, clears mutable buffers
 best effort, removes the helper, and independently re-observes keyguard and
 user-storage effect. Refusals, unknown delivery, and no effect never retry.
 
-The iOS adapter now emits the common minimized doctor and offers a leased full
-CoreDevice reboot with `--wait-for-device`. Its doctor reports CoreDevice lock
-facts and keeps XCTest runner authentication explicitly unverified until
+The iOS adapter now emits the common minimized doctor, merges ordinary
+CoreDevice discovery with lower-level Developer Mode visibility, and offers an
+exact-device leased `pair` bootstrap. Its full reboot observes delivery,
+disconnect, and return itself rather than treating CoreDevice's premature
+`--wait-for-device` failure as the effect. Doctor reports CoreDevice lock facts,
+an explicit interaction gate, and XCTest runner authentication unverified until
 launch; it does not automate passcode or biometrics.
 
 ### Validation record
 
-- Common client: 24 dependency-free tests passed, including legacy desktop
+- Common client: 38 dependency-free tests passed, including legacy desktop
   doctor compatibility, native-device status/capabilities, declared reboot,
   undeclared lifecycle refusal, and desktop reboot refusal.
 - Shared ADB: two unit tests passed. Quest: 13 tests passed after adopting the
@@ -174,12 +177,17 @@ launch; it does not automate passcode or biometrics.
   staged, started as the shell identity, rejected empty input with a nonzero
   status and no output/injection, and was removed. The already-unlocked route
   confirmed state without reading a secret.
-- iOS: all 19 wrapper tests passed. Before the live reboot, the physical phone
-  emitted a ready minimized doctor with unlocked-since-boot and cached-runner
-  state. The common full reboot was issued, but CoreDevice did not rediscover
-  the phone during its bounded wait; later CoreDevice and USB observations
-  reported it absent. The lease was released, doctor became unavailable, and
-  no protected or outer fallback was attempted.
+- iOS: all 29 wrapper tests passed after adding fallback discovery,
+  identifier deduplication, exact pairing, passcode-free readiness, passcoded
+  first-unlock gating, lock-state uncertainty, and disconnect/reconnect effect
+  coverage. On the physical phone, lower-level Developer Mode discovery plus
+  explicit CoreDevice pairing recovered a ready passcode-free route. XCTest
+  preparation passed before reboot. The corrected common full reboot observed
+  disconnect/reconnect in 38.5 seconds and returned accepted with connection
+  ready, interaction unlocked, and unlocked-since-boot; XCTest preparation
+  passed again without device interaction. A transactional Settings launch and
+  Home action then passed with ordinary session cleanup. The lease was
+  released.
 - JSON/compile checks, `git diff --check`, and public-data review passed.
 
 ### Deviations and remaining work
@@ -187,9 +195,11 @@ launch; it does not automate passcode or biometrics.
 - No real PIN entered the agent transcript or test process. Correct-PIN helper
   delivery and keyguard effect are unit-tested and built, but require one
   separately supervised live acceptance before promotion to `live-tested`.
-- iOS full-reboot reconnect and first XCTest launch are not accepted. The phone
-  requires local inspection before a new bounded attempt can classify power,
-  USB, trust/developer-services, and local-authentication state.
+- Passcode-free iOS full-reboot reconnect and post-boot XCTest launch are
+  accepted for the validated physical combination. The normalized passcoded
+  `manual_first_unlock_required` result is unit-tested and matches the earlier
+  live passcode gate, but has not been re-run after this implementation because
+  the dedicated phone is now intentionally passcode-free.
 - The private inventory provider does not yet declare the concrete Android
   target. Live common-client validation used the portable default with exactly
   one eligible attached handheld; adding the private selector belongs in the

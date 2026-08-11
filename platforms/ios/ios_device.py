@@ -12,6 +12,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -24,6 +25,7 @@ IDENTIFIER_PATTERNS = (
     re.compile(r"\b[0-9A-Fa-f]{8}-[0-9A-Fa-f-]{15,}\b"),
     re.compile(r"\b[0-9A-Fa-f]{24,}\b"),
 )
+DEVICE_IDENTIFIER = re.compile(r"^[0-9A-Fa-f]{8}-[0-9A-Fa-f-]{8,}$")
 
 
 class TestbedError(RuntimeError):
@@ -152,6 +154,80 @@ def listed_devices(document: dict[str, object]) -> list[dict[str, object]]:
     return [device for device in devices if isinstance(device, dict)]
 
 
+def developer_mode_device_identifiers() -> list[str]:
+    """Return physical-device identifiers visible to Apple's bootstrap tool."""
+    result = run_capture(["xcrun", "devmodectl", "list"], check=False)
+    if result.returncode:
+        return []
+    identifiers: list[str] = []
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        if fields and DEVICE_IDENTIFIER.fullmatch(fields[0]):
+            identifiers.append(fields[0])
+    return identifiers
+
+
+def device_details(reference: str) -> dict[str, object] | None:
+    try:
+        document = devicectl_json(
+            ["device", "info", "details", "--device", reference]
+        )
+    except TestbedError:
+        return None
+    result = document.get("result")
+    return result if isinstance(result, dict) else None
+
+
+def device_identifier(device: dict[str, object]) -> str:
+    return nested_string(device, "hardwareProperties", "udid") or nested_string(
+        device, "identifier"
+    )
+
+
+def device_references(device: dict[str, object]) -> set[str]:
+    return {
+        value
+        for value in (
+            nested_string(device, "identifier"),
+            nested_string(device, "hardwareProperties", "udid"),
+        )
+        if value
+    }
+
+
+def discoverable_devices() -> list[dict[str, object]]:
+    """Merge normal CoreDevice inventory with pre-convergence developer devices."""
+    devices = listed_devices(devicectl_json(["list", "devices"]))
+    seen = {
+        reference
+        for device in devices
+        for reference in device_references(device)
+    }
+    for reference in developer_mode_device_identifiers():
+        if reference in seen:
+            for index, existing in enumerate(devices):
+                if reference not in device_references(existing):
+                    continue
+                if bool(device_summary(existing)["available"]):
+                    break
+                details = device_details(reference)
+                if details is not None:
+                    devices[index] = details
+                    seen.update(device_references(details))
+                break
+            continue
+        details = device_details(reference)
+        if details is None:
+            continue
+        references = device_references(details)
+        if references & seen:
+            seen.update(references)
+            continue
+        devices.append(details)
+        seen.update(references)
+    return devices
+
+
 def nested_string(value: object, *path: str) -> str:
     current = value
     for key in path:
@@ -213,6 +289,11 @@ def select_device(
 
 
 def discover_selected_device(config: Config) -> dict[str, object]:
+    return select_device(discoverable_devices(), config.device_selector)
+
+
+def discover_listed_device(config: Config) -> dict[str, object]:
+    """Select only from the converged CoreDevice inventory."""
     return select_device(
         listed_devices(devicectl_json(["list", "devices"])),
         config.device_selector,
@@ -319,6 +400,23 @@ def lock_state(device_name: str) -> dict[str, object]:
         "passcodeRequired": bool(result.get("passcodeRequired", False)),
         "unlockedSinceBoot": bool(result.get("unlockedSinceBoot", False)),
     }
+
+
+def interaction_observation(
+    *, connected: bool, locked: dict[str, object]
+) -> tuple[str, bool, str]:
+    if not connected:
+        return "unknown", False, "unavailable"
+    if not {
+        "passcodeRequired",
+        "unlockedSinceBoot",
+    } <= locked.keys():
+        return "unknown", False, "unverified"
+    passcode_required = bool(locked["passcodeRequired"])
+    unlocked_since_boot = bool(locked["unlockedSinceBoot"])
+    if passcode_required or not unlocked_since_boot:
+        return "protected", False, "manual_first_unlock_required"
+    return "unlocked", True, "none_observed"
 
 
 def status(config: Config, *, json_output: bool = False) -> int:
@@ -445,14 +543,16 @@ def doctor_checks(config: Config) -> list[Check]:
         try:
             locked = lock_state(device_name)
             passcode_required = bool(locked.get("passcodeRequired", False))
+            unlocked_since_boot = bool(locked.get("unlockedSinceBoot", False))
+            interaction_ready = not passcode_required and unlocked_since_boot
             checks.append(
                 Check(
                     "device unlock",
-                    "error" if passcode_required else "ok",
-                    "locked" if passcode_required else "unlocked",
-                    "Unlock the iPhone locally."
-                    if passcode_required
-                    else None,
+                    "ok" if interaction_ready else "error",
+                    "unlocked"
+                    if interaction_ready
+                    else "manual first unlock required",
+                    None if interaction_ready else "Unlock the iPhone locally.",
                 )
             )
         except TestbedError as error:
@@ -536,27 +636,37 @@ def common_doctor_document(
         }
         for check in host_checks
     ]
+    locked: dict[str, object] = {}
     try:
         device = discover_selected_device(config)
         summary = device_summary(device)
         name = nested_string(device, "deviceProperties", "name")
-        locked = lock_state(name) if name else {}
         connected = bool(summary["available"])
     except TestbedError:
         summary = {"developerMode": "", "transport": ""}
-        locked = {}
         connected = False
+        name = ""
+    if connected and name:
+        try:
+            locked = lock_state(name)
+        except TestbedError:
+            pass
     passcode_required = bool(locked.get("passcodeRequired", False))
     unlocked_since_boot = bool(locked.get("unlockedSinceBoot", False))
+    lock_observed = {
+        "passcodeRequired",
+        "unlockedSinceBoot",
+    } <= locked.keys()
     developer_mode = (
         str(summary.get("developerMode", "")).casefold() == "enabled"
     )
-    interaction = (
-        "protected" if passcode_required else ("unlocked" if connected else "unknown")
+    interaction, interaction_ready, interaction_gate = interaction_observation(
+        connected=connected,
+        locked=locked,
     )
     cache_available = runner_cache_available(config)
     runner_available = (
-        connected and developer_mode and cache_available and not passcode_required
+        connected and developer_mode and cache_available and interaction_ready
     )
     if connected:
         common_checks.extend(
@@ -575,10 +685,14 @@ def common_doctor_document(
                 },
                 {
                     "id": "device_unlock",
-                    "status": "warn" if passcode_required else "pass",
-                    "summary": "the iOS interaction surface is protected"
-                    if passcode_required
-                    else "the iOS interaction surface is unlocked",
+                    "status": "pass" if interaction_ready else "warn",
+                    "summary": "the iOS interaction surface is unlocked"
+                    if interaction_ready
+                    else (
+                        "the iOS interaction surface requires a local first unlock"
+                        if interaction_gate == "manual_first_unlock_required"
+                        else "the iOS interaction state is unverified"
+                    ),
                 },
             ]
         )
@@ -592,7 +706,7 @@ def common_doctor_document(
         )
     return {
         "schema": "machine-control-doctor/v0",
-        "ready": ok and connected and developer_mode and not passcode_required,
+        "ready": ok and connected and developer_mode and interaction_ready,
         "target": {
             "platform": "ios",
             "platformFamily": "ios",
@@ -620,9 +734,11 @@ def common_doctor_document(
             "developerMode": developer_mode,
             "transport": str(summary.get("transport", "")).casefold() or "unknown",
             "lockState": {
+                "observed": lock_observed,
                 "passcodeRequired": passcode_required,
                 "unlockedSinceBoot": unlocked_since_boot,
             },
+            "interactionGate": interaction_gate,
             "runnerCacheAvailable": cache_available,
             "runnerAuthentication": "unverified_until_launch",
         },
@@ -856,13 +972,136 @@ def prepare(config: Config) -> int:
     return with_command_lease(config, action)
 
 
+def wait_for_pairing(
+    reference: str,
+    timeout: int,
+    *,
+    clock: Callable[[], float] | None = None,
+    sleeper: Callable[[float], None] | None = None,
+) -> dict[str, object]:
+    now = clock or time.monotonic
+    sleep = sleeper or time.sleep
+    deadline = now() + timeout
+    while now() < deadline:
+        device = device_details(reference)
+        if device is not None and bool(device_summary(device)["available"]):
+            return device
+        sleep(0.5)
+    raise TestbedError(
+        "the iOS pairing request was not confirmed; approve Trust on the phone "
+        "and enter its passcode locally when one is configured"
+    )
+
+
+def pair_device(config: Config, timeout: int) -> int:
+    if timeout <= 0:
+        raise TestbedError("pair timeout must be positive")
+    if not config.device_selector:
+        raise TestbedError(
+            "pair requires IOS_DEVICE_TESTBED_DEVICE to select one exact phone"
+        )
+
+    def action() -> int:
+        device = select_device(discoverable_devices(), config.device_selector)
+        reference = device_identifier(device)
+        if not reference:
+            raise TestbedError("the selected iOS device has no stable identifier")
+        if bool(device_summary(device)["available"]):
+            print("paired")
+            return 0
+        print(
+            "Confirm Trust on the selected iPhone and enter its passcode locally "
+            "if one is configured."
+        )
+        devicectl_json(
+            [
+                "manage",
+                "pair",
+                "--device",
+                reference,
+                "--timeout",
+                str(timeout),
+            ]
+        )
+        wait_for_pairing(reference, timeout)
+        print("paired")
+        return 0
+
+    return with_command_lease(config, action)
+
+
+def same_physical_device(device: dict[str, object], expected: str) -> bool:
+    return bool(expected) and device_identifier(device) == expected
+
+
+def wait_for_reboot_effect(
+    config: Config,
+    expected_identifier: str,
+    timeout: int,
+    *,
+    clock: Callable[[], float] | None = None,
+    sleeper: Callable[[float], None] | None = None,
+) -> tuple[dict[str, object], dict[str, object]]:
+    now = clock or time.monotonic
+    sleep = sleeper or time.sleep
+    deadline = now() + timeout
+    disconnect_observed = False
+    stable_connected = 0
+    last_lock: dict[str, object] = {}
+
+    while now() < deadline:
+        if not disconnect_observed:
+            try:
+                listed = discover_listed_device(config)
+                listed_available = bool(device_summary(listed)["available"])
+            except TestbedError:
+                listed_available = False
+            if not listed_available:
+                disconnect_observed = True
+            sleep(0.5)
+            continue
+
+        try:
+            device = discover_selected_device(config)
+            summary = device_summary(device)
+            if not same_physical_device(device, expected_identifier):
+                raise TestbedError(
+                    "a different iOS device appeared while waiting for reboot"
+                )
+            if not bool(summary["available"]):
+                stable_connected = 0
+                sleep(0.5)
+                continue
+            stable_connected += 1
+            name = nested_string(device, "deviceProperties", "name")
+            try:
+                last_lock = lock_state(name) if name else {}
+            except TestbedError:
+                last_lock = {}
+            if last_lock or stable_connected >= 3:
+                return device, last_lock
+        except TestbedError:
+            stable_connected = 0
+        sleep(0.5)
+
+    if not disconnect_observed:
+        raise TestbedError(
+            "the iOS reboot request was accepted but no disconnect was observed"
+        )
+    raise TestbedError("the selected iOS device did not reconnect after reboot")
+
+
 def reboot_device(config: Config, timeout: int) -> int:
     if timeout <= 0:
         raise TestbedError("reboot timeout must be positive")
 
     def action() -> int:
         stop_daemon(config)
-        device_name = selected_device_name(config)
+        device = discover_selected_device(config)
+        device_name = nested_string(device, "deviceProperties", "name")
+        expected_identifier = device_identifier(device)
+        if not device_name or not expected_identifier:
+            raise TestbedError("the selected iOS device has incomplete identity")
         devicectl_json(
             [
                 "device",
@@ -871,16 +1110,21 @@ def reboot_device(config: Config, timeout: int) -> int:
                 device_name,
                 "--style",
                 "full",
-                "--wait-for-device",
                 "--timeout",
                 str(timeout),
             ]
         )
-        device = discover_selected_device(config)
-        summary = device_summary(device)
-        if not summary["available"]:
-            raise TestbedError("the iOS device did not reconnect after reboot")
-        print("running")
+        _, locked = wait_for_reboot_effect(config, expected_identifier, timeout)
+        _, interaction_ready, interaction_gate = interaction_observation(
+            connected=True,
+            locked=locked,
+        )
+        if interaction_ready:
+            print("running: interaction ready")
+        elif interaction_gate == "manual_first_unlock_required":
+            print("running: manual first unlock required before XCTest")
+        else:
+            print("running: interaction state unverified")
         return 0
 
     return with_command_lease(config, action)
@@ -1052,6 +1296,8 @@ def build_parser() -> argparse.ArgumentParser:
         subparser = subparsers.add_parser(name)
         subparser.add_argument("--json", action="store_true")
     subparsers.add_parser("prepare")
+    pair_parser = subparsers.add_parser("pair")
+    pair_parser.add_argument("--timeout", type=int, default=60)
     reboot_parser = subparsers.add_parser("reboot")
     reboot_parser.add_argument("--timeout", type=int, default=180)
     session_parser = subparsers.add_parser("session")
@@ -1097,6 +1343,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return doctor(config, json_output=args.json)
         if args.command == "prepare":
             return prepare(config)
+        if args.command == "pair":
+            return pair_device(config, args.timeout)
         if args.command == "reboot":
             return reboot_device(config, args.timeout)
         if args.command == "session":

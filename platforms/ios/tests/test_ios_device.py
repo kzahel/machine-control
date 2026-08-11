@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import io
 import json
 import os
 import stat
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -16,6 +18,9 @@ def fake_device(
     *,
     identifier: str = "PRIVATE-DEVICE-ID",
     reality: str = "physical",
+    pairing: str = "paired",
+    transport: str = "wired",
+    tunnel: str = "connected",
 ) -> dict[str, object]:
     return {
         "identifier": identifier,
@@ -25,9 +30,9 @@ def fake_device(
             "developerModeStatus": "enabled",
         },
         "connectionProperties": {
-            "pairingState": "paired",
-            "transportType": "wired",
-            "tunnelState": "connected",
+            "pairingState": pairing,
+            "transportType": transport,
+            "tunnelState": tunnel,
         },
         "hardwareProperties": {
             "udid": identifier,
@@ -39,6 +44,23 @@ def fake_device(
 
 
 class DeviceSelectionTests(unittest.TestCase):
+    @mock.patch("ios_device.run_capture")
+    def test_parses_only_identifier_rows_from_developer_mode_inventory(
+        self, capture: mock.Mock
+    ) -> None:
+        capture.return_value = mock.Mock(
+            returncode=0,
+            stdout=(
+                "UDID Developer Mode Status\n"
+                "00000000-0000000000000000 enabled\n"
+                "not-an-identifier disabled\n"
+            ),
+        )
+        self.assertEqual(
+            ios_device.developer_mode_device_identifiers(),
+            ["00000000-0000000000000000"],
+        )
+
     def test_selects_only_connected_physical_candidate(self) -> None:
         selected = ios_device.select_device([fake_device()])
         self.assertEqual(
@@ -73,6 +95,66 @@ class DeviceSelectionTests(unittest.TestCase):
     def test_summary_does_not_contain_identifier(self) -> None:
         summary = json.dumps(ios_device.device_summary(fake_device()))
         self.assertNotIn("PRIVATE-DEVICE-ID", summary)
+
+    @mock.patch("ios_device.device_details", return_value=fake_device())
+    @mock.patch(
+        "ios_device.developer_mode_device_identifiers",
+        return_value=["PRIVATE-DEVICE-ID"],
+    )
+    @mock.patch(
+        "ios_device.devicectl_json", return_value={"result": {"devices": []}}
+    )
+    def test_discovery_merges_developer_mode_fallback(
+        self,
+        _list: mock.Mock,
+        _identifiers: mock.Mock,
+        _details: mock.Mock,
+    ) -> None:
+        devices = ios_device.discoverable_devices()
+        self.assertEqual(len(devices), 1)
+        self.assertEqual(ios_device.device_identifier(devices[0]), "PRIVATE-DEVICE-ID")
+
+    @mock.patch("ios_device.device_details")
+    @mock.patch(
+        "ios_device.developer_mode_device_identifiers",
+        return_value=["PRIVATE-DEVICE-ID"],
+    )
+    @mock.patch("ios_device.devicectl_json")
+    def test_discovery_deduplicates_coredevice_and_hardware_identifiers(
+        self,
+        devicectl: mock.Mock,
+        _identifiers: mock.Mock,
+        details: mock.Mock,
+    ) -> None:
+        listed = fake_device(identifier="PRIVATE-DEVICE-ID")
+        listed["identifier"] = "PRIVATE-COREDEVICE-ID"
+        devicectl.return_value = {"result": {"devices": [listed]}}
+        details.return_value = fake_device(identifier="PRIVATE-DEVICE-ID")
+        devices = ios_device.discoverable_devices()
+        self.assertEqual(len(devices), 1)
+        details.assert_not_called()
+
+    @mock.patch("ios_device.device_details", return_value=fake_device())
+    @mock.patch(
+        "ios_device.developer_mode_device_identifiers",
+        return_value=["PRIVATE-DEVICE-ID"],
+    )
+    @mock.patch("ios_device.devicectl_json")
+    def test_discovery_replaces_stale_list_entry_with_direct_details(
+        self,
+        devicectl: mock.Mock,
+        _identifiers: mock.Mock,
+        details: mock.Mock,
+    ) -> None:
+        stale = fake_device(
+            pairing="unpaired",
+            transport="wired",
+            tunnel="disconnected",
+        )
+        devicectl.return_value = {"result": {"devices": [stale]}}
+        devices = ios_device.discoverable_devices()
+        self.assertTrue(ios_device.device_summary(devices[0])["available"])
+        details.assert_called_once_with("PRIVATE-DEVICE-ID")
 
 
 class CommandTests(unittest.TestCase):
@@ -164,15 +246,66 @@ class CommandTests(unittest.TestCase):
         self.assertNotIn("private device detail", json.dumps(document))
         self.assertNotIn("PRIVATE-DEVICE-ID", json.dumps(document))
 
+    @mock.patch("ios_device.runner_cache_available", return_value=True)
+    @mock.patch(
+        "ios_device.lock_state",
+        return_value={"passcodeRequired": True, "unlockedSinceBoot": False},
+    )
+    @mock.patch("ios_device.discover_selected_device", return_value=fake_device())
+    def test_common_doctor_reports_passcoded_first_unlock_gate(
+        self,
+        _device: mock.Mock,
+        _lock: mock.Mock,
+        _cache: mock.Mock,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.config(Path(directory))
+            document = ios_device.common_doctor_document(config, [])
+        self.assertFalse(document["ready"])
+        self.assertEqual(document["states"]["connection"], "ready")
+        self.assertEqual(document["states"]["interaction"], "protected")
+        self.assertEqual(document["states"]["runner"], "unavailable")
+        self.assertEqual(
+            document["extensions"]["interactionGate"],
+            "manual_first_unlock_required",
+        )
+
+    @mock.patch("ios_device.runner_cache_available", return_value=True)
+    @mock.patch("ios_device.lock_state", side_effect=ios_device.TestbedError("busy"))
+    @mock.patch("ios_device.discover_selected_device", return_value=fake_device())
+    def test_common_doctor_preserves_connection_when_lock_state_is_unavailable(
+        self,
+        _device: mock.Mock,
+        _lock: mock.Mock,
+        _cache: mock.Mock,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            document = ios_device.common_doctor_document(
+                self.config(Path(directory)), []
+            )
+        self.assertFalse(document["ready"])
+        self.assertEqual(document["states"]["connection"], "ready")
+        self.assertEqual(document["states"]["interaction"], "unknown")
+        self.assertEqual(
+            document["extensions"]["interactionGate"], "unverified"
+        )
+        self.assertFalse(document["extensions"]["lockState"]["observed"])
+
     @mock.patch("ios_device.release_lease")
     @mock.patch("ios_device.acquire_lease")
     @mock.patch("ios_device.stop_daemon")
     @mock.patch("ios_device.devicectl_json", return_value={"result": {}})
     @mock.patch("ios_device.discover_selected_device", return_value=fake_device())
-    @mock.patch("ios_device.selected_device_name", return_value="iPhone")
-    def test_reboot_waits_for_physical_device_reconnect(
+    @mock.patch(
+        "ios_device.wait_for_reboot_effect",
+        return_value=(
+            fake_device(),
+            {"passcodeRequired": False, "unlockedSinceBoot": True},
+        ),
+    )
+    def test_reboot_observes_disconnect_and_reconnect_without_builtin_wait(
         self,
-        _name: mock.Mock,
+        wait: mock.Mock,
         _device: mock.Mock,
         devicectl: mock.Mock,
         _stop: mock.Mock,
@@ -183,10 +316,102 @@ class CommandTests(unittest.TestCase):
             "token", 1, "controller", "command", "session", "now"
         )
         with tempfile.TemporaryDirectory() as directory:
-            result = ios_device.reboot_device(self.config(Path(directory)), 90)
+            with redirect_stdout(io.StringIO()):
+                result = ios_device.reboot_device(self.config(Path(directory)), 90)
         self.assertEqual(result, 0)
-        self.assertIn("--wait-for-device", devicectl.call_args.args[0])
+        self.assertNotIn("--wait-for-device", devicectl.call_args.args[0])
         self.assertIn("90", devicectl.call_args.args[0])
+        wait.assert_called_once()
+
+    @mock.patch("ios_device.release_lease")
+    @mock.patch("ios_device.acquire_lease")
+    @mock.patch("ios_device.stop_daemon")
+    @mock.patch("ios_device.devicectl_json", return_value={"result": {}})
+    @mock.patch("ios_device.discover_selected_device", return_value=fake_device())
+    @mock.patch(
+        "ios_device.wait_for_reboot_effect",
+        return_value=(
+            fake_device(),
+            {"passcodeRequired": True, "unlockedSinceBoot": False},
+        ),
+    )
+    def test_reboot_succeeds_with_passcoded_manual_first_unlock(
+        self,
+        _wait: mock.Mock,
+        _device: mock.Mock,
+        _devicectl: mock.Mock,
+        _stop: mock.Mock,
+        acquire: mock.Mock,
+        _release: mock.Mock,
+    ) -> None:
+        acquire.return_value = ios_device.Lease(
+            "token", 1, "controller", "command", "session", "now"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            output = io.StringIO()
+            with redirect_stdout(output):
+                result = ios_device.reboot_device(
+                    self.config(Path(directory)), 90
+                )
+        self.assertEqual(result, 0)
+        self.assertIn("manual first unlock required", output.getvalue())
+
+    @mock.patch(
+        "ios_device.lock_state",
+        return_value={"passcodeRequired": True, "unlockedSinceBoot": False},
+    )
+    @mock.patch("ios_device.discover_selected_device", return_value=fake_device())
+    @mock.patch("ios_device.discover_listed_device")
+    def test_reboot_effect_accepts_passcoded_manual_unlock_gate(
+        self,
+        listed: mock.Mock,
+        _device: mock.Mock,
+        _lock: mock.Mock,
+    ) -> None:
+        listed.side_effect = [ios_device.TestbedError("gone")]
+        tick = iter((0.0, 0.1, 0.2))
+        with tempfile.TemporaryDirectory() as directory:
+            device, locked = ios_device.wait_for_reboot_effect(
+                self.config(Path(directory)),
+                "PRIVATE-DEVICE-ID",
+                10,
+                clock=lambda: next(tick),
+                sleeper=lambda _seconds: None,
+            )
+        self.assertEqual(ios_device.device_identifier(device), "PRIVATE-DEVICE-ID")
+        self.assertTrue(locked["passcodeRequired"])
+
+    @mock.patch("ios_device.wait_for_pairing", return_value=fake_device())
+    @mock.patch("ios_device.devicectl_json", return_value={"result": {}})
+    @mock.patch(
+        "ios_device.discoverable_devices",
+        return_value=[
+            fake_device(pairing="unpaired", transport="wired", tunnel="disconnected")
+        ],
+    )
+    def test_pair_supports_unpaired_exact_device(
+        self,
+        _devices: mock.Mock,
+        devicectl: mock.Mock,
+        wait: mock.Mock,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with redirect_stdout(io.StringIO()):
+                result = ios_device.pair_device(self.config(Path(directory)), 30)
+        self.assertEqual(result, 0)
+        self.assertEqual(devicectl.call_args.args[0][:2], ["manage", "pair"])
+        wait.assert_called_once_with("PRIVATE-DEVICE-ID", 30)
+
+    def test_pair_requires_explicit_device_selector(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = ios_device.Config(
+                **{
+                    **self.config(Path(directory)).__dict__,
+                    "device_selector": "",
+                }
+            )
+            with self.assertRaisesRegex(ios_device.TestbedError, "exact phone"):
+                ios_device.pair_device(config, 30)
 
     def test_runner_cache_matches_version_team_and_bundle(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

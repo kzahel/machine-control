@@ -15,7 +15,8 @@ and recovery.
 Resolve the testbed root as two directories above this file. Invoke
 `<testbed-root>/bin/ios-device`; never invoke bare `agent-device`. The wrapper
 pins the tested version, selects the physical phone explicitly, supplies the
-paid-team signing environment, isolates daemon state, and enforces one owner.
+configured-team signing environment, isolates daemon state, and enforces one
+owner.
 
 Start every task with:
 
@@ -28,6 +29,11 @@ If readiness is missing, read `<testbed-root>/docs/setup.md`. Read
 `<testbed-root>/docs/known-issues.md` for a known symptom and
 `<testbed-root>/docs/recovery.md` before manual runner cleanup. Do not
 substitute a simulator when the task requires hardware.
+
+If Developer Mode discovery sees the selected phone but CoreDevice pairing has
+not converged, run `<testbed-root>/bin/ios-device pair`. Pair only the exact
+configured device. Leave Trust confirmation and any configured passcode to the
+human; never request the passcode through the agent transcript.
 
 ## Run an automation flow
 
@@ -88,6 +94,10 @@ capability not exposed as a wrapper alias.
 Leave passcodes, Touch ID, Face ID, Apple Pay, CAPTCHAs, account recovery,
 developer trust prompts, and security-warning bypasses to a human. Do not
 weaken Developer Mode, pairing, signing, Keychain, or macOS privacy controls.
+For a deliberately passcode-free test phone, unattended reboot is an authorized
+device profile rather than an authentication bypass. For a passcode-protected
+phone, stop when doctor reports `manual_first_unlock_required` and request the
+one local first unlock.
 
 Never commit or publish a device identifier, Apple account, signing team,
 certificate, private key, provisioning profile, signed app, `config.local`,

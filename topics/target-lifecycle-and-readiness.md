@@ -141,7 +141,9 @@ Android, iOS, and Quest retain `native` platform interfaces below the common
 layer but now emit the same minimized doctor envelope. The common client
 therefore exposes `target status|doctor|capabilities` for all three and only
 dispatches a mutating lifecycle verb when that exact adapter declares it. iOS
-and Android currently declare full reboot; Quest deliberately does not.
+and Android currently declare full reboot; Quest deliberately does not. iOS
+full reboot is live-accepted for the passcode-free profile and preserves a
+typed manual-first-unlock state for passcode-protected devices.
 ChromeOS and Steam Deck remain behind the explicit `testbed --` escape until
 their own normalized projections exist.
 

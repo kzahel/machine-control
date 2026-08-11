@@ -71,8 +71,10 @@ results with the wider system. Do not force mobile into a desktop process
 model.
 
 **Current:** The physical adapter now emits the common device doctor and a
-leased CoreDevice full-reboot operation. Its first live common reboot did not
-rediscover the phone, so unattended recovery remains open rather than assumed.
+leased CoreDevice full-reboot operation. Passcode-free disconnect/reconnect and
+post-boot XCTest recovery are live-proven. Passcode-protected phones remain
+supported after local first unlock and report that human gate explicitly after
+reboot; no passcode or biometric entry is automated.
 
 See [iOS control research](../research/platforms/ios.md) and the
 [iOS device topic](ios-device-control.md).

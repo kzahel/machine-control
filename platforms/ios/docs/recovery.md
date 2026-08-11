@@ -12,6 +12,36 @@ These commands do not start, install, unlock, repair, or otherwise mutate the
 phone. Resolve cable, pairing, unlock, Developer Mode, Xcode, certificate, and
 configuration failures before retrying automation.
 
+If Apple's Developer Mode inventory sees the exact configured phone but normal
+CoreDevice discovery has not converged, use the explicit bootstrap operation:
+
+```bash
+bin/ios-device pair
+```
+
+`pair` holds the device lease and attempts only CoreDevice pairing for that
+exact selector. Confirm Trust on the phone. A passcode-protected phone also
+requires its passcode locally; a passcode-free phone does not. The wrapper
+never receives the credential or prints the device identifier.
+
+## After a full reboot
+
+`reboot` separately observes delivery, disappearance, and return of the same
+physical phone. Its successful exit means the phone rebooted and reconnected,
+not necessarily that XCTest is authorized:
+
+- On a passcode-free dedicated phone with wired accessories allowed, doctor
+  should return `interaction: unlocked` and `interactionGate: none_observed`.
+  Run `prepare` if the cached runner still needs a health-check.
+- On a passcode-protected phone, doctor can return connection ready while
+  reporting `interaction: protected` and
+  `interactionGate: manual_first_unlock_required`. Unlock once locally, then
+  rerun doctor or prepare. Do not treat this expected state as reconnect
+  failure and do not retry a credential.
+- If connection returns but lock-state observation is temporarily unavailable,
+  doctor preserves connection and reports an unverified interaction gate. Wait
+  or diagnose CoreDevice rather than pretending the phone is disconnected.
+
 ## Interrupted testbed session
 
 A transactional session records a private controller-local `lease.json` and
@@ -33,7 +63,7 @@ only after confirming no live automation owns the phone.
 
 ## Runner does not connect
 
-1. Unlock the phone locally.
+1. If doctor reports a manual gate, unlock the phone locally.
 2. Confirm `probe` is `connected` and `doctor` sees Developer Mode.
 3. Run `recover` to stop stale testbed-owned processes.
 4. Run `prepare` to rebuild or health-check the signed runner.

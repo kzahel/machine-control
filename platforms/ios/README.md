@@ -14,6 +14,13 @@ Consuming repositories own their application builds, fixtures, and assertions.
 This repository owns physical-device selection, readiness, installation,
 automation sessions, screenshots, input, and recovery.
 
+Both passcode-free and passcode-protected test devices are supported. A
+passcode-free dedicated phone can recover through a full reboot without local
+interaction once pairing and wired-accessory policy are prepared. A
+passcode-protected phone remains usable after its first local unlock, but a
+full reboot intentionally returns it to a reported manual-first-unlock gate.
+The adapter never enters or stores an iOS passcode.
+
 The validated local target is an iPhone SE (3rd generation) on iOS 26.6,
 controlled from Apple-silicon macOS with Xcode 26.6 and a paid Apple Developer
 Program team. The CLI is intentionally macOS-only because physical-iOS XCTest
@@ -38,6 +45,7 @@ Then validate and prepare the runner:
 
 ```bash
 bin/ios-device probe
+bin/ios-device pair
 bin/ios-device doctor
 bin/ios-device prepare
 bin/ios-device doctor
@@ -103,8 +111,9 @@ bin/ios-device normal-launch com.example.app
 probe [--json]                 Stable read-only connection state
 status [--json]                Device, matching build-cache, and lease status
 doctor [--json]                Xcode, signing, device, unlock, and runner checks
+pair [--timeout SECONDS]       Explicit exact-device CoreDevice pairing
 prepare                        Build/sign/install/health-check the XCTest runner
-reboot [--timeout SECONDS]     Full CoreDevice reboot and reconnect wait
+reboot [--timeout SECONDS]     Full reboot with observed disconnect/reconnect
 session -- COMMAND             Run under an exclusive recoverable device lease
 recover [--force]              Stop the dedicated daemon and clear a stale lease
 
@@ -128,11 +137,30 @@ pinned Agent Device help documents a command that the wrapper does not alias.
 
 `doctor --json` emits the minimized `machine-control-doctor/v0` device
 projection used by common `target status`, `target doctor`, and `target
-capabilities` calls. `reboot` stops only testbed-owned runner state,
-holds the device lease, requests a full CoreDevice reboot, and waits for the
-physical phone to return. Reconnection does not imply that XCTest is usable:
-the common doctor keeps runner authentication `unverified_until_launch` and
-does not automate a passcode or biometric gate.
+capabilities` calls. Read-only discovery merges the normal CoreDevice list with
+Apple's lower-level Developer Mode inventory, then deduplicates CoreDevice and
+hardware identifiers without emitting either. `pair` is an explicit bootstrap
+mutation and requires an exact configured phone. It can finish a passcode-free
+Trust flow; a passcode-protected phone still requires its local Trust and
+passcode confirmation.
+
+`reboot` stops only testbed-owned runner state, holds the device lease, requests
+a full CoreDevice reboot without relying on its premature built-in reconnect
+result, observes disconnect and return of the same physical phone, and then
+lets the common client re-run doctor. On a passcode-free phone, interaction and
+XCTest can become ready without a touch. On a passcode-protected phone, reboot
+delivery can succeed while doctor reports `interaction: protected`,
+`interactionGate: manual_first_unlock_required`, and unavailable runner/input
+until a human performs the first unlock. A connected phone with unavailable
+lock-state observation remains connected but unverified rather than being
+misreported as absent.
+
+CoreDevice exposes current lock requirements, not a durable declaration that a
+passcode is configured. The doctor therefore reports observed
+lock-state `observed`, `passcodeRequired`, `unlockedSinceBoot`, and
+`interactionGate` facts instead of guessing the phone's future post-reboot
+behavior. Runner authentication remains
+`unverified_until_launch` until a real XCTest launch succeeds.
 
 ## State and trust boundary
 
@@ -159,8 +187,10 @@ credentials, device identifiers, or request data. Keep them local and review
 before sharing. The CLI redacts identifiers from its own summaries, but raw
 Agent Device passthrough output may contain provider details.
 
-Protected authentication and security surfaces remain human gates: passcodes,
-biometrics, Apple Pay, CAPTCHAs, account recovery, and safety-warning bypasses.
+Protected authentication and security surfaces remain human gates: configured
+passcodes, biometrics, Apple Pay, CAPTCHAs, account recovery, Trust confirmation,
+and safety-warning bypasses. Passcode-free operation is an explicit dedicated
+test-device policy, not an authentication bypass.
 See [docs/capabilities.md](docs/capabilities.md),
 [docs/known-issues.md](docs/known-issues.md), and
 [docs/recovery.md](docs/recovery.md).

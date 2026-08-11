@@ -1,6 +1,6 @@
 # Validated Capabilities
 
-Last physical-device validation: 2026-08-04.
+Last physical-device validation: 2026-08-11.
 
 Validated combination:
 
@@ -27,7 +27,9 @@ Validated combination:
 | Home navigation | The runner returned from Safari to physical SpringBoard |
 | Evidence | Physical screenshots captured Safari, Home Screen, and JSTorrent underneath the automation presentation |
 | Product state assertion | Big Buck Bunny progressed from Fetching Metadata to 100% Seeding |
-| Reboot/update reuse | The cached signed runner worked after reboot and an iOS update, with a first-launch local-authentication gate |
+| Passcode-protected operation | Ordinary CoreDevice and XCTest control worked after a local first unlock; a full reboot visibly restored the passcode gate |
+| Passcode-free reboot recovery | Common `target reboot` observed full disconnect/reconnect in 38.5 seconds, doctor reported no interaction gate and unlocked-since-boot, and XCTest preparation passed again without device interaction |
+| Pairing bootstrap | Developer Mode discovery plus explicit CoreDevice pairing recovered a trusted passcode-free device without exposing its identifier |
 
 Healthy initial snapshots measured 313–569 ms. The later JSTorrent run reported
 approximately 4.4-second p95 snapshots while the runner/device was under load.
@@ -36,7 +38,7 @@ Track both latency and cause instead of treating one number as a stable SLA.
 ## Not yet proven
 
 - An ordinary system permission alert on the physical device.
-- USB disconnect/reconnect with automatic runner recovery.
+- Unexpected cable disconnect/reconnect with automatic runner recovery.
 - App switcher behavior on the physical phone.
 - Multi-touch, pinch, rotate, and complex drag paths.
 - Protected or intentionally obscured screen capture.
@@ -49,7 +51,11 @@ Accessibility-first automation is the primary path. Screenshots and coordinates
 are valid fallbacks for canvas, custom-drawn, or poorly labeled UI, but they are
 less stable across layout, orientation, text size, and OS changes.
 
-Passcodes, biometrics, Apple Pay, CAPTCHAs, account recovery, and protected
-security confirmations require a human. A screenshot or accessibility tree may
-omit, obscure, or refuse protected content. Treat that as a boundary, not as a
-reason to weaken the device.
+On a passcode-protected phone, passcodes, biometrics, Apple Pay, CAPTCHAs,
+account recovery, and protected security confirmations require a human. After
+reboot, the provider reports `manual_first_unlock_required` and does not enter a
+credential. A passcode-free dedicated phone is a separately authorized device
+policy and is proven to recover unattended; it is not a protected-surface
+bypass. A screenshot or accessibility tree may omit, obscure, or refuse
+protected content. Treat that as a boundary, not as a reason to weaken the
+device.

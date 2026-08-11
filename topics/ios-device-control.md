@@ -2,8 +2,8 @@
 
 Topic: `ios-device-control`
 
-Status: adopted CoreDevice/XCTest physical-device control with a common outer
-doctor; full unattended reboot recovery is not yet accepted.
+Status: adopted CoreDevice/XCTest physical-device control with passcode-free
+unattended reboot recovery accepted and passcoded first unlock kept human.
 
 ## Scope
 
@@ -22,12 +22,18 @@ runner, semantic, capture, input, and device-host route state. The common
 client exposes `target status|doctor|capabilities` while application and UI
 operations remain explicit native iOS commands.
 
-The adapter also exposes a leased full `reboot`: stop only testbed-owned runner
-state, issue CoreDevice's full reboot with `--wait-for-device`, verify that the
-selected phone reappears, and then let the common client re-run doctor. The
-doctor reports the actual passcode-required and unlocked-since-boot values and
-keeps runner authentication `unverified_until_launch`; connection alone is not
-claimed as XCTest readiness.
+Read-only selection now merges the ordinary CoreDevice list with Apple's
+lower-level Developer Mode inventory and deduplicates CoreDevice and hardware
+identities. An explicit leased `pair` bootstraps only the exact configured phone
+when Trust has not converged. A passcode-protected phone still requires its
+Trust/passcode confirmation locally; the adapter never receives that secret.
+
+The leased full `reboot` stops only testbed-owned runner state, requests a full
+CoreDevice reboot, observes disappearance and return of the same phone itself,
+and lets the common client re-run doctor. It no longer treats CoreDevice's
+premature built-in wait failure as the final effect. Connection, current
+passcode requirement, unlocked-since-boot, interaction gate, runner cache, and
+runner authentication remain separate observations.
 
 ## Decisions
 
@@ -35,46 +41,58 @@ claimed as XCTest readiness.
 authorization, readiness, capability/result/evidence, artifact, and generation
 vocabulary with other platforms.
 
-**Decision:** Do not automate entry of an iOS passcode or biometric response.
-For a dedicated unattended device, separately investigate and prove:
+**Decision:** Support two honest profiles through one native provider:
 
-- passcode-free operation through full reboot and first XCTest launch;
-- free Apple Configurator supervision and saved-token passcode clearing as a
-  typed recovery operation, not passcode entry; and
-- free Personal Team runner provisioning as a distinct short-lived signing
-  profile from supervision or MDM.
+- A passcode-free dedicated device can pair, reboot, reconnect, and restart
+  XCTest without local interaction once Trust and wired-accessory policy are
+  prepared.
+- A passcode-protected device is ready after its local first unlock. Reboot
+  delivery may succeed while doctor reports connection ready, interaction
+  protected, runner unavailable, and `manual_first_unlock_required`.
+
+Do not automate entry of an iOS passcode or biometric response. Free Apple
+Configurator supervision remains an optional repeatable-provisioning route,
+not a prerequisite or passcode-entry mechanism. Free Personal Team runner
+provisioning remains a distinct short-lived signing profile from supervision or
+MDM.
 
 None of those possibilities weakens Developer Mode, trust, signing, account
 recovery, Apple Pay, or protected security confirmations.
 
 ## Evidence and current gap
 
-**Current — live-tested:** Before reboot, the connected physical phone emitted
-a ready minimized doctor: CoreDevice connection and unlocked-since-boot were
-observed, the signed runner cache was present, and runner authentication was
-explicitly unverified until launch.
+**Current — live-tested, passcode-free:** Removing the passcode caused an
+ordinary Trust flow not to appear immediately in CoreDevice inventory. Apple's
+Developer Mode inventory still found the phone; explicit CoreDevice pairing
+then reported it physical, paired, wired, tunnel-connected, and Developer Mode
+enabled. Common doctor became ready with `passcodeRequired: false`,
+`unlockedSinceBoot: true`, and no observed interaction gate. XCTest preparation
+completed before reboot.
 
-**Current — live failure:** A full reboot was issued through the new common
-operation. CoreDevice did not rediscover the phone before its bounded wait
-failed, and subsequent CoreDevice and USB observation reported it absent. The
-adapter released its lease and the common doctor truthfully became unavailable.
-No outer input, passcode, biometric, or silent recovery route was attempted.
+The corrected common full reboot then observed disconnect and reconnect in
+38.5 seconds and returned `accepted: true`. Without device interaction, doctor
+again reported connection ready, interaction unlocked, and unlocked-since-boot.
+A second XCTest preparation installed/launched/health-checked the runner and
+cleaned its lease. No blocking authentication dialog affected either launch;
+whether a nonblocking presentation was briefly visible was not watched.
 
-This proves that the command and failure boundary work, but not unattended
-reboot recovery. The earlier accepted evidence that a cached runner survived a
-reboot/update still required a first-launch local-authentication action.
+**Current — live-tested boundary, passcoded:** Before passcode removal, a full
+reboot visibly required the local device passcode and the phone did not become
+ordinary automation-ready before that first unlock. The new normalized
+post-reboot `manual_first_unlock_required` result is unit-tested rather than
+repeating a credential-bearing live reboot after converting the dedicated
+phone to passcode-free operation.
 
 ## Recommended next work
 
-- Restore and inspect the physical phone locally, determine whether the failed
-  full reboot left it powered off, booted but absent from USB, or behind a new
-  trust/developer-services condition, and record only sanitized evidence.
-- Re-run `reboot` after the cause is understood, then launch the runner and
-  classify the exact post-boot authentication gate.
-- Test the passcode-free dedicated-device profile independently of the current
-  paid-team signing profile.
-- Source-review and live-test Apple Configurator supervision, escrowed unlock
-  token storage, and clear-passcode recovery before changing the current human
-  gate policy.
+- Exercise the normalized passcoded post-reboot result on a separate dedicated
+  fixture if one is available; do not restore a credential merely to increase
+  test coverage on the accepted passcode-free phone.
+- Add a typed common bootstrap capability if more device families need pairing;
+  until then keep iOS `pair` as an explicit native recovery operation.
+- Test free Personal Team signing/reprovisioning independently of the accepted
+  paid-team runner cache and independently of passcode policy.
+- Source-review and live-test free Apple Configurator supervision only if
+  repeatable erase-and-prepare or supervision-only policy becomes necessary.
 - Decide physical/simulator identity and capability differences only after the
   physical recovery path is stable.

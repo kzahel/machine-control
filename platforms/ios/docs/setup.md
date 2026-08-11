@@ -4,8 +4,9 @@
 
 - A Mac with full Xcode and the matching iOS platform support.
 - Node.js 24 or newer, pnpm 11, and Python 3.10 or newer.
-- A paid Apple Developer Program team signed into Xcode for long-lived
-  development provisioning.
+- An Apple development team signed into Xcode. The validated long-lived setup
+  uses a paid team; a free Personal Team is a distinct short-lived signing
+  profile that requires periodic reprovisioning and remains to be accepted.
 - An Apple Development certificate with its private key available in the login
   Keychain.
 
@@ -16,20 +17,47 @@ primary iCloud account.
 ## Phone preparation
 
 1. Erase or otherwise prepare a dedicated test phone without personal data.
-2. Connect it over USB, unlock it, select **Trust This Computer**, and accept
-   the Mac pairing prompt.
+2. Configure `IOS_DEVICE_TESTBED_DEVICE` with one exact private device name,
+   connect it over USB, unlock it, and run `bin/ios-device pair`. Select
+   **Trust This Computer** and, when the phone has a passcode, enter it locally.
 3. Enable **Settings → Privacy & Security → Developer Mode** and complete the
    required reboot and local confirmation.
 4. Open Xcode's device window once so it prepares developer services.
-5. Allow Xcode automatic signing to register the phone to the paid team.
+5. Allow Xcode automatic signing to register the phone to the configured team.
 6. Enable macOS Developer Tools security once with
    `sudo DevToolsSecurity -enable` if `testmanagerd` attachment is denied.
-7. Complete any first XCTest-launch Touch ID or password prompt locally.
+7. Choose one of the passcode profiles below, then run `prepare`. Complete any
+   first XCTest-launch Touch ID or password prompt locally.
 
 Keep the phone on a supported, fully updated iOS release. A device can be
 connected to Wi-Fi and still fail developer-certificate verification if its OS
 trust state is stale; updating iOS resolved that condition during the initial
 spike.
+
+## Passcode profiles
+
+Both profiles use the same provider and common target surface:
+
+- **Passcode-free dedicated device:** Remove Touch ID or Face ID enrollment,
+  turn off the passcode, and set **Settings → Privacy & Security → Wired
+  Accessories → Always Allow**. On an Apple-silicon Mac laptop, approve the
+  phone and choose an appropriate **Privacy & Security → Accessories** policy;
+  a dedicated controller can use **Always Allow**, while a general-purpose Mac
+  should prefer **Automatically Allow When Unlocked**. Run `pair` again if the
+  Trust flow does not converge after the passcode change. This profile is
+  live-proven through remote full reboot and post-reboot XCTest preparation.
+- **Passcode-protected device:** Keep the passcode and biometrics enabled.
+  Ordinary automation works after the phone has been unlocked locally since
+  boot. After every full reboot, doctor reports a protected interaction and
+  `manual_first_unlock_required` until that local action occurs. The provider
+  does not request, transport, store, or enter the passcode.
+
+Apple's `devmodectl` supports passcode-free Developer Mode automation. The
+wrapper uses that inventory only for discovery; it does not silently change
+Developer Mode. Apple Configurator supervision is optional for repeatable lab
+provisioning and does not require MDM, but preparing an already activated phone
+for supervision erases it. It was not needed for the current passcode-free
+acceptance.
 
 ## Testbed configuration
 
@@ -37,7 +65,7 @@ Copy `config.example` to ignored `config.local` and set:
 
 ```bash
 export IOS_DEVICE_TESTBED_DEVICE=iPhone
-export IOS_DEVICE_TESTBED_TEAM_ID=<paid-team-id>
+export IOS_DEVICE_TESTBED_TEAM_ID=<apple-team-id>
 export IOS_DEVICE_TESTBED_RUNNER_BUNDLE_ID=com.example.iosdevicetestbed.runner
 ```
 
