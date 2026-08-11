@@ -125,9 +125,9 @@ macvm_apply_workspace_selection() {
     esac
     if [[ "$intent" != "persistent" ]]; then
         MACVM_GUEST_TRANSPORT="$MACVM_WORKSPACE_GUEST_TRANSPORT"
-        if [[ "$MACVM_GUEST_TRANSPORT" == "tart" ]]; then
-            MACVM_SSH_HOST=""
-        fi
+        # A derivative has its own network identity. Never inherit a fixed
+        # endpoint from the development VM; Tart or SSH must rediscover it.
+        MACVM_SSH_HOST=""
     fi
 }
 

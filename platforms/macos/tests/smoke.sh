@@ -119,10 +119,13 @@ workspace_handle="$(python3 "$REPO_DIR/../../providers/workspaces/receipts.py" \
 selection="$({ env \
     MACVM_CONFIG_FILE=/dev/null \
     MACVM_WORKSPACE_STATE_DIR="$temporary/selection" \
+    MACVM_SSH_HOST=fixture-fixed-endpoint \
+    MACVM_WORKSPACE_GUEST_TRANSPORT=ssh \
     MACHINE_CONTROL_WORKSPACE_HANDLE="$workspace_handle" \
-    bash -c 'source "$1"; printf "%s|%s|%s\n" "$MACVM_NAME" "$MACVM_EXPECTED_NAME" "$MACVM_TARGET_ROLE"' \
+    bash -c 'source "$1"; printf "%s|%s|%s|%s|%s\n" "$MACVM_NAME" "$MACVM_EXPECTED_NAME" "$MACVM_TARGET_ROLE" "$MACVM_GUEST_TRANSPORT" "$MACVM_SSH_HOST"' \
         _ "$REPO_DIR/scripts/common.sh"; } 2>/dev/null)"
-[[ "$selection" == 'fixture-workspace|fixture-workspace|disposable' ]]
+[[ "$selection" == \
+    'fixture-workspace|fixture-workspace|disposable|ssh|' ]]
 if MACVM_FORBID_OUTER_UI=true bin/macvm screenshot >/dev/null 2>&1; then
     printf 'Outer-UI guard allowed a Tart screenshot\n' >&2
     exit 1

@@ -47,4 +47,6 @@ MACVM_WORKSPACE_MIN_FREE_BYTES=34359738368
 MACVM_WORKSPACE_MAX_TEMPORARY=1
 MACVM_WORKSPACE_MAX_RETAINED=2
 MACVM_WORKSPACE_CANDIDATE_PREFIX=machine-control-macos
+# Use ssh when the base has SSH but not the Tart guest agent. Derived clones
+# discard MACVM_SSH_HOST and rediscover their own address through Tart.
 MACVM_WORKSPACE_GUEST_TRANSPORT=tart

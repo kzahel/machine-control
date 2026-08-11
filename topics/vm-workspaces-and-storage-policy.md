@@ -45,6 +45,9 @@ domain with a QCOW2 backing overlay. These are equivalent only in the promised
 workspace outcome; their concurrency, base dependency, capacity, and recovery
 properties remain explicit.
 
+A derived Tart target never inherits the development VM's fixed SSH endpoint.
+Its configured guest transport rediscovers the derivative's own address.
+
 ## Placement and ownership
 
 **Decision:** the coordinator, adapter execution endpoint, hypervisor host,
