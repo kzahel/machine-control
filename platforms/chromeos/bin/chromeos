@@ -1,0 +1,1608 @@
+#!/usr/bin/env bash
+# chromeos — CLI for managing a ChromeOS development device
+#
+# Usage: chromeos [--json] <command> [args...]
+#
+# Commands:
+#   doctor              Check connectivity, devtools, client.py, etc.
+#   diagnostics [dir]   Collect a non-mutating diagnostic bundle
+#   smoke-test [dir]    Exercise screenshots, input, and desktop automation
+#   post-update [--repair|--verify-reboot] [-y]  Audit/repair after an OS update
+#   fix-ssh             Restart sshd after reboot
+#   fix-devtools        Re-enable --remote-debugging-port=9222
+#   deploy              Deploy/update client.py on Chromebook
+#   screenshot [file] [--method egl|gbm|keyboard] [--jpeg|--png] [-q N]  Take screenshot
+#   tap X Y             Tap at raw touchscreen coordinates
+#   swipe X1 Y1 X2 Y2 [MS]  Swipe gesture (default 200ms)
+#   mouse-move X Y      Experimental virtual relative mouse (best effort)
+#   mouse-click [left|right|middle] [X Y]  Experimental virtual mouse click
+#   mouse-scroll DELTA  Scroll wheel (positive=up, negative=down)
+#   type "text"         Type text via keyboard
+#   login [--pin-stdin] [--timeout SEC]  Log in the selected profile with a PIN
+#   shortcut [mod...] key  Keyboard key/shortcut (e.g. ctrl t, enter, alt left)
+#   vt2                 Switch the physical display to the VT2 developer console
+#   gui                 Switch the physical display back to the ChromeOS UI
+#   info                Device info (touch_max, keyboard layout)
+#   remote-desktop [port]  Start remote desktop web server (default port 8765)
+#   targets             List Chrome DevTools targets (pages/tabs)
+#   axtree [target]     Dump accessibility tree for a target
+#   find <pat> [opts]   Find elements by name (--role ROLE, --target N)
+#   click <pat> [opts]  Click element by name (--role ROLE, --target N)
+#   desktop-tree [--depth N]  Full desktop accessibility tree (system UI)
+#   desktop-find <pat> [--role R]  Find desktop elements by name
+#   desktop-click <pat> [--role R] Click desktop element via doDefault()
+#   desktop-tap <pat> [--role R] [--nth N]  Tap element on built-in display
+#   desktop-action <pat> <action> [--value V] [--role R] [--nth N]  Perform action on desktop element
+#   desktop-wait <pat> [--role R] [--timeout S] [--absent]  Wait for desktop state
+#   target-wait <pat> [--timeout S] [--absent]  Wait for a browser target
+#   assert-visible <pat> [--role R]  Require a visible desktop element
+#   deploy-ext <dir> [--name NAME] [--reload [EXT_ID]]  Deploy extension to Chromebook
+#   adb-status          Show ARCVM ADB connection state
+#   adb-connect         Connect to ARCVM ADB and wait until ready
+#   adb-authorize       Approve the visible ChromeOS ADB authorization prompt
+#   install-apk <file> [--keep] [--authorize]  Install Android APK
+#   power-status        Show idle/lid power overrides and current policy
+#   keep-awake [--lid-closed]  Disable idle suspend; optionally ignore the lid
+#   restore-power       Restore default idle and lid behavior
+#   shell               Interactive SSH session
+#   help                Show this help
+
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SSH_HOST="${CHROMEBOOK_HOST:-chromeos-testbed}"
+CLIENT_PATH="${CHROMEOS_CLIENT_PATH:-/mnt/stateful_partition/c2/client.py}"
+REMOTE_PATH_SETUP="export PATH=/bin:/usr/bin:/usr/local/bin:/usr/sbin:/sbin:\$PATH"
+SSH_OPTS=(-o ControlMaster=auto -o "ControlPath=/tmp/chromeos-ssh-%C" -o ControlPersist=300)
+OUTPUT_FORMAT="${CHROMEOS_OUTPUT:-text}"
+ADB_ENDPOINT="${CHROMEOS_ADB_ENDPOINT:-127.0.0.1:5555}"
+
+json_mode() {
+    [[ "$OUTPUT_FORMAT" == "json" ]]
+}
+
+print_client_warning() {
+    local response="$1"
+    json_mode && return 0
+    echo "$response" | python3 -c "
+import json, sys
+warning = json.load(sys.stdin).get('warning')
+if warning:
+    print(f'Warning: {warning}')
+" 1>&2 2>/dev/null || true
+}
+
+# Send a JSON command to client.py on the Chromebook
+send_cmd() {
+    local json="$1"
+    echo "$json" | ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
+        "$REMOTE_PATH_SETUP; LD_LIBRARY_PATH=/usr/local/lib64 python3 $CLIENT_PATH" 2>/dev/null
+}
+
+# Send a command whose response should not contain an application-level error.
+send_cmd_checked() {
+    local response
+    response=$(send_cmd "$1")
+    echo "$response"
+    print_client_warning "$response"
+    if echo "$response" | python3 -c \
+        "import json,sys; sys.exit(1 if json.load(sys.stdin).get('error') else 0)" \
+        2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+# Ensure client files are deployed (skip if the remote copies match)
+ensure_client() {
+    local client_dir
+    client_dir=$(dirname "$CLIENT_PATH")
+
+    local current_hash
+    current_hash=$(cat "$REPO_DIR/client.py" "$REPO_DIR/drm_screenshot.py" "$REPO_DIR/cdp.py" \
+        2>/dev/null | shasum -a 256 | cut -c1-16)
+
+    # Check the actual remote files. A local-only cache could incorrectly skip
+    # deployment after switching targets or deleting files on the Chromebook.
+    local remote_hash
+    remote_hash=$(ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
+        "$REMOTE_PATH_SETUP; cat '$client_dir/client.py' '$client_dir/drm_screenshot.py' '$client_dir/cdp.py' 2>/dev/null | sha256sum | cut -c1-16" \
+        2>/dev/null || true)
+    if [[ "$remote_hash" == "$current_hash" ]]; then
+        return 0
+    fi
+
+    ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; mkdir -p '$client_dir'" 2>/dev/null
+    scp -q "${SSH_OPTS[@]}" "$REPO_DIR/client.py" "$REPO_DIR/drm_screenshot.py" "$REPO_DIR/cdp.py" "$SSH_HOST:$client_dir/"
+}
+
+cmd_doctor() {
+    CHROMEOS_OUTPUT="$OUTPUT_FORMAT" exec "$REPO_DIR/scripts/doctor.sh" "$@"
+}
+
+cmd_diagnostics() {
+    CHROMEOS_OUTPUT="$OUTPUT_FORMAT" exec "$REPO_DIR/scripts/diagnostics.sh" "$@"
+}
+
+cmd_smoke_test() {
+    CHROMEOS_OUTPUT="$OUTPUT_FORMAT" exec "$REPO_DIR/scripts/smoke-test.sh" "$@"
+}
+
+cmd_post_update() {
+    CHROMEOS_OUTPUT="$OUTPUT_FORMAT" exec "$REPO_DIR/scripts/post-update.sh" "$@"
+}
+
+cmd_fix_ssh() {
+    exec "$REPO_DIR/scripts/fix-ssh.sh" "$@"
+}
+
+cmd_fix_devtools() {
+    exec "$REPO_DIR/scripts/fix-devtools.sh" "$@"
+}
+
+cmd_deploy() {
+    exec "$REPO_DIR/scripts/deploy-client.sh" "$@"
+}
+
+cmd_screenshot() {
+    local method="" output="" format="" quality=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --method=*) method="${1#--method=}"; shift ;;
+            --method) method="$2"; shift 2 ;;
+            --format=*) format="${1#--format=}"; shift ;;
+            --format) format="$2"; shift 2 ;;
+            --quality=*) quality="${1#--quality=}"; shift ;;
+            --quality|-q) quality="$2"; shift 2 ;;
+            --png) format="png"; shift ;;
+            --jpeg|--jpg) format="jpeg"; shift ;;
+            *) output="$1"; shift ;;
+        esac
+    done
+
+    # Infer format from extension, default to jpeg
+    if [[ -z "$format" ]]; then
+        case "$output" in
+            *.png) format="png" ;;
+            *)     format="jpeg" ;;
+        esac
+    fi
+    if [[ -z "$output" ]]; then
+        local ext="png"; [[ "$format" == "jpeg" ]] && ext="jpg"
+        output="/tmp/chromebook-screenshot.$ext"
+    fi
+
+    ensure_client
+
+    # Keyboard method must go through client.py
+    if [[ "$method" == "keyboard" ]]; then
+        _screenshot_json "$output" "$method" "$format"
+        return
+    fi
+
+    # Direct binary transfer: drm_screenshot.py --stdout [--jpeg] > file
+    local remote_dir
+    remote_dir=$(dirname "$CLIENT_PATH")
+    local remote_args="--stdout"
+    if [[ "$format" == "jpeg" ]]; then
+        remote_args="$remote_args --jpeg"
+        [[ -n "$quality" ]] && remote_args="$remote_args -q $quality"
+    fi
+    local capture_method="${method:-egl}"
+    remote_args="$remote_args --method $capture_method"
+
+    local capture_ok=0 attempt error_file
+    error_file=$(mktemp "${TMPDIR:-/tmp}/chromeos-screenshot-error.XXXXXX")
+    for attempt in 1 2 3; do
+        if ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
+            "$REMOTE_PATH_SETUP; LD_LIBRARY_PATH=/usr/local/lib64 python3 $remote_dir/drm_screenshot.py $remote_args" \
+            > "$output" 2>"$error_file" && [[ -s "$output" ]]; then
+            capture_ok=1
+            break
+        fi
+        rm -f "$output"
+        if ! grep -q "No active CRTC" "$error_file"; then
+            break
+        fi
+        if [[ "$attempt" -eq 1 ]]; then
+            # Modifier-only input wakes a sleeping display without typing into
+            # or activating the focused control.
+            send_cmd '{"cmd":"wake"}' >/dev/null
+        elif [[ "$attempt" -lt 3 ]]; then
+            sleep 0.35
+        fi
+    done
+
+    if (( capture_ok )); then
+        rm -f "$error_file"
+        if json_mode; then
+            python3 -c "import json,sys; print(json.dumps({'ok':True,'path':sys.argv[1],'format':sys.argv[2],'method':sys.argv[3] or 'auto'}))" \
+                "$output" "$format" "$capture_method"
+        else
+            echo "$output ($capture_method, $format)"
+        fi
+    else
+        rm -f "$error_file"
+        _screenshot_json "$output" "$method" "$format"
+    fi
+}
+
+# Fallback: screenshot via client.py JSON/base64 path
+_screenshot_json() {
+    local output="$1" method="$2" format="$3"
+    local cmd_json='{"cmd":"screenshot"'
+    [[ -n "$method" ]] && cmd_json="$cmd_json,\"method\":\"$method\""
+    [[ "$format" == "jpeg" ]] && cmd_json="$cmd_json,\"format\":\"jpeg\""
+    cmd_json="$cmd_json}"
+    local response
+    response=$(send_cmd "$cmd_json")
+
+    if echo "$response" | python3 -c "import sys,json; r=json.load(sys.stdin); sys.exit(0 if 'image' in r else 1)" 2>/dev/null; then
+        local used_method
+        used_method=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('method',''))" 2>/dev/null)
+        echo "$response" | python3 -c "
+import sys, json, base64
+r = json.load(sys.stdin)
+sys.stdout.buffer.write(base64.b64decode(r['image']))
+" > "$output"
+        if json_mode; then
+            python3 -c "import json,sys; print(json.dumps({'ok':True,'path':sys.argv[1],'format':sys.argv[2],'method':sys.argv[3] or 'auto'}))" \
+                "$output" "$format" "$used_method"
+        else
+            echo "$output${used_method:+ ($used_method)}"
+        fi
+    else
+        local error
+        error=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','Unknown error'))" 2>/dev/null || echo "No response from client")
+        echo "Error: $error" >&2
+        exit 1
+    fi
+}
+
+cmd_tap() {
+    local x="${1:?Usage: chromeos tap X Y}"
+    local y="${2:?Usage: chromeos tap X Y}"
+    ensure_client
+    send_cmd_checked "{\"cmd\":\"tap\",\"x\":$x,\"y\":$y}"
+}
+
+cmd_swipe() {
+    local x1="${1:?Usage: chromeos swipe X1 Y1 X2 Y2 [DURATION_MS]}"
+    local y1="${2:?Usage: chromeos swipe X1 Y1 X2 Y2 [DURATION_MS]}"
+    local x2="${3:?Usage: chromeos swipe X1 Y1 X2 Y2 [DURATION_MS]}"
+    local y2="${4:?Usage: chromeos swipe X1 Y1 X2 Y2 [DURATION_MS]}"
+    local duration="${5:-200}"
+    ensure_client
+    send_cmd_checked "{\"cmd\":\"swipe\",\"x1\":$x1,\"y1\":$y1,\"x2\":$x2,\"y2\":$y2,\"duration_ms\":$duration}"
+}
+
+cmd_mouse_move() {
+    local x="${1:?Usage: chromeos mouse-move X Y}"
+    local y="${2:?Usage: chromeos mouse-move X Y}"
+    ensure_client
+    send_cmd_checked "{\"cmd\":\"mouse_move\",\"x\":$x,\"y\":$y}"
+}
+
+cmd_mouse_click() {
+    local button="${1:-left}"
+    local x="${2:-}"
+    local y="${3:-}"
+    ensure_client
+    if [[ -n "$x" && -n "$y" ]]; then
+        send_cmd_checked "{\"cmd\":\"mouse_click\",\"button\":\"$button\",\"x\":$x,\"y\":$y}"
+    else
+        send_cmd_checked "{\"cmd\":\"mouse_click\",\"button\":\"$button\"}"
+    fi
+}
+
+cmd_mouse_scroll() {
+    local delta="${1:?Usage: chromeos mouse-scroll DELTA}"
+    ensure_client
+    send_cmd_checked "{\"cmd\":\"mouse_scroll\",\"delta\":$delta}"
+}
+
+cmd_type() {
+    local text="${1:?Usage: chromeos type \"text\"}"
+    ensure_client
+    local json
+    json=$(python3 -c "import json; print(json.dumps({'cmd':'type','text':$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$text")}))")
+    send_cmd_checked "$json"
+}
+
+chromeos_user_session_active() {
+    local mounted
+    mounted=$(ssh -n "${SSH_OPTS[@]}" "$SSH_HOST" \
+        "$REMOTE_PATH_SETUP; cryptohome --action=is_mounted" 2>/dev/null || true)
+    [[ "$(printf '%s\n' "$mounted" | tail -n 1 | tr -d '\r')" == "true" ]]
+}
+
+cmd_login() {
+    local pin_stdin=0 timeout=15
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --pin-stdin) pin_stdin=1; shift ;;
+            --timeout=*) timeout="${1#--timeout=}"; shift ;;
+            --timeout) timeout="${2:?--timeout requires seconds}"; shift 2 ;;
+            --help|-h)
+                echo "Usage: chromeos login [--pin-stdin] [--timeout SEC]"
+                echo
+                echo "Logs in the already-selected (normally last-used) ChromeOS profile."
+                echo "Without --pin-stdin, securely prompts for the PIN on a terminal."
+                echo "Positional PIN arguments are intentionally not supported."
+                return 0
+                ;;
+            *)
+                echo "Unknown option: $1" >&2
+                echo "PIN arguments are not accepted; use the hidden prompt or --pin-stdin." >&2
+                return 1
+                ;;
+        esac
+    done
+
+    if [[ ! "$timeout" =~ ^[0-9]+$ ]] || (( timeout < 1 || timeout > 60 )); then
+        echo "Error: --timeout must be an integer from 1 to 60 seconds." >&2
+        return 1
+    fi
+
+    if chromeos_user_session_active; then
+        echo "[OK] ChromeOS user session is already active."
+        return 0
+    fi
+
+    local pin=""
+    if (( pin_stdin )); then
+        if ! IFS= read -r pin; then
+            if [[ -z "$pin" ]]; then
+                echo "Error: no PIN received on stdin." >&2
+                return 1
+            fi
+        fi
+    fi
+
+    ensure_client
+
+    if (( ! pin_stdin )) && [[ -t 0 ]]; then
+        IFS= read -r -s -p "PIN for the selected ChromeOS profile: " pin
+        echo >&2
+    elif (( ! pin_stdin )); then
+        echo "Error: no interactive terminal for the hidden PIN prompt." >&2
+        echo "Pipe the PIN from an approved secret source and add --pin-stdin." >&2
+        return 1
+    fi
+
+    if [[ ! "$pin" =~ ^[0-9]{4,20}$ ]]; then
+        pin=""
+        unset pin
+        echo "Error: a ChromeOS PIN must contain 4-20 digits." >&2
+        return 1
+    fi
+
+    # A modifier-only key wakes the display without entering a character.
+    send_cmd '{"cmd":"key","keys":[42]}' >/dev/null
+    sleep 1
+
+    # Clear a partially entered PIN, type the supplied PIN, and submit it in one
+    # SSH/client session. The PIN travels only over SSH stdin, never as a
+    # process argument or command-line option.
+    {
+        local i
+        for ((i=0; i<20; i++)); do
+            printf '%s\n' '{"cmd":"key","keys":[14]}'
+        done
+        printf '%s\n' "{\"cmd\":\"type\",\"text\":\"$pin\"}"
+        printf '%s\n' '{"cmd":"key","keys":[28]}'
+    } | ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
+        "$REMOTE_PATH_SETUP; LD_LIBRARY_PATH=/usr/local/lib64 python3 $CLIENT_PATH" >/dev/null
+
+    pin=""
+    unset pin
+
+    local attempt
+    for ((attempt=0; attempt<timeout*2; attempt++)); do
+        if chromeos_user_session_active; then
+            echo "[OK] ChromeOS login succeeded; the user vault is mounted."
+            return 0
+        fi
+        sleep 0.5
+    done
+
+    echo "[FAIL] ChromeOS login was not confirmed after ${timeout}s." >&2
+    echo "       Check the selected profile and PIN on the Chromebook; no retry was attempted." >&2
+    return 1
+}
+
+cmd_shortcut() {
+    if [ $# -lt 1 ]; then
+        echo "Usage: chromeos shortcut [modifier...] key" >&2
+        echo "  e.g. chromeos shortcut ctrl t" >&2
+        echo "  e.g. chromeos shortcut ctrl shift n" >&2
+        echo "  e.g. chromeos shortcut enter" >&2
+        exit 1
+    fi
+    ensure_client
+
+    # Last arg is the key, everything before is modifiers
+    local args=("$@")
+    local key="${args[${#args[@]}-1]}"
+    local mods=()
+    for ((i=0; i<${#args[@]}-1; i++)); do
+        mods+=("\"${args[$i]}\"")
+    done
+
+    local mods_json
+    mods_json=$(IFS=,; echo "[${mods[*]}]")
+    send_cmd_checked "{\"cmd\":\"shortcut\",\"modifiers\":$mods_json,\"key\":\"$key\"}"
+}
+
+cmd_vt2() {
+    ensure_client
+    # Physical Ctrl+Alt+F2. Bypass ChromeOS Ctrl/Search remapping.
+    send_cmd_checked '{"cmd":"key","keys":[29,56,60]}'
+}
+
+cmd_gui() {
+    ensure_client
+    # Physical Ctrl+Alt+F1. Bypass ChromeOS Ctrl/Search remapping.
+    send_cmd_checked '{"cmd":"key","keys":[29,56,59]}'
+}
+
+cmd_info() {
+    ensure_client
+    send_cmd_checked '{"cmd":"info"}'
+}
+
+cmd_targets() {
+    ensure_client
+    local response
+    response=$(send_cmd '{"cmd":"targets"}')
+    if json_mode; then
+        echo "$response"
+        echo "$response" | python3 -c "import json,sys; sys.exit(1 if json.load(sys.stdin).get('error') else 0)"
+        return
+    fi
+    if echo "$response" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+if 'error' in r:
+    print(r['error'], file=sys.stderr)
+    sys.exit(1)
+for t in r['targets']:
+    print(f\"  {t['index']}: {t['title']}\")
+    print(f\"     {t['url']}\")
+" 2>&1; then
+        :
+    else
+        echo "Error: Failed to list targets" >&2
+        exit 1
+    fi
+}
+
+cmd_axtree() {
+    local target=0 depth=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --depth) depth="$2"; shift 2 ;;
+            *) target="$1"; shift ;;
+        esac
+    done
+    ensure_client
+    local json_cmd="{\"cmd\":\"axtree\",\"target\":$target"
+    [ -n "$depth" ] && json_cmd="$json_cmd,\"depth\":$depth"
+    json_cmd="$json_cmd}"
+    local response
+    response=$(send_cmd "$json_cmd")
+    if json_mode; then
+        echo "$response"
+        echo "$response" | python3 -c "import json,sys; sys.exit(1 if json.load(sys.stdin).get('error') else 0)"
+        return
+    fi
+    echo "$response" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+if 'error' in r:
+    print(r['error'], file=sys.stderr)
+    sys.exit(1)
+print(r['tree'])
+print(f\"---\n{r['node_count']} nodes\", file=sys.stderr)
+"
+}
+
+cmd_find() {
+    if [ $# -lt 1 ]; then
+        echo "Usage: chromeos find <pattern> [--role ROLE] [--target N]" >&2
+        exit 1
+    fi
+    local pattern="$1"
+    shift
+    local role="" target=0
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --role) role="$2"; shift 2 ;;
+            --target) target="$2"; shift 2 ;;
+            *) echo "Unknown option: $1" >&2; exit 1 ;;
+        esac
+    done
+    ensure_client
+
+    local json_cmd
+    json_cmd=$(python3 -c "
+import json, sys
+cmd = {'cmd': 'find', 'pattern': sys.argv[1], 'target': int(sys.argv[2])}
+if sys.argv[3]: cmd['role'] = sys.argv[3]
+print(json.dumps(cmd))
+" "$pattern" "$target" "$role")
+
+    local response
+    response=$(send_cmd "$json_cmd")
+    if json_mode; then
+        echo "$response"
+        echo "$response" | python3 -c "import json,sys; sys.exit(1 if json.load(sys.stdin).get('error') else 0)"
+        return
+    fi
+    echo "$response" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+if 'error' in r:
+    print(r['error'], file=sys.stderr)
+    sys.exit(1)
+for m in r['matches']:
+    parts = [f\"[{m['role']}]\", f\"\\\"{m['name']}\\\"\"]
+    b = m.get('bounds')
+    if b:
+        parts.append(f\"at ({b['center_x']:.0f},{b['center_y']:.0f}) {b['width']:.0f}x{b['height']:.0f}\")
+    print(' '.join(parts))
+print(f\"---\n{r['count']} matches\", file=sys.stderr)
+"
+}
+
+cmd_click() {
+    if [ $# -lt 1 ]; then
+        echo "Usage: chromeos click <pattern> [--role ROLE] [--target N]" >&2
+        exit 1
+    fi
+    local pattern="$1"
+    shift
+    local role="" target=0
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --role) role="$2"; shift 2 ;;
+            --target) target="$2"; shift 2 ;;
+            *) echo "Unknown option: $1" >&2; exit 1 ;;
+        esac
+    done
+    ensure_client
+
+    local json_cmd
+    json_cmd=$(python3 -c "
+import json, sys
+cmd = {'cmd': 'click', 'pattern': sys.argv[1], 'target': int(sys.argv[2])}
+if sys.argv[3]: cmd['role'] = sys.argv[3]
+print(json.dumps(cmd))
+" "$pattern" "$target" "$role")
+
+    local response
+    response=$(send_cmd "$json_cmd")
+    if json_mode; then
+        echo "$response"
+        echo "$response" | python3 -c "import json,sys; sys.exit(1 if json.load(sys.stdin).get('error') else 0)"
+        return
+    fi
+    echo "$response" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+if 'error' in r:
+    print(r['error'], file=sys.stderr)
+    sys.exit(1)
+c = r['clicked']
+print(f\"Clicked [{c['role']}] \\\"{c['name']}\\\" at ({c['x']:.0f},{c['y']:.0f})\")
+"
+}
+
+cmd_desktop_tree() {
+    local depth=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --depth) depth="$2"; shift 2 ;;
+            *) echo "Unknown option: $1" >&2; exit 1 ;;
+        esac
+    done
+    ensure_client
+    local json_cmd='{"cmd":"desktop_tree"'
+    [ -n "$depth" ] && json_cmd="$json_cmd,\"depth\":$depth"
+    json_cmd="$json_cmd}"
+    local response
+    response=$(send_cmd "$json_cmd")
+    if json_mode; then
+        echo "$response"
+        echo "$response" | python3 -c "import json,sys; sys.exit(1 if json.load(sys.stdin).get('error') else 0)"
+        return
+    fi
+    echo "$response" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+if 'error' in r:
+    print(r['error'], file=sys.stderr)
+    sys.exit(1)
+def render(node, depth=0):
+    role = node.get('role', '')
+    name = node.get('name', '')
+    if not role and not name:
+        for c in node.get('children', []):
+            render(c, depth)
+        return
+    parts = []
+    if role:
+        parts.append(f'[{role}]')
+    if name:
+        parts.append(f'\"{name}\"')
+    st = node.get('state', {})
+    for k in st:
+        parts.append(f'({k})')
+    if parts:
+        print('  ' * depth + ' '.join(parts))
+    for c in node.get('children', []):
+        render(c, depth + 1)
+render(r['tree'])
+"
+}
+
+cmd_desktop_find() {
+    if [ $# -lt 1 ]; then
+        echo "Usage: chromeos desktop-find <pattern> [--role ROLE]" >&2
+        exit 1
+    fi
+    local pattern="$1"
+    shift
+    local role=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --role) role="$2"; shift 2 ;;
+            *) echo "Unknown option: $1" >&2; exit 1 ;;
+        esac
+    done
+    ensure_client
+
+    local json_cmd
+    json_cmd=$(python3 -c "
+import json, sys
+cmd = {'cmd': 'desktop_find', 'pattern': sys.argv[1]}
+if sys.argv[2]: cmd['role'] = sys.argv[2]
+print(json.dumps(cmd))
+" "$pattern" "$role")
+
+    local response
+    response=$(send_cmd "$json_cmd")
+    if json_mode; then
+        echo "$response"
+        echo "$response" | python3 -c "import json,sys; sys.exit(1 if json.load(sys.stdin).get('error') else 0)"
+        return
+    fi
+    echo "$response" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+if 'error' in r:
+    print(r['error'], file=sys.stderr)
+    sys.exit(1)
+for m in r['matches']:
+    parts = [f\"[{m['role']}]\", f\"\\\"{m['name']}\\\"\"]
+    loc = m.get('location')
+    if loc:
+        parts.append(f\"at ({loc['center_x']:.0f},{loc['center_y']:.0f}) {loc['width']:.0f}x{loc['height']:.0f}\")
+    if 'valueForRange' in m:
+        vr = f\"value={m['valueForRange']}\"
+        if 'minValueForRange' in m:
+            vr += f\" min={m['minValueForRange']}\"
+        if 'maxValueForRange' in m:
+            vr += f\" max={m['maxValueForRange']}\"
+        parts.append(vr)
+    if 'checked' in m:
+        parts.append(f\"checked={m['checked']}\")
+    if 'value' in m:
+        parts.append(f\"value=\\\"{m['value']}\\\"\")
+    print(' '.join(parts))
+print(f\"---\n{r['count']} matches\", file=sys.stderr)
+"
+}
+
+cmd_desktop_click() {
+    if [ $# -lt 1 ]; then
+        echo "Usage: chromeos desktop-click <pattern> [--role ROLE]" >&2
+        exit 1
+    fi
+    local pattern="$1"
+    shift
+    local role=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --role) role="$2"; shift 2 ;;
+            *) echo "Unknown option: $1" >&2; exit 1 ;;
+        esac
+    done
+    ensure_client
+
+    local json_cmd
+    json_cmd=$(python3 -c "
+import json, sys
+cmd = {'cmd': 'desktop_click', 'pattern': sys.argv[1]}
+if sys.argv[2]: cmd['role'] = sys.argv[2]
+print(json.dumps(cmd))
+" "$pattern" "$role")
+
+    local response
+    response=$(send_cmd "$json_cmd")
+    if json_mode; then
+        echo "$response"
+        echo "$response" | python3 -c "import json,sys; sys.exit(1 if json.load(sys.stdin).get('error') else 0)"
+        return
+    fi
+    echo "$response" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+if 'error' in r:
+    print(r['error'], file=sys.stderr)
+    sys.exit(1)
+c = r['clicked']
+loc = c.get('location')
+pos = f\" at ({loc['x']:.0f},{loc['y']:.0f})\" if loc else ''
+print(f\"Clicked [{c['role']}] \\\"{c['name']}\\\"{pos}\")
+"
+}
+
+cmd_desktop_tap() {
+    if [ $# -lt 1 ]; then
+        echo "Usage: chromeos desktop-tap <pattern> [--role ROLE] [--nth N]" >&2
+        exit 1
+    fi
+    local pattern="$1"
+    shift
+    local role="" nth=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --role) role="$2"; shift 2 ;;
+            --nth) nth="$2"; shift 2 ;;
+            *) echo "Unknown option: $1" >&2; exit 1 ;;
+        esac
+    done
+    ensure_client
+
+    local json_cmd
+    json_cmd=$(python3 -c "
+import json, sys
+cmd = {'cmd': 'desktop_tap', 'pattern': sys.argv[1]}
+if sys.argv[2]: cmd['role'] = sys.argv[2]
+if sys.argv[3]: cmd['nth'] = int(sys.argv[3])
+print(json.dumps(cmd))
+" "$pattern" "$role" "$nth")
+
+    local response
+    response=$(send_cmd "$json_cmd")
+    if json_mode; then
+        echo "$response"
+        echo "$response" | python3 -c "import json,sys; sys.exit(1 if json.load(sys.stdin).get('error') else 0)"
+        return
+    fi
+    echo "$response" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+if 'error' in r:
+    print(r['error'], file=sys.stderr)
+    sys.exit(1)
+t = r['tapped']
+p = t['touch']
+print(f\"Tapped [{t['role']}] \\\"{t['name']}\\\" at raw touch ({p['x']},{p['y']})\")
+"
+}
+
+cmd_desktop_action() {
+    if [ $# -lt 2 ]; then
+        echo "Usage: chromeos desktop-action <pattern> <action> [--value V] [--role R] [--nth N]" >&2
+        echo "  Actions: doDefault, focus, increment, decrement, setValue," >&2
+        echo "           showContextMenu, scrollForward, scrollBackward, longClick" >&2
+        exit 1
+    fi
+    local pattern="$1" action="$2"
+    shift 2
+    local role="" value="" nth=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --role) role="$2"; shift 2 ;;
+            --value) value="$2"; shift 2 ;;
+            --nth) nth="$2"; shift 2 ;;
+            *) echo "Unknown option: $1" >&2; exit 1 ;;
+        esac
+    done
+    ensure_client
+
+    local json_cmd
+    json_cmd=$(python3 -c "
+import json, sys
+cmd = {'cmd': 'desktop_action', 'pattern': sys.argv[1], 'action': sys.argv[2]}
+if sys.argv[3]: cmd['role'] = sys.argv[3]
+if sys.argv[4]: cmd['value'] = sys.argv[4]
+if sys.argv[5]: cmd['nth'] = int(sys.argv[5])
+print(json.dumps(cmd))
+" "$pattern" "$action" "$role" "$value" "$nth")
+
+    local response
+    response=$(send_cmd "$json_cmd")
+    if json_mode; then
+        echo "$response"
+        echo "$response" | python3 -c "import json,sys; sys.exit(1 if json.load(sys.stdin).get('error') else 0)"
+        return
+    fi
+    echo "$response" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+if 'error' in r:
+    print(r['error'], file=sys.stderr)
+    sys.exit(1)
+res = r['result']
+loc = res.get('location')
+pos = f\" at ({loc['x']:.0f},{loc['y']:.0f})\" if loc else ''
+parts = [f\"[{res['role']}] \\\"{res['name']}\\\"{pos}\", f\"action={res['action']}\"]
+if 'valueForRange' in res:
+    parts.append(f\"value={res['valueForRange']}\")
+    if 'minValueForRange' in res:
+        parts.append(f\"min={res['minValueForRange']}\")
+    if 'maxValueForRange' in res:
+        parts.append(f\"max={res['maxValueForRange']}\")
+if 'checked' in res:
+    parts.append(f\"checked={res['checked']}\")
+if 'value' in res:
+    parts.append(f\"value=\\\"{res['value']}\\\"\")
+print(' '.join(parts))
+"
+}
+
+_wait_attempts() {
+    python3 -c "
+import math, sys
+timeout = max(0.0, float(sys.argv[1]))
+interval = max(0.05, float(sys.argv[2]))
+print(max(1, math.ceil(timeout / interval) + 1))
+" "$1" "$2"
+}
+
+cmd_desktop_wait() {
+    if [ $# -lt 1 ]; then
+        echo "Usage: chromeos desktop-wait <pattern> [--role ROLE] [--timeout S] [--interval S] [--absent]" >&2
+        exit 1
+    fi
+    local pattern="$1"
+    shift
+    local role="" timeout=10 interval=0.5 absent=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --role) role="$2"; shift 2 ;;
+            --timeout) timeout="$2"; shift 2 ;;
+            --interval) interval="$2"; shift 2 ;;
+            --absent) absent=1; shift ;;
+            *) echo "Unknown option: $1" >&2; exit 1 ;;
+        esac
+    done
+    ensure_client
+
+    local json_cmd attempts response="" count=0
+    json_cmd=$(python3 -c "
+import json,sys
+cmd={'cmd':'desktop_find','pattern':sys.argv[1]}
+if sys.argv[2]: cmd['role']=sys.argv[2]
+print(json.dumps(cmd))
+" "$pattern" "$role")
+    attempts=$(_wait_attempts "$timeout" "$interval")
+
+    for ((i=1; i<=attempts; i++)); do
+        response=$(send_cmd "$json_cmd" || true)
+        count=$(echo "$response" | python3 -c "
+import json,sys
+try:
+    print(int(json.load(sys.stdin).get('count', -1)))
+except Exception:
+    print(-1)
+" 2>/dev/null)
+        if { [[ -z "$absent" ]] && (( count > 0 )); } ||
+           { [[ -n "$absent" ]] && (( count == 0 )); }; then
+            if json_mode; then
+                python3 -c "
+import json,sys
+r=json.loads(sys.argv[1])
+r.update({'ok':True,'condition':'absent' if sys.argv[2] else 'visible','attempts':int(sys.argv[3])})
+print(json.dumps(r))
+" "$response" "$absent" "$i"
+            elif [[ -n "$absent" ]]; then
+                echo "Absent: $pattern"
+            else
+                echo "Visible: $pattern ($count match(es))"
+            fi
+            return 0
+        fi
+        (( i < attempts )) && sleep "$interval"
+    done
+
+    if json_mode; then
+        python3 -c "
+import json,sys
+print(json.dumps({'ok':False,'condition':'absent' if sys.argv[2] else 'visible',
+                  'pattern':sys.argv[1],'timeout':float(sys.argv[3])}))
+" "$pattern" "$absent" "$timeout"
+    else
+        if [[ -n "$absent" ]]; then
+            echo "Timed out waiting for desktop element to disappear: $pattern" >&2
+        else
+            echo "Timed out waiting for desktop element: $pattern" >&2
+        fi
+    fi
+    return 1
+}
+
+cmd_assert_visible() {
+    cmd_desktop_wait "$@" --timeout 0
+}
+
+cmd_target_wait() {
+    if [ $# -lt 1 ]; then
+        echo "Usage: chromeos target-wait <pattern> [--timeout S] [--interval S] [--absent]" >&2
+        exit 1
+    fi
+    local pattern="$1"
+    shift
+    local timeout=10 interval=0.5 absent=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --timeout) timeout="$2"; shift 2 ;;
+            --interval) interval="$2"; shift 2 ;;
+            --absent) absent=1; shift ;;
+            *) echo "Unknown option: $1" >&2; exit 1 ;;
+        esac
+    done
+    ensure_client
+
+    local attempts response="" count=0 matches="[]"
+    attempts=$(_wait_attempts "$timeout" "$interval")
+    for ((i=1; i<=attempts; i++)); do
+        response=$(send_cmd '{"cmd":"targets"}' || true)
+        matches=$(python3 -c "
+import json,re,sys
+try:
+    r=json.loads(sys.argv[1])
+    rx=re.compile(sys.argv[2], re.I)
+    print(json.dumps([t for t in r.get('targets',[]) if rx.search(t.get('title','')) or rx.search(t.get('url',''))]))
+except Exception:
+    print('[]')
+" "$response" "$pattern")
+        count=$(python3 -c "import json,sys; print(len(json.loads(sys.argv[1])))" "$matches")
+        if { [[ -z "$absent" ]] && (( count > 0 )); } ||
+           { [[ -n "$absent" ]] && (( count == 0 )); }; then
+            if json_mode; then
+                python3 -c "
+import json,sys
+print(json.dumps({'ok':True,'condition':'absent' if sys.argv[2] else 'visible',
+                  'matches':json.loads(sys.argv[1]),'count':int(sys.argv[3]),
+                  'attempts':int(sys.argv[4])}))
+" "$matches" "$absent" "$count" "$i"
+            elif [[ -n "$absent" ]]; then
+                echo "Target absent: $pattern"
+            else
+                echo "Target visible: $pattern ($count match(es))"
+            fi
+            return 0
+        fi
+        (( i < attempts )) && sleep "$interval"
+    done
+
+    if json_mode; then
+        python3 -c "
+import json,sys
+print(json.dumps({'ok':False,'condition':'absent' if sys.argv[2] else 'visible',
+                  'pattern':sys.argv[1],'timeout':float(sys.argv[3])}))
+" "$pattern" "$absent" "$timeout"
+    else
+        if [[ -n "$absent" ]]; then
+            echo "Timed out waiting for browser target to disappear: $pattern" >&2
+        else
+            echo "Timed out waiting for browser target: $pattern" >&2
+        fi
+    fi
+    return 1
+}
+
+cmd_deploy_ext() {
+    local dir="" name="" reload="" ext_id=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --name=*) name="${1#--name=}"; shift ;;
+            --name) name="$2"; shift 2 ;;
+            --reload=*) reload=1; ext_id="${1#--reload=}"; shift ;;
+            --reload) reload=1; shift
+                      # Next arg is ext_id if it doesn't start with --
+                      if [[ $# -gt 0 && "$1" != --* ]]; then
+                          ext_id="$1"; shift
+                      fi ;;
+            *) dir="$1"; shift ;;
+        esac
+    done
+
+    if [[ -z "$dir" ]]; then
+        echo "Usage: chromeos deploy-ext <dir> [--name NAME] [--reload [EXT_ID]]" >&2
+        exit 1
+    fi
+    if [[ ! -d "$dir" ]]; then
+        echo "Error: $dir is not a directory" >&2
+        exit 1
+    fi
+
+    [[ -z "$name" ]] && name=$(basename "$dir")
+    local dest="/home/chronos/user/MyFiles/Downloads/$name"
+
+    echo "Deploying extension to $SSH_HOST:$dest/"
+    ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; mkdir -p '$dest'" 2>/dev/null
+    # rsync may not be available on ChromeOS — fall back to scp
+    if ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; which rsync" &>/dev/null; then
+        rsync -av --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --rsync-path="$REMOTE_PATH_SETUP; rsync" \
+            -e "ssh ${SSH_OPTS[*]}" \
+            "$dir/" "$SSH_HOST:$dest/"
+    else
+        # Clean dest and scp files (excluding .git and node_modules)
+        ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; rm -rf '$dest'/*" 2>/dev/null
+        scp -r "${SSH_OPTS[@]}" "$dir/"* "$SSH_HOST:$dest/" 2>/dev/null
+    fi
+
+    if [[ -n "$reload" ]]; then
+        local cdp_port="${CDP_PORT:-9222}"
+        if ! nc -z localhost "$cdp_port" 2>/dev/null; then
+            echo "CDP port $cdp_port not available — skipping reload (set up SSH tunnel: ssh -NL 9222:127.0.0.1:9222 chromeos-testbed)"
+        else
+            echo "Reloading extension via CDP..."
+            PYTHONPATH="$REPO_DIR${PYTHONPATH:+:$PYTHONPATH}" \
+                python3 - "$cdp_port" "$ext_id" 2>/dev/null <<'PY' \
+                || echo "CDP reload failed, manual reload may be needed"
+import json
+import sys
+
+from cdp import WebSocket, list_targets
+
+port = int(sys.argv[1])
+ext_id = sys.argv[2]
+targets = list_targets(port)
+
+if ext_id:
+    extension_url = f"chrome-extension://{ext_id}/"
+    matching = [
+        target
+        for target in targets
+        if target.get("type") in {"service_worker", "page"}
+        and target.get("url", "").startswith(extension_url)
+        and target.get("webSocketDebuggerUrl")
+    ]
+    matching.sort(key=lambda target: target.get("type") != "service_worker")
+    matching = matching[:1]
+else:
+    matching = [
+        target
+        for target in targets
+        if target.get("type") == "service_worker"
+        and target.get("url", "").startswith("chrome-extension://")
+        and target.get("webSocketDebuggerUrl")
+    ]
+
+for target in matching:
+    websocket = WebSocket(target["webSocketDebuggerUrl"])
+    websocket.send(json.dumps({
+        "id": 1,
+        "method": "Runtime.evaluate",
+        "params": {"expression": "chrome.runtime.reload()"},
+    }))
+    websocket.close()
+
+if matching:
+    target_types = ", ".join(target["type"] for target in matching)
+    print(f"Reloaded {len(matching)} extension target(s) via {target_types}")
+else:
+    print("No matching extension target found — reload manually at chrome://extensions")
+PY
+        fi
+    fi
+
+    echo "Done! Extension deployed to $dest/"
+}
+
+_adb_available() {
+    ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
+        "$REMOTE_PATH_SETUP; command -v adb >/dev/null 2>&1" 2>/dev/null
+}
+
+_adb_snapshot() {
+    local raw="" proxy=false
+    if ! _adb_available; then
+        python3 -c "
+import json,sys
+print(json.dumps({'available':False,'endpoint':sys.argv[1],
+                  'state':'unavailable','proxy_listening':False,'devices':[]}))
+" "$ADB_ENDPOINT"
+        return
+    fi
+
+    raw=$(ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
+        "$REMOTE_PATH_SETUP; adb devices -l" 2>&1 || true)
+    if ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
+        "awk 'NR > 1 && toupper(\$2) ~ /:15B3\$/ && \$4 == \"0A\" { found=1 } END { exit !found }' /proc/net/tcp /proc/net/tcp6" \
+        &>/dev/null; then
+        proxy=true
+    fi
+
+    python3 -c "
+import json,sys
+endpoint, raw, proxy = sys.argv[1], sys.argv[2], sys.argv[3] == 'true'
+devices = []
+for line in raw.splitlines():
+    fields = line.split()
+    if len(fields) < 2 or fields[0].startswith('*') or fields[0] == 'List':
+        continue
+    devices.append({'serial': fields[0], 'state': fields[1],
+                    'details': ' '.join(fields[2:])})
+match = next((d for d in devices if d['serial'] == endpoint), None)
+state = match['state'] if match else 'disconnected'
+print(json.dumps({'available':True,'endpoint':endpoint,'state':state,
+                  'proxy_listening':proxy,'devices':devices}))
+" "$ADB_ENDPOINT" "$raw" "$proxy"
+}
+
+_print_adb_snapshot() {
+    local snapshot="$1"
+    if json_mode; then
+        echo "$snapshot"
+    else
+        echo "$snapshot" | python3 -c "
+import json,sys
+r=json.load(sys.stdin)
+if not r['available']:
+    print('ADB is not installed on the Chromebook')
+else:
+    proxy='listening' if r['proxy_listening'] else 'not listening'
+    print(f\"ADB {r['endpoint']}: {r['state']} (proxy {proxy})\")
+    for d in r['devices']:
+        suffix=f\" {d['details']}\" if d['details'] else ''
+        print(f\"  {d['serial']}  {d['state']}{suffix}\")
+"
+    fi
+}
+
+cmd_adb_status() {
+    local snapshot state
+    snapshot=$(_adb_snapshot)
+    _print_adb_snapshot "$snapshot"
+    state=$(echo "$snapshot" | python3 -c "import json,sys; print(json.load(sys.stdin)['state'])")
+    [[ "$state" == "device" ]]
+}
+
+_adb_approve_prompt() {
+    ensure_client
+    local checkbox_response allow_find_response allow_response checkbox_count allow_count checkbox_checked
+    checkbox_response=$(send_cmd \
+        '{"cmd":"desktop_find","pattern":"^Always allow from this computer$","role":"checkBox"}' || true)
+    allow_find_response=$(send_cmd \
+        '{"cmd":"desktop_find","pattern":"^Allow$","role":"button"}' || true)
+    checkbox_count=$(echo "$checkbox_response" | python3 -c "
+import json,sys
+try: print(json.load(sys.stdin).get('count',0))
+except Exception: print(0)
+" 2>/dev/null)
+    allow_count=$(echo "$allow_find_response" | python3 -c "
+import json,sys
+try: print(json.load(sys.stdin).get('count',0))
+except Exception: print(0)
+" 2>/dev/null)
+    if (( checkbox_count < 1 || allow_count < 1 )); then
+        return 1
+    fi
+
+    checkbox_checked=$(echo "$checkbox_response" | python3 -c "
+import json,sys
+try: print('true' if json.load(sys.stdin)['matches'][0].get('checked') else 'false')
+except Exception: print('false')
+" 2>/dev/null)
+    if [[ "$checkbox_checked" != "true" ]]; then
+        send_cmd \
+            '{"cmd":"desktop_click","pattern":"^Always allow from this computer$","role":"checkBox"}' \
+            >/dev/null
+    fi
+    allow_response=$(send_cmd \
+        '{"cmd":"desktop_click","pattern":"^Allow$","role":"button"}' || true)
+    echo "$allow_response" | python3 -c "
+import json,sys
+r=json.load(sys.stdin)
+sys.exit(1 if r.get('error') else 0)
+" 2>/dev/null
+}
+
+_wait_for_adb_device() {
+    local timeout="$1" interval="${2:-0.5}" attempts snapshot state
+    attempts=$(_wait_attempts "$timeout" "$interval")
+    for ((i=1; i<=attempts; i++)); do
+        snapshot=$(_adb_snapshot)
+        state=$(echo "$snapshot" | python3 -c "import json,sys; print(json.load(sys.stdin)['state'])")
+        if [[ "$state" == "device" ]]; then
+            echo "$snapshot"
+            return 0
+        fi
+        (( i < attempts )) && sleep "$interval"
+    done
+    echo "$snapshot"
+    return 1
+}
+
+cmd_adb_connect() {
+    local timeout=15 interval=0.5 authorize=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --timeout) timeout="$2"; shift 2 ;;
+            --interval) interval="$2"; shift 2 ;;
+            --authorize) authorize=1; shift ;;
+            *) echo "Unknown option: $1" >&2; exit 1 ;;
+        esac
+    done
+    if ! _adb_available; then
+        echo "ADB is not installed on the Chromebook." >&2
+        return 1
+    fi
+
+    local connect_output snapshot state approved=""
+    connect_output=$(ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
+        "$REMOTE_PATH_SETUP; adb connect '$ADB_ENDPOINT'" 2>&1 || true)
+    snapshot=$(_adb_snapshot)
+    state=$(echo "$snapshot" | python3 -c "import json,sys; print(json.load(sys.stdin)['state'])")
+
+    if [[ "$state" == "unauthorized" && -n "$authorize" ]]; then
+        if _adb_approve_prompt; then
+            approved=1
+        fi
+    fi
+
+    if snapshot=$(_wait_for_adb_device "$timeout" "$interval"); then
+        if json_mode; then
+            python3 -c "
+import json,sys
+r=json.loads(sys.argv[1])
+r.update({'ok':True,'connect_output':sys.argv[2],
+          'authorization_approved':bool(sys.argv[3])})
+print(json.dumps(r))
+" "$snapshot" "$connect_output" "$approved"
+        else
+            [[ -n "$connect_output" ]] && echo "$connect_output"
+            echo "ADB ready: $ADB_ENDPOINT"
+        fi
+        return 0
+    fi
+
+    state=$(echo "$snapshot" | python3 -c "import json,sys; print(json.load(sys.stdin)['state'])")
+    if json_mode; then
+        python3 -c "
+import json,sys
+r=json.loads(sys.argv[1])
+r.update({'ok':False,'connect_output':sys.argv[2]})
+if r['state'] == 'unauthorized':
+    r['fix']='Approve the ChromeOS USB debugging prompt or run chromeos adb-authorize'
+print(json.dumps(r))
+" "$snapshot" "$connect_output"
+    else
+        [[ -n "$connect_output" ]] && echo "$connect_output"
+        if [[ "$state" == "unauthorized" ]]; then
+            echo "ADB authorization is waiting on the Chromebook." >&2
+            echo "Approve the USB debugging prompt, or run: chromeos adb-authorize" >&2
+        else
+            echo "ADB did not become ready (state: $state)." >&2
+        fi
+    fi
+    return 1
+}
+
+cmd_adb_authorize() {
+    if ! _adb_approve_prompt; then
+        if json_mode; then
+            echo '{"ok":false,"error":"No visible ADB authorization prompt could be approved"}'
+        else
+            echo "No visible ADB authorization prompt could be approved." >&2
+        fi
+        return 1
+    fi
+
+    local snapshot
+    if snapshot=$(_wait_for_adb_device 10 0.5); then
+        if json_mode; then
+            python3 -c "
+import json,sys
+r=json.loads(sys.argv[1]); r.update({'ok':True,'authorization_approved':True})
+print(json.dumps(r))
+" "$snapshot"
+        else
+            echo "ADB authorization approved; $ADB_ENDPOINT is ready."
+        fi
+        return 0
+    fi
+    _print_adb_snapshot "$snapshot"
+    return 1
+}
+
+_power_snapshot() {
+    local raw
+    raw=$(ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP
+read_pref() {
+    name=\"\$1\"
+    if [ -f \"/var/lib/power_manager/\$name\" ]; then
+        value=\$(cat \"/var/lib/power_manager/\$name\")
+        source=override
+    elif [ -f \"/usr/share/power_manager/\$name\" ]; then
+        value=\$(cat \"/usr/share/power_manager/\$name\")
+        source=default
+    else
+        value=unset
+        source=none
+    fi
+    printf '%s\\t%s\\t%s\\n' \"\$name\" \"\$value\" \"\$source\"
+}
+read_pref use_lid
+read_pref disable_idle_suspend
+printf 'ac_connected\\t%s\\tstatus\\n' \"\$(dump_power_status 2>/dev/null | awk '\$1 == \"line_power_connected\" { print \$2; exit }')\"
+printf 'policy\\t%s\\tlog\\n' \"\$(grep -E 'Updated settings:' /var/log/power_manager/powerd.LATEST 2>/dev/null | tail -1)\"
+" 2>/dev/null)
+
+    python3 -c "
+import json,re,sys
+data={}
+sources={}
+for line in sys.argv[1].splitlines():
+    fields=line.split('\\t',2)
+    if len(fields) != 3:
+        continue
+    key,value,source=fields
+    data[key]=value
+    sources[key]=source
+policy=data.get('policy','')
+lid_match=re.search(r'lid_closed=([^ ]+)', policy)
+idle_match=re.search(r'idle=[^ ]+ \\(([^)]+)\\)', policy)
+print(json.dumps({
+    'use_lid': data.get('use_lid'),
+    'use_lid_source': sources.get('use_lid'),
+    'disable_idle_suspend': data.get('disable_idle_suspend'),
+    'disable_idle_suspend_source': sources.get('disable_idle_suspend'),
+    'ac_connected': data.get('ac_connected') == '1',
+    'current_lid_action': lid_match.group(1) if lid_match else None,
+    'current_idle_action': idle_match.group(1) if idle_match else None,
+    'policy_log': policy or None,
+}))
+" "$raw"
+}
+
+cmd_power_status() {
+    local snapshot
+    snapshot=$(_power_snapshot)
+    if json_mode; then
+        echo "$snapshot"
+    else
+        echo "$snapshot" | python3 -c "
+import json,sys
+r=json.load(sys.stdin)
+lid='ignored' if r['use_lid'] == '0' else 'enabled'
+idle='disabled' if r['disable_idle_suspend'] == '1' else 'enabled'
+print(f\"Lid handling: {lid} ({r['use_lid_source']})\")
+print(f\"Idle suspend: {idle} ({r['disable_idle_suspend_source']})\")
+print(f\"Current powerd lid action: {r['current_lid_action'] or 'unknown'}\")
+print(f\"Current powerd idle action: {r['current_idle_action'] or 'unknown'}\")
+print(f\"AC connected: {'yes' if r['ac_connected'] else 'no'}\")
+"
+    fi
+}
+
+cmd_keep_awake() {
+    local lid_closed=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --lid-closed) lid_closed=1; shift ;;
+            *) echo "Unknown option: $1" >&2; exit 1 ;;
+        esac
+    done
+
+    ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; \
+mkdir -p /var/lib/power_manager; \
+printf '1\\n' > /var/lib/power_manager/disable_idle_suspend"
+    if [[ -n "$lid_closed" ]]; then
+        ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; \
+ectool forcelidopen 1; \
+printf '0\\n' > /var/lib/power_manager/use_lid; \
+restart powerd"
+    fi
+
+    if json_mode; then
+        local snapshot
+        snapshot=$(_power_snapshot)
+        python3 -c "
+import json,sys
+r=json.loads(sys.argv[1]); r.update({'ok':True,'lid_override_enabled':bool(sys.argv[2])})
+print(json.dumps(r))
+" "$snapshot" "$lid_closed"
+    else
+        echo "Idle suspend disabled."
+        if [[ -n "$lid_closed" ]]; then
+            echo "Lid switch ignored; the Chromebook will remain running with the lid closed."
+            echo "Keep it ventilated and preferably connected to AC power."
+        fi
+    fi
+}
+
+cmd_restore_power() {
+    ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; \
+ectool forcelidopen 0; \
+rm -f /var/lib/power_manager/use_lid /var/lib/power_manager/disable_idle_suspend; \
+restart powerd"
+
+    if json_mode; then
+        local snapshot
+        snapshot=$(_power_snapshot)
+        python3 -c "
+import json,sys
+r=json.loads(sys.argv[1]); r.update({'ok':True,'restored_defaults':True})
+print(json.dumps(r))
+" "$snapshot"
+    else
+        echo "Default idle-suspend and lid behavior restored."
+    fi
+}
+
+cmd_install_apk() {
+    local apk="" keep="" authorize=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --keep) keep=1; shift ;;
+            --authorize) authorize=1; shift ;;
+            *) apk="$1"; shift ;;
+        esac
+    done
+
+    if [[ -z "$apk" ]]; then
+        echo "Usage: chromeos install-apk <file.apk> [--keep] [--authorize]" >&2
+        exit 1
+    fi
+    if [[ ! -f "$apk" ]]; then
+        echo "Error: $apk not found" >&2
+        exit 1
+    fi
+
+    local filename
+    filename=$(basename "$apk")
+    local dest="/home/chronos/user/MyFiles/Downloads"
+
+    json_mode || echo "Copying $filename to $SSH_HOST:$dest/"
+    scp "${SSH_OPTS[@]}" "$apk" "$SSH_HOST:$dest/$filename"
+
+    json_mode || echo "Installing APK..."
+    # Prefer adb (avoids android-sh SELinux issues)
+    local rc=0 install_output="" method=""
+    if _adb_available; then
+        local connect_args=(--timeout 10)
+        [[ -n "$authorize" ]] && connect_args+=(--authorize)
+        local connect_output
+        if ! connect_output=$(cmd_adb_connect "${connect_args[@]}"); then
+            echo "$connect_output"
+            echo "APK copied to $dest/$filename; installation stopped because ADB is not ready." >&2
+            return 1
+        fi
+        json_mode || echo "$connect_output"
+        method=adb
+        if install_output=$(ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
+            "$REMOTE_PATH_SETUP; adb -s '$ADB_ENDPOINT' install -r -t '$dest/$filename'" 2>&1); then
+            rc=0
+        else
+            rc=$?
+        fi
+    elif ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; which android-sh" &>/dev/null; then
+        method=android-sh
+        if install_output=$(ssh "${SSH_OPTS[@]}" "$SSH_HOST" \
+            "$REMOTE_PATH_SETUP; android-sh -c 'pm install -r -t /sdcard/Download/$filename'" 2>&1); then
+            rc=0
+        else
+            rc=$?
+        fi
+    else
+        if json_mode; then
+            python3 -c "import json,sys; print(json.dumps({'ok':False,'state':'copied','path':sys.argv[1],'error':'Neither adb nor android-sh found'}))" "$dest/$filename"
+        else
+            echo "Neither adb nor android-sh found. APK copied to $dest/$filename — install from Files app."
+        fi
+        return 0
+    fi
+
+    if [[ $rc -eq 0 && -z "$keep" ]]; then
+        ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; rm -f '$dest/$filename'" 2>/dev/null
+    fi
+    if [[ $rc -eq 0 ]]; then
+        if json_mode; then
+            python3 -c "
+import json,sys
+print(json.dumps({'ok':True,'method':sys.argv[1],'output':sys.argv[2],
+                  'remote_apk':sys.argv[3],'kept':bool(sys.argv[4])}))
+" "$method" "$install_output" "$dest/$filename" "$keep"
+        else
+            [[ -n "$install_output" ]] && echo "$install_output"
+            echo "Done! APK installed."
+        fi
+    else
+        [[ -n "$install_output" ]] && echo "$install_output"
+        echo "Install failed (rc=$rc). APK is at $dest/$filename — try installing from Files app." >&2
+        exit 1
+    fi
+}
+
+cmd_remote_desktop() {
+    local port="${1:-8765}"
+    exec python3 "$REPO_DIR/web/server.py" "$port"
+}
+
+cmd_shell() {
+    exec ssh "${SSH_OPTS[@]}" "$SSH_HOST"
+}
+
+cmd_help() {
+    sed -En '2,/^$/s/^# ?//p' "$0"
+}
+
+# --- Subcommand dispatch ---
+if [[ "${1:-}" == "--json" ]]; then
+    OUTPUT_FORMAT=json
+    shift
+fi
+
+cmd="${1:-help}"
+shift 2>/dev/null || true
+
+case "$cmd" in
+    doctor)       cmd_doctor "$@" ;;
+    diagnostics)  cmd_diagnostics "$@" ;;
+    smoke-test)   cmd_smoke_test "$@" ;;
+    post-update)  cmd_post_update "$@" ;;
+    fix-ssh)      cmd_fix_ssh "$@" ;;
+    fix-devtools) cmd_fix_devtools "$@" ;;
+    deploy)       cmd_deploy "$@" ;;
+    screenshot)   cmd_screenshot "$@" ;;
+    tap)          cmd_tap "$@" ;;
+    swipe)        cmd_swipe "$@" ;;
+    mouse-move)   cmd_mouse_move "$@" ;;
+    mouse-click)  cmd_mouse_click "$@" ;;
+    mouse-scroll) cmd_mouse_scroll "$@" ;;
+    type)         cmd_type "$@" ;;
+    login)        cmd_login "$@" ;;
+    shortcut)     cmd_shortcut "$@" ;;
+    vt2)          cmd_vt2 "$@" ;;
+    gui)          cmd_gui "$@" ;;
+    info)         cmd_info "$@" ;;
+    targets)      cmd_targets "$@" ;;
+    axtree)       cmd_axtree "$@" ;;
+    find)         cmd_find "$@" ;;
+    click)        cmd_click "$@" ;;
+    desktop-tree) cmd_desktop_tree "$@" ;;
+    desktop-find) cmd_desktop_find "$@" ;;
+    desktop-click) cmd_desktop_click "$@" ;;
+    desktop-tap)  cmd_desktop_tap "$@" ;;
+    desktop-action) cmd_desktop_action "$@" ;;
+    desktop-wait) cmd_desktop_wait "$@" ;;
+    target-wait)  cmd_target_wait "$@" ;;
+    assert-visible) cmd_assert_visible "$@" ;;
+    deploy-ext)   cmd_deploy_ext "$@" ;;
+    adb-status)   cmd_adb_status "$@" ;;
+    adb-connect)  cmd_adb_connect "$@" ;;
+    adb-authorize) cmd_adb_authorize "$@" ;;
+    power-status) cmd_power_status "$@" ;;
+    keep-awake)   cmd_keep_awake "$@" ;;
+    restore-power) cmd_restore_power "$@" ;;
+    install-apk)  cmd_install_apk "$@" ;;
+    remote-desktop) cmd_remote_desktop "$@" ;;
+    shell)        cmd_shell "$@" ;;
+    help|--help|-h) cmd_help ;;
+    *)
+        echo "Unknown command: $cmd" >&2
+        echo "Run 'chromeos help' for usage." >&2
+        exit 1
+        ;;
+esac

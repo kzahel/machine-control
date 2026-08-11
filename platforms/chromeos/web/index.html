@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChromeOS Remote Desktop</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #111;
+    color: #ccc;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  #toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 10px;
+    background: #1a1a1a;
+    border-bottom: 1px solid #333;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  #toolbar label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: #777;
+    white-space: nowrap;
+  }
+
+  select, button {
+    background: #252525;
+    color: #ccc;
+    border: 1px solid #444;
+    padding: 3px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+  }
+  select:hover, button:hover { background: #303030; border-color: #555; }
+  button:active { background: #3a3a3a; }
+
+  #start-btn { color: #6f6; border-color: #363; background: #161e16; }
+  #start-btn:hover { background: #1c2a1c; }
+  #start-btn.active { color: #f66; border-color: #633; background: #1e1616; }
+
+  #kb-btn { color: #88f; border-color: #336; background: #161624; }
+  #kb-btn:hover { background: #1c1c30; }
+  #kb-btn.active { color: #8f8; border-color: #363; background: #161e16; }
+
+  .spacer { flex: 1; }
+
+  #coords { color: #555; font-size: 11px; min-width: 140px; }
+  #status { font-size: 11px; color: #666; }
+  #status.ok  { color: #6f6; }
+  #status.err { color: #f66; }
+
+  #video-wrap {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #000;
+    overflow: hidden;
+    position: relative;
+  }
+
+  #stream {
+    max-width: 100%;
+    max-height: 100%;
+    display: block;
+    cursor: crosshair;
+    outline: none;
+  }
+
+  #stream.kb-active {
+    box-shadow: 0 0 0 3px #44f, 0 0 24px rgba(68,68,255,0.25);
+  }
+
+  #overlay {
+    position: absolute;
+    color: #555;
+    font-size: 16px;
+    text-align: center;
+    pointer-events: none;
+    line-height: 2;
+  }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <label>Camera: <select id="cam-select"><option value="">— select —</option></select></label>
+  <button id="start-btn">▶ Start</button>
+  <button id="kb-btn" title="Toggle keyboard capture (or click the video)">⌨ Keyboard</button>
+  <span id="coords">—</span>
+  <span class="spacer"></span>
+  <span id="status">Select a camera and click Start</span>
+</div>
+
+<div id="video-wrap">
+  <video id="stream" autoplay playsinline muted tabindex="-1"></video>
+  <div id="overlay">Select a camera and click Start</div>
+</div>
+
+<script>
+'use strict';
+
+const video     = document.getElementById('stream');
+const camSelect = document.getElementById('cam-select');
+const startBtn  = document.getElementById('start-btn');
+const kbBtn     = document.getElementById('kb-btn');
+const statusEl  = document.getElementById('status');
+const coordsEl  = document.getElementById('coords');
+const overlay   = document.getElementById('overlay');
+
+let mediaStream = null;
+let kbCapture   = false;
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function setStatus(msg, cls = '') {
+  statusEl.textContent = msg;
+  statusEl.className = cls;
+}
+
+// ── Camera enumeration ─────────────────────────────────────────────────────
+
+async function enumCameras() {
+  // Request permission first so labels are populated
+  try {
+    const tmp = await navigator.mediaDevices.getUserMedia({ video: true });
+    tmp.getTracks().forEach(t => t.stop());
+  } catch (_) {}
+
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const cams = devices.filter(d => d.kind === 'videoinput');
+
+  camSelect.innerHTML = '<option value="">— select —</option>';
+  let preselected = false;
+  cams.forEach(cam => {
+    const opt = document.createElement('option');
+    opt.value = cam.deviceId;
+    opt.textContent = cam.label || `Camera ${cam.deviceId.slice(0, 8)}`;
+    // Auto-select Cam Link if present
+    if (!preselected && /cam.?link/i.test(cam.label)) {
+      opt.selected = true;
+      preselected = true;
+    }
+    camSelect.appendChild(opt);
+  });
+
+  if (cams.length === 0) setStatus('No cameras found', 'err');
+}
+
+// ── Device info (keyboard layout etc.) ────────────────────────────────────
+
+async function fetchInfo() {
+  console.log('[info] fetching /info …');
+  try {
+    const resp = await fetch('/info');
+    const data = await resp.json();
+    console.log('[info] response:', data);
+  } catch (e) {
+    console.warn('[info] fetch failed:', e);
+  }
+}
+
+// ── Stream start/stop ──────────────────────────────────────────────────────
+
+async function startStream() {
+  if (mediaStream) { stopStream(); return; }
+
+  const deviceId = camSelect.value;
+  if (!deviceId) { setStatus('Select a camera first', 'err'); return; }
+
+  setStatus('Opening camera…');
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false,
+    });
+    video.srcObject = mediaStream;
+    await video.play();
+    console.log(`[stream] playing — videoWidth=${video.videoWidth} videoHeight=${video.videoHeight}`);
+
+    startBtn.textContent = '■ Stop';
+    startBtn.classList.add('active');
+    overlay.style.display = 'none';
+    setStatus('Live', 'ok');
+    fetchInfo();
+  } catch (e) {
+    setStatus(`Camera error: ${e.message}`, 'err');
+    mediaStream = null;
+  }
+}
+
+function stopStream() {
+  if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+  video.srcObject = null;
+  startBtn.textContent = '▶ Start';
+  startBtn.classList.remove('active');
+  overlay.style.display = '';
+  overlay.textContent = 'Select a camera and click Start';
+  setStatus('Stopped');
+  setKbCapture(false);
+}
+
+startBtn.addEventListener('click', startStream);
+
+// ── Keyboard capture toggle ────────────────────────────────────────────────
+
+function setKbCapture(on) {
+  kbCapture = on;
+  kbBtn.textContent  = on ? '⌨ Keyboard: ON' : '⌨ Keyboard';
+  kbBtn.classList.toggle('active', on);
+  video.classList.toggle('kb-active', on);
+}
+
+kbBtn.addEventListener('click', () => { if (mediaStream) setKbCapture(!kbCapture); });
+video.addEventListener('click',  () => { if (mediaStream) setKbCapture(true); });
+
+// ── Coordinate mapping ─────────────────────────────────────────────────────
+// Maps a client-space position to video pixel coords (0..videoWidth, 0..videoHeight).
+// These are the same as screen pixels on the external display (HDMI = Cam Link capture).
+
+function videoToPixel(clientX, clientY, log = false) {
+  const rect = video.getBoundingClientRect();
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) {
+    if (log) console.warn('[pos] videoWidth/Height not ready', vw, vh);
+    return null;
+  }
+
+  const rw = rect.width, rh = rect.height;
+  const videoAspect = vw / vh;
+  const elemAspect  = rw / rh;
+
+  // Compute rendered video area inside the element (object-fit: contain letterboxing)
+  let renderW, renderH, offX, offY;
+  if (videoAspect > elemAspect) {
+    renderW = rw; renderH = rw / videoAspect;
+    offX = 0;     offY = (rh - renderH) / 2;
+  } else {
+    renderH = rh; renderW = rh * videoAspect;
+    offY = 0;     offX = (rw - renderW) / 2;
+  }
+
+  const relX = clientX - rect.left - offX;
+  const relY = clientY - rect.top  - offY;
+
+  if (log) {
+    console.log(`[pos] client=(${clientX},${clientY}) rect=(${rect.left.toFixed(0)},${rect.top.toFixed(0)} ${rw.toFixed(0)}x${rh.toFixed(0)}) video=${vw}x${vh} render=${renderW.toFixed(0)}x${renderH.toFixed(0)} off=(${offX.toFixed(0)},${offY.toFixed(0)}) rel=(${relX.toFixed(0)},${relY.toFixed(0)})`);
+  }
+
+  if (relX < 0 || relY < 0 || relX > renderW || relY > renderH) {
+    if (log) console.warn('[pos] outside rendered video area');
+    return null;
+  }
+
+  return {
+    x: Math.round((relX / renderW) * vw),
+    y: Math.round((relY / renderH) * vh),
+  };
+}
+
+// ── Send event to server ───────────────────────────────────────────────────
+
+async function sendEvent(event) {
+  console.log('[send]', JSON.stringify(event));
+  try {
+    const resp = await fetch('/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(event),
+    });
+    const result = await resp.json();
+    if (result.error) {
+      console.warn('[send] server error:', result.error);
+    } else {
+      console.log('[send] result:', result);
+    }
+  } catch (e) {
+    console.error('[send] fetch failed:', e);
+  }
+}
+
+// ── Mouse events ───────────────────────────────────────────────────────────
+
+video.addEventListener('click', e => {
+  if (!mediaStream) { console.log('[click] ignored — no stream'); return; }
+  const pos = videoToPixel(e.clientX, e.clientY, true);
+  if (pos) {
+    console.log(`[click] → mouse_click (${pos.x}, ${pos.y})`);
+    sendEvent({ type: 'mouse_click', button: 'left', x: pos.x, y: pos.y });
+  } else {
+    console.warn('[click] outside video area — ignored');
+  }
+});
+
+// Throttled mousemove: send at most one event per 100ms, always the latest position
+let _pendingMove = null;
+let _moveTimer   = null;
+
+video.addEventListener('mousemove', e => {
+  if (!mediaStream) return;
+  const pos = videoToPixel(e.clientX, e.clientY, false);
+  coordsEl.textContent = pos ? `px: ${pos.x}, ${pos.y}` : '—';
+  if (!pos) return;
+  _pendingMove = pos;
+  if (!_moveTimer) {
+    _moveTimer = setTimeout(() => {
+      _moveTimer = null;
+      if (_pendingMove) {
+        sendEvent({ type: 'mouse_move', x: _pendingMove.x, y: _pendingMove.y });
+        _pendingMove = null;
+      }
+    }, 100);
+  }
+});
+
+video.addEventListener('mouseleave', () => { coordsEl.textContent = '—'; });
+video.addEventListener('contextmenu', e => e.preventDefault());
+
+// Scroll wheel → mouse_scroll
+let scrollCooldown = false;
+video.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (!mediaStream || scrollCooldown) return;
+  // REL_WHEEL: positive = scroll up; browser deltaY: positive = scroll down
+  const delta = e.deltaY > 0 ? -3 : 3;
+  sendEvent({ type: 'mouse_scroll', delta });
+  scrollCooldown = true;
+  setTimeout(() => { scrollCooldown = false; }, 150);
+}, { passive: false });
+
+// ── Keyboard events ────────────────────────────────────────────────────────
+
+const SPECIAL_KEYS = {
+  Enter: 'enter', Backspace: 'backspace', Delete: 'delete',
+  Escape: 'escape', Tab: 'tab',
+  ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down',
+  Home: 'home', End: 'end', PageUp: 'pageup', PageDown: 'pagedown',
+  Insert: 'insert',
+  F1: 'f1',   F2: 'f2',   F3: 'f3',   F4: 'f4',
+  F5: 'f5',   F6: 'f6',   F7: 'f7',   F8: 'f8',
+  F9: 'f9',   F10: 'f10', F11: 'f11', F12: 'f12',
+};
+
+document.addEventListener('keydown', e => {
+  if (!kbCapture) return;
+
+  // Skip bare modifier key presses
+  if (['Control','Alt','Shift','Meta','CapsLock','NumLock','ScrollLock'].includes(e.key)) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  const mods = [];
+  if (e.ctrlKey)  mods.push('ctrl');
+  if (e.altKey)   mods.push('alt');
+  if (e.metaKey)  mods.push('search'); // Mac Cmd → ChromeOS Search/Meta
+
+  const specialKey = SPECIAL_KEYS[e.key];
+  const isPrintable = !e.ctrlKey && !e.altKey && !e.metaKey && !specialKey && e.key.length === 1;
+
+  if (isPrintable) {
+    // e.key already reflects Shift (e.g. 'A', '!') — just type the character
+    sendEvent({ type: 'type', text: e.key });
+  } else {
+    // Special key or modifier+key shortcut
+    if (e.shiftKey) mods.push('shift');
+    const key = specialKey || e.key.toLowerCase();
+    sendEvent({ type: 'shortcut', mods, key });
+  }
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────
+
+(async () => {
+  await enumCameras();
+})();
+</script>
+</body>
+</html>

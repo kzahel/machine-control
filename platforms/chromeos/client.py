@@ -1,0 +1,936 @@
+#!/usr/bin/env python3
+"""
+ChromeOS C2 Client - Simplified
+Raw touchscreen and keyboard input via evdev, plus a uinput virtual mouse.
+
+Deploy to: /mnt/stateful_partition/c2/client.py
+Run with: LD_LIBRARY_PATH=/usr/local/lib64 /usr/local/bin/python3 /mnt/stateful_partition/c2/client.py
+
+Commands:
+    {"cmd": "ping"}                              -> {"pong": true}
+    {"cmd": "tap", "x": 500, "y": 300}           -> {"ok": true}  (raw touchscreen coords)
+    {"cmd": "swipe", "x1": 100, "y1": 500, "x2": 800, "y2": 500, "duration_ms": 300}
+    {"cmd": "key", "keys": [125, 63]}            -> {"ok": true}  (raw keycodes)
+    {"cmd": "type", "text": "hello"}             -> {"ok": true}
+    {"cmd": "screenshot"}                        -> {"image": "base64..."}
+    {"cmd": "wake"}                              -> {"ok": true}
+    {"cmd": "info"}                              -> {"touch_max": [x, y], "device": "..."}
+    {"cmd": "mouse_move", "x": 960, "y": 540}    -> {"ok": true}  (screen pixel coords)
+    {"cmd": "mouse_click", "button": "left", "x": 960, "y": 540}  -> {"ok": true}
+    {"cmd": "mouse_scroll", "delta": 3}          -> {"ok": true}  (positive=up, negative=down)
+    {"cmd": "targets"}                           -> {"targets": [{index, title, url}, ...]}
+    {"cmd": "axtree", "target": 0}               -> {"tree": "...", "node_count": N}
+    {"cmd": "find", "pattern": "Login"}           -> {"matches": [...], "count": N}
+    {"cmd": "click", "pattern": "Login"}          -> {"ok": true, "clicked": {...}}
+"""
+
+import atexit
+import os
+import sys
+import json
+import struct
+import time
+import glob
+import fcntl
+import array
+import base64
+
+# === Constants ===
+DEFAULT_KEYBOARD_DEV = "/dev/input/event2"
+
+# Event types
+EV_SYN, EV_KEY, EV_REL, EV_ABS = 0, 1, 2, 3
+
+# Touch
+BTN_TOUCH = 330
+ABS_MT_SLOT = 0x2f
+ABS_MT_TRACKING_ID = 0x39
+ABS_MT_POSITION_X = 0x35
+ABS_MT_POSITION_Y = 0x36
+
+# Mouse buttons
+BTN_LEFT, BTN_RIGHT, BTN_MIDDLE = 0x110, 0x111, 0x112
+
+# Relative axes
+REL_X, REL_Y, REL_WHEEL = 0, 1, 8
+
+# uinput ioctl codes
+_UI_SET_EVBIT  = 0x40045564
+_UI_SET_KEYBIT = 0x40045565
+_UI_SET_RELBIT = 0x40045566
+_UI_DEV_CREATE  = 0x5501
+_UI_DEV_DESTROY = 0x5502
+
+# Keys
+KEY_LEFTMETA = 125
+KEY_LEFTSHIFT = 42
+KEY_F5 = 63
+
+KEY_MAP = {
+    'a': 30, 'b': 48, 'c': 46, 'd': 32, 'e': 18, 'f': 33, 'g': 34, 'h': 35,
+    'i': 23, 'j': 36, 'k': 37, 'l': 38, 'm': 50, 'n': 49, 'o': 24, 'p': 25,
+    'q': 16, 'r': 19, 's': 31, 't': 20, 'u': 22, 'v': 47, 'w': 17, 'x': 45,
+    'y': 21, 'z': 44,
+    '1': 2, '2': 3, '3': 4, '4': 5, '5': 6, '6': 7, '7': 8, '8': 9, '9': 10, '0': 11,
+    ' ': 57, '\n': 28, '\t': 15,
+    '-': 12, '=': 13, '[': 26, ']': 27, '\\': 43, ';': 39, "'": 40, '`': 41,
+    ',': 51, '.': 52, '/': 53,
+}
+
+SPECIAL_KEY_MAP = {
+    'enter': 28, 'return': 28,
+    'tab': 15,
+    'escape': 1, 'esc': 1,
+    'backspace': 14,
+    'space': 57,
+    'insert': 110, 'delete': 111,
+    'home': 102, 'end': 107,
+    'pageup': 104, 'page-up': 104,
+    'pagedown': 109, 'page-down': 109,
+    'up': 103, 'down': 108, 'left': 105, 'right': 106,
+}
+
+# Dvorak: to type character X, press the QWERTY key that's in X's position on Dvorak
+DVORAK_TO_QWERTY = {
+    "'": 'q', ',': 'w', '.': 'e', 'p': 'r', 'y': 't', 'f': 'y', 'g': 'u', 'c': 'i', 'r': 'o', 'l': 'p',
+    '/': '[', '=': ']',
+    'a': 'a', 'o': 's', 'e': 'd', 'u': 'f', 'i': 'g', 'd': 'h', 'h': 'j', 't': 'k', 'n': 'l', 's': ';',
+    '-': "'",
+    ';': 'z', 'q': 'x', 'j': 'c', 'k': 'v', 'x': 'b', 'b': 'n', 'm': 'm', 'w': ',', 'v': '.', 'z': '/',
+}
+
+# Modifier key constants
+MOD_SEARCH, MOD_CONTROL, MOD_ALT = 0, 1, 2
+KEYCODE_SEARCH, KEYCODE_CTRL, KEYCODE_ALT = 125, 29, 56
+
+SCREENSHOT_DIR = "/home/chronos/user/MyFiles/Downloads"
+CHROMEOS_PREFS = "/home/chronos/user/Preferences"
+
+
+def load_keyboard_config():
+    """Load keyboard layout and modifier remappings from ChromeOS preferences."""
+    layout = 'qwerty'
+    modifier_remappings = {}  # physical_mod -> logical_mod
+
+    try:
+        with open(CHROMEOS_PREFS, 'r') as f:
+            prefs = json.load(f)
+
+        settings = prefs.get('settings', {})
+
+        # Detect layout
+        current_im = settings.get('language', {}).get('current_input_method', '')
+        if 'dvorak' in current_im.lower():
+            layout = 'dvorak'
+
+        # Detect modifier remappings (e.g., Ctrl↔Search swap)
+        # Format: {"0": 1, "1": 0} means Search->Ctrl, Ctrl->Search
+        remaps = settings.get('keyboard', {}).get('internal', {}).get('modifier_remappings', {})
+        for phys_str, logical in remaps.items():
+            try:
+                modifier_remappings[int(phys_str)] = logical
+            except:
+                pass
+    except:
+        pass
+
+    return layout, modifier_remappings
+
+
+_kb_layout, _kb_remappings = load_keyboard_config()
+
+
+def get_physical_keycode_for_modifier(logical_mod):
+    """Get the physical keycode to press for a logical modifier (handles remapping)."""
+    mod_to_keycode = {MOD_SEARCH: KEYCODE_SEARCH, MOD_CONTROL: KEYCODE_CTRL, MOD_ALT: KEYCODE_ALT}
+
+    # Find which physical key is mapped to this logical modifier
+    for physical, logical in _kb_remappings.items():
+        if logical == logical_mod:
+            return mod_to_keycode.get(physical, mod_to_keycode.get(logical_mod))
+
+    return mod_to_keycode.get(logical_mod)
+
+
+def translate_char_for_layout(char):
+    """Translate character for current keyboard layout."""
+    if _kb_layout == 'dvorak' and char in DVORAK_TO_QWERTY:
+        return DVORAK_TO_QWERTY[char]
+    return char
+
+
+# === evdev helpers ===
+def EVIOCGABS(axis):
+    return 0x80184540 + axis
+
+
+def get_abs_info(fd, axis):
+    try:
+        buf = array.array('i', [0] * 6)
+        fcntl.ioctl(fd, EVIOCGABS(axis), buf)
+        return {'min': buf[1], 'max': buf[2]}
+    except:
+        return None
+
+
+def find_keyboard():
+    """Find the built-in keyboard event device, with a legacy fallback."""
+    try:
+        with open("/proc/bus/input/devices", "r") as f:
+            blocks = f.read().split("\n\n")
+        for block in blocks:
+            if 'N: Name=' not in block or 'keyboard' not in block.lower():
+                continue
+            for line in block.splitlines():
+                if not line.startswith("H: Handlers="):
+                    continue
+                for handler in line.split("=", 1)[1].split():
+                    if handler.startswith("event"):
+                        return f"/dev/input/{handler}"
+    except (OSError, ValueError):
+        pass
+    return DEFAULT_KEYBOARD_DEV
+
+
+def find_touchscreen():
+    """Find touchscreen device and return (device_path, max_x, max_y)."""
+    candidates = []
+    for i in range(20):
+        path = f"/dev/input/event{i}"
+        if not os.path.exists(path):
+            continue
+        try:
+            fd = os.open(path, os.O_RDONLY)
+            try:
+                x_info = get_abs_info(fd, ABS_MT_POSITION_X)
+                y_info = get_abs_info(fd, ABS_MT_POSITION_Y)
+                if x_info and y_info and x_info['max'] > 1000:
+                    candidates.append((path, x_info['max'], y_info['max']))
+            finally:
+                os.close(fd)
+        except:
+            pass
+    # Pick device with largest max_x (touchscreens > trackpads)
+    if candidates:
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        return candidates[0]
+    return None, None, None
+
+
+# Cache touchscreen info
+KEYBOARD_DEV = find_keyboard()
+_ts_device, _ts_max_x, _ts_max_y = find_touchscreen()
+
+
+# === Virtual Mouse (uinput) ===
+
+class VirtualMouse:
+    """uinput virtual relative mouse.  Works on the active display regardless of
+    which physical screen is connected — unlike the touchscreen which is always
+    mapped to the internal panel."""
+
+    _UINPUT_MAX_NAME_SIZE = 80
+    _ABS_CNT = 64
+    _BUS_VIRTUAL = 0x06
+
+    def __init__(self):
+        self._x = 0  # server-side tracked position for relative conversion
+        self._y = 0
+        self._fd = None
+        self._create()
+
+    def _emit(self, ev_type, code, value):
+        self._fd.write(struct.pack('llHHi', 0, 0, ev_type, code, value))
+
+    def _sync(self):
+        self._emit(EV_SYN, 0, 0)
+
+    def _create(self):
+        fd = open('/dev/uinput', 'wb', buffering=0)
+        fno = fd.fileno()
+
+        # Declare supported event classes and codes
+        fcntl.ioctl(fno, _UI_SET_EVBIT, EV_KEY)
+        fcntl.ioctl(fno, _UI_SET_EVBIT, EV_REL)
+        for btn in (BTN_LEFT, BTN_RIGHT, BTN_MIDDLE):
+            fcntl.ioctl(fno, _UI_SET_KEYBIT, btn)
+        for rel in (REL_X, REL_Y, REL_WHEEL):
+            fcntl.ioctl(fno, _UI_SET_RELBIT, rel)
+
+        # Write uinput_user_dev struct then create the device
+        # Layout: name[80], input_id{bus,vendor,product,version}, ff_effects_max,
+        #         absmax[64], absmin[64], absfuzz[64], absflat[64]
+        name = b'ChromeOS Remote Mouse\x00'.ljust(self._UINPUT_MAX_NAME_SIZE, b'\x00')
+        zeros = [0] * self._ABS_CNT
+        udev = struct.pack(
+            f'{self._UINPUT_MAX_NAME_SIZE}sHHHHI{self._ABS_CNT}i{self._ABS_CNT}i'
+            f'{self._ABS_CNT}i{self._ABS_CNT}i',
+            name, self._BUS_VIRTUAL, 0x1, 0x1, 1, 0,
+            *zeros, *zeros, *zeros, *zeros,
+        )
+        fd.write(udev)
+        fcntl.ioctl(fno, _UI_DEV_CREATE)
+        time.sleep(0.15)  # let kernel register the device
+        self._fd = fd
+
+    def move_to(self, x, y):
+        """Move to absolute pixel position by sending relative deltas."""
+        dx, dy = x - self._x, y - self._y
+        self._x, self._y = x, y
+        if dx or dy:
+            self._emit(EV_REL, REL_X, dx)
+            self._emit(EV_REL, REL_Y, dy)
+            self._sync()
+
+    def click(self, button=BTN_LEFT, x=None, y=None):
+        if x is not None and y is not None:
+            self.move_to(x, y)
+        self._emit(EV_KEY, button, 1)
+        self._sync()
+        time.sleep(0.05)
+        self._emit(EV_KEY, button, 0)
+        self._sync()
+
+    def scroll(self, delta):
+        """Positive delta = scroll up (wheel away from user)."""
+        self._emit(EV_REL, REL_WHEEL, delta)
+        self._sync()
+
+    def close(self):
+        if self._fd:
+            try:
+                fcntl.ioctl(self._fd.fileno(), _UI_DEV_DESTROY)
+            except Exception:
+                pass
+            self._fd.close()
+            self._fd = None
+
+
+_virtual_mouse = None
+
+
+def get_virtual_mouse():
+    global _virtual_mouse
+    if _virtual_mouse is None:
+        _virtual_mouse = VirtualMouse()
+    return _virtual_mouse
+
+
+def _cleanup_mouse():
+    global _virtual_mouse
+    if _virtual_mouse:
+        _virtual_mouse.close()
+        _virtual_mouse = None
+
+
+atexit.register(_cleanup_mouse)
+
+
+# === Touchscreen ===
+def tap(x, y):
+    """Tap at raw touchscreen coordinates."""
+    fd = os.open(_ts_device, os.O_WRONLY)
+    try:
+        def emit(ev_type, code, value):
+            os.write(fd, struct.pack("llHHi", 0, 0, ev_type, code, value))
+
+        def sync():
+            emit(EV_SYN, 0, 0)
+
+        # Touch down
+        emit(EV_ABS, ABS_MT_SLOT, 0)
+        emit(EV_ABS, ABS_MT_TRACKING_ID, int(time.time() * 1000) % 65535)
+        emit(EV_ABS, ABS_MT_POSITION_X, int(x))
+        emit(EV_ABS, ABS_MT_POSITION_Y, int(y))
+        emit(EV_KEY, BTN_TOUCH, 1)
+        sync()
+
+        time.sleep(0.08)
+
+        # Touch up
+        emit(EV_ABS, ABS_MT_TRACKING_ID, -1)
+        emit(EV_KEY, BTN_TOUCH, 0)
+        sync()
+    finally:
+        os.close(fd)
+
+
+def swipe(x1, y1, x2, y2, duration_ms=300):
+    """Swipe between raw touchscreen coordinates."""
+    fd = os.open(_ts_device, os.O_WRONLY)
+    try:
+        def emit(ev_type, code, value):
+            os.write(fd, struct.pack("llHHi", 0, 0, ev_type, code, value))
+
+        def sync():
+            emit(EV_SYN, 0, 0)
+
+        steps = 20
+        delay = (duration_ms / 1000) / steps
+
+        # Touch down
+        emit(EV_ABS, ABS_MT_SLOT, 0)
+        emit(EV_ABS, ABS_MT_TRACKING_ID, int(time.time() * 1000) % 65535)
+        emit(EV_ABS, ABS_MT_POSITION_X, int(x1))
+        emit(EV_ABS, ABS_MT_POSITION_Y, int(y1))
+        emit(EV_KEY, BTN_TOUCH, 1)
+        sync()
+
+        # Move
+        for i in range(1, steps + 1):
+            t = i / steps
+            x = int(x1 + (x2 - x1) * t)
+            y = int(y1 + (y2 - y1) * t)
+            emit(EV_ABS, ABS_MT_POSITION_X, x)
+            emit(EV_ABS, ABS_MT_POSITION_Y, y)
+            sync()
+            time.sleep(delay)
+
+        # Touch up
+        emit(EV_ABS, ABS_MT_TRACKING_ID, -1)
+        emit(EV_KEY, BTN_TOUCH, 0)
+        sync()
+    finally:
+        os.close(fd)
+
+
+# === Keyboard ===
+def send_key_event(fd, keycode, value):
+    os.write(fd, struct.pack("llHHi", 0, 0, EV_KEY, keycode, value))
+    os.write(fd, struct.pack("llHHi", 0, 0, EV_SYN, 0, 0))
+
+
+def press_keys(keycodes):
+    """Press and release a key combination."""
+    fd = os.open(KEYBOARD_DEV, os.O_WRONLY)
+    try:
+        for kc in keycodes:
+            send_key_event(fd, kc, 1)
+            time.sleep(0.02)
+        time.sleep(0.1)
+        for kc in reversed(keycodes):
+            send_key_event(fd, kc, 0)
+            time.sleep(0.02)
+    finally:
+        os.close(fd)
+
+
+def type_text(text):
+    """Type text character by character (layout-aware)."""
+    fd = os.open(KEYBOARD_DEV, os.O_WRONLY)
+    try:
+        for char in text:
+            # Translate for keyboard layout (e.g., Dvorak)
+            translated = translate_char_for_layout(char)
+
+            shift = False
+            c = translated.lower()
+            if translated.isupper() or translated in '!@#$%^&*()_+{}|:"<>?~':
+                shift = True
+                shift_map = {
+                    '!': '1', '@': '2', '#': '3', '$': '4', '%': '5',
+                    '^': '6', '&': '7', '*': '8', '(': '9', ')': '0',
+                    '_': '-', '+': '=', '{': '[', '}': ']', '|': '\\',
+                    ':': ';', '"': "'", '<': ',', '>': '.', '?': '/',
+                    '~': '`'
+                }
+                c = shift_map.get(translated, c)
+
+            if c not in KEY_MAP:
+                continue
+
+            keycode = KEY_MAP[c]
+
+            if shift:
+                send_key_event(fd, KEY_LEFTSHIFT, 1)
+                time.sleep(0.01)
+
+            send_key_event(fd, keycode, 1)
+            time.sleep(0.02)
+            send_key_event(fd, keycode, 0)
+
+            if shift:
+                time.sleep(0.01)
+                send_key_event(fd, KEY_LEFTSHIFT, 0)
+
+            time.sleep(0.03)
+    finally:
+        os.close(fd)
+
+
+def shortcut(modifiers, key):
+    """Execute keyboard shortcut with modifier remapping."""
+    keycodes = []
+
+    # Map modifier names to logical constants
+    mod_map = {"ctrl": MOD_CONTROL, "control": MOD_CONTROL, "alt": MOD_ALT, "search": MOD_SEARCH, "meta": MOD_SEARCH}
+
+    for mod in modifiers:
+        mod_lower = mod.lower()
+        if mod_lower == "shift":
+            keycodes.append(KEY_LEFTSHIFT)
+        elif mod_lower in mod_map:
+            keycodes.append(get_physical_keycode_for_modifier(mod_map[mod_lower]))
+        else:
+            raise ValueError(f"unknown modifier: {mod}")
+
+    # Get keycode for main key (translate through layout for shortcuts too)
+    key_lower = key.lower()
+    if key_lower in ("search", "meta"):
+        keycodes.append(get_physical_keycode_for_modifier(MOD_SEARCH))
+    elif key_lower in SPECIAL_KEY_MAP:
+        keycodes.append(SPECIAL_KEY_MAP[key_lower])
+    else:
+        translated = translate_char_for_layout(key_lower)
+        if translated in KEY_MAP:
+            keycodes.append(KEY_MAP[translated])
+        elif key_lower.startswith("f") and key_lower[1:].isdigit():
+            fnum = int(key_lower[1:])
+            if 1 <= fnum <= 12:
+                keycodes.append(58 + fnum)  # F1=59, etc.
+            else:
+                raise ValueError(f"unknown key: {key}")
+        else:
+            raise ValueError(f"unknown key: {key}")
+
+    press_keys(keycodes)
+    return keycodes
+
+
+# === Screenshot ===
+def wake_display(settle_seconds=0.5):
+    """Wake display scanout without typing or changing the active control."""
+    press_keys([KEY_LEFTSHIFT])
+    time.sleep(settle_seconds)
+
+
+def take_screenshot():
+    """Take screenshot via Ctrl+Show Windows (Ctrl+F5), return base64."""
+    files = glob.glob(f"{SCREENSHOT_DIR}/Screenshot*.png")
+    before = max(files, key=os.path.getmtime) if files else None
+    before_time = os.path.getmtime(before) if before else 0
+
+    ctrl_keycode = get_physical_keycode_for_modifier(MOD_CONTROL)
+    press_keys([ctrl_keycode, KEY_F5])
+    time.sleep(2)
+
+    files = glob.glob(f"{SCREENSHOT_DIR}/Screenshot*.png")
+    after = max(files, key=os.path.getmtime) if files else None
+
+    if after and os.path.getmtime(after) > before_time:
+        with open(after, 'rb') as f:
+            return base64.b64encode(f.read()).decode('ascii')
+    return None
+
+
+# === Command Handlers ===
+def cmd_ping(msg):
+    return {"pong": True}
+
+
+def cmd_wake(msg):
+    wake_display()
+    return {"ok": True}
+
+
+def cmd_tap(msg):
+    x, y = msg.get("x"), msg.get("y")
+    if x is None or y is None:
+        return {"error": "tap requires x and y"}
+    tap(x, y)
+    return {"ok": True}
+
+
+def cmd_swipe(msg):
+    x1, y1 = msg.get("x1"), msg.get("y1")
+    x2, y2 = msg.get("x2"), msg.get("y2")
+    duration_ms = msg.get("duration_ms", 300)
+    if None in (x1, y1, x2, y2):
+        return {"error": "swipe requires x1, y1, x2, y2"}
+    swipe(x1, y1, x2, y2, duration_ms)
+    return {"ok": True}
+
+
+def cmd_key(msg):
+    keys = msg.get("keys")
+    if not keys:
+        return {"error": "key requires keys array"}
+    press_keys(keys)
+    return {"ok": True}
+
+
+def cmd_type(msg):
+    text = msg.get("text")
+    if text is None:
+        return {"error": "type requires text"}
+    type_text(text)
+    return {"ok": True}
+
+
+def _drm_screenshot_b64(method, fmt, quality):
+    """Helper: capture via DRM, return dict with image/method/format."""
+    from drm_screenshot import drm_screenshot_base64, drm_screenshot_jpeg_base64
+    if fmt == "jpeg":
+        b64, actual_fmt = drm_screenshot_jpeg_base64(method=method, quality=quality)
+        return {"image": b64, "method": method, "format": actual_fmt}
+    return {"image": drm_screenshot_base64(method=method),
+            "method": method, "format": "png"}
+
+
+def _drm_screenshot_after_wake(method, fmt, quality):
+    """Retry only the expected sleeping-display failure after waking scanout."""
+    try:
+        return _drm_screenshot_b64(method, fmt, quality)
+    except Exception as error:
+        if "No active CRTC" not in str(error):
+            raise
+        wake_display()
+        return _drm_screenshot_b64(method, fmt, quality)
+
+
+def cmd_screenshot(msg):
+    method = msg.get("method")  # "egl", "gbm", "keyboard", or None (auto)
+    fmt = msg.get("format", "jpeg")  # "jpeg" (default) or "png"
+    quality = msg.get("quality", 80)
+
+    # Explicit method request
+    if method in ("egl", "gbm"):
+        try:
+            return _drm_screenshot_after_wake(method, fmt, quality)
+        except Exception as e:
+            return {"error": f"{method} capture failed: {e}"}
+
+    if method == "keyboard":
+        image_data = take_screenshot()
+        if image_data:
+            return {"image": image_data, "method": "keyboard", "format": "png"}
+        return {"error": "Keyboard screenshot failed: no file created"}
+
+    # Default: EGL, fall back to keyboard, then GBM
+    try:
+        return _drm_screenshot_after_wake("egl", fmt, quality)
+    except Exception:
+        pass
+
+    if os.path.isdir(SCREENSHOT_DIR):
+        image_data = take_screenshot()
+        if image_data:
+            return {"image": image_data, "method": "keyboard", "format": "png"}
+
+    try:
+        return _drm_screenshot_b64("gbm", fmt, quality)
+    except Exception as e:
+        return {"error": f"Screenshot failed: {e}"}
+
+
+def cmd_shortcut(msg):
+    modifiers = msg.get("modifiers", [])
+    key = msg.get("key")
+    if not key:
+        return {"error": "shortcut requires key"}
+    keycodes = shortcut(modifiers, key)
+    return {"ok": True, "keycodes": keycodes}
+
+
+def cmd_info(msg):
+    return {
+        "device": _ts_device,
+        "touch_max": [_ts_max_x, _ts_max_y],
+        "keyboard": {
+            "device": KEYBOARD_DEV,
+            "layout": _kb_layout,
+            "modifier_remappings": _kb_remappings,
+        }
+    }
+
+
+def cmd_reload_config(msg):
+    global _kb_layout, _kb_remappings
+    _kb_layout, _kb_remappings = load_keyboard_config()
+    return {"ok": True, "keyboard": {"layout": _kb_layout, "modifier_remappings": _kb_remappings}}
+
+
+def cmd_targets(msg):
+    try:
+        import cdp
+        targets = cdp.list_targets()
+        page_targets = [t for t in targets if t.get("type") == "page"]
+        pages = [{"index": i, "title": t.get("title", ""), "url": t.get("url", "")}
+                 for i, t in enumerate(page_targets)]
+        return {"targets": pages}
+    except Exception as e:
+        return {"error": f"Cannot connect to DevTools: {e}"}
+
+
+def cmd_axtree(msg):
+    try:
+        import cdp
+        target = msg.get("target", 0)
+        depth = msg.get("depth")
+        nodes = cdp.get_ax_tree(target_idx=target)
+        tree_text = cdp.render_tree(nodes, max_depth=depth)
+        return {"tree": tree_text, "node_count": len(nodes)}
+    except Exception as e:
+        return {"error": f"axtree failed: {e}"}
+
+
+def cmd_find(msg):
+    try:
+        import cdp
+        pattern = msg.get("pattern")
+        if not pattern:
+            return {"error": "find requires 'pattern'"}
+        role = msg.get("role")
+        target = msg.get("target", 0)
+        matches = cdp.find_nodes(pattern, role=role, target_idx=target)
+        return {"matches": matches, "count": len(matches)}
+    except Exception as e:
+        return {"error": f"find failed: {e}"}
+
+
+def cmd_click(msg):
+    try:
+        import cdp
+        pattern = msg.get("pattern")
+        if not pattern:
+            return {"error": "click requires 'pattern'"}
+        role = msg.get("role")
+        target = msg.get("target", 0)
+        result = cdp.click(pattern, role=role, target_idx=target)
+        return {"ok": True, "clicked": result}
+    except Exception as e:
+        return {"error": f"click failed: {e}"}
+
+
+def cmd_desktop_tree(msg):
+    try:
+        import cdp
+        depth = msg.get("depth")
+        tree = cdp.desktop_tree(max_depth=depth)
+        return {"tree": tree}
+    except Exception as e:
+        return {"error": f"desktop_tree failed: {e}"}
+
+
+def cmd_desktop_find(msg):
+    try:
+        import cdp
+        pattern = msg.get("pattern")
+        if not pattern:
+            return {"error": "desktop_find requires 'pattern'"}
+        role = msg.get("role")
+        matches = cdp.desktop_find(pattern, role=role)
+        return {"matches": matches, "count": len(matches)}
+    except Exception as e:
+        return {"error": f"desktop_find failed: {e}"}
+
+
+def cmd_desktop_click(msg):
+    try:
+        import cdp
+        pattern = msg.get("pattern")
+        if not pattern:
+            return {"error": "desktop_click requires 'pattern'"}
+        role = msg.get("role")
+        result = cdp.desktop_click(pattern, role=role)
+        return {"ok": True, "clicked": result}
+    except Exception as e:
+        return {"error": f"desktop_click failed: {e}"}
+
+
+def _find_named_bounds(node, name):
+    """Return the first accessibility-tree location for an exact node name."""
+    if node.get("name") == name and node.get("location"):
+        return node["location"]
+    for child in node.get("children", []):
+        found = _find_named_bounds(child, name)
+        if found:
+            return found
+    return None
+
+
+def cmd_desktop_tap(msg):
+    """Tap a desktop accessibility element through the built-in touchscreen.
+
+    chrome.automation reports display-independent coordinates while evdev needs
+    raw touchscreen coordinates. Calibrate against the accessibility bounds of
+    the built-in display so this continues to work with display scaling.
+    """
+    if not _ts_device or not _ts_max_x or not _ts_max_y:
+        return {"error": "desktop_tap requires a built-in touchscreen"}
+
+    try:
+        import cdp
+        pattern = msg.get("pattern")
+        if not pattern:
+            return {"error": "desktop_tap requires 'pattern'"}
+        role = msg.get("role")
+        nth = max(1, int(msg.get("nth", 1)))
+        matches = cdp.desktop_find(pattern, role=role)
+        if len(matches) < nth:
+            return {
+                "error": (
+                    f"No desktop element matching '{pattern}'"
+                    f" (role={role or 'any'}, nth={nth})"
+                )
+            }
+
+        target = matches[nth - 1]
+        location = target.get("location")
+        if not location or location.get("width", 0) <= 0 or location.get("height", 0) <= 0:
+            return {"error": "Matched desktop element has no tappable location"}
+
+        tree = cdp.desktop_tree(max_depth=2)
+        display = _find_named_bounds(tree, "Built-in display")
+        if not display:
+            # A single-display tree may not label its display window. The root
+            # bounds are a safe fallback only when they are usable.
+            display = tree.get("location")
+        if not display or display.get("width", 0) <= 0 or display.get("height", 0) <= 0:
+            return {"error": "Cannot determine built-in display bounds"}
+
+        center_x = location["x"] + location["width"] / 2
+        center_y = location["y"] + location["height"] / 2
+        left, top = display["x"], display["y"]
+        right = left + display["width"]
+        bottom = top + display["height"]
+        if not (left <= center_x <= right and top <= center_y <= bottom):
+            return {
+                "error": (
+                    "Matched element is not on the built-in display; "
+                    "the touchscreen cannot reach it"
+                )
+            }
+
+        raw_x = round((center_x - left) * _ts_max_x / display["width"])
+        raw_y = round((center_y - top) * _ts_max_y / display["height"])
+        raw_x = max(0, min(_ts_max_x, raw_x))
+        raw_y = max(0, min(_ts_max_y, raw_y))
+        tap(raw_x, raw_y)
+        return {
+            "ok": True,
+            "tapped": {
+                "name": target.get("name", ""),
+                "role": target.get("role", ""),
+                "location": location,
+                "touch": {"x": raw_x, "y": raw_y},
+                "display": display,
+            },
+        }
+    except Exception as e:
+        return {"error": f"desktop_tap failed: {e}"}
+
+
+def cmd_mouse_move(msg):
+    x = msg.get('x')
+    y = msg.get('y')
+    if x is None or y is None:
+        return {'error': 'mouse_move requires x and y'}
+    get_virtual_mouse().move_to(int(x), int(y))
+    return {
+        'ok': True,
+        'experimental': True,
+        'warning': (
+            'Virtual relative mouse coordinates are best-effort; '
+            'prefer desktop_tap or tap for reliable activation'
+        ),
+    }
+
+
+def cmd_mouse_click(msg):
+    button_name = msg.get('button', 'left')
+    button = {'left': BTN_LEFT, 'right': BTN_RIGHT, 'middle': BTN_MIDDLE}.get(button_name, BTN_LEFT)
+    x = msg.get('x')
+    y = msg.get('y')
+    if x is not None and y is not None:
+        get_virtual_mouse().click(button, int(x), int(y))
+    else:
+        get_virtual_mouse().click(button)
+    return {
+        'ok': True,
+        'experimental': True,
+        'warning': (
+            'Virtual relative mouse coordinates are best-effort; '
+            'prefer desktop_tap or tap for reliable activation'
+        ),
+    }
+
+
+def cmd_mouse_scroll(msg):
+    delta = msg.get('delta', 0)
+    if not delta:
+        return {'ok': True}
+    get_virtual_mouse().scroll(int(delta))
+    return {'ok': True}
+
+
+def cmd_desktop_action(msg):
+    try:
+        import cdp
+        pattern = msg.get("pattern")
+        if not pattern:
+            return {"error": "desktop_action requires 'pattern'"}
+        action = msg.get("action")
+        if not action:
+            return {"error": "desktop_action requires 'action'"}
+        role = msg.get("role")
+        value = msg.get("value")
+        nth = msg.get("nth", 1)
+        result = cdp.desktop_action(pattern, action, value=value, role=role, nth=nth)
+        return {"ok": True, "result": result}
+    except Exception as e:
+        return {"error": f"desktop_action failed: {e}"}
+
+
+COMMANDS = {
+    "ping": cmd_ping,
+    "wake": cmd_wake,
+    "tap": cmd_tap,
+    "swipe": cmd_swipe,
+    "key": cmd_key,
+    "type": cmd_type,
+    "shortcut": cmd_shortcut,
+    "screenshot": cmd_screenshot,
+    "info": cmd_info,
+    "reload_config": cmd_reload_config,
+    "mouse_move": cmd_mouse_move,
+    "mouse_click": cmd_mouse_click,
+    "mouse_scroll": cmd_mouse_scroll,
+    "targets": cmd_targets,
+    "axtree": cmd_axtree,
+    "find": cmd_find,
+    "click": cmd_click,
+    "desktop_tree": cmd_desktop_tree,
+    "desktop_find": cmd_desktop_find,
+    "desktop_click": cmd_desktop_click,
+    "desktop_tap": cmd_desktop_tap,
+    "desktop_action": cmd_desktop_action,
+}
+
+
+def main():
+    sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', buffering=1)
+
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+
+        try:
+            msg = json.loads(line)
+            cmd = msg.get("cmd")
+            handler = COMMANDS.get(cmd)
+            if handler:
+                result = handler(msg)
+            else:
+                result = {"error": f"unknown command: {cmd}"}
+        except json.JSONDecodeError as e:
+            result = {"error": f"invalid JSON: {e}"}
+        except Exception as e:
+            result = {"error": str(e)}
+
+        print(json.dumps(result), flush=True)
+
+
+if __name__ == "__main__":
+    main()
