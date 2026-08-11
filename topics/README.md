@@ -49,6 +49,12 @@ its `Topic:` trailers.
   mobile, headset, VM, and physical targets.
 - [`provider-landscape.md`](provider-landscape.md): cross-provider decisions,
   common-spine direction, exact-window requirements, and validation shortlist.
+- [`target-lifecycle-and-readiness.md`](target-lifecycle-and-readiness.md):
+  common target selection, lifecycle verbs, machine-readable doctor state, and
+  authoritative-testbed boundaries.
+- [`unified-desktop-client.md`](unified-desktop-client.md): common resident
+  entry points, transports, artifacts, operation translation, conformance, and
+  explicit platform escape hatches.
 - [`windows-resident-control.md`](windows-resident-control.md): current Windows
   proving-ground decisions, unresolved boundaries, and next implementation
   direction.

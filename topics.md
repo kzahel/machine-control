@@ -21,3 +21,7 @@ commits with no expected follow-up do not need a trailer or registry entry.
   uncertainty, reference, lease, and lifecycle result vocabulary.
 - `provider-landscape` — common-provider versus platform-depth decisions,
   exact-window requirements, fixture design, and evidence-driven selection.
+- `target-lifecycle-and-readiness` — logical target selection, portable
+  lifecycle verbs, normalized doctor state, and authoritative testbed adapters.
+- `unified-desktop-client` — common desktop entry points, operation
+  translation, bounded artifacts, conformance, and explicit escape hatches.

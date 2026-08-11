@@ -20,6 +20,10 @@ matches the question:
   from the topics.
 - [Contract projections](contracts/README.md): the exercised v0 JSON request
   and truthful result envelopes shared by resident implementations.
+- [Unified desktop client](topics/unified-desktop-client.md): the common target
+  entry points and explicit platform escape hatches now being implemented.
+- [Target lifecycle and readiness](topics/target-lifecycle-and-readiness.md):
+  portable lifecycle/doctor vocabulary over authoritative testbed adapters.
 - [Windows runtime](#windows-runtime): the first resident implementation,
   build/install workflow, contract, and conformance entry points.
 - [macOS runtime](#macos-runtime): the accepted Tart resident slice, including
