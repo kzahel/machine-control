@@ -24,6 +24,11 @@ machine-control --target <logical-target> target doctor
 machine-control --target <logical-target> target shutdown
 ```
 
+VM workspace acquisition is an additive surface beside this lifecycle, not a
+replacement for `target up`. See
+[`vm-workspaces-and-storage-policy.md`](vm-workspaces-and-storage-policy.md)
+for persistent, isolated, and retained-candidate intent.
+
 A logical target is a local inventory selector, not bearer authority and not
 necessarily a VM. Target aliases and adapter paths may live in ignored local
 configuration. Tracked examples must use non-authoritative placeholders and
@@ -126,6 +131,11 @@ off is a valid minimized doctor result with `ready: false`; doctor does not
 start or repair the target. Live acceptance proved common clean shutdown and
 subsequent `powerState: off` on all three profiles. See the
 [three-desktop evidence](../docs/evidence/desktop-common-entry.md).
+
+The desktop VM adapters also expose the additive workspace protocol. Public
+macOS and Linux examples now require an exact ignored/private
+candidate-or-disposable binding before any lifecycle mutation; a plausible
+example name alone cannot start, suspend, shut down, or stop a local VM.
 
 Android, iOS, and Quest retain `native` platform interfaces below the common
 layer but now emit the same minimized doctor envelope. The common client

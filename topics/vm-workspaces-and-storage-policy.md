@@ -2,7 +2,7 @@
 
 Topic: `vm-workspaces-and-storage-policy`
 
-Status: active contract and implementation.
+Status: implemented contract and current provider policy.
 
 ## Scope
 
@@ -154,17 +154,28 @@ contract remain unchanged when lifecycle moves from UTM/macOS to
 libvirt/Linux. Virt-manager may be a human-facing libvirt UI but is not part of
 the portable contract.
 
-## Validation
+## Current implementation and validation
 
 Dependency-free fake-provider tests run on macOS, Linux, and Windows and cover
 capability validation, intent forwarding, redaction, unsupported intent,
-receipt-bound release, capacity refusal, last-ready-base protection, and dry
-run inventory.
+receipt-bound release, capacity refusal, last-ready-base protection, and
+dry-run inventory. UTM-specific fake-provider tests additionally prove
+persistent
+reuse, disposable stop without source deletion, and the full-copy policy gate.
 
-Live validation stays deliberately small: prove that one disposable UTM write
-does not persist, and that one Tart copy-on-write clone can reach readiness and
-be released without mutating its source. A future libvirt provider repeats the
-same outcome test with its chosen overlay mechanism.
+**Current:** one live Tart copy-on-write clone reached full common-doctor
+readiness and was released without mutating its stopped source. A failed first
+start also proved cleanup-pending receipt retention and guarded operator
+release; derived targets now rediscover their own endpoint instead of
+inheriting the development VM's fixed SSH endpoint.
+
+**Current:** neither configured UTM target is presently an authorized
+controller-ready derivation base. Linux guest-agent/resident readiness failed
+its bounded live check, and the Windows target is a generalized seal. No live
+UTM disposable was created. The first newly proven UTM ready base should repeat
+the same small outcome test without making disposable mode the ordinary task
+default. A future libvirt provider repeats it with its chosen overlay
+mechanism.
 
 ## Open work
 
@@ -173,5 +184,7 @@ same outcome test with its chosen overlay mechanism.
   per-workspace precision.
 - Decide when an isolated failure should be retained automatically versus
   stopped with only its receipt retained for operator-directed recovery.
+- Run the minimal live UTM disposable outcome rehearsal after an existing
+  Windows or Linux target is independently re-proven controller-ready.
 - Add a libvirt/Linux host provider only when an authorized host is available
   for real capability and cleanup validation.

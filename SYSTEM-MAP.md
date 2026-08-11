@@ -39,10 +39,13 @@ testbed must explicitly reselect Windows after one-shot EFI `BootNext`; a
 generic reboot otherwise returns to its default OS.
 
 **Current:** One common client now selects and validates the Windows, macOS,
-and Linux testbed adapters, while each adapter retains its own lifecycle and
-guest transport. The three residents pass one guarded common semantic,
-effect, capture, artifact, and local/outside parity workflow. This is a shared
-contract and entry experience, not one universal resident implementation.
+and Linux testbed adapters, while each adapter retains its own lifecycle,
+workspace/storage policy, and guest transport. The three residents pass one
+guarded common semantic, effect, capture, artifact, and local/outside parity
+workflow. Workspace callers request persistent, isolated, or candidate intent;
+the owning adapter chooses and reports the actual provider mechanism and binds
+cleanup to a private exact-identity receipt. This is a shared contract and
+entry experience, not one universal resident or hypervisor implementation.
 ChromeOS and device providers remain the next families to receive more common
 facade coverage. Their target-specific lifecycle and recovery already live in
 their authoritative platform directories here; broader facade coverage must
@@ -52,9 +55,9 @@ not flatten their platform semantics into one generic implementation.
 
 | Repository | Administration/inner control | Outer control |
 | --- | --- | --- |
-| [`platforms/windows`](platforms/windows/README.md) | Authoritative UTM lifecycle, minimized doctor, PowerShell/SSH administration, and bounded access to the Windows resident | UTM/QEMU screenshot, keyboard, scan codes, and pointer remain explicit recovery routes |
-| [`platforms/macos`](platforms/macos/README.md) | Authoritative Tart lifecycle, minimized doctor, selected guest administration, and bounded access to the macOS resident | Tart screenshot, pointer, and keyboard remain explicit recovery routes |
-| [`platforms/linux`](platforms/linux/README.md) | Authoritative UTM lifecycle, minimized doctor, guest/session execution, and bounded access to the Linux resident | UTM screenshot, keyboard, and pointer remain explicit recovery routes |
+| [`platforms/windows`](platforms/windows/README.md) | Authoritative UTM lifecycle/workspace policy, minimized doctor, PowerShell/SSH administration, and bounded access to the Windows resident | UTM/QEMU screenshot, keyboard, scan codes, and pointer remain explicit recovery routes |
+| [`platforms/macos`](platforms/macos/README.md) | Authoritative Tart lifecycle/COW-workspace policy, minimized doctor, selected guest administration, and bounded access to the macOS resident | Tart screenshot, pointer, and keyboard remain explicit recovery routes |
+| [`platforms/linux`](platforms/linux/README.md) | Authoritative UTM lifecycle/workspace policy, minimized doctor, guest/session execution, and bounded access to the Linux resident | UTM screenshot, keyboard, and pointer remain explicit recovery routes |
 
 These repositories implement the right broad ordering: lifecycle and
 administration, then resident semantic/capture/input control, with outer

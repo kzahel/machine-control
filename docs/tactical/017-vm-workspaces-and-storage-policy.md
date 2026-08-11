@@ -1,6 +1,6 @@
 # Tactical 017: VM Workspaces and Storage Policy
 
-Status: active.
+Status: complete (August 11, 2026).
 
 Topics: `vm-workspaces-and-storage-policy` and
 `target-lifecycle-and-readiness`.
@@ -113,5 +113,45 @@ then push the complete commit series.
 
 ## Result
 
-Active. Record implemented mechanisms, validation evidence, deviations, and
-remaining live-appliance work here before completion.
+Completed. The common client now exposes validated workspace capabilities,
+acquisition, opaque-handle selection, receipt-minimized inventory, guarded
+release, and dry-run garbage collection. Public schemas distinguish caller
+intent from `existing_instance`, provider-disposable, filesystem COW,
+full-copy, and future QCOW backing mechanisms. Private inventory chooses only
+the default intent and concrete provider policy; normalized results reject
+private names, identifiers, endpoints, commands, paths, and receipt contents.
+
+Windows and Linux UTM adapters reuse an explicitly proven development VM for
+`persistent`, use UTM disposable mode for `isolated`, and prohibit ordinary
+full-copy candidates unless private policy grants a bounded one-time fallback.
+The Tart adapter reuses a proven development VM or creates APFS copy-on-write
+derivatives. Default limits permit one temporary and two retained workspaces,
+reserve provider-storage headroom, and never auto-delete a source or ready
+base. Mode-`0600` private receipts and fresh exact identity checks bind every
+temporary release. Direct macOS and Linux lifecycle mutations also now fail
+closed when only public example selection is present.
+
+Portable checks passed 38 common-client tests, eight receipt/UTM mechanism
+tests, the other dependency-free platform corpora, tracked JSON and shell
+validation, and whitespace checks. Native macOS validation passed the Swift,
+plist, shell, and fail-closed provider checks; the existing Swift deprecation
+warnings remain informational. Dotfiles passed its ten private-inventory
+tests.
+
+One live Tart rehearsal acquired an isolated APFS COW clone, addressed it only
+through its opaque handle, and passed the common doctor with administration,
+desktop, resident, semantic, capture, and input all ready. Release stopped and
+deleted only that derivative, removed its receipt, and left the protected
+source stopped. The first attempt had correctly retained a cleanup-pending
+receipt when a Tart guest-agent transport was unavailable; guarded release
+cleaned it, and the adapter was corrected to rediscover a derivative's own
+endpoint for the configured guest transport before the passing repetition.
+
+No current UTM guest qualified as an authorized ready base for a minimal live
+disposable rehearsal. The Linux appliance started but its QEMU guest-agent and
+resident readiness did not recover within the bounded check, so it was shut
+down cleanly without outer UI. The Windows selection is a generalized seal,
+not an authorized controller-ready derivation base. UTM outcome and cleanup
+semantics therefore remain deterministic fake-provider evidence until either
+platform has a freshly proven base; no new large VM was created to satisfy
+this tactical.
