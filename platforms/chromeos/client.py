@@ -31,9 +31,13 @@ import json
 import struct
 import time
 import glob
-import fcntl
 import array
 import base64
+
+try:
+    import fcntl
+except ModuleNotFoundError:  # Windows-hosted dependency-free test import.
+    fcntl = None
 
 # === Constants ===
 DEFAULT_KEYBOARD_DEV = "/dev/input/event2"
@@ -246,6 +250,8 @@ class VirtualMouse:
         self._emit(EV_SYN, 0, 0)
 
     def _create(self):
+        if fcntl is None:
+            raise RuntimeError("uinput control requires Linux fcntl")
         fd = open('/dev/uinput', 'wb', buffering=0)
         fno = fd.fileno()
 

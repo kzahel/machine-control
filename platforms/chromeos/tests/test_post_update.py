@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import stat
+import shutil
 import subprocess
 import tempfile
 import textwrap
@@ -10,8 +11,10 @@ import unittest
 
 REPO_DIR = Path(__file__).resolve().parents[1]
 CLI = REPO_DIR / "bin" / "chromeos"
+BASH = shutil.which("bash")
 
 
+@unittest.skipIf(BASH is None, "post-update audit tests require Bash")
 class PostUpdateAuditTests(unittest.TestCase):
     def run_audit(self, snapshot, ssh_up=True):
         with tempfile.TemporaryDirectory() as directory:
@@ -36,7 +39,7 @@ class PostUpdateAuditTests(unittest.TestCase):
                 "FAKE_SNAPSHOT": textwrap.dedent(snapshot).strip(),
             })
             return subprocess.run(
-                [str(CLI), "--json", "post-update"],
+                [BASH, str(CLI), "--json", "post-update"],
                 cwd=REPO_DIR,
                 env=env,
                 text=True,
@@ -116,7 +119,7 @@ class PostUpdateAuditTests(unittest.TestCase):
 
     def test_mutating_mode_rejects_structured_output(self):
         result = subprocess.run(
-            [str(CLI), "--json", "post-update", "--repair"],
+            [BASH, str(CLI), "--json", "post-update", "--repair"],
             cwd=REPO_DIR,
             text=True,
             capture_output=True,
