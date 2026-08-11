@@ -23,6 +23,9 @@ commits with no expected follow-up do not need a trailer or registry entry.
   exact-window requirements, fixture design, and evidence-driven selection.
 - `target-lifecycle-and-readiness` — logical target selection, portable
   lifecycle verbs, normalized doctor state, and authoritative testbed adapters.
+- `vm-workspaces-and-storage-policy` — persistent, isolated, and candidate VM
+  workspace intent; provider-selected derivation; storage budgets; and safe
+  receipt-bound cleanup.
 - `unified-desktop-client` — common desktop entry points, operation
   translation, bounded artifacts, conformance, and explicit escape hatches.
 - `repository-consolidation-and-publication` — canonical public platform
