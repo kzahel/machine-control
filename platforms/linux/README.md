@@ -220,6 +220,9 @@ Wayland session, the root input broker, the active-user resident, and the
 target-native status probe. It omits the desktop account, target identity,
 address, package versions and sources, paths, and boot ID. The common doctor
 is still required; active systemd units alone are not readiness.
+The interactive `spice-vdagent` process is an optional warning because it
+improves outer-console integration but is not part of ordinary target-native
+semantic, capture, or input readiness.
 
 After an explicitly managed Ubuntu update, request the bounded repair only
 when the audit identifies a startup invariant:

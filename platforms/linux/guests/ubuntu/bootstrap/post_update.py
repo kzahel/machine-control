@@ -28,6 +28,7 @@ RUNTIME_PACKAGES = (
     "jq",
 )
 DEVELOPMENT_PACKAGES = ("git", "build-essential", "python3-venv")
+OPTIONAL_CHECKS = frozenset(("spice_session",))
 
 
 @dataclass(frozen=True)
@@ -265,18 +266,21 @@ def check_payload(
         "resident_service": ("ready", "unavailable"),
         "target_native": ("ready", "unavailable"),
     }
-    return [
-        {
-            "id": check_id,
-            "required": True,
-            "status": "pass" if ready else "fail",
-            "observed": observations[check_id][0 if ready else 1],
-            "repair": repairs.get(check_id, "not_requested")
-            if repairs is not None
-            else "not_requested",
-        }
-        for check_id, ready in state.items()
-    ]
+    checks: list[dict[str, object]] = []
+    for check_id, ready in state.items():
+        required = check_id not in OPTIONAL_CHECKS
+        checks.append(
+            {
+                "id": check_id,
+                "required": required,
+                "status": "pass" if ready else ("fail" if required else "warn"),
+                "observed": observations[check_id][0 if ready else 1],
+                "repair": repairs.get(check_id, "not_requested")
+                if repairs is not None
+                else "not_requested",
+            }
+        )
+    return checks
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
@@ -312,7 +316,9 @@ def main(argv: Sequence[str] | None = None, runner: Runner | None = None) -> int
         while not all(state[key] for key in repairable) and time.monotonic() < deadline:
             time.sleep(0.25)
             state = collect_state(active_runner, args.profile)
-    healthy = all(state.values())
+    healthy = all(
+        ready for check_id, ready in state.items() if check_id not in OPTIONAL_CHECKS
+    )
     print(
         json.dumps(
             {

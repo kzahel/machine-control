@@ -93,6 +93,28 @@ class PostUpdateTests(unittest.TestCase):
         self.assertEqual(failed["observed"], "inconsistent")
         self.assertEqual(failed["repair"], "not_needed")
 
+    def test_missing_spice_session_is_an_optional_warning(self) -> None:
+        state = {
+            "package_manager": True,
+            "pending_reboot": True,
+            "profile_packages": True,
+            "guest_agent": True,
+            "spice_system": True,
+            "desktop_session": True,
+            "spice_session": False,
+            "input_broker": True,
+            "resident_service": True,
+            "target_native": True,
+        }
+        status, report = self.run_main("audit", state)
+        self.assertEqual(status, 0)
+        self.assertTrue(report["healthy"])
+        spice = next(
+            check for check in report["checks"] if check["id"] == "spice_session"
+        )
+        self.assertFalse(spice["required"])
+        self.assertEqual(spice["status"], "warn")
+
 
 if __name__ == "__main__":
     unittest.main()
