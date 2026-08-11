@@ -7,6 +7,8 @@ import argparse
 import json
 import os
 from pathlib import Path
+import platform as host_platform
+import shutil
 import subprocess
 import sys
 import time
@@ -19,45 +21,61 @@ DOCTOR_SCHEMA = "machine-control-doctor/v0"
 RESULT_SCHEMA = "machine-control/v0"
 TARGET_RESULT_SCHEMA = "machine-control-target/v0"
 CLIENT_VERSION = "0.1.0"
+CONTROLLER_PLATFORMS = {"darwin", "linux", "windows"}
+LAUNCHERS = {"auto", "direct", "python", "powershell", "bash"}
 
 DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
     "windows": {
         "platform": "windows",
         "profile": "windows-11-desktop",
+        "controllerPlatforms": ["darwin"],
+        "launcher": "direct",
         "command": [str(ROOT / "platforms" / "windows" / "bin" / "winvm")],
     },
     "macos": {
         "platform": "macos",
         "profile": "macos-aqua-tart",
+        "controllerPlatforms": ["darwin"],
+        "launcher": "direct",
         "command": [str(ROOT / "platforms" / "macos" / "bin" / "macvm")],
     },
     "linux": {
         "platform": "linux",
         "profile": "ubuntu-gnome-wayland",
+        "controllerPlatforms": ["darwin"],
+        "launcher": "direct",
         "command": [str(ROOT / "platforms" / "linux" / "bin" / "linuxvm")],
     },
     "chromeos": {
         "platform": "chromeos",
         "profile": "chromeos-developer-device",
         "interface": "native",
+        "controllerPlatforms": ["darwin", "linux"],
+        "launcher": "direct",
         "command": [str(ROOT / "platforms" / "chromeos" / "bin" / "chromeos")],
     },
     "ios": {
         "platform": "ios",
         "profile": "ios-coredevice-xctest",
         "interface": "native",
+        "controllerPlatforms": ["darwin"],
+        "launcher": "direct",
         "command": [str(ROOT / "platforms" / "ios" / "bin" / "ios-device")],
     },
     "quest": {
         "platform": "quest",
         "profile": "quest-adb-device",
         "interface": "native",
-        "command": [str(ROOT / "platforms" / "quest" / "bin" / "quest")],
+        "controllerPlatforms": ["darwin", "linux", "windows"],
+        "launcher": "python",
+        "command": [str(ROOT / "platforms" / "quest" / "quest.py")],
     },
     "steamdeck": {
         "platform": "steamdeck",
         "profile": "steamos-devkit-device",
         "interface": "native",
+        "controllerPlatforms": ["darwin", "linux"],
+        "launcher": "direct",
         "command": [str(ROOT / "platforms" / "steamdeck" / "bin" / "steamdeck")],
     },
 }
@@ -79,6 +97,66 @@ class ClientError(Exception):
         super().__init__(message)
         self.code = code
         self.exit_code = exit_code
+
+
+def controller_platform(system: str | None = None) -> str:
+    value = (system or host_platform.system()).strip().lower()
+    aliases = {
+        "darwin": "darwin",
+        "linux": "linux",
+        "windows": "windows",
+    }
+    if value not in aliases:
+        raise ClientError(
+            "controller_platform_unsupported",
+            f"Unsupported controller platform '{value or 'unknown'}'",
+        )
+    return aliases[value]
+
+
+def path_command_available(value: str) -> bool:
+    path = Path(value).expanduser()
+    path_like = path.is_absolute() or path.parent != Path(".")
+    if not path_like:
+        return shutil.which(value) is not None
+    if not path.is_file():
+        return False
+    return os.name == "nt" or os.access(path, os.X_OK)
+
+
+def launcher_command(command: list[str], launcher: str) -> list[str] | None:
+    if not command:
+        return None
+    selected = launcher
+    suffix = Path(command[0]).suffix.lower()
+    if selected == "auto":
+        if suffix == ".py":
+            selected = "python"
+        elif suffix == ".ps1":
+            selected = "powershell"
+        else:
+            selected = "direct"
+    if selected == "python":
+        return [sys.executable, *command]
+    if selected == "powershell":
+        executable = shutil.which("pwsh") or shutil.which("powershell.exe")
+        if executable is None:
+            return None
+        return [executable, "-NoLogo", "-NoProfile", "-File", *command]
+    if selected == "bash":
+        executable = shutil.which("bash")
+        return [executable, *command] if executable is not None else None
+    if selected == "direct" and path_command_available(command[0]):
+        return list(command)
+    return None
+
+
+def controller_supported(target: dict[str, Any]) -> bool:
+    return controller_platform() in target["controllerPlatforms"]
+
+
+def resolved_adapter_command(target: dict[str, Any]) -> list[str] | None:
+    return launcher_command(target["command"], target.get("launcher", "auto"))
 
 
 def emit(value: Any) -> None:
@@ -104,9 +182,13 @@ def provider_path(path_text: str | None = None) -> Path | None:
 
 
 def provider_command(path: Path) -> list[str]:
-    if path.suffix == ".py":
-        return [sys.executable, str(path)]
-    return [str(path)]
+    command = launcher_command([str(path)], "auto")
+    if command is None:
+        raise ClientError(
+            "inventory_provider_unavailable",
+            "Private inventory provider launcher is unavailable",
+        )
+    return command
 
 
 def provider_registry(path: Path) -> dict[str, Any]:
@@ -194,6 +276,8 @@ def load_registry(
         command = value.get("command")
         interface = value.get("interface", "machine-control-v0")
         environment = value.get("environment", {})
+        controller_platforms = value.get("controllerPlatforms")
+        launcher = value.get("launcher", "auto")
         if platform not in SUPPORTED_PLATFORMS:
             raise ClientError(
                 "invalid_registry", f"Target '{alias}' has an unsupported platform"
@@ -201,6 +285,23 @@ def load_registry(
         if interface not in {"machine-control-v0", "native"}:
             raise ClientError(
                 "invalid_registry", f"Target '{alias}' has an invalid interface"
+            )
+        if (
+            not isinstance(controller_platforms, list)
+            or not controller_platforms
+            or not all(
+                isinstance(item, str) and item in CONTROLLER_PLATFORMS
+                for item in controller_platforms
+            )
+            or len(set(controller_platforms)) != len(controller_platforms)
+        ):
+            raise ClientError(
+                "invalid_registry",
+                f"Target '{alias}' has invalid controllerPlatforms",
+            )
+        if launcher not in LAUNCHERS:
+            raise ClientError(
+                "invalid_registry", f"Target '{alias}' has an invalid launcher"
             )
         if not isinstance(profile, str) or not profile:
             raise ClientError(
@@ -225,12 +326,19 @@ def load_registry(
             )
         resolved = list(command)
         command_path = Path(resolved[0]).expanduser()
-        if "/" in resolved[0] and not command_path.is_absolute():
+        if command_path.parent != Path(".") and not command_path.is_absolute():
+            if path is None:
+                raise ClientError(
+                    "invalid_registry",
+                    f"Target '{alias}' provider command must be absolute",
+                )
             resolved[0] = str((path.parent / command_path).resolve())
         targets[alias] = {
             "platform": platform,
             "profile": profile,
             "interface": interface,
+            "controllerPlatforms": list(controller_platforms),
+            "launcher": launcher,
             "command": resolved,
             "environment": dict(environment),
         }
@@ -238,23 +346,20 @@ def load_registry(
 
 
 def target_view(alias: str, target: dict[str, Any]) -> dict[str, Any]:
+    current = controller_platform()
     return {
         "logicalTarget": alias,
         "platform": target["platform"],
         "profile": target["profile"],
         "interface": target.get("interface", "machine-control-v0"),
+        "controllerPlatform": current,
+        "controllerPlatforms": list(target["controllerPlatforms"]),
+        "controllerSupported": current in target["controllerPlatforms"],
     }
 
 
-def command_available(command: list[str]) -> bool:
-    first = command[0]
-    if "/" in first:
-        return Path(first).is_file() and os.access(first, os.X_OK)
-    return any(
-        (Path(directory) / first).is_file()
-        and os.access(Path(directory) / first, os.X_OK)
-        for directory in os.environ.get("PATH", "").split(os.pathsep)
-    )
+def command_available(target: dict[str, Any]) -> bool:
+    return controller_supported(target) and resolved_adapter_command(target) is not None
 
 
 def select_target(
@@ -267,7 +372,12 @@ def select_target(
             "target_not_found", f"Logical target '{alias}' is not configured"
         )
     target = targets[alias]
-    if not command_available(target["command"]):
+    if not controller_supported(target):
+        raise ClientError(
+            "controller_platform_unsupported",
+            f"Testbed adapter for '{alias}' does not support this controller platform",
+        )
+    if resolved_adapter_command(target) is None:
         raise ClientError(
             "adapter_unavailable", f"Testbed adapter for '{alias}' is unavailable"
         )
@@ -280,10 +390,13 @@ def run_adapter(
     *,
     accept_json_failure: bool = False,
 ) -> tuple[subprocess.CompletedProcess[str], Any | None, int]:
+    command = resolved_adapter_command(target)
+    if command is None:
+        raise ClientError("adapter_unavailable", "Testbed adapter is unavailable")
     started = time.monotonic()
     try:
         completed = subprocess.run(
-            [*target["command"], *arguments],
+            [*command, *arguments],
             text=True,
             capture_output=True,
             check=False,
@@ -868,24 +981,32 @@ def exec_escape(
         raise ClientError(
             "usage", "Escape hatch requires arguments after --"
         )
+    adapter = resolved_adapter_command(target)
+    if adapter is None:
+        raise ClientError("adapter_unavailable", "Testbed adapter is unavailable")
     if not os_escape:
-        command = [*target["command"], *values]
+        command = [*adapter, *values]
     elif target["platform"] == "windows":
-        command = [*target["command"], "ps", *values]
+        command = [*adapter, "ps", *values]
     elif target["platform"] == "macos":
-        command = [*target["command"], "exec", *values]
+        command = [*adapter, "exec", *values]
     elif target["platform"] == "linux":
-        command = [*target["command"], "exec", "--", *values]
+        command = [*adapter, "exec", "--", *values]
     else:
         raise ClientError(
             "unsupported_os_escape",
             "This target does not expose a generic guest OS command route",
         )
-    return subprocess.run(
-        command,
-        check=False,
-        env={**os.environ, **target.get("environment", {})},
-    ).returncode
+    try:
+        return subprocess.run(
+            command,
+            check=False,
+            env={**os.environ, **target.get("environment", {})},
+        ).returncode
+    except OSError as error:
+        raise ClientError(
+            "adapter_failed", f"Testbed adapter could not execute: {error}"
+        ) from error
 
 
 def run_inventory(path_text: str | None, arguments: list[str]) -> int:
@@ -991,9 +1112,7 @@ def main(argv: list[str] | None = None) -> int:
                     "targets": [
                         {
                             **target_view(alias, target),
-                            "adapterAvailable": command_available(
-                                target["command"]
-                            ),
+                            "adapterAvailable": command_available(target),
                         }
                         for alias, target in sorted(targets.items())
                     ],

@@ -7,11 +7,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
 CLI = ROOT / "bin" / "machine-control"
 MOCK = ROOT / "tests" / "client" / "fixtures" / "mock-testbed.py"
+sys.path.insert(0, str(ROOT / "client"))
+import machine_control  # noqa: E402
 
 
 class ClientTests(unittest.TestCase):
@@ -24,11 +27,23 @@ class ClientTests(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
-    def write_registry(self, platform, *, interface=None, environment=None):
+    def write_registry(
+        self,
+        platform,
+        *,
+        interface=None,
+        environment=None,
+        controller_platforms=None,
+        launcher="auto",
+        command=None,
+    ):
         target = {
             "platform": platform,
             "profile": "fixture",
-            "command": [sys.executable, str(MOCK)]
+            "controllerPlatforms": controller_platforms
+            or [machine_control.controller_platform()],
+            "launcher": launcher,
+            "command": command or [sys.executable, str(MOCK)],
         }
         if interface is not None:
             target["interface"] = interface
@@ -49,7 +64,7 @@ class ClientTests(unittest.TestCase):
         )
         environment.update(extra_env or {})
         result = subprocess.run(
-            [str(CLI), "--registry", str(self.registry), *arguments],
+            [sys.executable, str(CLI), "--registry", str(self.registry), *arguments],
             text=True,
             capture_output=True,
             check=False,
@@ -66,6 +81,12 @@ class ClientTests(unittest.TestCase):
         result, value = self.run_cli("targets")
         self.assertEqual(result.returncode, 0)
         self.assertEqual(value["targets"][0]["logicalTarget"], "fixture")
+        self.assertEqual(
+            value["targets"][0]["controllerPlatform"],
+            machine_control.controller_platform(),
+        )
+        self.assertTrue(value["targets"][0]["controllerSupported"])
+        self.assertTrue(value["targets"][0]["adapterAvailable"])
         self.assertNotIn("command", value["targets"][0])
         self.assertNotIn(str(self.directory), result.stdout)
 
@@ -211,6 +232,76 @@ class ClientTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2)
         self.assertEqual(value["errorCode"], "target_not_found")
+
+    def test_unsupported_controller_refuses_before_adapter_lookup(self):
+        current = machine_control.controller_platform()
+        unsupported = next(
+            value
+            for value in ("darwin", "linux", "windows")
+            if value != current
+        )
+        missing = self.directory / "must-not-be-executed"
+        self.write_registry(
+            "linux",
+            controller_platforms=[unsupported],
+            command=[str(missing)],
+        )
+        listed, listing = self.run_cli("targets")
+        self.assertEqual(listed.returncode, 0)
+        self.assertFalse(listing["targets"][0]["controllerSupported"])
+        self.assertFalse(listing["targets"][0]["adapterAvailable"])
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "status"
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(
+            value["errorCode"], "controller_platform_unsupported"
+        )
+
+    def test_python_launcher_uses_active_interpreter(self):
+        command = machine_control.launcher_command([str(MOCK)], "python")
+        self.assertEqual(command, [sys.executable, str(MOCK)])
+
+    def test_powershell_launcher_is_explicit(self):
+        with mock.patch(
+            "machine_control.shutil.which",
+            side_effect=lambda name: "/fixture/pwsh" if name == "pwsh" else None,
+        ):
+            command = machine_control.launcher_command(
+                ["fixture.ps1", "argument"], "powershell"
+            )
+        self.assertEqual(
+            command,
+            [
+                "/fixture/pwsh",
+                "-NoLogo",
+                "-NoProfile",
+                "-File",
+                "fixture.ps1",
+                "argument",
+            ],
+        )
+
+    def test_bash_launcher_is_explicit(self):
+        with mock.patch(
+            "machine_control.shutil.which",
+            return_value="/fixture/bash",
+        ):
+            command = machine_control.launcher_command(
+                ["fixture.sh", "argument"], "bash"
+            )
+        self.assertEqual(
+            command, ["/fixture/bash", "fixture.sh", "argument"]
+        )
+
+    def test_direct_launcher_preserves_command(self):
+        with mock.patch(
+            "machine_control.path_command_available", return_value=True
+        ):
+            command = machine_control.launcher_command(
+                ["fixture-command", "argument"], "direct"
+            )
+        self.assertEqual(command, ["fixture-command", "argument"])
 
 
 if __name__ == "__main__":
