@@ -23,6 +23,8 @@ WINVM_BOOT_TIMEOUT=120
 WINVM_SHUTDOWN_TIMEOUT=120
 WINVM_GUEST_SHUTDOWN_GRACE=30
 WINVM_POST_UPDATE_REPORT_TIMEOUT=45
+# Per portable/native guest process; the native three-project build can be slow.
+WINVM_CERTIFY_CHECK_TIMEOUT=1200
 # Override only when OpenSSH clients are not on PATH.
 WINVM_SSH_BIN=ssh
 WINVM_SCP_BIN=scp

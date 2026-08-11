@@ -143,6 +143,9 @@ epoch and common-doctor readiness, transfers a digest-bound archive of the
 exact commit, runs portable and Windows-native checks in the guest, removes
 staging, and cleanly shuts down only on success. Failure leaves the appliance
 running for diagnosis and never creates another VM.
+Each portable or native guest check has a configurable supervised-process
+timeout (20 minutes by default); timeout cleanup targets only that check's
+process tree and the unique certification staging directory.
 
 ## 5. Install the Optional WinApp Comparison Relay
 

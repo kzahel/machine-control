@@ -397,6 +397,12 @@ if [[ -f "$temporary/certify-stopped" ]]; then
     printf 'Failed appliance certification unexpectedly shut down the target.\n' >&2
     exit 1
 fi
+if env "${certify_environment[@]}" WINVM_CERTIFY_CHECK_TIMEOUT=invalid \
+        "$REPO_DIR/bin/winvm" appliance-certify --json \
+        >/dev/null 2>&1; then
+    printf 'Appliance certification accepted an invalid check timeout.\n' >&2
+    exit 1
+fi
 
 if env "${post_update_environment[@]}" \
         WINVM_UTMCTL=/usr/bin/true \

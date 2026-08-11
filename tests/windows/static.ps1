@@ -37,6 +37,11 @@ foreach ($project in $projects) {
     if ($LASTEXITCODE -ne 0) {
         throw "dotnet build failed for $project"
     }
+    & dotnet format (Join-Path $Repository $project) `
+        --verify-no-changes --no-restore --verbosity minimal
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet format verification failed for $project"
+    }
 }
 
-Write-Output 'Windows native static and build checks passed'
+Write-Output 'Windows native static, build, and format checks passed'

@@ -45,6 +45,14 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if [[ ! "$WINVM_CERTIFY_CHECK_TIMEOUT" =~ ^[0-9]+$ ||
+    "$WINVM_CERTIFY_CHECK_TIMEOUT" -lt 60 ||
+    "$WINVM_CERTIFY_CHECK_TIMEOUT" -gt 3600 ]]; then
+    printf 'WINVM_CERTIFY_CHECK_TIMEOUT must be 60-3600 seconds.\n' >&2
+    exit 2
+fi
+readonly check_timeout_ms=$((WINVM_CERTIFY_CHECK_TIMEOUT * 1000))
+
 for tool in git jq shasum iconv base64 "$WINVM_SSH_BIN" "$WINVM_SCP_BIN"; do
     winvm_require_command "$tool"
 done
@@ -155,6 +163,19 @@ $result = [ordered]@{
     staging_removed = $false
     failure = $null
 }
+function Stop-CheckTree {
+    param([Parameter(Mandatory = $true)]$Process)
+    try {
+        $killer = Start-Process -FilePath taskkill.exe `
+            -ArgumentList @('/PID', "$($Process.Id)", '/T', '/F') `
+            -Wait -PassThru -WindowStyle Hidden
+        if ($killer.ExitCode -ne 0) { throw 'taskkill failed' }
+    }
+    catch {
+        Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
+    }
+    [void]$Process.WaitForExit(10000)
+}
 try {
     $result.failure = 'source_digest_failed'
     $digest = (Get-FileHash -Algorithm SHA256 `
@@ -171,9 +192,14 @@ try {
     $result.failure = 'portable_execution_failed'
     $portable = Start-Process -FilePath $python `
         -ArgumentList @('-3', 'bin\check', '--portable') `
-        -WorkingDirectory $source -Wait -PassThru -NoNewWindow `
+        -WorkingDirectory $source -PassThru -NoNewWindow `
         -RedirectStandardOutput (Join-Path $stage 'portable.out.log') `
         -RedirectStandardError (Join-Path $stage 'portable.err.log')
+    if (-not $portable.WaitForExit(__CHECK_TIMEOUT_MS__)) {
+        Stop-CheckTree -Process $portable
+        $result.failure = 'portable_checks_timeout'
+        throw 'portable checks timed out'
+    }
     if ($portable.ExitCode -ne 0) {
         $result.failure = 'portable_checks_failed'
         throw 'portable checks failed'
@@ -182,9 +208,14 @@ try {
     $result.failure = 'native_execution_failed'
     $native = Start-Process -FilePath $python `
         -ArgumentList @('-3', 'bin\check', '--native') `
-        -WorkingDirectory $source -Wait -PassThru -NoNewWindow `
+        -WorkingDirectory $source -PassThru -NoNewWindow `
         -RedirectStandardOutput (Join-Path $stage 'native.out.log') `
         -RedirectStandardError (Join-Path $stage 'native.err.log')
+    if (-not $native.WaitForExit(__CHECK_TIMEOUT_MS__)) {
+        Stop-CheckTree -Process $native
+        $result.failure = 'native_checks_timeout'
+        throw 'native checks timed out'
+    }
     if ($native.ExitCode -ne 0) {
         $result.failure = 'native_checks_failed'
         throw 'native checks failed'
@@ -206,6 +237,7 @@ if (-not $result.healthy -or -not $result.staging_removed) { exit 1 }
 POWERSHELL
 guest_checks="${guest_checks//__REMOTE_STAGE__/$remote_stage_name}"
 guest_checks="${guest_checks//__SOURCE_DIGEST__/$source_digest}"
+guest_checks="${guest_checks//__CHECK_TIMEOUT_MS__/$check_timeout_ms}"
 set +e
 guest_result="$(remote_powershell "$guest_checks")"
 guest_status=$?

@@ -18,13 +18,15 @@ The public-ISO-to-new-base boundary is complete in
 
 **Current:**
 [`Tactical 020`](../docs/tactical/020-windows-post-update-and-appliance-certification.md)
-is implementing minimized post-update audit and bounded candidate-only repair,
-a reproducible Python 3/.NET 8 development bootstrap profile, and explicit
-on-demand appliance certification. The guest contract checks actual resident
-and Medium-helper readiness in addition to automatic services. Its UTM
-guest-agent fallback requires a fresh nonce-bound report and subsequent SSH
-and full-doctor readiness because guest execution status alone has produced
-false success.
+completed minimized post-update audit and bounded candidate-only repair, a
+reproducible Python 3/.NET 8 development bootstrap profile, and explicit
+on-demand appliance certification. Live acceptance passed a healthy repair,
+changed-epoch reboot, exact-archive portable/native guest checks, staging
+removal, and clean shutdown on the retained appliance. The guest contract
+checks actual resident and Medium-helper readiness in addition to automatic
+services. Its UTM guest-agent fallback requires a fresh nonce-bound report and
+subsequent SSH and full-doctor readiness because guest execution status alone
+has produced false success.
 
 **Current:** [`Tactical 018`](../docs/tactical/018-appliance-readiness-and-promotion.md)
 reused one retained stateful candidate rather than creating another large VM.

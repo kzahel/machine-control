@@ -1,6 +1,6 @@
 # Tactical 020: Windows Post-Update and Appliance Certification
 
-Status: active.
+Status: complete.
 
 Topics: `windows-resident-control`, `target-lifecycle-and-readiness`, and
 `cross-platform-coordinator`.
@@ -134,4 +134,52 @@ coherent stages, push, and verify hosted CI.
 
 ## Result
 
-In progress.
+Completed on 2026-08-11 without creating, cloning, snapshotting, deriving, or
+deleting a VM. The existing private-inventory candidate remained the only
+stateful Windows appliance and was left cleanly stopped. No workspace receipt
+was acquired.
+
+The published resident now carries a guest-native
+`machine-control-windows-post-update/v0` script. Its minimized development
+audit independently passed automatic QEMU guest agent and OpenSSH service
+state, key-only SSH options and configuration validation, restricted key
+material, the exact TCP/22 firewall rule, automatic LocalSystem resident
+service, the Medium interactive probe, Python 3, .NET 8, clear pending-reboot
+state, and the optional installed WinApp relay. The host orchestration adds the
+full common doctor, refuses to start a stopped target for audit, restricts
+repair to an exact candidate, and keeps reboot explicit.
+
+The live healthy candidate passed one no-reboot idempotent repair through
+key-only SSH with no required failure and a ready final doctor. Fixture
+acceptance separately proved the guest-agent fallback when the simulated
+`utmctl exec` status disagreed with the nonce-bound report, rejected a nonce
+mismatch, and verified that SSH plus full doctor readiness remain required.
+Repair installs no missing component, reads no credential, invokes no outer
+input, and never clears pending-reboot evidence.
+
+`scripts/bootstrap-windows.sh` now defaults to a `development` profile that
+idempotently verifies or installs the declared Python 3 and .NET 8 SDK WinGet
+packages before resident installation; `runtime` remains explicit. The live
+candidate already had both packages, and transactional ARM64 deployment
+verified the resident and provider digests, automatic LocalSystem service,
+Medium helper, Cua/native provider inventory, and staging removal. The
+unattended first-logon factory also now makes the installed QEMU guest agent
+automatic; network package acquisition remains in the authenticated,
+target-attested controller bootstrap rather than one-use answer media.
+
+The final certification accepted exact commit `9f3dd01`: its archive matched
+SHA-256 inside Windows, a changed boot epoch returned all post-update and full
+doctor checks with a new resident generation, portable and Windows-native
+checks passed, guest staging was removed, and the candidate cleanly shut down.
+Earlier fail-closed attempts exposed and fixed the need for a per-process
+PowerShell bypass, PowerShell 5.1 empty-collection binding, typed safe failure
+projection, and isolation of normal native stderr from PowerShell error-record
+semantics. Failed attempts left the candidate running and reported zero stale
+certification staging. The final runner also bounds each supervised portable
+or native guest process with a configurable 20-minute default and kills only
+that process tree on timeout.
+
+Portable checks, Windows provider smoke and target-safety fixtures, macOS
+native checks, Windows ARM64/x64 publishes, .NET formatting, and hosted CI
+complete the final validation record. Public results contain no concrete
+target name, identity, endpoint, account, or private inventory path.
