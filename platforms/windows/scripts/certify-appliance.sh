@@ -213,7 +213,25 @@ if ! jq -e '.schema ==
         .healthy == true and .source_digest_match == true and
         .portable_checks == "passed" and .native_checks == "passed" and
         .staging_removed == true' <<<"$guest_result" >/dev/null 2>&1; then
-    printf 'Guest source certification failed (status %s).\n' "$guest_status" >&2
+    if jq -e '.schema ==
+            "machine-control-windows-appliance-guest-certification/v0"' \
+            <<<"$guest_result" >/dev/null 2>&1; then
+        jq -cn --argjson guest "$guest_result" '{
+            schema:"machine-control-windows-appliance-certification/v0",
+            healthy:false,
+            failed_stage:"guest_checks",
+            guest_checks:$guest,
+            final_power:"running"
+        }'
+    else
+        jq -cn --arg status "$guest_status" '{
+            schema:"machine-control-windows-appliance-certification/v0",
+            healthy:false,
+            failed_stage:"guest_report",
+            guest_status:$status,
+            final_power:"running"
+        }'
+    fi
     exit 1
 fi
 
