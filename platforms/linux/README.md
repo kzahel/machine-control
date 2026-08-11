@@ -38,8 +38,7 @@ cd ~/code/machine-control/platforms/linux
 # Copy config.example to ignored config.local, then bind the selected VM's
 # exact name and UUID with LINUXVM_TARGET_ROLE=candidate.
 bin/linuxvm up
-bin/linuxvm deploy-ui
-bin/linuxvm deploy-resident
+bin/linuxvm bootstrap --profile development
 bin/linuxvm doctor
 ```
 
@@ -57,6 +56,7 @@ remains available without that authority.
 bin/linuxvm doctor
 bin/linuxvm doctor --json
 bin/linuxvm candidate-status --json
+bin/linuxvm post-update audit --profile development --json
 bin/linuxvm status
 bin/linuxvm exec -- uname -a
 bin/linuxvm user-exec -- id
@@ -72,6 +72,14 @@ bin/linuxvm control \
 bin/linuxvm ip
 bin/linuxvm suspend
 ```
+
+`bootstrap --profile development` is the normal idempotent setup for a
+stateful development appliance after the guest-agent channel exists. It adds
+Git, the Ubuntu build toolchain, and Python virtual-environment support to the
+runtime UI/control packages, deploys the exact checked-in resident and
+post-update support, and requires a healthy final audit and doctor. Select
+`runtime` explicitly for the smaller control-only package set. Neither profile
+performs a distribution upgrade or changes update policy.
 
 Guest execution is root because QEMU's guest agent is a hypervisor management
 channel. `user-exec` deliberately switches to the active logged-in user and
@@ -191,6 +199,52 @@ tests/smoke.sh
 tests/gnome-acceptance.sh
 ```
 
+## Post-update Maintenance And Certification
+
+The minimized post-update audit is read-only and refuses to start a stopped
+target before invoking QEMU guest-agent execution:
+
+```bash
+bin/linuxvm post-update audit --profile development --json
+```
+
+It reports only stable states for dpkg consistency, the reboot-required
+marker, the declared package profile, QEMU and SPICE agents, the active GNOME
+Wayland session, the root input broker, the active-user resident, and the
+target-native status probe. It omits the desktop account, target identity,
+address, package versions and sources, paths, and boot ID. The common doctor
+is still required; active systemd units alone are not readiness.
+
+After an explicitly managed Ubuntu update, request the bounded repair only
+when the audit identifies a startup invariant:
+
+```bash
+bin/linuxvm post-update repair --profile development --json
+bin/linuxvm post-update repair --profile development --reboot --json
+```
+
+Repair is exact-candidate-only. It can start or enable only the installed
+SPICE, input-broker, and resident units, and can start—but never enable—the
+static device-activated QEMU guest-agent unit. It installs no package, clears
+no reboot marker, changes no login or update policy, handles no credential,
+and invokes no outer UI. Reboot remains explicit; success means the provider
+observed a changed boot ID and the final audit plus common doctor are healthy.
+A missing guest agent cannot repair itself through this route; follow the
+visible recovery runbook.
+
+The heavier retained-image acceptance is on demand:
+
+```bash
+bin/linuxvm appliance-certify --profile development --json
+```
+
+Certification requires a clean committed source tree and the exact candidate.
+It audits without repair, performs one boot-ID-observed reboot, transfers a
+digest-bound `git archive`, runs portable and Linux-native checks inside the
+guest with bounded timeouts, removes unique staging, and cleanly shuts down
+only after full success. A failed candidate remains running for diagnosis; the
+command never creates a clone or workspace.
+
 On this Ubuntu 24.04/GNOME 46 image, Settings publishes meaningful AT-SPI
 labels but zero-sized widget bounds. The accepted profile therefore maximizes
 its fixed 1280x800 appliance display, grounds with a target-native capture,
@@ -278,7 +332,7 @@ Open automation gaps found while driving real applications are tracked in
 bin/linuxvm                     Main agent-facing CLI
 bin/linuxui                     Guest AT-SPI wrapper
 providers/utm-macos/            Lifecycle, capture, files, and raw input
-guests/ubuntu/bootstrap/        Existing-image integration packages
+guests/ubuntu/bootstrap/        Package profiles and post-update support
 guests/ubuntu/ui/linuxui.py     Semantic accessibility helper
 guests/ubuntu/ui/linuxcontrol.py Persistent resident and socket client
 scripts/                        Deployment and diagnostics
@@ -300,6 +354,7 @@ Guest:
 - `qemu-guest-agent` and `spice-vdagent`
 - Python 3, PyGObject, PyQt5, the AT-SPI introspection data,
   `gnome-screenshot`, `python3-evdev`, and `wl-clipboard`
+- For the development profile: Git, `build-essential`, and `python3-venv`
 - A stable configured display size (1280×800 by default)
 
 SSH is optional and inactive on the original guest. It is not part of the

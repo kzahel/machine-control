@@ -128,6 +128,15 @@ If an adapter reports start failure, the client still performs the final
 read-only doctor and keeps reported delivery separate from the independently
 observed ready or unready effect.
 
+**Current:** Platform-owned post-update commands now complement, rather than
+weaken, that common read-only contract. Windows and Linux each expose a
+minimized audit, exact-candidate bounded repair, explicit reboot observation,
+and a heavier exact-source certification command. Linux refuses a stopped
+audit before its guest-agent transport can auto-start the target and treats a
+missing guest agent as a separate recovery boundary. These commands remain
+platform-owned because systemd/dpkg and Windows service/OpenSSH invariants are
+not one portable repair vocabulary.
+
 **Current:** `target validate-candidate` requires an exact adapter-side
 candidate-role and identity assertion with no workspace receipt ownership,
 then obtains a fresh running-ready doctor observation. It is evidence, not

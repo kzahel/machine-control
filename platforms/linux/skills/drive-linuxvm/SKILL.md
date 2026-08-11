@@ -85,6 +85,21 @@ report `stopped`; a successful return is a terminal lifecycle boundary.
 Use `force-stop` only for explicit recovery. Never delete, replace, revert, or
 reset a VM without user authorization.
 
+After the guest-agent route exists, prefer the declared appliance lifecycle:
+
+```bash
+bin/linuxvm bootstrap --profile development --json
+bin/linuxvm post-update audit --profile development --json
+bin/linuxvm post-update repair --profile development --reboot --json
+```
+
+Audit is read-only and refuses a stopped target. Repair is exact-candidate-only
+and may restore only installed service invariants; it does not install updates,
+change policy, use credentials or outer UI, or hide a reboot requirement. A
+missing guest agent remains a visible recovery boundary. Use
+`appliance-certify` only for an explicit clean-tree retained-image acceptance;
+it reboots, runs exact-source checks, and shuts down only on complete success.
+
 Read `docs/ui-automation.md` for Wayland, application-root, and input details.
 Read `docs/architecture.md` before changing provider, completion-sentinel,
 identity, coordinate, or lifecycle behavior.

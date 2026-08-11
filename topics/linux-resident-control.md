@@ -30,6 +30,18 @@ clean stopped promotion handoff and passed a disposable-marker outcome. A live
 restart also exposed and fixed the bounded provider race in which guest
 execution preceded UTM's first IPv4 result.
 
+**Current:** Tactical 021 adds a Linux-native maintenance surface around that
+accepted shape. A nonce-bound minimized audit checks dpkg consistency, pending
+reboot, declared runtime/development packages, QEMU/SPICE support, the GNOME
+Wayland session, resident, input broker, and target-native status before the
+common doctor. Its exact-candidate repair changes only installed systemd
+startup invariants and keeps a missing guest agent as an explicit recovery
+boundary. On-demand certification audits without repair, uses the provider's
+changed-boot-ID reboot proof, runs an archive of exact committed source inside
+Ubuntu, cleans staging, and stops only after success. Dependency-light policy
+fixtures cover the current contract; retained-appliance rehearsal remains the
+last Tactical 021 acceptance step.
+
 ## Current goal
 
 **Decision:** Keep this accepted GNOME Wayland profile stable while extending
@@ -75,5 +87,7 @@ GDM, lock screen, encrypted preboot, absent-user sessions, other compositors,
 and physical hardware remain separate authority and compatibility profiles.
 The completed execution record is
 [`Tactical 012`](../docs/tactical/012-linux-gnome-wayland-resident-control.md),
+the maintenance execution record is
+[`Tactical 021`](../docs/tactical/021-linux-post-update-and-appliance-certification.md),
 and exact differential evidence lives in the
 [Linux findings](../../machine-control-spike/docs/linux-findings.md).

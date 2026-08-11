@@ -75,9 +75,18 @@ bin/linuxvm exec -- id
 The expected command identity is root. The exact original address was dynamic
 and is not part of the configuration contract.
 
-After the agent works, the complete idempotent guest bootstrap is available at
-`guests/ubuntu/bootstrap/bootstrap-guest.sh`. Stage or run it through the
-guest-agent channel rather than retyping the long command.
+After the agent works, use the candidate-only host bootstrap rather than
+retyping or manually staging the complete guest script:
+
+```bash
+bin/linuxvm bootstrap --profile development --json
+```
+
+The `development` profile installs the runtime control packages plus Git,
+`build-essential`, and `python3-venv`, then deploys the checked-in resident and
+post-update support and requires a healthy audit and doctor. Use `runtime`
+explicitly for a control-only appliance. The underlying idempotent guest
+script remains at `guests/ubuntu/bootstrap/bootstrap-guest.sh`.
 
 ## 3 — Deploy Semantic Wayland Automation
 
@@ -148,8 +157,24 @@ change and for the guest agent to return:
 bin/linuxvm reboot
 ```
 
-Then rerun `deploy-ui` and `doctor`. Confirm auto-login, Wayland, SPICE, AT-SPI,
-the new kernel, and the idle-lock settings.
+Then use the post-update surface rather than inferring health from service
+manager state:
+
+```bash
+bin/linuxvm post-update audit --profile development --json
+bin/linuxvm post-update repair --profile development --reboot --json
+```
+
+Audit never starts a stopped target and never changes it. Repair is restricted
+to the exact candidate and only restores installed QEMU/SPICE, input-broker,
+and active-user resident startup invariants. It does not install packages,
+clear `/var/run/reboot-required`, change update or login policy, or use outer
+input. `--reboot` is opt-in and succeeds only after the provider observes a
+changed boot ID and both the final audit and common doctor are healthy.
+
+If no reboot is required, omit `--reboot`; a healthy idempotent repair should
+report every enumerated invariant as already satisfied. Confirm auto-login,
+Wayland, SPICE, AT-SPI, the expected kernel, and the idle-lock settings.
 
 ## Display Geometry
 
@@ -167,6 +192,9 @@ the guest back to a stable mode before relying on coordinates.
 5. The smallest necessary user action for passwords or authentication
 
 ### Guest agent missing after reboot
+
+`post-update repair` cannot repair the QEMU guest-agent transport through that
+same missing transport. This is an explicit recovery boundary.
 
 Open Terminal with `key ctrl-alt-t`, then run:
 
