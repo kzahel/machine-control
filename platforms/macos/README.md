@@ -48,6 +48,7 @@ The final authorization opens an explicit guest macOS consent flow. Follow
 
 ```bash
 bin/macvm doctor
+bin/macvm doctor --json
 bin/macvm up
 bin/macvm exec /usr/bin/sw_vers
 bin/macvm control '{"operation":"capabilities"}'
@@ -97,6 +98,12 @@ repository's
 [`Tactical 010`](../machine-control/docs/tactical/010-macos-full-aqua-software-testing.md);
 the Java/Electron closure is
 [`Tactical 011`](../machine-control/docs/tactical/011-macos-java-electron-framework-coverage.md).
+
+`doctor --json` emits the minimized `machine-control-doctor/v0` projection for
+the common client. It reports independent power, administration, Aqua desktop,
+resident, semantic, capture, input, and outer states without publishing the
+configured machine identity, guest user, or network address. It is read-only
+and exits nonzero when the accepted resident surface is not ready.
 
 Set `MACVM_FORBID_OUTER_UI=true` for ordinary software-test acceptance. In
 that mode, Tart-window screenshot, click, drag, type, and key commands fail

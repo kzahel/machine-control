@@ -11,7 +11,7 @@ usage() {
 Usage: macvm COMMAND [ARG...]
 
 Start here:
-  doctor                 Check Tart, guest agent, desktop, capture, and UI access
+  doctor [--json]        Check Tart, guest agent, desktop, capture, and UI access
   up                     Start/resume the VM and print its current IPv4 address
   exec COMMAND [ARG...]  Run a command through the Tart guest agent
   shell                  Open an interactive zsh through the Tart guest agent
@@ -76,7 +76,12 @@ shift || true
 
 case "$command" in
     help|-h|--help) usage ;;
-    doctor) exec "$REPO_DIR/scripts/doctor.sh" "$@" ;;
+    doctor)
+        if [[ "${1:-}" == "--json" ]]; then
+            exec "$REPO_DIR/scripts/doctor-json.sh"
+        fi
+        exec "$REPO_DIR/scripts/doctor.sh" "$@"
+        ;;
     deploy-ui) exec "$REPO_DIR/scripts/deploy-ui.sh" "$@" ;;
     deploy-fixture) exec "$REPO_DIR/scripts/deploy-fixture.sh" "$@" ;;
     deploy-admin-fixture) exec "$REPO_DIR/scripts/deploy-admin-fixture.sh" "$@" ;;

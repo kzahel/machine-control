@@ -30,6 +30,7 @@ for script in \
     scripts/remove-java-fixture.sh \
     scripts/submit-authorization.sh \
     scripts/fetch-artifact.sh \
+    scripts/doctor-json.sh \
     scripts/doctor.sh \
     guests/macos/ui/machine-control \
     guests/macos/bootstrap/bootstrap-guest.sh; do
@@ -86,6 +87,8 @@ for command in click drag type key; do
 done
 MACVM_FORBID_OUTER_UI=true bin/macvm status >/dev/null
 bin/macvm doctor
+bin/macvm doctor --json | /usr/bin/jq -e \
+    '.schema == "machine-control-doctor/v0" and .ready == true' >/dev/null
 
 artifact_dir="$REPO_DIR/.artifacts/smoke"
 /bin/mkdir -p "$artifact_dir"
