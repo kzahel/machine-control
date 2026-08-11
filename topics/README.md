@@ -33,6 +33,9 @@ its `Topic:` trailers.
 - [`architecture.md`](architecture.md): target-native component, provisional
   provider composition, fork/replacement gates, trust, deployment-profile,
   facade, and failure-boundary decisions.
+- [`android-family-control.md`](android-family-control.md): shared ADB provider
+  primitives, distinct Android-handheld and Quest profiles, protected phone
+  unlock, evidence, and remaining semantic/profile work.
 - [`capabilities-and-results.md`](capabilities-and-results.md): common
   capability, observation, action, uncertainty, and conformance vocabulary.
 - [`cross-platform-coordinator.md`](cross-platform-coordinator.md): portable
@@ -42,6 +45,9 @@ its `Topic:` trailers.
   coordination and the separation between agent placement and control target.
 - [`inner-first-routing.md`](inner-first-routing.md): ordinary resident routes,
   explicit outer recovery, and host-interference policy.
+- [`ios-device-control.md`](ios-device-control.md): adopted CoreDevice/XCTest
+  physical-device control, common readiness, protected-authentication
+  boundaries, and unattended reboot evidence.
 - [`linux-resident-control.md`](linux-resident-control.md): accepted Ubuntu
   GNOME Wayland logged-in appliance and remaining compositor, portal,
   protected-plane, and physical-hardware profiles.

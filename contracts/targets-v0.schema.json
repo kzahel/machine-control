@@ -17,7 +17,7 @@
         "properties": {
           "platform": {
             "enum": [
-              "windows", "macos", "linux", "chromeos", "ios", "quest",
+              "windows", "macos", "linux", "chromeos", "ios", "android", "quest",
               "steamdeck"
             ]
           },

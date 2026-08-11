@@ -108,6 +108,12 @@ reverse-remove LOCAL           Remove an ADB reverse mapping
 shell [--] COMMAND [ARG...]    Run an explicit Quest shell command
 ```
 
+`doctor --json` emits a minimized `machine-control-doctor/v0` document for the
+common outer `target status|doctor|capabilities` surface. It identifies Quest
+as an Android-family XR headset while preserving headset-specific lifecycle,
+proximity, battery, and lease policy here. It omits the serial, controller, and
+lease-owner details retained by the human-oriented doctor.
+
 `sleep` means Android sleep/standby, not a full shutdown. Android defines
 `KEYCODE_SLEEP` and `KEYCODE_WAKEUP` as idempotent sleep and wake keys. A full
 shutdown is intentionally absent because ADB cannot power a shut-down Quest

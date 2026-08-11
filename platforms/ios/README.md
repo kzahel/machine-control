@@ -104,6 +104,7 @@ probe [--json]                 Stable read-only connection state
 status [--json]                Device, matching build-cache, and lease status
 doctor [--json]                Xcode, signing, device, unlock, and runner checks
 prepare                        Build/sign/install/health-check the XCTest runner
+reboot [--timeout SECONDS]     Full CoreDevice reboot and reconnect wait
 session -- COMMAND             Run under an exclusive recoverable device lease
 recover [--force]              Stop the dedicated daemon and clear a stale lease
 
@@ -124,6 +125,14 @@ agent -- ARGS                  Explicit pinned Agent Device passthrough
 The common commands add `--platform ios` and the selected physical device
 automatically. The `agent` escape hatch does the same; use it only when the
 pinned Agent Device help documents a command that the wrapper does not alias.
+
+`doctor --json` emits the minimized `machine-control-doctor/v0` device
+projection used by common `target status`, `target doctor`, and `target
+capabilities` calls. `reboot` stops only testbed-owned runner state,
+holds the device lease, requests a full CoreDevice reboot, and waits for the
+physical phone to return. Reconnection does not imply that XCTest is usable:
+the common doctor keeps runner authentication `unverified_until_launch` and
+does not automate a passcode or biometric gate.
 
 ## State and trust boundary
 

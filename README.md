@@ -29,7 +29,7 @@ matches the question:
   canonical public platform sources, private inventory, history-preserving
   cutovers, and optional generated testbed distributions.
 - [Platform implementations](platforms/README.md): canonical Windows, macOS,
-  Linux, ChromeOS, iOS, Quest, and Steam Deck source trees.
+  Linux, ChromeOS, iOS, Android, Quest, and Steam Deck source trees.
 - [Windows runtime](#windows-runtime): the first resident implementation,
   build/install workflow, contract, and conformance entry points.
 - [macOS runtime](#macos-runtime): the accepted Tart resident slice, including
@@ -233,13 +233,16 @@ outside session --target winvm ----> Windows-resident control
 The Windows-first implementation focus must preserve and build on working
 device routes already in the system:
 
-- **iOS is already a first-class physical-device target.** Dotfiles discovers
-  the configured phone and routes agents to the authoritative iOS testbed,
-  which uses CoreDevice and a semantic XCTest runner for lifecycle,
-  observation, actions, leases, and recovery.
-- **Android begins with ADB.** Reuse its installation, shell, lifecycle,
-  screenshot, input, logging, and UIAutomator/accessibility facilities. Add an
-  adapter and consistent ergonomics only where needed; do not replace ADB.
+- **iOS is already a first-class physical-device target.** Private inventory
+  discovers the configured phone and routes agents to the canonical iOS
+  platform adapter, which uses CoreDevice and a semantic XCTest runner for
+  lifecycle, observation, actions, leases, and recovery. Its common doctor is
+  adopted; unattended full-reboot reconnect remains an evidenced gap.
+- **Android begins with ADB.** The canonical physical-handheld adapter and
+  Quest now share neutral ADB discovery/transport while retaining distinct
+  keyguard, lifecycle, and safety policy. Android installation, shell,
+  lifecycle, screenshot, input, logging, and UIAutomator/accessibility remain
+  native facilities rather than functionality this project reimplements.
 - **Quest, Steam Deck, and future physical targets remain in scope.** Their
   authoritative testbeds should expose native capabilities honestly while
   sharing the same target-selection experience where possible.
@@ -280,13 +283,13 @@ and platform testbed implementation. Existing external testbed repositories
 are legacy after their completed cutovers. Private concrete inventory remains
 in dotfiles, and YepAnywhere retains agent-session coordination.
 
-## Common desktop entry
+## Common target and desktop entry
 
 **Current:** [`bin/machine-control`](bin/machine-control) provides one local
 target-selecting lifecycle, readiness, and resident-control entry point for
-the accepted Windows, macOS, and Linux desktops, plus explicit native entry
-points for ChromeOS, iOS, Quest, and Steam Deck. Portable defaults resolve the
-seven in-repository platform CLIs. On a configured controller, an optional
+the accepted Windows, macOS, and Linux desktops, common outer readiness for
+Android, iOS, and Quest devices, plus explicit native entry points for every
+platform. Portable defaults resolve the eight in-repository platform CLIs. On a configured controller, an optional
 private inventory provider supplies concrete selectors and environment without
 exposing them in the portable target list.
 
@@ -304,6 +307,8 @@ bin/machine-control --target macos desktop snapshot \
   --target org.example.Application --query Save
 bin/machine-control --target linux desktop capture \
   --scope window --target active_window
+bin/machine-control --target android target doctor
+bin/machine-control --target ios target capabilities
 bin/machine-control --target chromeos testbed -- doctor
 ```
 
@@ -316,9 +321,13 @@ result preserves the resident's actual operation, provider route, delivery,
 effect, uncertainty, generation, and host-interference report while adding a
 separate client/transport projection.
 
-Native device targets deliberately refuse unsupported common lifecycle or
-desktop operations. Use private `inventory` for configured availability and
-the explicit `testbed --` namespace for their platform-native commands.
+Android, iOS, and Quest project connection, boot, interaction, runner,
+semantic, capture, input, and device-host route state through the common
+doctor. The common client derives their `status` and `capabilities`, and only
+dispatches lifecycle operations declared by the selected adapter. Native
+device targets still refuse common desktop operations; use the explicit
+`testbed --` namespace for platform-specific application, UI, protected, and
+recovery commands.
 
 Use `testbed --` and `os --` for explicit machine-specific lifecycle,
 bootstrap, recovery, or administration. Ordinary `desktop` operations never

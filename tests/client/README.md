@@ -20,3 +20,9 @@ setup, independent-effect reads, and cleanup through the explicit `testbed` or
 snapshot, action, capture, and artifact operations all use the common client.
 Every run forces the relevant outer-UI prohibition and emits one minimized
 `machine-control-common-desktop-conformance/v0` result.
+
+Dependency-free tests also cover the common outer device projection: native
+Android, iOS, and Quest adapters may expose `target status`, `target doctor`,
+and `target capabilities` through `machine-control-doctor/v0` without claiming
+a desktop/resident process. A device lifecycle mutation is dispatched only
+when that doctor declares the exact operation.

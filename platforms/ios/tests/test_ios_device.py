@@ -143,6 +143,51 @@ class CommandTests(unittest.TestCase):
         )
         self.assertNotIn("AGENT_DEVICE_IOS_TEAM_ID", env)
 
+    @mock.patch("ios_device.runner_cache_available", return_value=True)
+    @mock.patch(
+        "ios_device.lock_state",
+        return_value={"passcodeRequired": False, "unlockedSinceBoot": True},
+    )
+    @mock.patch("ios_device.discover_selected_device", return_value=fake_device())
+    def test_common_doctor_is_device_shaped_and_minimized(
+        self,
+        _device: mock.Mock,
+        _lock: mock.Mock,
+        _cache: mock.Mock,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = self.config(Path(directory))
+            checks = [ios_device.Check("device", "ok", "private device detail")]
+            document = ios_device.common_doctor_document(config, checks)
+        self.assertEqual(document["target"]["kind"], "device")
+        self.assertEqual(document["states"]["connection"], "ready")
+        self.assertNotIn("private device detail", json.dumps(document))
+        self.assertNotIn("PRIVATE-DEVICE-ID", json.dumps(document))
+
+    @mock.patch("ios_device.release_lease")
+    @mock.patch("ios_device.acquire_lease")
+    @mock.patch("ios_device.stop_daemon")
+    @mock.patch("ios_device.devicectl_json", return_value={"result": {}})
+    @mock.patch("ios_device.discover_selected_device", return_value=fake_device())
+    @mock.patch("ios_device.selected_device_name", return_value="iPhone")
+    def test_reboot_waits_for_physical_device_reconnect(
+        self,
+        _name: mock.Mock,
+        _device: mock.Mock,
+        devicectl: mock.Mock,
+        _stop: mock.Mock,
+        acquire: mock.Mock,
+        _release: mock.Mock,
+    ) -> None:
+        acquire.return_value = ios_device.Lease(
+            "token", 1, "controller", "command", "session", "now"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            result = ios_device.reboot_device(self.config(Path(directory)), 90)
+        self.assertEqual(result, 0)
+        self.assertIn("--wait-for-device", devicectl.call_args.args[0])
+        self.assertIn("90", devicectl.call_args.args[0])
+
     def test_runner_cache_matches_version_team_and_bundle(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

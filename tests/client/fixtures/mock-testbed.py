@@ -16,25 +16,39 @@ if command == "doctor" and arguments[1:] == ["--json"]:
         print('{"schema":"wrong"}')
         raise SystemExit(1)
     ready = not bool(os.environ.get("MACHINE_CONTROL_MOCK_NOT_READY"))
+    target_platform = os.environ.get(
+        "MACHINE_CONTROL_MOCK_PLATFORM", "linux"
+    )
+    is_device = target_platform in {"android", "ios", "quest"}
+    states = {
+        "power": "running" if ready else "off",
+        "administration": "ready" if ready else "unavailable",
+        "semantic": "ready" if ready else "unavailable",
+        "capture": "ready" if ready else "unavailable",
+        "input": "ready" if ready else "unavailable",
+        "outer": "ready" if is_device else "prohibited"
+    }
+    if is_device:
+        states.update({
+            "connection": "ready" if ready else "unavailable",
+            "boot": "ready" if ready else "unavailable",
+            "interaction": "unlocked" if ready else "unknown",
+            "runner": "ready" if ready else "unavailable",
+        })
+    else:
+        states.update({
+            "desktop": "unlocked" if ready else "no_session",
+            "resident": "ready" if ready else "unavailable",
+        })
     print(json.dumps({
         "schema": "machine-control-doctor/v0",
         "ready": ready,
         "target": {
-            "platform": os.environ.get(
-                "MACHINE_CONTROL_MOCK_PLATFORM", "linux"
-            ),
+            "platform": target_platform,
+            **({"kind": "device", "deviceClass": "fixture"} if is_device else {}),
             "profile": "fixture"
         },
-        "states": {
-            "power": "running" if ready else "off",
-            "administration": "ready" if ready else "unavailable",
-            "desktop": "unlocked" if ready else "no_session",
-            "resident": "ready" if ready else "unavailable",
-            "semantic": "ready" if ready else "unavailable",
-            "capture": "ready" if ready else "unavailable",
-            "input": "ready" if ready else "unavailable",
-            "outer": "prohibited"
-        },
+        "states": states,
         "resident": {
             "contract": "machine-control/v0",
             "generation": "fixture-generation"
@@ -43,9 +57,11 @@ if command == "doctor" and arguments[1:] == ["--json"]:
             "id": "fixture",
             "status": "pass" if ready else "fail"
         }],
-        "lifecycleOperations": [
-            "status", "up", "suspend", "shutdown", "force-stop"
-        ],
+        "lifecycleOperations": (
+            ["status", "doctor", "capabilities", "reboot"]
+            if is_device
+            else ["status", "up", "suspend", "shutdown", "force-stop"]
+        ),
         "extensions": {}
     }))
     raise SystemExit(0 if ready else 1)
@@ -54,7 +70,7 @@ if command == "status":
     print("running")
 elif command == "probe":
     print("ready")
-elif command in {"up", "suspend", "shutdown", "force-stop"}:
+elif command in {"up", "suspend", "shutdown", "force-stop", "reboot"}:
     print("private-adapter-detail")
 elif command in {"control", "control-local"}:
     request = json.loads(arguments[1])

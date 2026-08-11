@@ -11,6 +11,7 @@ platform operating guidance.
 | Linux | [`linux/`](linux/README.md) | common desktop plus LinuxVM commands |
 | ChromeOS | [`chromeos/`](chromeos/README.md) | native ChromeOS device commands |
 | iOS | [`ios/`](ios/README.md) | CoreDevice/XCTest device commands |
+| Android | [`android/`](android/README.md) | guarded ADB handheld commands |
 | Quest | [`quest/`](quest/README.md) | guarded ADB device commands |
 | Steam Deck | [`steamdeck/`](steamdeck/README.md) | SteamOS Devkit commands |
 

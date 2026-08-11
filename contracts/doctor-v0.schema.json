@@ -13,18 +13,25 @@
       "properties": {
         "logicalTarget": { "type": "string" },
         "platform": { "type": "string", "minLength": 1 },
+        "platformFamily": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["desktop", "device"] },
+        "deviceClass": { "type": "string", "minLength": 1 },
         "profile": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": true
     },
     "states": {
       "type": "object",
-      "required": ["power", "administration", "desktop", "resident", "semantic", "capture", "input", "outer"],
+      "required": ["power", "administration", "semantic", "capture", "input", "outer"],
       "properties": {
         "power": { "enum": ["off", "starting", "running", "suspended", "unknown"] },
+        "connection": { "$ref": "#/$defs/readiness" },
+        "boot": { "$ref": "#/$defs/readiness" },
         "administration": { "$ref": "#/$defs/readiness" },
         "desktop": { "enum": ["unlocked", "locked", "protected", "no_session", "unknown"] },
+        "interaction": { "enum": ["unlocked", "locked", "protected", "no_session", "unknown"] },
         "resident": { "$ref": "#/$defs/readiness" },
+        "runner": { "$ref": "#/$defs/readiness" },
         "semantic": { "$ref": "#/$defs/readiness" },
         "capture": { "$ref": "#/$defs/readiness" },
         "input": { "$ref": "#/$defs/readiness" },

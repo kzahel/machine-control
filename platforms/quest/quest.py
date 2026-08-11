@@ -4,13 +4,11 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
 import re
-import shutil
 import signal
 import socket
 import subprocess
@@ -19,6 +17,19 @@ import tempfile
 import time
 import uuid
 from typing import Any, Sequence
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+
+from providers.adb import (  # noqa: E402
+    AdbClient as SharedAdbClient,
+    AdbDevice,
+    AdbError,
+    parse_battery,
+    parse_wake_state,
+)
 
 
 REMOTE_JOURNAL = "/data/local/tmp/quest-testbed-session.json"
@@ -43,13 +54,6 @@ KNOWN_DIALOG_PATTERNS = (
 
 class TestbedError(RuntimeError):
     """An expected configuration, validation, or device-operation failure."""
-
-
-@dataclass(frozen=True)
-class AdbDevice:
-    serial: str
-    state: str
-    attributes: dict[str, str]
 
 
 def utc_now() -> str:
@@ -92,101 +96,21 @@ def pid_is_alive(pid: Any) -> bool:
     return True
 
 
-def find_adb(explicit: str | None = None) -> str:
-    candidates: list[Path] = []
-    configured = explicit or os.environ.get("QUEST_TESTBED_ADB")
-    if configured:
-        candidates.append(Path(configured).expanduser())
-    path_adb = shutil.which("adb")
-    if path_adb:
-        candidates.append(Path(path_adb))
-    for variable in ("ANDROID_HOME", "ANDROID_SDK_ROOT"):
-        value = os.environ.get(variable)
-        if value:
-            candidates.append(Path(value).expanduser() / "platform-tools" / "adb")
-    local_app_data = os.environ.get("LOCALAPPDATA")
-    if local_app_data:
-        candidates.append(
-            Path(local_app_data) / "Android" / "Sdk" / "platform-tools" / "adb.exe"
-        )
-    candidates.extend(
-        [
-            Path.home() / "Android" / "Sdk" / "platform-tools" / "adb",
-            Path.home() / "Library" / "Android" / "sdk" / "platform-tools" / "adb",
-        ]
-    )
-    for candidate in candidates:
-        if candidate.is_file():
-            return str(candidate)
-    raise TestbedError(
-        "adb was not found; install Android SDK Platform Tools or set "
-        "QUEST_TESTBED_ADB"
-    )
-
-
-class AdbClient:
+class AdbClient(SharedAdbClient):
     def __init__(self, adb_path: str | None = None, serial: str | None = None) -> None:
-        self.adb = find_adb(adb_path)
-        self.requested_serial = (
+        requested = (
             serial
             or os.environ.get("QUEST_TESTBED_SERIAL")
             or os.environ.get("ANDROID_SERIAL")
         )
-
-    def run(
-        self,
-        argv: Sequence[str],
-        *,
-        serial: str | None = None,
-        check: bool = True,
-        capture: bool = True,
-        text: bool = True,
-    ) -> subprocess.CompletedProcess[Any]:
-        command = [self.adb]
-        if serial:
-            command.extend(["-s", serial])
-        command.extend(argv)
-        return subprocess.run(
-            command,
-            check=check,
-            capture_output=capture,
-            text=text,
-        )
-
-    def shell(
-        self,
-        serial: str,
-        argv: Sequence[str],
-        *,
-        check: bool = True,
-        capture: bool = True,
-    ) -> subprocess.CompletedProcess[str]:
-        return self.run(
-            ["shell", *argv], serial=serial, check=check, capture=capture, text=True
-        )
-
-    def shell_text(
-        self, serial: str, argv: Sequence[str], *, check: bool = True
-    ) -> str:
-        return self.shell(serial, argv, check=check).stdout.replace("\r", "").strip()
-
-    def devices(self) -> list[AdbDevice]:
-        result = self.run(["devices", "-l"])
-        devices: list[AdbDevice] = []
-        for raw_line in result.stdout.replace("\r", "").splitlines()[1:]:
-            line = raw_line.strip()
-            if not line or line.startswith("*"):
-                continue
-            fields = line.split()
-            if len(fields) < 2:
-                continue
-            attributes: dict[str, str] = {}
-            for field in fields[2:]:
-                if ":" in field:
-                    key, value = field.split(":", 1)
-                    attributes[key] = value
-            devices.append(AdbDevice(fields[0], fields[1], attributes))
-        return devices
+        try:
+            super().__init__(
+                adb_path,
+                serial=requested,
+                adb_environment_variable="QUEST_TESTBED_ADB",
+            )
+        except AdbError as error:
+            raise TestbedError(str(error)) from error
 
     def quest_like(self, device: AdbDevice) -> bool:
         summary = " ".join(
@@ -259,61 +183,6 @@ class AdbClient:
                 "RSA prompt, and select Always allow"
             )
         raise TestbedError("no attached, authorized Quest headset was found")
-
-
-def parse_battery(text: str) -> dict[str, Any]:
-    result: dict[str, Any] = {
-        "level": None,
-        "status": None,
-        "ac_powered": False,
-        "usb_powered": False,
-        "wireless_powered": False,
-        "dock_powered": False,
-    }
-    keys = {
-        "AC powered": "ac_powered",
-        "USB powered": "usb_powered",
-        "Wireless powered": "wireless_powered",
-        "Dock powered": "dock_powered",
-    }
-    for raw_line in text.replace("\r", "").splitlines():
-        line = raw_line.strip()
-        if line.startswith("level:"):
-            value = line.split(":", 1)[1].strip()
-            result["level"] = int(value) if value.isdecimal() else None
-        elif line.startswith("status:"):
-            value = line.split(":", 1)[1].strip()
-            result["status"] = int(value) if value.isdecimal() else None
-        else:
-            for label, key in keys.items():
-                if line.startswith(label + ":"):
-                    result[key] = line.split(":", 1)[1].strip().lower() == "true"
-    result["powered"] = any(
-        result[key]
-        for key in ("ac_powered", "usb_powered", "wireless_powered", "dock_powered")
-    )
-    return result
-
-
-def parse_wake_state(text: str) -> str:
-    patterns = (
-        r"mWakefulness=([A-Za-z]+)",
-        r"Wakefulness:\s*([A-Za-z]+)",
-        r"Display Power:\s*state=([A-Za-z]+)",
-    )
-    for pattern in patterns:
-        match = re.search(pattern, text)
-        if not match:
-            continue
-        value = match.group(1).lower()
-        if value in {"awake", "on"}:
-            return "awake"
-        if value in {"asleep", "off"}:
-            return "asleep"
-        if value in {"dozing", "doze"}:
-            return "dozing"
-        return value
-    return "unknown"
 
 
 def read_setting(client: AdbClient, serial: str, namespace: str, name: str) -> dict[str, Any]:
@@ -830,6 +699,98 @@ def print_doctor(payload: dict[str, Any]) -> None:
         print(f"[{check['status']}] {check['name']}: {check['detail']}")
 
 
+def common_doctor_document(
+    payload: dict[str, Any] | None,
+    ok: bool,
+) -> dict[str, Any]:
+    if payload is None:
+        return {
+            "schema": "machine-control-doctor/v0",
+            "ready": False,
+            "target": {
+                "platform": "quest",
+                "platformFamily": "android",
+                "kind": "device",
+                "deviceClass": "xr_headset",
+                "profile": "quest-adb-device",
+            },
+            "states": {
+                "power": "unknown",
+                "connection": "unavailable",
+                "boot": "unavailable",
+                "administration": "unavailable",
+                "interaction": "unknown",
+                "runner": "unavailable",
+                "semantic": "unavailable",
+                "capture": "unavailable",
+                "input": "unavailable",
+                "outer": "unavailable",
+            },
+            "checks": [
+                {
+                    "id": "adb_target",
+                    "status": "fail",
+                    "summary": "the configured Quest ADB target is unavailable",
+                }
+            ],
+            "lifecycleOperations": ["status", "doctor", "capabilities"],
+            "extensions": {
+                "routeClass": "host.device",
+                "provider": "quest.adb",
+            },
+        }
+    status = payload["status"]
+    boot_ready = bool(status["boot_completed"])
+    wake_state = status["state"]
+    checks = []
+    for item in payload["checks"]:
+        state = {"ok": "pass", "warn": "warn", "fail": "fail"}[item["status"]]
+        identifier = re.sub(r"[^a-z0-9]+", "_", item["name"].casefold()).strip("_")
+        checks.append(
+            {
+                "id": identifier,
+                "status": state,
+                "summary": f"Quest {item['name']} check is {state}",
+            }
+        )
+    return {
+        "schema": "machine-control-doctor/v0",
+        "ready": ok and boot_ready,
+        "target": {
+            "platform": "quest",
+            "platformFamily": "android",
+            "kind": "device",
+            "deviceClass": "xr_headset",
+            "profile": "quest-adb-device",
+        },
+        "states": {
+            "power": "running",
+            "connection": "ready",
+            "boot": "ready" if boot_ready else "degraded",
+            "administration": "ready" if boot_ready else "degraded",
+            "interaction": "unknown",
+            "runner": "unavailable",
+            "semantic": "unavailable",
+            "capture": "ready" if boot_ready else "unavailable",
+            "input": "ready" if boot_ready else "unavailable",
+            "outer": "ready",
+        },
+        "checks": checks,
+        "lifecycleOperations": ["status", "doctor", "capabilities"],
+        "extensions": {
+            "routeClass": "host.device",
+            "provider": "quest.adb",
+            "wakeState": wake_state,
+            "leaseState": "active" if status["journal"] else "none",
+            "battery": {
+                "level": status["battery"].get("level"),
+                "powered": status["battery"].get("powered"),
+            },
+            "proximityOverride": status["proximity_override"] not in {"", "0"},
+        },
+    }
+
+
 def resolve_serial(client: AdbClient) -> str:
     serial = client.select_quest()
     client.requested_serial = serial
@@ -1036,6 +997,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         client = AdbClient(args.adb, args.serial)
+        if args.command == "doctor" and args.json:
+            try:
+                serial = resolve_serial(client)
+                payload, ok = doctor_payload(client, serial)
+                document = common_doctor_document(payload, ok)
+            except (OSError, subprocess.SubprocessError, TestbedError):
+                document = common_doctor_document(None, False)
+            print(json.dumps(document, indent=2))
+            return 0 if document["ready"] else 1
         serial = resolve_serial(client)
         if args.command == "serial":
             print(serial)
@@ -1049,10 +1019,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if args.command == "doctor":
             payload, ok = doctor_payload(client, serial)
-            if args.json:
-                print(json.dumps(payload, indent=2))
-            else:
-                print_doctor(payload)
+            print_doctor(payload)
             return 0 if ok else 1
         if args.command == "wake":
             client.shell(serial, ["input", "keyevent", "KEYCODE_WAKEUP"])
@@ -1207,9 +1174,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ).returncode
             return subprocess.run([client.adb, "-s", serial, "shell"], check=False).returncode
     except TestbedError as error:
+        if args.command == "doctor" and args.json:
+            print(json.dumps(common_doctor_document(None, False), indent=2))
+            return 1
         print(f"error: {error}", file=sys.stderr)
         return 1
     except subprocess.CalledProcessError as error:
+        if args.command == "doctor" and args.json:
+            print(json.dumps(common_doctor_document(None, False), indent=2))
+            return 1
         detail = ""
         if error.stderr:
             detail = str(error.stderr).strip()

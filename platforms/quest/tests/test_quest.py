@@ -180,6 +180,15 @@ class StatusParsingTests(unittest.TestCase):
         with self.assertRaises(quest.TestbedError):
             quest.normalize_reverse("tcp:9757")
 
+    def test_common_doctor_is_device_shaped_and_minimized(self) -> None:
+        client = FakeClient()
+        payload, ok = quest.doctor_payload(client, "PRIVATE-SERIAL")  # type: ignore[arg-type]
+        document = quest.common_doctor_document(payload, ok)
+        self.assertEqual(document["target"]["kind"], "device")
+        self.assertEqual(document["target"]["platformFamily"], "android")
+        self.assertEqual(document["states"]["connection"], "ready")
+        self.assertNotIn("PRIVATE-SERIAL", json.dumps(document))
+
 
 class LifecycleTests(unittest.TestCase):
     @mock.patch("quest.controller_name", return_value="test-controller")

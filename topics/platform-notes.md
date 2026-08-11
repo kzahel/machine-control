@@ -70,7 +70,12 @@ inventory, authorization, target selection, capabilities, evidence, and
 results with the wider system. Do not force mobile into a desktop process
 model.
 
-See [iOS control research](../research/platforms/ios.md).
+**Current:** The physical adapter now emits the common device doctor and a
+leased CoreDevice full-reboot operation. Its first live common reboot did not
+rediscover the phone, so unattended recovery remains open rather than assumed.
+
+See [iOS control research](../research/platforms/ios.md) and the
+[iOS device topic](ios-device-control.md).
 
 ## Android and derived devices
 
@@ -79,7 +84,13 @@ input baseline. Add UIAutomator/accessibility semantics and common ergonomics;
 do not replace mature platform facilities. Keep Quest, ARCVM, TV, emulator, and
 physical-device policy in their authoritative testbeds.
 
-See [Android control research](../research/platforms/android.md).
+**Current:** Android handheld and Quest share neutral ADB discovery and
+transport code while retaining distinct phone keyguard and headset policy. The
+handheld adapter exposes common readiness and a guarded one-shot PIN path; real
+credential effect has not yet been live-tested.
+
+See [Android control research](../research/platforms/android.md) and the
+[Android-family topic](android-family-control.md).
 
 ## Physical desktop hardware
 

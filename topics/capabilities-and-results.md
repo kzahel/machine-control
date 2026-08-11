@@ -54,6 +54,17 @@ safety, and the non-secret context; an independent fixture proves the intended
 privileged effect. Missing, expired, reused, changed-sheet, and stale-generation
 leases are typed refusals with no provider or outer fallback.
 
+**Current — device readiness and Android credential exercise:** Tactical 016
+extends the doctor vocabulary without forcing desktop/resident state onto
+devices. Android, iOS, and Quest report connection, boot, interaction, and
+runner state alongside the common planes. The Android PIN operation binds
+preflight to an exact boot generation and credential field, uses a one-shot
+standard-input helper rather than the ordinary request envelope, reports
+delivery separately from independently observed keyguard/user-storage effect,
+and sets retry count to zero even for timeout or unknown delivery. Correct-PIN
+effect remains unit-tested rather than live-tested, so the result vocabulary is
+accepted while physical credential conformance remains open.
+
 **Current — full macOS Aqua exercise:** Tacticals 010 and 011 extend the same result
 vocabulary across settings-managed privacy, native panels and sheets,
 Gatekeeper, Safari downloads, DMGs, Installer, AppKit, SwiftUI, browser/web,

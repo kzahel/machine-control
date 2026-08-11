@@ -2,8 +2,8 @@
 
 Topic: `target-lifecycle-and-readiness`
 
-Status: current common entry surface for the accepted Windows, macOS, and
-Linux testbed adapters.
+Status: current common outer entry surface for accepted desktop adapters and
+normalized Android, iOS, and Quest device adapters.
 
 ## Scope
 
@@ -59,8 +59,8 @@ declares it safe. `force-stop` remains explicit and is never an automatic
 fallback. Testbed-specific commands such as Windows `down`, image sealing,
 disposable launch, or Linux reboot remain escape hatches.
 
-Normalize observations to these state dimensions without discarding the raw
-adapter value:
+Normalize observations to the applicable state dimensions without discarding
+the raw adapter value. Desktop targets use:
 
 ```text
 power_state       = off | starting | running | suspended | unknown
@@ -72,6 +72,20 @@ capture_state     = ready | degraded | unavailable | unknown
 input_state       = ready | degraded | unavailable | unknown
 outer_state       = ready | observation_only | prohibited | unavailable | unknown
 ```
+
+Device targets instead add these dimensions and do not claim a desktop or
+resident process:
+
+```text
+connection_state  = ready | degraded | unavailable | unknown
+boot_state        = ready | degraded | unavailable | unknown
+interaction_state = unlocked | locked | protected | no_session | unknown
+runner_state      = ready | degraded | unavailable | unknown
+```
+
+Both target kinds retain power, administration, semantic, capture, input, and
+outer/device-host route state. A device can be connected while protected, or
+have a cached runner whose post-boot authorization remains unverified.
 
 ## Doctor contract
 
@@ -106,17 +120,20 @@ returns a `machine-control-target/v0` projection with both normalized and raw
 adapter state, and validates each testbed's
 [`machine-control-doctor/v0`](../contracts/doctor-v0.schema.json) document.
 
-The three common desktop adapters independently inspect power, administration, logged-in
-desktop, resident, semantic, capture, input, and outer-route policy. Powered
+The three common desktop adapters independently inspect power, administration,
+logged-in desktop, resident, semantic, capture, input, and outer-route policy. Powered
 off is a valid minimized doctor result with `ready: false`; doctor does not
 start or repair the target. Live acceptance proved common clean shutdown and
 subsequent `powerState: off` on all three profiles. See the
 [three-desktop evidence](../docs/evidence/desktop-common-entry.md).
 
-ChromeOS, iOS, Quest, and Steam Deck are present in the same target inventory
-with `native` interfaces. Their availability remains in the private inventory
-provider and their commands remain behind the explicit `testbed --` escape;
-the common client refuses to fabricate desktop or lifecycle parity.
+Android, iOS, and Quest retain `native` platform interfaces below the common
+layer but now emit the same minimized doctor envelope. The common client
+therefore exposes `target status|doctor|capabilities` for all three and only
+dispatches a mutating lifecycle verb when that exact adapter declares it. iOS
+and Android currently declare full reboot; Quest deliberately does not.
+ChromeOS and Steam Deck remain behind the explicit `testbed --` escape until
+their own normalized projections exist.
 
 ## Failure behavior
 
@@ -133,7 +150,7 @@ the common client refuses to fabricate desktop or lifecycle parity.
   operation after the individual lifecycle and doctor paths are proven.
 - Add authorization and discovery above the current local registry without
   turning a logical alias into bearer authority.
-- Decide which physical/device lifecycle observations merit normalized target
-  operations without making desktop VM fields mandatory.
+- Extend the device projection to ChromeOS and Steam Deck where it adds honest
+  value without fabricating lifecycle parity.
 - Integrate authorized target discovery with YepAnywhere without moving
   private inventory into this public repository.

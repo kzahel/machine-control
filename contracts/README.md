@@ -9,7 +9,10 @@ than a frozen cross-device wire protocol.
 - [`result-v0.schema.json`](result-v0.schema.json) describes the truthful
   result envelope shared by the Windows, macOS, and Linux slices.
 - [`doctor-v0.schema.json`](doctor-v0.schema.json) describes the minimized,
-  independent readiness dimensions emitted by authoritative testbeds.
+  independent readiness dimensions emitted by authoritative testbeds. Desktop
+  targets report desktop/resident state; device targets report connection,
+  boot, interaction, and runner state without pretending those processes are
+  identical.
 - [`targets-v0.schema.json`](targets-v0.schema.json) describes ignored local
   target selection. It contains adapter commands, never bearer authority.
 

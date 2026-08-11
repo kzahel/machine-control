@@ -1,7 +1,7 @@
 # Android Control Research
 
-Status: mature platform foundation identified; common facade and broader device
-conformance remain to be organized.
+Status: adopted shared ADB provider and physical-handheld adapter; credential
+effect and broader semantic/device-profile conformance remain open.
 
 ## Native foundation
 
@@ -30,7 +30,23 @@ and recovery constraints.
 capability/result vocabulary, semantic adapters, leases, and evidence around
 it. Keep Quest- and device-specific policy in their authoritative testbeds.
 
+**Current — built and live-tested:** [`providers/adb`](../../providers/adb)
+now supplies neutral ADB discovery, enumeration, transport, shell, battery, and
+wake parsing to both [`platforms/android`](../../platforms/android/README.md)
+and [`platforms/quest`](../../platforms/quest/README.md). The physical-handheld
+adapter is live-tested for exact selection, common doctor/status/capabilities,
+boot/user-storage/keyguard observation, and secret-helper build/start/refusal.
+Quest retains separate headset lifecycle and safety policy.
+
+**Current — unit-tested:** The phone PIN route refuses before reading a secret
+unless the exact generation, secure PIN field, and zero failed-password wipe
+threshold are established. It carries the PIN only through standard input to a
+one-shot shell-UID helper, delivers once, clears buffers best effort, observes
+keyguard/user-storage effect, and prohibits retry. No real PIN effect was
+live-tested in this slice.
+
 **Open:** Select and conformance-test the default UIAutomator/accessibility
 adapter, define emulator versus physical identity, and expose ARCVM through the
 ChromeOS-local ADB proxy without pretending Chrome accessibility covers Android
-application internals.
+application internals. Run one supervised correct-PIN acceptance before
+promoting credential delivery above `built`/unit-tested evidence.

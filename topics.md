@@ -30,3 +30,7 @@ commits with no expected follow-up do not need a trailer or registry entry.
   optional generated testbed distributions.
 - `cross-platform-coordinator` — macOS/Linux/Windows common-client portability,
   controller-route eligibility, portable launchers, and target-native CI.
+- `android-family-control` — shared ADB provider primitives, Android-handheld
+  profile and protected credential operation, and distinct Quest policy.
+- `ios-device-control` — CoreDevice/XCTest common readiness, lifecycle,
+  protected-authentication boundaries, and unattended recovery evidence.

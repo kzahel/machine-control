@@ -514,16 +514,128 @@ def doctor_checks(config: Config) -> list[Check]:
     return checks
 
 
+def common_check_id(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", name.casefold()).strip("_")
+
+
+def common_doctor_document(
+    config: Config,
+    checks: list[Check],
+) -> dict[str, object]:
+    device_check_names = {"device", "Developer Mode", "device unlock"}
+    host_checks = [check for check in checks if check.name not in device_check_names]
+    ok = not any(check.status == "error" for check in host_checks)
+    common_checks = [
+        {
+            "id": common_check_id(check.name),
+            "status": {"ok": "pass", "warn": "warn", "error": "fail"}[
+                check.status
+            ],
+            "summary": f"iOS {check.name} check is "
+            + ({"ok": "pass", "warn": "warn", "error": "fail"}[check.status]),
+        }
+        for check in host_checks
+    ]
+    try:
+        device = discover_selected_device(config)
+        summary = device_summary(device)
+        name = nested_string(device, "deviceProperties", "name")
+        locked = lock_state(name) if name else {}
+        connected = bool(summary["available"])
+    except TestbedError:
+        summary = {"developerMode": "", "transport": ""}
+        locked = {}
+        connected = False
+    passcode_required = bool(locked.get("passcodeRequired", False))
+    unlocked_since_boot = bool(locked.get("unlockedSinceBoot", False))
+    developer_mode = (
+        str(summary.get("developerMode", "")).casefold() == "enabled"
+    )
+    interaction = (
+        "protected" if passcode_required else ("unlocked" if connected else "unknown")
+    )
+    cache_available = runner_cache_available(config)
+    runner_available = (
+        connected and developer_mode and cache_available and not passcode_required
+    )
+    if connected:
+        common_checks.extend(
+            [
+                {
+                    "id": "device",
+                    "status": "pass",
+                    "summary": "the configured physical iOS device is connected",
+                },
+                {
+                    "id": "developer_mode",
+                    "status": "pass" if developer_mode else "fail",
+                    "summary": "iOS Developer Mode is enabled"
+                    if developer_mode
+                    else "iOS Developer Mode is unavailable",
+                },
+                {
+                    "id": "device_unlock",
+                    "status": "warn" if passcode_required else "pass",
+                    "summary": "the iOS interaction surface is protected"
+                    if passcode_required
+                    else "the iOS interaction surface is unlocked",
+                },
+            ]
+        )
+    else:
+        common_checks.append(
+            {
+                "id": "device",
+                "status": "fail",
+                "summary": "the configured physical iOS device is unavailable",
+            }
+        )
+    return {
+        "schema": "machine-control-doctor/v0",
+        "ready": ok and connected and developer_mode and not passcode_required,
+        "target": {
+            "platform": "ios",
+            "platformFamily": "ios",
+            "kind": "device",
+            "deviceClass": "phone",
+            "profile": "ios-coredevice-xctest",
+        },
+        "states": {
+            "power": "running" if connected else "unknown",
+            "connection": "ready" if connected else "unavailable",
+            "boot": "ready" if connected else "unavailable",
+            "administration": "ready" if connected else "unavailable",
+            "interaction": interaction,
+            "runner": "degraded" if runner_available else "unavailable",
+            "semantic": "degraded" if runner_available else "unavailable",
+            "capture": "degraded" if runner_available else "unavailable",
+            "input": "degraded" if runner_available else "unavailable",
+            "outer": "ready" if connected else "unavailable",
+        },
+        "checks": common_checks,
+        "lifecycleOperations": ["status", "doctor", "capabilities", "reboot"],
+        "extensions": {
+            "routeClass": "host.device",
+            "providers": ["ios.coredevice", "ios.xctest"],
+            "developerMode": developer_mode,
+            "transport": str(summary.get("transport", "")).casefold() or "unknown",
+            "lockState": {
+                "passcodeRequired": passcode_required,
+                "unlockedSinceBoot": unlocked_since_boot,
+            },
+            "runnerCacheAvailable": cache_available,
+            "runnerAuthentication": "unverified_until_launch",
+        },
+    }
+
+
 def doctor(config: Config, *, json_output: bool = False) -> int:
     checks = doctor_checks(config)
     ok = not any(check.status == "error" for check in checks)
     if json_output:
-        print(
-            json.dumps(
-                {"ok": ok, "checks": [asdict(check) for check in checks]},
-                indent=2,
-            )
-        )
+        document = common_doctor_document(config, checks)
+        print(json.dumps(document, indent=2))
+        return 0 if document["ready"] else 1
     else:
         for check in checks:
             print(f"[{check.status}] {check.name}: {check.detail}")
@@ -744,6 +856,36 @@ def prepare(config: Config) -> int:
     return with_command_lease(config, action)
 
 
+def reboot_device(config: Config, timeout: int) -> int:
+    if timeout <= 0:
+        raise TestbedError("reboot timeout must be positive")
+
+    def action() -> int:
+        stop_daemon(config)
+        device_name = selected_device_name(config)
+        devicectl_json(
+            [
+                "device",
+                "reboot",
+                "--device",
+                device_name,
+                "--style",
+                "full",
+                "--wait-for-device",
+                "--timeout",
+                str(timeout),
+            ]
+        )
+        device = discover_selected_device(config)
+        summary = device_summary(device)
+        if not summary["available"]:
+            raise TestbedError("the iOS device did not reconnect after reboot")
+        print("running")
+        return 0
+
+    return with_command_lease(config, action)
+
+
 def strip_separator(args: Sequence[str]) -> list[str]:
     values = list(args)
     if values and values[0] == "--":
@@ -910,6 +1052,8 @@ def build_parser() -> argparse.ArgumentParser:
         subparser = subparsers.add_parser(name)
         subparser.add_argument("--json", action="store_true")
     subparsers.add_parser("prepare")
+    reboot_parser = subparsers.add_parser("reboot")
+    reboot_parser.add_argument("--timeout", type=int, default=180)
     session_parser = subparsers.add_parser("session")
     session_parser.add_argument("child", nargs=argparse.REMAINDER)
     recover_parser = subparsers.add_parser("recover")
@@ -953,6 +1097,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return doctor(config, json_output=args.json)
         if args.command == "prepare":
             return prepare(config)
+        if args.command == "reboot":
+            return reboot_device(config, args.timeout)
         if args.command == "session":
             return session(config, args.child)
         if args.command == "recover":

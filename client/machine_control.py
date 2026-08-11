@@ -20,7 +20,7 @@ TARGET_SCHEMA = "machine-control-targets/v0"
 DOCTOR_SCHEMA = "machine-control-doctor/v0"
 RESULT_SCHEMA = "machine-control/v0"
 TARGET_RESULT_SCHEMA = "machine-control-target/v0"
-CLIENT_VERSION = "0.1.0"
+CLIENT_VERSION = "0.2.0"
 CONTROLLER_PLATFORMS = {"darwin", "linux", "windows"}
 LAUNCHERS = {"auto", "direct", "python", "powershell", "bash"}
 
@@ -70,6 +70,14 @@ DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
         "launcher": "python",
         "command": [str(ROOT / "platforms" / "quest" / "quest.py")],
     },
+    "android": {
+        "platform": "android",
+        "profile": "android-handheld-adb",
+        "interface": "native",
+        "controllerPlatforms": ["darwin", "linux", "windows"],
+        "launcher": "python",
+        "command": [str(ROOT / "platforms" / "android" / "android_device.py")],
+    },
     "steamdeck": {
         "platform": "steamdeck",
         "profile": "steamos-devkit-device",
@@ -81,12 +89,17 @@ DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
 }
 
 SUPPORTED_PLATFORMS = {
-    "windows", "macos", "linux", "chromeos", "ios", "quest", "steamdeck"
+    "windows", "macos", "linux", "chromeos", "ios", "android", "quest",
+    "steamdeck"
 }
+DEVICE_DOCTOR_PLATFORMS = {"android", "ios", "quest"}
 
 POWER_STATES = {"off", "starting", "running", "suspended", "unknown"}
 READINESS_STATES = {"ready", "degraded", "unavailable", "unknown"}
 DESKTOP_STATES = {"unlocked", "locked", "protected", "no_session", "unknown"}
+INTERACTION_STATES = {
+    "unlocked", "locked", "protected", "no_session", "unknown"
+}
 OUTER_STATES = {
     "ready", "observation_only", "prohibited", "unavailable", "unknown"
 }
@@ -446,17 +459,37 @@ def validate_doctor(value: Any) -> dict[str, Any]:
         )
     if not isinstance(states, dict):
         raise ClientError("invalid_doctor_result", "Doctor states are missing", 1)
-    allowed = {
+    common = {
         "power": POWER_STATES,
         "administration": READINESS_STATES,
-        "desktop": DESKTOP_STATES,
-        "resident": READINESS_STATES,
         "semantic": READINESS_STATES,
         "capture": READINESS_STATES,
         "input": READINESS_STATES,
         "outer": OUTER_STATES,
     }
-    for name, values in allowed.items():
+    for name, values in common.items():
+        if states.get(name) not in values:
+            raise ClientError(
+                "invalid_doctor_result", f"Doctor state '{name}' is invalid", 1
+            )
+    kind = target.get("kind", "desktop")
+    if kind == "desktop":
+        specialized = {
+            "desktop": DESKTOP_STATES,
+            "resident": READINESS_STATES,
+        }
+    elif kind == "device":
+        specialized = {
+            "connection": READINESS_STATES,
+            "boot": READINESS_STATES,
+            "interaction": INTERACTION_STATES,
+            "runner": READINESS_STATES,
+        }
+    else:
+        raise ClientError(
+            "invalid_doctor_result", "Doctor target kind is invalid", 1
+        )
+    for name, values in specialized.items():
         if states.get(name) not in values:
             raise ClientError(
                 "invalid_doctor_result", f"Doctor state '{name}' is invalid", 1
@@ -576,7 +609,14 @@ def handle_target(
     if not arguments:
         raise ClientError("usage", "target requires an operation")
     operation = arguments[0]
-    if target.get("interface", "machine-control-v0") != "machine-control-v0":
+    native_device = (
+        target.get("interface", "machine-control-v0") == "native"
+        and target["platform"] in DEVICE_DOCTOR_PLATFORMS
+    )
+    if (
+        target.get("interface", "machine-control-v0") != "machine-control-v0"
+        and not native_device
+    ):
         raise ClientError(
             "unsupported_target_operation",
             "This target uses its native testbed interface; use inventory for "
@@ -591,6 +631,8 @@ def handle_target(
         "doctor",
         "capabilities",
     }
+    if native_device:
+        allowed.add("reboot")
     if operation not in allowed or len(arguments) != 1:
         raise ClientError(
             "unsupported_target_operation",
@@ -600,6 +642,60 @@ def handle_target(
         value, exit_code = doctor(alias, target)
         emit(value)
         return exit_code
+    if native_device:
+        value, _ = doctor(alias, target)
+        if operation == "status":
+            emit(
+                target_result(
+                    alias,
+                    target,
+                    operation,
+                    {
+                        "ready": value["ready"],
+                        "states": value["states"],
+                        "extensions": value["extensions"],
+                    },
+                    value["adapter"]["elapsedMs"],
+                )
+            )
+            return 0
+        if operation == "capabilities":
+            emit(
+                target_result(
+                    alias,
+                    target,
+                    operation,
+                    {
+                        "lifecycleOperations": value["lifecycleOperations"],
+                        "outerState": value["states"]["outer"],
+                        "targetKind": value["target"].get("kind", "device"),
+                    },
+                    value["adapter"]["elapsedMs"],
+                )
+            )
+            return 0
+        if operation not in value["lifecycleOperations"]:
+            raise ClientError(
+                "unsupported_target_operation",
+                f"Target '{alias}' does not support lifecycle operation '{operation}'",
+            )
+        completed, _, elapsed_ms = run_adapter(target, [operation])
+        del completed
+        after, _ = doctor(alias, target)
+        emit(
+            target_result(
+                alias,
+                target,
+                operation,
+                {
+                    "ready": after["ready"],
+                    "states": after["states"],
+                    "extensions": after["extensions"],
+                },
+                elapsed_ms + after["adapter"]["elapsedMs"],
+            )
+        )
+        return 0
     if operation == "capabilities":
         value, _ = doctor(alias, target)
         emit(
@@ -1030,7 +1126,7 @@ def usage() -> str:
 Commands:
   inventory list|status|guide|doctor  Use the private deployment inventory
   targets                         List logical targets without private paths
-  target status|up|suspend|shutdown|force-stop|doctor|capabilities
+  target status|up|suspend|shutdown|force-stop|reboot|doctor|capabilities
   desktop status|capabilities|applications|windows|snapshot|action|capture
   desktop input text|key|click|move|drag|scroll
   desktop application launch|activate|terminate

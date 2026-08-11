@@ -109,6 +109,12 @@ def validate_shell() -> None:
 def portable_checks() -> None:
     suites = [
         ("common coordinator", ROOT, ROOT / "tests" / "client"),
+        ("shared ADB", ROOT, ROOT / "providers" / "adb" / "tests"),
+        (
+            "Android dependency-free",
+            ROOT / "platforms" / "android",
+            ROOT / "platforms" / "android" / "tests",
+        ),
         (
             "ChromeOS dependency-free",
             ROOT / "platforms" / "chromeos",

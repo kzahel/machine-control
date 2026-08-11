@@ -69,9 +69,10 @@ outer route merely because it is convenient.
 | [`platforms/chromeos`](platforms/chromeos/README.md) | Root SSH, browser CDP, Chrome desktop accessibility, screenshots, and device-native input on a designated developer-mode Chromebook | Update-sensitive and guest-resident; not an independent physical recovery path |
 | [`hardware-kvm-testbed`](../hardware-kvm-testbed/README.md) | Planned HDMI capture and USB HID for externally controlled physical hardware | Pixel/HID only; intended as outer recovery and independent observation, currently in bring-up |
 | [`platforms/ios`](platforms/ios/README.md) | Explicit physical-iPhone selection, signing, CoreDevice lifecycle, semantic XCTest, screenshots, input, leases, and recovery | The agent runs on the Mac; a stock iPhone cannot host a general YA worker |
+| [`platforms/android`](platforms/android/README.md) | Explicit physical-handheld selection, common readiness, ADB administration/deployment/capture/input, and guarded one-shot PIN unlock | Phone keyguard policy is not inherited by Quest or every ADB derivative |
 | [`platforms/quest`](platforms/quest/README.md) | Explicit ADB target selection, device state, deployment, leases, and recovery for Quest | Protected headset/account surfaces remain human gates |
 | [`platforms/steamdeck`](platforms/steamdeck/README.md) | Direct device administration and session-aware deployment/control | Physical recovery capability depends on available hardware and session state |
-| Android through ADB | Installation, lifecycle, shell, screenshots, input, logs, and optional UIAutomator semantics | Usually controller-hosted rather than an on-device general agent |
+| Android-family shared ADB provider | Executable discovery, enumeration, exact transport, shell, battery, and wake parsing reused by Android and Quest | Device-profile lifecycle, protected operations, semantics, and safety policy |
 
 ## Research and candidate providers
 
