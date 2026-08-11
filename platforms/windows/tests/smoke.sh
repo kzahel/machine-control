@@ -27,6 +27,7 @@ scripts=(
     "$REPO_DIR/scripts/image-factory.sh"
     "$REPO_DIR/scripts/image-manifest.sh"
     "$REPO_DIR/providers/utm-macos/provider.sh"
+    "$REPO_DIR/providers/utm-macos/workspace.sh"
     "$REPO_DIR/providers/utm-macos/screenshot"
     "$REPO_DIR/providers/utm-macos/ssh-proxy"
 )
@@ -56,6 +57,35 @@ help_output="$(WINVM_UTM_NAME='Smoke Test VM' "$REPO_DIR/bin/winvm" help)"
 [[ "$help_output" == *'target-id'* ]]
 [[ "$help_output" == *'pin-target ROLE'* ]]
 [[ "$help_output" == *'assert-target OP'* ]]
+[[ "$help_output" == *'workspace-capabilities'* ]]
+
+workspace_caps="$(env \
+    WINVM_CONFIG_FILE=/dev/null \
+    WINVM_TARGET_FILE="$temporary/absent-target" \
+    WINVM_UTMCTL=/usr/bin/true \
+    WINVM_WORKSPACE_STATE_DIR="$temporary/windows-workspaces" \
+    WINVM_WORKSPACE_DEVELOPMENT_PROVEN=false \
+    "$REPO_DIR/bin/winvm" workspace-capabilities --json)"
+jq -e '.schema == "machine-control-workspace-capabilities/v0" and
+    .intents.persistent.availability == "unavailable" and
+    .intents.candidate.availability == "unavailable"' \
+    <<<"$workspace_caps" >/dev/null
+
+workspace_handle="$(python3 "$REPO_DIR/../../providers/workspaces/receipts.py" \
+    --state-dir "$temporary/windows-selection" create \
+    --provider utm-macos-windows --intent isolated \
+    --mechanism provider_disposable_overlay \
+    --retention discardOnRelease --cleanup release --state running \
+    --target-name fixture-workspace --target-id fixture-workspace-id \
+    --source-name fixture-base --source-id fixture-base-id)"
+selection="$({ env \
+    WINVM_CONFIG_FILE=/dev/null \
+    WINVM_TARGET_FILE="$temporary/absent-target" \
+    WINVM_WORKSPACE_STATE_DIR="$temporary/windows-selection" \
+    MACHINE_CONTROL_WORKSPACE_HANDLE="$workspace_handle" \
+    bash -c 'source "$1"; printf "%s|%s|%s\n" "$WINVM_UTM_NAME" "$WINVM_EXPECTED_UTM_ID" "$WINVM_TARGET_ROLE"' \
+        _ "$REPO_DIR/scripts/common.sh"; } 2>/dev/null)"
+[[ "$selection" == 'fixture-workspace|fixture-workspace-id|seal' ]]
 
 for command in screenshot type click key scan; do
     if WINVM_FORBID_OUTER_UI=true \

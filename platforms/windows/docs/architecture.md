@@ -55,6 +55,20 @@ rather than a portable generalized Windows image. Deletion requires the exact
 configured stopped VM name twice: once through configuration and once through
 `--confirm`.
 
+The workspace adapter composes those primitives without exposing them as the
+portable intent. `persistent` reuses an explicitly proven, identity-pinned
+development VM. `isolated` starts an explicitly proven stopped base through
+UTM disposable mode and releases it only with a normal shutdown request; it
+never deletes the base. `candidate` treats UTM clone cost as a full copy and
+refuses it unless private policy and storage headroom explicitly allow it.
+
+Every selection is backed by a mode-protected private receipt. Later commands
+resolve `MACHINE_CONTROL_WORKSPACE_HANDLE` to the exact receipt identity and
+then pass through the existing UUID/role assertion. Cleanup dry-run publishes
+only opaque handles and normalized mechanism/state. A future libvirt provider
+may implement the same intent using QCOW2 overlays without changing the
+Windows guest driver.
+
 UTM's AppleScript VM UUID is the current provider identity. Every mutating
 operation compares it to the ignored configured pin before applying the
 source/candidate/seal role policy. SSH's proxy performs the same assertion, so

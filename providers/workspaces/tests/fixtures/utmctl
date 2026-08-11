@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+
+import json
+import os
+from pathlib import Path
+import sys
+
+
+state_path = Path(os.environ["MACHINE_CONTROL_UTM_FIXTURE_STATE"])
+
+
+def load():
+    return json.loads(state_path.read_text(encoding="utf-8"))
+
+
+def save(value):
+    state_path.write_text(json.dumps(value), encoding="utf-8")
+
+
+def selected_identifier(arguments):
+    values = [value for value in arguments if not value.startswith("--")]
+    return values[0] if values else ""
+
+
+def find(value, identifier):
+    for vm in value["vms"]:
+        if identifier in {vm["id"], vm["name"]}:
+            return vm
+    return None
+
+
+arguments = sys.argv[1:]
+command = arguments[0] if arguments else ""
+rest = arguments[1:]
+value = load()
+
+if command == "list":
+    print("UUID STATUS NAME")
+    for vm in value["vms"]:
+        print(vm["id"], vm["state"], vm["name"])
+elif command == "status":
+    vm = find(value, selected_identifier(rest))
+    if vm is None:
+        raise SystemExit(1)
+    print(vm["state"])
+elif command == "start":
+    vm = find(value, selected_identifier(rest))
+    if vm is None:
+        raise SystemExit(1)
+    vm["state"] = "started"
+    vm["disposable"] = "--disposable" in rest
+    save(value)
+elif command == "stop":
+    vm = find(value, selected_identifier(rest))
+    if vm is None:
+        raise SystemExit(1)
+    vm["state"] = "stopped"
+    vm["disposable"] = False
+    save(value)
+elif command == "clone":
+    source = find(value, selected_identifier(rest))
+    if source is None or "--name" not in rest:
+        raise SystemExit(1)
+    name = rest[rest.index("--name") + 1]
+    if find(value, name) is not None:
+        raise SystemExit(1)
+    value["nextId"] += 1
+    value["vms"].append({
+        "id": f"candidate-id-{value['nextId']}",
+        "name": name,
+        "state": "stopped",
+        "disposable": False,
+    })
+    save(value)
+else:
+    raise SystemExit(2)

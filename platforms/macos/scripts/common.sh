@@ -27,6 +27,17 @@ macvm_config_names=(
     MACVM_SSH_USER
     MACVM_SSH_IDENTITY_FILE
     MACVM_SSH_STRICT_HOST_KEY_CHECKING
+    MACVM_WORKSPACE_STATE_DIR
+    MACVM_WORKSPACE_DEVELOPMENT_NAME
+    MACVM_WORKSPACE_READY_BASE_NAME
+    MACVM_WORKSPACE_READY_BASE_PROVEN
+    MACVM_WORKSPACE_ALLOW_SHARED_BASE
+    MACVM_WORKSPACE_STORAGE_PATH
+    MACVM_WORKSPACE_MIN_FREE_BYTES
+    MACVM_WORKSPACE_MAX_TEMPORARY
+    MACVM_WORKSPACE_MAX_RETAINED
+    MACVM_WORKSPACE_CANDIDATE_PREFIX
+    MACVM_WORKSPACE_GUEST_TRANSPORT
 )
 macvm_environment_values=()
 for macvm_config_name in "${macvm_config_names[@]}"; do
@@ -66,6 +77,59 @@ MACVM_SSH_HOST="${MACVM_SSH_HOST:-}"
 MACVM_SSH_USER="${MACVM_SSH_USER:-$MACVM_GUEST_USER}"
 MACVM_SSH_IDENTITY_FILE="${MACVM_SSH_IDENTITY_FILE:-}"
 MACVM_SSH_STRICT_HOST_KEY_CHECKING="${MACVM_SSH_STRICT_HOST_KEY_CHECKING:-accept-new}"
+MACVM_WORKSPACE_STATE_DIR="${MACVM_WORKSPACE_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/machine-control/macos-workspaces}"
+MACVM_WORKSPACE_DEVELOPMENT_NAME="${MACVM_WORKSPACE_DEVELOPMENT_NAME:-$MACVM_NAME}"
+MACVM_WORKSPACE_READY_BASE_NAME="${MACVM_WORKSPACE_READY_BASE_NAME:-}"
+MACVM_WORKSPACE_READY_BASE_PROVEN="${MACVM_WORKSPACE_READY_BASE_PROVEN:-false}"
+MACVM_WORKSPACE_ALLOW_SHARED_BASE="${MACVM_WORKSPACE_ALLOW_SHARED_BASE:-false}"
+MACVM_WORKSPACE_STORAGE_PATH="${MACVM_WORKSPACE_STORAGE_PATH:-${TART_HOME:-$HOME/.tart}}"
+MACVM_WORKSPACE_MIN_FREE_BYTES="${MACVM_WORKSPACE_MIN_FREE_BYTES:-34359738368}"
+MACVM_WORKSPACE_MAX_TEMPORARY="${MACVM_WORKSPACE_MAX_TEMPORARY:-1}"
+MACVM_WORKSPACE_MAX_RETAINED="${MACVM_WORKSPACE_MAX_RETAINED:-2}"
+MACVM_WORKSPACE_CANDIDATE_PREFIX="${MACVM_WORKSPACE_CANDIDATE_PREFIX:-machine-control-macos}"
+MACVM_WORKSPACE_GUEST_TRANSPORT="${MACVM_WORKSPACE_GUEST_TRANSPORT:-tart}"
+
+macvm_apply_workspace_selection() {
+    local handle="${MACHINE_CONTROL_WORKSPACE_HANDLE:-}"
+    [[ -n "$handle" ]] || return 0
+    # shellcheck source=../../../providers/workspaces/common.sh
+    source "$MACVM_REPO_DIR/../../providers/workspaces/common.sh"
+    workspace_require_tools || return
+    local provider target_name target_id intent
+    provider="$(workspace_receipt_field \
+        "$MACVM_WORKSPACE_STATE_DIR" "$handle" provider)" || return
+    if [[ "$provider" != "tart-macos" ]]; then
+        printf 'Workspace receipt belongs to a different provider\n' >&2
+        return 1
+    fi
+    target_name="$(workspace_receipt_field \
+        "$MACVM_WORKSPACE_STATE_DIR" "$handle" target.name)" || return
+    target_id="$(workspace_receipt_field \
+        "$MACVM_WORKSPACE_STATE_DIR" "$handle" target.id)" || return
+    intent="$(workspace_receipt_field \
+        "$MACVM_WORKSPACE_STATE_DIR" "$handle" intent)" || return
+    if [[ "$target_name" != "$target_id" ]]; then
+        printf 'Workspace receipt target identity is invalid\n' >&2
+        return 1
+    fi
+    MACVM_NAME="$target_name"
+    MACVM_EXPECTED_NAME="$target_name"
+    MACVM_REQUIRE_MUTATION_GUARD=true
+    case "$intent" in
+        persistent) MACVM_TARGET_ROLE=candidate ;;
+        isolated) MACVM_TARGET_ROLE=disposable ;;
+        candidate) MACVM_TARGET_ROLE=candidate ;;
+        *) printf 'Workspace receipt intent is invalid\n' >&2; return 1 ;;
+    esac
+    if [[ "$intent" != "persistent" ]]; then
+        MACVM_GUEST_TRANSPORT="$MACVM_WORKSPACE_GUEST_TRANSPORT"
+        if [[ "$MACVM_GUEST_TRANSPORT" == "tart" ]]; then
+            MACVM_SSH_HOST=""
+        fi
+    fi
+}
+
+macvm_apply_workspace_selection
 
 export MACVM_REPO_DIR MACVM_CONFIG_FILE MACVM_NAME MACVM_TART
 export MACVM_BOOT_TIMEOUT MACVM_SUSPENDABLE MACVM_CAPTURE_SYSTEM_KEYS
@@ -76,6 +140,13 @@ export MACVM_REQUIRE_MUTATION_GUARD MACVM_TARGET_ROLE MACVM_EXPECTED_NAME
 export MACVM_FORBID_OUTER_UI
 export MACVM_GUEST_TRANSPORT MACVM_SSH_HOST MACVM_SSH_USER
 export MACVM_SSH_IDENTITY_FILE MACVM_SSH_STRICT_HOST_KEY_CHECKING
+export MACVM_WORKSPACE_STATE_DIR MACVM_WORKSPACE_DEVELOPMENT_NAME
+export MACVM_WORKSPACE_READY_BASE_NAME MACVM_WORKSPACE_READY_BASE_PROVEN
+export MACVM_WORKSPACE_ALLOW_SHARED_BASE
+export MACVM_WORKSPACE_STORAGE_PATH MACVM_WORKSPACE_MIN_FREE_BYTES
+export MACVM_WORKSPACE_MAX_TEMPORARY MACVM_WORKSPACE_MAX_RETAINED
+export MACVM_WORKSPACE_CANDIDATE_PREFIX MACVM_WORKSPACE_GUEST_TRANSPORT
+export MACHINE_CONTROL_WORKSPACE_HANDLE
 
 macvm_require_command() {
     if ! command -v "$1" >/dev/null 2>&1; then

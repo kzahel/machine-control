@@ -20,6 +20,8 @@ Lifecycle and transport:
   shell                          Stdin-forwarded root shell (no PTY)
   push LOCAL REMOTE | pull REMOTE [LOCAL]
   clone NEW_NAME | disposable
+  workspace-capabilities | workspace-acquire | workspace-inventory
+  workspace-release | workspace-gc
 
 Desktop automation:
   ui COMMAND [ARG...]            AT-SPI semantic UI automation
@@ -197,6 +199,10 @@ case "$command" in
         exec "$LINUXVM_REPO_DIR/scripts/doctor.sh"
         ;;
     bootstrap-command) bootstrap_command ;;
+    workspace-capabilities|workspace-acquire|workspace-inventory|workspace-release|workspace-gc)
+        exec "$LINUXVM_REPO_DIR/providers/$LINUXVM_PROVIDER/workspace.sh" \
+            "$command" "$@"
+        ;;
     status|guard-status|host-state|up|ip|shell|push|pull|screenshot|click|drag|type|key|scan|permissions|window-info|suspend|reboot|shutdown|force-stop|clone|disposable)
         exec "$PROVIDER" "$command" "$@"
         ;;

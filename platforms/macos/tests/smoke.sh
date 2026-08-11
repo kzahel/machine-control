@@ -9,12 +9,15 @@ if [[ -n "$mode" && "$mode" != "--static" ]]; then
 fi
 
 readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+temporary="$(mktemp -d /tmp/macvm-workspace-smoke.XXXXXX)"
+trap 'rm -rf -- "$temporary"' EXIT
 cd "$REPO_DIR"
 
 for script in \
     bin/macui \
     bin/macvm \
     providers/tart-macos/provider.sh \
+    providers/tart-macos/workspace.sh \
     providers/tart-macos/screenshot \
     scripts/common.sh \
     scripts/deploy-ui.sh \
@@ -81,6 +84,31 @@ source guests/macos/framework-runtimes/versions.env
 
 bin/macvm help >/dev/null
 bin/macui help >/dev/null
+workspace_caps="$(env \
+    MACVM_CONFIG_FILE=/dev/null \
+    MACVM_TART=/usr/bin/true \
+    MACVM_NAME=fixture-development \
+    MACVM_WORKSPACE_STATE_DIR="$temporary/capabilities" \
+    MACVM_WORKSPACE_DEVELOPMENT_PROVEN=false \
+    bin/macvm workspace-capabilities --json)"
+jq -e '.schema == "machine-control-workspace-capabilities/v0" and
+    .intents.persistent.availability == "unavailable"' \
+    <<<"$workspace_caps" >/dev/null
+
+workspace_handle="$(python3 "$REPO_DIR/../../providers/workspaces/receipts.py" \
+    --state-dir "$temporary/selection" create \
+    --provider tart-macos --intent isolated \
+    --mechanism filesystem_cow_clone \
+    --retention discardOnRelease --cleanup release --state running \
+    --target-name fixture-workspace --target-id fixture-workspace \
+    --source-name fixture-base --source-id fixture-base)"
+selection="$({ env \
+    MACVM_CONFIG_FILE=/dev/null \
+    MACVM_WORKSPACE_STATE_DIR="$temporary/selection" \
+    MACHINE_CONTROL_WORKSPACE_HANDLE="$workspace_handle" \
+    bash -c 'source "$1"; printf "%s|%s|%s\n" "$MACVM_NAME" "$MACVM_EXPECTED_NAME" "$MACVM_TARGET_ROLE"' \
+        _ "$REPO_DIR/scripts/common.sh"; } 2>/dev/null)"
+[[ "$selection" == 'fixture-workspace|fixture-workspace|disposable' ]]
 if MACVM_FORBID_OUTER_UI=true bin/macvm screenshot >/dev/null 2>&1; then
     printf 'Outer-UI guard allowed a Tart screenshot\n' >&2
     exit 1

@@ -4,6 +4,8 @@ set -euo pipefail
 
 readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly PYTHON="${PYTHON:-python3}"
+temporary="$(mktemp -d /tmp/linuxvm-workspace-static.XXXXXX)"
+trap 'rm -rf -- "$temporary"' EXIT
 
 find "$REPO_DIR/bin" "$REPO_DIR/scripts" "$REPO_DIR/providers" \
     "$REPO_DIR/guests" "$REPO_DIR/tests" -type f \
@@ -20,4 +22,28 @@ find "$REPO_DIR/bin" "$REPO_DIR/scripts" "$REPO_DIR/providers" \
     "$REPO_DIR/guests/ubuntu/fixtures/browser_fixture.py"
 
 "$REPO_DIR/bin/linuxvm" help >/dev/null
+workspace_caps="$(env \
+    LINUXVM_CONFIG_FILE=/dev/null \
+    LINUXVM_UTMCTL=/usr/bin/true \
+    LINUXVM_WORKSPACE_STATE_DIR="$temporary/capabilities" \
+    LINUXVM_WORKSPACE_DEVELOPMENT_PROVEN=false \
+    "$REPO_DIR/bin/linuxvm" workspace-capabilities --json)"
+jq -e '.schema == "machine-control-workspace-capabilities/v0" and
+    .intents.persistent.availability == "unavailable"' \
+    <<<"$workspace_caps" >/dev/null
+
+workspace_handle="$($PYTHON "$REPO_DIR/../../providers/workspaces/receipts.py" \
+    --state-dir "$temporary/selection" create \
+    --provider utm-macos-linux --intent isolated \
+    --mechanism provider_disposable_overlay \
+    --retention discardOnRelease --cleanup release --state running \
+    --target-name fixture-workspace --target-id fixture-workspace-id \
+    --source-name fixture-base --source-id fixture-base-id)"
+selection="$({ env \
+    LINUXVM_CONFIG_FILE=/dev/null \
+    LINUXVM_WORKSPACE_STATE_DIR="$temporary/selection" \
+    MACHINE_CONTROL_WORKSPACE_HANDLE="$workspace_handle" \
+    bash -c 'source "$1"; printf "%s|%s|%s\n" "$LINUXVM_UTM_NAME" "$LINUXVM_EXPECTED_UUID" "$LINUXVM_TARGET_ROLE"' \
+        _ "$REPO_DIR/scripts/common.sh"; } 2>/dev/null)"
+[[ "$selection" == 'fixture-workspace|fixture-workspace-id|disposable' ]]
 printf 'Linux native static checks passed\n'

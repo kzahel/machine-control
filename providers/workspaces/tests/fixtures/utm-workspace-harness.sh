@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+# shellcheck source=../../../common.sh
+source "$ROOT/providers/workspaces/common.sh"
+
+UTM_WORKSPACE_CLI="$ROOT/providers/workspaces/tests/fixtures/utmctl"
+UTM_WORKSPACE_PROVIDER=utm-macos-fixture
+UTM_WORKSPACE_STATE_DIR="$MACHINE_CONTROL_UTM_FIXTURE_RECEIPTS"
+UTM_WORKSPACE_CURRENT_GUARDED=true
+UTM_WORKSPACE_DEVELOPMENT_NAME='fixture development'
+UTM_WORKSPACE_DEVELOPMENT_ID=dev-id
+UTM_WORKSPACE_DEVELOPMENT_PROVEN=true
+UTM_WORKSPACE_READY_BASE_NAME='fixture ready base'
+UTM_WORKSPACE_READY_BASE_ID=base-id
+UTM_WORKSPACE_READY_BASE_PROVEN=true
+UTM_WORKSPACE_ALLOW_SHARED_BASE=false
+UTM_WORKSPACE_STORAGE_PATH="$MACHINE_CONTROL_UTM_FIXTURE_STORAGE"
+UTM_WORKSPACE_MIN_FREE_BYTES=0
+UTM_WORKSPACE_MAX_TEMPORARY=1
+UTM_WORKSPACE_MAX_RETAINED=2
+UTM_WORKSPACE_FULL_COPY_FALLBACK="${MACHINE_CONTROL_UTM_FIXTURE_FULL_COPY:-prohibited}"
+UTM_WORKSPACE_ALLOW_FULL_COPY_ONCE=0
+UTM_WORKSPACE_CANDIDATE_PREFIX=fixture-candidate
+UTM_WORKSPACE_BOOT_TIMEOUT=5
+UTM_WORKSPACE_SHUTDOWN_TIMEOUT=5
+
+# shellcheck source=../../../utm-macos.sh
+source "$ROOT/providers/workspaces/utm-macos.sh"
+utm_workspace_main "$@"

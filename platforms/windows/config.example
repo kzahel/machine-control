@@ -34,3 +34,21 @@ WINVM_FORBID_OUTER_UI=false
 # These normally do not need to change.
 WINVM_UI_PIPE_NAME=winvm-ui
 WINVM_UI_TASK_NAME='WinVM UI Relay'
+
+# The ordinary target remains a stateful development VM. Workspace operations
+# stay unavailable until exact development/ready-base identities are placed in
+# ignored configuration and their controller readiness is explicitly proven.
+WINVM_WORKSPACE_DEVELOPMENT_NAME=
+WINVM_WORKSPACE_DEVELOPMENT_ID=
+WINVM_WORKSPACE_DEVELOPMENT_PROVEN=false
+WINVM_WORKSPACE_READY_BASE_NAME=
+WINVM_WORKSPACE_READY_BASE_ID=
+WINVM_WORKSPACE_READY_BASE_PROVEN=false
+# Set true only when intentionally using the stopped development VM itself.
+WINVM_WORKSPACE_ALLOW_SHARED_BASE=false
+WINVM_WORKSPACE_STORAGE_PATH=
+WINVM_WORKSPACE_MIN_FREE_BYTES=68719476736
+WINVM_WORKSPACE_MAX_TEMPORARY=1
+WINVM_WORKSPACE_MAX_RETAINED=2
+WINVM_WORKSPACE_FULL_COPY_FALLBACK=prohibited
+WINVM_WORKSPACE_CANDIDATE_PREFIX=machine-control-windows

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly PROVIDER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../scripts/common.sh
+source "$PROVIDER_DIR/../../scripts/common.sh"
+# shellcheck source=../../../../providers/workspaces/common.sh
+source "$WINVM_REPO_DIR/../../providers/workspaces/common.sh"
+
+workspace_require_tools
+if [[ "$(uname -s)" != "Darwin" || ! -x "$WINVM_UTMCTL" ]]; then
+    printf 'The UTM workspace provider is unavailable\n' >&2
+    exit 1
+fi
+if [[ -n "${MACHINE_CONTROL_WORKSPACE_HANDLE:-}" ]]; then
+    workspace_refusal capabilities workspace_selection_conflict \
+        'Workspace management cannot run through a selected workspace'
+    exit $?
+fi
+
+current_guarded=false
+if [[ "$WINVM_WORKSPACE_DEVELOPMENT_PROVEN" == "true" &&
+      "$WINVM_TARGET_ROLE" == "candidate" &&
+      "$WINVM_UTM_NAME" == "$WINVM_WORKSPACE_DEVELOPMENT_NAME" &&
+      "$WINVM_EXPECTED_UTM_ID" == "$WINVM_WORKSPACE_DEVELOPMENT_ID" &&
+      -n "$WINVM_EXPECTED_UTM_ID" ]]; then
+    current_guarded=true
+fi
+
+UTM_WORKSPACE_CLI="$WINVM_UTMCTL"
+UTM_WORKSPACE_PROVIDER=utm-macos-windows
+UTM_WORKSPACE_STATE_DIR="$WINVM_WORKSPACE_STATE_DIR"
+UTM_WORKSPACE_CURRENT_GUARDED="$current_guarded"
+UTM_WORKSPACE_DEVELOPMENT_NAME="$WINVM_WORKSPACE_DEVELOPMENT_NAME"
+UTM_WORKSPACE_DEVELOPMENT_ID="$WINVM_WORKSPACE_DEVELOPMENT_ID"
+UTM_WORKSPACE_DEVELOPMENT_PROVEN="$WINVM_WORKSPACE_DEVELOPMENT_PROVEN"
+UTM_WORKSPACE_READY_BASE_NAME="$WINVM_WORKSPACE_READY_BASE_NAME"
+UTM_WORKSPACE_READY_BASE_ID="$WINVM_WORKSPACE_READY_BASE_ID"
+UTM_WORKSPACE_READY_BASE_PROVEN="$WINVM_WORKSPACE_READY_BASE_PROVEN"
+UTM_WORKSPACE_ALLOW_SHARED_BASE="$WINVM_WORKSPACE_ALLOW_SHARED_BASE"
+UTM_WORKSPACE_STORAGE_PATH="$WINVM_WORKSPACE_STORAGE_PATH"
+UTM_WORKSPACE_MIN_FREE_BYTES="$WINVM_WORKSPACE_MIN_FREE_BYTES"
+UTM_WORKSPACE_MAX_TEMPORARY="$WINVM_WORKSPACE_MAX_TEMPORARY"
+UTM_WORKSPACE_MAX_RETAINED="$WINVM_WORKSPACE_MAX_RETAINED"
+UTM_WORKSPACE_FULL_COPY_FALLBACK="$WINVM_WORKSPACE_FULL_COPY_FALLBACK"
+UTM_WORKSPACE_ALLOW_FULL_COPY_ONCE="$WINVM_WORKSPACE_ALLOW_FULL_COPY_ONCE"
+UTM_WORKSPACE_CANDIDATE_PREFIX="$WINVM_WORKSPACE_CANDIDATE_PREFIX"
+UTM_WORKSPACE_BOOT_TIMEOUT="$WINVM_BOOT_TIMEOUT"
+UTM_WORKSPACE_SHUTDOWN_TIMEOUT="$WINVM_SHUTDOWN_TIMEOUT"
+
+# shellcheck source=../../../../providers/workspaces/utm-macos.sh
+source "$WINVM_REPO_DIR/../../providers/workspaces/utm-macos.sh"
+utm_workspace_main "$@"

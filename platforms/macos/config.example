@@ -31,3 +31,19 @@ MACVM_SSH_HOST=
 MACVM_SSH_USER=admin
 MACVM_SSH_IDENTITY_FILE=
 MACVM_SSH_STRICT_HOST_KEY_CHECKING=accept-new
+
+# Workspace policy keeps the configured development VM as the persistent
+# default. Set and independently prove a stopped ready base before enabling
+# isolated or candidate derivation. Concrete names remain in ignored/private
+# configuration.
+MACVM_WORKSPACE_DEVELOPMENT_NAME=tahoe-base
+MACVM_WORKSPACE_READY_BASE_NAME=
+MACVM_WORKSPACE_READY_BASE_PROVEN=false
+# Set true only when intentionally deriving from the stopped development VM.
+MACVM_WORKSPACE_ALLOW_SHARED_BASE=false
+MACVM_WORKSPACE_STORAGE_PATH="$HOME/.tart"
+MACVM_WORKSPACE_MIN_FREE_BYTES=34359738368
+MACVM_WORKSPACE_MAX_TEMPORARY=1
+MACVM_WORKSPACE_MAX_RETAINED=2
+MACVM_WORKSPACE_CANDIDATE_PREFIX=machine-control-macos
+MACVM_WORKSPACE_GUEST_TRANSPORT=tart

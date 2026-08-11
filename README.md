@@ -25,6 +25,9 @@ matches the question:
   escape hatches.
 - [Target lifecycle and readiness](topics/target-lifecycle-and-readiness.md):
   portable lifecycle/doctor vocabulary over authoritative testbed adapters.
+- [VM workspaces and storage policy](topics/vm-workspaces-and-storage-policy.md):
+  persistent development reuse, isolated disposable/thin work, retained
+  candidates, storage budgets, and receipt-bound cleanup.
 - [Repository consolidation and focused publications](topics/repository-consolidation-and-publication.md):
   canonical public platform sources, private inventory, history-preserving
   cutovers, and optional generated testbed distributions.
@@ -303,6 +306,10 @@ command lookup or execution.
 bin/machine-control targets
 bin/machine-control inventory status
 bin/machine-control --target windows target doctor
+bin/machine-control --target windows workspace acquire --intent persistent
+bin/machine-control --target macos workspace acquire --intent isolated
+bin/machine-control --target macos --workspace w-EXAMPLE123 desktop status
+bin/machine-control --target macos workspace release w-EXAMPLE123
 bin/machine-control --target macos desktop snapshot \
   --target org.example.Application --query Save
 bin/machine-control --target linux desktop capture \
@@ -320,6 +327,15 @@ and actions, target-local input/capture, and bounded artifact retrieval. Each
 result preserves the resident's actual operation, provider route, delivery,
 effect, uncertainty, generation, and host-interference report while adding a
 separate client/transport projection.
+
+VM workspace commands keep caller intent separate from hypervisor mechanics.
+`persistent` reuses a stateful development VM, `isolated` requests that
+changes be discarded on release, and `candidate` retains an
+appliance-development derivative. UTM may satisfy isolation with disposable
+mode, Tart with an APFS copy-on-write clone, and a future libvirt provider with
+a QCOW2 overlay. The adapter reports the actual mechanism and storage class. A
+returned opaque handle selects later operations with `--workspace`; the
+adapter still requires its private receipt and exact provider identity.
 
 Android, iOS, and Quest project connection, boot, interaction, runner,
 semantic, capture, input, and device-host route state through the common

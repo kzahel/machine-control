@@ -58,6 +58,8 @@ Out-of-band recovery:
 
 Lifecycle and discovery:
   status | get | host-state | ip | suspend | shutdown | stop | force-stop
+  workspace-capabilities | workspace-acquire | workspace-inventory
+  workspace-release | workspace-gc
 
 Key examples:
   enter escape tab cmd-space cmd-tab cmd-shift-g ctrl-option-delete
@@ -108,6 +110,9 @@ case "$command" in
     fixture-state)
         macvm_exec /bin/cat \
             "/Users/$MACVM_GUEST_USER/Library/Caches/machine-control-fixture/state.json"
+        ;;
+    workspace-capabilities|workspace-acquire|workspace-inventory|workspace-release|workspace-gc)
+        exec "$REPO_DIR/providers/tart-macos/workspace.sh" "$command" "$@"
         ;;
     admin-fixture-state)
         macvm_exec /bin/cat \

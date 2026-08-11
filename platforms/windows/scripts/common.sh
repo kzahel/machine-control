@@ -55,6 +55,51 @@ WINVM_SSH_BIN="${WINVM_SSH_BIN:-ssh}"
 WINVM_UI_PIPE_NAME="${WINVM_UI_PIPE_NAME:-winvm-ui}"
 WINVM_UI_TASK_NAME="${WINVM_UI_TASK_NAME:-WinVM UI Relay}"
 WINVM_UI_REMOTE_RELATIVE="${WINVM_UI_REMOTE_RELATIVE:-AppData/Local/winvm-testbed}"
+WINVM_WORKSPACE_STATE_DIR="${WINVM_WORKSPACE_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/machine-control/windows-workspaces}"
+WINVM_WORKSPACE_DEVELOPMENT_NAME="${WINVM_WORKSPACE_DEVELOPMENT_NAME:-$WINVM_UTM_NAME}"
+WINVM_WORKSPACE_DEVELOPMENT_ID="${WINVM_WORKSPACE_DEVELOPMENT_ID:-$WINVM_EXPECTED_UTM_ID}"
+WINVM_WORKSPACE_DEVELOPMENT_PROVEN="${WINVM_WORKSPACE_DEVELOPMENT_PROVEN:-false}"
+WINVM_WORKSPACE_READY_BASE_NAME="${WINVM_WORKSPACE_READY_BASE_NAME:-}"
+WINVM_WORKSPACE_READY_BASE_ID="${WINVM_WORKSPACE_READY_BASE_ID:-}"
+WINVM_WORKSPACE_READY_BASE_PROVEN="${WINVM_WORKSPACE_READY_BASE_PROVEN:-false}"
+WINVM_WORKSPACE_ALLOW_SHARED_BASE="${WINVM_WORKSPACE_ALLOW_SHARED_BASE:-false}"
+WINVM_WORKSPACE_STORAGE_PATH="${WINVM_WORKSPACE_STORAGE_PATH:-}"
+WINVM_WORKSPACE_MIN_FREE_BYTES="${WINVM_WORKSPACE_MIN_FREE_BYTES:-68719476736}"
+WINVM_WORKSPACE_MAX_TEMPORARY="${WINVM_WORKSPACE_MAX_TEMPORARY:-1}"
+WINVM_WORKSPACE_MAX_RETAINED="${WINVM_WORKSPACE_MAX_RETAINED:-2}"
+WINVM_WORKSPACE_FULL_COPY_FALLBACK="${WINVM_WORKSPACE_FULL_COPY_FALLBACK:-prohibited}"
+WINVM_WORKSPACE_ALLOW_FULL_COPY_ONCE="${WINVM_WORKSPACE_ALLOW_FULL_COPY_ONCE:-0}"
+WINVM_WORKSPACE_CANDIDATE_PREFIX="${WINVM_WORKSPACE_CANDIDATE_PREFIX:-machine-control-windows}"
+
+winvm_apply_workspace_selection() {
+    local handle="${MACHINE_CONTROL_WORKSPACE_HANDLE:-}"
+    [[ -n "$handle" ]] || return 0
+    # shellcheck source=../../../providers/workspaces/common.sh
+    source "$WINVM_REPO_DIR/../../providers/workspaces/common.sh"
+    workspace_require_tools || return
+    local provider target_name target_id intent
+    provider="$(workspace_receipt_field \
+        "$WINVM_WORKSPACE_STATE_DIR" "$handle" provider)" || return
+    if [[ "$provider" != "utm-macos-windows" ]]; then
+        printf 'Workspace receipt belongs to a different provider\n' >&2
+        return 1
+    fi
+    target_name="$(workspace_receipt_field \
+        "$WINVM_WORKSPACE_STATE_DIR" "$handle" target.name)" || return
+    target_id="$(workspace_receipt_field \
+        "$WINVM_WORKSPACE_STATE_DIR" "$handle" target.id)" || return
+    intent="$(workspace_receipt_field \
+        "$WINVM_WORKSPACE_STATE_DIR" "$handle" intent)" || return
+    WINVM_UTM_NAME="$target_name"
+    WINVM_EXPECTED_UTM_ID="$target_id"
+    case "$intent" in
+        persistent|candidate) WINVM_TARGET_ROLE=candidate ;;
+        isolated) WINVM_TARGET_ROLE=seal ;;
+        *) printf 'Workspace receipt intent is invalid\n' >&2; return 1 ;;
+    esac
+}
+
+winvm_apply_workspace_selection
 WINVM_COMMON_LOADED=1
 
 export WINVM_REPO_DIR WINVM_CONFIG_FILE WINVM_PROVIDER WINVM_GUEST_DRIVER
@@ -70,6 +115,15 @@ export WINVM_GUEST_SHUTDOWN_GRACE WINVM_SUSPEND_POLICY WINVM_SSH_BIN
 export WINVM_FORBID_OUTER_UI
 export WINVM_UI_PIPE_NAME WINVM_UI_TASK_NAME
 export WINVM_UI_REMOTE_RELATIVE
+export WINVM_WORKSPACE_STATE_DIR WINVM_WORKSPACE_DEVELOPMENT_NAME
+export WINVM_WORKSPACE_DEVELOPMENT_ID WINVM_WORKSPACE_DEVELOPMENT_PROVEN
+export WINVM_WORKSPACE_READY_BASE_NAME WINVM_WORKSPACE_READY_BASE_ID
+export WINVM_WORKSPACE_READY_BASE_PROVEN WINVM_WORKSPACE_STORAGE_PATH
+export WINVM_WORKSPACE_ALLOW_SHARED_BASE
+export WINVM_WORKSPACE_MIN_FREE_BYTES WINVM_WORKSPACE_MAX_TEMPORARY
+export WINVM_WORKSPACE_MAX_RETAINED WINVM_WORKSPACE_FULL_COPY_FALLBACK
+export WINVM_WORKSPACE_ALLOW_FULL_COPY_ONCE WINVM_WORKSPACE_CANDIDATE_PREFIX
+export MACHINE_CONTROL_WORKSPACE_HANDLE
 
 winvm_provider_path() {
     printf '%s/providers/%s/provider.sh\n' "$WINVM_REPO_DIR" "$WINVM_PROVIDER"

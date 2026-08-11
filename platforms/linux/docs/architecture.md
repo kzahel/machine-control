@@ -16,6 +16,17 @@ outer recovery. No healthy layer is allowed to hide failure in another.
 The provider contains no GNOME widget knowledge. Display dimensions come from
 configuration and must match the guest's current logical mode.
 
+The workspace adapter composes UTM lifecycle without changing the Linux guest
+driver. `persistent` reuses an explicitly proven UUID-pinned development VM;
+`isolated` runs a proven stopped base in UTM disposable mode; and `candidate`
+classifies ordinary UTM clone as a policy-gated full copy. Release stops a
+disposable base through a normal shutdown request and never deletes it.
+
+Opaque handles resolve mode-protected private receipts and then reapply the
+existing exact name/UUID mutation guard. This same boundary admits a future
+libvirt/KVM host adapter whose isolated mechanism is a QCOW2 overlay rather
+than UTM disposable mode.
+
 ## Command Completion Contract
 
 `utmctl exec` is a submission mechanism, not the observable completion

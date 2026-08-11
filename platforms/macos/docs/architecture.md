@@ -159,3 +159,17 @@ the exact Tart name is the available host-side clone assertion.
 The VM's disk and suspended state are not a session-ownership authority.
 Restoring or cloning a VM that contains provider state must not make it an
 eligible writer without a separate current ownership check.
+
+Workspace policy builds on this guard. `persistent` reuses the explicitly
+guarded development VM. `isolated` and `candidate` clone an explicitly proven
+stopped base through Tart's APFS copy-on-write mechanism; isolated clones are
+receipt-owned and deleted on release, while candidates remain retained. A
+configuration may deliberately use the stopped development VM as its own base
+to support a one-VM layout, but separate development and ready-base roles
+remain the safer default.
+
+An opaque workspace handle selects later commands by resolving a mode-`0600`
+private receipt, changing the exact Tart name, and reapplying the mutation
+guard. Derived work defaults to the Tart guest-agent transport so a clone does
+not inherit a controller-specific SSH endpoint. Release refuses to delete the
+configured development or base VM even if a receipt is malformed.

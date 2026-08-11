@@ -26,3 +26,10 @@ Android, iOS, and Quest adapters may expose `target status`, `target doctor`,
 and `target capabilities` through `machine-control-doctor/v0` without claiming
 a desktop/resident process. A device lifecycle mutation is dispatched only
 when that doctor declares the exact operation.
+
+The fake VM adapter covers the additive workspace surface on macOS, Linux, and
+Windows: strict capabilities, configured and explicit intent, opaque selection
+of later adapter calls, normalized mechanisms, typed refusal, private-field
+rejection, receipt-bound release, and dry-run-only garbage collection. Shared
+provider tests separately exercise private receipt modes/redaction and UTM
+persistent, disposable, and policy-gated full-copy behavior.
