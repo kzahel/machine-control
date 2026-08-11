@@ -124,6 +124,9 @@ The result records the initial and final states, its bounded action list,
 completion, and uncertainty. A running unhealthy target returns
 `readiness_repair_required`; the client never guesses a bootstrap, login,
 consent, credential, outer-input, or force-stop action.
+If an adapter reports start failure, the client still performs the final
+read-only doctor and keeps reported delivery separate from the independently
+observed ready or unready effect.
 
 **Current:** `target validate-candidate` requires an exact adapter-side
 candidate-role and identity assertion with no workspace receipt ownership,

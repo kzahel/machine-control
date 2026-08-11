@@ -252,6 +252,9 @@ if command == "status":
 elif command == "probe":
     print("ready")
 elif command in {"up", "suspend", "shutdown", "force-stop", "reboot"}:
+    if command == "up" and os.environ.get("MACHINE_CONTROL_MOCK_UP_FAIL"):
+        print("private-adapter-failure", file=sys.stderr)
+        raise SystemExit(1)
     if state_path is not None:
         next_state = {
             "up": "running",

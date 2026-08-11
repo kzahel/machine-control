@@ -911,13 +911,41 @@ def ensure_ready(alias: str, target: dict[str, Any]) -> int:
                 "readiness_start_unsupported",
                 "The target does not declare an ordinary start operation",
             )
-        _, _, start_ms = run_adapter(target, ["up"])
-        elapsed_ms += start_ms
-        actions.append({
-            "id": "start",
-            "adapterOperation": "up",
-            "status": "completed",
-        })
+        try:
+            _, _, start_ms = run_adapter(target, ["up"])
+            elapsed_ms += start_ms
+            actions.append({
+                "id": "start",
+                "adapterOperation": "up",
+                "status": "completed",
+            })
+        except ClientError as error:
+            if error.code != "adapter_failed":
+                raise
+            actions.append({
+                "id": "start",
+                "adapterOperation": "up",
+                "status": "reportedFailed",
+            })
+            final, _ = doctor(alias, target)
+            elapsed_ms += final["adapter"]["elapsedMs"]
+            data = {
+                "ready": final["ready"],
+                "completion": (
+                    "ready_with_adapter_error"
+                    if final["ready"]
+                    else "action_failed"
+                ),
+                "initial": readiness_observation(initial),
+                "actions": actions,
+                "final": readiness_observation(final),
+                "uncertainty": "bounded",
+                "errorCode": "readiness_action_reported_failure",
+            }
+            emit(target_result(
+                alias, target, "ensure-ready", data, elapsed_ms
+            ))
+            return 0 if final["ready"] else 1
         final, _ = doctor(alias, target)
         elapsed_ms += final["adapter"]["elapsedMs"]
         completion = "ready" if final["ready"] else "repair_required"

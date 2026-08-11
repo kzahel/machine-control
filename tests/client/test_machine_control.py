@@ -226,6 +226,24 @@ class ClientTests(unittest.TestCase):
             value["data"]["errorCode"], "readiness_repair_required"
         )
 
+    def test_ensure_ready_observes_after_reported_start_failure(self):
+        state = self.directory / "power-state"
+        state.write_text("off", encoding="utf-8")
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "ensure-ready",
+            extra_env={
+                "MACHINE_CONTROL_MOCK_STATE_FILE": str(state),
+                "MACHINE_CONTROL_MOCK_UP_FAIL": "1",
+            },
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertFalse(value["data"]["ready"])
+        self.assertEqual(value["data"]["completion"], "action_failed")
+        self.assertEqual(
+            value["data"]["actions"][0]["status"], "reportedFailed"
+        )
+        self.assertNotIn("private-adapter-failure", result.stdout)
+
     def test_candidate_validation_requires_running_ready_candidate(self):
         result, value = self.run_cli(
             "--target", "fixture", "target", "validate-candidate"

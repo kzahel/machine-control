@@ -36,6 +36,7 @@ persistent, disposable, and policy-gated full-copy behavior.
 
 The same fake adapter proves that `target ensure-ready` is a no-op when ready,
 starts an off target only through its declared `up` operation, and refuses to
-invent a running-target repair. Candidate tests require a fresh running-ready
-observation and prove that only a cleanly stopped second identity assertion is
-eligible for private promotion.
+invent a running-target repair. A reported start failure still receives an
+independent final doctor observation without exposing adapter diagnostics.
+Candidate tests require a fresh running-ready observation and prove that only
+a cleanly stopped second identity assertion is eligible for private promotion.
