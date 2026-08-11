@@ -17,6 +17,10 @@ POST_UPDATE_SOURCE = (
 )
 
 
+@unittest.skipIf(
+    os.name == "nt",
+    "ChromeOS shell-adapter composition requires a POSIX controller",
+)
 class CommonSurfaceTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
