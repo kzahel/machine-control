@@ -176,6 +176,7 @@ if git -C "$REPO_DIR/../.." rev-parse --is-inside-work-tree \
     grep -q '^reboot ' "$maintenance_log"
     grep -q ' portable ' "$maintenance_log"
     grep -q ' native ' "$maintenance_log"
+    grep -q 'HOME=' "$maintenance_log"
     grep -q '^shutdown ' "$maintenance_log"
     ! grep -Eq '(^| )(clone|workspace-|screenshot|click|type|key)( |$)' \
         "$maintenance_log"

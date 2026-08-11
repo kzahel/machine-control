@@ -136,7 +136,7 @@ run_guest_check() {
     set +e
     LINUXVM_EXEC_TIMEOUT=$((check_timeout + 30)) "$LINUXVM" exec -- \
         /usr/bin/bash -lc \
-        'stage="$1"; timeout="$2"; kind="$3"; cd "$stage/source"; exec /usr/bin/timeout --signal=TERM --kill-after=10s "${timeout}s" /usr/bin/python3 bin/check "--$kind" >"$stage/$kind.out.log" 2>"$stage/$kind.err.log"' \
+        'stage="$1"; timeout="$2"; kind="$3"; mkdir -p "$stage/home"; cd "$stage/source"; exec /usr/bin/timeout --signal=TERM --kill-after=10s "${timeout}s" /usr/bin/env HOME="$stage/home" XDG_STATE_HOME="$stage/home/.local/state" /usr/bin/python3 bin/check "--$kind" >"$stage/$kind.out.log" 2>"$stage/$kind.err.log"' \
         _ "$remote_stage" "$check_timeout" "$kind" >/dev/null
     status=$?
     set -e
