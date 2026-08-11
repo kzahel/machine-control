@@ -108,21 +108,48 @@ once rootfs verification has been removed; see its
 
 ## After a ChromeOS Update
 
-Updates re-enable rootfs verification and reset `/etc/chrome_dev.conf`, which breaks remote debugging.
+Updates replace the active root image. They can remove SSH autostart, re-enable
+rootfs verification, and reset `/etc/chrome_dev.conf`. The stateful fallback,
+keys, configuration, client, and post-update repair staging survive.
 
-1. Fix SSH first (see "After a Reboot" above).
-2. Re-run bootstrap to restore the Upstart job if `doctor` reports that SSH
-   autostart is missing.
-3. Run the automated fix:
+1. If SSH did not return, start the stateful fallback from VT2 as described
+   above.
+2. Run the focused, read-only audit:
+
    ```bash
-   bin/chromeos fix-devtools
+   bin/chromeos post-update
    ```
-   If rootfs is read-only, it will remove rootfs verification over SSH, reboot the device, and prompt you to restart SSH from VT2 before re-running `fix-devtools`.
+
+3. Run the guided repair. It stages the checkout's current bootstrap before
+   changing boot state:
+
+   ```bash
+   bin/chromeos post-update --repair
+   ```
+
+   If rootfs verification is enabled, the command asks before disabling it and
+   rebooting. It stages the current bootstrap on the update-persistent stateful
+   partition first. Run that staged bootstrap from VT2 after the reboot, then
+   run `post-update --repair` again to activate and audit DevTools.
+
+4. Prove the repair with a second, explicit reboot:
+
+   ```bash
+   bin/chromeos post-update --verify-reboot
+   ```
+
+   Success requires a new boot ID and a current-boot `shill-connected` entry in
+   the stateful SSH startup log. This distinguishes real boot persistence from
+   a listener that was only started manually.
+
+Ordinary `doctor` also warns when ChromeOS reports an update waiting for
+reboot, so physical VT2 access can be planned before the root image changes.
 
 ## Usage
 
 ```bash
 bin/chromeos doctor              # Check everything
+bin/chromeos post-update         # Audit/repair/prove state after an OS update
 bin/chromeos smoke-test          # Exercise input, screenshots, and desktop UI
 bin/chromeos diagnostics         # Collect a read-only diagnostic bundle
 bin/chromeos fix-ssh             # Repair/restart the root SSH service
@@ -265,6 +292,7 @@ scripts/
   common.sh                Shared variables and helpers
   diagnostics.sh           Read-only diagnostic bundle
   doctor.sh                Health check
+  post-update.sh           Post-update audit, guided repair, and reboot proof
   fix-ssh.sh               Restart sshd after reboot
   fix-devtools.sh          Fix remote debugging after update
   deploy-client.sh         Deploy client.py to device

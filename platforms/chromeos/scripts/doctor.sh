@@ -88,6 +88,26 @@ else
     exit 1
 fi
 
+# Warn before a pending A/B update consumes the next boot and replaces the
+# rootfs-resident SSH and DevTools configuration.
+UPDATE_OPERATION=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; \
+update_engine_client --status 2>/dev/null | awk -F= '\$1 == \"CURRENT_OP\" { print \$2; exit }'" \
+    2>/dev/null || true)
+if [ "$UPDATE_OPERATION" = "UPDATE_STATUS_UPDATED_NEED_REBOOT" ]; then
+    warn "ChromeOS update is waiting for reboot" \
+         "After the reboot, recover SSH from VT2 and run: chromeos post-update --repair"
+fi
+
+SSH_FALLBACK=$(ssh "$SSH_HOST" \
+    "test -r /mnt/stateful_partition/etc/ssh/start_sshd.sh && echo yes || echo no" \
+    2>/dev/null || true)
+if [ "$SSH_FALLBACK" = "yes" ]; then
+    ok "Stateful VT2 SSH fallback is available"
+else
+    fail "Stateful VT2 SSH fallback is missing" \
+         "Re-run the current bootstrap from VT2 before rebooting"
+fi
+
 # 2. Check reboot-persistent SSH management
 SSH_AUTOSTART=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; \
 if [ -f /etc/init/openssh-server.conf ] && \

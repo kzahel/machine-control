@@ -254,6 +254,12 @@ else
     echo "    [SKIP] No developer password. Set with: chromeos-setdevpasswd"
 fi
 
+# Record which immutable ChromeOS root image this bootstrap prepared. The
+# marker survives A/B updates, allowing post-update audit to distinguish a
+# repaired image from state merely restored by the manual SSH fallback.
+PREPARED_RELEASE=$(awk -F= '$1 == "CHROMEOS_RELEASE_VERSION" { print $2; exit }' /etc/lsb-release)
+printf '%s\n' "${PREPARED_RELEASE:-unknown}" > "$SSH_DIR/prepared-release"
+
 # --- Summary ---
 echo "[4/4] Done!"
 echo

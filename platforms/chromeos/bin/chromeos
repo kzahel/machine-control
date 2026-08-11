@@ -7,6 +7,7 @@
 #   doctor              Check connectivity, devtools, client.py, etc.
 #   diagnostics [dir]   Collect a non-mutating diagnostic bundle
 #   smoke-test [dir]    Exercise screenshots, input, and desktop automation
+#   post-update [--repair|--verify-reboot] [-y]  Audit/repair after an OS update
 #   fix-ssh             Restart sshd after reboot
 #   fix-devtools        Re-enable --remote-debugging-port=9222
 #   deploy              Deploy/update client.py on Chromebook
@@ -125,6 +126,10 @@ cmd_diagnostics() {
 
 cmd_smoke_test() {
     CHROMEOS_OUTPUT="$OUTPUT_FORMAT" exec "$REPO_DIR/scripts/smoke-test.sh" "$@"
+}
+
+cmd_post_update() {
+    CHROMEOS_OUTPUT="$OUTPUT_FORMAT" exec "$REPO_DIR/scripts/post-update.sh" "$@"
 }
 
 cmd_fix_ssh() {
@@ -1556,6 +1561,7 @@ case "$cmd" in
     doctor)       cmd_doctor "$@" ;;
     diagnostics)  cmd_diagnostics "$@" ;;
     smoke-test)   cmd_smoke_test "$@" ;;
+    post-update)  cmd_post_update "$@" ;;
     fix-ssh)      cmd_fix_ssh "$@" ;;
     fix-devtools) cmd_fix_devtools "$@" ;;
     deploy)       cmd_deploy "$@" ;;

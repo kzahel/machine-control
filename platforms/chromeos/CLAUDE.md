@@ -10,7 +10,7 @@ The skill definition is at `skills/SKILL.md`. Other projects can reference it fo
 
 `bin/chromeos <command>` — run `bin/chromeos help` for usage.
 
-Key commands: `doctor`, `smoke-test`, `diagnostics`, `fix-ssh`,
+Key commands: `doctor`, `post-update`, `smoke-test`, `diagnostics`, `fix-ssh`,
 `fix-devtools`, `screenshot`, `desktop-tap`, `desktop-wait`, `adb-status`,
 `adb-connect`, `tap`, `type`, `shortcut`, `vt2`, `gui`, `info`, `deploy`,
 `power-status`, `keep-awake`, `restore-power`, `shell`.

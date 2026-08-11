@@ -13,6 +13,9 @@ CLI tools for bootstrapping, troubleshooting, and controlling a ChromeOS Chromeb
 
 ```bash
 chromeos doctor              # Health check — shows what's working/broken
+chromeos post-update         # Read-only focused audit after a ChromeOS update
+chromeos post-update --repair  # Guided repair across the required reboot
+chromeos post-update --verify-reboot  # Prove SSH autostart on a fresh boot
 chromeos smoke-test          # End-to-end test; saves screenshots and restores UI
 chromeos diagnostics         # Collect a non-mutating support bundle
 chromeos fix-ssh             # Restart sshd after reboot
@@ -94,13 +97,20 @@ restore future automatic startup.
 
 ### Post-Update Recovery
 
-ChromeOS updates re-enable rootfs verification and reset chrome_dev.conf.
+ChromeOS updates can remove SSH autostart, re-enable rootfs verification, and
+reset chrome_dev.conf. The focused audit is read-only; repair and proof reboots
+are explicit.
 
 ```bash
-chromeos doctor            # See what broke
-chromeos fix-devtools      # Will tell you if rootfs verification needs removal
-# If rootfs is read-only, follow the manual VT2 instructions it prints
+chromeos post-update                    # See what the new image lost
+chromeos post-update --repair           # Stage and repair; confirms before reboot
+# Run the instructed staged bootstrap from VT2, then run --repair again.
+chromeos post-update --verify-reboot    # Require new boot ID + autostart evidence
 ```
+
+Ordinary `doctor` warns when an update is already waiting for reboot. Plan for
+physical VT2 access before accepting that reboot because the new root image can
+remove the SSH job.
 
 ### Taking Screenshots
 
@@ -303,5 +313,5 @@ Then verify: `chromeos doctor`
 | Event | What breaks | Fix |
 |-------|-------------|-----|
 | Reboot | User session is signed out; browser/extensions/Crostini unavailable | Wait for automatic SSH, then `chromeos login` |
-| ChromeOS update | SSH boot job and chrome_dev.conf may reset; rootfs may become read-only | VT2: start stateful SSH, re-bootstrap, then `chromeos fix-devtools` |
+| ChromeOS update | SSH boot job and chrome_dev.conf may reset; rootfs may become read-only | VT2: start stateful SSH, then `chromeos post-update --repair` and `--verify-reboot` |
 | IP change | SSH config stale | Update `~/.ssh/config` HostName |
