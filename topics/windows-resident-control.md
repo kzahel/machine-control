@@ -62,7 +62,7 @@ Setup, injected drivers, staged media removal, first-login guest tools and SSH,
 target-attested MachineControl installation, UAC, local/remote applications,
 pre-login resident control, stock password login, disk-only reboot, and exact
 cleanup all have live evidence in Tactical 007 and the testbed
-[image-factory runbook](../../winvm-testbed/docs/image-factory.md).
+[image-factory runbook](../platforms/windows/docs/image-factory.md).
 
 ## Scope
 

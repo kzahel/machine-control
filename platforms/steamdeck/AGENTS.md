@@ -1,5 +1,8 @@
 # Steam Deck Testbed Agent Guide
 
+This platform directory is the canonical public source. Do not make
+implementation changes in the legacy `steamdeck-testbed` checkout.
+
 This repository owns project-neutral control of a physical Steam Deck over
 Valve's SteamOS Devkit SSH path. Keep builds, game-specific assets, launch
 policy, persistence, and acceptance assertions in the consuming project.

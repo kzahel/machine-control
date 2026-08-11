@@ -53,9 +53,9 @@ one generic implementation.
 
 | Repository | Administration/inner control | Outer control |
 | --- | --- | --- |
-| [`winvm-testbed`](../winvm-testbed/README.md) | Authoritative UTM lifecycle, minimized doctor, PowerShell/SSH administration, and bounded access to the Windows resident | UTM/QEMU screenshot, keyboard, scan codes, and pointer remain explicit recovery routes |
-| [`macvm-testbed`](../macvm-testbed/README.md) | Authoritative Tart lifecycle, minimized doctor, selected guest administration, and bounded access to the macOS resident | Tart screenshot, pointer, and keyboard remain explicit recovery routes |
-| [`linuxvm-testbed`](../linuxvm-testbed/README.md) | Authoritative UTM lifecycle, minimized doctor, guest/session execution, and bounded access to the Linux resident | UTM screenshot, keyboard, and pointer remain explicit recovery routes |
+| [`platforms/windows`](platforms/windows/README.md) | Authoritative UTM lifecycle, minimized doctor, PowerShell/SSH administration, and bounded access to the Windows resident | UTM/QEMU screenshot, keyboard, scan codes, and pointer remain explicit recovery routes |
+| [`platforms/macos`](platforms/macos/README.md) | Authoritative Tart lifecycle, minimized doctor, selected guest administration, and bounded access to the macOS resident | Tart screenshot, pointer, and keyboard remain explicit recovery routes |
+| [`platforms/linux`](platforms/linux/README.md) | Authoritative UTM lifecycle, minimized doctor, guest/session execution, and bounded access to the Linux resident | UTM screenshot, keyboard, and pointer remain explicit recovery routes |
 
 These repositories implement the right broad ordering: lifecycle and
 administration, then resident semantic/capture/input control, with outer
@@ -67,11 +67,11 @@ outer route merely because it is convenient.
 
 | Repository | Current role | Important boundary |
 | --- | --- | --- |
-| [`chromeos-testbed`](../chromeos-testbed/README.md) | Root SSH, browser CDP, Chrome desktop accessibility, screenshots, and device-native input on a designated developer-mode Chromebook | Update-sensitive and guest-resident; not an independent physical recovery path |
+| [`platforms/chromeos`](platforms/chromeos/README.md) | Root SSH, browser CDP, Chrome desktop accessibility, screenshots, and device-native input on a designated developer-mode Chromebook | Update-sensitive and guest-resident; not an independent physical recovery path |
 | [`hardware-kvm-testbed`](../hardware-kvm-testbed/README.md) | Planned HDMI capture and USB HID for externally controlled physical hardware | Pixel/HID only; intended as outer recovery and independent observation, currently in bring-up |
-| [`ios-device-testbed`](../ios-device-testbed/README.md) | Explicit physical-iPhone selection, signing, CoreDevice lifecycle, semantic XCTest, screenshots, input, leases, and recovery | The agent runs on the Mac; a stock iPhone cannot host a general YA worker |
-| [`quest-testbed`](../quest-testbed/README.md) | Explicit ADB target selection, device state, deployment, leases, and recovery for Quest | Protected headset/account surfaces remain human gates |
-| [`steamdeck-testbed`](../steamdeck-testbed/README.md) | Direct device administration and session-aware deployment/control | Physical recovery capability depends on available hardware and session state |
+| [`platforms/ios`](platforms/ios/README.md) | Explicit physical-iPhone selection, signing, CoreDevice lifecycle, semantic XCTest, screenshots, input, leases, and recovery | The agent runs on the Mac; a stock iPhone cannot host a general YA worker |
+| [`platforms/quest`](platforms/quest/README.md) | Explicit ADB target selection, device state, deployment, leases, and recovery for Quest | Protected headset/account surfaces remain human gates |
+| [`platforms/steamdeck`](platforms/steamdeck/README.md) | Direct device administration and session-aware deployment/control | Physical recovery capability depends on available hardware and session state |
 | Android through ADB | Installation, lifecycle, shell, screenshots, input, logs, and optional UIAutomator semantics | Usually controller-hosted rather than an on-device general agent |
 
 ## Research and candidate providers

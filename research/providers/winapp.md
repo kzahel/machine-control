@@ -17,9 +17,9 @@ Last corpus review: 2026-08-09.
 
 Evidence links:
 
-- [WinVM UI automation](../../../winvm-testbed/docs/ui-automation.md)
-- [WinVM architecture](../../../winvm-testbed/docs/architecture.md)
-- [WinVM known problems](../../../winvm-testbed/docs/problems.md)
+- [WinVM UI automation](../../platforms/windows/docs/ui-automation.md)
+- [WinVM architecture](../../platforms/windows/docs/architecture.md)
+- [WinVM known problems](../../platforms/windows/docs/problems.md)
 - [Windows shell findings](../../../machine-control-spike/docs/windows-shell-findings.md)
 - [Windows provider-composition result](../../docs/tactical/004-windows-provider-composition-and-agent-ergonomics.md)
 - [upstream UI automation reference](https://github.com/microsoft/winappCli/blob/main/docs/ui-automation.md)

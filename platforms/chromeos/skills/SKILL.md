@@ -7,7 +7,7 @@ description: Manage a ChromeOS development device — health checks, fix SSH/dev
 
 CLI tools for bootstrapping, troubleshooting, and controlling a ChromeOS Chromebook in developer mode.
 
-**Tool path:** `~/code/chromeos-testbed/bin/chromeos`
+**Tool path:** `~/code/machine-control/platforms/chromeos/bin/chromeos`
 
 ## Quick Reference
 

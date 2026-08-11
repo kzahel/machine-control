@@ -1,5 +1,8 @@
 # LinuxVM Testbed Agent Guide
 
+This platform directory is the canonical public source. Do not make
+implementation changes in the legacy `linuxvm-testbed` checkout.
+
 LinuxVM Testbed operates an Ubuntu Wayland desktop inside UTM from a macOS
 host. Keep lifecycle/transport in `providers/`, guest behavior in `guests/`,
 and agent-facing commands in `bin/`.

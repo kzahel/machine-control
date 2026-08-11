@@ -28,6 +28,8 @@ matches the question:
 - [Repository consolidation and focused publications](topics/repository-consolidation-and-publication.md):
   canonical public platform sources, private inventory, history-preserving
   cutovers, and optional generated testbed distributions.
+- [Platform implementations](platforms/README.md): canonical Windows, macOS,
+  Linux, ChromeOS, iOS, Quest, and Steam Deck source trees.
 - [Windows runtime](#windows-runtime): the first resident implementation,
   build/install workflow, contract, and conformance entry points.
 - [macOS runtime](#macos-runtime): the accepted Tart resident slice, including
@@ -282,26 +284,35 @@ remains in dotfiles, and YepAnywhere retains agent-session coordination.
 
 **Current:** [`bin/machine-control`](bin/machine-control) provides one local
 target-selecting lifecycle, readiness, and resident-control entry point for
-the accepted Windows, macOS, and Linux testbeds. Portable defaults resolve the
-three sibling testbed CLIs; an ignored `targets.local.json` or an explicit
-registry can add logical targets without committing private inventory.
+the accepted Windows, macOS, and Linux desktops, plus explicit native entry
+points for ChromeOS, iOS, Quest, and Steam Deck. Portable defaults resolve the
+seven in-repository platform CLIs. On a configured controller, an optional
+private inventory provider supplies concrete selectors and environment without
+exposing them in the portable target list.
 
 ```bash
 bin/machine-control targets
+bin/machine-control inventory status
 bin/machine-control --target windows target doctor
 bin/machine-control --target macos desktop snapshot \
   --target org.example.Application --query Save
 bin/machine-control --target linux desktop capture \
   --scope window --target active_window
+bin/machine-control --target chromeos testbed -- doctor
 ```
 
-The common lifecycle subset is `status`, `up`, `suspend`, `shutdown`,
+For the accepted desktops, the common lifecycle subset is `status`, `up`,
+`suspend`, `shutdown`,
 `force-stop`, `doctor`, and `capabilities`. Desktop commands cover status,
 capabilities, application/window inventory and lifecycle, semantic snapshots
 and actions, target-local input/capture, and bounded artifact retrieval. Each
 result preserves the resident's actual operation, provider route, delivery,
 effect, uncertainty, generation, and host-interference report while adding a
 separate client/transport projection.
+
+Native device targets deliberately refuse unsupported common lifecycle or
+desktop operations. Use private `inventory` for configured availability and
+the explicit `testbed --` namespace for their platform-native commands.
 
 Use `testbed --` and `os --` for explicit machine-specific lifecycle,
 bootstrap, recovery, or administration. Ordinary `desktop` operations never
@@ -362,13 +373,13 @@ publishes and verifies the package, installs it idempotently, waits for the
 Medium helper and providers, removes staging, and returns minimized readiness:
 
 ```bash
-scripts/bootstrap-windows.sh --testbed ../winvm-testbed <ssh-target>
+scripts/bootstrap-windows.sh --testbed platforms/windows <ssh-target>
 ```
 
 This is the MachineControl-layer bootstrap. Windows OOBE, guest tools, SSH,
 appliance login policy, VM cloning, and image sealing remain owned by the
 authoritative testbed. Its
-[image-factory runbook](../winvm-testbed/docs/image-factory.md) now covers
+[image-factory runbook](platforms/windows/docs/image-factory.md) now covers
 secret-safe unattended inputs, a live public-ISO-to-unactivated-Pro path,
 fail-closed UUID/role selection, BitLocker and AppX preflight, Sysprep shutdown,
 stopped export/manifest, and disposable OOBE verification.
@@ -406,7 +417,7 @@ acceptance, disk-only reboot, and exact disposable cleanup.
 ## macOS runtime
 
 **Current:** The authoritative sibling
-[`macvm-testbed`](../macvm-testbed/README.md) packages a persistent
+[`platforms/macos`](platforms/macos/README.md) packages a persistent
 ordinary-session macOS facade inside a stable `MacVM UI.app` identity. The
 same `machine-control/v0` request reaches its user-owned Unix socket from the
 guest-local client or through `tart exec`; neither route focuses Tart or moves
@@ -484,7 +495,7 @@ for continuing direction.
 ## Linux runtime
 
 **Current:** The authoritative sibling
-[`linuxvm-testbed`](../linuxvm-testbed/README.md) implements an accepted Ubuntu
+[`platforms/linux`](platforms/linux/README.md) implements an accepted Ubuntu
 24.04 GNOME 46 Wayland logged-in appliance. Guest-local and outside callers
 send the same `machine-control/v0` requests to a private active-user Unix
 socket and receive the same generation-scoped references, routes, artifacts,

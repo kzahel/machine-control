@@ -119,9 +119,9 @@ Observed results include:
 
 Authoritative details:
 
-- [WinVM UI automation](../../../winvm-testbed/docs/ui-automation.md)
-- [WinVM architecture](../../../winvm-testbed/docs/architecture.md)
-- [WinVM known problems](../../../winvm-testbed/docs/problems.md)
+- [WinVM UI automation](../../platforms/windows/docs/ui-automation.md)
+- [WinVM architecture](../../platforms/windows/docs/architecture.md)
+- [WinVM known problems](../../platforms/windows/docs/problems.md)
 
 WinApp has not run the complete Cua-style fixture matrix or an independent
 duplicate of every shell cell. It did run the adopted-baseline and measured-gap

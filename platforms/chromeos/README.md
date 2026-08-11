@@ -1,5 +1,9 @@
 # ChromeOS Testbed
 
+This directory is the canonical public source. The former
+`chromeos-testbed` repository is retained only as legacy history and a
+possible future generated distribution.
+
 ## Why this exists
 
 ChromeOS has no automation story. Android has ADB and UIAutomator. Desktop Linux has xdotool and AT-SPI2. macOS has AppleScript. ChromeOS has nothing — no public automation API, no accessibility bus, no scriptable input layer. And the OS actively fights you: every reboot returns to the profile sign-in screen, while updates can re-lock the root filesystem and reset your devtools config.
@@ -279,7 +283,8 @@ These commands implement the procedure in the official
 Other projects can reference the skill for ChromeOS device management. Add to your project's `CLAUDE.md`:
 
 ```
-For ChromeOS device management, see ~/code/chromeos-testbed/skills/SKILL.md
+For ChromeOS device management, see
+`~/code/machine-control/platforms/chromeos/skills/SKILL.md`.
 ```
 
 ## File structure

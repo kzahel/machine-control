@@ -6,7 +6,7 @@ shape.
 ## Current stack
 
 **Current — adopted:** The authoritative
-[`ios-device-testbed`](../../../ios-device-testbed/README.md) keeps the agent on
+[`platforms/ios`](../../platforms/ios/README.md) keeps the agent on
 an authorized Mac and treats the phone as a distinct target. CoreDevice and
 `devicectl` own device discovery, lifecycle, application and file operations.
 A signed persistent XCTest runner, currently driven through

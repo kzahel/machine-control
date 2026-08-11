@@ -247,4 +247,4 @@ remaining lane with Microsoft's public ARM64 multi-edition ISO. It reached an
 unactivated Windows 11 Pro resident appliance, passed protected and ordinary
 product acceptance, rebooted disk-only, and was deleted after exact cleanup.
 See the authoritative testbed's
-[`image-factory.md`](../../../winvm-testbed/docs/image-factory.md).
+[`image-factory.md`](../../platforms/windows/docs/image-factory.md).

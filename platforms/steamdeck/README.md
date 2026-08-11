@@ -6,6 +6,10 @@ already-built Linux game from macOS or Linux, register it as a Devkit Game,
 launch it in Gaming Mode, inspect power/session state, and control the built-in
 panel without modifying SteamOS's read-only system image.
 
+This directory is the canonical public source. The former
+`steamdeck-testbed` repository is retained only as legacy history and a
+possible future generated distribution.
+
 The consuming project owns its build. A Unity project can stage a Linux x86_64
 player, a Rust project can stage a Steam Runtime build, and both use the same
 deployment manifest and device transport.
@@ -41,9 +45,9 @@ Do not commit the address, private key, or local overrides here.
 ## Quick start
 
 ```bash
-~/code/steamdeck-testbed/bin/steamdeck doctor
-~/code/steamdeck-testbed/bin/steamdeck status
-~/code/steamdeck-testbed/bin/steamdeck power-status
+~/code/machine-control/platforms/steamdeck/bin/steamdeck doctor
+~/code/machine-control/platforms/steamdeck/bin/steamdeck status
+~/code/machine-control/platforms/steamdeck/bin/steamdeck power-status
 ```
 
 Override the SSH alias without changing the repository:

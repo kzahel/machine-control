@@ -1,5 +1,8 @@
 # Quest Testbed Agent Guide
 
+This platform directory is the canonical public source. Do not make
+implementation changes in the legacy `quest-testbed` checkout.
+
 This repository owns project-neutral control of physical Meta Quest headsets
 over ADB. Keep builds, application-specific assets and arguments, host XR
 runtimes, readiness markers, performance policy, and acceptance assertions in

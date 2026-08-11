@@ -8,12 +8,12 @@ description: Start, diagnose, administer, inspect, and interact with a Windows V
 Use the repository's deterministic CLI instead of reimplementing UTM,
 PowerShell, or UI relay commands.
 
-**Tool path:** `~/code/winvm-testbed/bin/winvm`
+**Tool path:** `~/code/machine-control/platforms/windows/bin/winvm`
 
 ## Begin Every Task
 
 ```bash
-~/code/winvm-testbed/bin/winvm doctor
+~/code/machine-control/platforms/windows/bin/winvm doctor
 ```
 
 Read the result before acting:

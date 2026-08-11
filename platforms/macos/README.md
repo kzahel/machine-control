@@ -3,6 +3,10 @@
 Agent-friendly bootstrap, management, screenshots, input injection, and
 accessibility-tree automation for macOS virtual machines.
 
+This directory is the canonical public source. The former
+`macvm-testbed` repository is retained only as legacy history and a possible
+future generated distribution.
+
 MacVM Testbed fills the gap between “Tart is running” and “an automated agent
 can reliably operate the Mac desktop.” It provides one CLI for VM lifecycle,
 guest-agent commands, normalized screenshots, host-injected input, and native
@@ -33,8 +37,7 @@ integrity boundaries still apply.
 ```bash
 brew install cirruslabs/cli/tart
 tart clone ghcr.io/cirruslabs/macos-tahoe-base:latest tahoe-base
-git clone https://github.com/kzahel/macvm-testbed.git ~/code/macvm-testbed
-cd ~/code/macvm-testbed
+cd ~/code/machine-control/platforms/macos
 bin/macvm up
 bin/macvm deploy-ui
 bin/macvm authorize-ui

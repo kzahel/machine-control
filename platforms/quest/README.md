@@ -5,6 +5,10 @@ physical Meta Quest over Android Debug Bridge. It selects an authorized Quest,
 reports device and battery state, installs and launches already-built APKs,
 collects screenshots and logs, and wraps tests in a recoverable headset lease.
 
+This directory is the canonical public source. The former `quest-testbed`
+repository is retained only as legacy history and a possible future generated
+distribution.
+
 The consuming project owns its build, application arguments, assets, host XR
 runtime, and acceptance assertions. This repository owns the physical-device
 contract: authorization, selection, power/proximity preparation, recovery,
@@ -27,15 +31,15 @@ per controller; this repository contains no device credentials or serials.
 ## Start safely
 
 ```bash
-~/code/quest-testbed/bin/quest doctor
-~/code/quest-testbed/bin/quest status
-~/code/quest-testbed/bin/quest probe
+~/code/machine-control/platforms/quest/bin/quest doctor
+~/code/machine-control/platforms/quest/bin/quest status
+~/code/machine-control/platforms/quest/bin/quest probe
 ```
 
 On Windows PowerShell:
 
 ```powershell
-& "$HOME\code\quest-testbed\bin\quest.ps1" doctor
+& "$HOME\code\machine-control\platforms\quest\bin\quest.ps1" doctor
 ```
 
 Pass `--serial SERIAL` or set `QUEST_TESTBED_SERIAL` when multiple Quest
@@ -65,7 +69,7 @@ lease and pass the script's PID. Always arrange `end` in the script's cleanup
 trap or `finally` block:
 
 ```bash
-quest=~/code/quest-testbed/bin/quest
+quest=~/code/machine-control/platforms/quest/bin/quest
 serial="$($quest serial)"
 $quest --serial "$serial" begin --owner-pid "$$" \
   --stop-package com.example.game

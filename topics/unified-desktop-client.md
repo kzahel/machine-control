@@ -128,9 +128,9 @@ the deeper Windows corpus already covers Unicode input. See the
   local contract stays stable under real application campaigns.
 - Expand friendly normalization when repeated workflows demonstrate a common
   field or selector; retain `desktop raw` for honest provider-specific calls.
-- Bring ChromeOS and device-host providers into the same inventory,
-  authorization, capability, and result experience without forcing desktop
-  lifecycle semantics onto them.
+- Extend ChromeOS and device-host normalization beyond their current common
+  inventory and explicit native command entry only when measured operations
+  support honest shared capability and result semantics.
 - Use the captured latency and result-size baseline to reduce transport
   overhead, especially on the current Windows and Linux administrative routes.
 

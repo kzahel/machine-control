@@ -186,4 +186,4 @@ runtime builds, bootstrap target-safety tests, and both testbed suites pass.
 
 The authoritative command-level record and media architecture live in the
 testbed's
-[`image-factory.md`](../../../winvm-testbed/docs/image-factory.md).
+[`image-factory.md`](../../platforms/windows/docs/image-factory.md).

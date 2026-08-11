@@ -19,7 +19,7 @@ Last corpus review: 2026-08-05.
 
 Evidence links:
 
-- [iOS device testbed](../../../ios-device-testbed/README.md)
+- [iOS device platform](../../platforms/ios/README.md)
 - [upstream repository](https://github.com/callstack/agent-device)
 
 ## Architecture and depth

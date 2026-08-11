@@ -1,5 +1,8 @@
 # MacVM Testbed Agent Guide
 
+This platform directory is the canonical public source. Do not make
+implementation changes in the legacy `macvm-testbed` checkout.
+
 This repository starts, diagnoses, and controls a macOS VM. The supported
 configuration is currently a macOS guest in Tart on an Apple-silicon Mac.
 
@@ -44,9 +47,10 @@ the intended bridge into a new interactive desktop.
 
 ## Configuration And Deployment
 
-Machine configuration belongs in ignored `config.local` or `MACVM_*`
-environment variables. Never commit credentials, private keys, machine
-identifiers, personal screenshots, VM images, or TCC databases.
+Machine configuration belongs in the controller's private inventory, ignored
+`config.local`, or `MACVM_*` environment variables. Never commit credentials,
+private keys, machine identifiers, personal screenshots, VM images, or TCC
+databases here.
 
 After changing `guests/macos/ui/macui.swift`, deploy and verify it:
 

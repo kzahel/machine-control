@@ -26,8 +26,7 @@ Install Tart and clone this repository:
 
 ```bash
 brew install cirruslabs/cli/tart
-git clone https://github.com/kzahel/macvm-testbed.git ~/code/macvm-testbed
-cd ~/code/macvm-testbed
+cd ~/code/machine-control/platforms/macos
 ```
 
 Copy `config.example` to ignored `config.local` only when the VM name or

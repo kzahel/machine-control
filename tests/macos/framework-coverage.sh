@@ -3,7 +3,7 @@
 set -euo pipefail
 
 readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-readonly TESTBED_DIR="${MACVM_TESTBED_DIR:-$REPO_DIR/../macvm-testbed}"
+readonly TESTBED_DIR="${MACVM_TESTBED_DIR:-$REPO_DIR/platforms/macos}"
 readonly APPKIT_ID='org.machine-control.fixture'
 readonly SWIFTUI_ID='org.machine-control.swiftui-fixture'
 readonly JAVA_ID='org.machine-control.java-fixture'

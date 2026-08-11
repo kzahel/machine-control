@@ -5,7 +5,7 @@ Status: adopted testbed and current desktop North Star reference.
 ## Current stack
 
 **Current — adopted:** The authoritative
-[`chromeos-testbed`](../../../chromeos-testbed/README.md) reaches a designated
+[`platforms/chromeos`](../../platforms/chromeos/README.md) reaches a designated
 developer-mode Chromebook through SSH while the actual control mechanisms run
 on the target:
 

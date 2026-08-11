@@ -97,19 +97,26 @@ is deliberately minimized for agent use and durable evidence.
 ## Current implementation
 
 [`bin/machine-control`](../bin/machine-control) selects a logical target from
-portable sibling defaults or an ignored
-[`machine-control-targets/v0`](../contracts/targets-v0.schema.json) registry.
+portable in-repository platform defaults, an ignored
+[`machine-control-targets/v0`](../contracts/targets-v0.schema.json) registry,
+or an optional private inventory provider. The provider may carry concrete
+commands and environment internally; `targets` omits both from its output.
 It delegates every lifecycle operation to the selected authoritative testbed,
 returns a `machine-control-target/v0` projection with both normalized and raw
 adapter state, and validates each testbed's
 [`machine-control-doctor/v0`](../contracts/doctor-v0.schema.json) document.
 
-The three adapters independently inspect power, administration, logged-in
+The three common desktop adapters independently inspect power, administration, logged-in
 desktop, resident, semantic, capture, input, and outer-route policy. Powered
 off is a valid minimized doctor result with `ready: false`; doctor does not
 start or repair the target. Live acceptance proved common clean shutdown and
 subsequent `powerState: off` on all three profiles. See the
 [three-desktop evidence](../docs/evidence/desktop-common-entry.md).
+
+ChromeOS, iOS, Quest, and Steam Deck are present in the same target inventory
+with `native` interfaces. Their availability remains in the private inventory
+provider and their commands remain behind the explicit `testbed --` escape;
+the common client refuses to fabricate desktop or lifecycle parity.
 
 ## Failure behavior
 
@@ -126,7 +133,7 @@ subsequent `powerState: off` on all three profiles. See the
   operation after the individual lifecycle and doctor paths are proven.
 - Add authorization and discovery above the current local registry without
   turning a logical alias into bearer authority.
-- Add physical/device lifecycle profiles without making desktop VM fields
-  mandatory.
+- Decide which physical/device lifecycle observations merit normalized target
+  operations without making desktop VM fields mandatory.
 - Integrate authorized target discovery with YepAnywhere without moving
   private inventory into this public repository.

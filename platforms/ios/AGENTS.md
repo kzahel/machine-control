@@ -1,5 +1,8 @@
 # iOS Device Testbed Agent Guide
 
+This platform directory is the canonical public source. Do not make
+implementation changes in the legacy `ios-device-testbed` checkout.
+
 This repository owns project-neutral control of a physical iPhone through
 Xcode, CoreDevice, and a pinned Agent Device XCTest runner. Consuming projects
 own application builds, fixtures, and product-specific assertions.

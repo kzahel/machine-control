@@ -1,5 +1,8 @@
 # WinVM Testbed Agent Guide
 
+This platform directory is the canonical public source. Do not make
+implementation changes in the legacy `winvm-testbed` checkout.
+
 This repository starts, diagnoses, and controls a Windows VM. The supported
 configuration is currently a Windows 11 guest in UTM/QEMU on macOS.
 
@@ -34,9 +37,9 @@ repository, shell history, or command output.
 
 ## Configuration and Deployment
 
-Machine configuration belongs in ignored `config.local` or `WINVM_*`
-environment variables. Never commit credentials, private keys, addresses,
-hostnames, VM UUIDs, or personal screenshots.
+Machine configuration belongs in the controller's private inventory, ignored
+`config.local`, or `WINVM_*` environment variables. Never commit credentials,
+private keys, addresses, hostnames, VM UUIDs, or personal screenshots here.
 
 After changing files under `guests/windows/ui/`, deploy and verify them:
 

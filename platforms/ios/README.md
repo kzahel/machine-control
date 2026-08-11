@@ -6,6 +6,10 @@ a stock physical iPhone from a Mac. It wraps a pinned
 explicit hardware selection, paid-team signing settings, isolated daemon state,
 private configuration, and a recoverable exclusive lease.
 
+This directory is the canonical public source. The former
+`ios-device-testbed` repository is retained only as legacy history and a
+possible future generated distribution.
+
 Consuming repositories own their application builds, fixtures, and assertions.
 This repository owns physical-device selection, readiness, installation,
 automation sessions, screenshots, input, and recovery.
@@ -21,7 +25,7 @@ Prerequisites and one-time phone preparation are in [docs/setup.md](docs/setup.m
 Install the pinned host dependency:
 
 ```bash
-cd ~/code/ios-device-testbed
+cd ~/code/machine-control/platforms/ios
 pnpm install
 cp config.example config.local
 ```
@@ -50,7 +54,7 @@ provides one Agent Device session name to child commands, and cleans up the
 runner and daemon on exit:
 
 ```bash
-~/code/ios-device-testbed/bin/ios-device session -- bash -lc '
+~/code/machine-control/platforms/ios/bin/ios-device session -- bash -lc '
   set -euo pipefail
   ios="$IOS_DEVICE_TESTBED_ROOT/bin/ios-device"
   "$ios" launch com.example.app

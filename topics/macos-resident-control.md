@@ -8,7 +8,7 @@ lock/login, preboot, Recovery, and physical hardware are deferred.
 
 ## Current state
 
-The authoritative [`macvm-testbed`](../../macvm-testbed/README.md) now packages
+The authoritative [`platforms/macos`](../platforms/macos/README.md) now packages
 a persistent ordinary-session facade inside the stable MacVM UI application
 identity. Guest-local and `tart exec` callers use the same user-owned socket,
 generation, request vocabulary, and normalized result shape without routine

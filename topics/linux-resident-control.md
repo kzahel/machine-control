@@ -7,7 +7,7 @@ protected login planes, and physical Linux hardware remain research-stage.
 
 ## Current state
 
-The authoritative [`linuxvm-testbed`](../../linuxvm-testbed/README.md) now
+The authoritative [`platforms/linux`](../platforms/linux/README.md) now
 provides an accepted Ubuntu 24.04 GNOME 46 Wayland logged-in software-testing
 surface. A persistent active-user resident exposes the same
 `machine-control/v0` Unix-socket contract to guest-local and outside callers.

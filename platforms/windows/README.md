@@ -3,6 +3,10 @@
 Agent-friendly bootstrap, management, screenshots, input injection, and
 accessibility-tree automation for Windows virtual machines.
 
+This directory is the canonical public source. The former
+`winvm-testbed` repository is retained only as legacy history and a possible
+future generated distribution.
+
 WinVM Testbed fills the gap between “the VM is running” and “an automated
 agent can reliably operate it.” It provides one CLI for VM lifecycle, dynamic
 network discovery, key-only SSH, PowerShell and WSL, interactive Windows UI
@@ -45,11 +49,10 @@ elevation, so it cannot bypass Windows secure desktops or UIPI.
 
 ## Quick Start
 
-Clone the repository and inspect the configured machine:
+From a `machine-control` checkout, inspect the configured machine:
 
 ```bash
-git clone https://github.com/kzahel/winvm-testbed.git ~/code/winvm-testbed
-cd ~/code/winvm-testbed
+cd ~/code/machine-control/platforms/windows
 bin/winvm help
 bin/winvm doctor
 ```

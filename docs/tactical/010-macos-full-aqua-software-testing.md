@@ -9,7 +9,7 @@ Research:
 [`macOS platform report`](../../research/platforms/macos.md).
 
 Authoritative testbed:
-[`macvm-testbed`](../../../macvm-testbed/README.md).
+[`platforms/macos`](../../platforms/macos/README.md).
 
 ## Objective
 

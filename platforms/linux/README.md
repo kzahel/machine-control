@@ -3,6 +3,10 @@
 Agent-friendly bootstrap, management, screenshots, input injection, and
 accessibility-tree automation for Ubuntu Wayland virtual machines.
 
+This directory is the canonical public source. The former
+`linuxvm-testbed` repository is retained only as legacy history and a possible
+future generated distribution.
+
 LinuxVM Testbed fills the gap between “UTM is running” and “an automated agent
 can reliably operate the Linux desktop.” It combines UTM lifecycle and guest
 execution, normalized screenshots, virtual keyboard/mouse recovery, and
@@ -30,8 +34,7 @@ daily command or UI contracts.
 ## Quick Start With The Existing VM
 
 ```bash
-git clone https://github.com/kzahel/linuxvm-testbed.git ~/code/linuxvm-testbed
-cd ~/code/linuxvm-testbed
+cd ~/code/machine-control/platforms/linux
 bin/linuxvm up
 bin/linuxvm deploy-ui
 bin/linuxvm deploy-resident

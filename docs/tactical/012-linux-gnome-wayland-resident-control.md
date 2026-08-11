@@ -9,7 +9,7 @@ Research:
 [`Linux platform report`](../../research/platforms/linux.md).
 
 Authoritative testbed:
-[`linuxvm-testbed`](../../../linuxvm-testbed/README.md).
+[`platforms/linux`](../../platforms/linux/README.md).
 
 ## Objective
 
