@@ -2,6 +2,7 @@
 # ChromeOS SSH Bootstrap
 #
 # Run as root on VT2:
+#   export CHROMEOS_TESTBED_CONTROLLER_PUBKEY="$(cat /path/to/id_ed25519.pub)"
 #   curl -fsSL https://kzahel.github.io/chromeos-testbed/bootstrap.sh | bash
 #
 # Sets up:
@@ -21,8 +22,7 @@ AUTOSTART_JOB="/etc/init/openssh-server.conf"
 FAILED_AUTOSTART_JOB="/etc/init/chromeos-testbed-sshd.conf"
 FAILED_AUTOSTART_BACKUP="$SSH_DIR/failed-chromeos-testbed-sshd.conf"
 SYSTEM_AUTOSTART_BACKUP="$SSH_DIR/original-openssh-server.conf"
-# Linux laptop (controller-host): machines/laptop/id_ed25519.pub in the dotfiles repo.
-LAPTOP_PUBKEY="ssh-ed25519 PUBLIC_KEY_PLACEHOLDER controller@example.invalid"
+CONTROLLER_PUBKEY="${CHROMEOS_TESTBED_CONTROLLER_PUBKEY:-}"
 PORT=2223
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -46,10 +46,20 @@ chmod 700 "$AUTH_DIR"
 [ -f "$SSH_DIR/ssh_host_rsa_key" ] || ssh-keygen -t rsa -b 4096 -f "$SSH_DIR/ssh_host_rsa_key" -N "" -q
 chmod 600 "$SSH_DIR/ssh_host_ed25519_key" "$SSH_DIR/ssh_host_rsa_key"
 
-# Preserve any existing access and ensure the Linux laptop key is authorized.
+# Preserve any existing access and optionally authorize the supplied controller
+# key. A post-update reinstall normally reuses the existing key file; an
+# initial bootstrap must explicitly supply its deployment-specific key.
 touch "$AUTH_DIR/authorized_keys"
-if ! grep -qxF "$LAPTOP_PUBKEY" "$AUTH_DIR/authorized_keys"; then
-    printf '%s\n' "$LAPTOP_PUBKEY" >> "$AUTH_DIR/authorized_keys"
+if [ -n "$CONTROLLER_PUBKEY" ]; then
+    if ! grep -qxF "$CONTROLLER_PUBKEY" "$AUTH_DIR/authorized_keys"; then
+        printf '%s\n' "$CONTROLLER_PUBKEY" >> "$AUTH_DIR/authorized_keys"
+    fi
+elif [ ! -s "$AUTH_DIR/authorized_keys" ]; then
+    echo "[FAIL] No controller key is installed." >&2
+    echo "Set CHROMEOS_TESTBED_CONTROLLER_PUBKEY to an SSH public key and retry." >&2
+    exit 1
+else
+    echo "[+] Preserving existing controller authorized keys"
 fi
 chmod 600 "$AUTH_DIR/authorized_keys"
 

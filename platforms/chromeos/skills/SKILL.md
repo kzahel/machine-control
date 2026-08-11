@@ -285,6 +285,7 @@ Changes to these files are auto-deployed to the Chromebook on next command run. 
 3. Log in as `chronos`, then:
    ```
    sudo -i
+   export CHROMEOS_TESTBED_CONTROLLER_PUBKEY="$(cat /path/to/id_ed25519.pub)"
    curl -fsSL https://kzahel.github.io/chromeos-testbed/bootstrap.sh | bash
    ```
 4. Note the IP address and SSH port shown

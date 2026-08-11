@@ -12,7 +12,7 @@ The original VM was:
 - UTM 4.7.5 using the QEMU backend on Apple silicon;
 - Ubuntu 24.04.4 LTS ARM64 with GNOME Wayland;
 - 4 GB RAM, shared networking, VirtIO GPU, and a 1280×800 desktop;
-- auto-logged in as `testbed-user`;
+- auto-logged in as the configured testbed user;
 - configured for a five-minute idle blank followed by immediate lock;
 - missing `qemu-guest-agent` and therefore unable to provide `exec`, files, or
   IP discovery; and

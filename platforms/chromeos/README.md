@@ -43,6 +43,7 @@ Log in as `chronos` (using the dev password if you set one), then:
 
 ```bash
 sudo -i
+export CHROMEOS_TESTBED_CONTROLLER_PUBKEY="$(cat /path/to/id_ed25519.pub)"
 curl -fsSL https://kzahel.github.io/chromeos-testbed/bootstrap.sh | bash
 ```
 
@@ -52,6 +53,10 @@ starts SSH automatically after reboot. The boot timing follows ChromeOS's own
 network event through the `openssh-server` job. A stateful manual start script
 is retained as a fallback because ChromeOS updates may replace files under
 `/etc/init`.
+
+The controller public key is deployment inventory and is supplied explicitly;
+the public bootstrap does not embed one. A post-update reinstall preserves an
+existing nonempty authorized-keys file when the variable is omitted.
 
 Switch back to the GUI: **Ctrl+Alt+F1**.
 
