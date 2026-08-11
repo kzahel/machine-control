@@ -73,6 +73,14 @@ class CommonSurfaceTests(unittest.TestCase):
         self.assertTrue(value["ready"])
         self.assertEqual(value["states"]["boot"], "ready")
         self.assertEqual(value["states"]["desktop"], "unlocked")
+        self.assertEqual(value["extensions"]["rootfsVerification"], "disabled")
+        self.assertEqual(
+            next(
+                check for check in value["checks"]
+                if check["id"] == "rootfs_verification"
+            )["status"],
+            "pass",
+        )
         self.assertEqual(value["lifecycleOperations"], [])
         self.assertFalse(self.log.exists())
         self.assert_minimized(result)
@@ -95,6 +103,22 @@ class CommonSurfaceTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertEqual(value["states"]["power"], "unknown")
         self.assertEqual(value["states"]["connection"], "unavailable")
+        self.assertEqual(value["extensions"]["rootfsVerification"], "unknown")
+        self.assertFalse(self.log.exists())
+        self.assert_minimized(result)
+
+    def test_common_doctor_reports_enabled_rootfs_verification(self):
+        self.state.write_text("repair_required_rootfs", encoding="utf-8")
+        result, value = self.run_cli("common-doctor")
+
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(value["states"]["boot"], "degraded")
+        self.assertEqual(value["extensions"]["rootfsVerification"], "enabled")
+        check = next(
+            check for check in value["checks"]
+            if check["id"] == "rootfs_verification"
+        )
+        self.assertEqual(check["status"], "fail")
         self.assertFalse(self.log.exists())
         self.assert_minimized(result)
 

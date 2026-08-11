@@ -19,9 +19,10 @@ portable minimized results.
 - `machine-control --target TARGET target status|doctor|capabilities` accepts a
   declared ChromeOS native target and returns the common doctor projection.
 - Common doctor distinguishes reachability, administration, current-boot SSH
-  persistence, profile lock state, target-native client readiness, semantics,
-  capture, input, and prohibited ordinary outer UI without exposing the
-  endpoint, account, boot ID, release, paths, or device identity.
+  persistence, active-image rootfs verification, profile lock state,
+  target-native client readiness, semantics, capture, input, and prohibited
+  ordinary outer UI without exposing the endpoint, account, boot ID, release,
+  paths, partitions, or device identity.
 - Doctor and status never start SSH, log in a profile, deploy client files,
   repair configuration, reboot, or invoke VT2/host input.
 - Maintenance capability discovery declares only the ChromeOS runtime profile,
@@ -144,11 +145,12 @@ adapter execution. Windows, macOS, and Linux retain their previous complete
 appliance surfaces.
 
 The ChromeOS adapter composes the existing focused audit and changed-boot SSH
-proof. Common doctor reports connection, boot persistence, profile lock,
-resident, semantic, capture, input, and outer policy independently. Common
-repair refuses pending-update and read-only-rootfs transitions before mutation,
+proof. Common doctor reports connection, boot persistence, rootfs verification,
+profile lock, resident, semantic, capture, input, and outer policy
+independently. Common repair refuses pending-update and read-only-rootfs
+transitions before mutation,
 performs only the existing safe active-image repair, and invokes the proof
-reboot only with `--reboot`. Twenty-five ChromeOS dependency-free tests and 62
+reboot only with `--reboot`. Twenty-six ChromeOS dependency-free tests and 62
 common-client tests cover the operation and refusal boundaries, root entrypoint
 composition, and private-field minimization.
 

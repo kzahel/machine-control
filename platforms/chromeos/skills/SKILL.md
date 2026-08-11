@@ -43,6 +43,10 @@ Use `chromeos` directly, or `machine-control --target chromeos testbed -- ...`,
 for platform-specific UI, login, ADB, power, bootstrap, and guided recovery.
 The common repair refuses pending-update and read-only-rootfs transitions
 without changing boot state.
+Common doctor reports the active-image state as the minimized
+`rootfs_verification` check and `rootfsVerification` extension, so an update
+that restores verification is directly distinguishable from generic boot
+degradation.
 
 ## Troubleshooting Decision Tree
 

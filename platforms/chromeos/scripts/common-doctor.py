@@ -103,6 +103,17 @@ def main() -> int:
             "Current boot automatically started SSH",
         ) == "ok"
     )
+    rootfs_status = status_with_prefix(
+        maintenance,
+        "Rootfs is writable",
+        "Rootfs verification is enabled",
+    )
+    if rootfs_status == "ok":
+        rootfs_verification = "disabled"
+    elif rootfs_status == "fail":
+        rootfs_verification = "enabled"
+    else:
+        rootfs_verification = "unknown"
     maintenance_ready = maintenance.get("ok") is True
     boot_ready = ssh_ready and boot_automatic and maintenance_ready
 
@@ -140,6 +151,25 @@ def main() -> int:
         "Current boot has automatic SSH startup evidence",
         "Current boot lacks healthy automatic SSH startup evidence",
     )
+    if rootfs_verification == "disabled":
+        common_check(
+            checks, "rootfs_verification", True,
+            "Active root image is writable",
+            "",
+        )
+    elif rootfs_verification == "enabled":
+        common_check(
+            checks, "rootfs_verification", False,
+            "",
+            "Rootfs verification is enabled on the active image",
+        )
+    else:
+        common_check(
+            checks, "rootfs_verification", False,
+            "",
+            "Active rootfs verification state is unavailable",
+            unavailable_status="warn",
+        )
     common_check(
         checks, "desktop_session", session_ready,
         "ChromeOS profile session is unlocked",
@@ -221,6 +251,7 @@ def main() -> int:
             "desktopSession": "chromeos_profile",
             "profileState": "unlocked" if session_ready else "locked",
             "sshBootPersistence": boot_persistence,
+            "rootfsVerification": rootfs_verification,
             "updateState": update_state,
             "captureProbe": "configured_not_exercised",
             "outerRecovery": "physical_vt2_explicit",

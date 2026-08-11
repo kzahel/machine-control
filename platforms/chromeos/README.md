@@ -168,8 +168,11 @@ bin/machine-control --target chromeos maintenance audit --profile runtime
 bin/machine-control --target chromeos maintenance repair --profile runtime
 ```
 
-The common doctor distinguishes SSH reachability, automatic startup evidence
-from the current boot, profile lock, and target-native semantics/capture/input.
+The common doctor distinguishes SSH reachability, active-image rootfs
+verification, automatic startup evidence from the current boot, profile lock,
+and target-native semantics/capture/input. The minimized
+`rootfs_verification` check and `rootfsVerification` extension report
+`disabled`, `enabled`, or `unknown` without exposing a device or partition.
 After a reboot, maintenance can be healthy while ordinary desktop readiness is
 false because ChromeOS is waiting at profile sign-in.
 
