@@ -108,7 +108,7 @@ class ClientTests(unittest.TestCase):
         self.assertNotIn("private-fixture-host", result.stdout)
 
     def test_native_target_uses_explicit_testbed_escape(self):
-        self.write_registry("chromeos", interface="native")
+        self.write_registry("steamdeck", interface="native")
         result, _ = self.run_cli(
             "--target", "fixture", "target", "status"
         )
@@ -117,6 +117,21 @@ class ClientTests(unittest.TestCase):
             "--target", "fixture", "testbed", "--", "probe"
         )
         self.assertEqual(result.returncode, 0)
+
+    def test_chromeos_native_target_exposes_common_readiness(self):
+        log = self.directory / "arguments.json"
+        self.write_registry("chromeos", interface="native")
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "status",
+            extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertTrue(value["data"]["ready"])
+        self.assertEqual(value["data"]["states"]["boot"], "ready")
+        self.assertEqual(value["target"]["interface"], "native")
+        self.assertEqual(
+            json.loads(log.read_text(encoding="utf-8")), ["common-doctor"]
+        )
 
     def test_native_device_exposes_common_outer_status(self):
         self.write_registry("ios", interface="native")
@@ -305,6 +320,76 @@ class ClientTests(unittest.TestCase):
         )
         self.assertFalse(log.exists())
 
+    def test_chromeos_maintenance_capabilities_are_partial_and_noninvoking(self):
+        log = self.directory / "arguments.json"
+        self.write_registry("chromeos", interface="native")
+        result, value = self.run_cli(
+            "--target", "fixture", "maintenance", "capabilities",
+            extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["profiles"], ["runtime"])
+        self.assertEqual(
+            value["operations"]["audit"]["availability"], "available"
+        )
+        self.assertEqual(
+            value["operations"]["repair"]["requiresExactCandidate"], False
+        )
+        self.assertEqual(
+            value["operations"]["certify"]["availability"], "unavailable"
+        )
+        self.assertFalse(log.exists())
+
+    def test_chromeos_unavailable_certification_refuses_before_dispatch(self):
+        log = self.directory / "arguments.json"
+        self.write_registry("chromeos", interface="native")
+        result, value = self.run_cli(
+            "--target", "fixture", "maintenance", "certify",
+            extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(
+            value["errorCode"], "maintenance_operation_unavailable"
+        )
+        self.assertFalse(log.exists())
+
+    def test_chromeos_audit_uses_runtime_profile_and_allows_locked_doctor(self):
+        log = self.directory / "arguments.json"
+        self.write_registry("chromeos", interface="native")
+        result, value = self.run_cli(
+            "--target", "fixture", "maintenance", "audit",
+            extra_env={
+                "MACHINE_CONTROL_MOCK_LOG": str(log),
+                "MACHINE_CONTROL_MOCK_MAINTENANCE_DOCTOR_NOT_READY": "1",
+            },
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertTrue(value["data"]["healthy"])
+        self.assertEqual(value["data"]["profile"], "runtime")
+        self.assertFalse(value["data"]["readiness"]["ready"])
+        self.assertEqual(
+            json.loads(log.read_text(encoding="utf-8")),
+            ["maintenance", "audit", "--profile", "runtime", "--json"],
+        )
+
+    def test_chromeos_repair_dispatches_explicit_proof_reboot(self):
+        log = self.directory / "arguments.json"
+        self.write_registry("chromeos", interface="native")
+        result, value = self.run_cli(
+            "--target", "fixture", "maintenance", "repair", "--reboot",
+            "--profile", "runtime",
+            extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertTrue(value["data"]["reboot"]["requested"])
+        self.assertEqual(
+            json.loads(log.read_text(encoding="utf-8")),
+            [
+                "maintenance", "repair", "--profile", "runtime",
+                "--reboot", "--json",
+            ],
+        )
+
     def test_maintenance_audit_dispatches_and_minimizes_platform_result(self):
         log = self.directory / "arguments.json"
         for platform_name in ("windows", "macos", "linux"):
@@ -380,9 +465,9 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertEqual(value["errorCode"], "invalid_maintenance_result")
 
-    def test_maintenance_refuses_native_target_before_dispatch(self):
+    def test_maintenance_refuses_mismatched_interface_before_dispatch(self):
         log = self.directory / "arguments.json"
-        self.write_registry("chromeos", interface="native")
+        self.write_registry("linux", interface="native")
         result, value = self.run_cli(
             "--target", "fixture", "maintenance", "audit",
             extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},

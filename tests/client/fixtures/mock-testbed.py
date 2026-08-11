@@ -174,14 +174,18 @@ if command == "workspace-gc" and arguments[1:] == ["--dry-run", "--json"]:
     }))
     raise SystemExit(0)
 
-if command == "post-update":
+if command in {"post-update", "maintenance"}:
     operation = arguments[1] if len(arguments) > 1 else ""
     profile = (
         arguments[arguments.index("--profile") + 1]
         if "--profile" in arguments
         else "development"
     )
-    platform_name = os.environ.get("MACHINE_CONTROL_MOCK_PLATFORM", "linux")
+    platform_name = (
+        "chromeos"
+        if command == "maintenance"
+        else os.environ.get("MACHINE_CONTROL_MOCK_PLATFORM", "linux")
+    )
     malformed = bool(os.environ.get("MACHINE_CONTROL_MOCK_BAD_MAINTENANCE"))
     healthy = not bool(os.environ.get("MACHINE_CONTROL_MOCK_UNHEALTHY_MAINTENANCE"))
     value = {
@@ -218,7 +222,12 @@ if command == "post-update":
         },
         "doctor": {
             "schema": "machine-control-doctor/v0",
-            "ready": healthy,
+            "ready": (
+                healthy
+                and not bool(os.environ.get(
+                    "MACHINE_CONTROL_MOCK_MAINTENANCE_DOCTOR_NOT_READY"
+                ))
+            ),
             "states": {"power": "running"},
         },
     }
@@ -263,7 +272,10 @@ if command == "appliance-certify":
     print(json.dumps(value))
     raise SystemExit(0 if healthy else 1)
 
-if command == "doctor" and arguments[1:] == ["--json"]:
+if (
+    (command == "doctor" and arguments[1:] == ["--json"])
+    or (command == "common-doctor" and arguments[1:] == [])
+):
     if os.environ.get("MACHINE_CONTROL_MOCK_BAD_DOCTOR"):
         print('{"schema":"wrong"}')
         raise SystemExit(1)
@@ -300,6 +312,8 @@ if command == "doctor" and arguments[1:] == ["--json"]:
             "desktop": "unlocked" if ready else "no_session",
             "resident": "ready" if ready else "unavailable",
         })
+        if target_platform == "chromeos":
+            states["boot"] = "ready" if ready else "unavailable"
     print(json.dumps({
         "schema": "machine-control-doctor/v0",
         "ready": ready,
@@ -320,7 +334,11 @@ if command == "doctor" and arguments[1:] == ["--json"]:
         "lifecycleOperations": (
             ["status", "doctor", "capabilities", "reboot"]
             if is_device
-            else ["status", "up", "suspend", "shutdown", "force-stop"]
+            else (
+                []
+                if target_platform == "chromeos"
+                else ["status", "up", "suspend", "shutdown", "force-stop"]
+            )
         ),
         "extensions": {}
     }))

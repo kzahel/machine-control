@@ -110,10 +110,38 @@ SUPPORTED_PLATFORMS = {
     "windows", "macos", "linux", "chromeos", "ios", "android", "quest",
     "steamdeck"
 }
-DEVICE_DOCTOR_PLATFORMS = {"android", "ios", "quest"}
+DEVICE_DOCTOR_PLATFORMS = {"android", "chromeos", "ios", "quest"}
 
-MAINTENANCE_ADAPTERS: dict[str, dict[str, str]] = {
+DEFAULT_MAINTENANCE_OPERATIONS: dict[str, dict[str, Any]] = {
+    "audit": {
+        "availability": "available",
+        "mutatesTarget": False,
+        "requiresExactCandidate": False,
+        "reboot": "prohibited",
+    },
+    "repair": {
+        "availability": "available",
+        "mutatesTarget": True,
+        "requiresExactCandidate": True,
+        "reboot": "optional_explicit",
+    },
+    "certify": {
+        "availability": "available",
+        "mutatesTarget": True,
+        "requiresExactCandidate": True,
+        "reboot": "required",
+        "requiresCleanCommittedSource": True,
+    },
+}
+
+MAINTENANCE_ADAPTERS: dict[str, dict[str, Any]] = {
     "windows": {
+        "interface": "machine-control-v0",
+        "profiles": ["runtime", "development"],
+        "defaultProfile": "development",
+        "operations": DEFAULT_MAINTENANCE_OPERATIONS,
+        "commandStyle": "appliance",
+        "requiresDoctorReady": True,
         "orchestrationSchema":
             "machine-control-windows-post-update-orchestration/v0",
         "postUpdateSchema": "machine-control-windows-post-update/v0",
@@ -121,6 +149,12 @@ MAINTENANCE_ADAPTERS: dict[str, dict[str, str]] = {
             "machine-control-windows-appliance-certification/v0",
     },
     "macos": {
+        "interface": "machine-control-v0",
+        "profiles": ["runtime", "development"],
+        "defaultProfile": "development",
+        "operations": DEFAULT_MAINTENANCE_OPERATIONS,
+        "commandStyle": "appliance",
+        "requiresDoctorReady": True,
         "orchestrationSchema":
             "machine-control-macos-post-update-orchestration/v0",
         "postUpdateSchema": "machine-control-macos-post-update/v0",
@@ -128,11 +162,49 @@ MAINTENANCE_ADAPTERS: dict[str, dict[str, str]] = {
             "machine-control-macos-appliance-certification/v0",
     },
     "linux": {
+        "interface": "machine-control-v0",
+        "profiles": ["runtime", "development"],
+        "defaultProfile": "development",
+        "operations": DEFAULT_MAINTENANCE_OPERATIONS,
+        "commandStyle": "appliance",
+        "requiresDoctorReady": True,
         "orchestrationSchema":
             "machine-control-linux-post-update-orchestration/v0",
         "postUpdateSchema": "machine-control-linux-post-update/v0",
         "certificationSchema":
             "machine-control-linux-appliance-certification/v0",
+    },
+    "chromeos": {
+        "interface": "native",
+        "profiles": ["runtime"],
+        "defaultProfile": "runtime",
+        "operations": {
+            "audit": {
+                "availability": "available",
+                "mutatesTarget": False,
+                "requiresExactCandidate": False,
+                "reboot": "prohibited",
+            },
+            "repair": {
+                "availability": "available",
+                "mutatesTarget": True,
+                "requiresExactCandidate": False,
+                "reboot": "optional_explicit",
+            },
+            "certify": {
+                "availability": "unavailable",
+                "mutatesTarget": True,
+                "requiresExactCandidate": False,
+                "reboot": "required",
+                "requiresCleanCommittedSource": False,
+            },
+        },
+        "commandStyle": "chromeos",
+        "requiresDoctorReady": False,
+        "doctorArguments": ["common-doctor"],
+        "orchestrationSchema":
+            "machine-control-chromeos-post-update-orchestration/v0",
+        "postUpdateSchema": "machine-control-chromeos-post-update/v0",
     },
 }
 
@@ -1116,8 +1188,10 @@ def handle_candidate(
 
 
 def doctor(alias: str, target: dict[str, Any]) -> tuple[dict[str, Any], int]:
+    maintenance = MAINTENANCE_ADAPTERS.get(target["platform"], {})
+    arguments = maintenance.get("doctorArguments", ["doctor", "--json"])
     completed, parsed, elapsed_ms = run_adapter(
-        target, ["doctor", "--json"], accept_json_failure=True
+        target, arguments, accept_json_failure=True
     )
     del completed
     value = validate_doctor(parsed)
@@ -1135,17 +1209,17 @@ def doctor(alias: str, target: dict[str, Any]) -> tuple[dict[str, Any], int]:
     return value, 0 if value["ready"] else 1
 
 
-def maintenance_spec(target: dict[str, Any]) -> dict[str, str]:
-    if target.get("interface", "machine-control-v0") != "machine-control-v0":
-        raise ClientError(
-            "unsupported_maintenance_interface",
-            "This target does not expose the appliance maintenance interface",
-        )
+def maintenance_spec(target: dict[str, Any]) -> dict[str, Any]:
     spec = MAINTENANCE_ADAPTERS.get(target["platform"])
     if spec is None:
         raise ClientError(
             "unsupported_maintenance_platform",
             "This platform does not declare appliance maintenance operations",
+        )
+    if target.get("interface", "machine-control-v0") != spec["interface"]:
+        raise ClientError(
+            "unsupported_maintenance_interface",
+            "This target interface does not expose the declared maintenance surface",
         )
     return spec
 
@@ -1153,31 +1227,14 @@ def maintenance_spec(target: dict[str, Any]) -> dict[str, str]:
 def maintenance_capabilities(
     alias: str, target: dict[str, Any]
 ) -> dict[str, Any]:
-    maintenance_spec(target)
+    spec = maintenance_spec(target)
     return {
         "schema": MAINTENANCE_CAPABILITIES_SCHEMA,
         "target": target_view(alias, target),
-        "profiles": ["runtime", "development"],
+        "profiles": list(spec["profiles"]),
         "operations": {
-            "audit": {
-                "availability": "available",
-                "mutatesTarget": False,
-                "requiresExactCandidate": False,
-                "reboot": "prohibited",
-            },
-            "repair": {
-                "availability": "available",
-                "mutatesTarget": True,
-                "requiresExactCandidate": True,
-                "reboot": "optional_explicit",
-            },
-            "certify": {
-                "availability": "available",
-                "mutatesTarget": True,
-                "requiresExactCandidate": True,
-                "reboot": "required",
-                "requiresCleanCommittedSource": True,
-            },
+            name: dict(capability)
+            for name, capability in spec["operations"].items()
         },
     }
 
@@ -1328,7 +1385,10 @@ def validate_maintenance_result(
         not isinstance(post_update, dict)
         or post_update.get("healthy") is not True
         or not isinstance(doctor_result, dict)
-        or doctor_result.get("ready") is not True
+        or (
+            spec["requiresDoctorReady"]
+            and doctor_result.get("ready") is not True
+        )
         or (reboot_requested and reboot.get("observed") is not True)
     ):
         raise ClientError(
@@ -1425,18 +1485,24 @@ def handle_maintenance(
             "unsupported_maintenance_operation",
             f"Unsupported maintenance operation '{operation}'",
         )
-    maintenance_spec(target)
-    profile = "development"
+    spec = maintenance_spec(target)
+    capability = spec["operations"][operation]
+    if capability["availability"] != "available":
+        raise ClientError(
+            "maintenance_operation_unavailable",
+            f"Maintenance operation '{operation}' is unavailable for this platform",
+        )
+    profile = spec["defaultProfile"]
     reboot = False
     index = 1
     while index < len(arguments):
         option = arguments[index]
         if option == "--profile" and index + 1 < len(arguments):
             profile = arguments[index + 1]
-            if profile not in {"development", "runtime"}:
+            if profile not in spec["profiles"]:
                 raise ClientError(
                     "invalid_maintenance_profile",
-                    "Maintenance profile must be development or runtime",
+                    "Maintenance profile is not supported by this platform",
                 )
             index += 2
             continue
@@ -1445,24 +1511,32 @@ def handle_maintenance(
             index += 1
             continue
         raise ClientError("usage", f"Unsupported maintenance option '{option}'")
-    if reboot and operation != "repair":
+    if reboot and (
+        operation != "repair" or capability["reboot"] == "prohibited"
+    ):
         raise ClientError(
             "invalid_maintenance_reboot",
             "--reboot is valid only with maintenance repair",
         )
-    if operation in {"repair", "certify"} and "_workspaceHandle" in target:
+    if capability["requiresExactCandidate"] and "_workspaceHandle" in target:
         raise ClientError(
             "maintenance_inventory_target_required",
             "Maintenance mutation requires the exact private inventory target",
         )
-    adapter_arguments = (
-        ["appliance-certify", "--profile", profile, "--json"]
-        if operation == "certify"
-        else [
-            "post-update", operation, "--profile", profile,
+    if spec["commandStyle"] == "chromeos":
+        adapter_arguments = [
+            "maintenance", operation, "--profile", profile,
             *(["--reboot"] if reboot else []), "--json",
         ]
-    )
+    else:
+        adapter_arguments = (
+            ["appliance-certify", "--profile", profile, "--json"]
+            if operation == "certify"
+            else [
+                "post-update", operation, "--profile", profile,
+                *(["--reboot"] if reboot else []), "--json",
+            ]
+        )
     completed, parsed, elapsed_ms = run_adapter(
         target, adapter_arguments, accept_json_failure=True
     )
