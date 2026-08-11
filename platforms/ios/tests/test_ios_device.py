@@ -202,7 +202,8 @@ class LeaseTests(unittest.TestCase):
             config = self.config(Path(directory))
             lease = ios_device.acquire_lease(config, mode="test")
             mode = stat.S_IMODE(config.lease_path.stat().st_mode)
-            self.assertEqual(mode, 0o600)
+            if os.name != "nt":
+                self.assertEqual(mode, 0o600)
             ios_device.release_lease(config, lease)
             self.assertFalse(config.lease_path.exists())
 
