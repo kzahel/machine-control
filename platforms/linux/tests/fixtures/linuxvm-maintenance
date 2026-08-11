@@ -60,17 +60,28 @@ case "$command" in
                     checks:[{id:"fixture",required:true,status:"pass",
                         observed:"ready",repair:"not_needed"}]
                 }'
-        elif [[ " $* " == *'machine-control-bootstrap-'* ]]; then
+        elif [[ "${1:-}" == /usr/bin/systemd-run &&
+                " $* " == *'machine-control-bootstrap-'* ]]; then
             profile=development
+            nonce=missing
             while (( $# > 0 )); do
-                if [[ "$1" == --profile ]]; then profile="$2"; break; fi
-                shift
+                case "$1" in
+                    --profile) profile="$2"; shift 2 ;;
+                    --nonce) nonce="$2"; shift 2 ;;
+                    *) shift ;;
+                esac
             done
-            jq -cn --arg profile "$profile" '{
+            jq -cn --arg profile "$profile" --arg nonce "$nonce" '{
                 schema:"machine-control-linux-bootstrap/v0",healthy:true,
-                profile:$profile,guestAgent:"active",
+                profile:$profile,nonce:$nonce,guestAgent:"active",
                 packageProfile:"installed"
-            }'
+            }' >"$state.bootstrap-report"
+        elif [[ "${1:-}" == /usr/bin/test &&
+                "${2:-}" == -f && "${3:-}" == *machine-control-bootstrap-*.json ]]; then
+            test -f "$state.bootstrap-report"
+        elif [[ "${1:-}" == /usr/bin/cat &&
+                "${2:-}" == *machine-control-bootstrap-*.json ]]; then
+            cat "$state.bootstrap-report"
         elif [[ " $* " == *' portable '* &&
                 "${MACHINE_CONTROL_LINUXVM_PORTABLE_FAIL:-0}" == 1 ]]; then
             exit 1

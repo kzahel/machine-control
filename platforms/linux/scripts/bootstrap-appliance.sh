@@ -48,14 +48,22 @@ if [[ "$($LINUXVM status 2>/dev/null || true)" != started ]]; then
     "$LINUXVM" up >/dev/null
 fi
 
-remote_bootstrap="/var/tmp/machine-control-bootstrap-$$.sh"
+nonce="$(LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c 24 || true)"
+if [[ ${#nonce} -ne 24 ]]; then
+    printf 'Could not generate a bootstrap report nonce.\n' >&2
+    exit 1
+fi
+remote_bootstrap="/var/tmp/machine-control-bootstrap-$nonce.sh"
+remote_report="/var/tmp/machine-control-bootstrap-$nonce.json"
+unit="machine-control-bootstrap-$nonce.service"
 staged=false
 cleanup() {
     local exit_code=$?
     trap - EXIT INT TERM
     if [[ "$staged" == true &&
-          "$remote_bootstrap" =~ ^/var/tmp/machine-control-bootstrap-[0-9]+\.sh$ ]]; then
-        "$LINUXVM" exec -- /usr/bin/rm -f -- "$remote_bootstrap" \
+          "$remote_bootstrap" == "/var/tmp/machine-control-bootstrap-$nonce.sh" ]]; then
+        "$LINUXVM" exec -- /usr/bin/rm -f -- \
+            "$remote_bootstrap" "$remote_report" \
             >/dev/null 2>&1 || true
     fi
     exit "$exit_code"
@@ -64,18 +72,37 @@ trap cleanup EXIT INT TERM
 
 "$LINUXVM" push "$GUEST_BOOTSTRAP" "$remote_bootstrap"
 staged=true
-bootstrap_output="$(LINUXVM_EXEC_TIMEOUT="$bootstrap_timeout" \
-    "$LINUXVM" exec -- /usr/bin/bash "$remote_bootstrap" \
-        --profile "$profile")"
-bootstrap="$(printf '%s\n' "$bootstrap_output" | tail -n 1)"
-if ! jq -e --arg profile "$profile" \
+"$LINUXVM" exec -- /usr/bin/systemd-run --quiet --collect \
+    --unit "$unit" -- /usr/bin/bash "$remote_bootstrap" \
+    --profile "$profile" --nonce "$nonce" --report-path "$remote_report"
+
+deadline=$((SECONDS + bootstrap_timeout))
+bootstrap=""
+while (( SECONDS < deadline )); do
+    if LINUXVM_EXEC_TIMEOUT=60 "$LINUXVM" exec -- /usr/bin/test -f \
+            "$remote_report" >/dev/null 2>&1; then
+        bootstrap="$(LINUXVM_EXEC_TIMEOUT=60 "$LINUXVM" exec -- \
+            /usr/bin/cat "$remote_report" 2>/dev/null || true)"
+        break
+    fi
+    sleep 2
+done
+if ! jq -e --arg profile "$profile" --arg nonce "$nonce" \
         '.schema == "machine-control-linux-bootstrap/v0" and
-         .healthy == true and .profile == $profile' \
+         .healthy == true and .profile == $profile and .nonce == $nonce' \
         <<<"$bootstrap" >/dev/null; then
-    printf 'Guest package bootstrap returned no valid success report.\n' >&2
+    if jq -e --arg profile "$profile" --arg nonce "$nonce" \
+            '.schema == "machine-control-linux-bootstrap/v0" and
+             .profile == $profile and .nonce == $nonce' \
+            <<<"$bootstrap" >/dev/null 2>&1; then
+        printf 'Guest package bootstrap reported failure.\n' >&2
+    else
+        staged=false
+        printf 'Guest package bootstrap did not return a valid report; the transient unit may still be running.\n' >&2
+    fi
     exit 1
 fi
-"$LINUXVM" exec -- /usr/bin/rm -f -- "$remote_bootstrap"
+"$LINUXVM" exec -- /usr/bin/rm -f -- "$remote_bootstrap" "$remote_report"
 staged=false
 
 "$LINUXVM" deploy-resident >/dev/null

@@ -82,6 +82,10 @@ post-update support, and requires a healthy final audit and doctor. Select
 performs a distribution upgrade or changes update policy.
 Package acquisition uses a bootstrap-specific 30-minute completion bound;
 `LINUXVM_BOOTSTRAP_TIMEOUT` may set an explicit 300–3600 second bound.
+The package process runs as an independent root transient systemd unit, so
+updating and restarting `qemu-guest-agent` cannot kill its own apt process.
+The host accepts only the unit's nonce-bound report after the guest agent
+returns.
 
 Guest execution is root because QEMU's guest agent is a hypervisor management
 channel. `user-exec` deliberately switches to the active logged-in user and

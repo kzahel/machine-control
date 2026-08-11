@@ -154,6 +154,8 @@ bootstrap="$(${maintenance_env[@]} \
     "$REPO_DIR/scripts/bootstrap-appliance.sh" --profile runtime --json)"
 jq -e '.healthy == true and .profile == "runtime" and
     .guest.profile == "runtime"' <<<"$bootstrap" >/dev/null
+grep -q '^exec -- /usr/bin/systemd-run .*machine-control-bootstrap-' \
+    "$maintenance_log"
 grep -q '^deploy-resident ' "$maintenance_log"
 grep -q '^post-update audit --profile runtime --json ' "$maintenance_log"
 

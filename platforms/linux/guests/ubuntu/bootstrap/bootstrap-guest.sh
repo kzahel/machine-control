@@ -8,16 +8,49 @@ if (( EUID != 0 )); then
 fi
 
 profile=runtime
-if [[ "${1:-}" == --profile && $# -eq 2 ]]; then
-    profile="$2"
-elif (( $# != 0 )); then
-    printf 'Usage: bootstrap-guest.sh [--profile development|runtime]\n' >&2
-    exit 2
-fi
+nonce=""
+report_path=""
+while (( $# > 0 )); do
+    case "$1" in
+        --profile) profile="${2:-}"; shift 2 ;;
+        --nonce) nonce="${2:-}"; shift 2 ;;
+        --report-path) report_path="${2:-}"; shift 2 ;;
+        *) printf 'Usage: bootstrap-guest.sh [--profile development|runtime] [--nonce NONCE --report-path PATH]\n' >&2; exit 2 ;;
+    esac
+done
 if [[ "$profile" != development && "$profile" != runtime ]]; then
-    printf 'Usage: bootstrap-guest.sh [--profile development|runtime]\n' >&2
+    printf 'Invalid bootstrap profile\n' >&2
     exit 2
 fi
+if [[ -n "$nonce" || -n "$report_path" ]]; then
+    if [[ ! "$nonce" =~ ^[a-z0-9]{24}$ ||
+          "$report_path" != "/var/tmp/machine-control-bootstrap-$nonce.json" ]]; then
+        printf 'Invalid bootstrap report binding\n' >&2
+        exit 2
+    fi
+fi
+
+emit_report() {
+    local healthy="$1" failure="$2" output
+    output="$(jq -cn --arg profile "$profile" --arg nonce "$nonce" \
+        --arg failure "$failure" --argjson healthy "$healthy" '{
+            schema:"machine-control-linux-bootstrap/v0",
+            healthy:$healthy,
+            profile:$profile,
+            nonce:(if $nonce == "" then null else $nonce end),
+            guestAgent:(if $healthy then "active" else "unknown" end),
+            packageProfile:(if $healthy then "installed" else "incomplete" end),
+            failure:(if $failure == "" then null else $failure end)
+        }')"
+    if [[ -n "$report_path" ]]; then
+        temporary_report="$report_path.$$"
+        umask 077
+        printf '%s\n' "$output" >"$temporary_report"
+        mv -f -- "$temporary_report" "$report_path"
+    else
+        printf '%s\n' "$output"
+    fi
+}
 
 export DEBIAN_FRONTEND=noninteractive
 packages=(
@@ -39,6 +72,7 @@ log="$(mktemp /var/tmp/machine-control-bootstrap.XXXXXX.log)"
 trap 'rm -f -- "$log"' EXIT
 if ! apt-get update >"$log" 2>&1 ||
         ! apt-get install -y "${packages[@]}" >>"$log" 2>&1; then
+    emit_report false package_install_failed
     printf 'Ubuntu package profile installation failed\n' >&2
     exit 1
 fi
@@ -48,11 +82,8 @@ fi
 systemctl start qemu-guest-agent
 systemctl restart spice-vdagentd.service 2>/dev/null || true
 
-systemctl is-active --quiet qemu-guest-agent
-jq -cn --arg profile "$profile" '{
-    schema:"machine-control-linux-bootstrap/v0",
-    healthy:true,
-    profile:$profile,
-    guestAgent:"active",
-    packageProfile:"installed"
-}'
+if ! systemctl is-active --quiet qemu-guest-agent; then
+    emit_report false guest_agent_inactive
+    exit 1
+fi
+emit_report true ""
