@@ -156,6 +156,7 @@ $result = [ordered]@{
     failure = $null
 }
 try {
+    $result.failure = 'source_digest_failed'
     $digest = (Get-FileHash -Algorithm SHA256 `
         -LiteralPath $archive).Hash.ToLowerInvariant()
     if ($digest -ne '__SOURCE_DIGEST__') {
@@ -163,9 +164,12 @@ try {
         throw 'digest mismatch'
     }
     $result.source_digest_match = $true
+    $result.failure = 'archive_expand_failed'
     Expand-Archive -LiteralPath $archive -DestinationPath $source
+    $result.failure = 'source_entry_failed'
     Push-Location $source
     try {
+        $result.failure = 'portable_execution_failed'
         & py.exe -3 bin\check --portable *> `
             (Join-Path $stage 'portable.log')
         if ($LASTEXITCODE -ne 0) {
@@ -173,6 +177,7 @@ try {
             throw 'portable checks failed'
         }
         $result.portable_checks = 'passed'
+        $result.failure = 'native_execution_failed'
         & py.exe -3 bin\check --native *> `
             (Join-Path $stage 'native.log')
         if ($LASTEXITCODE -ne 0) {
@@ -181,6 +186,7 @@ try {
         }
         $result.native_checks = 'passed'
         $result.healthy = $true
+        $result.failure = $null
     }
     finally {
         Pop-Location
