@@ -30,8 +30,9 @@ clean stopped promotion handoff and passed a disposable-marker outcome. A live
 restart also exposed and fixed the bounded provider race in which guest
 execution preceded UTM's first IPv4 result.
 
-**Current:** Tactical 021 adds a Linux-native maintenance surface around that
-accepted shape. A nonce-bound minimized audit checks dpkg consistency, pending
+**Current:** Tactical 021 added and live-proved a Linux-native maintenance
+surface around that accepted shape. A nonce-bound minimized audit checks dpkg
+consistency, pending
 reboot, declared runtime/development packages, QEMU/SPICE support, the GNOME
 Wayland session, resident, input broker, and target-native status before the
 common doctor. Its exact-candidate repair changes only installed systemd
@@ -39,8 +40,11 @@ startup invariants and keeps a missing guest agent as an explicit recovery
 boundary. On-demand certification audits without repair, uses the provider's
 changed-boot-ID reboot proof, runs an archive of exact committed source inside
 Ubuntu, cleans staging, and stops only after success. Dependency-light policy
-fixtures cover the current contract; retained-appliance rehearsal remains the
-last Tactical 021 acceptance step.
+fixtures cover the current contract. The retained candidate passed an
+idempotent development-profile bootstrap, healthy audit and no-reboot repair,
+exact-source portable and Linux-native certification after a changed-boot-ID
+reboot, and a final outer-prohibited resident smoke cycle. No clone or
+workspace was used, and the appliance was left stopped.
 
 ## Current goal
 

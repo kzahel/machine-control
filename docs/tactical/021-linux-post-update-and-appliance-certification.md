@@ -1,6 +1,6 @@
 # Tactical 021: Linux Post-update and Appliance Certification
 
-Status: active.
+Status: complete.
 
 Topics: `linux-resident-control` and `target-lifecycle-and-readiness`.
 
@@ -131,4 +131,53 @@ and push.
 
 ## Result
 
-In progress.
+Completed on 2026-08-11 using only the existing retained Linux candidate. No
+VM, clone, snapshot, derived image, or workspace was created, renamed,
+compacted, or deleted. Workspace inventory remained empty and the candidate
+was left cleanly stopped.
+
+The installed root-only `machine-control-linux-post-update/v0` support now
+reports nonce-bound minimized checks for dpkg consistency, pending reboot,
+runtime/development packages, QEMU guest-agent, system and interactive SPICE
+support, GNOME Wayland, the root input broker, active-user resident, and the
+target-native status operation. A stopped live audit failed before any
+guest-agent execution and left the candidate stopped. The interactive SPICE
+process remains an optional warning because it improves the outer console but
+does not establish ordinary resident semantics, capture, or input.
+
+The live development profile installed its declared Git, build toolchain, and
+Python virtual-environment packages and deployed the exact resident plus
+maintenance support. Its first attempt revealed that apt inherited the QEMU
+guest-agent service cgroup: package configuration restarted the agent and
+killed its own dpkg child. The interrupted package state was resumed once in
+an independent transient root unit. Product bootstrap now always uses that
+shape, polls a nonce-bound report after the agent returns, and has a validated
+30-minute default completion bound. The corrected profile completed cleanly
+and a repeated run was healthy and idempotent.
+
+The live read-only audit and no-reboot repair both returned healthy with a
+ready full doctor. Repair changed no unit, reported no required failure, did
+not reboot, and invoked no outer route. Fixture evidence separately proves
+candidate-only repair, explicit reboot, stopped-audit refusal, invalid nonce,
+profile and timeout policy, cleanup, and success-only shutdown.
+
+Certification failed closed twice while developing archive-mode acceptance,
+removed staging each time, and left the target running for diagnosis. Those
+runs exposed a recursive host-certification fixture that required absent Git
+metadata and a guest-agent root environment with no `HOME`. The final runner
+keeps host orchestration fixtures checkout-only and gives exact-source checks
+an ephemeral private home inside unique staging.
+
+The final certification accepted exact commit `afd9769`: the guest archive
+matched SHA-256, the provider observed a changed boot ID, initial and final
+post-update plus common doctor results were healthy, portable and Linux-native
+checks passed inside Ubuntu, staging was removed, and the candidate cleanly
+shut down. A final live resident smoke run after a stopped/start cycle passed
+administration, GNOME Wayland, semantics, application lifecycle, capture,
+input, and independent fixture effects with outer UI prohibited, then cleanly
+stopped the appliance again.
+
+Repository portable checks, macOS native checks, Linux dependency-light
+static/unit fixtures, and public-diff whitespace checks passed. Public source
+and results contain no concrete target identity, endpoint, account, private
+inventory path, package source, boot ID, or captured UI.
