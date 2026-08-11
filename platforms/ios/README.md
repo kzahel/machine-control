@@ -156,6 +156,10 @@ See [docs/capabilities.md](docs/capabilities.md),
 [docs/known-issues.md](docs/known-issues.md), and
 [docs/recovery.md](docs/recovery.md).
 
+The first standalone physical-device acceptance after the wrapper refactor is
+recorded in
+[docs/standalone-device-validation-2026-08-04.md](docs/standalone-device-validation-2026-08-04.md).
+
 ## Development
 
 ```bash
