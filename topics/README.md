@@ -35,6 +35,9 @@ its `Topic:` trailers.
   facade, and failure-boundary decisions.
 - [`capabilities-and-results.md`](capabilities-and-results.md): common
   capability, observation, action, uncertainty, and conformance vocabulary.
+- [`cross-platform-coordinator.md`](cross-platform-coordinator.md): portable
+  macOS/Linux/Windows coordination, controller-route eligibility, launchers,
+  and target-native validation.
 - [`delegation-and-agent-placement.md`](delegation-and-agent-placement.md): YA
   coordination and the separation between agent placement and control target.
 - [`inner-first-routing.md`](inner-first-routing.md): ordinary resident routes,

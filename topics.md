@@ -28,3 +28,5 @@ commits with no expected follow-up do not need a trailer or registry entry.
 - `repository-consolidation-and-publication` — canonical public platform
   sources, private inventory, history-preserving imports, atomic cutover, and
   optional generated testbed distributions.
+- `cross-platform-coordinator` — macOS/Linux/Windows common-client portability,
+  controller-route eligibility, portable launchers, and target-native CI.
