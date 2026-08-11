@@ -4,9 +4,10 @@ set -euo pipefail
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 
-if [[ -f "$REPO_ROOT/config.local" ]]; then
+CONFIG_FILE="${IOS_DEVICE_TESTBED_CONFIG_FILE:-$REPO_ROOT/config.local}"
+if [[ -f "$CONFIG_FILE" ]]; then
     # shellcheck source=/dev/null
-    source "$REPO_ROOT/config.local"
+    source "$CONFIG_FILE"
 fi
 
 export IOS_DEVICE_TESTBED_ROOT="$REPO_ROOT"
