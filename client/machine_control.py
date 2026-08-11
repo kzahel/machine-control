@@ -264,7 +264,7 @@ def validate_doctor(value: Any) -> dict[str, Any]:
     return value
 
 
-def validate_resident(value: Any) -> dict[str, Any]:
+def validate_resident(value: Any, platform: str) -> dict[str, Any]:
     required = {
         "schema",
         "requestId",
@@ -280,6 +280,10 @@ def validate_resident(value: Any) -> dict[str, Any]:
         raise ClientError(
             "invalid_resident_result", f"Resident must return {RESULT_SCHEMA}", 1
         )
+    compatibility_fields = []
+    if platform == "windows" and "hostInterference" not in value:
+        value["hostInterference"] = "none"
+        compatibility_fields.append("hostInterference")
     missing = sorted(required - value.keys())
     if missing:
         raise ClientError(
@@ -291,6 +295,8 @@ def validate_resident(value: Any) -> dict[str, Any]:
         raise ClientError(
             "invalid_resident_result", "Resident accepted must be boolean", 1
         )
+    if compatibility_fields:
+        value["_clientCompatibilityFields"] = compatibility_fields
     return value
 
 
@@ -668,6 +674,9 @@ def add_client_projection(
         "requestBytes": request_bytes,
         "resultBytes": result_bytes,
         "transportElapsedMs": elapsed_ms,
+        "compatibilityProjection": value.pop(
+            "_clientCompatibilityFields", []
+        ),
     }
     return value
 
@@ -719,7 +728,7 @@ def handle_desktop(
     completed, parsed, elapsed_ms = run_adapter(
         target, [command, serialized], accept_json_failure=True
     )
-    value = validate_resident(parsed)
+    value = validate_resident(parsed, target["platform"])
     value = add_client_projection(
         value,
         alias,

@@ -79,6 +79,12 @@ and adds a separate transport projection rather than rewriting provider truth.
 Every result preserves operation, acceptance, route, generation, delivery,
 effect, uncertainty, host interference, and typed error information.
 
+The retained Windows seal predates the mandatory `hostInterference` result
+field. Its adapter may add `none` only for that known target-native runtime and
+must disclose `compatibilityProjection: ["hostInterference"]`. Newly published
+Windows runtimes emit the field themselves. No other missing field or platform
+receives this compatibility treatment.
+
 Artifact retrieval is normalized around an opaque handle returned by the
 adapter. A handle may project a Windows artifact identifier, a bounded macOS
 guest path, or a Linux UUID, but callers do not receive a generic arbitrary

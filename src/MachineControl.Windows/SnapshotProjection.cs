@@ -35,9 +35,9 @@ internal static class SnapshotProjection
         var bytes = Encoding.UTF8.GetByteCount(serialized);
         object digestContent = projection == "compact"
             ? records.Select(element => ToCompact(element) with
-                { Reference = string.Empty }).ToArray()
+            { Reference = string.Empty }).ToArray()
             : records.Select(element => element with
-                { Reference = string.Empty }).ToArray();
+            { Reference = string.Empty }).ToArray();
         var digestSerialized = projection + "\n" +
             Contract.Serialize(digestContent);
         var digest = "sha256:" + Convert.ToHexString(

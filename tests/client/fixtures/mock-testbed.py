@@ -56,7 +56,7 @@ elif command in {"up", "suspend", "shutdown", "force-stop"}:
     print("private-adapter-detail")
 elif command in {"control", "control-local"}:
     request = json.loads(arguments[1])
-    print(json.dumps({
+    result = {
         "schema": "machine-control/v0",
         "requestId": request.get("requestId", "fixture-request"),
         "operation": request["operation"],
@@ -65,11 +65,13 @@ elif command in {"control", "control-local"}:
         "generation": "fixture-generation",
         "delivery": "confirmed",
         "effect": "not_applicable",
-        "hostInterference": "none",
         "uncertainty": "none",
         "elapsedMs": 1,
         "data": {"request": request}
-    }))
+    }
+    if not os.environ.get("MACHINE_CONTROL_MOCK_OMIT_HOST_INTERFERENCE"):
+        result["hostInterference"] = "none"
+    print(json.dumps(result))
 elif command in {"artifact", "artifact-fetch"}:
     print(
         arguments[2]

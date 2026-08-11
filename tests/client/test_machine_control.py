@@ -109,6 +109,21 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(value["client"]["requestedOperation"], "action")
         self.assertEqual(value["data"]["request"]["reference"], "r1")
 
+    def test_sealed_windows_compatibility_is_explicit(self):
+        self.write_registry("windows")
+        result, value = self.run_cli(
+            "--target", "fixture", "desktop", "status",
+            extra_env={
+                "MACHINE_CONTROL_MOCK_OMIT_HOST_INTERFERENCE": "1"
+            },
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["hostInterference"], "none")
+        self.assertEqual(
+            value["client"]["compatibilityProjection"],
+            ["hostInterference"],
+        )
+
     def test_linux_translates_set_value(self):
         result, value = self.run_cli(
             "--target", "fixture", "desktop", "action",

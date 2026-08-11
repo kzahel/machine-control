@@ -86,6 +86,7 @@ internal sealed record Result
     public string? CoordinateSpace { get; init; }
     public string? FocusConsequence { get; init; }
     public string? CursorConsequence { get; init; }
+    public string HostInterference { get; init; } = "none";
     public string Uncertainty { get; init; } = "none";
     public string RetrySafety { get; init; } = "not_applicable";
     public ProviderAttempt[]? ProviderAttempts { get; init; }
