@@ -1,0 +1,6 @@
+# Copy to config.local for controller-local defaults. Never commit a real
+# headset serial or a machine-specific path.
+
+# export QUEST_TESTBED_SERIAL=<adb-serial>
+# export QUEST_TESTBED_ADB=<path-to-platform-tools-adb>
+# export QUEST_TESTBED_MIN_BATTERY=15
