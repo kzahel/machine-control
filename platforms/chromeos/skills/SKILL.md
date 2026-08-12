@@ -14,7 +14,7 @@ CLI tools for bootstrapping, troubleshooting, and controlling a ChromeOS Chromeb
 ```bash
 machine-control --target chromeos target doctor  # Common minimized readiness
 machine-control --target chromeos maintenance audit --profile runtime
-chromeos doctor              # Health check — shows what's working/broken
+chromeos doctor              # Routine health check; never probes ADB
 chromeos post-update         # Read-only focused audit after a ChromeOS update
 chromeos post-update --repair  # Guided repair across the required reboot
 chromeos post-update --verify-reboot  # Prove SSH autostart on a fresh boot
@@ -30,7 +30,7 @@ chromeos shortcut ctrl t     # Keyboard shortcut (handles modifier remapping)
 chromeos info                # Device info (touch_max, keyboard layout)
 chromeos deploy-ext <dir> [--name NAME] [--reload [EXT_ID]]  # Deploy extension
 chromeos install-apk <file.apk> [--keep]                     # Install Android APK
-chromeos adb-status          # Check ARCVM proxy and authorization state
+chromeos adb-status          # Explicit ADB probe; may show approval prompt
 chromeos adb-connect         # Connect to 127.0.0.1:5555 and wait for readiness
 chromeos power-status        # Show effective idle/lid policy
 chromeos keep-awake [--lid-closed]  # Persistently disable idle/lid suspend
@@ -52,7 +52,9 @@ degradation.
 
 **Start here when something isn't working:**
 
-1. Run `chromeos doctor` — it checks everything and tells you what to fix.
+1. Run `chromeos doctor` — it checks routine health and tells you what to fix.
+   It deliberately does not execute ADB because even `adb devices` can start
+   the client server and display an authorization prompt.
 
 2. **Can't SSH?** Current bootstrap installs an Upstart job, so SSH should
    return automatically after ordinary reboots. ChromeOS updates can remove
@@ -259,8 +261,10 @@ chromeos --json targets
 chromeos --json desktop-find "Allow" --role button
 ```
 
-`chromeos diagnostics` collects health, OS/device details, ADB state,
-accessibility data, targets, and a screenshot without changing UI state.
+`chromeos diagnostics` collects health, OS/device details, passive ADB
+availability, accessibility data, targets, and a screenshot without executing
+ADB. Run `chromeos adb-status` only when an explicit connection probe and its
+possible authorization prompt are intended.
 `chromeos smoke-test` performs a restoring UI exercise and stores every result
 and screenshot in a timestamped artifact directory.
 

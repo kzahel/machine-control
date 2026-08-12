@@ -190,7 +190,7 @@ software SSH autostart cannot make a powered-off device turn itself on.
 ## Usage
 
 ```bash
-bin/chromeos doctor              # Check everything
+bin/chromeos doctor              # Check routine health without probing ADB
 bin/chromeos post-update         # Audit/repair/prove state after an OS update
 bin/chromeos smoke-test          # Exercise input, screenshots, and desktop UI
 bin/chromeos diagnostics         # Collect a read-only diagnostic bundle
@@ -226,11 +226,12 @@ The root `machine-control` entry always emits its common structured contracts.
 
 ### Functional verification and diagnostics
 
-`doctor` checks infrastructure without changing the visible UI. `smoke-test`
-is the stronger post-reboot verification: it captures a baseline, opens Quick
-Settings with the keyboard, opens Settings with a calibrated touchscreen tap,
-closes it, asserts that the initial UI was restored, and saves all evidence to
-a timestamped directory under `/tmp`.
+`doctor` checks routine infrastructure without changing the visible UI or
+executing ADB. `diagnostics` likewise records only passive ADB command, server,
+and proxy availability. `smoke-test` is the stronger post-reboot verification:
+it captures a baseline, opens Quick Settings with the keyboard, opens Settings
+with a calibrated touchscreen tap, closes it, asserts that the initial UI was
+restored, and saves all evidence to a timestamped directory under `/tmp`.
 
 ```bash
 bin/chromeos doctor
@@ -277,6 +278,12 @@ bin/chromeos adb-authorize            # Approve the visible ChromeOS prompt
 bin/chromeos install-apk app.apk
 bin/chromeos install-apk app.apk --authorize
 ```
+
+`adb-status` is an explicit probe: invoking the ADB client can start its server
+and display the ChromeOS authorization prompt. Routine doctor and diagnostics
+do not execute it. ChromeOS may place the client host key in volatile runtime
+storage, so approval remembered for one key need not survive a reboot or ARC
+restart that creates a new key.
 
 `install-apk` now connects and verifies the device before installing. It stops
 with an actionable message when authorization is required instead of passing a

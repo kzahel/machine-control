@@ -221,26 +221,10 @@ else
          "The chromeos CLI connects on-device. For other local CDP tools: ssh -NL 9222:127.0.0.1:9222 $SSH_HOST"
 fi
 
-# 11. ARCVM ADB readiness (optional)
+# 11. ARCVM ADB availability (optional and deliberately passive)
 if ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; command -v adb >/dev/null" &>/dev/null; then
-    ADB_DEVICES=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; adb devices -l" 2>/dev/null || true)
-    ADB_STATE=$(echo "$ADB_DEVICES" | awk '$1 == "127.0.0.1:5555" { print $2; exit }')
-    case "$ADB_STATE" in
-        device)
-            ok "ARCVM ADB connected at 127.0.0.1:5555"
-            ;;
-        unauthorized)
-            warn "ARCVM ADB is waiting for authorization" \
-                 "Run: chromeos adb-authorize"
-            ;;
-        offline)
-            warn "ARCVM ADB is offline" "Run: chromeos adb-connect"
-            ;;
-        *)
-            warn "ARCVM ADB is not connected (optional)" \
-                 "Run: chromeos adb-connect"
-            ;;
-    esac
+    warn "ARCVM ADB was not probed (optional)" \
+         "Run: chromeos adb-status (explicit probe may request authorization)"
 else
     warn "ADB command is not available (optional)"
 fi

@@ -38,7 +38,15 @@ capture doctor.json env CHROMEOS_OUTPUT=json "$REPO_DIR/scripts/doctor.sh"
 capture info.json "$CLI" --json info
 capture targets.json "$CLI" --json targets
 capture desktop-tree.json "$CLI" --json desktop-tree --depth 4
-capture adb.json "$CLI" --json adb-status
+capture adb-passive.txt ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; \
+if command -v adb >/dev/null 2>&1; then echo 'command=available'; \
+else echo 'command=unavailable'; fi; \
+if ps -eo comm 2>/dev/null | grep -qx adb; then echo 'server=running'; \
+else echo 'server=stopped'; fi; \
+if awk 'NR > 1 && toupper(\$2) ~ /:15B3\$/ && \$4 == \"0A\" { found=1 } \
+END { exit !found }' /proc/net/tcp /proc/net/tcp6 2>/dev/null; then \
+echo 'proxy=listening'; else echo 'proxy=not_listening'; fi; \
+echo 'authorization=not_probed'"
 capture power.json "$CLI" --json power-status
 capture device.txt ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; \
 echo '[release]'; cat /etc/lsb-release 2>/dev/null || true; \
@@ -48,8 +56,7 @@ echo '[root-device]'; rootdev -s 2>/dev/null || true; \
 echo '[mounts]'; mount | grep -E ' on /( |usr|mnt/stateful_partition)' || true; \
 echo '[chrome-flags]'; cat /etc/chrome_dev.conf 2>/dev/null || true; \
 echo '[sshd]'; ps -ef | grep '[s]shd' || true; \
-echo '[input-devices]'; cat /proc/bus/input/devices 2>/dev/null || true; \
-echo '[adb]'; adb devices -l 2>/dev/null || true"
+echo '[input-devices]'; cat /proc/bus/input/devices 2>/dev/null || true"
 
 screenshot_rc=0
 if "$CLI" --json screenshot "$output/screenshot.jpg" >"$output/screenshot.json" 2>&1; then

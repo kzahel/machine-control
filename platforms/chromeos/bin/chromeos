@@ -39,7 +39,7 @@
 #   target-wait <pat> [--timeout S] [--absent]  Wait for a browser target
 #   assert-visible <pat> [--role R]  Require a visible desktop element
 #   deploy-ext <dir> [--name NAME] [--reload [EXT_ID]]  Deploy extension to Chromebook
-#   adb-status          Show ARCVM ADB connection state
+#   adb-status          Explicitly probe ARCVM ADB state (may request approval)
 #   adb-connect         Connect to ARCVM ADB and wait until ready
 #   adb-authorize       Approve the visible ChromeOS ADB authorization prompt
 #   install-apk <file> [--keep] [--authorize]  Install Android APK
