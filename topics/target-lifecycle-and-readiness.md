@@ -182,8 +182,14 @@ example name alone cannot start, suspend, shut down, or stop a local VM.
 
 Android, ChromeOS, iOS, and Quest retain `native` platform interfaces below the
 common layer but now emit the same minimized doctor envelope. ChromeOS uses the
-desktop shape and separates current-boot SSH evidence from profile lock; the
-other three use the device shape. The common client therefore exposes
+desktop shape and separates current-boot SSH evidence, active-image rootfs
+verification, and profile lock; the other three use the device shape. A live
+guided post-update recovery and changed-boot proof returned all ChromeOS
+runtime maintenance checks and common readiness healthy. Routine ChromeOS
+doctor and diagnostics do not execute ADB; its connection and authorization
+probe remains an explicit platform command because even enumeration can start
+a client server and surface a consent prompt. The common client therefore
+exposes
 `target status|doctor|capabilities` for all four and only
 dispatches a mutating lifecycle verb when that exact adapter declares it. iOS
 and Android currently declare full reboot; Quest deliberately does not. iOS

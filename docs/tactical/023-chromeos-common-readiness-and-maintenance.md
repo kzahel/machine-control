@@ -1,6 +1,6 @@
 # Tactical 023: ChromeOS Common Readiness and Maintenance
 
-Status: active.
+Status: complete.
 
 Topics: `target-lifecycle-and-readiness`, `cross-platform-coordinator`, and
 `unified-desktop-client`.
@@ -23,8 +23,9 @@ portable minimized results.
   target-native client readiness, semantics, capture, input, and prohibited
   ordinary outer UI without exposing the endpoint, account, boot ID, release,
   paths, partitions, or device identity.
-- Doctor and status never start SSH, log in a profile, deploy client files,
-  repair configuration, reboot, or invoke VT2/host input.
+- Doctor and status never start SSH or ADB, log in a profile, deploy client
+  files, request ADB authorization, repair configuration, reboot, or invoke
+  VT2/host input.
 - Maintenance capability discovery declares only the ChromeOS runtime profile,
   exposes audit and repair, truthfully marks exact-source certification
   unavailable, and never invokes the adapter.
@@ -58,8 +59,8 @@ portable minimized results.
   external power. Report whether ChromeOS is reachable and whether SSH started
   automatically during the current observed boot.
 - Do not make common readiness silently repair SSH, unlock the ChromeOS
-  profile, approve ADB, deploy code, wake the display, or manipulate the
-  controller desktop.
+  profile, start or query ADB, request ADB approval, deploy code, wake the
+  display, or manipulate the controller desktop.
 - Do not weaken the hidden one-shot profile credential path or place a PIN in
   JSON, arguments, environment, logs, fixtures, or evidence.
 - Do not automatically disable rootfs verification or consume a pending A/B
@@ -134,8 +135,8 @@ commit coherent stages, and push.
 
 ## Result
 
-Implementation and fixture validation are complete. Final live reboot evidence
-is pending the explicitly confirmed physical-recovery step below.
+Implementation, fixture validation, guided recovery, and live reboot proof are
+complete.
 
 The common client now accepts the ChromeOS native target for
 `status|doctor|capabilities`, uses a platform-owned minimized doctor, and
@@ -148,9 +149,9 @@ The ChromeOS adapter composes the existing focused audit and changed-boot SSH
 proof. Common doctor reports connection, boot persistence, rootfs verification,
 profile lock, resident, semantic, capture, input, and outer policy
 independently. Common repair refuses pending-update and read-only-rootfs
-transitions before mutation,
-performs only the existing safe active-image repair, and invokes the proof
-reboot only with `--reboot`. Twenty-six ChromeOS dependency-free tests and 62
+transitions before mutation, performs only the existing safe active-image
+repair, and invokes the proof
+reboot only with `--reboot`. Twenty-eight ChromeOS dependency-free tests and 62
 common-client tests cover the operation and refusal boundaries, root entrypoint
 composition, and private-field minimization.
 
@@ -162,9 +163,24 @@ configured/listening DevTools route. No update was waiting for reboot. Common
 repair returned `guided_recovery_required`; a second audit was identical, which
 proved the refusal neither changed nor rebooted the device.
 
-The completion-gated proof reboot was therefore not run. The authoritative
-next step is the existing guided flow: explicitly approve staging the bootstrap
-and disabling rootfs verification, reboot, run the staged bootstrap from
-physical VT2, re-audit, and only then run one common proof reboot. This requires
-physical access and the device's developer-console authentication. The tactical
-remains active until that sequence is confirmed and completed.
+With physical access confirmed, the guided flow safely identified the active
+slot, staged the persistent bootstrap, disabled rootfs verification for that
+slot, and rebooted. The user restored SSH from VT2. Common doctor then directly
+reported `rootfsVerification: disabled`; the writable-image repair installed
+the SSH autostart job, prepared-release marker, and DevTools configuration.
+
+One final common proof reboot observed a changed boot, automatic SSH return,
+current-boot startup evidence, writable rootfs, installed/running autostart,
+the prepared release, and configured/listening DevTools. All maintenance
+checks and common readiness were healthy. No credential, endpoint, account,
+boot ID, release, device identity, or partition was retained in this record.
+
+The final live review also found that the legacy doctor's optional
+`adb devices` query could start a target-side ADB server, create a volatile
+client key, and display an authorization prompt. Before closure, routine doctor
+and diagnostics were made ADB-passive; connection and authorization remain
+behind explicit `adb-status|adb-connect|adb-authorize` commands. Regression
+fixtures fail on implicit ADB execution. After stopping the previously created
+server, a live common doctor remained fully ready and did not recreate it.
+Hosted run `31591869775` then passed all six coordinator/native jobs on macOS,
+Linux, and Windows at implementation commit `22bdd7e`.

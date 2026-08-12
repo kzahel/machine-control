@@ -122,6 +122,14 @@ Unix coordinator jobs execute them. Private-inventory run `31480390146` passed
 its macOS/Linux/Windows registry matrix and portable agent-config job at
 dotfiles commit `4ef3ded`.
 
+**Current (2026-08-12):** Physical ChromeOS post-update recovery used the
+platform-owned guided VT2 boundary, then returned through the common
+coordinator. One changed-boot proof observed automatic SSH startup and healthy
+runtime maintenance/readiness. Common doctor now reports active-image rootfs
+verification directly without exposing a device or partition, and a subsequent
+live regression proved it no longer starts the optional ChromeOS-local ADB
+client.
+
 ## Current direction
 
 - Provide one portable root check command that owns correct suite working
