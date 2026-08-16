@@ -28,6 +28,43 @@ Android documents the RSA authorization and serial-selection behavior in its
 [ADB guide](https://developer.android.com/tools/adb). ADB authorization is
 per controller; this repository contains no device credentials or serials.
 
+### Recover a missing ADB authorization prompt
+
+An `unauthorized` ADB state proves that the controller has requested
+authorization; it does not prove that Horizon OS actually displayed the RSA
+dialog. If the headset is visible over USB and `quest doctor` reports
+`unauthorized`, but no prompt appears after reconnecting or restarting ADB:
+
+1. Disconnect USB.
+2. In the Meta Horizon mobile app, turn Developer Mode off for the headset and
+   then turn it on again.
+3. Reconnect USB while the headset is awake and at the Home environment.
+4. Re-run `quest doctor`, accept the RSA prompt, and select **Always allow from
+   this computer**.
+5. Re-run `quest doctor` and require the authorization check to pass. If the
+   prompt is still absent, reboot the headset and repeat the reconnect once.
+
+Do not delete or regenerate the controller's `~/.android/adbkey` as a routine
+recovery step. That changes the controller identity and invalidates its grants
+on every Android-family target that uses the same key.
+
+**Current — live-tested 2026-08-16:** A Quest enumerated over USB and remained
+`unauthorized` while repeated device reconnects, ADB server restarts, and a
+Horizon OS system update failed to display the RSA dialog. The controller key
+had not changed. Turning Developer Mode off and on in the Meta Horizon mobile
+app restored the prompt; accepting it returned every Quest doctor check to
+pass.
+
+AOSP expires inactive user-approved ADB keys according to
+`adb_allowed_connection_time`; its
+[framework default is `604800000` ms (seven days)](https://android.googlesource.com/platform/frameworks/base/+/4e984e55033439223fb45e91a561b85e57248067/core/java/android/provider/Settings.java),
+and its
+[ADB key store applies that window to “Always allow” grants](https://android.googlesource.com/platform/frameworks/base/+/master/services/core/java/com/android/server/adb/AdbDebuggingManager.java).
+The live Quest returned an unset value for that global setting, consistent
+with using a framework default. The incident did not measure the idle period
+or inspect Meta's framework build, so seven-day expiration is a plausible
+trigger, not a proven Horizon OS cause.
+
 ## Start safely
 
 ```bash
@@ -45,6 +82,51 @@ On Windows PowerShell:
 Pass `--serial SERIAL` or set `QUEST_TESTBED_SERIAL` when multiple Quest
 headsets may be attached. The CLI rejects emulators and unrelated Android
 devices rather than operating the first device returned by ADB.
+
+## Authenticated wireless ADB
+
+Quest 3 can use Android's standard ADB-over-TCP route without root. Bootstrap
+and bind it to the exact headset over an authorized USB connection:
+
+```bash
+quest wireless status
+quest wireless enable
+# USB may now be disconnected.
+quest doctor
+quest wireless disable
+```
+
+`wireless enable` requires the selected transport to be USB, confirms that
+Horizon OS reports wireless ADB support and `ro.adb.secure=1`, refuses while a
+Quest lease is active, accepts only a private non-link-local `wlan0` address,
+starts port 5555, connects, and requires the network endpoint to report the
+same device identity and Quest profile. It then writes the endpoint and
+identity to a mode-`0600` controller-local record under
+`QUEST_TESTBED_STATE_DIR`; no address or serial enters the repository.
+
+When the configured USB serial is absent, ordinary Quest commands reconnect
+the recorded endpoint and revalidate its authorization, identity, and headset
+profile before using it. A missing, unauthorized, changed, or non-Quest
+endpoint fails closed. `wireless disable` returns `adbd` to USB mode and clears
+the local record. Enable and disable both refuse during an active test lease so
+transport changes cannot strand lease cleanup.
+
+This is a temporary trusted-LAN route. The current Quest exposes neither a
+persistent TCP port nor a supported Horizon OS pairing workflow through this
+CLI; after an `adbd` or headset restart, reconnect USB and run `wireless
+enable` again. Android documents the underlying
+[`adb tcpip 5555` workflow](https://developer.android.com/tools/adb#wireless).
+Do not forward the listener beyond a trusted local network.
+
+**Current — live-tested 2026-08-16:** The updated Quest reported wireless and
+QR-pairing support, secure ADB, no active wireless setting, and no persistent
+TCP property. `wireless enable` established port 5555, matched the wireless
+endpoint to the USB-observed device identity, and passed the full Quest doctor
+through that endpoint. The controller-local state file had mode `0600`.
+An isolated host ADB server with no USB transport then ran the ordinary pinned
+common doctor: it reconnected the receipt, reported `transport: wireless`, and
+passed every check. The physical cable remained attached during that isolated
+inventory proof.
 
 ## Transactional test session
 
@@ -90,6 +172,9 @@ serial                         Print the selected Quest ADB serial
 probe                          Print one stable lifecycle state
 status [--json]                Report device, battery, settings, and lease state
 doctor [--json]                Diagnose ADB, authorization, safety, and recovery
+wireless status [--json]       Report support, transport, and verified state
+wireless enable [--json]       Enable and verify temporary secure ADB over Wi-Fi
+wireless disable [--json]      Return to USB-only ADB and clear local state
 session [options] -- COMMAND   Run a transactional headset test
 begin [options]                Start a recoverable external-script lease
 end                            Restore this controller's lease and sleep
@@ -142,4 +227,4 @@ back on.
 | `ANDROID_SERIAL` | Standard ADB serial fallback |
 | `QUEST_TESTBED_ADB` | Explicit ADB executable |
 | `QUEST_TESTBED_MIN_BATTERY` | Default unpowered battery threshold |
-| `QUEST_TESTBED_STATE_DIR` | Controller-local lock directory |
+| `QUEST_TESTBED_STATE_DIR` | Controller-local locks and private wireless endpoint state |

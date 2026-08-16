@@ -21,6 +21,32 @@ Tool path: `~/code/machine-control/platforms/quest/bin/quest`
 4. Do not bypass ADB RSA authorization, use root, change device policy, perform
    a factory reset, or fully shut down the headset.
 
+If ADB reports the selected Quest as `unauthorized` but Horizon OS does not
+display the RSA prompt, do not loop host reconnects or replace the controller's
+shared ADB key. Disconnect USB, toggle Developer Mode off and on for the
+headset in the Meta Horizon mobile app, reconnect while the headset is awake,
+and run `quest doctor` again. Reboot the headset and repeat once if the prompt
+is still absent. Accept **Always allow from this computer**, then require a
+passing doctor. AOSP's inactive ADB-grant default is seven days, but treat that
+only as a plausible trigger on Horizon OS; the observed recovery proves the
+mobile-app Developer Mode reset, not the cause of the stale authorization UI.
+
+## Use wireless ADB safely
+
+Use `quest wireless status|enable|disable`; do not assemble an unverified
+`adb connect` route in a project script. `wireless enable` requires the pinned,
+authorized USB Quest, secure ADB, a private `wlan0` address, no active lease,
+and an exact identity/profile match over TCP port 5555. It stores the endpoint
+only in mode-`0600` controller-local state. Once enabled, ordinary commands may
+use that verified record when the USB serial is absent.
+
+Wireless ADB exposes the shell-authorized Quest control surface to peers on the
+local network, still protected by the accepted controller RSA key. Enable it
+only for an explicit task on a trusted LAN. It is temporary: after an `adbd` or
+headset restart, reconnect USB and enable it again. Run `wireless disable` when
+network access is no longer wanted. Never change transport during a live Quest
+lease; the CLI refuses this so cleanup cannot be stranded.
+
 ## Run a project test
 
 Prefer one transactional command:

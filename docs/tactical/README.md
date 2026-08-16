@@ -63,3 +63,4 @@ the commits' `Topic:` trailers and register that exact string in
 | [`021-linux-post-update-and-appliance-certification.md`](021-linux-post-update-and-appliance-certification.md) | complete | Minimized Linux post-update audit/repair, reproducible package profiles, and on-demand appliance certification |
 | [`022-common-maintenance-and-macos-certification.md`](022-common-maintenance-and-macos-certification.md) | complete | Common platform-maintenance dispatch plus minimized macOS audit/repair, reproducible profiles, and exact-source certification |
 | [`023-chromeos-common-readiness-and-maintenance.md`](023-chromeos-common-readiness-and-maintenance.md) | complete | Common ChromeOS doctor plus partial runtime audit/repair and current-boot SSH persistence proof |
+| [`024-quest-wireless-adb.md`](024-quest-wireless-adb.md) | complete | Guarded temporary Quest ADB-over-TCP bound to the pinned USB identity, with private endpoint state and cable-free fallback |

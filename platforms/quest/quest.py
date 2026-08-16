@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -34,6 +36,12 @@ from providers.adb import (  # noqa: E402
 
 REMOTE_JOURNAL = "/data/local/tmp/quest-testbed-session.json"
 JOURNAL_SCHEMA = "quest-testbed.session.v1"
+WIRELESS_SCHEMA = "quest-testbed.wireless.v1"
+WIRELESS_PORT = 5555
+PRIVATE_IPV4_NETWORKS = tuple(
+    ipaddress.ip_network(value)
+    for value in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
+)
 DEFAULT_MIN_BATTERY = 15
 QUEST_FEATURES = {
     "oculus.hardware.standalone_vr",
@@ -82,6 +90,76 @@ def sanitize_serial(serial: str) -> str:
     return re.sub(r"[^A-Za-z0-9._-]", "_", serial)
 
 
+def wireless_state_path(usb_serial: str) -> Path:
+    digest = hashlib.sha256(usb_serial.encode("utf-8")).hexdigest()[:24]
+    return state_root() / "wireless" / f"{digest}.json"
+
+
+def parse_wireless_endpoint(value: Any) -> tuple[str, int]:
+    if not isinstance(value, str):
+        raise TestbedError("recorded Quest wireless endpoint is invalid")
+    host, separator, port_text = value.rpartition(":")
+    if not separator or not port_text.isdecimal():
+        raise TestbedError("recorded Quest wireless endpoint is invalid")
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError as error:
+        raise TestbedError("recorded Quest wireless endpoint is invalid") from error
+    port = int(port_text)
+    if not isinstance(address, ipaddress.IPv4Address) or not 1 <= port <= 65535:
+        raise TestbedError("recorded Quest wireless endpoint is invalid")
+    return str(address), port
+
+
+def read_wireless_state(usb_serial: str) -> dict[str, Any] | None:
+    path = wireless_state_path(usb_serial)
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, json.JSONDecodeError) as error:
+        raise TestbedError(f"cannot read Quest wireless state: {error}") from error
+    if (
+        not isinstance(value, dict)
+        or value.get("schema") != WIRELESS_SCHEMA
+        or value.get("usbSerial") != usb_serial
+        or not isinstance(value.get("deviceIdentity"), str)
+    ):
+        raise TestbedError("recorded Quest wireless state is invalid")
+    parse_wireless_endpoint(value.get("endpoint"))
+    return value
+
+
+def write_wireless_state(usb_serial: str, value: dict[str, Any]) -> None:
+    path = wireless_state_path(usb_serial)
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        os.chmod(path.parent, 0o700)
+    except OSError:
+        pass
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.stem}.", suffix=".tmp", dir=path.parent
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(value, stream, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        try:
+            os.chmod(temporary, 0o600)
+        except OSError:
+            pass
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def delete_wireless_state(usb_serial: str) -> None:
+    wireless_state_path(usb_serial).unlink(missing_ok=True)
+
+
 def pid_is_alive(pid: Any) -> bool:
     if not isinstance(pid, int) or pid <= 0:
         return False
@@ -111,6 +189,7 @@ class AdbClient(SharedAdbClient):
             )
         except AdbError as error:
             raise TestbedError(str(error)) from error
+        self.configured_serial = requested
 
     def quest_like(self, device: AdbDevice) -> bool:
         summary = " ".join(
@@ -141,6 +220,34 @@ class AdbClient(SharedAdbClient):
         if self.requested_serial:
             device = by_serial.get(self.requested_serial)
             if not device:
+                recorded = read_wireless_state(self.requested_serial)
+                if recorded:
+                    endpoint = str(recorded["endpoint"])
+                    result = self.run(["connect", endpoint], check=False)
+                    devices = self.devices()
+                    device = {item.serial: item for item in devices}.get(endpoint)
+                    if result.returncode != 0 or not device:
+                        raise TestbedError(
+                            "requested Quest USB transport is absent and its recorded "
+                            "wireless endpoint is unavailable; reconnect USB and run "
+                            "wireless enable after a headset reboot"
+                        )
+                    if device.state != "device":
+                        raise TestbedError(
+                            "recorded Quest wireless endpoint is not authorized"
+                        )
+                    identity = self.shell_text(
+                        endpoint, ["getprop", "ro.serialno"], check=False
+                    )
+                    if not identity or identity != recorded["deviceIdentity"]:
+                        raise TestbedError(
+                            "recorded Quest wireless endpoint identity changed; refusing"
+                        )
+                    if not self.quest_like(device):
+                        raise TestbedError(
+                            "recorded wireless endpoint is not recognized as a Quest"
+                        )
+                    return endpoint
                 raise TestbedError(
                     f"requested Quest {self.requested_serial!r} is not connected"
                 )
@@ -332,6 +439,7 @@ def device_status(client: AdbClient, serial: str) -> dict[str, Any]:
         "product": getprop("ro.product.name") or "unknown",
         "api": getprop("ro.build.version.sdk") or "unknown",
         "abi": getprop("ro.product.cpu.abi") or "unknown",
+        "transport": adb_transport_kind(client, serial),
         "battery": battery,
         "proximity_override": getprop("debug.oculus.disableProximity") or "0",
         "settings": {
@@ -610,6 +718,257 @@ def parse_min_battery(value: str | int | None) -> int:
     return result
 
 
+def adb_transport_kind(client: AdbClient, serial: str) -> str:
+    result = client.run(["get-devpath"], serial=serial, check=False)
+    devpath = str(result.stdout).replace("\r", "").strip()
+    if result.returncode == 0 and devpath.startswith("usb:"):
+        return "usb"
+    try:
+        parse_wireless_endpoint(serial)
+    except TestbedError:
+        return "unknown"
+    return "wireless"
+
+
+def quest_wifi_ipv4(client: AdbClient, serial: str) -> str:
+    text = client.shell_text(
+        serial, ["ip", "-o", "-4", "addr", "show", "wlan0"], check=False
+    )
+    match = re.search(r"\binet\s+([0-9.]+)/", text)
+    if not match:
+        raise TestbedError("Quest wlan0 has no IPv4 address")
+    try:
+        address = ipaddress.ip_address(match.group(1))
+    except ValueError as error:
+        raise TestbedError("Quest wlan0 reported an invalid IPv4 address") from error
+    if (
+        not isinstance(address, ipaddress.IPv4Address)
+        or address.is_unspecified
+        or address.is_loopback
+        or address.is_link_local
+        or address.is_multicast
+        or not any(address in network for network in PRIVATE_IPV4_NETWORKS)
+    ):
+        raise TestbedError(
+            "Quest wireless ADB requires a private, non-link-local wlan0 address"
+        )
+    return str(address)
+
+
+def wireless_capabilities(client: AdbClient, serial: str) -> dict[str, Any]:
+    return {
+        "supported": client.shell_text(
+            serial, ["cmd", "adb", "is-wifi-supported"], check=False
+        ).lower()
+        == "true",
+        "qrPairingSupported": client.shell_text(
+            serial, ["cmd", "adb", "is-wifi-qr-supported"], check=False
+        ).lower()
+        == "true",
+        "secureAdb": client.shell_text(
+            serial, ["getprop", "ro.adb.secure"], check=False
+        )
+        == "1",
+        "servicePort": client.shell_text(
+            serial, ["getprop", "service.adb.tcp.port"], check=False
+        ),
+        "persistentPort": client.shell_text(
+            serial, ["getprop", "persist.adb.tcp.port"], check=False
+        ),
+        "pairingEnabled": client.shell_text(
+            serial,
+            ["settings", "get", "global", "adb_wifi_enabled"],
+            check=False,
+        )
+        == "1",
+    }
+
+
+def wait_for_adb_device(
+    client: AdbClient, endpoint: str, *, timeout: float = 8.0
+) -> AdbDevice | None:
+    deadline = time.monotonic() + timeout
+    while True:
+        devices = {device.serial: device for device in client.devices()}
+        device = devices.get(endpoint)
+        if device and device.state == "device":
+            return device
+        if time.monotonic() >= deadline:
+            return device
+        time.sleep(0.25)
+
+
+def wireless_record_owner(client: AdbClient, serial: str) -> str | None:
+    configured = client.configured_serial
+    if configured:
+        try:
+            parse_wireless_endpoint(configured)
+        except TestbedError:
+            return configured
+    if adb_transport_kind(client, serial) == "usb":
+        return serial
+    return None
+
+
+def require_no_quest_lease(client: AdbClient, serial: str, operation: str) -> None:
+    journal = read_remote_journal(client, serial)
+    if journal:
+        raise TestbedError(
+            f"cannot {operation} wireless ADB while a Quest lease is active; "
+            "end or recover the lease first"
+        )
+
+
+def wireless_enable(client: AdbClient, serial: str) -> dict[str, Any]:
+    if adb_transport_kind(client, serial) != "usb":
+        raise TestbedError("wireless enable requires the pinned Quest USB transport")
+    capabilities = wireless_capabilities(client, serial)
+    if not capabilities["supported"]:
+        raise TestbedError("this Horizon OS build does not support ADB over Wi-Fi")
+    if not capabilities["secureAdb"]:
+        raise TestbedError("refusing to expose an unauthenticated ADB network listener")
+    require_no_quest_lease(client, serial, "enable")
+    identity = client.shell_text(serial, ["getprop", "ro.serialno"], check=False)
+    if not identity:
+        raise TestbedError("Quest did not report a stable device identity")
+    address = quest_wifi_ipv4(client, serial)
+    endpoint = f"{address}:{WIRELESS_PORT}"
+    result = client.run(
+        ["tcpip", str(WIRELESS_PORT)], serial=serial, check=False
+    )
+    if result.returncode != 0:
+        raise TestbedError("Quest refused the ADB TCP/IP transition")
+    connected = client.run(["connect", endpoint], check=False)
+    device = wait_for_adb_device(client, endpoint)
+    if connected.returncode != 0 or not device:
+        raise TestbedError(
+            "Quest enabled ADB TCP/IP but the controller could not connect; "
+            "confirm both devices are on a peer-reachable trusted network"
+        )
+    wireless_identity = client.shell_text(
+        endpoint, ["getprop", "ro.serialno"], check=False
+    )
+    if wireless_identity != identity:
+        client.run(["disconnect", endpoint], check=False)
+        raise TestbedError("wireless ADB endpoint identity mismatch; refusing")
+    if not client.quest_like(device):
+        client.run(["disconnect", endpoint], check=False)
+        raise TestbedError("wireless ADB endpoint is not recognized as a Quest")
+    write_wireless_state(
+        serial,
+        {
+            "schema": WIRELESS_SCHEMA,
+            "usbSerial": serial,
+            "deviceIdentity": identity,
+            "endpoint": endpoint,
+            "enabledAt": utc_now(),
+        },
+    )
+    return {
+        "schema": WIRELESS_SCHEMA,
+        "operation": "enable",
+        "supported": True,
+        "qrPairingSupported": capabilities["qrPairingSupported"],
+        "secureAdb": True,
+        "enabled": True,
+        "verified": True,
+        "endpoint": endpoint,
+        "port": WIRELESS_PORT,
+        "persistence": "until_adbd_or_headset_restart",
+    }
+
+
+def wireless_status(client: AdbClient, serial: str) -> dict[str, Any]:
+    capabilities = wireless_capabilities(client, serial)
+    owner = wireless_record_owner(client, serial)
+    record = read_wireless_state(owner) if owner else None
+    endpoint = str(record["endpoint"]) if record else None
+    verified = False
+    if endpoint:
+        device = {item.serial: item for item in client.devices()}.get(endpoint)
+        if device and device.state == "device":
+            identity = client.shell_text(
+                endpoint, ["getprop", "ro.serialno"], check=False
+            )
+            verified = (
+                identity == record["deviceIdentity"] and client.quest_like(device)
+            )
+    enabled = capabilities["servicePort"] == str(WIRELESS_PORT) or bool(
+        capabilities["pairingEnabled"]
+    )
+    return {
+        "schema": WIRELESS_SCHEMA,
+        "operation": "status",
+        "supported": capabilities["supported"],
+        "qrPairingSupported": capabilities["qrPairingSupported"],
+        "secureAdb": capabilities["secureAdb"],
+        "enabled": enabled,
+        "verified": verified,
+        "endpoint": endpoint,
+        "port": WIRELESS_PORT if enabled else None,
+        "transport": adb_transport_kind(client, serial),
+        "pairingEnabled": capabilities["pairingEnabled"],
+        "persistence": (
+            (
+                "persistent_property"
+                if capabilities["persistentPort"]
+                else "until_adbd_or_headset_restart"
+            )
+            if enabled
+            else "disabled"
+        ),
+    }
+
+
+def wireless_disable(client: AdbClient, serial: str) -> dict[str, Any]:
+    owner = wireless_record_owner(client, serial)
+    record = read_wireless_state(owner) if owner else None
+    endpoint = str(record["endpoint"]) if record else None
+    require_no_quest_lease(client, serial, "disable")
+    result = client.run(["usb"], serial=serial, check=False)
+    if result.returncode != 0:
+        raise TestbedError("Quest refused the return to USB-only ADB")
+    disconnected = True
+    if endpoint:
+        deadline = time.monotonic() + 8.0
+        while time.monotonic() < deadline:
+            device = {item.serial: item for item in client.devices()}.get(endpoint)
+            if not device:
+                break
+            time.sleep(0.25)
+        else:
+            disconnected = False
+    if not disconnected:
+        raise TestbedError("Quest wireless ADB endpoint remained connected after adb usb")
+    if owner:
+        delete_wireless_state(owner)
+    return {
+        "schema": WIRELESS_SCHEMA,
+        "operation": "disable",
+        "supported": True,
+        "enabled": False,
+        "verified": True,
+        "endpoint": None,
+        "port": None,
+        "persistence": "disabled",
+    }
+
+
+def print_wireless(result: dict[str, Any], *, as_json: bool) -> None:
+    if as_json:
+        print(json.dumps(result, indent=2))
+        return
+    print(f"wireless ADB: {'enabled' if result['enabled'] else 'disabled'}")
+    print(f"supported: {'yes' if result.get('supported') else 'no'}")
+    print(f"secure ADB: {'yes' if result.get('secureAdb') else 'no'}")
+    print(f"verified: {'yes' if result.get('verified') else 'no'}")
+    if result.get("endpoint"):
+        print(f"endpoint: {result['endpoint']}")
+    if result.get("transport"):
+        print(f"selected transport: {result['transport']}")
+    print(f"persistence: {result['persistence']}")
+
+
 def status_text(status: dict[str, Any]) -> str:
     battery = status["battery"]
     level = battery.get("level")
@@ -618,6 +977,7 @@ def status_text(status: dict[str, Any]) -> str:
         f"serial: {status['serial']}",
         f"device: {status['manufacturer']} {status['model']}",
         f"android: API {status['api']} {status['abi']}",
+        f"transport: {status['transport']}",
         f"state: {status['state']}",
         f"battery: {level if level is not None else 'unknown'}% ({power})",
         f"proximity override: {status['proximity_override']}",
@@ -780,6 +1140,7 @@ def common_doctor_document(
         "extensions": {
             "routeClass": "host.device",
             "provider": "quest.adb",
+            "transport": status["transport"],
             "wakeState": wake_state,
             "leaseState": "active" if status["journal"] else "none",
             "battery": {
@@ -921,6 +1282,19 @@ def build_parser() -> argparse.ArgumentParser:
     status_parser.add_argument("--json", action="store_true")
     doctor_parser = subparsers.add_parser("doctor", help="run read-only setup diagnostics")
     doctor_parser.add_argument("--json", action="store_true")
+    wireless_parser = subparsers.add_parser(
+        "wireless", help="inspect or change authenticated ADB-over-Wi-Fi"
+    )
+    wireless_subparsers = wireless_parser.add_subparsers(
+        dest="wireless_command", required=True
+    )
+    for operation, help_text in (
+        ("status", "show wireless ADB support and verified state"),
+        ("enable", "enable and verify temporary wireless ADB over USB"),
+        ("disable", "return the Quest to USB-only ADB"),
+    ):
+        command_parser = wireless_subparsers.add_parser(operation, help=help_text)
+        command_parser.add_argument("--json", action="store_true")
     subparsers.add_parser("wake", help="send the standard Android wake key")
     subparsers.add_parser("sleep", help="normalize proximity and put the headset to sleep")
     subparsers.add_parser(
@@ -1021,6 +1395,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload, ok = doctor_payload(client, serial)
             print_doctor(payload)
             return 0 if ok else 1
+        if args.command == "wireless":
+            if args.wireless_command == "enable":
+                result = wireless_enable(client, serial)
+            elif args.wireless_command == "disable":
+                result = wireless_disable(client, serial)
+            else:
+                result = wireless_status(client, serial)
+            print_wireless(result, as_json=args.json)
+            return 0
         if args.command == "wake":
             client.shell(serial, ["input", "keyevent", "KEYCODE_WAKEUP"])
             return 0

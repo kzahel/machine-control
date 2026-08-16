@@ -30,7 +30,11 @@ the common target layer.
 
 Quest remains a separate platform profile. Its ADB transport is shared, while
 proximity, headset sleep/wake, battery guards, Meta panels, remote recovery
-journal, and safe final state remain Quest-owned policy.
+journal, safe final state, and guarded USB-to-wireless transition remain
+Quest-owned policy. The Quest adapter supports temporary authenticated
+ADB-over-TCP without changing the common target vocabulary. It stores a
+private controller-local endpoint receipt and reports the selected transport,
+but keeps the address and USB identity out of the common doctor.
 
 ## Decisions
 
@@ -49,6 +53,15 @@ The common layer owns target selection, authorization, readiness dimensions,
 capabilities, delivery/effect/evidence, and typed refusal. Android/ADB owns
 transport primitives. Each device profile owns lifecycle, protected surfaces,
 semantics, and safety policy.
+
+**Decision:** Wireless ADB is an alternate device-host transport, not a second
+target identity or weaker authorization route. Quest activation must begin
+from the pinned authorized USB device, require secure ADB and a private LAN
+address, bind the resulting endpoint to the independently observed device
+identity, and refuse identity drift. Controller-local endpoint state may
+restore convenience after USB removal, but it is neither repository inventory
+nor bearer authority. Transport changes are prohibited during an active Quest
+lease and are expected to expire across `adbd` or headset restart.
 
 **Decision:** A phone unlock is a protected handheld operation, not a generic
 ADB or Quest command. Ordinary `wake` and `dismiss-keyguard` contain no secret.
@@ -75,10 +88,32 @@ shell identity, rejected empty input with no output or key injection, and was
 removed. An already-unlocked `unlock --json` path confirmed state without
 opening the secret channel.
 
+On a physical Quest, the controller independently observed USB enumeration
+and ADB `unauthorized` state while Horizon OS failed to render the requested
+RSA dialog. Reconnects, ADB server restarts, and a system update did not restore
+the dialog. Toggling Developer Mode off and on in the Meta Horizon mobile app
+did; after the user accepted the prompt, the common doctor returned ready with
+every Quest check passing. AOSP's seven-day inactive-grant default is a
+plausible explanation, but the exact Horizon OS expiration behavior and the
+incident's idle interval were not measured.
+
+The same Quest live-reported Android API 34, secure ADB, wireless and QR
+pairing capability, disabled wireless state, and no persistent TCP property.
+The guarded Quest command enabled Android's documented TCP port 5555 route,
+connected to the private endpoint, matched its device identity to the USB
+observation, and passed the full Quest doctor over Wi-Fi. The local endpoint
+receipt was mode `0600`; no serial or address entered the common result or
+repository. With an isolated host ADB server exposing no USB transport, the
+ordinary pinned common doctor reconnected the receipt, reported its transport
+as wireless, and passed every check. Missing, unauthorized, identity-changed,
+and non-Quest fallback routes fail closed in unit tests.
+
 **Current — unit-tested:** Tests cover handheld/Quest selection separation,
 keyguard and user-state parsing, refusal before secret read, unsafe wipe-policy
 refusal, exactly one helper delivery, mutable-buffer clearing, independent
-unlock observation, zero retry, and absence of the test PIN from results.
+unlock observation, zero retry, absence of the test PIN from results, wireless
+private-address and secure-ADB gates, active-lease refusal, exact endpoint
+binding, recorded fallback, identity-drift refusal, and observed disable.
 
 **Open:** No real credential was entered during this slice. The helper's PIN
 delivery and successful keyguard effect are therefore built and unit-tested,

@@ -127,6 +127,102 @@ class FakeClient:
         return result
 
 
+class FakeWirelessClient(quest.AdbClient):
+    def __init__(self) -> None:
+        self.adb = "adb"
+        self.requested_serial = "QUEST123"
+        self.configured_serial = "QUEST123"
+        self.usb_serial = "QUEST123"
+        self.endpoint = "192.168.50.20:5555"
+        self.identity = "QUEST123"
+        self.endpoint_identity = "QUEST123"
+        self.enabled = False
+        self.connected = False
+        self.secure = True
+
+    def devices(self) -> list[quest.AdbDevice]:
+        devices = [
+            quest.AdbDevice(
+                self.usb_serial, "device", {"model": "Quest_3"}
+            )
+        ]
+        if self.connected:
+            devices.append(
+                quest.AdbDevice(
+                    self.endpoint, "device", {"model": "Quest_3"}
+                )
+            )
+        return devices
+
+    def quest_like(self, device: quest.AdbDevice) -> bool:
+        return device.attributes.get("model") == "Quest_3"
+
+    def shell_text(
+        self, serial: str, argv: list[str], *, check: bool = True
+    ) -> str:
+        del check
+        if argv == ["cmd", "adb", "is-wifi-supported"]:
+            return "true"
+        if argv == ["cmd", "adb", "is-wifi-qr-supported"]:
+            return "true"
+        if argv == ["getprop", "ro.adb.secure"]:
+            return "1" if self.secure else "0"
+        if argv == ["getprop", "ro.serialno"]:
+            return self.endpoint_identity if serial == self.endpoint else self.identity
+        if argv == ["getprop", "service.adb.tcp.port"]:
+            return "5555" if self.enabled else ""
+        if argv == ["getprop", "persist.adb.tcp.port"]:
+            return ""
+        if argv == ["settings", "get", "global", "adb_wifi_enabled"]:
+            return "0"
+        if argv == ["ip", "-o", "-4", "addr", "show", "wlan0"]:
+            return "7: wlan0 inet 192.168.50.20/24 scope global wlan0"
+        return ""
+
+    def shell(
+        self,
+        serial: str,
+        argv: list[str],
+        *,
+        check: bool = True,
+        capture: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        del serial, capture
+        result = completed(argv, returncode=1 if argv[0] == "cat" else 0)
+        if check and result.returncode:
+            raise subprocess.CalledProcessError(result.returncode, argv)
+        return result
+
+    def run(
+        self,
+        argv: list[str],
+        *,
+        serial: str | None = None,
+        check: bool = True,
+        capture: bool = True,
+    ) -> subprocess.CompletedProcess[str]:
+        del check, capture
+        if argv == ["get-devpath"]:
+            stdout = "usb:1-1\n" if serial == self.usb_serial else "unknown\n"
+            return completed(argv, stdout=stdout)
+        if argv == ["tcpip", "5555"] and serial == self.usb_serial:
+            self.enabled = True
+            return completed(argv, stdout="restarting in TCP mode port: 5555\n")
+        if argv == ["connect", self.endpoint]:
+            if self.enabled:
+                self.connected = True
+                return completed(argv, stdout=f"connected to {self.endpoint}\n")
+            return completed(argv, returncode=1, stderr="connection refused")
+        if argv == ["disconnect", self.endpoint]:
+            self.connected = False
+            return completed(argv)
+        if argv == ["usb"]:
+            self.enabled = False
+            self.connected = False
+            return completed(argv, stdout="restarting in USB mode\n")
+        return completed(argv)
+
+
 class DeviceSelectionTests(unittest.TestCase):
     def test_selects_one_quest_and_ignores_emulator(self) -> None:
         client = SelectionClient(
@@ -188,6 +284,118 @@ class StatusParsingTests(unittest.TestCase):
         self.assertEqual(document["target"]["platformFamily"], "android")
         self.assertEqual(document["states"]["connection"], "ready")
         self.assertNotIn("PRIVATE-SERIAL", json.dumps(document))
+
+
+class WirelessTests(unittest.TestCase):
+    def test_rejects_public_wifi_address(self) -> None:
+        client = FakeWirelessClient()
+        client.shell_text = mock.Mock(return_value="7: wlan0 inet 8.8.8.8/24")
+        with self.assertRaisesRegex(quest.TestbedError, "private"):
+            quest.quest_wifi_ipv4(client, client.usb_serial)  # type: ignore[arg-type]
+
+    @mock.patch("quest.read_remote_journal", return_value={"token": "active"})
+    def test_enable_refuses_an_active_lease(self, _journal: mock.Mock) -> None:
+        client = FakeWirelessClient()
+        with self.assertRaisesRegex(quest.TestbedError, "lease is active"):
+            quest.wireless_enable(client, client.usb_serial)  # type: ignore[arg-type]
+        self.assertFalse(client.enabled)
+
+    def test_enable_refuses_insecure_adb(self) -> None:
+        client = FakeWirelessClient()
+        client.secure = False
+        with self.assertRaisesRegex(quest.TestbedError, "unauthenticated"):
+            quest.wireless_enable(client, client.usb_serial)  # type: ignore[arg-type]
+        self.assertFalse(client.enabled)
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_enable_verifies_and_records_exact_wireless_endpoint(self) -> None:
+        client = FakeWirelessClient()
+        with tempfile.TemporaryDirectory() as temporary:
+            with mock.patch.dict(
+                os.environ, {"QUEST_TESTBED_STATE_DIR": temporary}, clear=False
+            ):
+                result = quest.wireless_enable(  # type: ignore[arg-type]
+                    client, client.usb_serial
+                )
+                self.assertTrue(result["enabled"])
+                self.assertTrue(result["verified"])
+                self.assertEqual(result["endpoint"], client.endpoint)
+                record = quest.read_wireless_state(client.usb_serial)
+                self.assertIsNotNone(record)
+                self.assertEqual(record["deviceIdentity"], client.identity)  # type: ignore[index]
+                path = quest.wireless_state_path(client.usb_serial)
+                self.assertNotIn(client.usb_serial, path.name)
+                if os.name != "nt":
+                    self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_pinned_usb_selector_falls_back_to_verified_wireless_state(self) -> None:
+        client = FakeWirelessClient()
+        client.enabled = True
+        with tempfile.TemporaryDirectory() as temporary:
+            with mock.patch.dict(
+                os.environ, {"QUEST_TESTBED_STATE_DIR": temporary}, clear=False
+            ):
+                quest.write_wireless_state(
+                    client.usb_serial,
+                    {
+                        "schema": quest.WIRELESS_SCHEMA,
+                        "usbSerial": client.usb_serial,
+                        "deviceIdentity": client.identity,
+                        "endpoint": client.endpoint,
+                        "enabledAt": quest.utc_now(),
+                    },
+                )
+                original_devices = client.devices
+                client.devices = lambda: [
+                    device
+                    for device in original_devices()
+                    if device.serial != client.usb_serial
+                ]
+                self.assertEqual(client.select_quest(), client.endpoint)  # type: ignore[attr-defined]
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_wireless_fallback_rejects_changed_identity(self) -> None:
+        client = FakeWirelessClient()
+        client.enabled = True
+        client.endpoint_identity = "OTHER"
+        with tempfile.TemporaryDirectory() as temporary:
+            with mock.patch.dict(
+                os.environ, {"QUEST_TESTBED_STATE_DIR": temporary}, clear=False
+            ):
+                quest.write_wireless_state(
+                    client.usb_serial,
+                    {
+                        "schema": quest.WIRELESS_SCHEMA,
+                        "usbSerial": client.usb_serial,
+                        "deviceIdentity": client.identity,
+                        "endpoint": client.endpoint,
+                        "enabledAt": quest.utc_now(),
+                    },
+                )
+                original_devices = client.devices
+                client.devices = lambda: [
+                    device
+                    for device in original_devices()
+                    if device.serial != client.usb_serial
+                ]
+                with self.assertRaisesRegex(quest.TestbedError, "identity changed"):
+                    client.select_quest()  # type: ignore[attr-defined]
+
+    @mock.patch.dict(os.environ, {}, clear=True)
+    def test_disable_observes_disconnect_and_clears_record(self) -> None:
+        client = FakeWirelessClient()
+        with tempfile.TemporaryDirectory() as temporary:
+            with mock.patch.dict(
+                os.environ, {"QUEST_TESTBED_STATE_DIR": temporary}, clear=False
+            ):
+                quest.wireless_enable(client, client.usb_serial)  # type: ignore[arg-type]
+                result = quest.wireless_disable(  # type: ignore[arg-type]
+                    client, client.usb_serial
+                )
+                self.assertFalse(result["enabled"])
+                self.assertTrue(result["verified"])
+                self.assertIsNone(quest.read_wireless_state(client.usb_serial))
 
 
 class LifecycleTests(unittest.TestCase):

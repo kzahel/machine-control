@@ -38,6 +38,37 @@ adapter is live-tested for exact selection, common doctor/status/capabilities,
 boot/user-storage/keyguard observation, and secret-helper build/start/refusal.
 Quest retains separate headset lifecycle and safety policy.
 
+**Current — Quest authorization recovery, live-tested 2026-08-16:** The Quest
+USB device remained present and ADB reported the exact target as
+`unauthorized`, but Horizon OS rendered no RSA confirmation after USB
+reconnects, ADB server restarts, or a system update. The controller's ADB key
+had not changed. Turning Developer Mode off and on in the Meta Horizon mobile
+app restored the prompt; user acceptance returned the minimized Quest doctor
+to ready with every check passing. AOSP defines
+[`604800000` ms (seven days) as the default inactive ADB grant window](https://android.googlesource.com/platform/frameworks/base/+/4e984e55033439223fb45e91a561b85e57248067/core/java/android/provider/Settings.java)
+and applies it to
+[`Always allow` keys](https://android.googlesource.com/platform/frameworks/base/+/master/services/core/java/com/android/server/adb/AdbDebuggingManager.java).
+The live Quest's `adb_allowed_connection_time` setting was unset, but Meta's
+effective framework default and the incident's idle interval were not directly
+established; seven-day expiry remains a plausible trigger rather than a proven
+Horizon OS cause.
+
+**Current — Quest wireless ADB, built and live-tested 2026-08-16:** The updated
+Quest's `cmd adb` service reported Wi-Fi and QR pairing support, while secure
+ADB was enabled, wireless debugging was off, and service/persistent TCP port
+properties were empty. The Quest adapter now wraps Android's documented
+[`adb tcpip 5555` route](https://developer.android.com/tools/adb#wireless)
+without root. It requires the pinned authorized USB device, a private
+non-link-local address, secure ADB, no active lease, and an exact identity and
+Quest-profile match at the wireless endpoint. Live enable matched the network
+route to the USB-observed identity and passed the full Quest doctor over TCP;
+the private endpoint receipt was mode `0600`. An isolated host ADB server with
+no USB transport then proved that the ordinary pinned common doctor reconnects
+the receipt, reports the wireless route, and passes every check. Disable,
+endpoint drift, and refusal paths are unit-tested. The route is temporary
+across `adbd` or headset restart and does not claim that Horizon OS exposes
+Android's normal on-device QR-pairing UI.
+
 **Current — unit-tested:** The phone PIN route refuses before reading a secret
 unless the exact generation, secure PIN field, and zero failed-password wipe
 threshold are established. It carries the PIN only through standard input to a
