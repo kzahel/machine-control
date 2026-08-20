@@ -8,17 +8,30 @@ description: Start, diagnose, administer, inspect, and interact with a Windows V
 Use the repository's deterministic CLI instead of reimplementing UTM,
 PowerShell, or UI relay commands.
 
-**Tool path:** `~/code/machine-control/platforms/windows/bin/winvm`
+**Common tool path:** `~/code/machine-control/bin/machine-control`
+
+The common client auto-discovers an adjacent private dotfiles inventory when
+available and injects its ignored target configuration into the public Windows
+adapter. Use the platform CLI directly only when that inventory environment is
+already configured.
 
 ## Begin Every Task
 
 ```bash
-~/code/machine-control/platforms/windows/bin/winvm doctor
+cd ~/code/machine-control
+bin/machine-control inventory status
+bin/machine-control --target windows target doctor
 ```
 
 Read the result before acting:
 
-- If the VM is stopped, run `winvm up` and repeat `doctor`.
+- If the VM is stopped, run
+  `bin/machine-control --target windows target ensure-ready`.
+- If UTM is started but guest-agent IP, SSH, or resident readiness is still
+  unavailable, allow the full configured boot timeout (ten minutes by
+  default). Windows update/recovery and delayed post-boot services can be
+  healthy but slow. Continue bounded read-only probes; do not shut down,
+  restart, or force-stop the target during this interval.
 - If TCP/SSH fails, capture the UTM window and use provider recovery. Read
   `docs/bootstrap.md` when OpenSSH needs repair.
 - If SSH works but the UI relay fails, check whether Explorer has an
@@ -48,28 +61,30 @@ winvm ui launch notepad.exe
 ## Quick Reference
 
 ```bash
-winvm status | up | ip
-winvm capabilities --json
-winvm ssh
-winvm ps 'Get-Service sshd'
-winvm wsl -- uname -a
-winvm down
+mc=~/code/machine-control/bin/machine-control
+$mc --target windows target status
+$mc --target windows target ensure-ready
+$mc --target windows target capabilities
+$mc --target windows testbed -- ssh
+$mc --target windows testbed -- ps 'Get-Service sshd'
+$mc --target windows testbed -- wsl -- uname -a
+$mc --target windows testbed -- down
 
-winvm ui health
-winvm ui windows
-winvm ui inspect -a APP --interactive --depth 8
-winvm ui search PATTERN -a APP
-winvm ui invoke SELECTOR -a APP
-winvm ui click SELECTOR -a APP
-winvm ui set-value SELECTOR VALUE -a APP
-winvm ui screenshot -a APP
+$mc --target windows testbed -- ui health
+$mc --target windows testbed -- ui windows
+$mc --target windows testbed -- ui inspect -a APP --interactive --depth 8
+$mc --target windows testbed -- ui search PATTERN -a APP
+$mc --target windows testbed -- ui invoke SELECTOR -a APP
+$mc --target windows testbed -- ui click SELECTOR -a APP
+$mc --target windows testbed -- ui set-value SELECTOR VALUE -a APP
+$mc --target windows testbed -- ui screenshot -a APP
 
-winvm screenshot
-winvm type TEXT
-winvm key enter
-winvm key ctrl-shift-escape
-winvm click X Y left
-winvm scan CODE...
+$mc --target windows testbed -- screenshot
+$mc --target windows testbed -- type TEXT
+$mc --target windows testbed -- key enter
+$mc --target windows testbed -- key ctrl-shift-escape
+$mc --target windows testbed -- click X Y left
+$mc --target windows testbed -- scan CODE...
 ```
 
 Treat element tokens returned by `inspect` or `search` as ephemeral; rediscover

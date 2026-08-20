@@ -54,6 +54,23 @@ unavailable, and offer a bounded raw-input recovery path. Add bounded failure
 times and diagnostics around IP discovery, SSH, and restart so a transport
 loss cannot look like an indefinite controller hang.
 
+### macOS can refuse the accelerated UTM window capture
+
+Status: **open; observed 2026-08-20.** After the accelerated Windows display
+initialized, Core Graphics still enumerated the UTM console but macOS refused
+both its window-ID capture and a tiny screen-region permission probe. The
+Windows-resident GDI capture remained healthy and returned the complete
+1280×1024 desktop with no host interference.
+
+Effect: outer visual recovery is unavailable in that host session even though
+ordinary target-native control is healthy. The provider now fails closed with
+a diagnostic that points to host lock/display state and Screen Recording
+permission rather than emitting a black or unrelated host image.
+
+Open: repeat the provider capture after the controller desktop is unlocked and
+confirm whether host session state, Screen Recording authorization, or the
+accelerated surface is the deciding condition.
+
 ### ARM64 desktop builds need explicit guest prerequisites
 
 The clean ARM64 Windows guest could drive installed applications but could not
@@ -75,13 +92,14 @@ prebuilt application.
 
 ### Provider screenshots do not share the coordinate space used by `click`
 
-Status: **resolved 2026-08-04.** Provider capture now reads the live UTM
-window geometry, removes its title bar and Retina scale, and emits an image at
-the configured Windows logical display size. The observed 2798×2050 raw host
-capture now becomes 1399×985, matching the coordinates consumed by UTM click.
-As an end-to-end probe, clicking the Search box at its normalized screenshot
-coordinate made `SearchHost` the foreground window; Escape restored the prior
-desktop.
+Status: **re-resolved 2026-08-20.** The original fixed-resolution correction
+worked only while the UTM console retained the configured size. Dynamic
+resolution later changed the live Windows display between 1024×768 and
+1280×1024. The stale 1399×985 configuration then either caused normalization
+to fail or produced the wrong click coordinate space. Provider capture now
+removes the configured UTM title-bar height and derives output dimensions from
+the live viewport. Explicit width and height remain an opt-in for a guest that
+does not follow console size.
 
 `winvm screenshot` captures the full macOS UTM window with
 `screencapture -l`. On the observed Retina host the PNG was 2798×2050 and

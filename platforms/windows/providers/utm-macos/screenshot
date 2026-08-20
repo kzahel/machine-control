@@ -30,10 +30,15 @@ window_id="$(jq -r '.id' <<<"$window_info")"
 window_width="$(jq -r '.width' <<<"$window_info")"
 window_height="$(jq -r '.height' <<<"$window_info")"
 
-/usr/sbin/screencapture -x -o -l "$window_id" "$raw"
+if ! /usr/sbin/screencapture -x -o -l "$window_id" "$raw" 2>/dev/null; then
+    printf '%s\n' \
+        'macOS could not capture the UTM window; check host lock/display state and Screen Recording permission' \
+        >&2
+    exit 1
+fi
 /usr/bin/swift "$PROVIDER_DIR/normalize-screenshot.swift" \
     "$raw" "$output" "$WINVM_DISPLAY_WIDTH" "$WINVM_DISPLAY_HEIGHT" \
-    "$window_width" "$window_height"
+    "$window_width" "$window_height" "$WINVM_UTM_TITLEBAR_HEIGHT"
 
 if [[ ! -s "$output" ]]; then
     printf 'macOS did not create a normalized UTM capture at %s\n' "$output" >&2

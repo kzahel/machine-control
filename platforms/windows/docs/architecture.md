@@ -41,12 +41,15 @@ UTM guest-agent process execution was unreliable on the original test VM, so
 it is not trusted as a command channel. The design uses guest-agent transfer
 only for bootstrap and SSH afterward.
 
-Provider capture finds the visible layer-0 UTM window, records its logical
-geometry, captures its Retina backing pixels, removes the macOS title bar, and
-normalizes the guest viewport to `WINVM_DISPLAY_WIDTH` ×
-`WINVM_DISPLAY_HEIGHT`. UTM mouse input consumes that same guest coordinate
-space. Keep the configured dimensions aligned with the Windows logical display
-mode; screenshot pixels can then be passed directly to `winvm click`.
+Provider capture finds the layer-0 UTM window, records its logical geometry,
+and requests a window-ID capture, including for another macOS Space. It fails
+closed when macOS cannot capture that surface rather than reading an
+overlapping host region. Capture removes the configured macOS title-bar height
+and Retina backing scale. With UTM dynamic resolution, the remaining live
+viewport is the guest coordinate space consumed by UTM mouse input. A
+fixed-resolution guest may explicitly configure both output dimensions when
+its display does not follow the console. Screenshot pixels can then be passed
+directly to `winvm click` even after the dynamic console is resized.
 
 The provider also exposes UTM's full stopped-VM clone as `seal` and its
 non-persistent start mode as `disposable-up`. A seal requires a stopped source,

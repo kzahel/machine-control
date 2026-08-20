@@ -15,11 +15,16 @@ WINVM_TARGET_ROLE=unclassified
 WINVM_ALLOW_SOURCE_MUTATION=0
 WINVM_ALLOW_PERSISTENT_SEAL_BOOT=0
 WINVM_UTMCTL=/Applications/UTM.app/Contents/MacOS/utmctl
-WINVM_DISPLAY_WIDTH=1399
-WINVM_DISPLAY_HEIGHT=985
+# With UTM dynamic resolution, capture derives the current guest coordinate
+# space from the console viewport. Set both dimensions only for a fixed guest
+# resolution that does not follow the console size.
+WINVM_DISPLAY_WIDTH=
+WINVM_DISPLAY_HEIGHT=
+WINVM_UTM_TITLEBAR_HEIGHT=40
 WINVM_SSH_HOST=winvm
 WINVM_SSH_PORT=22
-WINVM_BOOT_TIMEOUT=120
+# Windows update or recovery boots can legitimately take several minutes.
+WINVM_BOOT_TIMEOUT=600
 WINVM_SHUTDOWN_TIMEOUT=120
 WINVM_GUEST_SHUTDOWN_GRACE=30
 WINVM_POST_UPDATE_REPORT_TIMEOUT=45

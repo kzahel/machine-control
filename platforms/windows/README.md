@@ -49,13 +49,20 @@ elevation, so it cannot bypass Windows secure desktops or UIPI.
 
 ## Quick Start
 
-From a `machine-control` checkout, inspect the configured machine:
+From a `machine-control` checkout, let the common client discover the private
+inventory and inspect the configured machine:
 
 ```bash
-cd ~/code/machine-control/platforms/windows
-bin/winvm help
-bin/winvm doctor
+cd ~/code/machine-control
+bin/machine-control inventory status
+bin/machine-control --target windows target doctor
+bin/machine-control --target windows testbed -- help
 ```
+
+Direct `platforms/windows/bin/winvm` calls are supported for platform debugging
+when ignored configuration or the documented `WINVM_*` inventory environment
+is already present. A bare public checkout intentionally does not contain a
+concrete VM selector or authorization pin.
 
 The defaults identify a UTM VM named `Windows` and an SSH alias named `winvm`,
 but do not authorize mutation. Copy `config.example` to ignored `config.local`,
@@ -179,10 +186,12 @@ can observe or manipulate the host UTM window.
 
 Semantic automation is preferable to coordinates. UTM mouse coordinates are
 guest-display coordinates and exclude the UTM title bar. `winvm screenshot`
-crops the title bar and Retina backing pixels, then scales the image to the
-configured guest display. A screenshot pixel `(x, y)` is therefore the exact
-coordinate accepted by `winvm click x y`. Capture also finds a matching UTM
-console on another macOS Space, preferring an on-screen console when possible.
+crops the configured UTM title-bar height and Retina backing pixels. With UTM
+dynamic resolution it emits the live console viewport size; a screenshot pixel
+`(x, y)` is therefore the exact coordinate accepted by `winvm click x y`.
+Fixed-resolution guests may configure both explicit display dimensions.
+Capture also finds a matching UTM console on another macOS Space, preferring
+an on-screen console when possible.
 
 ## Target-Safety Interlock
 
@@ -242,6 +251,10 @@ nor boots or clones a seal.
 - A cold boot normally requires one manual Windows login. A dedicated test
   appliance may use explicitly authorized guest-local auto-logon, but its
   credential must never be stored in this repository or command output.
+- Windows update/recovery and post-boot service initialization can take several
+  minutes. Ordinary start waits up to ten minutes by default. A `started` UTM
+  state with guest-agent, SSH, or resident readiness still unavailable is not
+  authorization to tear the VM down; continue bounded observation.
 
 `appliance-certify` is the occasional, deliberately heavier acceptance path.
 It requires the exact candidate and a clean committed checkout, audits without

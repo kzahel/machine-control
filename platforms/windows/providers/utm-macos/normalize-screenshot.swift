@@ -19,17 +19,27 @@ func fail(_ error: Error) -> Never {
 }
 
 let arguments = Array(CommandLine.arguments.dropFirst())
-guard arguments.count == 6,
-      let displayWidth = Int(arguments[2]),
-      let displayHeight = Int(arguments[3]),
+guard arguments.count == 7,
       let windowWidth = Double(arguments[4]),
       let windowHeight = Double(arguments[5]),
-      displayWidth > 0, displayHeight > 0,
-      windowWidth > 0, windowHeight >= Double(displayHeight) else {
+      let titlebarHeight = Double(arguments[6]),
+      windowWidth > 0, windowHeight > titlebarHeight,
+      titlebarHeight >= 0 else {
     fail(NormalizeError.message(
-        "Usage: normalize INPUT OUTPUT DISPLAY_W DISPLAY_H WINDOW_W WINDOW_H"
+        "Usage: normalize INPUT OUTPUT [DISPLAY_W DISPLAY_H] WINDOW_W WINDOW_H TITLEBAR_H"
     ))
 }
+
+let configuredWidth = Int(arguments[2])
+let configuredHeight = Int(arguments[3])
+guard (configuredWidth == nil && configuredHeight == nil) ||
+      (configuredWidth ?? 0) > 0 && (configuredHeight ?? 0) > 0 else {
+    fail(NormalizeError.message(
+        "DISPLAY_W and DISPLAY_H must both be empty or positive"
+    ))
+}
+let displayWidth = configuredWidth ?? Int(round(windowWidth))
+let displayHeight = configuredHeight ?? Int(round(windowHeight - titlebarHeight))
 
 do {
     guard let source = CGImageSourceCreateWithURL(
@@ -39,9 +49,7 @@ do {
     }
 
     let scaleY = Double(image.height) / windowHeight
-    let titlePixels = Int(round(
-        (windowHeight - Double(displayHeight)) * scaleY
-    ))
+    let titlePixels = Int(round(titlebarHeight * scaleY))
     let guestHeight = image.height - titlePixels
     guard titlePixels >= 0, guestHeight > 0,
           let cropped = image.cropping(to: CGRect(

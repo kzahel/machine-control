@@ -8,9 +8,13 @@ configuration is currently a Windows 11 guest in UTM/QEMU on macOS.
 
 ## Start Here
 
-Run `bin/winvm doctor` before operating the VM. Use `bin/winvm help` for the
+Start at the repository root. Run
+`bin/machine-control --target windows target doctor` before operating the VM;
+the common client supplies the controller's private inventory without exposing
+it. Use `bin/machine-control --target windows testbed -- help` for the native
 command surface and read `skills/drive-winvm/SKILL.md` for the operating
-workflow.
+workflow. Invoke `bin/winvm` directly only when ignored configuration or the
+documented `WINVM_*` inventory environment is already present.
 
 Prefer control channels in this order:
 
@@ -25,6 +29,13 @@ state before coordinate input. Do not close or modify unrelated user windows.
 Use `bin/winvm down` for routine teardown so the provider can select a supported
 lifecycle operation. Do not force-stop a VM unless the user requested it or
 normal shutdown and recovery paths have failed.
+
+A UTM `started` state is not proof that Windows, OpenSSH, or the resident is
+ready. Update/recovery boots may take up to the configured boot timeout (ten
+minutes by default). Do not shut down, restart, or force-stop a target merely
+because guest-agent IP, SSH, or resident readiness has not appeared during
+that interval. Continue bounded read-only probes and inspect the console only
+after an inner route is unavailable.
 
 ## Session Boundary
 

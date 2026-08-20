@@ -436,6 +436,49 @@ env "${identity_provider_env[@]}" \
 if command -v swiftc >/dev/null 2>&1; then
     swiftc -typecheck "$REPO_DIR/providers/utm-macos/window-id.swift"
     swiftc -typecheck "$REPO_DIR/providers/utm-macos/normalize-screenshot.swift"
+
+    raw_capture="$temporary/normalizer-raw.png"
+    /usr/bin/swift - "$raw_capture" <<'SWIFT'
+import CoreGraphics
+import Foundation
+import ImageIO
+import UniformTypeIdentifiers
+
+let output = CommandLine.arguments[1]
+let context = CGContext(
+    data: nil,
+    width: 20,
+    height: 16,
+    bitsPerComponent: 8,
+    bytesPerRow: 0,
+    space: CGColorSpaceCreateDeviceRGB(),
+    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+)!
+context.setFillColor(CGColor(gray: 0.5, alpha: 1))
+context.fill(CGRect(x: 0, y: 0, width: 20, height: 16))
+let destination = CGImageDestinationCreateWithURL(
+    URL(fileURLWithPath: output) as CFURL,
+    UTType.png.identifier as CFString,
+    1,
+    nil
+)!
+CGImageDestinationAddImage(destination, context.makeImage()!, nil)
+guard CGImageDestinationFinalize(destination) else { exit(1) }
+SWIFT
+
+    dynamic_capture="$temporary/normalizer-dynamic.png"
+    /usr/bin/swift "$REPO_DIR/providers/utm-macos/normalize-screenshot.swift" \
+        "$raw_capture" "$dynamic_capture" '' '' 10 8 1
+    dynamic_size="$(sips -g pixelWidth -g pixelHeight "$dynamic_capture" |
+        awk '/pixelWidth/{width=$2} /pixelHeight/{print width "x" $2}')"
+    [[ "$dynamic_size" == 10x7 ]]
+
+    fixed_capture="$temporary/normalizer-fixed.png"
+    /usr/bin/swift "$REPO_DIR/providers/utm-macos/normalize-screenshot.swift" \
+        "$raw_capture" "$fixed_capture" 14 9 10 8 1
+    fixed_size="$(sips -g pixelWidth -g pixelHeight "$fixed_capture" |
+        awk '/pixelWidth/{width=$2} /pixelHeight/{print width "x" $2}')"
+    [[ "$fixed_size" == 14x9 ]]
 fi
 
 printf 'Smoke tests passed.\n'
