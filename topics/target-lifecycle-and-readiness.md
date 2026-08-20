@@ -175,6 +175,14 @@ start or repair the target. Live acceptance proved common clean shutdown and
 subsequent `powerState: off` on all three profiles. See the
 [three-desktop evidence](../docs/evidence/desktop-common-entry.md).
 
+**Current:** Windows readiness uses one non-PTY guest session for its
+administration, desktop, resident-status, and resident-capability observations.
+The guest probe has an explicit 60-second bound, reports timeout as an
+administration failure, and never substitutes PTY or outer-console control.
+The Windows appliance uses a digest-pinned native PowerShell 7 shell so this
+machine-readable route does not pay the ARM64 Windows PowerShell 5 startup cost
+once for every observation.
+
 The desktop VM adapters also expose the additive workspace protocol. Public
 macOS and Linux examples now require an exact ignored/private
 candidate-or-disposable binding before any lifecycle mutation; a plausible

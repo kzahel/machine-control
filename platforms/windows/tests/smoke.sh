@@ -11,7 +11,15 @@ grep -Fq "SecurityIdentifier]::new('S-1-5-18')" \
     "$REPO_DIR/guests/windows/bootstrap-openssh.ps1"
 grep -Fq "Where-Object Name -Match '^ssh_host_.*_key$'" \
     "$REPO_DIR/guests/windows/bootstrap-openssh.ps1"
+grep -Fq "'PowerShell\\7'" \
+    "$REPO_DIR/guests/windows/bootstrap-openssh.ps1"
+grep -Fq "PowerShell-\$powerShellVersion-win-arm64.zip" \
+    "$REPO_DIR/guests/windows/bootstrap-openssh.ps1"
+grep -Fq -- "-Name DefaultShellCommandOption" \
+    "$REPO_DIR/guests/windows/bootstrap-openssh.ps1"
 grep -Fq "'machine-control-windows-post-update/v0'" \
+    "$REPO_DIR/guests/windows/post-update.ps1"
+grep -Fq "'openssh_automation_shell'" \
     "$REPO_DIR/guests/windows/post-update.ps1"
 grep -Fq "'Python.Python.3.13'" \
     "$REPO_DIR/guests/windows/bootstrap-development.ps1"
@@ -140,6 +148,34 @@ config_output="$(
 [[ "$config_output" == *'User smoke-user'* ]]
 [[ "$config_output" == *'Port 22'* ]]
 [[ "$config_output" == *'/providers/utm-macos/ssh-proxy %p'* ]]
+
+doctor_environment=(
+    WINVM_CONFIG_FILE=/dev/null
+    WINVM_TARGET_FILE="$temporary/absent-doctor-target"
+    WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-post-update"
+    WINVM_EXPECTED_UTM_ID=11111111-2222-3333-4444-555555555555
+    WINVM_TARGET_ROLE=candidate
+    WINVM_SSH_BIN="$REPO_DIR/tests/fixtures/ssh-doctor"
+    WINVM_FORBID_OUTER_UI=true
+)
+doctor_ready="$(env "${doctor_environment[@]}" \
+    "$REPO_DIR/scripts/doctor-json.sh")"
+jq -e '.ready == true and .states.administration == "ready" and
+    .states.desktop == "unlocked" and .states.resident == "ready" and
+    .resident.generation == "fixture-generation"' \
+    <<<"$doctor_ready" >/dev/null
+
+set +e
+doctor_timeout="$(env "${doctor_environment[@]}" \
+    WINVM_DOCTOR_GUEST_TIMEOUT=1 WINVM_TEST_DOCTOR_HANG=1 \
+    "$REPO_DIR/scripts/doctor-json.sh")"
+doctor_timeout_exit=$?
+set -e
+[[ "$doctor_timeout_exit" -eq 1 ]]
+jq -e '.ready == false and .states.administration == "unavailable" and
+    any(.checks[]; .id == "administration" and
+        .summary == "Guest administration probe timed out")' \
+    <<<"$doctor_timeout" >/dev/null
 
 printf "WINVM_UTM_NAME='configured-name'\n" > "$temporary/config"
 {

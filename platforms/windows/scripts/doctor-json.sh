@@ -5,7 +5,6 @@ set -uo pipefail
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
-readonly WINVM="$WINVM_REPO_DIR/bin/winvm"
 readonly PROVIDER="$(winvm_provider_path)"
 
 checks='[]'
@@ -46,57 +45,101 @@ case "$status" in
         ;;
 esac
 
-if [[ "$power" == running ]] &&
-        "$WINVM" ps '$true' >/dev/null 2>&1; then
+guest_probe=""
+guest_probe_exit=1
+if [[ "$power" == running ]]; then
+    read -r -d '' probe_script <<'POWERSHELL' || true
+$ErrorActionPreference = 'Stop'
+$runtime = Join-Path $env:ProgramData `
+    'MachineControl\runtime\machine-control-windows.exe'
+
+function Invoke-ControlProbe {
+    param([Parameter(Mandatory = $true)][string]$Operation)
+    if (-not (Test-Path -LiteralPath $runtime -PathType Leaf)) {
+        return $null
+    }
+    try {
+        $request = [ordered]@{ operation = $Operation } |
+            ConvertTo-Json -Compress
+        $output = @($request | & $runtime call 2>$null)
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -ne 0) { return $null }
+        return ($output -join "`n") | ConvertFrom-Json
+    }
+    catch {
+        return $null
+    }
+}
+
+$status = Invoke-ControlProbe -Operation 'status'
+$capabilities = Invoke-ControlProbe -Operation 'capabilities'
+[ordered]@{
+    explorerPresent = [bool](
+        Get-Process explorer -ErrorAction SilentlyContinue)
+    status = if ($status) {
+        [ordered]@{
+            schema = $status.schema
+            accepted = $status.accepted
+            sessionLocked = $status.sessionLocked
+            desktop = $status.desktop
+            generation = $status.generation
+        }
+    }
+    else {
+        $null
+    }
+    nativeProvider = [bool]($capabilities.accepted -eq $true -and
+        @($capabilities.data.providers |
+            Where-Object {
+                $_.id -eq 'windows-native' -and $_.state -eq 'native'
+            }).Count -gt 0)
+} | ConvertTo-Json -Depth 6 -Compress
+POWERSHELL
+    guest_probe="$(winvm_powershell_bounded \
+        "$WINVM_DOCTOR_GUEST_TIMEOUT" "$probe_script" 2>/dev/null)"
+    guest_probe_exit=$?
+fi
+
+if [[ "$guest_probe_exit" -eq 0 ]] &&
+        jq -e 'type == "object"' <<<"$guest_probe" >/dev/null 2>&1; then
     administration=ready
     add_check administration pass 'Key-only PowerShell administration is ready'
+elif [[ "$guest_probe_exit" -eq 124 ]]; then
+    add_check administration fail 'Guest administration probe timed out'
 else
     add_check administration fail 'Guest administration is unavailable'
 fi
 
-desktop_probe=""
-if [[ "$administration" == ready ]]; then
-    read -r -d '' probe_script <<'POWERSHELL' || true
-[ordered]@{
-    explorerPresent = [bool](Get-Process explorer -ErrorAction SilentlyContinue)
-} | ConvertTo-Json -Compress
-POWERSHELL
-    desktop_probe="$(winvm_powershell "$probe_script" 2>/dev/null || true)"
-fi
 if jq -e '.explorerPresent == true' \
-        <<<"$desktop_probe" >/dev/null 2>&1; then
+        <<<"$guest_probe" >/dev/null 2>&1; then
     desktop=unlocked
     add_check desktop pass 'Interactive Windows desktop is present'
 else
     add_check desktop fail 'Interactive Windows desktop is unavailable'
 fi
 
-control_status=""
-capabilities=""
 if [[ "$administration" == ready ]] &&
-        control_status="$($WINVM control \
-            '{"operation":"status"}' 2>/dev/null)" &&
-        jq -e '.schema == "machine-control/v0" and .accepted == true' \
-            <<<"$control_status" >/dev/null 2>&1; then
+        jq -e '.status.schema == "machine-control/v0" and
+            .status.accepted == true' \
+            <<<"$guest_probe" >/dev/null 2>&1; then
     resident=ready
-    if [[ "$(jq -r '.sessionLocked // false' <<<"$control_status")" == true ]]; then
+    if [[ "$(jq -r '.status.sessionLocked // false' \
+            <<<"$guest_probe")" == true ]]; then
         desktop=locked
-    elif [[ "$(jq -r '.desktop // "Default"' <<<"$control_status")" != Default ]]; then
+    elif [[ "$(jq -r '.status.desktop // "Default"' \
+            <<<"$guest_probe")" != Default ]]; then
         desktop=protected
     fi
     resident_json="$(jq -c \
-        '{contract:.schema,generation:.generation}' <<<"$control_status")"
+        '{contract:.status.schema,generation:.status.generation}' \
+        <<<"$guest_probe")"
     add_check resident pass 'Target-native resident is ready'
 else
     add_check resident fail 'Target-native resident is unavailable'
 fi
 
-if [[ "$resident" == ready ]] &&
-        capabilities="$($WINVM control \
-            '{"operation":"capabilities"}' 2>/dev/null)" &&
-        jq -e '.accepted == true and
-            any(.data.providers[]?; .id == "windows-native" and
-                .state == "native")' <<<"$capabilities" >/dev/null 2>&1; then
+if [[ "$resident" == ready ]] && jq -e '.nativeProvider == true' \
+        <<<"$guest_probe" >/dev/null 2>&1; then
     semantic=ready
     capture=ready
     input=ready

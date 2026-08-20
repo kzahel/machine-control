@@ -28,6 +28,108 @@ $authorizedKeysPath = Join-Path $sshDirectory `
     'administrators_authorized_keys'
 $runtimeExecutable = Join-Path $env:ProgramData `
     'MachineControl\runtime\machine-control-windows.exe'
+$powerShellVersion = '7.6.5'
+$powerShellInstallDirectory = Join-Path $env:ProgramFiles 'PowerShell\7'
+$powerShellExecutable = Join-Path $powerShellInstallDirectory 'pwsh.exe'
+
+function Get-PowerShellArchive {
+    $nativeArchitecture = if ($env:PROCESSOR_ARCHITEW6432) {
+        $env:PROCESSOR_ARCHITEW6432
+    }
+    else {
+        $env:PROCESSOR_ARCHITECTURE
+    }
+    switch ($nativeArchitecture) {
+        'ARM64' {
+            return [ordered]@{
+                Name = "PowerShell-$powerShellVersion-win-arm64.zip"
+                Sha256 = '20514a755d16428dc4355c85e0883c859531e71cc3e122670aa1fccdbf96ba7e'
+            }
+        }
+        'AMD64' {
+            return [ordered]@{
+                Name = "PowerShell-$powerShellVersion-win-x64.zip"
+                Sha256 = '32eb8f6cdce08f86e987d625a2733e54ac3e289ae7e1621b14c0b5bcec2434ea'
+            }
+        }
+        default {
+            throw "Unsupported PowerShell target architecture: $nativeArchitecture"
+        }
+    }
+}
+
+function Test-PowerShellRuntime {
+    if (-not (Test-Path -LiteralPath $powerShellExecutable -PathType Leaf)) {
+        return $false
+    }
+    try {
+        $installedVersion = & $powerShellExecutable -NoLogo -NoProfile `
+            -NonInteractive -Command `
+            '[System.Management.Automation.PSVersionInfo]::PSVersion.ToString()'
+        return $LASTEXITCODE -eq 0 -and
+            "$installedVersion" -eq $powerShellVersion
+    }
+    catch {
+        return $false
+    }
+}
+
+function Install-PowerShellRuntime {
+    if (Test-PowerShellRuntime) { return }
+
+    $package = Get-PowerShellArchive
+    $archive = Join-Path $env:TEMP $package.Name
+    $staging = Join-Path $env:TEMP `
+        "machine-control-powershell-$powerShellVersion"
+    $uri = "https://github.com/PowerShell/PowerShell/releases/download/" +
+        "v$powerShellVersion/$($package.Name)"
+    try {
+        Invoke-WebRequest -UseBasicParsing -Uri $uri -OutFile $archive
+        $actualDigest = (Get-FileHash -Algorithm SHA256 `
+            -LiteralPath $archive).Hash.ToLowerInvariant()
+        if ($actualDigest -ne $package.Sha256) {
+            throw 'PowerShell archive digest mismatch'
+        }
+        Remove-Item -LiteralPath $staging -Recurse -Force `
+            -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Force -Path $staging | Out-Null
+        Expand-Archive -LiteralPath $archive -DestinationPath $staging -Force
+        $stagedExecutable = Join-Path $staging 'pwsh.exe'
+        $stagedVersion = & $stagedExecutable -NoLogo -NoProfile `
+            -NonInteractive -Command `
+            '[System.Management.Automation.PSVersionInfo]::PSVersion.ToString()'
+        if ($LASTEXITCODE -ne 0 -or "$stagedVersion" -ne $powerShellVersion) {
+            throw 'Staged PowerShell runtime failed validation'
+        }
+        Remove-Item -LiteralPath $powerShellInstallDirectory -Recurse -Force `
+            -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Force `
+            -Path (Split-Path -Parent $powerShellInstallDirectory) | Out-Null
+        Move-Item -LiteralPath $staging `
+            -Destination $powerShellInstallDirectory
+    }
+    finally {
+        Remove-Item -LiteralPath $archive -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $staging -Recurse -Force `
+            -ErrorAction SilentlyContinue
+    }
+
+    if (-not (Test-PowerShellRuntime)) {
+        throw 'PowerShell runtime installation did not become healthy'
+    }
+}
+
+function Test-SshAutomationShell {
+    if (-not (Test-PowerShellRuntime)) { return $false }
+    $openSsh = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\OpenSSH' `
+        -ErrorAction SilentlyContinue
+    if ($null -eq $openSsh) { return $false }
+    $shell = $openSsh.PSObject.Properties['DefaultShell']
+    $option = $openSsh.PSObject.Properties['DefaultShellCommandOption']
+    return $null -ne $shell -and $null -ne $option -and
+        "$($shell.Value)" -eq $powerShellExecutable -and
+        "$($option.Value)" -eq '-c'
+}
 
 function Get-ServiceObservation {
     param(
@@ -302,6 +404,14 @@ function Get-Audit {
     $sshConfig = Test-SshConfiguration
     Add-AuditCheck 'openssh_configuration' $true $sshConfig `
         $(if ($sshConfig) { 'valid' } else { 'invalid' })
+    $sshShell = Test-SshAutomationShell
+    Add-AuditCheck 'openssh_automation_shell' $true $sshShell `
+        $(if ($sshShell) {
+            "powershell_$powerShellVersion"
+        }
+        else {
+            'invalid'
+        })
     $sshMaterial = Test-SshMaterial
     Add-AuditCheck 'openssh_key_material' $true $sshMaterial `
         $(if ($sshMaterial) { 'restricted' } else { 'invalid' })
@@ -402,10 +512,14 @@ if ($Mode -eq 'Repair') {
         if (-not (Test-SshConfiguration)) {
             throw 'sshd configuration validation failed'
         }
+        Install-PowerShellRuntime
         $openSshRegistry = 'HKLM:\SOFTWARE\OpenSSH'
         New-Item -Path $openSshRegistry -Force | Out-Null
         New-ItemProperty -Path $openSshRegistry -Name DefaultShell `
-            -Value 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' `
+            -Value $powerShellExecutable `
+            -PropertyType String -Force | Out-Null
+        New-ItemProperty -Path $openSshRegistry `
+            -Name DefaultShellCommandOption -Value '-c' `
             -PropertyType String -Force | Out-Null
         Set-SshFirewall
         Set-Service -Name sshd -StartupType Automatic

@@ -46,20 +46,28 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass `
 The idempotent script:
 
 1. Installs Windows OpenSSH Server.
-2. Installs the staged key in the administrator authorized-keys file.
-3. Restricts its ACL to Administrators and SYSTEM.
-4. Enables public-key authentication and disables password/keyboard-interactive
+2. Installs a digest-pinned native PowerShell 7 archive for ARM64 or x64.
+3. Installs the staged key in the administrator authorized-keys file.
+4. Restricts its ACL to Administrators and SYSTEM.
+5. Enables public-key authentication and disables password/keyboard-interactive
    authentication.
-5. Selects Windows PowerShell as the default SSH shell.
-6. Creates an explicit inbound TCP/22 firewall rule.
-7. validates the SSH configuration and starts `sshd` automatically.
-8. Writes `C:\Users\Public\winvm-openssh-report.json`.
+6. Selects the native PowerShell runtime as the default SSH shell.
+7. Creates an explicit inbound TCP/22 firewall rule.
+8. Validates the SSH configuration and starts `sshd` automatically.
+9. Writes `C:\Users\Public\winvm-openssh-report.json`.
 
 Current Windows media may install `sshd.exe` without first creating
 `ProgramData\ssh\sshd_config`. The bootstrap initializes that file from the
 capability's installed `sshd_config_default` before applying and validating the
 key-only policy. It also generates the capability's missing server host keys
 before fail-closed configuration validation.
+
+The native PowerShell archive uses a pinned release URL and SHA-256 for each
+supported architecture rather than a Store/MSIX application-execution alias.
+That gives the machine-wide OpenSSH service a stable executable path and avoids
+the multi-second Windows PowerShell 5 startup penalty observed on the ARM64
+appliance. Post-update audit and repair preserve the version, path, and `-c`
+command option as one OpenSSH automation-shell invariant.
 
 ## 3. Configure the Stable SSH Alias
 
@@ -73,6 +81,11 @@ Add it to `~/.ssh/config`. The ProxyCommand starts/resumes the VM, discovers
 its current shared-network address through the guest agent, waits for TCP/22,
 and connects to it. `HostKeyAlias` binds the host key to the stable alias
 instead of a replaceable DHCP address.
+
+Non-PTY commands are the machine-readable automation path. The testbed encodes
+PowerShell scripts into the configured shell without starting a second shell,
+and common `target doctor` uses one guest session with a 60-second bound. PTY
+allocation remains for interactive use and is not an automation workaround.
 
 Verify key-only access:
 

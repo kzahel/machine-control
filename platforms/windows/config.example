@@ -28,6 +28,8 @@ WINVM_BOOT_TIMEOUT=600
 WINVM_SHUTDOWN_TIMEOUT=120
 WINVM_GUEST_SHUTDOWN_GRACE=30
 WINVM_POST_UPDATE_REPORT_TIMEOUT=45
+# Bounds the single read-only guest probe used by target doctor.
+WINVM_DOCTOR_GUEST_TIMEOUT=60
 # Per portable/native guest process; the native three-project build can be slow.
 WINVM_CERTIFY_CHECK_TIMEOUT=1200
 # Override only when OpenSSH clients are not on PATH.

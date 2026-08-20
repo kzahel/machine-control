@@ -52,6 +52,7 @@ WINVM_SHUTDOWN_TIMEOUT="${WINVM_SHUTDOWN_TIMEOUT:-120}"
 WINVM_GUEST_SHUTDOWN_GRACE="${WINVM_GUEST_SHUTDOWN_GRACE:-30}"
 WINVM_POST_UPDATE_REPORT_TIMEOUT="${WINVM_POST_UPDATE_REPORT_TIMEOUT:-45}"
 WINVM_CERTIFY_CHECK_TIMEOUT="${WINVM_CERTIFY_CHECK_TIMEOUT:-1200}"
+WINVM_DOCTOR_GUEST_TIMEOUT="${WINVM_DOCTOR_GUEST_TIMEOUT:-60}"
 WINVM_SUSPEND_POLICY="${WINVM_SUSPEND_POLICY:-auto}"
 WINVM_FORBID_OUTER_UI="${WINVM_FORBID_OUTER_UI:-false}"
 WINVM_SSH_BIN="${WINVM_SSH_BIN:-ssh}"
@@ -120,6 +121,7 @@ export WINVM_GUEST_SHUTDOWN_GRACE WINVM_SUSPEND_POLICY WINVM_SSH_BIN
 export WINVM_SCP_BIN
 export WINVM_POST_UPDATE_REPORT_TIMEOUT
 export WINVM_CERTIFY_CHECK_TIMEOUT
+export WINVM_DOCTOR_GUEST_TIMEOUT
 export WINVM_FORBID_OUTER_UI
 export WINVM_UI_PIPE_NAME WINVM_UI_TASK_NAME
 export WINVM_UI_REMOTE_RELATIVE
@@ -153,7 +155,37 @@ winvm_powershell() {
     local encoded_command
     encoded_command="$(printf '%s' "$powershell_script" | winvm_encode_powershell)"
     "$WINVM_SSH_BIN" "$WINVM_SSH_HOST" \
-        "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand $encoded_command"
+        "& ([ScriptBlock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('$encoded_command'))))"
+}
+
+winvm_run_bounded() {
+    local timeout="$1"
+    shift
+    if [[ ! "$timeout" =~ ^[1-9][0-9]*$ ]]; then
+        printf 'Timeout must be a positive integer: %s\n' "$timeout" >&2
+        return 2
+    fi
+
+    "$@" &
+    local pid=$! deadline=$((SECONDS + timeout))
+    while kill -0 "$pid" >/dev/null 2>&1; do
+        if (( SECONDS >= deadline )); then
+            kill -TERM "$pid" >/dev/null 2>&1 || true
+            wait "$pid" >/dev/null 2>&1 || true
+            return 124
+        fi
+        sleep 0.1
+    done
+    wait "$pid"
+}
+
+winvm_powershell_bounded() {
+    local timeout="$1" powershell_script="$2"
+    local encoded_command
+    encoded_command="$(printf '%s' "$powershell_script" | winvm_encode_powershell)"
+    winvm_run_bounded "$timeout" \
+        "$WINVM_SSH_BIN" "$WINVM_SSH_HOST" \
+        "& ([ScriptBlock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('$encoded_command'))))"
 }
 
 winvm_tcp_check() {

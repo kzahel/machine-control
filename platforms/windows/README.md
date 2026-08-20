@@ -97,6 +97,11 @@ The default `development` profile installs and verifies Python 3 and the .NET
 8 SDK before transactionally installing the resident. Select `--profile
 runtime` for an appliance that intentionally omits build tooling.
 
+Fresh bootstrap also installs a digest-pinned native PowerShell 7 runtime and
+uses it as the OpenSSH default shell. This keeps ordinary non-PTY commands
+machine-readable without the slow Windows PowerShell 5 startup path. The
+checked-in post-update audit and repair preserve that exact shell invariant.
+
 The older WinApp comparison relay remains available when a differential test
 specifically needs it:
 
@@ -151,6 +156,10 @@ Both control commands invoke the same guest-local installed client through the
 authorized SSH administration route. `artifact` accepts only the resident's
 32-hex-character capture identifier and the fixed resident artifact namespace;
 it is not an arbitrary guest file transfer command.
+
+Common `target doctor` combines administration, desktop, resident status, and
+resident capabilities into one bounded non-PTY guest probe. It does not use a
+PTY, boot the target, or fall back to the UTM console.
 
 `doctor --json` emits the minimized `machine-control-doctor/v0` projection for
 the common client. It reports independent power, administration, desktop,

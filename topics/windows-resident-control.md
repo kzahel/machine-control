@@ -28,6 +28,15 @@ services. Its UTM guest-agent fallback requires a fresh nonce-bound report and
 subsequent SSH and full-doctor readiness because guest execution status alone
 has produced false success.
 
+**Current:**
+[`Tactical 025`](../docs/tactical/025-windows-non-pty-administration-readiness.md)
+removed the retained ARM64 appliance's non-PTY administration stall. Fresh
+bootstrap and post-update repair install and preserve a digest-pinned native
+PowerShell 7 shell, encoded scripts no longer start a nested legacy shell, and
+Windows doctor obtains its guest readiness dimensions in one explicitly
+bounded SSH session. Live repair-and-reboot acceptance observed a changed boot
+epoch and returned the full resident surface without PTY or outer recovery.
+
 **Current:** [`Tactical 018`](../docs/tactical/018-appliance-readiness-and-promotion.md)
 reused one retained stateful candidate rather than creating another large VM.
 It restored key-only SSH, automatic guest-agent/SSH services, and the complete
