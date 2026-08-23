@@ -125,6 +125,7 @@ factory creation, Sysprep generalization, and stopped UTM export.
 ```bash
 bin/winvm doctor                  # Check every control layer
 bin/winvm doctor --json           # Minimized common readiness projection
+bin/winvm repair-registration     # Re-register exact UUID-matched UTM bundle
 bin/winvm candidate-status --json # Minimized role/identity/power assertion
 bin/winvm post-update audit --json # Read-only startup/toolchain/readiness audit
 bin/winvm post-update repair --json # Bounded candidate-only inner repair
@@ -166,6 +167,13 @@ the common client. It reports independent power, administration, desktop,
 resident, semantic, capture, input, and outer states without publishing the
 configured machine identity, desktop user, or network address. It is read-only
 and exits nonzero when the accepted resident surface is not ready.
+
+If the identity check says the pinned target is not registered in UTM, run
+`bin/winvm repair-registration`. That explicit host-side repair first requires
+a classified role and UUID pin, reads the on-disk bundle metadata, and opens
+the bundle only when both its name and UUID match private inventory. It never
+boots the guest or changes the pin. Re-pin only when that command reports that
+the bundle or its metadata no longer matches the intended private target.
 
 Discover and operate semantic Windows controls:
 

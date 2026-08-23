@@ -76,6 +76,7 @@ help_output="$(WINVM_UTM_NAME='Smoke Test VM' "$REPO_DIR/bin/winvm" help)"
 [[ "$help_output" == *'target-id'* ]]
 [[ "$help_output" == *'pin-target ROLE'* ]]
 [[ "$help_output" == *'assert-target OP'* ]]
+[[ "$help_output" == *'repair-registration'* ]]
 [[ "$help_output" == *'workspace-capabilities'* ]]
 
 workspace_caps="$(env \
@@ -155,6 +156,7 @@ doctor_environment=(
     WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-post-update"
     WINVM_EXPECTED_UTM_ID=11111111-2222-3333-4444-555555555555
     WINVM_TARGET_ROLE=candidate
+    WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-target-id"
     WINVM_SSH_BIN="$REPO_DIR/tests/fixtures/ssh-doctor"
     WINVM_FORBID_OUTER_UI=true
 )
@@ -162,8 +164,27 @@ doctor_ready="$(env "${doctor_environment[@]}" \
     "$REPO_DIR/scripts/doctor-json.sh")"
 jq -e '.ready == true and .states.administration == "ready" and
     .states.desktop == "unlocked" and .states.resident == "ready" and
-    .resident.generation == "fixture-generation"' \
+    .resident.generation == "fixture-generation" and
+    .extensions.targetIdentity == "verified" and
+    any(.checks[]; .id == "identity" and .status == "pass")' \
     <<<"$doctor_ready" >/dev/null
+
+set +e
+doctor_unregistered="$(env \
+    WINVM_CONFIG_FILE=/dev/null \
+    WINVM_TARGET_FILE="$temporary/absent-unregistered-target" \
+    WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-always-stopped" \
+    WINVM_OSASCRIPT=/usr/bin/false \
+    WINVM_EXPECTED_UTM_ID=11111111-2222-3333-4444-555555555555 \
+    WINVM_TARGET_ROLE=candidate \
+    "$REPO_DIR/scripts/doctor-json.sh")"
+doctor_unregistered_exit=$?
+set -e
+[[ "$doctor_unregistered_exit" -eq 1 ]]
+jq -e '.ready == false and .extensions.targetIdentity == "unavailable" and
+    any(.checks[]; .id == "identity" and .status == "fail" and
+        (.summary | contains("repair-registration before re-pinning")))' \
+    <<<"$doctor_unregistered" >/dev/null
 
 set +e
 doctor_timeout="$(env "${doctor_environment[@]}" \
@@ -282,6 +303,55 @@ identity_provider_env=(
     WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-target-id"
     WINVM_EXPECTED_UTM_ID=11111111-2222-3333-4444-555555555555
 )
+
+registration_bundle="$temporary/selected-name.utm"
+registration_marker="$temporary/registration-complete"
+registration_capture="$temporary/registration-open-arguments"
+mkdir -p "$registration_bundle"
+touch "$registration_bundle/config.plist"
+registration_output="$(env \
+    WINVM_CONFIG_FILE=/dev/null \
+    WINVM_TARGET_FILE="$temporary/absent-registration-target" \
+    WINVM_UTM_NAME=selected-name \
+    WINVM_UTM_BUNDLE="$registration_bundle" \
+    WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-always-stopped" \
+    WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-registration" \
+    WINVM_OPEN="$REPO_DIR/tests/fixtures/open-registration" \
+    WINVM_PLUTIL="$REPO_DIR/tests/fixtures/plutil-registration" \
+    WINVM_EXPECTED_UTM_ID=11111111-2222-3333-4444-555555555555 \
+    WINVM_TARGET_ROLE=candidate \
+    WINVM_TEST_BUNDLE_ID=11111111-2222-3333-4444-555555555555 \
+    WINVM_TEST_BUNDLE_NAME=selected-name \
+    WINVM_TEST_REGISTRATION_MARKER="$registration_marker" \
+    WINVM_TEST_OPEN_CAPTURE="$registration_capture" \
+    "$provider" repair-registration)"
+[[ "$registration_output" == \
+    'target registration repaired: role=candidate state=stopped' ]]
+[[ -f "$registration_marker" ]]
+registration_arguments="$(paste -sd ' ' "$registration_capture")"
+[[ "$registration_arguments" == "-g -a UTM $registration_bundle" ]]
+
+rm -f -- "$registration_marker" "$registration_capture"
+if env \
+    WINVM_CONFIG_FILE=/dev/null \
+    WINVM_TARGET_FILE="$temporary/absent-registration-target" \
+    WINVM_UTM_NAME=selected-name \
+    WINVM_UTM_BUNDLE="$registration_bundle" \
+    WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-always-stopped" \
+    WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-registration" \
+    WINVM_OPEN="$REPO_DIR/tests/fixtures/open-registration" \
+    WINVM_PLUTIL="$REPO_DIR/tests/fixtures/plutil-registration" \
+    WINVM_EXPECTED_UTM_ID=11111111-2222-3333-4444-555555555555 \
+    WINVM_TARGET_ROLE=candidate \
+    WINVM_TEST_BUNDLE_ID=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee \
+    WINVM_TEST_BUNDLE_NAME=selected-name \
+    WINVM_TEST_REGISTRATION_MARKER="$registration_marker" \
+    WINVM_TEST_OPEN_CAPTURE="$registration_capture" \
+    "$provider" repair-registration >/dev/null 2>&1; then
+    printf 'Registration repair accepted mismatched bundle identity.\n' >&2
+    exit 1
+fi
+[[ ! -e "$registration_marker" && ! -e "$registration_capture" ]]
 
 assert_target() {
     env "${identity_provider_env[@]}" \

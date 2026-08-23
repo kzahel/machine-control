@@ -25,6 +25,25 @@ capture=unavailable
 input=unavailable
 outer=unknown
 resident_json=null
+identity=unavailable
+
+identity_detail="$($PROVIDER assert-target inspect --json 2>&1)"
+identity_exit=$?
+if [[ "$identity_exit" -eq 0 ]]; then
+    identity=verified
+    add_check identity pass 'Exact private target identity is verified'
+elif [[ "$identity_detail" == *'could not resolve the configured target identity'* ]]; then
+    add_check identity fail \
+        'Pinned target is not registered in UTM; run winvm repair-registration before re-pinning'
+elif [[ "$identity_detail" == *'identity is unpinned'* ]]; then
+    add_check identity fail 'Target identity is unpinned in private inventory'
+elif [[ "$identity_detail" == *'role is unclassified'* ]]; then
+    add_check identity fail 'Target role is unclassified in private inventory'
+elif [[ "$identity_detail" == *'does not match the provider target'* ]]; then
+    add_check identity fail 'Private target identity does not match UTM'
+else
+    add_check identity fail 'Exact private target identity is unavailable'
+fi
 
 status="$($PROVIDER status 2>/dev/null || true)"
 case "$status" in
@@ -169,7 +188,8 @@ else
 fi
 
 ready=false
-if [[ "$power" == running && "$administration" == ready &&
+if [[ "$identity" == verified && "$power" == running &&
+      "$administration" == ready &&
       "$desktop" == unlocked && "$resident" == ready &&
       "$semantic" == ready && "$capture" == ready && "$input" == ready ]]; then
     ready=true
@@ -185,6 +205,7 @@ jq -cn \
     --arg capture "$capture" \
     --arg input "$input" \
     --arg outer "$outer" \
+    --arg identity "$identity" \
     --argjson resident "$resident_json" \
     --argjson checks "$checks" \
     '{
@@ -210,6 +231,7 @@ jq -cn \
             "status","up","suspend","shutdown","force-stop"
         ],
         extensions:{
+            targetIdentity:$identity,
             administrationRoute:"key_only_ssh_powershell",
             desktopSession:"windows_interactive_console",
             protectedAuthority:"dedicated_test_appliance"

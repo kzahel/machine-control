@@ -4,6 +4,26 @@ This is a living record of concrete gaps encountered while using WinVM
 Testbed. Keep observed behavior, effect, workaround, and a likely improvement
 direction together so later work can reproduce the problem.
 
+## UTM can start with an empty runtime registry
+
+Status: **mitigated 2026-08-23.** A cold UTM 4.7.5 process reported zero
+registered VMs even though its persisted registry and the exact pinned UTM
+bundle were both present. The bundle's embedded UUID still matched private
+inventory. Opening that bundle caused UTM to repopulate its runtime inventory;
+the Windows target then started and passed the full common doctor.
+
+Effect: `status` returned no state, doctor collapsed the power and resident
+dimensions to unavailable, and callers reasonably but incorrectly proposed
+re-pinning the target. Changing the pin would have weakened the safety guard
+without repairing UTM's missing runtime registration.
+
+Mitigation: doctor now reports exact identity separately and directs this
+specific failure to `winvm repair-registration`. The explicit repair verifies
+the selected bundle's name and embedded UUID against private inventory before
+asking UTM to register it. It neither starts the VM nor rewrites the pin. A
+bundle absence or metadata mismatch still fails closed and requires deliberate
+private-inventory repair.
+
 ## Observed 2026-08-04 during 200 OK `v0.1.6` smoke
 
 ### A console on another macOS Space was invisible to provider capture

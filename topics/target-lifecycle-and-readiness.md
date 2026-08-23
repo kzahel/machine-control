@@ -183,6 +183,13 @@ The Windows appliance uses a digest-pinned native PowerShell 7 shell so this
 machine-readable route does not pay the ARM64 Windows PowerShell 5 startup cost
 once for every observation.
 
+Windows doctor now verifies the exact private target identity as a separate
+read-only check. If UTM starts without loading its persisted registry, the
+adapter directs callers to an explicit registration repair that opens only an
+on-disk bundle whose name and embedded UUID match the existing private pin. It
+does not boot the guest or rewrite inventory, so re-pinning remains reserved
+for a genuine bundle/selector mismatch.
+
 The desktop VM adapters also expose the additive workspace protocol. Public
 macOS and Linux examples now require an exact ignored/private
 candidate-or-disposable binding before any lifecycle mutation; a plausible

@@ -99,6 +99,89 @@ pin_target() {
     printf 'target pinned: role=%s\n' "$role"
 }
 
+repair_registration() {
+    if [[ $# -ne 0 ]]; then
+        printf 'Usage: winvm repair-registration\n' >&2
+        return 2
+    fi
+    if [[ -n "${MACHINE_CONTROL_WORKSPACE_HANDLE:-}" ]]; then
+        printf 'Registration repair requires the private inventory target.\n' >&2
+        return 1
+    fi
+    case "$WINVM_TARGET_ROLE" in
+        source|candidate|seal) ;;
+        *)
+            printf 'Target role is unclassified; repair private inventory first.\n' >&2
+            return 1
+            ;;
+    esac
+    if [[ -z "$WINVM_EXPECTED_UTM_ID" ]]; then
+        printf 'Target identity is unpinned; repair private inventory first.\n' >&2
+        return 1
+    fi
+
+    local actual_id name_id normalized_actual normalized_expected
+    local bundle_id bundle_name
+    normalized_expected="$(
+        printf '%s' "$WINVM_EXPECTED_UTM_ID" | tr '[:upper:]' '[:lower:]')"
+    actual_id="$(target_id 2>/dev/null || true)"
+    if [[ -n "$actual_id" ]]; then
+        normalized_actual="$(
+            printf '%s' "$actual_id" | tr '[:upper:]' '[:lower:]')"
+        if [[ "$normalized_actual" == "$normalized_expected" ]]; then
+            printf 'target registration already healthy: role=%s state=%s\n' \
+                "$WINVM_TARGET_ROLE" "$(vm_status || printf unknown)"
+            return 0
+        fi
+        printf 'Configured target identity does not match the provider target.\n' >&2
+        return 1
+    fi
+
+    name_id="$(target_id "$WINVM_UTM_NAME" 2>/dev/null || true)"
+    if [[ -n "$name_id" ]]; then
+        normalized_actual="$(
+            printf '%s' "$name_id" | tr '[:upper:]' '[:lower:]')"
+        if [[ "$normalized_actual" != "$normalized_expected" ]]; then
+            printf 'Configured target name is registered with a different identity.\n' >&2
+            return 1
+        fi
+    fi
+    if [[ "$WINVM_UTM_BUNDLE" != /* || ! -d "$WINVM_UTM_BUNDLE" ||
+          ! -r "$WINVM_UTM_BUNDLE/config.plist" ]]; then
+        printf 'Pinned UTM bundle is absent or unreadable; repair private inventory.\n' >&2
+        return 1
+    fi
+    winvm_require_command "$WINVM_PLUTIL" || return
+    bundle_id="$($WINVM_PLUTIL -extract Information.UUID raw \
+        "$WINVM_UTM_BUNDLE/config.plist" 2>/dev/null || true)"
+    bundle_name="$($WINVM_PLUTIL -extract Information.Name raw \
+        "$WINVM_UTM_BUNDLE/config.plist" 2>/dev/null || true)"
+    normalized_actual="$(
+        printf '%s' "$bundle_id" | tr '[:upper:]' '[:lower:]')"
+    if [[ -z "$bundle_id" || "$normalized_actual" != "$normalized_expected" ||
+          "$bundle_name" != "$WINVM_UTM_NAME" ]]; then
+        printf 'Pinned UTM bundle metadata does not match private inventory.\n' >&2
+        return 1
+    fi
+    winvm_require_command "$WINVM_OPEN" || return
+    "$WINVM_OPEN" -g -a UTM "$WINVM_UTM_BUNDLE"
+
+    local deadline=$((SECONDS + 10))
+    while (( SECONDS < deadline )); do
+        actual_id="$(target_id 2>/dev/null || true)"
+        normalized_actual="$(
+            printf '%s' "$actual_id" | tr '[:upper:]' '[:lower:]')"
+        if [[ -n "$actual_id" && "$normalized_actual" == "$normalized_expected" ]]; then
+            printf 'target registration repaired: role=%s state=%s\n' \
+                "$WINVM_TARGET_ROLE" "$(vm_status || printf unknown)"
+            return 0
+        fi
+        sleep 1
+    done
+    printf 'UTM did not register the exact pinned bundle.\n' >&2
+    return 1
+}
+
 source_mutation_authorized() {
     [[ "$WINVM_ALLOW_SOURCE_MUTATION" == "1" ]]
 }
@@ -901,6 +984,7 @@ case "$command" in
     target-id) target_id ;;
     pin-target) pin_target "$@" ;;
     assert-target) assert_target "$@" ;;
+    repair-registration) repair_registration "$@" ;;
     up) assert_target up >/dev/null; guest_ipv4 ;;
     ip) assert_target inspect >/dev/null; guest_ipv4_once ;;
     screenshot) require_outer_ui_allowed; exec "$PROVIDER_DIR/screenshot" "$@" ;;

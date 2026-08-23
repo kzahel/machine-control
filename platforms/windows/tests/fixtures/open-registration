@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+printf '%s\n' "$@" > "$WINVM_TEST_OPEN_CAPTURE"
+touch "$WINVM_TEST_REGISTRATION_MARKER"

@@ -4,6 +4,9 @@
 WINVM_PROVIDER=utm-macos
 WINVM_GUEST_DRIVER=windows
 WINVM_UTM_NAME=Windows
+# Used only by the explicit, UUID-checked UTM registration repair. The default
+# is UTM's normal Documents location for WINVM_UTM_NAME.
+# WINVM_UTM_BUNDLE="$HOME/Library/Containers/com.utmapp.UTM/Data/Documents/Windows.utm"
 # Mutating commands fail closed until both values identify the configured VM.
 # Obtain the UUID locally with: bin/winvm target-id
 # Roles are source, candidate, or seal. Keep the real UUID in config.local.

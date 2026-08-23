@@ -47,6 +47,11 @@ exact committed source matched inside Windows and passed portable plus native
 promoted that same private target to development/ready-base duty, and a
 disposable marker proved discard-on-release.
 
+The host adapter also distinguishes an invalid private pin from UTM starting
+with an empty runtime registry. Doctor reports exact identity separately, and
+an explicit repair can re-register only the on-disk bundle whose name and UUID
+already match the private pin; it does not boot the guest or change inventory.
+
 **Current:** The implementation under [`src/`](../src) provides the first
 Windows service/session vertical slice. It composes pinned Cua at Medium
 integrity with owned native UIA/Win32 ordinary and protected routes behind one

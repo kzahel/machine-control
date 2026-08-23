@@ -16,6 +16,13 @@ command surface and read `skills/drive-winvm/SKILL.md` for the operating
 workflow. Invoke `bin/winvm` directly only when ignored configuration or the
 documented `WINVM_*` inventory environment is already present.
 
+If doctor reports that the exact pinned target is not registered in UTM, use
+`bin/machine-control --target windows testbed -- repair-registration`. That
+operation verifies the on-disk bundle against the existing private name and
+UUID before registering it and does not boot the VM. Do not re-pin first; a
+re-pin is appropriate only when the verified bundle repair refuses a genuine
+private-inventory mismatch.
+
 Prefer control channels in this order:
 
 1. PowerShell over key-only SSH for system and file operations.

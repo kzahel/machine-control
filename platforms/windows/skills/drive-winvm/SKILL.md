@@ -27,6 +27,11 @@ Read the result before acting:
 
 - If the VM is stopped, run
   `bin/machine-control --target windows target ensure-ready`.
+- If the identity check says the pinned target is not registered in UTM, run
+  `bin/machine-control --target windows testbed -- repair-registration` and
+  repeat doctor. The repair accepts only the on-disk bundle whose name and
+  embedded UUID match private inventory, and it does not boot the guest. Do not
+  re-pin unless this exact-bundle repair reports a real mismatch.
 - If UTM is started but guest-agent IP, SSH, or resident readiness is still
   unavailable, allow the full configured boot timeout (ten minutes by
   default). Windows update/recovery and delayed post-boot services can be

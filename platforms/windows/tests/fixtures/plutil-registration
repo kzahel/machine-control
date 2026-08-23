@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+if [[ "${1:-}" != -extract || "${3:-}" != raw || $# -ne 4 ]]; then
+    exit 2
+fi
+case "$2" in
+    Information.UUID) printf '%s\n' "$WINVM_TEST_BUNDLE_ID" ;;
+    Information.Name) printf '%s\n' "$WINVM_TEST_BUNDLE_NAME" ;;
+    *) exit 1 ;;
+esac

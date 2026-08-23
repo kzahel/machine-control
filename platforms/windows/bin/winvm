@@ -14,6 +14,7 @@ Start here:
   doctor [--json]        Check lifecycle, administration, desktop, and resident
   candidate-status --json
                          Emit a minimized exact-candidate assertion
+  repair-registration    Re-register the exact pinned on-disk UTM bundle
   up                     Start/resume the VM and print its current IPv4 address
   ssh [ARG...]           Connect using the configured SSH alias
   ui COMMAND [ARG...]    Inspect and control the Windows accessibility tree
@@ -142,7 +143,7 @@ case "$command" in
     workspace-capabilities|workspace-acquire|workspace-inventory|workspace-release|workspace-gc)
         exec "$REPO_DIR/providers/$WINVM_PROVIDER/workspace.sh" "$command" "$@"
         ;;
-    status|capabilities|target-id|pin-target|assert-target|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop|seal|disposable-up|export-image|factory-create|factory-detach-installer|factory-detach-media|delete)
+    status|capabilities|target-id|pin-target|assert-target|repair-registration|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop|seal|disposable-up|export-image|factory-create|factory-detach-installer|factory-detach-media|delete)
         provider "$command" "$@"
         ;;
     *)

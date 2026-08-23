@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+if [[ -f "$WINVM_TEST_REGISTRATION_MARKER" ]]; then
+    printf '%s\n' "$WINVM_TEST_BUNDLE_ID"
+    exit 0
+fi
+exit 1
