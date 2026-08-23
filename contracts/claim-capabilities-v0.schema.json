@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machine-control.invalid/contracts/claim-capabilities-v0.schema.json",
+  "title": "Machine Control Claim Capabilities v0",
+  "type": "object",
+  "required": [
+    "schema", "mode", "durations", "claimant", "resourceBinding", "queueing"
+  ],
+  "properties": {
+    "schema": { "const": "machine-control-claim-capabilities/v0" },
+    "mode": { "const": "exclusive" },
+    "durations": {
+      "type": "object",
+      "required": [
+        "defaultSeconds", "minimumSeconds", "maximumSeconds",
+        "maximumLifetimeSeconds"
+      ],
+      "properties": {
+        "defaultSeconds": { "type": "integer", "minimum": 1 },
+        "minimumSeconds": { "type": "integer", "minimum": 1 },
+        "maximumSeconds": { "type": "integer", "minimum": 1 },
+        "maximumLifetimeSeconds": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "claimant": {
+      "type": "object",
+      "required": [
+        "assurance", "maximumMetadataEntries", "maximumMetadataBytes"
+      ],
+      "properties": {
+        "assurance": {
+          "type": "array",
+          "items": { "enum": ["self_asserted"] },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "maximumMetadataEntries": { "type": "integer", "minimum": 0 },
+        "maximumMetadataBytes": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "resourceBinding": { "const": "exact_private_identity" },
+    "queueing": { "const": false }
+  },
+  "additionalProperties": false
+}

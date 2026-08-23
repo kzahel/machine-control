@@ -111,6 +111,11 @@ def portable_checks() -> None:
         ("common coordinator", ROOT, ROOT / "tests" / "client"),
         ("shared ADB", ROOT, ROOT / "providers" / "adb" / "tests"),
         (
+            "target-use claims",
+            ROOT,
+            ROOT / "providers" / "claims" / "tests",
+        ),
+        (
             "workspace receipts",
             ROOT,
             ROOT / "providers" / "workspaces" / "tests",
