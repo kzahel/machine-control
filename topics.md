@@ -23,6 +23,8 @@ commits with no expected follow-up do not need a trailer or registry entry.
   exact-window requirements, fixture design, and evidence-driven selection.
 - `target-lifecycle-and-readiness` — logical target selection, portable
   lifecycle verbs, normalized doctor state, and authoritative testbed adapters.
+- `target-use-claims` — coordinator-neutral exclusive target-use leases,
+  claimant attribution, expiry, renewal, exact-resource binding, and fencing.
 - `vm-workspaces-and-storage-policy` — persistent, isolated, and candidate VM
   workspace intent; provider-selected derivation; storage budgets; and safe
   receipt-bound cleanup.

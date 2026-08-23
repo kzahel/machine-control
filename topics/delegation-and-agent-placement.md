@@ -16,6 +16,12 @@ can address a target-resident controller directly. A delegated worker is an
 optional execution placement for local development context or agent-coupled
 tools, and it calls the same resident control surface locally.
 
+Exclusive target use is likewise not a delegation feature. Machine Control's
+generic target-use claim surface accepts bounded metadata from any caller or
+coordinator. A coordinator may renew a claim while work is active and release
+it at completion, but Machine Control neither names nor depends on that
+coordinator. See [`target-use-claims.md`](target-use-claims.md).
+
 ## Three selections, not one
 
 Before starting work, coordination resolves three independent choices:

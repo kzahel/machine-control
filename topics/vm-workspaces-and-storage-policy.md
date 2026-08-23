@@ -61,6 +61,11 @@ opaque workspace handles. Concrete VM names, UUIDs, storage paths, endpoints,
 and provider receipts remain in private inventory or mode-`0600` adapter state.
 A handle is a selector, not bearer authority.
 
+A workspace receipt is also not a usage reservation. Exclusive caller access
+is governed by the separate target-use claim contract in
+[`target-use-claims.md`](target-use-claims.md). Workspace acquisition composes
+the two atomically, while cleanup ownership and current usage remain distinct.
+
 Only an adapter that created a temporary resource may release or garbage
 collect it. Creation writes a receipt bound to the exact provider identity,
 source identity, requested intent, actual mechanism, and cleanup disposition.
@@ -138,7 +143,9 @@ an already selected handle to avoid ambiguous nested acquisition or release.
 
 The normalized acquire result reports requested intent, actual mechanism,
 retention, whether cleanup is automatic, and storage preflight confidence. It
-does not publish the concrete source or derived VM identity.
+also reports the acquired target-use claim. It does not publish the concrete
+source or derived VM identity. Workspace release requires that matching live
+claim and relinquishes it only after safe retain-or-discard handling completes.
 
 ## Provider direction
 

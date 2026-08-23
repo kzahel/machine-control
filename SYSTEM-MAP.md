@@ -19,6 +19,11 @@ or generated one-way.
 | [`~/code/dotfiles/testbeds`](../dotfiles/testbeds/README.md) | Private concrete testbed inventory, controller availability, and portable discovery; link to each current authoritative guide | Public lifecycle implementation, UI control, recovery, product assertions |
 | Consuming application repository | Builds, fixtures, test intent, application-specific assertions, and cross-platform campaign logic | Machine provisioning and generic control transport |
 
+Machine Control owns exact-resource target-use arbitration. A coordinator may
+supply claimant/session metadata and manage renewal around active work, but the
+claim contract does not name or require that coordinator. Private inventory
+selects claim policy and state placement without becoming the live arbiter.
+
 YepAnywhere's delegation direction is documented in
 [`cross-host-delegation.md`](../yepanywhere/topics/cross-host-delegation.md).
 Delegation creates a normal worker session on a YA peer; it does not turn YA
@@ -113,7 +118,9 @@ When adding a capability:
    beside the implementation they govern.
 4. Put worker creation, peer authorization, observation, and supervision in
    YepAnywhere coordination.
-5. Put product-specific assertions in the consuming application repository.
+5. Put exact-target usage arbitration in Machine Control; let any coordinator
+   consume that generic claim surface.
+6. Put product-specific assertions in the consuming application repository.
 
 Do not add the same operation independently to all five layers. Choose one
 owner and expose it through adapters.

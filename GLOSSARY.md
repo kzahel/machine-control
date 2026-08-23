@@ -123,6 +123,13 @@ It binds the caller, target and provider generation, capability, scope, and
 relevant session/desktop state. A target selector or generic admin flag is not
 an authorization lease.
 
+**Target-use claim**
+
+An exclusive, expiring coordination lease on an exact machine or workspace.
+It records bounded caller-supplied attribution and a reason, but does not grant
+a protected capability or authenticate self-asserted metadata. Workspace
+ownership and target-use claiming are separate facts.
+
 **Route**  
 The actual mechanism used for an operation. Initial route classes are
 `guest.admin`, `guest.user`, `guest.broker`, `host.hypervisor`, `host.device`,

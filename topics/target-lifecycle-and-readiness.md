@@ -30,6 +30,11 @@ replacement for `target up`. See
 [`vm-workspaces-and-storage-policy.md`](vm-workspaces-and-storage-policy.md)
 for persistent, isolated, and retained-candidate intent.
 
+Exclusive usage coordination is another additive surface. Accepted VM targets
+require a live target-use claim for meaningful use while keeping status,
+doctor, capabilities, and claim inspection available without a claim. See
+[`target-use-claims.md`](target-use-claims.md).
+
 A logical target is a local inventory selector, not bearer authority and not
 necessarily a VM. Target aliases and adapter paths may live in ignored local
 configuration. Tracked examples must use non-authoritative placeholders and

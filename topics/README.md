@@ -65,6 +65,9 @@ its `Topic:` trailers.
 - [`target-lifecycle-and-readiness.md`](target-lifecycle-and-readiness.md):
   common target selection, lifecycle verbs, machine-readable doctor state, and
   authoritative-testbed boundaries.
+- [`target-use-claims.md`](target-use-claims.md): coordinator-neutral,
+  expiring exclusive-use claims bound to exact targets and workspaces, with
+  claimant attribution, renewal, release, and fencing.
 - [`unified-desktop-client.md`](unified-desktop-client.md): common resident
   entry points, transports, artifacts, operation translation, conformance, and
   explicit platform escape hatches.
