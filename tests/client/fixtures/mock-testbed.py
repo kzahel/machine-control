@@ -23,6 +23,135 @@ if expected_workspace is not None and os.environ.get(
 ) != expected_workspace:
     print("workspace selector was not forwarded", file=sys.stderr)
     raise SystemExit(2)
+expected_claim = os.environ.get("MACHINE_CONTROL_MOCK_EXPECT_CLAIM")
+if expected_claim is not None and os.environ.get(
+    "MACHINE_CONTROL_CLAIM_ID"
+) != expected_claim:
+    print("claim selector was not forwarded", file=sys.stderr)
+    raise SystemExit(2)
+
+CLAIM_ID = "c-0123456789abcdef01234567"
+
+
+def claim_descriptor(claim_id=CLAIM_ID):
+    return {
+        "claimId": claim_id,
+        "mode": "exclusive",
+        "generation": 3,
+        "claimant": {
+            "authority": "fixture-runner",
+            "id": "fixture-case",
+            "assurance": "self_asserted",
+            "sessionId": "fixture-session",
+            "label": "fixture claim",
+            "metadata": {"suite": "client"},
+        },
+        "reason": "exercise common claim handling",
+        "acquiredAt": "2026-01-02T03:04:05Z",
+        "renewedAt": "2026-01-02T03:04:05Z",
+        "expiresAt": "2026-01-02T03:34:05Z",
+        "maxExpiresAt": "2026-01-02T07:04:05Z",
+        "remainingSeconds": 1800,
+    }
+
+
+if command == "claim-capabilities" and arguments[1:] == ["--json"]:
+    print(json.dumps({
+        "schema": "machine-control-claim-capabilities/v0",
+        "mode": "exclusive",
+        "durations": {
+            "defaultSeconds": 1800,
+            "minimumSeconds": 60,
+            "maximumSeconds": 14400,
+            "maximumLifetimeSeconds": 14400,
+        },
+        "claimant": {
+            "assurance": ["self_asserted"],
+            "maximumMetadataEntries": 16,
+            "maximumMetadataBytes": 4096,
+        },
+        "resourceBinding": "exact_private_identity",
+        "queueing": False,
+    }))
+    raise SystemExit(0)
+
+if command == "claim-status" and arguments[1:] == ["--json"]:
+    held = bool(os.environ.get("MACHINE_CONTROL_MOCK_CLAIM_HELD"))
+    print(json.dumps({
+        "schema": "machine-control-claim/v0",
+        "operation": "status",
+        "accepted": True,
+        "uncertainty": "none",
+        "data": (
+            {"state": "held", "claim": claim_descriptor()}
+            if held
+            else {"state": "available", "generation": 2}
+        ),
+    }))
+    raise SystemExit(0)
+
+if command == "claim-acquire":
+    print(json.dumps({
+        "schema": "machine-control-claim/v0",
+        "operation": "acquire",
+        "accepted": True,
+        "uncertainty": "none",
+        "data": {"state": "held", "claim": claim_descriptor()},
+    }))
+    raise SystemExit(0)
+
+if command == "claim-check":
+    claim_id = arguments[arguments.index("--claim-id") + 1]
+    if os.environ.get("MACHINE_CONTROL_MOCK_CLAIM_EXPIRED"):
+        print(json.dumps({
+            "schema": "machine-control-claim/v0",
+            "operation": "check",
+            "accepted": False,
+            "uncertainty": "none",
+            "errorCode": "claim_expired",
+            "message": "The supplied target-use claim has expired",
+            "data": {},
+        }))
+        raise SystemExit(1)
+    print(json.dumps({
+        "schema": "machine-control-claim/v0",
+        "operation": "check",
+        "accepted": True,
+        "uncertainty": "none",
+        "data": {
+            "state": "held",
+            "claimId": claim_id,
+            "generation": 3,
+            "expiresAt": "2026-01-02T03:34:05Z",
+        },
+    }))
+    raise SystemExit(0)
+
+if command == "claim-renew":
+    claim_id = arguments[arguments.index("--claim-id") + 1]
+    print(json.dumps({
+        "schema": "machine-control-claim/v0",
+        "operation": "renew",
+        "accepted": True,
+        "uncertainty": "none",
+        "data": {"state": "held", "claim": claim_descriptor(claim_id)},
+    }))
+    raise SystemExit(0)
+
+if command == "claim-release":
+    claim_id = arguments[arguments.index("--claim-id") + 1]
+    print(json.dumps({
+        "schema": "machine-control-claim/v0",
+        "operation": "release",
+        "accepted": True,
+        "uncertainty": "none",
+        "data": {
+            "claimId": claim_id,
+            "generation": 3,
+            "disposition": "released",
+        },
+    }))
+    raise SystemExit(0)
 
 if command == "workspace-capabilities" and arguments[1:] == ["--json"]:
     value = {
@@ -79,7 +208,7 @@ if command == "workspace-capabilities" and arguments[1:] == ["--json"]:
     raise SystemExit(0)
 
 if command == "workspace-acquire":
-    intent = arguments[2] if len(arguments) == 4 else ""
+    intent = arguments[arguments.index("--intent") + 1]
     if os.environ.get("MACHINE_CONTROL_MOCK_WORKSPACE_REFUSAL"):
         print(json.dumps({
             "schema": "machine-control-workspace/v0",
@@ -118,6 +247,8 @@ if command == "workspace-acquire":
     }
     if os.environ.get("MACHINE_CONTROL_MOCK_PRIVATE_WORKSPACE_FIELD"):
         data["providerVmName"] = "private-vm-fixture"
+    if "--reason" in arguments:
+        data["claim"] = claim_descriptor()
     print(json.dumps({
         "schema": "machine-control-workspace/v0",
         "operation": "acquire",

@@ -41,7 +41,9 @@
       "additionalProperties": false
     },
     "resourceBinding": { "const": "exact_private_identity" },
-    "queueing": { "const": false }
+    "queueing": { "const": false },
+    "target": { "type": "object" },
+    "adapter": { "type": "object" }
   },
   "additionalProperties": false
 }

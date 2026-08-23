@@ -37,6 +37,7 @@ class ClientTests(unittest.TestCase):
         launcher="auto",
         command=None,
         workspace_default_intent="persistent",
+        claim_policy="test_default",
     ):
         target = {
             "platform": platform,
@@ -48,6 +49,12 @@ class ClientTests(unittest.TestCase):
         }
         if workspace_default_intent is not None:
             target["workspaceDefaultIntent"] = workspace_default_intent
+        if claim_policy == "test_default":
+            target["claimPolicy"] = (
+                "unsupported" if interface == "native" else "optional"
+            )
+        elif claim_policy is not None:
+            target["claimPolicy"] = claim_policy
         if interface is not None:
             target["interface"] = interface
         if environment is not None:
@@ -95,6 +102,7 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(
             value["targets"][0]["workspaceDefaultIntent"], "persistent"
         )
+        self.assertEqual(value["targets"][0]["claimPolicy"], "optional")
 
     def test_lists_native_target_without_private_environment(self):
         self.write_registry(
@@ -106,6 +114,177 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertEqual(value["targets"][0]["interface"], "native")
         self.assertNotIn("private-fixture-host", result.stdout)
+
+    def test_vm_registry_defaults_claim_policy_to_required(self):
+        self.write_registry("linux", claim_policy=None)
+        result, value = self.run_cli("targets")
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["targets"][0]["claimPolicy"], "required")
+
+    def test_native_registry_rejects_required_claim_policy(self):
+        self.write_registry(
+            "ios", interface="native", claim_policy="required"
+        )
+        result, value = self.run_cli("targets")
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(value["errorCode"], "invalid_registry")
+
+    def test_claim_capabilities_and_status_are_discoverable(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "claim", "capabilities"
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["mode"], "exclusive")
+        self.assertEqual(value["durations"]["defaultSeconds"], 1800)
+        self.assertEqual(value["target"]["logicalTarget"], "fixture")
+
+        result, value = self.run_cli(
+            "--target", "fixture", "claim", "status",
+            extra_env={"MACHINE_CONTROL_MOCK_CLAIM_HELD": "1"},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["data"]["state"], "held")
+        self.assertEqual(
+            value["data"]["claim"]["claimant"]["assurance"],
+            "self_asserted",
+        )
+
+    def test_claim_acquire_translates_duration_and_bounded_metadata(self):
+        log = self.directory / "arguments.json"
+        result, value = self.run_cli(
+            "--target", "fixture", "claim", "acquire",
+            "--duration", "30m",
+            "--reason", "exercise fixture",
+            "--claimant-authority", "test-runner",
+            "--claimant-id", "case-1",
+            "--session-id", "session-1",
+            "--label", "client test",
+            "--metadata", "suite=client",
+            extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["data"]["claim"]["mode"], "exclusive")
+        arguments = json.loads(log.read_text(encoding="utf-8"))
+        self.assertEqual(
+            arguments[arguments.index("--duration-seconds") + 1], "1800"
+        )
+        metadata = json.loads(
+            arguments[arguments.index("--metadata-json") + 1]
+        )
+        self.assertEqual(metadata, {"suite": "client"})
+
+    def test_claim_renew_and_release_validate_opaque_id(self):
+        claim_id = "c-0123456789abcdef01234567"
+        result, value = self.run_cli(
+            "--target", "fixture", "claim", "renew", claim_id,
+            "--duration", "1h",
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["data"]["claim"]["claimId"], claim_id)
+        result, value = self.run_cli(
+            "--target", "fixture", "claim", "release", claim_id
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["data"]["disposition"], "released")
+
+        result, value = self.run_cli(
+            "--target", "fixture", "claim", "release", "not-a-claim"
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(value["errorCode"], "invalid_claim_id")
+
+    def test_required_target_refuses_use_without_claim_before_dispatch(self):
+        log = self.directory / "arguments.json"
+        self.write_registry("linux", claim_policy="required")
+        result, value = self.run_cli(
+            "--target", "fixture", "desktop", "status",
+            extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(value["errorCode"], "claim_required")
+        self.assertEqual(
+            value["data"]["remediation"]["operation"], "claim.acquire"
+        )
+        self.assertFalse(log.exists())
+
+    def test_required_target_checks_and_forwards_selected_claim(self):
+        claim_id = "c-0123456789abcdef01234567"
+        self.write_registry("linux", claim_policy="required")
+        result, value = self.run_cli(
+            "--target", "fixture", "--claim", claim_id,
+            "desktop", "status",
+            extra_env={"MACHINE_CONTROL_MOCK_EXPECT_CLAIM": claim_id},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["operation"], "status")
+
+    def test_expired_claim_refuses_before_target_operation(self):
+        claim_id = "c-0123456789abcdef01234567"
+        log = self.directory / "arguments.json"
+        self.write_registry("linux", claim_policy="required")
+        result, value = self.run_cli(
+            "--target", "fixture", "--claim", claim_id,
+            "desktop", "status",
+            extra_env={
+                "MACHINE_CONTROL_MOCK_CLAIM_EXPIRED": "1",
+                "MACHINE_CONTROL_MOCK_LOG": str(log),
+            },
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(value["errorCode"], "claim_expired")
+        self.assertEqual(
+            json.loads(log.read_text(encoding="utf-8"))[0], "claim-check"
+        )
+
+    def test_required_target_keeps_doctor_claim_free(self):
+        self.write_registry("linux", claim_policy="required")
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "doctor"
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertTrue(value["ready"])
+
+    def test_required_workspace_acquire_returns_atomic_claim(self):
+        self.write_registry("linux", claim_policy="required")
+        result, value = self.run_cli(
+            "--target", "fixture", "workspace", "acquire",
+            "--intent", "isolated",
+            "--claim-duration", "30m",
+            "--reason", "isolated fixture work",
+            "--claimant-authority", "test-runner",
+            "--claimant-id", "case-1",
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["data"]["claim"]["mode"], "exclusive")
+
+    def test_required_workspace_acquire_requires_attribution(self):
+        log = self.directory / "arguments.json"
+        self.write_registry("linux", claim_policy="required")
+        result, value = self.run_cli(
+            "--target", "fixture", "workspace", "acquire",
+            extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(value["errorCode"], "claim_metadata_required")
+        self.assertFalse(log.exists())
+
+    def test_required_workspace_release_forwards_claim_to_adapter(self):
+        claim_id = "c-0123456789abcdef01234567"
+        self.write_registry("linux", claim_policy="required")
+        result, value = self.run_cli(
+            "--target", "fixture", "--claim", claim_id,
+            "workspace", "release", "w-fixture-isolated",
+            extra_env={"MACHINE_CONTROL_MOCK_EXPECT_CLAIM": claim_id},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["data"]["disposition"], "discarded")
+
+        result, value = self.run_cli(
+            "--target", "fixture", "workspace", "release",
+            "w-fixture-isolated",
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(value["errorCode"], "claim_required")
 
     def test_native_target_uses_explicit_testbed_escape(self):
         self.write_registry("steamdeck", interface="native")

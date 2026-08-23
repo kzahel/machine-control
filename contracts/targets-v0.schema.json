@@ -37,6 +37,9 @@
           "workspaceDefaultIntent": {
             "enum": ["persistent", "isolated", "candidate"]
           },
+          "claimPolicy": {
+            "enum": ["required", "optional", "unsupported"]
+          },
           "command": {
             "type": "array",
             "minItems": 1,

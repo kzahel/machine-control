@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import json
 import os
 from pathlib import Path
@@ -24,9 +25,11 @@ TARGET_RESULT_SCHEMA = "machine-control-target/v0"
 CANDIDATE_ASSERTION_SCHEMA = "machine-control-candidate-assertion/v0"
 WORKSPACE_CAPABILITIES_SCHEMA = "machine-control-workspace-capabilities/v0"
 WORKSPACE_RESULT_SCHEMA = "machine-control-workspace/v0"
+CLAIM_CAPABILITIES_SCHEMA = "machine-control-claim-capabilities/v0"
+CLAIM_RESULT_SCHEMA = "machine-control-claim/v0"
 MAINTENANCE_CAPABILITIES_SCHEMA = "machine-control-maintenance-capabilities/v0"
 MAINTENANCE_RESULT_SCHEMA = "machine-control-maintenance/v0"
-CLIENT_VERSION = "0.2.0"
+CLIENT_VERSION = "0.3.0"
 CONTROLLER_PLATFORMS = {"darwin", "linux", "windows"}
 LAUNCHERS = {"auto", "direct", "python", "powershell", "bash"}
 WORKSPACE_INTENTS = {"persistent", "isolated", "candidate"}
@@ -38,6 +41,8 @@ WORKSPACE_MECHANISMS = {
     "full_copy",
     "fresh_provision",
 }
+CLAIM_POLICIES = {"required", "optional", "unsupported"}
+CLAIM_PATTERN = re.compile(r"c-[a-f0-9]{24}")
 
 DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
     "windows": {
@@ -45,6 +50,7 @@ DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
         "profile": "windows-11-desktop",
         "controllerPlatforms": ["darwin"],
         "launcher": "direct",
+        "claimPolicy": "required",
         "workspaceDefaultIntent": "persistent",
         "command": [str(ROOT / "platforms" / "windows" / "bin" / "winvm")],
     },
@@ -53,6 +59,7 @@ DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
         "profile": "macos-aqua-tart",
         "controllerPlatforms": ["darwin"],
         "launcher": "direct",
+        "claimPolicy": "required",
         "workspaceDefaultIntent": "persistent",
         "command": [str(ROOT / "platforms" / "macos" / "bin" / "macvm")],
     },
@@ -61,6 +68,7 @@ DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
         "profile": "ubuntu-gnome-wayland",
         "controllerPlatforms": ["darwin"],
         "launcher": "direct",
+        "claimPolicy": "required",
         "workspaceDefaultIntent": "persistent",
         "command": [str(ROOT / "platforms" / "linux" / "bin" / "linuxvm")],
     },
@@ -70,6 +78,7 @@ DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
         "interface": "native",
         "controllerPlatforms": ["darwin", "linux"],
         "launcher": "direct",
+        "claimPolicy": "unsupported",
         "command": [str(ROOT / "platforms" / "chromeos" / "bin" / "chromeos")],
     },
     "ios": {
@@ -78,6 +87,7 @@ DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
         "interface": "native",
         "controllerPlatforms": ["darwin"],
         "launcher": "direct",
+        "claimPolicy": "unsupported",
         "command": [str(ROOT / "platforms" / "ios" / "bin" / "ios-device")],
     },
     "quest": {
@@ -86,6 +96,7 @@ DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
         "interface": "native",
         "controllerPlatforms": ["darwin", "linux", "windows"],
         "launcher": "python",
+        "claimPolicy": "unsupported",
         "command": [str(ROOT / "platforms" / "quest" / "quest.py")],
     },
     "android": {
@@ -94,6 +105,7 @@ DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
         "interface": "native",
         "controllerPlatforms": ["darwin", "linux", "windows"],
         "launcher": "python",
+        "claimPolicy": "unsupported",
         "command": [str(ROOT / "platforms" / "android" / "android_device.py")],
     },
     "steamdeck": {
@@ -102,6 +114,7 @@ DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
         "interface": "native",
         "controllerPlatforms": ["darwin", "linux"],
         "launcher": "direct",
+        "claimPolicy": "unsupported",
         "command": [str(ROOT / "platforms" / "steamdeck" / "bin" / "steamdeck")],
     },
 }
@@ -220,10 +233,18 @@ OUTER_STATES = {
 
 
 class ClientError(Exception):
-    def __init__(self, code: str, message: str, exit_code: int = 2):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        exit_code: int = 2,
+        *,
+        data: dict[str, Any] | None = None,
+    ):
         super().__init__(message)
         self.code = code
         self.exit_code = exit_code
+        self.data = data
 
 
 def controller_platform(system: str | None = None) -> str:
@@ -290,14 +311,22 @@ def emit(value: Any) -> None:
     print(json.dumps(value, separators=(",", ":"), sort_keys=True))
 
 
-def refusal(operation: str, code: str, message: str) -> dict[str, Any]:
-    return {
+def refusal(
+    operation: str,
+    code: str,
+    message: str,
+    data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    value = {
         "schema": "machine-control-client-error/v0",
         "operation": operation,
         "accepted": False,
         "errorCode": code,
         "message": message,
     }
+    if data is not None:
+        value["data"] = data
+    return value
 
 
 def provider_path(path_text: str | None = None) -> Path | None:
@@ -405,6 +434,15 @@ def load_registry(
         environment = value.get("environment", {})
         controller_platforms = value.get("controllerPlatforms")
         launcher = value.get("launcher", "auto")
+        claim_policy = value.get(
+            "claimPolicy",
+            (
+                "required"
+                if interface == "machine-control-v0"
+                and platform in {"windows", "macos", "linux"}
+                else "unsupported"
+            ),
+        )
         workspace_default_intent = value.get("workspaceDefaultIntent")
         if platform not in SUPPORTED_PLATFORMS:
             raise ClientError(
@@ -430,6 +468,12 @@ def load_registry(
         if launcher not in LAUNCHERS:
             raise ClientError(
                 "invalid_registry", f"Target '{alias}' has an invalid launcher"
+            )
+        if claim_policy not in CLAIM_POLICIES or (
+            interface != "machine-control-v0" and claim_policy != "unsupported"
+        ):
+            raise ClientError(
+                "invalid_registry", f"Target '{alias}' has an invalid claimPolicy"
             )
         if (
             workspace_default_intent is not None
@@ -475,6 +519,7 @@ def load_registry(
             "interface": interface,
             "controllerPlatforms": list(controller_platforms),
             "launcher": launcher,
+            "claimPolicy": claim_policy,
             "command": resolved,
             "environment": dict(environment),
         }
@@ -493,6 +538,7 @@ def target_view(alias: str, target: dict[str, Any]) -> dict[str, Any]:
         "controllerPlatform": current,
         "controllerPlatforms": list(target["controllerPlatforms"]),
         "controllerSupported": current in target["controllerPlatforms"],
+        "claimPolicy": target.get("claimPolicy", "unsupported"),
     }
     if "workspaceDefaultIntent" in target:
         view["workspaceDefaultIntent"] = target["workspaceDefaultIntent"]
@@ -825,6 +871,222 @@ def _valid_workspace_handle(value: Any) -> bool:
     ) is not None
 
 
+def _valid_claim_id(value: Any) -> bool:
+    return isinstance(value, str) and CLAIM_PATTERN.fullmatch(value) is not None
+
+
+def _valid_claim_timestamp(value: Any) -> bool:
+    if not isinstance(value, str) or not value.endswith("Z"):
+        return False
+    try:
+        datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError:
+        return False
+    return True
+
+
+def _validate_claim_descriptor(value: Any) -> None:
+    if not isinstance(value, dict) or set(value) != {
+        "claimId", "mode", "generation", "claimant", "reason",
+        "acquiredAt", "renewedAt", "expiresAt", "maxExpiresAt",
+        "remainingSeconds",
+    }:
+        raise ClientError(
+            "invalid_claim_result", "Target-use claim descriptor is invalid", 1
+        )
+    claimant = value.get("claimant")
+    if (
+        not isinstance(claimant, dict)
+        or not {"authority", "id", "assurance", "metadata"}.issubset(claimant)
+        or not set(claimant).issubset({
+            "authority", "id", "assurance", "metadata", "sessionId", "label"
+        })
+        or claimant.get("assurance") != "self_asserted"
+        or not isinstance(claimant.get("authority"), str)
+        or not claimant["authority"]
+        or not isinstance(claimant.get("id"), str)
+        or not claimant["id"]
+        or not isinstance(claimant.get("metadata"), dict)
+        or not all(
+            isinstance(key, str)
+            and key
+            and isinstance(item, str)
+            for key, item in claimant["metadata"].items()
+        )
+        or any(
+            key in claimant
+            and (not isinstance(claimant[key], str) or not claimant[key])
+            for key in ("sessionId", "label")
+        )
+    ):
+        raise ClientError(
+            "invalid_claim_result", "Target-use claimant projection is invalid", 1
+        )
+    if (
+        not _valid_claim_id(value.get("claimId"))
+        or value.get("mode") != "exclusive"
+        or not isinstance(value.get("generation"), int)
+        or isinstance(value.get("generation"), bool)
+        or value["generation"] < 1
+        or not isinstance(value.get("reason"), str)
+        or not value["reason"]
+        or not all(
+            _valid_claim_timestamp(value.get(key))
+            for key in ("acquiredAt", "renewedAt", "expiresAt", "maxExpiresAt")
+        )
+        or not _nonnegative_integer(value.get("remainingSeconds"))
+    ):
+        raise ClientError(
+            "invalid_claim_result", "Target-use claim value is invalid", 1
+        )
+
+
+def validate_claim_capabilities(value: Any) -> dict[str, Any]:
+    if (
+        not isinstance(value, dict)
+        or set(value) != {
+            "schema", "mode", "durations", "claimant", "resourceBinding",
+            "queueing",
+        }
+        or value.get("schema") != CLAIM_CAPABILITIES_SCHEMA
+        or value.get("mode") != "exclusive"
+        or value.get("resourceBinding") != "exact_private_identity"
+        or value.get("queueing") is not False
+    ):
+        raise ClientError(
+            "invalid_claim_capabilities",
+            f"Claim capabilities must use {CLAIM_CAPABILITIES_SCHEMA}",
+            1,
+        )
+    durations = value.get("durations")
+    if not isinstance(durations, dict) or set(durations) != {
+        "defaultSeconds", "minimumSeconds", "maximumSeconds",
+        "maximumLifetimeSeconds",
+    }:
+        raise ClientError(
+            "invalid_claim_capabilities", "Claim duration policy is invalid", 1
+        )
+    minimum = durations.get("minimumSeconds")
+    default = durations.get("defaultSeconds")
+    maximum = durations.get("maximumSeconds")
+    lifetime = durations.get("maximumLifetimeSeconds")
+    if (
+        not all(
+            isinstance(item, int) and not isinstance(item, bool) and item >= 1
+            for item in (minimum, default, maximum, lifetime)
+        )
+        or not minimum <= default <= maximum <= lifetime
+    ):
+        raise ClientError(
+            "invalid_claim_capabilities", "Claim duration policy is invalid", 1
+        )
+    claimant = value.get("claimant")
+    if (
+        not isinstance(claimant, dict)
+        or set(claimant) != {
+            "assurance", "maximumMetadataEntries", "maximumMetadataBytes"
+        }
+        or claimant.get("assurance") != ["self_asserted"]
+        or not _nonnegative_integer(claimant.get("maximumMetadataEntries"))
+        or not _nonnegative_integer(claimant.get("maximumMetadataBytes"))
+    ):
+        raise ClientError(
+            "invalid_claim_capabilities", "Claimant limits are invalid", 1
+        )
+    return value
+
+
+def _validate_claim_status_data(value: Any) -> None:
+    if not isinstance(value, dict) or value.get("state") not in {
+        "available", "held"
+    }:
+        raise ClientError(
+            "invalid_claim_result", "Target-use claim state is invalid", 1
+        )
+    if value["state"] == "available":
+        if set(value) != {"state", "generation"} or not _nonnegative_integer(
+            value.get("generation")
+        ):
+            raise ClientError(
+                "invalid_claim_result", "Available claim state is invalid", 1
+            )
+        return
+    if set(value) != {"state", "claim"}:
+        raise ClientError(
+            "invalid_claim_result", "Held claim state is invalid", 1
+        )
+    _validate_claim_descriptor(value["claim"])
+
+
+def validate_claim_result(value: Any, operation: str) -> dict[str, Any]:
+    allowed = {
+        "schema", "operation", "accepted", "uncertainty", "data",
+        "errorCode", "message",
+    }
+    if (
+        not isinstance(value, dict)
+        or value.get("schema") != CLAIM_RESULT_SCHEMA
+        or value.get("operation") != operation
+        or not set(value).issubset(allowed)
+        or not isinstance(value.get("accepted"), bool)
+        or value.get("uncertainty") != "none"
+        or not isinstance(value.get("data"), dict)
+    ):
+        raise ClientError(
+            "invalid_claim_result",
+            f"Claim result must use {CLAIM_RESULT_SCHEMA}",
+            1,
+        )
+    data = value["data"]
+    if not value["accepted"]:
+        if (
+            not isinstance(value.get("errorCode"), str)
+            or not value["errorCode"]
+            or not isinstance(value.get("message"), str)
+            or not value["message"]
+        ):
+            raise ClientError(
+                "invalid_claim_result", "Target-use claim refusal is invalid", 1
+            )
+        if data:
+            _validate_claim_status_data(data)
+        return value
+    if "errorCode" in value or "message" in value:
+        raise ClientError(
+            "invalid_claim_result", "Accepted claim result has an error", 1
+        )
+    if operation in {"acquire", "status", "renew"}:
+        _validate_claim_status_data(data)
+        if operation != "status" and data["state"] != "held":
+            raise ClientError(
+                "invalid_claim_result", "Claim operation did not return a holder", 1
+            )
+    elif operation == "check":
+        if (
+            set(data) != {"state", "claimId", "generation", "expiresAt"}
+            or data.get("state") != "held"
+            or not _valid_claim_id(data.get("claimId"))
+            or not isinstance(data.get("generation"), int)
+            or isinstance(data.get("generation"), bool)
+            or data["generation"] < 1
+            or not _valid_claim_timestamp(data.get("expiresAt"))
+        ):
+            raise ClientError(
+                "invalid_claim_result", "Claim validation result is invalid", 1
+            )
+    elif operation == "release":
+        if (
+            set(data) != {"claimId", "generation", "disposition"}
+            or not _valid_claim_id(data.get("claimId"))
+            or not _nonnegative_integer(data.get("generation"))
+            or data.get("disposition") not in {"released", "alreadyReleased"}
+        ):
+            raise ClientError(
+                "invalid_claim_result", "Claim release result is invalid", 1
+            )
+    return value
+
+
 def _validate_workspace_item(value: Any) -> None:
     if not isinstance(value, dict) or set(value) != {
         "handle", "intent", "actualMechanism", "retention", "state", "cleanup"
@@ -882,10 +1144,15 @@ def validate_workspace_result(value: Any, operation: str) -> dict[str, Any]:
             "invalid_workspace_result", "Accepted workspace result has an error", 1
         )
     if operation == "acquire":
-        if set(data) != {
+        base_fields = {
             "handle", "requestedIntent", "actualMechanism", "retention",
             "cleanup", "storage",
-        } or not _valid_workspace_handle(data.get("handle")):
+        }
+        data_fields = set(data)
+        if (
+            data_fields != base_fields
+            and data_fields != base_fields | {"claim"}
+        ) or not _valid_workspace_handle(data.get("handle")):
             raise ClientError(
                 "invalid_workspace_result", "Workspace acquisition is invalid", 1
             )
@@ -907,6 +1174,8 @@ def validate_workspace_result(value: Any, operation: str) -> dict[str, Any]:
             raise ClientError(
                 "invalid_workspace_result", "Workspace acquisition is invalid", 1
             )
+        if "claim" in data:
+            _validate_claim_descriptor(data["claim"])
     elif operation == "inventory":
         if set(data) != {"workspaces", "counts"}:
             raise ClientError(
@@ -2083,6 +2352,218 @@ def handle_ios(
     return 0 if value["accepted"] else 1
 
 
+def parse_duration_seconds(value: str) -> int:
+    match = re.fullmatch(r"([1-9][0-9]*)([smh]?)", value)
+    if match is None:
+        raise argparse.ArgumentTypeError("duration must use seconds, m, or h")
+    amount = int(match.group(1))
+    multiplier = {"": 1, "s": 1, "m": 60, "h": 3600}[match.group(2)]
+    return amount * multiplier
+
+
+def parse_claim_metadata(values: list[str]) -> dict[str, str]:
+    metadata: dict[str, str] = {}
+    for value in values:
+        key, separator, item = value.partition("=")
+        if not separator or not key or key in metadata:
+            raise ClientError(
+                "invalid_claim_metadata",
+                "Claim metadata must use unique KEY=VALUE entries",
+            )
+        metadata[key] = item
+    return metadata
+
+
+def claim_acquire_options(arguments: list[str]) -> argparse.Namespace:
+    return parse_options(
+        arguments,
+        [
+            (("--duration",), {"type": parse_duration_seconds}),
+            (("--reason",), {"required": True}),
+            (("--claimant-authority",), {"required": True}),
+            (("--claimant-id",), {"required": True}),
+            (("--session-id",), {}),
+            (("--label",), {}),
+            (("--metadata",), {"action": "append", "default": []}),
+        ],
+    )
+
+
+def claim_acquire_adapter_arguments(options: argparse.Namespace) -> list[str]:
+    result = [
+        "--reason", options.reason,
+        "--claimant-authority", options.claimant_authority,
+        "--claimant-id", options.claimant_id,
+    ]
+    if options.duration is not None:
+        result.extend(["--duration-seconds", str(options.duration)])
+    if options.session_id is not None:
+        result.extend(["--session-id", options.session_id])
+    if options.label is not None:
+        result.extend(["--label", options.label])
+    result.extend([
+        "--metadata-json",
+        json.dumps(
+            parse_claim_metadata(options.metadata),
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ),
+    ])
+    return result
+
+
+def _claim_adapter_call(
+    target: dict[str, Any], arguments: list[str]
+) -> tuple[Any, int]:
+    try:
+        _, parsed, elapsed_ms = run_adapter(
+            target, arguments, accept_json_failure=True
+        )
+    except ClientError as error:
+        if error.code == "adapter_failed":
+            raise ClientError(
+                "claim_adapter_failed",
+                "The authoritative adapter could not complete the claim request",
+                error.exit_code,
+            ) from error
+        raise
+    if parsed is None:
+        raise ClientError(
+            "invalid_claim_result",
+            "The authoritative adapter returned no target-use claim JSON",
+            1,
+        )
+    return parsed, elapsed_ms
+
+
+def handle_claim(
+    alias: str, target: dict[str, Any], arguments: list[str]
+) -> int:
+    if target.get("_claimId") is not None:
+        raise ClientError(
+            "claim_selection_conflict",
+            "Claim management cannot run through an already selected claim",
+        )
+    if target.get("claimPolicy", "unsupported") == "unsupported":
+        raise ClientError(
+            "unsupported_claim_interface",
+            "This target does not expose target-use claims",
+        )
+    if not arguments:
+        raise ClientError("usage", "claim requires an operation")
+    operation, rest = arguments[0], arguments[1:]
+    if operation == "capabilities":
+        if rest:
+            raise ClientError("usage", "claim capabilities accepts no arguments")
+        parsed, elapsed_ms = _claim_adapter_call(
+            target, ["claim-capabilities", "--json"]
+        )
+        value = validate_claim_capabilities(parsed)
+    elif operation == "status":
+        if rest:
+            raise ClientError("usage", "claim status accepts no arguments")
+        parsed, elapsed_ms = _claim_adapter_call(
+            target, ["claim-status", "--json"]
+        )
+        value = validate_claim_result(parsed, operation)
+    elif operation == "acquire":
+        options = claim_acquire_options(rest)
+        parsed, elapsed_ms = _claim_adapter_call(
+            target,
+            [
+                "claim-acquire",
+                *claim_acquire_adapter_arguments(options),
+                "--json",
+            ],
+        )
+        value = validate_claim_result(parsed, operation)
+    elif operation == "renew":
+        options = parse_options(
+            rest,
+            [
+                (("claim_id",), {}),
+                (("--duration",), {"type": parse_duration_seconds}),
+            ],
+        )
+        if not _valid_claim_id(options.claim_id):
+            raise ClientError("invalid_claim_id", "Target-use claim ID is invalid")
+        adapter_arguments = [
+            "claim-renew", "--claim-id", options.claim_id,
+        ]
+        if options.duration is not None:
+            adapter_arguments.extend([
+                "--duration-seconds", str(options.duration)
+            ])
+        parsed, elapsed_ms = _claim_adapter_call(
+            target, [*adapter_arguments, "--json"]
+        )
+        value = validate_claim_result(parsed, operation)
+    elif operation == "release":
+        if len(rest) != 1 or not _valid_claim_id(rest[0]):
+            raise ClientError(
+                "invalid_claim_id",
+                "claim release requires one opaque target-use claim ID",
+            )
+        parsed, elapsed_ms = _claim_adapter_call(
+            target,
+            ["claim-release", "--claim-id", rest[0], "--json"],
+        )
+        value = validate_claim_result(parsed, operation)
+    else:
+        raise ClientError(
+            "unsupported_claim_operation",
+            f"Unsupported claim operation '{operation}'",
+        )
+    value["target"] = target_view(alias, target)
+    value["adapter"] = {
+        "kind": "authoritative_testbed",
+        "elapsedMs": elapsed_ms,
+    }
+    emit(value)
+    return 0 if value.get("accepted", True) else 1
+
+
+def require_selected_claim(target: dict[str, Any]) -> None:
+    if target.get("claimPolicy", "unsupported") != "required":
+        return
+    claim_id = target.get("_claimId")
+    if not _valid_claim_id(claim_id):
+        raise ClientError(
+            "claim_required",
+            "Exclusive target use requires a live claim",
+            data={
+                "remediation": {
+                    "operation": "claim.acquire",
+                    "durationRequired": False,
+                    "reasonRequired": True,
+                    "claimantRequired": True,
+                }
+            },
+        )
+    parsed, _ = _claim_adapter_call(
+        target, ["claim-check", "--claim-id", claim_id, "--json"]
+    )
+    value = validate_claim_result(parsed, "check")
+    if not value["accepted"]:
+        raise ClientError(
+            str(value["errorCode"]),
+            str(value["message"]),
+            1,
+            data=value["data"],
+        )
+
+
+def operation_requires_claim(operation: str, arguments: list[str]) -> bool:
+    subcommand = arguments[0] if arguments else ""
+    if operation == "target":
+        return subcommand not in {"status", "doctor", "capabilities"}
+    if operation == "maintenance":
+        return subcommand != "capabilities"
+    if operation == "workspace":
+        return False
+    return operation in {"desktop", "ios", "testbed", "os"}
+
+
 def _workspace_adapter_call(
     target: dict[str, Any], arguments: list[str]
 ) -> tuple[Any, int]:
@@ -2107,16 +2588,57 @@ def _workspace_adapter_call(
     return parsed, elapsed_ms
 
 
-def _workspace_intent(arguments: list[str]) -> str | None:
-    if not arguments:
-        return None
-    if len(arguments) == 1 and arguments[0].startswith("--intent="):
-        return arguments[0].partition("=")[2]
-    if len(arguments) == 2 and arguments[0] == "--intent":
-        return arguments[1]
-    raise ClientError(
-        "usage", "workspace acquire accepts only --intent INTENT"
+def _workspace_acquire_options(arguments: list[str]) -> argparse.Namespace:
+    return parse_options(
+        arguments,
+        [
+            (("--intent",), {}),
+            (("--claim-duration",), {"type": parse_duration_seconds}),
+            (("--reason",), {}),
+            (("--claimant-authority",), {}),
+            (("--claimant-id",), {}),
+            (("--session-id",), {}),
+            (("--label",), {}),
+            (("--metadata",), {"action": "append", "default": []}),
+        ],
     )
+
+
+def _workspace_claim_arguments(
+    target: dict[str, Any], options: argparse.Namespace
+) -> list[str]:
+    supplied = any((
+        options.claim_duration is not None,
+        options.reason is not None,
+        options.claimant_authority is not None,
+        options.claimant_id is not None,
+        options.session_id is not None,
+        options.label is not None,
+        bool(options.metadata),
+    ))
+    required = target.get("claimPolicy") == "required"
+    if required or supplied:
+        if not all((
+            options.reason,
+            options.claimant_authority,
+            options.claimant_id,
+        )):
+            raise ClientError(
+                "claim_metadata_required",
+                "Workspace acquisition requires a reason, claimant authority, "
+                "and claimant ID",
+            )
+        claim_options = argparse.Namespace(
+            duration=options.claim_duration,
+            reason=options.reason,
+            claimant_authority=options.claimant_authority,
+            claimant_id=options.claimant_id,
+            session_id=options.session_id,
+            label=options.label,
+            metadata=options.metadata,
+        )
+        return claim_acquire_adapter_arguments(claim_options)
+    return []
 
 
 def handle_workspace(
@@ -2155,7 +2677,8 @@ def handle_workspace(
         emit(value)
         return 0
     if operation == "acquire":
-        intent = _workspace_intent(rest) or target.get("workspaceDefaultIntent")
+        options = _workspace_acquire_options(rest)
+        intent = options.intent or target.get("workspaceDefaultIntent")
         if intent is None:
             raise ClientError(
                 "workspace_intent_required",
@@ -2167,7 +2690,8 @@ def handle_workspace(
                 f"Unsupported workspace intent '{intent}'",
             )
         adapter_arguments = [
-            "workspace-acquire", "--intent", intent, "--json"
+            "workspace-acquire", "--intent", intent,
+            *_workspace_claim_arguments(target, options), "--json",
         ]
     elif operation == "inventory":
         if rest:
@@ -2178,6 +2702,20 @@ def handle_workspace(
             raise ClientError(
                 "invalid_workspace_handle",
                 "workspace release requires one opaque workspace handle",
+            )
+        if (
+            target.get("claimPolicy") == "required"
+            and not _valid_claim_id(target.get("_claimId"))
+        ):
+            raise ClientError(
+                "claim_required",
+                "Workspace release requires its live target-use claim",
+                data={
+                    "remediation": {
+                        "operation": "workspace.release",
+                        "claimRequired": True,
+                    }
+                },
             )
         adapter_arguments = [
             "workspace-release", "--handle", rest[0], "--json"
@@ -2196,6 +2734,17 @@ def handle_workspace(
         )
     parsed, elapsed_ms = _workspace_adapter_call(target, adapter_arguments)
     value = validate_workspace_result(parsed, operation)
+    if (
+        operation == "acquire"
+        and value["accepted"]
+        and target.get("claimPolicy") == "required"
+        and "claim" not in value["data"]
+    ):
+        raise ClientError(
+            "invalid_workspace_result",
+            "Required-claim workspace acquisition omitted its target-use claim",
+            1,
+        )
     if (
         operation == "acquire"
         and value["accepted"]
@@ -2336,13 +2885,15 @@ def run_inventory(path_text: str | None, arguments: list[str]) -> int:
 
 def usage() -> str:
     return """Usage: machine-control [--registry PATH] [--inventory-provider PATH]
-                       [--target ALIAS] [--workspace HANDLE] COMMAND ...
+                       [--target ALIAS] [--workspace HANDLE] [--claim ID]
+                       COMMAND ...
 
 Commands:
   inventory list|status|guide|doctor  Use the private deployment inventory
   targets                         List logical targets without private paths
   target status|up|suspend|shutdown|force-stop|reboot|doctor|capabilities
          ensure-ready|validate-candidate|prepare-promotion
+  claim capabilities|status|acquire|renew|release
   maintenance capabilities|audit|repair [--reboot]|certify [--profile ...]
   workspace capabilities|acquire|inventory|release|gc --dry-run
   desktop status|capabilities|applications|windows|snapshot|action|capture
@@ -2373,6 +2924,7 @@ def parse_global_options(
         "inventory_provider": None,
         "target": None,
         "workspace": None,
+        "claim": None,
         "help": False,
     }
     index = 0
@@ -2388,6 +2940,7 @@ def parse_global_options(
             ("--inventory-provider", "inventory_provider"),
             ("--target", "target"),
             ("--workspace", "workspace"),
+            ("--claim", "claim"),
         ):
             if token == option:
                 if index + 1 >= len(arguments):
@@ -2439,6 +2992,15 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         alias, target = select_target(targets, known.target)
+        target = {
+            **target,
+            "environment": {
+                **target.get("environment", {}),
+                "MACHINE_CONTROL_CLAIM_POLICY": target.get(
+                    "claimPolicy", "unsupported"
+                ),
+            },
+        }
         if known.workspace is not None:
             if not _valid_workspace_handle(known.workspace):
                 raise ClientError(
@@ -2453,8 +3015,28 @@ def main(argv: list[str] | None = None) -> int:
                 },
                 "_workspaceHandle": known.workspace,
             }
+        if known.claim is not None:
+            if not _valid_claim_id(known.claim):
+                raise ClientError(
+                    "invalid_claim_id",
+                    "--claim requires an opaque target-use claim ID",
+                )
+            target = {
+                **target,
+                "environment": {
+                    **target.get("environment", {}),
+                    "MACHINE_CONTROL_CLAIM_ID": known.claim,
+                },
+                "_claimId": known.claim,
+            }
+        if operation != "claim" and operation_requires_claim(
+            operation, remainder[1:]
+        ):
+            require_selected_claim(target)
         if operation == "target":
             return handle_target(alias, target, remainder[1:])
+        if operation == "claim":
+            return handle_claim(alias, target, remainder[1:])
         if operation == "maintenance":
             return handle_maintenance(alias, target, remainder[1:])
         if operation == "workspace":
@@ -2476,6 +3058,7 @@ def main(argv: list[str] | None = None) -> int:
                 remainder[0] if remainder else "client",
                 error.code,
                 str(error),
+                error.data,
             )
         )
         return error.exit_code

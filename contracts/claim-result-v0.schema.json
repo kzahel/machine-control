@@ -11,7 +11,9 @@
     "uncertainty": { "const": "none" },
     "errorCode": { "type": "string", "minLength": 1 },
     "message": { "type": "string", "minLength": 1 },
-    "data": { "type": "object" }
+    "data": { "type": "object" },
+    "target": { "type": "object" },
+    "adapter": { "type": "object" }
   },
   "additionalProperties": false
 }
