@@ -118,6 +118,41 @@ real-application workflows. It is not a claim of universal hardware coverage
 or a production support SLA. Platform-specific status, limitations, and setup
 live under [`platforms/`](platforms/README.md).
 
+## Controller-host support
+
+The **target platform** is the OS being controlled. The **controller host** is
+the machine that executes the selected adapter and is physically or logically
+attached to its hypervisor or device. These are independent: coordinator code
+running on Linux is not by itself a Linux-hosted route to a Windows VM.
+
+The common coordinator and its fixture-backed checks run on macOS, Linux, and
+Windows. Live desktop-VM hosting is narrower today:
+
+| Controller host | Coordinator evidence | Live-tested desktop VM routes | Planned desktop VM routes |
+| --- | --- | --- | --- |
+| macOS | Portable and native checks; current live controller | UTM/QEMU for Windows and Linux; Tart for macOS | Current baseline |
+| Linux | Hosted CI plus execution inside the retained Linux appliance | None | libvirt with QEMU/KVM for Windows and Linux guests |
+| Windows | Hosted CI plus execution inside the retained Windows appliance | None | Hyper-V on eligible Windows editions for Windows and Linux guests; evaluate QEMU/WHPX only for measured gaps |
+
+The Linux and Windows rows therefore claim coordinator portability, not a
+live-tested local hypervisor adapter. Each planned provider must independently
+prove exact target identity, guarded lifecycle, administration, workspace
+isolation and cleanup, resident desktop conformance, explicit recovery, and
+host non-interference before being documented as supported.
+
+macOS guests remain on Apple hardware. A Linux or Windows caller will reach a
+physical Mac, its target-resident controller, or an Apple-hosted Tart provider
+through an authenticated remote route; the plan does not emulate macOS under
+KVM or Hyper-V. Device routes have their own controller-host constraints—iOS,
+for example, requires an authorized Mac—so `machine-control targets` reports
+eligibility for the concrete selected route rather than inferring it from the
+target OS.
+
+The provider direction and adoption gates are maintained in
+[`vm-workspaces-and-storage-policy.md`](topics/vm-workspaces-and-storage-policy.md),
+while coordinator-versus-route portability is maintained in
+[`cross-platform-coordinator.md`](topics/cross-platform-coordinator.md).
+
 ## Capabilities
 
 Depending on the target, Machine Control can provide:

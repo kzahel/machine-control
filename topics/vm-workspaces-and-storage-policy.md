@@ -148,11 +148,35 @@ Tart exposes APFS copy-on-write local clones. Existing provider-specific
 commands remain compatibility escape hatches while the workspace surface is
 adopted.
 
-**Decision:** a future libvirt/KVM provider implements the same platform
-adapter contract. The Windows guest driver, resident facade, and readiness
-contract remain unchanged when lifecycle moves from UTM/macOS to
-libvirt/Linux. Virt-manager may be a human-facing libvirt UI but is not part of
-the portable contract.
+**Decision:** a future [libvirt QEMU/KVM provider](https://libvirt.org/drvqemu.html)
+implements the same platform adapter contract. The Windows guest driver,
+resident facade, and readiness contract remain unchanged when lifecycle moves
+from UTM/macOS to libvirt/Linux. Virt-manager may be a human-facing libvirt UI
+but is not part of the portable contract. The provider should use libvirt as
+its owned automation surface over QEMU/KVM, use QEMU guest-agent or guest
+networking only through typed adapter operations, and prove QCOW2
+backing-overlay cleanup rather than assuming that a snapshot or overlay
+satisfies `isolated` intent.
+
+**Decision:** [Hyper-V](https://learn.microsoft.com/windows-server/virtualization/hyper-v/overview)
+is the first Windows-host provider candidate for Windows and Linux guests. Its
+PowerShell management surface should own exact VM identity, lifecycle,
+storage, and checkpoint or differencing-disk mechanisms.
+[PowerShell Direct](https://learn.microsoft.com/windows-server/virtualization/hyper-v/powershell-direct)
+is useful for Windows bootstrap and recovery but is not a cross-guest
+transport; Linux and ordinary post-bootstrap control continue through explicit
+guest administration and the target-resident facade. Hyper-V Manager and
+VMConnect are human and outer-recovery surfaces, not the ordinary adapter
+contract. Evaluate [QEMU with WHPX](https://www.qemu.org/docs/master/system/whpx.html)
+only if live evidence finds a required host-edition, workspace, capture, input,
+or recovery gap that the Hyper-V provider cannot meet. VMware and VirtualBox
+remain unselected candidates rather than implicit fallbacks.
+
+**Decision:** neither the Linux nor Windows host plan attempts to virtualize a
+macOS guest. Callers on those platforms reach a physical Mac, its resident
+controller, or an Apple-hosted Tart adapter through an authenticated remote
+route. Remote adapter execution is a normal placement of the same contract,
+not evidence of a local Linux or Windows macOS hypervisor.
 
 ## Current implementation and validation
 
@@ -191,3 +215,7 @@ declared overlay mechanism.
   stopped with only its receipt retained for operator-directed recovery.
 - Add a libvirt/Linux host provider only when an authorized host is available
   for real capability and cleanup validation.
+- After the Linux provider proves the adapter boundary, add and live-validate
+  a Hyper-V/Windows host provider, beginning with a Windows guest and then a
+  Linux guest. Keep its supported host editions and CPU architectures explicit
+  rather than projecting one successful machine onto all Windows hosts.
