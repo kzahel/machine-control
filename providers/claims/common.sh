@@ -44,6 +44,10 @@ claim_require_exact() {
     if [[ "${MACHINE_CONTROL_CLAIM_POLICY:-required}" == optional ]]; then
         return 0
     fi
+    if [[ -z "$resource_id" ]]; then
+        printf 'Exact target identity is unavailable; repair private inventory and rerun doctor\n' >&2
+        return 1
+    fi
     if [[ -z "${MACHINE_CONTROL_CLAIM_ID:-}" ]]; then
         printf 'Exclusive target use requires a live claim\n' >&2
         return 1
@@ -69,6 +73,12 @@ claim_adapter_main() {
         return 2
     fi
     claim_require_tools || return
+    if [[ "$command" != claim-capabilities && -z "$resource_id" ]]; then
+        local operation="${command#claim-}"
+        printf '{"schema":"machine-control-claim/v0","operation":"%s","accepted":false,"uncertainty":"none","errorCode":"claim_identity_unavailable","message":"Exact target identity is unavailable; repair private inventory and rerun doctor","data":{}}\n' \
+            "$operation"
+        return 1
+    fi
     case "$command" in
         claim-capabilities)
             (( ${#forwarded[@]} == 0 )) || return 2

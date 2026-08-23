@@ -15,6 +15,8 @@ LINUXVM_FORBID_OUTER_UI=false
 # Workspace operations remain unavailable until exact guarded development and
 # ready-base identities are supplied in ignored/private configuration.
 LINUXVM_WORKSPACE_DEVELOPMENT_NAME=
+# Claim records default to a private subdirectory of workspace state.
+# LINUXVM_CLAIM_STATE_DIR=
 LINUXVM_WORKSPACE_DEVELOPMENT_ID=
 LINUXVM_WORKSPACE_DEVELOPMENT_PROVEN=false
 LINUXVM_WORKSPACE_READY_BASE_NAME=

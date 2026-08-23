@@ -124,6 +124,26 @@ class VmClaimAdapterTests(unittest.TestCase):
                     "released",
                 )
 
+    def test_missing_private_identity_points_to_inventory_repair(self) -> None:
+        executable = ROOT / "platforms" / "windows" / "bin" / "winvm"
+        environment = {
+            "WINVM_CONFIG_FILE": "/dev/null",
+            "WINVM_CLAIM_STATE_DIR": str(self.directory / "unresolved"),
+        }
+        result = self.run_adapter(
+            executable, environment, "claim-status", "--json"
+        )
+        self.assertEqual(result.returncode, 1)
+        value = json.loads(result.stdout)
+        self.assertEqual(value["errorCode"], "claim_identity_unavailable")
+        self.assertIn("repair private inventory", value["message"])
+
+        result = self.run_adapter(
+            executable, environment, "ssh-config", "fixture-user"
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("repair private inventory", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

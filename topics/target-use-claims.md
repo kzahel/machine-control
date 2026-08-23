@@ -2,7 +2,7 @@
 
 Topic: `target-use-claims`
 
-Status: decision and active implementation.
+Status: implemented for accepted Windows, macOS, and Linux VM adapters.
 
 ## Scope
 
@@ -119,7 +119,8 @@ the concrete identity and private state location.
 
 If claim state is unreadable, identity cannot be resolved, or time validity is
 uncertain, effectful use fails closed. Status and doctor remain available for
-diagnosis.
+diagnosis. Claim operations return `claim_identity_unavailable` with an
+inventory-repair and doctor remediation when the adapter lacks an exact pin.
 
 ## Workspace interaction
 
@@ -129,7 +130,8 @@ same ownership fact.
 - Workspace acquisition atomically claims the selected or newly derived VM
   before returning it for use.
 - Persistent acquisition refuses while another claim holds the development
-  VM instead of returning its shared handle.
+  VM instead of returning its shared handle; the refusal includes the same
+  public holder attribution and reason as claim status.
 - Isolated and candidate acquisition returns both the workspace handle and
   its claim descriptor.
 - Workspace release requires the matching live claim. It relinquishes the
@@ -149,6 +151,33 @@ Arbitrary direct use of a hypervisor CLI, an unrestricted shell, or a resident
 binary outside the governed interface is not prevented. Stronger separation
 requires a different OS identity, sandbox, or authorization service outside
 the agent's authority.
+
+## Current implementation
+
+**Current:** `bin/machine-control` projects claim policy in target inventory,
+exposes capabilities/status/acquire/check/renew/release, accepts generic
+self-asserted caller metadata, and requires `--claim` before meaningful VM
+operations. `claim --help` and `workspace --help` expose the full workflow
+without assuming a particular coordinator.
+
+**Current:** the Windows and Linux UTM adapters and macOS Tart adapter bind the
+shared claim authority to their existing exact private UUID/name pins. Private
+records live beneath platform workspace state by default. The adapter checks
+the selected claim again immediately before dispatch, so bypassing the common
+client does not accidentally bypass cooperative coordination.
+
+**Current:** persistent and isolated workspace acquisition claims the selected
+resource before it starts. Candidate derivation temporarily claims its stopped
+source, claims the exact derivative before starting it, then returns the
+derivative's public claim descriptor. Release checks the receipt's exact target
+before retain/discard work and releases the claim afterward.
+
+**Current:** claim-free target status and doctor preserve inventory repair and
+readiness diagnosis. The Windows native `target-id` and `pin-target` commands
+also remain available for initial private identity bootstrap; ordinary use
+must wait for an exact pin and live claim, with `ensure-ready` providing the
+explicit path from an off target to a passing doctor. Physical-device adapters
+remain outside the initial policy pending target-specific contention decisions.
 
 ## Validation requirements
 

@@ -20,10 +20,12 @@ mc=bin/machine-control
 
 $mc targets
 $mc --target windows target doctor
-$mc --target windows desktop applications
-$mc --target macos desktop snapshot \
-  --target org.example.Application --query Save
-$mc --target ios ios application launch Settings --relaunch
+claim="$($mc --target windows claim acquire --duration 30m \
+  --reason 'exercise the application workflow' \
+  --claimant-authority example-agent --claimant-id session-42)"
+claim_id="$(jq -r '.data.claim.claimId' <<<"$claim")"
+$mc --target windows --claim "$claim_id" desktop applications
+$mc --target windows claim release "$claim_id"
 ```
 
 Machine Control is an active, pre-1.0 project. Windows, macOS, and Linux
@@ -48,6 +50,8 @@ Machine Control puts those capabilities behind one honest target model:
 - **No routine host interference:** normal VM testing does not focus a
   hypervisor window, steal the host pointer, or type through the controller's
   desktop.
+- **Cooperative exclusive use:** expiring claims tell concurrent callers who
+  is using an exact VM, for what reason, and until when.
 - **Truthful results:** request acceptance, action delivery, observed effect,
   evidence, and uncertainty remain separate.
 - **Recovery without architectural confusion:** outer VM, device-host, and KVM
@@ -166,6 +170,7 @@ Depending on the target, Machine Control can provide:
 - truthful login, lock, interactive-session, integrity, and desktop state;
 - explicitly authorized protected operations on dedicated test appliances;
 - persistent, isolated, and retained-candidate VM workspaces;
+- exclusive, expiring VM-use claims with visible caller attribution;
 - bounded maintenance, reboot proof, candidate validation, and image
   certification; and
 - route, delivery, effect, evidence, host-interference, and uncertainty
@@ -205,8 +210,10 @@ accessibility, XCTest, and ADB keep their real authority and failure modes.
 
 Agent coordination is a separate layer. YepAnywhere is the current surrounding
 coordination plane for agent sessions and cross-host delegation, but it does
-not own machine lifecycle or the machine-control contract. See the
-[system map](SYSTEM-MAP.md) for ownership boundaries.
+not own machine lifecycle or the machine-control contract. Machine Control
+accepts generic caller-supplied claim metadata from any coordinator, CI job,
+terminal, or other environment. See the [system map](SYSTEM-MAP.md) for
+ownership boundaries.
 
 ## Quick start
 
@@ -231,14 +238,20 @@ To connect a real target:
 2. Install that platform's prerequisites and target-resident components.
 3. Put concrete selectors, endpoints, paths, and policy in ignored local
    configuration or an optional private inventory provider.
-4. Run the read-only doctor before requesting a mutation.
+4. Run the read-only doctor, repair private identity if necessary, then claim
+   the target before meaningful use.
 
 On a configured controller:
 
 ```bash
 bin/machine-control inventory status
 bin/machine-control --target windows target doctor
-bin/machine-control --target windows target ensure-ready
+claim="$(bin/machine-control --target windows claim acquire \
+  --duration 30m --reason 'validate the Windows appliance' \
+  --claimant-authority example-agent --claimant-id session-42)"
+claim_id="$(jq -r '.data.claim.claimId' <<<"$claim")"
+bin/machine-control --target windows --claim "$claim_id" target ensure-ready
+bin/machine-control --target windows claim release "$claim_id"
 ```
 
 `doctor` is read-only. `ensure-ready` is the explicit mutating composition: it
@@ -252,18 +265,47 @@ target names are selectors, not credentials or bearer authority.
 
 ## Common workflows
 
+### Claim a VM for exclusive use
+
+```bash
+mc=bin/machine-control
+
+$mc --target windows claim capabilities
+$mc --target windows claim status
+claim="$($mc --target windows claim acquire --duration 30m \
+  --reason 'test the save workflow' \
+  --claimant-authority example-agent --claimant-id session-42 \
+  --session-id task-7 --metadata purpose=acceptance)"
+claim_id="$(jq -r '.data.claim.claimId' <<<"$claim")"
+
+$mc --target windows --claim "$claim_id" target ensure-ready
+$mc --target windows --claim "$claim_id" desktop applications
+$mc --target windows claim renew "$claim_id" --duration 30m
+$mc --target windows claim release "$claim_id"
+```
+
+The authority and identifiers are caller-chosen, bounded, and self-asserted;
+they do not need to come from a particular agent system. Use values your
+current environment can truthfully expose, plus a useful reason. Do not put
+credentials, private endpoints, or provider identities in claim metadata.
+
+Claims are exclusive and expire after a reported interval, so an abandoned
+session cannot block a VM forever. Release promptly in a `finally` block or
+shell trap; renew only while work remains active. The opaque claim ID selects
+the current lease but is not a credential or authorization grant.
+
 ### Inspect and control a desktop
 
 ```bash
 mc=bin/machine-control
 
-$mc --target windows desktop status
-$mc --target windows desktop capabilities
-$mc --target windows desktop applications
-$mc --target windows desktop windows
-$mc --target windows desktop snapshot \
+$mc --target windows --claim "$claim_id" desktop status
+$mc --target windows --claim "$claim_id" desktop capabilities
+$mc --target windows --claim "$claim_id" desktop applications
+$mc --target windows --claim "$claim_id" desktop windows
+$mc --target windows --claim "$claim_id" desktop snapshot \
   --target org.example.Application --query Save
-$mc --target windows desktop capture \
+$mc --target windows --claim "$claim_id" desktop capture \
   --scope window --target active_window
 ```
 
@@ -287,14 +329,20 @@ native operations where a common projection would hide important semantics.
 ### Request a VM workspace
 
 ```bash
-$mc --target macos workspace acquire --intent isolated
-$mc --target macos --workspace w-EXAMPLE123 desktop status
-$mc --target macos workspace release w-EXAMPLE123
+workspace="$($mc --target macos workspace acquire --intent isolated \
+  --reason 'run an isolated application test' \
+  --claimant-authority example-agent --claimant-id session-42)"
+handle="$(jq -r '.data.handle' <<<"$workspace")"
+claim_id="$(jq -r '.data.claim.claimId' <<<"$workspace")"
+$mc --target macos --workspace "$handle" --claim "$claim_id" desktop status
+$mc --target macos --claim "$claim_id" workspace release "$handle"
 ```
 
 Callers request intent—`persistent`, `isolated`, or `candidate`—while the
 platform adapter chooses the safe provider mechanism. Workspace handles are
-opaque selectors backed by private exact-identity receipts.
+opaque selectors backed by private exact-identity receipts. Acquisition also
+returns the workspace's live exclusive-use claim. Release requires that claim,
+performs receipt-bound retain/discard cleanup, and then relinquishes it.
 
 ### Reach a platform-specific operation
 
@@ -319,6 +367,10 @@ that power comes from.
 - **Mutations require exact targets.** Platform adapters bind state-changing
   operations to private provider identities, target roles, and fresh
   observations.
+- **Accepted VMs require live claims.** The authoritative adapter rechecks an
+  expiring exclusive-use claim against exact private identity before ordinary
+  target use. Status, doctor, and claim inspection remain available for
+  coordination and repair.
 - **No silent route escalation.** An inner operation may recommend recovery,
   but it does not silently focus a VM window or invoke a more privileged route.
 - **Delivery is not effect.** Results distinguish request acceptance, action
@@ -362,7 +414,9 @@ Start with the document that matches your question:
 - **What does the common interface guarantee?** Read the
   [contract projections](contracts/README.md),
   [unified desktop client](topics/unified-desktop-client.md), and
-  [capabilities and results](topics/capabilities-and-results.md).
+  [capabilities and results](topics/capabilities-and-results.md). For
+  multi-caller VM coordination, read
+  [target-use claims](topics/target-use-claims.md).
 - **Why is the system shaped this way?** Read
   [architecture](topics/architecture.md),
   [inner-first routing](topics/inner-first-routing.md), and the

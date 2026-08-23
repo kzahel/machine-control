@@ -96,6 +96,18 @@ point for provider/platform options and evidence, then read `GLOSSARY.md`,
 before changing ownership boundaries among YepAnywhere, dotfiles, a testbed, a
 guest-resident provider, or an outer provider.
 
+Before meaningful use of an accepted VM target, run its read-only doctor and
+acquire an exclusive target-use claim through the common Machine Control CLI.
+Supply a truthful caller-chosen authority, claimant ID, reason, and any useful
+bounded session metadata; Machine Control does not depend on a particular
+agent coordinator. Carry the returned claim ID on every target operation,
+renew it during long work, and release it in `finally`/trap-style cleanup.
+Expiry is the forgotten-release backstop, not a substitute for prompt release.
+Workspace acquisition returns both a handle and its already-acquired claim;
+use both, and pass that claim when releasing the workspace. If doctor cannot
+resolve exact private identity, repair the private inventory or pin first and
+rerun doctor rather than bypassing claim enforcement.
+
 Preserve these rules:
 
 - YepAnywhere owns agent-session coordination and cross-host delegation.

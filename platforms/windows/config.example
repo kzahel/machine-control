@@ -55,6 +55,8 @@ WINVM_UI_TASK_NAME='WinVM UI Relay'
 # stay unavailable until exact development/ready-base identities are placed in
 # ignored configuration and their controller readiness is explicitly proven.
 WINVM_WORKSPACE_DEVELOPMENT_NAME=
+# Claim records default to a private subdirectory of workspace state.
+# WINVM_CLAIM_STATE_DIR=
 WINVM_WORKSPACE_DEVELOPMENT_ID=
 WINVM_WORKSPACE_DEVELOPMENT_PROVEN=false
 WINVM_WORKSPACE_READY_BASE_NAME=

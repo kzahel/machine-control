@@ -1129,8 +1129,7 @@ def validate_workspace_result(value: Any, operation: str) -> dict[str, Any]:
     data = value["data"]
     if not value["accepted"]:
         if (
-            data
-            or not isinstance(value.get("errorCode"), str)
+            not isinstance(value.get("errorCode"), str)
             or not value["errorCode"]
             or not isinstance(value.get("message"), str)
             or not value["message"]
@@ -1138,6 +1137,14 @@ def validate_workspace_result(value: Any, operation: str) -> dict[str, Any]:
             raise ClientError(
                 "invalid_workspace_result", "Workspace refusal is invalid", 1
             )
+        if data:
+            _validate_claim_status_data(data)
+            if data["state"] != "held":
+                raise ClientError(
+                    "invalid_workspace_result",
+                    "Workspace conflict holder is invalid",
+                    1,
+                )
         return value
     if "errorCode" in value or "message" in value:
         raise ClientError(
@@ -2439,6 +2446,9 @@ def _claim_adapter_call(
 def handle_claim(
     alias: str, target: dict[str, Any], arguments: list[str]
 ) -> int:
+    if arguments in (["help"], ["-h"], ["--help"]):
+        print(claim_usage())
+        return 0
     if target.get("_claimId") is not None:
         raise ClientError(
             "claim_selection_conflict",
@@ -2644,6 +2654,9 @@ def _workspace_claim_arguments(
 def handle_workspace(
     alias: str, target: dict[str, Any], arguments: list[str]
 ) -> int:
+    if arguments in (["help"], ["-h"], ["--help"]):
+        print(workspace_usage())
+        return 0
     if target.get("_workspaceHandle") is not None:
         raise ClientError(
             "workspace_selection_conflict",
@@ -2894,8 +2907,10 @@ Commands:
   target status|up|suspend|shutdown|force-stop|reboot|doctor|capabilities
          ensure-ready|validate-candidate|prepare-promotion
   claim capabilities|status|acquire|renew|release
+                                    Use `claim --help` for attribution syntax
   maintenance capabilities|audit|repair [--reboot]|certify [--profile ...]
   workspace capabilities|acquire|inventory|release|gc --dry-run
+                                    Use `workspace --help` for claim composition
   desktop status|capabilities|applications|windows|snapshot|action|capture
   desktop input text|key|click|move|drag|scroll
   desktop application launch|activate|terminate
@@ -2907,6 +2922,38 @@ Commands:
   ios snapshot|press|fill|home     Typed physical-iOS XCTest operations
   testbed -- ARG...                Explicit testbed escape hatch
   os -- ARG...                     Explicit guest administration escape hatch
+"""
+
+
+def claim_usage() -> str:
+    return """Usage: machine-control --target ALIAS claim capabilities|status
+       machine-control --target ALIAS claim acquire [--duration DURATION]
+           --reason TEXT --claimant-authority NAMESPACE --claimant-id ID
+           [--session-id ID] [--label TEXT] [--metadata KEY=VALUE]...
+       machine-control --target ALIAS claim renew CLAIM_ID
+           [--duration DURATION]
+       machine-control --target ALIAS claim release CLAIM_ID
+
+Durations accept seconds or an s, m, or h suffix. Caller attribution is
+bounded and self-asserted; do not include secrets or private target identity.
+Carry the returned claim ID with global --claim, renew during active work, and
+release from cleanup. Accepted VM use is exclusive.
+"""
+
+
+def workspace_usage() -> str:
+    return """Usage: machine-control --target ALIAS workspace capabilities
+       machine-control --target ALIAS workspace acquire --intent INTENT
+           [--claim-duration DURATION] --reason TEXT
+           --claimant-authority NAMESPACE --claimant-id ID
+           [--session-id ID] [--label TEXT] [--metadata KEY=VALUE]...
+       machine-control --target ALIAS workspace inventory
+       machine-control --target ALIAS --claim CLAIM_ID workspace release HANDLE
+       machine-control --target ALIAS workspace gc --dry-run
+
+Acquisition returns an opaque workspace handle and its already-acquired
+exclusive target-use claim. Use both for target operations and pass the claim
+when releasing the workspace.
 """
 
 

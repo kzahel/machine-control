@@ -8,9 +8,18 @@ configuration is currently a macOS guest in Tart on an Apple-silicon Mac.
 
 ## Start Here
 
-Run `bin/macvm doctor` before operating the VM. Use `bin/macvm help` for the
-command surface and read `skills/drive-macvm/SKILL.md` for the operating
-workflow.
+Start from the repository root with
+`bin/machine-control --target macos target doctor`. Once it resolves exact
+private identity, acquire an exclusive target-use claim with a reason,
+caller-chosen authority, and claimant ID. Carry the returned claim ID with
+`--claim` on every operation,
+renew it during long work, and release it from cleanup. This metadata is
+coordinator-neutral and self-asserted; use identifiers the current execution
+environment can truthfully provide, never secrets or private endpoints. If
+doctor cannot resolve exact identity, repair the ignored/private inventory and
+rerun doctor before claiming or operating the VM. Use `bin/macvm help` for the
+direct platform command surface and read `skills/drive-macvm/SKILL.md` for the
+operating workflow.
 
 Prefer control channels in this order:
 

@@ -27,7 +27,8 @@ than a frozen cross-device wire protocol.
 - [`workspace-result-v0.schema.json`](workspace-result-v0.schema.json) describes
   acquire, inventory, release, and garbage-collection dry-run results. Its
   handles are opaque selectors backed by private provider receipts, not bearer
-  authority.
+  authority. Accepted VM acquisition also carries the exact workspace's public
+  target-use claim descriptor.
 - [`candidate-assertion-v0.schema.json`](candidate-assertion-v0.schema.json)
   is the minimized adapter-to-client proof of an exact candidate role, power
   state, and absence of workspace ownership. It intentionally omits the

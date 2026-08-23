@@ -25,9 +25,16 @@ fixture_target=''
 window_id=''
 guest_artifact=''
 artifact_handle=''
+claim_id=''
+
+mc_unclaimed() {
+    "$CLIENT" --target "$TARGET" "$@"
+}
 
 mc() {
-    "$CLIENT" --target "$TARGET" "$@"
+    local -a selection=()
+    if [[ -n "$claim_id" ]]; then selection=(--claim "$claim_id"); fi
+    "$CLIENT" --target "$TARGET" "${selection[@]}" "$@"
 }
 
 fail() {
@@ -76,6 +83,9 @@ cleanup() {
             fi
             ;;
     esac
+    if [[ -n "$claim_id" ]]; then
+        mc_unclaimed claim release "$claim_id" >/dev/null 2>&1 || true
+    fi
     find "$temporary" -type f -delete 2>/dev/null || true
     find "$temporary" -depth -type d -empty -delete 2>/dev/null || true
 }
@@ -88,6 +98,13 @@ jq -e '.accepted == true and .data.powerState == "running"' \
 doctor="$(mc target doctor)"
 jq -e '.ready == true and .states.outer == "prohibited"' \
     <<<"$doctor" >/dev/null || fail 'doctor did not report guarded readiness'
+
+claim="$(mc_unclaimed claim acquire --duration 2h \
+    --reason 'run guarded live desktop conformance' \
+    --claimant-authority machine-control-conformance \
+    --claimant-id "live-$TARGET-$$")"
+claim_id="$(jq -er '.data.claim.claimId' <<<"$claim")" ||
+    fail 'target-use claim acquisition failed'
 
 remote_status="$(mc desktop status)"
 local_status="$(mc desktop call-local '{"operation":"status"}')"

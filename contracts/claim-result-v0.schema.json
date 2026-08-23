@@ -11,9 +11,96 @@
     "uncertainty": { "const": "none" },
     "errorCode": { "type": "string", "minLength": 1 },
     "message": { "type": "string", "minLength": 1 },
-    "data": { "type": "object" },
+    "data": {
+      "oneOf": [
+        { "$ref": "#/$defs/held" },
+        { "$ref": "#/$defs/available" },
+        { "$ref": "#/$defs/check" },
+        { "$ref": "#/$defs/release" },
+        { "type": "object", "maxProperties": 0 }
+      ]
+    },
     "target": { "type": "object" },
     "adapter": { "type": "object" }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "claimant": {
+      "type": "object",
+      "required": ["authority", "id", "assurance", "metadata"],
+      "properties": {
+        "authority": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "assurance": { "const": "self_asserted" },
+        "sessionId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "metadata": {
+          "type": "object",
+          "maxProperties": 16,
+          "additionalProperties": { "type": "string", "maxLength": 256 }
+        }
+      },
+      "additionalProperties": false
+    },
+    "claim": {
+      "type": "object",
+      "required": [
+        "claimId", "mode", "generation", "claimant", "reason",
+        "acquiredAt", "renewedAt", "expiresAt", "maxExpiresAt",
+        "remainingSeconds"
+      ],
+      "properties": {
+        "claimId": { "type": "string", "pattern": "^c-[a-f0-9]{24}$" },
+        "mode": { "const": "exclusive" },
+        "generation": { "type": "integer", "minimum": 1 },
+        "claimant": { "$ref": "#/$defs/claimant" },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "acquiredAt": { "type": "string", "format": "date-time" },
+        "renewedAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "maxExpiresAt": { "type": "string", "format": "date-time" },
+        "remainingSeconds": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "held": {
+      "type": "object",
+      "required": ["state", "claim"],
+      "properties": {
+        "state": { "const": "held" },
+        "claim": { "$ref": "#/$defs/claim" }
+      },
+      "additionalProperties": false
+    },
+    "available": {
+      "type": "object",
+      "required": ["state", "generation"],
+      "properties": {
+        "state": { "const": "available" },
+        "generation": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "check": {
+      "type": "object",
+      "required": ["state", "claimId", "generation", "expiresAt"],
+      "properties": {
+        "state": { "const": "held" },
+        "claimId": { "type": "string", "pattern": "^c-[a-f0-9]{24}$" },
+        "generation": { "type": "integer", "minimum": 1 },
+        "expiresAt": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "release": {
+      "type": "object",
+      "required": ["claimId", "generation", "disposition"],
+      "properties": {
+        "claimId": { "type": "string", "pattern": "^c-[a-f0-9]{24}$" },
+        "generation": { "type": "integer", "minimum": 0 },
+        "disposition": { "enum": ["released", "alreadyReleased"] }
+      },
+      "additionalProperties": false
+    }
+  }
 }

@@ -105,12 +105,13 @@ workspace_capacity_preflight() {
 }
 
 workspace_refusal() {
-    local operation="$1" code="$2" message="$3"
+    local operation="$1" code="$2" message="$3" data="${4:-}"
+    if [[ -z "$data" ]]; then data='{}'; fi
     jq -n --arg operation "$operation" --arg code "$code" \
-        --arg message "$message" \
+        --arg message "$message" --argjson data "$data" \
         '{schema:"machine-control-workspace/v0", operation:$operation,
           accepted:false, uncertainty:"none", errorCode:$code,
-          message:$message, data:{}}'
+          message:$message, data:$data}'
     return 1
 }
 
@@ -176,13 +177,14 @@ workspace_parse_claimed_acquire() {
 }
 
 workspace_claim_refusal_from_result() {
-    local operation="$1" value="$2" code message
+    local operation="$1" value="$2" code message data
     code="$(jq -r '.errorCode // "claim_operation_failed"' <<<"$value" \
         2>/dev/null || printf claim_operation_failed)"
     message="$(jq -r '.message // "The target-use claim operation failed"' \
         <<<"$value" 2>/dev/null || \
         printf 'The target-use claim operation failed')"
-    workspace_refusal "$operation" "$code" "$message"
+    data="$(jq -c '.data // {}' <<<"$value" 2>/dev/null || printf '{}')"
+    workspace_refusal "$operation" "$code" "$message" "$data"
 }
 
 workspace_claim_acquire_exact() {

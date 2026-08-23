@@ -18,6 +18,9 @@ The live script uses only `bin/machine-control`. Platform cases provide fixture
 setup, independent-effect reads, and cleanup through the explicit `testbed` or
 `os` escape hatches. The ordinary status, capabilities, local/outside parity,
 snapshot, action, capture, and artifact operations all use the common client.
+It acquires one two-hour exclusive target-use claim after the read-only doctor,
+carries that claim through every operation, and releases it from its cleanup
+trap even when conformance fails.
 Every run forces the relevant outer-UI prohibition and emits one minimized
 `machine-control-common-desktop-conformance/v0` result.
 
@@ -40,6 +43,12 @@ of later adapter calls, normalized mechanisms, typed refusal, private-field
 rejection, receipt-bound release, and dry-run-only garbage collection. Shared
 provider tests separately exercise private receipt modes/redaction and UTM
 persistent, disposable, and policy-gated full-copy behavior.
+
+The same fixtures cover coordinator-neutral target-use claims: policy
+discovery, bounded attribution, acquisition/status/renewal/release, global
+claim selection, pre-dispatch refusal, and atomic workspace composition.
+Shared provider tests add exact-resource contention, fencing, expiry, private
+state permissions, adapter enforcement, and claim-checked workspace cleanup.
 
 The same fake adapter proves that `target ensure-ready` is a no-op when ready,
 starts an off target only through its declared `up` operation, and refuses to

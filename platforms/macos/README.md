@@ -40,6 +40,10 @@ tart clone ghcr.io/cirruslabs/macos-tahoe-base:latest tahoe-base
 cd ~/code/machine-control/platforms/macos
 # Copy config.example to ignored config.local, then bind the selected VM as
 # an exact candidate with matching MACVM_NAME and MACVM_EXPECTED_NAME.
+claim="$(../../bin/machine-control --target macos claim acquire \
+  --duration 30m --reason 'prepare the macOS appliance' \
+  --claimant-authority example-agent --claimant-id session-42)"
+export MACHINE_CONTROL_CLAIM_ID="$(jq -r '.data.claim.claimId' <<<"$claim")"
 bin/macvm up
 bin/macvm deploy-ui
 bin/macvm authorize-ui
@@ -51,6 +55,13 @@ The final authorization opens an explicit guest macOS consent flow. Follow
 Lifecycle commands fail closed until ignored/private configuration binds an
 exact candidate or disposable name. Public example defaults cannot start,
 stop, suspend, or shut down a VM.
+
+Accepted VM use also requires the exact target's live exclusive claim. Direct
+commands read `MACHINE_CONTROL_CLAIM_ID`; the common client accepts the same ID
+with `--claim`. Renew it during long work and release through the common client
+from trap/finally cleanup. Caller authority and identity are bounded,
+self-asserted coordination metadata and are not tied to a particular agent
+system.
 
 ## Daily Use
 

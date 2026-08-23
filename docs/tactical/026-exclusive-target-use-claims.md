@@ -1,6 +1,6 @@
 # Tactical 026: Exclusive Target-Use Claims
 
-Status: active
+Status: complete
 
 Topics: [`target-use-claims`](../../topics/target-use-claims.md),
 [`vm-workspaces-and-storage-policy`](../../topics/vm-workspaces-and-storage-policy.md),
@@ -81,5 +81,33 @@ be exercised.
 
 ## Result
 
-Active. Final implementation, evidence, deviations, and remaining work will
-replace this section when the tactical completes.
+Completed on 2026-08-23.
+
+- Published the coordinator-neutral claim contract, vocabulary, ownership,
+  exact-identity and workspace rules, schemas, topic, and agent guidance in
+  commit `9d5c570`.
+- Added the private atomic claim authority, fencing generations, duration and
+  metadata bounds, public minimization, permissions, and contention tests in
+  commit `5d52de4`.
+- Added common claim operations, policy discovery, strict validation,
+  pre-dispatch checks, and workspace attribution in commit `adcf5e6`.
+- Enforced claims in the Windows/Linux UTM and macOS Tart adapters and composed
+  claim acquisition/release with persistent, isolated, and candidate
+  workspaces in commit `289bdc1`.
+- Added public workflows, subcommand help, platform/operator guidance, live
+  conformance cleanup, and this completed record in the final documentation
+  commit.
+
+Portable validation passed the common coordinator, claim, workspace, Android,
+ChromeOS, iOS, Quest, and Steam Deck suites plus tracked JSON, Bash syntax, and
+whitespace checks. The macOS native static suite also passed. The configured
+Windows, macOS, and Linux adapter identities each passed live acquire/check/
+release and a bounded two-caller contention exercise: one holder won, the
+other received `target_claimed`, and the winning claim was released. These
+live checks exercised claim arbitration only; they did not boot or control a
+VM.
+
+No YepAnywhere or other coordinator files were changed. Physical-device
+claims remain a future target-specific decision, as scoped. The current
+same-user boundary coordinates cooperating callers and does not prevent direct
+hypervisor use or another process with equivalent filesystem authority.

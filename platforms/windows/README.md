@@ -69,6 +69,22 @@ but do not authorize mutation. Copy `config.example` to ignored `config.local`,
 pin its provider-native UUID and role with `bin/winvm pin-target ROLE`, where
 the role is `source`, `candidate`, or `seal`, before using mutating commands.
 
+Accepted VM use is exclusive. From the repository root, acquire a bounded
+claim with coordinator-neutral attribution before bootstrap or daily work:
+
+```bash
+claim="$(bin/machine-control --target windows claim acquire \
+  --duration 30m --reason 'prepare the Windows appliance' \
+  --claimant-authority example-agent --claimant-id session-42)"
+export MACHINE_CONTROL_CLAIM_ID="$(jq -r '.data.claim.claimId' <<<"$claim")"
+```
+
+Pass that ID as `--claim "$MACHINE_CONTROL_CLAIM_ID"` to the common client.
+Direct `bin/winvm` examples below read the exported ID. Renew during long work
+and release through the common client from trap/finally cleanup. Claim status,
+doctor, capabilities, `target-id`, and `pin-target` remain available without a
+claim so private inventory can be diagnosed and initially pinned.
+
 For a fresh guest, install UTM Windows Guest Tools, log into Windows, and
 stage the OpenSSH bootstrap plus your public key through the guest agent:
 

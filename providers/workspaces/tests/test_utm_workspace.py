@@ -105,6 +105,10 @@ class UtmWorkspaceTests(unittest.TestCase):
         result, conflict = self.acquire("persistent")
         self.assertEqual(result.returncode, 1)
         self.assertEqual(conflict["errorCode"], "target_claimed")
+        self.assertEqual(
+            conflict["data"]["claim"]["claimant"]["authority"],
+            "workspace-tests",
+        )
 
         result, refused = self.run_cli(
             "workspace-release", "--handle", handle, "--json"

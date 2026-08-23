@@ -37,6 +37,10 @@ daily command or UI contracts.
 cd ~/code/machine-control/platforms/linux
 # Copy config.example to ignored config.local, then bind the selected VM's
 # exact name and UUID with LINUXVM_TARGET_ROLE=candidate.
+claim="$(../../bin/machine-control --target linux claim acquire \
+  --duration 30m --reason 'prepare the Linux appliance' \
+  --claimant-authority example-agent --claimant-id session-42)"
+export MACHINE_CONTROL_CLAIM_ID="$(jq -r '.data.claim.claimId' <<<"$claim")"
 bin/linuxvm up
 bin/linuxvm bootstrap --profile development
 bin/linuxvm doctor
@@ -49,6 +53,13 @@ UTM window and needs no SSH access.
 Lifecycle commands fail closed until ignored/private configuration binds the
 candidate or disposable role to an exact VM name and UUID. Read-only status
 remains available without that authority.
+
+Accepted VM use also requires the exact target's live exclusive claim. Direct
+commands read `MACHINE_CONTROL_CLAIM_ID`; the common client accepts the same ID
+with `--claim`. Renew it during long work and release through the common client
+from trap/finally cleanup. Caller authority and identity are bounded,
+self-asserted coordination metadata and are not tied to a particular agent
+system.
 
 ## Daily Use
 

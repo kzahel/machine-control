@@ -131,7 +131,7 @@ command="${1:-help}"
 shift || true
 
 case "$command" in
-    help|-h|--help|doctor|status|capabilities|claim-*|workspace-capabilities|workspace-inventory|workspace-gc) ;;
+    help|-h|--help|doctor|status|capabilities|target-id|pin-target|claim-*|workspace-capabilities|workspace-inventory|workspace-gc) ;;
     workspace-acquire|workspace-release) ;;
     *) require_target_claim ;;
 esac

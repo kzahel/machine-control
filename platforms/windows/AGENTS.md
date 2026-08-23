@@ -11,17 +11,35 @@ configuration is currently a Windows 11 guest in UTM/QEMU on macOS.
 Start at the repository root. Run
 `bin/machine-control --target windows target doctor` before operating the VM;
 the common client supplies the controller's private inventory without exposing
-it. Use `bin/machine-control --target windows testbed -- help` for the native
+it. Then inspect or acquire an exclusive claim, use its returned ID on every
+operation, and release it promptly:
+
+```bash
+mc=bin/machine-control
+claim="$($mc --target windows claim acquire --duration 30m \
+  --reason 'describe this work' --claimant-authority example-agent \
+  --claimant-id session-42)"
+claim_id="$(jq -r '.data.claim.claimId' <<<"$claim")"
+$mc --target windows --claim "$claim_id" target ensure-ready
+$mc --target windows claim release "$claim_id"
+```
+
+Use caller metadata from the current environment; do not assume a particular
+coordinator or put secrets and private infrastructure values in it. Renew a
+long-running claim and release it from cleanup even after failure. Use
+`bin/machine-control --target windows testbed -- help` for the native
 command surface and read `skills/drive-winvm/SKILL.md` for the operating
 workflow. Invoke `bin/winvm` directly only when ignored configuration or the
 documented `WINVM_*` inventory environment is already present.
 
 If doctor reports that the exact pinned target is not registered in UTM, use
-`bin/machine-control --target windows testbed -- repair-registration`. That
-operation verifies the on-disk bundle against the existing private name and
-UUID before registering it and does not boot the VM. Do not re-pin first; a
-re-pin is appropriate only when the verified bundle repair refuses a genuine
-private-inventory mismatch.
+the existing UUID pin to acquire a claim, then run the native
+`repair-registration` command through that claim. The operation verifies the
+on-disk bundle against the existing private name and UUID before registering
+it and does not boot the VM. Do not re-pin first; a re-pin is appropriate only
+when the verified bundle repair refuses a genuine private-inventory mismatch.
+If no exact UUID is pinned yet, `target-id` and `pin-target` are the bounded
+native inventory-bootstrap commands; rerun doctor before acquiring a claim.
 
 Prefer control channels in this order:
 

@@ -38,6 +38,8 @@ MACVM_SSH_STRICT_HOST_KEY_CHECKING=accept-new
 # isolated or candidate derivation. Concrete names remain in ignored/private
 # configuration.
 MACVM_WORKSPACE_DEVELOPMENT_NAME=tahoe-base
+# Claim records default to a private subdirectory of workspace state.
+# MACVM_CLAIM_STATE_DIR=
 MACVM_WORKSPACE_DEVELOPMENT_PROVEN=false
 MACVM_WORKSPACE_READY_BASE_NAME=
 MACVM_WORKSPACE_READY_BASE_PROVEN=false

@@ -149,6 +149,23 @@ class ClientTests(unittest.TestCase):
             "self_asserted",
         )
 
+    def test_claim_and_workspace_help_explain_cleanup(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "claim", "--help"
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertIsNone(value)
+        self.assertIn("--claimant-authority", result.stdout)
+        self.assertIn("release from cleanup", result.stdout)
+
+        result, value = self.run_cli(
+            "--target", "fixture", "workspace", "--help"
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertIsNone(value)
+        self.assertIn("already-acquired", result.stdout)
+        self.assertIn("workspace release", result.stdout)
+
     def test_claim_acquire_translates_duration_and_bounded_metadata(self):
         log = self.directory / "arguments.json"
         result, value = self.run_cli(
