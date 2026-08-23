@@ -5,6 +5,10 @@ set -euo pipefail
 readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../scripts/common.sh
 source "$REPO_DIR/scripts/common.sh"
+# shellcheck source=../../../providers/claims/common.sh
+source "$MACVM_REPO_DIR/../../providers/claims/common.sh"
+
+readonly MACVM_CLAIM_PROVIDER=tart-macos
 
 usage() {
     cat <<'EOF'
@@ -12,6 +16,9 @@ Usage: macvm COMMAND [ARG...]
 
 Start here:
   doctor [--json]        Check Tart, guest agent, desktop, capture, and UI access
+  claim-capabilities | claim-status | claim-acquire | claim-check
+  claim-renew | claim-release
+                         Coordinate exclusive use of the exact pinned target
   up                     Start/resume the VM and print its current IPv4 address
   exec COMMAND [ARG...]  Run a command through the Tart guest agent
   shell                  Open an interactive zsh through the Tart guest agent
@@ -79,12 +86,30 @@ provider() {
     exec "$REPO_DIR/providers/tart-macos/provider.sh" "$@"
 }
 
+claim_command() {
+    claim_adapter_main "$MACVM_CLAIM_STATE_DIR" "$MACVM_CLAIM_PROVIDER" \
+        "$MACVM_EXPECTED_NAME" "$command" "$@"
+}
+
+require_target_claim() {
+    claim_require_tools || return
+    claim_require_exact "$MACVM_CLAIM_STATE_DIR" "$MACVM_CLAIM_PROVIDER" \
+        "$MACVM_EXPECTED_NAME"
+}
+
 command="${1:-help}"
 shift || true
 
 case "$command" in
+    help|-h|--help|doctor|status|claim-*|workspace-capabilities|workspace-inventory|workspace-gc) ;;
+    workspace-acquire|workspace-release) ;;
+    *) require_target_claim ;;
+esac
+
+case "$command" in
     help|-h|--help) usage ;;
     doctor)
+        export MACHINE_CONTROL_CLAIM_POLICY=optional
         if [[ "${1:-}" == "--json" ]]; then
             exec "$REPO_DIR/scripts/doctor-json.sh"
         fi
@@ -103,6 +128,9 @@ case "$command" in
     bootstrap) exec "$REPO_DIR/scripts/bootstrap-appliance.sh" "$@" ;;
     appliance-certify) exec "$REPO_DIR/scripts/certify-appliance.sh" "$@" ;;
     candidate-status) exec "$REPO_DIR/scripts/candidate-status.sh" "$@" ;;
+    claim-capabilities|claim-status|claim-acquire|claim-check|claim-renew|claim-release)
+        claim_command "$@"
+        ;;
     reset-admin-fixture) exec "$REPO_DIR/scripts/reset-admin-fixture.sh" "$@" ;;
     reset-privacy-fixture) exec "$REPO_DIR/scripts/reset-privacy-fixture.sh" "$@" ;;
     remove-fixture) exec "$REPO_DIR/scripts/remove-fixture.sh" "$@" ;;

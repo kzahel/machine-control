@@ -2,6 +2,10 @@
 
 set -euo pipefail
 
+# This suite isolates Tart and resident-control behavior. Claim enforcement is
+# covered by the shared cross-adapter claim suite.
+export MACHINE_CONTROL_CLAIM_POLICY=optional
+
 mode="${1:-}"
 if [[ -n "$mode" && "$mode" != "--static" ]]; then
     printf 'Usage: tests/smoke.sh [--static]\n' >&2

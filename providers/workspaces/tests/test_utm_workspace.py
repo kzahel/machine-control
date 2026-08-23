@@ -21,6 +21,7 @@ class UtmWorkspaceTests(unittest.TestCase):
         self.directory = Path(self.temporary.name)
         self.state = self.directory / "utm.json"
         self.receipts = self.directory / "receipts"
+        self.claims = self.directory / "claims"
         self.storage = self.directory / "storage"
         self.storage.mkdir()
         self.state.write_text(json.dumps({
@@ -44,15 +45,18 @@ class UtmWorkspaceTests(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
-    def run_cli(self, *arguments, full_copy=None):
+    def run_cli(self, *arguments, full_copy=None, claim_id=None):
         environment = {
             **os.environ,
             "MACHINE_CONTROL_UTM_FIXTURE_STATE": str(self.state),
             "MACHINE_CONTROL_UTM_FIXTURE_RECEIPTS": str(self.receipts),
+            "MACHINE_CONTROL_UTM_FIXTURE_CLAIMS": str(self.claims),
             "MACHINE_CONTROL_UTM_FIXTURE_STORAGE": str(self.storage),
         }
         if full_copy is not None:
             environment["MACHINE_CONTROL_UTM_FIXTURE_FULL_COPY"] = full_copy
+        if claim_id is not None:
+            environment["MACHINE_CONTROL_CLAIM_ID"] = claim_id
         result = subprocess.run(
             ["bash", str(HARNESS), *arguments],
             text=True,
@@ -62,6 +66,16 @@ class UtmWorkspaceTests(unittest.TestCase):
         )
         value = json.loads(result.stdout) if result.stdout.strip() else None
         return result, value
+
+    def acquire(self, intent, *, full_copy=None):
+        return self.run_cli(
+            "workspace-acquire", "--intent", intent,
+            "--reason", f"test {intent} workspace",
+            "--claimant-authority", "workspace-tests",
+            "--claimant-id", self.id(),
+            "--metadata-json", '{}', "--json",
+            full_copy=full_copy,
+        )
 
     def vm(self, identifier):
         for vm in json.loads(self.state.read_text(encoding="utf-8"))["vms"]:
@@ -81,28 +95,46 @@ class UtmWorkspaceTests(unittest.TestCase):
         self.assertNotIn("dev-id", result.stdout)
 
     def test_persistent_reuses_and_retains_development_vm(self):
-        result, value = self.run_cli(
-            "workspace-acquire", "--intent", "persistent", "--json"
-        )
+        result, value = self.acquire("persistent")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(value["data"]["actualMechanism"], "existing_instance")
         self.assertEqual(self.vm("dev-id")["state"], "started")
         handle = value["data"]["handle"]
+        claim_id = value["data"]["claim"]["claimId"]
+
+        result, conflict = self.acquire("persistent")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(conflict["errorCode"], "target_claimed")
+
+        result, refused = self.run_cli(
+            "workspace-release", "--handle", handle, "--json"
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(refused["errorCode"], "claim_required")
+        self.assertEqual(self.vm("dev-id")["state"], "started")
 
         result, value = self.run_cli(
-            "workspace-release", "--handle", handle, "--json"
+            "workspace-release", "--handle", handle, "--json",
+            claim_id=claim_id,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(value["data"]["disposition"], "retained")
         self.assertEqual(self.vm("dev-id")["state"], "started")
 
     def test_isolated_disposable_release_stops_without_deleting_base(self):
-        result, value = self.run_cli(
-            "workspace-acquire", "--intent", "isolated", "--json"
-        )
+        result, value = self.acquire("isolated")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(self.vm("base-id")["disposable"])
         handle = value["data"]["handle"]
+        claim_id = value["data"]["claim"]["claimId"]
+
+        result, refused = self.run_cli(
+            "workspace-release", "--handle", handle, "--json",
+            claim_id="c-000000000000000000000000",
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(refused["errorCode"], "claim_mismatch")
+        self.assertEqual(self.vm("base-id")["state"], "started")
 
         result, inventory = self.run_cli("workspace-inventory", "--json")
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -110,7 +142,8 @@ class UtmWorkspaceTests(unittest.TestCase):
         self.assertNotIn("fixture ready base", result.stdout)
 
         result, value = self.run_cli(
-            "workspace-release", "--handle", handle, "--json"
+            "workspace-release", "--handle", handle, "--json",
+            claim_id=claim_id,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(value["data"]["disposition"], "discarded")
@@ -118,24 +151,21 @@ class UtmWorkspaceTests(unittest.TestCase):
         self.assertIsNotNone(self.vm("base-id"))
 
     def test_full_copy_candidate_requires_policy_and_is_retained(self):
-        result, value = self.run_cli(
-            "workspace-acquire", "--intent", "candidate", "--json"
-        )
+        result, value = self.acquire("candidate")
         self.assertEqual(result.returncode, 1)
         self.assertEqual(value["errorCode"], "intent_unavailable")
 
-        result, value = self.run_cli(
-            "workspace-acquire", "--intent", "candidate", "--json",
-            full_copy="allowed",
-        )
+        result, value = self.acquire("candidate", full_copy="allowed")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(value["data"]["actualMechanism"], "full_copy")
         handle = value["data"]["handle"]
+        claim_id = value["data"]["claim"]["claimId"]
         self.assertEqual(self.vm("candidate-id-1")["state"], "started")
 
         result, value = self.run_cli(
             "workspace-release", "--handle", handle, "--json",
             full_copy="allowed",
+            claim_id=claim_id,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(value["data"]["disposition"], "retained")

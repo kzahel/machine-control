@@ -165,14 +165,24 @@ utm_workspace_acquire_persistent() {
             'The persistent development workspace is not guarded and available'
         return $?
     fi
-    local identifier="$UTM_WORKSPACE_DEVELOPMENT_ID" handle data
+    local identifier="$UTM_WORKSPACE_DEVELOPMENT_ID" handle data claim claim_id
     if [[ -n "$(utm_workspace_existing_receipt "$identifier" isolated)" ]]; then
         workspace_refusal acquire workspace_in_use \
             'The development target has an active disposable workspace receipt'
         return $?
     fi
+    if ! claim="$(workspace_claim_acquire_exact \
+        "$UTM_WORKSPACE_CLAIM_STATE_DIR" "$UTM_WORKSPACE_PROVIDER" \
+        "$identifier")"; then
+        printf '%s\n' "$claim"
+        return 1
+    fi
+    claim_id="$(jq -r '.claimId // empty' <<<"$claim")"
     if [[ "$(utm_workspace_status "$identifier")" != "started" ]]; then
         utm_workspace_start "$identifier" persistent || {
+            workspace_claim_release_exact "$UTM_WORKSPACE_CLAIM_STATE_DIR" \
+                "$UTM_WORKSPACE_PROVIDER" "$identifier" "$claim_id" \
+                >/dev/null 2>&1 || true
             workspace_refusal acquire workspace_start_failed \
                 'The persistent workspace did not start'
             return $?
@@ -180,17 +190,28 @@ utm_workspace_acquire_persistent() {
     fi
     handle="$(utm_workspace_existing_receipt "$identifier" persistent)"
     if [[ -z "$handle" ]]; then
-        handle="$(utm_workspace_create_receipt persistent existing_instance \
-            retained none "$UTM_WORKSPACE_DEVELOPMENT_NAME" "$identifier")" || return
+        if ! handle="$(utm_workspace_create_receipt persistent existing_instance \
+            retained none "$UTM_WORKSPACE_DEVELOPMENT_NAME" "$identifier")"; then
+            workspace_claim_release_exact "$UTM_WORKSPACE_CLAIM_STATE_DIR" \
+                "$UTM_WORKSPACE_PROVIDER" "$identifier" "$claim_id" \
+                >/dev/null 2>&1 || true
+            return 1
+        fi
     else
-        workspace_receipts "$UTM_WORKSPACE_STATE_DIR" update \
-            --handle "$handle" --state running --cleanup none
+        if ! workspace_receipts "$UTM_WORKSPACE_STATE_DIR" update \
+            --handle "$handle" --state running --cleanup none; then
+            workspace_claim_release_exact "$UTM_WORKSPACE_CLAIM_STATE_DIR" \
+                "$UTM_WORKSPACE_PROVIDER" "$identifier" "$claim_id" \
+                >/dev/null 2>&1 || true
+            return 1
+        fi
     fi
     data="$(jq -n --arg handle "$handle" \
         '{handle:$handle, requestedIntent:"persistent",
           actualMechanism:"existing_instance", retention:"retained",
           cleanup:"none", storage:{costClass:"unknown",
             measurement:"unavailable", preflight:"pass"}}')"
+    data="$(workspace_data_with_claim "$data" "$claim")"
     workspace_result acquire none "$data"
 }
 
@@ -201,6 +222,7 @@ utm_workspace_acquire_isolated() {
         return $?
     fi
     local identifier="$UTM_WORKSPACE_READY_BASE_ID" count handle data free_bytes
+    local claim claim_id
     if [[ "$(utm_workspace_status "$identifier")" != "stopped" ]]; then
         workspace_refusal acquire source_not_stopped \
             'Disposable execution requires the ready base to be stopped'
@@ -219,13 +241,28 @@ utm_workspace_acquire_isolated() {
             'The configured workspace storage reserve is unavailable'
         return $?
     fi
-    handle="$(utm_workspace_create_receipt isolated \
+    if ! claim="$(workspace_claim_acquire_exact \
+        "$UTM_WORKSPACE_CLAIM_STATE_DIR" "$UTM_WORKSPACE_PROVIDER" \
+        "$identifier")"; then
+        printf '%s\n' "$claim"
+        return 1
+    fi
+    claim_id="$(jq -r '.claimId // empty' <<<"$claim")"
+    if ! handle="$(utm_workspace_create_receipt isolated \
         provider_disposable_overlay discardOnRelease release \
         "$UTM_WORKSPACE_READY_BASE_NAME" "$identifier" \
-        "$UTM_WORKSPACE_READY_BASE_NAME" "$identifier")" || return
+        "$UTM_WORKSPACE_READY_BASE_NAME" "$identifier")"; then
+        workspace_claim_release_exact "$UTM_WORKSPACE_CLAIM_STATE_DIR" \
+            "$UTM_WORKSPACE_PROVIDER" "$identifier" "$claim_id" \
+            >/dev/null 2>&1 || true
+        return 1
+    fi
     if ! utm_workspace_start "$identifier" disposable; then
         workspace_receipts "$UTM_WORKSPACE_STATE_DIR" update \
             --handle "$handle" --state unknown --cleanup pending || true
+        workspace_claim_release_exact "$UTM_WORKSPACE_CLAIM_STATE_DIR" \
+            "$UTM_WORKSPACE_PROVIDER" "$identifier" "$claim_id" \
+            >/dev/null 2>&1 || true
         workspace_refusal acquire workspace_start_failed \
             'The disposable workspace was retained for diagnosis but did not start'
         return $?
@@ -236,6 +273,7 @@ utm_workspace_acquire_isolated() {
           retention:"discardOnRelease", cleanup:"providerDiscardOnStop",
           storage:{costClass:"overlay", measurement:"estimate",
             preflight:"pass"}}')"
+    data="$(workspace_data_with_claim "$data" "$claim")"
     workspace_result acquire bounded "$data"
 }
 
@@ -246,7 +284,8 @@ utm_workspace_acquire_candidate() {
         return $?
     fi
     local source_id="$UTM_WORKSPACE_READY_BASE_ID" count free_bytes
-    local destination target_id handle data
+    local destination target_id handle data source_claim source_claim_id
+    local claim claim_id
     if [[ "$(utm_workspace_status "$source_id")" != "stopped" ]]; then
         workspace_refusal acquire source_not_stopped \
             'Candidate derivation requires the ready base to be stopped'
@@ -279,24 +318,58 @@ utm_workspace_acquire_candidate() {
             'The generated workspace destination already exists'
         return $?
     fi
+    if ! source_claim="$(workspace_claim_acquire_exact \
+        "$UTM_WORKSPACE_CLAIM_STATE_DIR" "$UTM_WORKSPACE_PROVIDER" \
+        "$source_id")"; then
+        printf '%s\n' "$source_claim"
+        return 1
+    fi
+    source_claim_id="$(jq -r '.claimId // empty' <<<"$source_claim")"
     "$UTM_WORKSPACE_CLI" clone --hide "$source_id" --name "$destination" \
         >/dev/null || {
+            workspace_claim_release_exact "$UTM_WORKSPACE_CLAIM_STATE_DIR" \
+                "$UTM_WORKSPACE_PROVIDER" "$source_id" "$source_claim_id" \
+                >/dev/null 2>&1 || true
             workspace_refusal acquire derivation_failed \
                 'The provider could not derive a candidate workspace'
             return $?
         }
     target_id="$(utm_workspace_id_for_name "$destination")"
     if [[ -z "$target_id" || "$(utm_workspace_status "$target_id")" != "stopped" ]]; then
+        workspace_claim_release_exact "$UTM_WORKSPACE_CLAIM_STATE_DIR" \
+            "$UTM_WORKSPACE_PROVIDER" "$source_id" "$source_claim_id" \
+            >/dev/null 2>&1 || true
         workspace_refusal acquire derivation_identity_unknown \
             'The provider did not return an exact stopped candidate identity'
         return $?
     fi
-    handle="$(utm_workspace_create_receipt candidate full_copy retained none \
+    if ! claim="$(workspace_claim_acquire_exact \
+        "$UTM_WORKSPACE_CLAIM_STATE_DIR" "$UTM_WORKSPACE_PROVIDER" \
+        "$target_id")"; then
+        workspace_claim_release_exact "$UTM_WORKSPACE_CLAIM_STATE_DIR" \
+            "$UTM_WORKSPACE_PROVIDER" "$source_id" "$source_claim_id" \
+            >/dev/null 2>&1 || true
+        printf '%s\n' "$claim"
+        return 1
+    fi
+    claim_id="$(jq -r '.claimId // empty' <<<"$claim")"
+    workspace_claim_release_exact "$UTM_WORKSPACE_CLAIM_STATE_DIR" \
+        "$UTM_WORKSPACE_PROVIDER" "$source_id" "$source_claim_id" \
+        >/dev/null 2>&1 || true
+    if ! handle="$(utm_workspace_create_receipt candidate full_copy retained none \
         "$destination" "$target_id" "$UTM_WORKSPACE_READY_BASE_NAME" \
-        "$source_id")" || return
+        "$source_id")"; then
+        workspace_claim_release_exact "$UTM_WORKSPACE_CLAIM_STATE_DIR" \
+            "$UTM_WORKSPACE_PROVIDER" "$target_id" "$claim_id" \
+            >/dev/null 2>&1 || true
+        return 1
+    fi
     if ! utm_workspace_start "$target_id" persistent; then
         workspace_receipts "$UTM_WORKSPACE_STATE_DIR" update \
             --handle "$handle" --state unknown || true
+        workspace_claim_release_exact "$UTM_WORKSPACE_CLAIM_STATE_DIR" \
+            "$UTM_WORKSPACE_PROVIDER" "$target_id" "$claim_id" \
+            >/dev/null 2>&1 || true
         workspace_refusal acquire workspace_start_failed \
             'The retained candidate did not start'
         return $?
@@ -306,6 +379,7 @@ utm_workspace_acquire_candidate() {
           actualMechanism:"full_copy", retention:"retained", cleanup:"none",
           storage:{costClass:"full_copy", measurement:"estimate",
             preflight:"pass"}}')"
+    data="$(workspace_data_with_claim "$data" "$claim")"
     workspace_result acquire bounded "$data"
 }
 
@@ -320,8 +394,8 @@ utm_workspace_acquire_inner() {
 }
 
 utm_workspace_acquire() {
-    if [[ $# -ne 3 || "$1" != "--intent" || "$3" != "--json" ]]; then
-        printf 'Usage: workspace-acquire --intent INTENT --json\n' >&2
+    if ! workspace_parse_claimed_acquire "$@"; then
+        printf 'Usage: workspace-acquire --intent INTENT CLAIMANT... --json\n' >&2
         return 2
     fi
     utm_workspace_limits_valid || {
@@ -330,7 +404,7 @@ utm_workspace_acquire() {
         return $?
     }
     workspace_with_lock "$UTM_WORKSPACE_STATE_DIR" \
-        utm_workspace_acquire_inner "$2"
+        utm_workspace_acquire_inner "$MACHINE_CONTROL_WORKSPACE_CLAIM_INTENT"
 }
 
 utm_workspace_public_state() {
@@ -361,12 +435,16 @@ utm_workspace_release_inner() {
         "$UTM_WORKSPACE_STATE_DIR" "$handle" mechanism)" || return
     target_id="$(workspace_receipt_field \
         "$UTM_WORKSPACE_STATE_DIR" "$handle" target.id)" || return
+    workspace_claim_check_release_exact "$UTM_WORKSPACE_CLAIM_STATE_DIR" \
+        "$UTM_WORKSPACE_PROVIDER" "$target_id" || return
     if [[ "$intent" != "isolated" ]]; then
         state="$(utm_workspace_public_state "$target_id")"
         workspace_receipts "$UTM_WORKSPACE_STATE_DIR" update \
             --handle "$handle" --state "$state" --cleanup none
         data="$(jq -n --arg handle "$handle" \
             '{handle:$handle, disposition:"retained"}')"
+        workspace_claim_release_selected "$UTM_WORKSPACE_CLAIM_STATE_DIR" \
+            "$UTM_WORKSPACE_PROVIDER" "$target_id" || return
         workspace_result release bounded "$data"
         return
     fi
@@ -410,6 +488,8 @@ utm_workspace_release_inner() {
     fi
     data="$(jq -n --arg handle "$handle" --arg disposition "$disposition" \
         '{handle:$handle, disposition:$disposition}')"
+    workspace_claim_release_selected "$UTM_WORKSPACE_CLAIM_STATE_DIR" \
+        "$UTM_WORKSPACE_PROVIDER" "$target_id" || return
     workspace_result release none "$data"
 }
 

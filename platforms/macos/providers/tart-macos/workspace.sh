@@ -116,8 +116,9 @@ create_receipt() {
 }
 
 start_selected_workspace() {
-    local handle="$1"
+    local handle="$1" claim_id="$2"
     MACHINE_CONTROL_WORKSPACE_HANDLE="$handle" \
+        MACHINE_CONTROL_CLAIM_ID="$claim_id" \
         "$MACVM_REPO_DIR/bin/macvm" up >/dev/null
 }
 
@@ -127,11 +128,20 @@ acquire_persistent() {
             'The persistent development workspace is not guarded and available'
         return $?
     fi
-    local target="$MACVM_WORKSPACE_DEVELOPMENT_NAME" handle
+    local target="$MACVM_WORKSPACE_DEVELOPMENT_NAME" handle data claim claim_id
+    if ! claim="$(workspace_claim_acquire_exact "$MACVM_CLAIM_STATE_DIR" \
+        tart-macos "$target")"; then
+        printf '%s\n' "$claim"
+        return 1
+    fi
+    claim_id="$(jq -r '.claimId // empty' <<<"$claim")"
     if [[ "$(tart_state "$target")" != "running" ]]; then
         MACVM_NAME="$target" MACVM_EXPECTED_NAME="$target" \
             MACVM_TARGET_ROLE=candidate MACVM_REQUIRE_MUTATION_GUARD=true \
+            MACHINE_CONTROL_CLAIM_ID="$claim_id" \
             "$MACVM_REPO_DIR/bin/macvm" up >/dev/null || {
+                workspace_claim_release_exact "$MACVM_CLAIM_STATE_DIR" \
+                    tart-macos "$target" "$claim_id" >/dev/null 2>&1 || true
                 workspace_refusal acquire workspace_start_failed \
                     'The persistent workspace did not start'
                 return $?
@@ -139,24 +149,33 @@ acquire_persistent() {
     fi
     handle="$(existing_receipt "$target" persistent)"
     if [[ -z "$handle" ]]; then
-        handle="$(create_receipt persistent existing_instance retained none \
-            "$target")" || return
+        if ! handle="$(create_receipt persistent existing_instance retained none \
+            "$target")"; then
+            workspace_claim_release_exact "$MACVM_CLAIM_STATE_DIR" \
+                tart-macos "$target" "$claim_id" >/dev/null 2>&1 || true
+            return 1
+        fi
     else
-        workspace_receipts "$MACVM_WORKSPACE_STATE_DIR" update \
-            --handle "$handle" --state running --cleanup none
+        if ! workspace_receipts "$MACVM_WORKSPACE_STATE_DIR" update \
+            --handle "$handle" --state running --cleanup none; then
+            workspace_claim_release_exact "$MACVM_CLAIM_STATE_DIR" \
+                tart-macos "$target" "$claim_id" >/dev/null 2>&1 || true
+            return 1
+        fi
     fi
-    local data
     data="$(jq -n --arg handle "$handle" \
         '{handle:$handle, requestedIntent:"persistent",
           actualMechanism:"existing_instance", retention:"retained",
           cleanup:"none", storage:{costClass:"unknown",
             measurement:"unavailable", preflight:"pass"}}')"
+    data="$(workspace_data_with_claim "$data" "$claim")"
     workspace_result acquire none "$data"
 }
 
 acquire_derived() {
     local intent="$1" retention cleanup count maximum source state
-    local free_bytes destination handle data
+    local free_bytes destination handle data source_claim source_claim_id
+    local claim claim_id
     if ! ready_base_available; then
         workspace_refusal acquire intent_unavailable \
             'A controller-ready derivation base is not explicitly proven'
@@ -208,19 +227,43 @@ acquire_derived() {
             'The generated workspace destination already exists'
         return $?
     fi
+    if ! source_claim="$(workspace_claim_acquire_exact \
+        "$MACVM_CLAIM_STATE_DIR" tart-macos "$source")"; then
+        printf '%s\n' "$source_claim"
+        return 1
+    fi
+    source_claim_id="$(jq -r '.claimId // empty' <<<"$source_claim")"
     TART_NO_AUTO_PRUNE= "$MACVM_TART" clone "$source" "$destination" \
         >/dev/null || {
+            workspace_claim_release_exact "$MACVM_CLAIM_STATE_DIR" tart-macos \
+                "$source" "$source_claim_id" >/dev/null 2>&1 || true
             workspace_refusal acquire derivation_failed \
                 'The provider could not derive a workspace'
             return $?
         }
-    handle="$(create_receipt "$intent" filesystem_cow_clone "$retention" \
-        "$cleanup" "$destination" "$source")" || return
-    if ! start_selected_workspace "$handle"; then
+    if ! claim="$(workspace_claim_acquire_exact "$MACVM_CLAIM_STATE_DIR" \
+        tart-macos "$destination")"; then
+        workspace_claim_release_exact "$MACVM_CLAIM_STATE_DIR" tart-macos \
+            "$source" "$source_claim_id" >/dev/null 2>&1 || true
+        printf '%s\n' "$claim"
+        return 1
+    fi
+    claim_id="$(jq -r '.claimId // empty' <<<"$claim")"
+    workspace_claim_release_exact "$MACVM_CLAIM_STATE_DIR" tart-macos \
+        "$source" "$source_claim_id" >/dev/null 2>&1 || true
+    if ! handle="$(create_receipt "$intent" filesystem_cow_clone "$retention" \
+        "$cleanup" "$destination" "$source")"; then
+        workspace_claim_release_exact "$MACVM_CLAIM_STATE_DIR" tart-macos \
+            "$destination" "$claim_id" >/dev/null 2>&1 || true
+        return 1
+    fi
+    if ! start_selected_workspace "$handle" "$claim_id"; then
         if [[ "$intent" == "isolated" ]]; then
             workspace_receipts "$MACVM_WORKSPACE_STATE_DIR" update \
                 --handle "$handle" --cleanup pending --state unknown || true
         fi
+        workspace_claim_release_exact "$MACVM_CLAIM_STATE_DIR" tart-macos \
+            "$destination" "$claim_id" >/dev/null 2>&1 || true
         workspace_refusal acquire workspace_start_failed \
             'The derived workspace was retained but did not start'
         return $?
@@ -232,6 +275,7 @@ acquire_derived() {
           cleanup:(if $intent == "isolated" then "explicitRelease" else "none" end),
           storage:{costClass:"copy_on_write", measurement:"estimate",
             preflight:"pass"}}')"
+    data="$(workspace_data_with_claim "$data" "$claim")"
     workspace_result acquire bounded "$data"
 }
 
@@ -245,8 +289,8 @@ workspace_acquire_inner() {
 }
 
 workspace_acquire() {
-    if [[ $# -ne 3 || "$1" != "--intent" || "$3" != "--json" ]]; then
-        printf 'Usage: workspace-acquire --intent INTENT --json\n' >&2
+    if ! workspace_parse_claimed_acquire "$@"; then
+        printf 'Usage: workspace-acquire --intent INTENT CLAIMANT... --json\n' >&2
         return 2
     fi
     workspace_limits_valid || {
@@ -255,7 +299,7 @@ workspace_acquire() {
         return $?
     }
     workspace_with_lock "$MACVM_WORKSPACE_STATE_DIR" \
-        workspace_acquire_inner "$2"
+        workspace_acquire_inner "$MACHINE_CONTROL_WORKSPACE_CLAIM_INTENT"
 }
 
 release_inner() {
@@ -282,6 +326,8 @@ release_inner() {
             'The workspace provider identity does not match its receipt'
         return $?
     fi
+    workspace_claim_check_release_exact "$MACVM_CLAIM_STATE_DIR" tart-macos \
+        "$target_id" || return
     if [[ "$intent" != "isolated" ]]; then
         state="$(tart_state "$target" 2>/dev/null || printf unknown)"
         [[ "$state" == "running" || "$state" == "stopped" ]] || state=unknown
@@ -290,6 +336,8 @@ release_inner() {
             --handle "$handle" --state "$state" --cleanup none
         data="$(jq -n --arg handle "$handle" \
             '{handle:$handle, disposition:"retained"}')"
+        workspace_claim_release_selected "$MACVM_CLAIM_STATE_DIR" tart-macos \
+            "$target_id" || return
         workspace_result release bounded "$data"
         return
     fi
@@ -336,6 +384,8 @@ release_inner() {
     fi
     data="$(jq -n --arg handle "$handle" --arg disposition "$disposition" \
         '{handle:$handle, disposition:$disposition}')"
+    workspace_claim_release_selected "$MACVM_CLAIM_STATE_DIR" tart-macos \
+        "$target_id" || return
     workspace_result release none "$data"
 }
 

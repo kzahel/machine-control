@@ -5,7 +5,10 @@ set -euo pipefail
 readonly BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../scripts/common.sh
 source "$BIN_DIR/../scripts/common.sh"
+# shellcheck source=../../../providers/claims/common.sh
+source "$LINUXVM_REPO_DIR/../../providers/claims/common.sh"
 readonly PROVIDER="$(linuxvm_provider_path)"
+readonly LINUXVM_CLAIM_PROVIDER=utm-macos-linux
 
 usage() {
     cat <<'EOF'
@@ -13,6 +16,8 @@ Usage: linuxvm COMMAND [ARG...]
 
 Lifecycle and transport:
   status | up | ip | suspend | reboot | shutdown | force-stop
+  claim-capabilities | claim-status | claim-acquire | claim-check
+  claim-renew | claim-release       Coordinate exact-target exclusive use
   guard-status | host-state      Inspect acceptance safety without guest pixels
   candidate-status --json       Emit a minimized exact-candidate assertion
   exec -- COMMAND [ARG...]       Run a root command with reliable completion
@@ -175,8 +180,25 @@ sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y qe
 EOF
 }
 
+claim_command() {
+    claim_adapter_main "$LINUXVM_CLAIM_STATE_DIR" "$LINUXVM_CLAIM_PROVIDER" \
+        "$LINUXVM_EXPECTED_UUID" "$command" "$@"
+}
+
+require_target_claim() {
+    claim_require_tools || return
+    claim_require_exact "$LINUXVM_CLAIM_STATE_DIR" \
+        "$LINUXVM_CLAIM_PROVIDER" "$LINUXVM_EXPECTED_UUID"
+}
+
 command="${1:-help}"
 if (( $# > 0 )); then shift; fi
+
+case "$command" in
+    help|-h|--help|doctor|status|claim-*|workspace-capabilities|workspace-inventory|workspace-gc) ;;
+    workspace-acquire|workspace-release) ;;
+    *) require_target_claim ;;
+esac
 
 case "$command" in
     help|-h|--help) usage ;;
@@ -199,12 +221,16 @@ case "$command" in
         printf 'Linux AT-SPI needs no per-app authorization; run: bin/linuxvm deploy-ui\n'
         ;;
     doctor)
+        export MACHINE_CONTROL_CLAIM_POLICY=optional
         if [[ "${1:-}" == "--json" ]]; then
             exec "$LINUXVM_REPO_DIR/scripts/doctor-json.sh"
         fi
         exec "$LINUXVM_REPO_DIR/scripts/doctor.sh"
         ;;
     candidate-status) exec "$LINUXVM_REPO_DIR/scripts/candidate-status.sh" "$@" ;;
+    claim-capabilities|claim-status|claim-acquire|claim-check|claim-renew|claim-release)
+        claim_command "$@"
+        ;;
     post-update) exec "$LINUXVM_REPO_DIR/scripts/post-update.sh" "$@" ;;
     bootstrap) exec "$LINUXVM_REPO_DIR/scripts/bootstrap-appliance.sh" "$@" ;;
     appliance-certify) exec "$LINUXVM_REPO_DIR/scripts/certify-appliance.sh" "$@" ;;

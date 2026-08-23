@@ -2,6 +2,10 @@
 
 set -euo pipefail
 
+# This suite isolates lifecycle and selection behavior. Claim enforcement is
+# covered by the shared cross-adapter claim suite.
+export MACHINE_CONTROL_CLAIM_POLICY=optional
+
 readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly PYTHON="${PYTHON:-python3}"
 temporary="$(mktemp -d /tmp/linuxvm-workspace-static.XXXXXX)"

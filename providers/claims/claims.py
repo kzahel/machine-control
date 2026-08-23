@@ -445,8 +445,8 @@ def command_acquire(args: argparse.Namespace) -> dict[str, Any]:
     if args.label is not None:
         claimant["label"] = private_text(args.label, "label", MAX_LABEL_LENGTH)
     directory = state_directory(args.state_dir)
-    now = utc_now()
     with store_lock(directory):
+        now = utc_now()
         path, record = load_record(directory, provider, resource_id)
         active = record["active"]
         if active_is_live(active, now):
@@ -482,8 +482,8 @@ def command_status(args: argparse.Namespace) -> dict[str, Any]:
     validate_policy(args)
     provider, resource_id = resource(args)
     directory = state_directory(args.state_dir)
-    now = utc_now()
     with store_lock(directory):
+        now = utc_now()
         _, record = load_record(directory, provider, resource_id)
     active = record["active"]
     data: dict[str, Any] = {
@@ -522,8 +522,8 @@ def command_check(args: argparse.Namespace) -> dict[str, Any]:
     if CLAIM_PATTERN.fullmatch(claim_id) is None:
         raise ClaimError("invalid_claim_id", "Target-use claim ID is invalid")
     directory = state_directory(args.state_dir)
-    now = utc_now()
     with store_lock(directory):
+        now = utc_now()
         _, record = load_record(directory, provider, resource_id)
         active = require_matching_live_claim(record, claim_id, now)
     return accepted("check", {
@@ -542,8 +542,8 @@ def command_renew(args: argparse.Namespace) -> dict[str, Any]:
     if CLAIM_PATTERN.fullmatch(claim_id) is None:
         raise ClaimError("invalid_claim_id", "Target-use claim ID is invalid")
     directory = state_directory(args.state_dir)
-    now = utc_now()
     with store_lock(directory):
+        now = utc_now()
         path, record = load_record(directory, provider, resource_id)
         active = require_matching_live_claim(record, claim_id, now)
         maximum = parse_timestamp(active["maxExpiresAt"], "maxExpiresAt")
@@ -567,8 +567,8 @@ def command_release(args: argparse.Namespace) -> dict[str, Any]:
     if CLAIM_PATTERN.fullmatch(claim_id) is None:
         raise ClaimError("invalid_claim_id", "Target-use claim ID is invalid")
     directory = state_directory(args.state_dir)
-    now = utc_now()
     with store_lock(directory):
+        now = utc_now()
         path, record = load_record(directory, provider, resource_id)
         active = record["active"]
         disposition = "alreadyReleased"

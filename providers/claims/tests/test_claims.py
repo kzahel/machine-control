@@ -202,7 +202,7 @@ class ClaimStoreTests(unittest.TestCase):
         self.assertEqual(len(conflicts), 5)
         self.assertTrue(all(
             value["errorCode"] == "target_claimed" for value in conflicts
-        ))
+        ), conflicts)
 
 
 if __name__ == "__main__":

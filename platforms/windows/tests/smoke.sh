@@ -2,6 +2,10 @@
 
 set -euo pipefail
 
+# This suite isolates legacy lifecycle behavior. Claim enforcement has its own
+# cross-adapter suite under providers/claims/tests.
+export MACHINE_CONTROL_CLAIM_POLICY=optional
+
 readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 grep -Fq 'sshd_config_default' \
     "$REPO_DIR/guests/windows/bootstrap-openssh.ps1"

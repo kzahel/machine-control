@@ -5,6 +5,10 @@ set -euo pipefail
 readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../scripts/common.sh
 source "$REPO_DIR/scripts/common.sh"
+# shellcheck source=../../../providers/claims/common.sh
+source "$REPO_DIR/../../providers/claims/common.sh"
+
+readonly WINVM_CLAIM_PROVIDER=utm-macos-windows
 
 usage() {
     cat <<'EOF'
@@ -12,6 +16,9 @@ Usage: winvm COMMAND [ARG...]
 
 Start here:
   doctor [--json]        Check lifecycle, administration, desktop, and resident
+  claim-capabilities | claim-status | claim-acquire | claim-check
+  claim-renew | claim-release
+                         Coordinate exclusive use of the exact pinned target
   candidate-status --json
                          Emit a minimized exact-candidate assertion
   repair-registration    Re-register the exact pinned on-disk UTM bundle
@@ -91,6 +98,17 @@ assert_target() {
         assert-target "$operation" >/dev/null
 }
 
+claim_command() {
+    claim_adapter_main "$WINVM_CLAIM_STATE_DIR" "$WINVM_CLAIM_PROVIDER" \
+        "$WINVM_EXPECTED_UTM_ID" "$command" "$@"
+}
+
+require_target_claim() {
+    claim_require_tools || return
+    claim_require_exact "$WINVM_CLAIM_STATE_DIR" "$WINVM_CLAIM_PROVIDER" \
+        "$WINVM_EXPECTED_UTM_ID"
+}
+
 print_ssh_config() {
     if [[ $# -ne 1 ]]; then
         printf 'Usage: winvm ssh-config WINDOWS_USER\n' >&2
@@ -113,8 +131,15 @@ command="${1:-help}"
 shift || true
 
 case "$command" in
+    help|-h|--help|doctor|status|capabilities|claim-*|workspace-capabilities|workspace-inventory|workspace-gc) ;;
+    workspace-acquire|workspace-release) ;;
+    *) require_target_claim ;;
+esac
+
+case "$command" in
     help|-h|--help) usage ;;
     doctor)
+        export MACHINE_CONTROL_CLAIM_POLICY=optional
         if [[ "${1:-}" == "--json" ]]; then
             exec "$REPO_DIR/scripts/doctor-json.sh"
         fi
@@ -122,6 +147,9 @@ case "$command" in
         exec "$REPO_DIR/scripts/doctor.sh" "$@"
         ;;
     candidate-status) exec "$REPO_DIR/scripts/candidate-status.sh" "$@" ;;
+    claim-capabilities|claim-status|claim-acquire|claim-check|claim-renew|claim-release)
+        claim_command "$@"
+        ;;
     control|control-local)
         assert_target connect
         exec "$REPO_DIR/scripts/control.sh" "$@"
