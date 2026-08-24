@@ -689,6 +689,34 @@ def validate_doctor(value: Any) -> dict[str, Any]:
         raise ClientError(
             "invalid_doctor_result", "Doctor extensions must be an object", 1
         )
+    lifecycle = value["extensions"].get("lifecycle")
+    if lifecycle is not None:
+        suspend = lifecycle.get("suspend") if isinstance(lifecycle, dict) else None
+        availability = (
+            suspend.get("availability") if isinstance(suspend, dict) else None
+        )
+        reasons = suspend.get("reasons") if isinstance(suspend, dict) else None
+        if (
+            not isinstance(lifecycle, dict)
+            or not isinstance(suspend, dict)
+            or availability not in {"available", "unavailable", "unknown"}
+            or not isinstance(suspend.get("source"), str)
+            or not suspend["source"]
+            or not isinstance(reasons, list)
+            or not all(isinstance(reason, str) for reason in reasons)
+            or lifecycle.get("defaultDownAction")
+            not in {"suspend", "guest-shutdown"}
+            or (availability == "available") != ("suspend" in operations)
+            or (
+                lifecycle.get("defaultDownAction") == "suspend"
+                and availability != "available"
+            )
+        ):
+            raise ClientError(
+                "invalid_doctor_result",
+                "Doctor lifecycle capabilities are invalid",
+                1,
+            )
     return value
 
 
@@ -1900,16 +1928,19 @@ def handle_target(
             )
             return 0
         if operation == "capabilities":
+            data = {
+                "lifecycleOperations": value["lifecycleOperations"],
+                "outerState": value["states"]["outer"],
+                "targetKind": value["target"].get("kind", "device"),
+            }
+            if "lifecycle" in value["extensions"]:
+                data["lifecycle"] = value["extensions"]["lifecycle"]
             emit(
                 target_result(
                     alias,
                     target,
                     operation,
-                    {
-                        "lifecycleOperations": value["lifecycleOperations"],
-                        "outerState": value["states"]["outer"],
-                        "targetKind": value["target"].get("kind", "device"),
-                    },
+                    data,
                     value["adapter"]["elapsedMs"],
                 )
             )
@@ -1938,20 +1969,34 @@ def handle_target(
         return 0
     if operation == "capabilities":
         value, _ = doctor(alias, target)
+        data = {
+            "lifecycleOperations": value["lifecycleOperations"],
+            "outerState": value["states"]["outer"],
+        }
+        if "lifecycle" in value["extensions"]:
+            data["lifecycle"] = value["extensions"]["lifecycle"]
         emit(
             target_result(
                 alias,
                 target,
                 operation,
-                {
-                    "lifecycleOperations": value["lifecycleOperations"],
-                    "outerState": value["states"]["outer"],
-                },
+                data,
                 value["adapter"]["elapsedMs"],
             )
         )
         return 0
+    preflight_elapsed_ms = 0
+    if operation == "suspend":
+        value, _ = doctor(alias, target)
+        preflight_elapsed_ms = value["adapter"]["elapsedMs"]
+        if operation not in value["lifecycleOperations"]:
+            raise ClientError(
+                "unsupported_target_operation",
+                f"Target '{alias}' does not support lifecycle operation "
+                f"'{operation}'",
+            )
     completed, _, elapsed_ms = run_adapter(target, [operation])
+    elapsed_ms += preflight_elapsed_ms
     raw_state = completed.stdout.strip() if operation == "status" else ""
     if operation != "status":
         status_completed, _, status_elapsed = run_adapter(target, ["status"])

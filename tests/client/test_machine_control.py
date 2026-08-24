@@ -428,6 +428,48 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertEqual(value["errorCode"], "unsupported_target_operation")
 
+    def test_desktop_capabilities_report_unavailable_suspend(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "capabilities",
+            extra_env={"MACHINE_CONTROL_MOCK_SUSPEND_UNAVAILABLE": "1"},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertNotIn("suspend", value["data"]["lifecycleOperations"])
+        self.assertEqual(
+            value["data"]["lifecycle"],
+            {
+                "suspend": {
+                    "availability": "unavailable",
+                    "source": "configured",
+                    "reasons": ["configured-disabled"],
+                },
+                "defaultDownAction": "guest-shutdown",
+            },
+        )
+
+    def test_desktop_suspend_refuses_before_adapter_dispatch(self):
+        log = self.directory / "arguments.json"
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "suspend",
+            extra_env={
+                "MACHINE_CONTROL_MOCK_LOG": str(log),
+                "MACHINE_CONTROL_MOCK_SUSPEND_UNAVAILABLE": "1",
+            },
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(value["errorCode"], "unsupported_target_operation")
+        self.assertEqual(
+            json.loads(log.read_text(encoding="utf-8")), ["doctor", "--json"]
+        )
+
+    def test_invalid_lifecycle_capabilities_fail_typed(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "capabilities",
+            extra_env={"MACHINE_CONTROL_MOCK_BAD_LIFECYCLE": "1"},
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(value["errorCode"], "invalid_doctor_result")
+
     def test_doctor_adds_logical_target(self):
         result, value = self.run_cli(
             "--target", "fixture", "target", "doctor"

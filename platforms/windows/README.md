@@ -81,9 +81,12 @@ export MACHINE_CONTROL_CLAIM_ID="$(jq -r '.data.claim.claimId' <<<"$claim")"
 
 Pass that ID as `--claim "$MACHINE_CONTROL_CLAIM_ID"` to the common client.
 Direct `bin/winvm` examples below read the exported ID. Renew during long work
-and release through the common client from trap/finally cleanup. Claim status,
-doctor, capabilities, `target-id`, and `pin-target` remain available without a
-claim so private inventory can be diagnosed and initially pinned.
+and release through the common client from trap/finally cleanup. A caller that
+starts an initially stopped VM should cleanly shut it down before releasing the
+claim; a caller that inherits a running VM should leave it running unless the
+task says otherwise. Claim status, doctor, capabilities, `target-id`, and
+`pin-target` remain available without a claim so private inventory can be
+diagnosed and initially pinned.
 
 For a fresh guest, install UTM Windows Guest Tools, log into Windows, and
 stage the OpenSSH bootstrap plus your public key through the guest agent:
@@ -153,7 +156,7 @@ bin/winvm capabilities --json     # Inspect lifecycle support and down policy
 bin/winvm ssh                     # Interactive PowerShell over SSH
 bin/winvm ps 'Get-Process'        # PowerShell command
 bin/winvm wsl -- uname -a         # Command through wsl.exe
-bin/winvm down                    # Safely suspend or cleanly shut down
+bin/winvm down                    # Use declared suspend or guest shutdown policy
 bin/winvm seal READY_NAME         # Clone a stopped VM as a stopped seal
 bin/winvm disposable-up           # Verify a seal without persisting changes
 bin/winvm delete --confirm NAME   # Delete only the exact configured stopped VM
@@ -278,7 +281,15 @@ nor boots or clones a seal.
   missing components or clear a pending reboot.
 - `winvm down` uses suspend only when the provider positively declares it
   available. Known UTM/QEMU blockers such as GPU displays and NVMe disks select
-  a clean guest shutdown instead.
+  a clean guest shutdown instead. The private profile may disable suspend even
+  on a capable VM to avoid saved-state storage.
+- Common `target capabilities` omits `suspend` when support is unavailable or
+  unknown and reports the reason and `defaultDownAction`. Direct common
+  `target suspend` checks that declaration and refuses before mutation.
+- Clean shutdown first asks Windows to power itself off, then uses UTM's
+  non-forced power-down request if the guest route does not complete. Failure
+  leaves the VM running for diagnosis; UTM Quit, suspend, and force-stop are
+  not automatic fallbacks.
 - A stopped UTM VM can be cloned into a provider-owned seal. A seal can be
   started in disposable mode for verification without saving guest changes.
 - A cold boot normally requires one manual Windows login. A dedicated test

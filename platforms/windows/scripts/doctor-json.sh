@@ -26,6 +26,15 @@ input=unavailable
 outer=unknown
 resident_json=null
 identity=unavailable
+lifecycle_operations='["status","up","shutdown","force-stop"]'
+lifecycle='{
+    "suspend": {
+        "availability": "unknown",
+        "source": "provider",
+        "reasons": ["provider-capabilities-unavailable"]
+    },
+    "defaultDownAction": "guest-shutdown"
+}'
 
 identity_detail="$($PROVIDER assert-target inspect --json 2>&1)"
 identity_exit=$?
@@ -63,6 +72,26 @@ case "$status" in
         add_check power fail 'Target power state is unknown'
         ;;
 esac
+
+provider_capabilities="$($PROVIDER capabilities --json 2>/dev/null || true)"
+if jq -e '
+        .schema_version == 1 and
+        (.lifecycle.suspend.availability |
+            IN("available", "unavailable", "unknown")) and
+        (.lifecycle.suspend.source | type == "string" and length > 0) and
+        (.lifecycle.suspend.reasons | type == "array" and
+            all(.[]; type == "string")) and
+        (.lifecycle.default_down_action |
+            IN("suspend", "guest-shutdown"))' \
+        <<<"$provider_capabilities" >/dev/null 2>&1; then
+    lifecycle="$(jq -c '{
+        suspend:.lifecycle.suspend,
+        defaultDownAction:.lifecycle.default_down_action
+    }' <<<"$provider_capabilities")"
+    if [[ "$(jq -r '.suspend.availability' <<<"$lifecycle")" == available ]]; then
+        lifecycle_operations='["status","up","suspend","shutdown","force-stop"]'
+    fi
+fi
 
 guest_probe=""
 guest_probe_exit=1
@@ -208,6 +237,8 @@ jq -cn \
     --arg identity "$identity" \
     --argjson resident "$resident_json" \
     --argjson checks "$checks" \
+    --argjson lifecycle_operations "$lifecycle_operations" \
+    --argjson lifecycle "$lifecycle" \
     '{
         schema:"machine-control-doctor/v0",
         ready:$ready,
@@ -227,14 +258,13 @@ jq -cn \
         },
         resident:$resident,
         checks:$checks,
-        lifecycleOperations:[
-            "status","up","suspend","shutdown","force-stop"
-        ],
+        lifecycleOperations:$lifecycle_operations,
         extensions:{
             targetIdentity:$identity,
             administrationRoute:"key_only_ssh_powershell",
             desktopSession:"windows_interactive_console",
-            protectedAuthority:"dedicated_test_appliance"
+            protectedAuthority:"dedicated_test_appliance",
+            lifecycle:$lifecycle
         }
     }'
 

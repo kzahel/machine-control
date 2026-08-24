@@ -11,8 +11,9 @@ configuration is currently a Windows 11 guest in UTM/QEMU on macOS.
 Start at the repository root. Run
 `bin/machine-control --target windows target doctor` before operating the VM;
 the common client supplies the controller's private inventory without exposing
-it. Then inspect or acquire an exclusive claim, use its returned ID on every
-operation, and release it promptly:
+it. Then inspect or acquire an exclusive claim, record the claimed target's
+initial power state, use the returned claim ID on every operation, and release
+it promptly:
 
 ```bash
 mc=bin/machine-control
@@ -20,13 +21,34 @@ claim="$($mc --target windows claim acquire --duration 30m \
   --reason 'describe this work' --claimant-authority example-agent \
   --claimant-id session-42)"
 claim_id="$(jq -r '.data.claim.claimId' <<<"$claim")"
+started_by_caller=false
+cleanup() {
+  local exit_code=$?
+  if [[ "$started_by_caller" == true ]]; then
+    $mc --target windows --claim "$claim_id" target shutdown || exit_code=1
+  fi
+  $mc --target windows claim release "$claim_id" || exit_code=1
+  trap - EXIT
+  exit "$exit_code"
+}
+trap cleanup EXIT
+initial_power="$($mc --target windows --claim "$claim_id" target status | \
+  jq -r '.data.powerState')"
+if [[ "$initial_power" == off || "$initial_power" == suspended ]]; then
+  started_by_caller=true
+fi
 $mc --target windows --claim "$claim_id" target ensure-ready
-$mc --target windows claim release "$claim_id"
+# Perform bounded work here; cleanup runs before claim release.
 ```
 
 Use caller metadata from the current environment; do not assume a particular
 coordinator or put secrets and private infrastructure values in it. Renew a
-long-running claim and release it from cleanup even after failure. Use
+long-running claim and release it from cleanup even after failure. If the
+caller started an initially off or suspended VM, cleanly shut it down while
+the claim is still held unless the task explicitly requires it to remain
+running. If the VM was already running, leave it running unless its owner or
+the task says otherwise. A failed clean shutdown leaves the VM running and is
+reported; it does not authorize UTM Quit, suspend, or force-stop. Use
 `bin/machine-control --target windows testbed -- help` for the native
 command surface and read `skills/drive-winvm/SKILL.md` for the operating
 workflow. Invoke `bin/winvm` directly only when ignored configuration or the
@@ -52,8 +74,10 @@ Prefer control channels in this order:
 Inspect the accessibility tree before invoking controls. Capture the visible
 state before coordinate input. Do not close or modify unrelated user windows.
 Use `bin/winvm down` for routine teardown so the provider can select a supported
-lifecycle operation. Do not force-stop a VM unless the user requested it or
-normal shutdown and recovery paths have failed.
+lifecycle operation. An unavailable or unknown suspend capability selects
+guest shutdown, never suspend. Do not quit UTM as a VM lifecycle operation. Do
+not force-stop a VM unless the user explicitly authorizes that recovery action
+after safe shutdown has failed.
 
 A UTM `started` state is not proof that Windows, OpenSSH, or the resident is
 ready. Update/recovery boots may take up to the configured boot timeout (ten

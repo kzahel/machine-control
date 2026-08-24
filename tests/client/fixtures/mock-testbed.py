@@ -445,6 +445,35 @@ if (
         })
         if target_platform == "chromeos":
             states["boot"] = "ready" if ready else "unavailable"
+    lifecycle_operations = (
+        ["status", "doctor", "capabilities", "reboot"]
+        if is_device
+        else (
+            []
+            if target_platform == "chromeos"
+            else ["status", "up", "suspend", "shutdown", "force-stop"]
+        )
+    )
+    extensions = {}
+    if os.environ.get("MACHINE_CONTROL_MOCK_SUSPEND_UNAVAILABLE"):
+        lifecycle_operations.remove("suspend")
+        extensions["lifecycle"] = {
+            "suspend": {
+                "availability": "unavailable",
+                "source": "configured",
+                "reasons": ["configured-disabled"],
+            },
+            "defaultDownAction": "guest-shutdown",
+        }
+    if os.environ.get("MACHINE_CONTROL_MOCK_BAD_LIFECYCLE"):
+        extensions["lifecycle"] = {
+            "suspend": {
+                "availability": "unavailable",
+                "source": "configured",
+                "reasons": ["configured-disabled"],
+            },
+            "defaultDownAction": "suspend",
+        }
     print(json.dumps({
         "schema": "machine-control-doctor/v0",
         "ready": ready,
@@ -462,16 +491,8 @@ if (
             "id": "fixture",
             "status": "pass" if ready else "fail"
         }],
-        "lifecycleOperations": (
-            ["status", "doctor", "capabilities", "reboot"]
-            if is_device
-            else (
-                []
-                if target_platform == "chromeos"
-                else ["status", "up", "suspend", "shutdown", "force-stop"]
-            )
-        ),
-        "extensions": {}
+        "lifecycleOperations": lifecycle_operations,
+        "extensions": extensions
     }))
     raise SystemExit(0 if ready else 1)
 

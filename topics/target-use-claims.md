@@ -137,6 +137,11 @@ same ownership fact.
 - Workspace release requires the matching live claim. It relinquishes the
   claim after the adapter has safely retained or discarded the workspace.
 - Releasing a target-use claim alone never deletes, stops, or reverts a VM.
+- A bounded caller that starts an initially off or suspended persistent target
+  owns its routine clean shutdown before claim release unless the task declares
+  that it should remain running. A caller that inherits a running target does
+  not silently stop it. Failed cleanup is reported and leaves the target for
+  diagnosis rather than escalating to a materially different transition.
 - Claim expiry releases exclusivity but does not guess whether a temporary VM
   is safe to destroy. Receipt-bound cleanup remains explicit or pending.
 

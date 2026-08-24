@@ -70,6 +70,15 @@ declares it safe. `force-stop` remains explicit and is never an automatic
 fallback. Testbed-specific commands such as Windows `down`, image sealing,
 disposable launch, or Linux reboot remain escape hatches.
 
+**Current:** An adapter may include a validated `extensions.lifecycle`
+projection with suspend availability, source, reasons, and a
+`defaultDownAction`. The common `target capabilities` projection preserves
+that detail. Windows omits `suspend` from `lifecycleOperations` when support is
+unavailable or unknown, and common `target suspend` refuses before dispatch in
+that state. Its native `down` escape hatch chooses guest shutdown unless
+suspend is positively available; it never treats suspend or force-stop as a
+failed-shutdown fallback.
+
 Normalize observations to the applicable state dimensions without discarding
 the raw adapter value. Desktop targets use:
 

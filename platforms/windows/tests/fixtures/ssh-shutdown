@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+[[ "${*: -1}" == 'shutdown.exe /s /t 0' ]]
+printf 'guest-shutdown\n' >>"$WINVM_TEST_SHUTDOWN_LOG"
+if [[ "${WINVM_TEST_GUEST_SHUTDOWN_SUCCEEDS:-0}" == 1 ]]; then
+    touch "$WINVM_TEST_SHUTDOWN_STATE"
+fi

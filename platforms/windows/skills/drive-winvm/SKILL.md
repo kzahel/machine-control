@@ -25,8 +25,9 @@ bin/machine-control --target windows target doctor
 
 Read the result before acting:
 
-- If the VM is stopped, run
-  `bin/machine-control --target windows target ensure-ready`.
+- Acquire a target-use claim before mutation and record the power state while
+  holding it. If the VM is stopped, run `target ensure-ready` with that claim
+  and remember that this caller owns the corresponding cleanup.
 - If the identity check says the pinned target is not registered in UTM, run
   `bin/machine-control --target windows testbed -- repair-registration` and
   repeat doctor. The repair accepts only the on-disk bundle whose name and
@@ -100,10 +101,15 @@ targeting is ambiguous and use `-w HWND`.
 
 - Capture or inspect current state before clicking.
 - Do not close, edit, or foreground unrelated user applications.
-- Use `down` for routine VM teardown. It suspends only when the provider
-  positively declares support and otherwise performs a clean guest shutdown.
-  Do not use `force-stop` without clear authorization or exhausted safe
-  recovery paths.
+- If this caller started an initially off or suspended VM, run `target
+  shutdown` while its claim is still held, then release the claim. Leave an
+  inherited running VM running unless the task or its owner says otherwise.
+- Use `down` when native routine teardown is required. It suspends only when
+  the provider positively declares support; unavailable or unknown support
+  selects a clean guest shutdown. A private profile may disable suspend to
+  avoid saved-state storage entirely.
+- If clean shutdown fails, leave the VM running and report it. Do not quit UTM
+  or silently substitute suspend or `force-stop`.
 - Never put passwords, private keys, PINs, machine identifiers, or screenshots
   in this repository or command logs.
 - Treat auto-logon as an explicit test-appliance choice. Never place its

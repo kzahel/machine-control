@@ -12,7 +12,9 @@ than a frozen cross-device wire protocol.
   independent readiness dimensions emitted by authoritative testbeds. Desktop
   targets report desktop/resident state; device targets report connection,
   boot, interaction, and runner state without pretending those processes are
-  identical.
+  identical. Its optional lifecycle extension reports suspend availability,
+  reasons, and the provider's default down action without implying that an
+  unavailable operation is safe.
 - [`targets-v0.schema.json`](targets-v0.schema.json) describes ignored local
   target selection. It contains adapter commands, never bearer authority.
 - [`claim-capabilities-v0.schema.json`](claim-capabilities-v0.schema.json)

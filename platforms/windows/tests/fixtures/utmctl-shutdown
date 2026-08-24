@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+command="${1:-}"
+shift || true
+case "$command" in
+    status)
+        if [[ -f "$WINVM_TEST_SHUTDOWN_STATE" ]]; then
+            printf 'stopped\n'
+        else
+            printf 'started\n'
+        fi
+        ;;
+    ip-address)
+        printf '192.0.2.10\n'
+        ;;
+    stop)
+        if [[ "${1:-}" == --request ]]; then
+            printf 'provider-request\n' >>"$WINVM_TEST_SHUTDOWN_LOG"
+            if [[ "${WINVM_TEST_PROVIDER_SHUTDOWN_SUCCEEDS:-0}" == 1 ]]; then
+                touch "$WINVM_TEST_SHUTDOWN_STATE"
+            fi
+        elif [[ "${1:-}" == --force ]]; then
+            printf 'force-stop\n' >>"$WINVM_TEST_SHUTDOWN_LOG"
+            touch "$WINVM_TEST_SHUTDOWN_STATE"
+        else
+            exit 2
+        fi
+        ;;
+    suspend)
+        printf 'suspend\n' >>"$WINVM_TEST_SHUTDOWN_LOG"
+        touch "$WINVM_TEST_SHUTDOWN_STATE"
+        ;;
+    *)
+        exit 2
+        ;;
+esac

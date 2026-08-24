@@ -142,7 +142,11 @@ set -e
 [[ "$doctor_exit" -eq 1 ]]
 jq -e '.schema == "machine-control-doctor/v0" and
     .ready == false and .states.power == "off" and
-    .states.outer == "prohibited"' <<<"$doctor_json" >/dev/null
+    .states.outer == "prohibited" and
+    (.lifecycleOperations | index("suspend")) == null and
+    .extensions.lifecycle.suspend.availability == "unknown" and
+    .extensions.lifecycle.defaultDownAction == "guest-shutdown"' \
+    <<<"$doctor_json" >/dev/null
 
 config_output="$(
     WINVM_SSH_HOST=smoke-host \
@@ -162,6 +166,7 @@ doctor_environment=(
     WINVM_TARGET_ROLE=candidate
     WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-target-id"
     WINVM_SSH_BIN="$REPO_DIR/tests/fixtures/ssh-doctor"
+    WINVM_SUSPEND_POLICY=disabled
     WINVM_FORBID_OUTER_UI=true
 )
 doctor_ready="$(env "${doctor_environment[@]}" \
@@ -170,6 +175,10 @@ jq -e '.ready == true and .states.administration == "ready" and
     .states.desktop == "unlocked" and .states.resident == "ready" and
     .resident.generation == "fixture-generation" and
     .extensions.targetIdentity == "verified" and
+    (.lifecycleOperations | index("suspend")) == null and
+    .extensions.lifecycle.suspend.availability == "unavailable" and
+    .extensions.lifecycle.suspend.reasons == ["configured-disabled"] and
+    .extensions.lifecycle.defaultDownAction == "guest-shutdown" and
     any(.checks[]; .id == "identity" and .status == "pass")' \
     <<<"$doctor_ready" >/dev/null
 
@@ -189,6 +198,21 @@ jq -e '.ready == false and .extensions.targetIdentity == "unavailable" and
     any(.checks[]; .id == "identity" and .status == "fail" and
         (.summary | contains("repair-registration before re-pinning")))' \
     <<<"$doctor_unregistered" >/dev/null
+
+set +e
+doctor_suspend_available="$(env \
+    WINVM_CONFIG_FILE=/dev/null \
+    WINVM_TARGET_FILE="$temporary/absent-suspend-target" \
+    WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-always-stopped" \
+    WINVM_SUSPEND_POLICY=enabled \
+    "$REPO_DIR/scripts/doctor-json.sh")"
+doctor_suspend_available_exit=$?
+set -e
+[[ "$doctor_suspend_available_exit" -eq 1 ]]
+jq -e '(.lifecycleOperations | index("suspend")) != null and
+    .extensions.lifecycle.suspend.availability == "available" and
+    .extensions.lifecycle.defaultDownAction == "suspend"' \
+    <<<"$doctor_suspend_available" >/dev/null
 
 set +e
 doctor_timeout="$(env "${doctor_environment[@]}" \
@@ -217,6 +241,38 @@ layered_names="$(
 [[ "$layered_names" == 'selected-name|configured-name' ]]
 
 provider="$REPO_DIR/providers/utm-macos/provider.sh"
+shutdown_environment=(
+    WINVM_CONFIG_FILE=/dev/null
+    WINVM_TARGET_FILE="$temporary/absent-shutdown-target"
+    WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-shutdown"
+    WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-target-id"
+    WINVM_SSH_BIN="$REPO_DIR/tests/fixtures/ssh-shutdown"
+    WINVM_EXPECTED_UTM_ID=11111111-2222-3333-4444-555555555555
+    WINVM_TARGET_ROLE=candidate
+    WINVM_GUEST_SHUTDOWN_GRACE=1
+    WINVM_SHUTDOWN_TIMEOUT=1
+    WINVM_TEST_SHUTDOWN_STATE="$temporary/shutdown-state"
+    WINVM_TEST_SHUTDOWN_LOG="$temporary/shutdown-log"
+)
+
+rm -f -- "$temporary/shutdown-state" "$temporary/shutdown-log"
+env "${shutdown_environment[@]}" WINVM_TEST_GUEST_SHUTDOWN_SUCCEEDS=1 \
+    "$provider" shutdown >/dev/null
+[[ "$(<"$temporary/shutdown-log")" == guest-shutdown ]]
+
+rm -f -- "$temporary/shutdown-state" "$temporary/shutdown-log"
+env "${shutdown_environment[@]}" WINVM_TEST_PROVIDER_SHUTDOWN_SUCCEEDS=1 \
+    "$provider" shutdown >/dev/null
+[[ "$(<"$temporary/shutdown-log")" == $'guest-shutdown\nprovider-request' ]]
+
+rm -f -- "$temporary/shutdown-state" "$temporary/shutdown-log"
+if env "${shutdown_environment[@]}" "$provider" shutdown \
+        >/dev/null 2>&1; then
+    printf 'Failed shutdown unexpectedly succeeded.\n' >&2
+    exit 1
+fi
+[[ "$(<"$temporary/shutdown-log")" == $'guest-shutdown\nprovider-request' ]]
+
 blocked_json="$(
     WINVM_UTMCTL=/usr/bin/true \
     WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-known-blockers" \
