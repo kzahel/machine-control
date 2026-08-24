@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import importlib.util
 import json
-import multiprocessing
 import os
 from pathlib import Path
 import subprocess
@@ -21,32 +20,6 @@ SPEC = importlib.util.spec_from_file_location("machine_control_claims", CLAIMS_P
 assert SPEC is not None and SPEC.loader is not None
 claims = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(claims)
-
-
-def concurrent_acquire(state_dir: str, queue: multiprocessing.Queue) -> None:
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(CLAIMS_PATH),
-            "--state-dir",
-            state_dir,
-            "acquire",
-            "--provider",
-            "fixture",
-            "--resource-id",
-            "private-resource",
-            "--reason",
-            "concurrency test",
-            "--claimant-authority",
-            "fixture",
-            "--claimant-id",
-            f"process-{os.getpid()}",
-        ],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    queue.put((result.returncode, json.loads(result.stdout)))
 
 
 class ClaimStoreTests(unittest.TestCase):
@@ -182,20 +155,41 @@ class ClaimStoreTests(unittest.TestCase):
         self.assertEqual(records[0].stat().st_mode & 0o777, 0o600)
 
     def test_simultaneous_acquire_has_one_winner(self) -> None:
-        queue: multiprocessing.Queue = multiprocessing.Queue()
         processes = [
-            multiprocessing.Process(
-                target=concurrent_acquire,
-                args=(str(self.directory), queue),
+            subprocess.Popen(
+                [
+                    sys.executable,
+                    str(CLAIMS_PATH),
+                    "--state-dir",
+                    str(self.directory),
+                    "acquire",
+                    "--provider",
+                    "fixture",
+                    "--resource-id",
+                    "private-resource",
+                    "--reason",
+                    "concurrency test",
+                    "--claimant-authority",
+                    "fixture",
+                    "--claimant-id",
+                    f"process-{index}",
+                ],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
             )
-            for _ in range(6)
+            for index in range(6)
         ]
-        for process in processes:
-            process.start()
-        results = [queue.get(timeout=10) for _ in processes]
-        for process in processes:
-            process.join(timeout=10)
-            self.assertEqual(process.exitcode, 0)
+        results = []
+        try:
+            for process in processes:
+                stdout, _ = process.communicate(timeout=10)
+                results.append((process.returncode, json.loads(stdout)))
+        finally:
+            for process in processes:
+                if process.poll() is None:
+                    process.kill()
+                process.communicate()
         winners = [value for status, value in results if status == 0]
         conflicts = [value for status, value in results if status != 0]
         self.assertEqual(len(winners), 1)
