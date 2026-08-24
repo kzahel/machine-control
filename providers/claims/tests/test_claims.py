@@ -154,6 +154,31 @@ class ClaimStoreTests(unittest.TestCase):
         self.assertEqual(self.directory.stat().st_mode & 0o777, 0o700)
         self.assertEqual(records[0].stat().st_mode & 0o777, 0o600)
 
+    def test_recent_dead_lock_is_not_reclaimed(self) -> None:
+        lock = self.directory / ".operation.lock"
+        lock.mkdir()
+        (lock / "pid").write_text("999999\n", encoding="ascii")
+
+        with mock.patch.object(claims, "process_alive") as process_alive:
+            self.assertFalse(claims.remove_stale_lock(lock))
+
+        process_alive.assert_not_called()
+        self.assertTrue(lock.is_dir())
+
+    def test_aged_dead_lock_is_reclaimed(self) -> None:
+        lock = self.directory / ".operation.lock"
+        lock.mkdir()
+        (lock / "pid").write_text("999999\n", encoding="ascii")
+        stale_time = lock.stat().st_mtime + claims.STALE_LOCK_GRACE_SECONDS
+
+        with (
+            mock.patch.object(claims.time, "time", return_value=stale_time),
+            mock.patch.object(claims, "process_alive", return_value=False),
+        ):
+            self.assertTrue(claims.remove_stale_lock(lock))
+
+        self.assertFalse(lock.exists())
+
     def test_simultaneous_acquire_has_one_winner(self) -> None:
         processes = [
             subprocess.Popen(

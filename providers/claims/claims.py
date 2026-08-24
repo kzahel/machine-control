@@ -30,6 +30,7 @@ MAX_METADATA_KEY_LENGTH = 64
 MAX_METADATA_VALUE_LENGTH = 256
 MAX_METADATA_BYTES = 4096
 LOCK_TIMEOUT_SECONDS = 5.0
+STALE_LOCK_GRACE_SECONDS = LOCK_TIMEOUT_SECONDS
 
 
 class ClaimError(Exception):
@@ -150,6 +151,16 @@ def windows_process_alive(pid: int) -> bool:
 
 
 def remove_stale_lock(lock: Path) -> bool:
+    # A lock owner can release its directory and exit after another process
+    # reads the PID. Without a grace period, a third process can then create a
+    # new lock at the same path and have that live lock renamed as stale (an
+    # ABA race). Normal claim operations are short, so only inspect an owner
+    # after the lock has remained unchanged for a full lock timeout.
+    try:
+        if time.time() - lock.stat().st_mtime < STALE_LOCK_GRACE_SECONDS:
+            return False
+    except OSError:
+        return False
     pid_path = lock / "pid"
     try:
         value = pid_path.read_text(encoding="ascii").strip()
