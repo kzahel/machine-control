@@ -10,9 +10,10 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[3]
+BASH = shutil.which("bash")
 
 
-@unittest.skipIf(shutil.which("bash") is None, "requires POSIX Bash")
+@unittest.skipIf(BASH is None, "requires POSIX Bash")
 class VmClaimAdapterTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
@@ -53,8 +54,9 @@ class VmClaimAdapterTests(unittest.TestCase):
         )
 
     def run_adapter(self, executable, environment, *arguments):
+        assert BASH is not None
         return subprocess.run(
-            [str(executable), *arguments],
+            [BASH, str(executable), *arguments],
             text=True,
             capture_output=True,
             check=False,
