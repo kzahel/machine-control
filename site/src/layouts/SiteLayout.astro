@@ -6,7 +6,7 @@ interface Props {
   description: string;
   canonicalPath?: string;
   type?: "website" | "article";
-  image?: string;
+  image?: string | null;
 }
 
 const {
@@ -17,7 +17,7 @@ const {
   image = "/og.png",
 } = Astro.props;
 const canonicalUrl = new URL(canonicalPath, Astro.site ?? Astro.url);
-const imageUrl = new URL(image, Astro.site ?? Astro.url);
+const imageUrl = image ? new URL(image, Astro.site ?? Astro.url) : null;
 ---
 
 <!doctype html>
@@ -34,11 +34,11 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url);
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl} />
-    <meta property="og:image" content={imageUrl} />
-    <meta name="twitter:card" content="summary_large_image" />
+    {imageUrl && <meta property="og:image" content={imageUrl} />}
+    <meta name="twitter:card" content={imageUrl ? "summary_large_image" : "summary"} />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={imageUrl} />
+    {imageUrl && <meta name="twitter:image" content={imageUrl} />}
     <title>{title}</title>
   </head>
   <body>
