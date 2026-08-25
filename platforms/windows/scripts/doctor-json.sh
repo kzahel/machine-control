@@ -96,6 +96,7 @@ fi
 guest_probe=""
 guest_probe_exit=1
 if [[ "$power" == running ]]; then
+    export WINVM_SSH_ALLOW_START=false
     read -r -d '' probe_script <<'POWERSHELL' || true
 $ErrorActionPreference = 'Stop'
 $runtime = Join-Path $env:ProgramData `

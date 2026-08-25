@@ -8,6 +8,9 @@ case "$command" in
     status)
         printf 'started\n'
         ;;
+    ip-address)
+        printf '192.0.2.10\n'
+        ;;
     file)
         operation="${1:-}"
         shift || true

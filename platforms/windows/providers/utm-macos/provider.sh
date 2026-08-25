@@ -801,6 +801,56 @@ guest_ipv4_once() {
         awk '/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }'
 }
 
+ssh_endpoint() {
+    local status ip deadline
+    assert_target connect >/dev/null || return
+    status="$(vm_status || true)"
+    if [[ "$status" != "started" ]]; then
+        if [[ "$WINVM_SSH_ALLOW_START" != true ]]; then
+            printf 'Target is not running; SSH start is prohibited for this operation\n' >&2
+            return 1
+        fi
+        if ! role_allows_operation "$WINVM_TARGET_ROLE" up; then
+            printf 'Target role %s does not authorize operation up.\n' \
+                "$WINVM_TARGET_ROLE" >&2
+            return 1
+        fi
+    fi
+    if [[ "$WINVM_SSH_ALLOW_START" == true ]]; then
+        ip="$(guest_ipv4)"
+    else
+        ip="$(guest_ipv4_once)"
+        if [[ -z "$ip" ]]; then
+            printf 'Running target has no guest address; SSH start is prohibited\n' >&2
+            return 1
+        fi
+    fi
+    deadline=$((SECONDS + WINVM_BOOT_TIMEOUT))
+    while (( SECONDS < deadline )); do
+        if winvm_tcp_check "$ip" "$WINVM_SSH_PORT" 1; then
+            printf '%s\n' "$ip"
+            return 0
+        fi
+        sleep 1
+    done
+    printf 'Timed out waiting for target SSH readiness\n' >&2
+    return 1
+}
+
+ssh_exec() {
+    local ip
+    winvm_require_command "$WINVM_SSH_BIN" || return
+    ip="$(ssh_endpoint)" || return
+    exec "$WINVM_SSH_BIN" \
+        -o BatchMode=yes \
+        -o ProxyCommand=none \
+        -o HostName="$ip" \
+        -o HostKeyAlias="$WINVM_SSH_HOST" \
+        -o CheckHostIP=no \
+        -p "$WINVM_SSH_PORT" \
+        "$WINVM_SSH_HOST" "$@"
+}
+
 input_text() {
     if [[ $# -ne 1 ]]; then
         printf 'Usage: winvm type TEXT\n' >&2
@@ -987,6 +1037,7 @@ case "$command" in
     repair-registration) repair_registration "$@" ;;
     up) assert_target up >/dev/null; guest_ipv4 ;;
     ip) assert_target inspect >/dev/null; guest_ipv4_once ;;
+    ssh-exec) ssh_exec "$@" ;;
     screenshot) require_outer_ui_allowed; exec "$PROVIDER_DIR/screenshot" "$@" ;;
     type) require_outer_ui_allowed; assert_target input >/dev/null; input_text "$@" ;;
     click) require_outer_ui_allowed; assert_target input >/dev/null; input_click "$@" ;;

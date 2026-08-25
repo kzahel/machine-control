@@ -131,6 +131,57 @@ if "$REPO_DIR/scripts/fetch-artifact.sh" '../not-an-id' \
     exit 1
 fi
 
+direct_ssh_capture="$temporary/direct-ssh-arguments"
+direct_target_log="$temporary/direct-target-log"
+direct_utmctl_log="$temporary/direct-utmctl-log"
+direct_environment=(
+    WINVM_CONFIG_FILE=/dev/null
+    WINVM_TARGET_FILE="$temporary/absent-direct-target"
+    WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-ssh-direct"
+    WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-target-id"
+    WINVM_SSH_BIN="$REPO_DIR/tests/fixtures/ssh-direct"
+    WINVM_NC_BIN=/usr/bin/true
+    WINVM_EXPECTED_UTM_ID=11111111-2222-3333-4444-555555555555
+    WINVM_TARGET_ROLE=candidate
+    WINVM_SSH_HOST=fixture-ssh-alias
+    WINVM_TEST_DIRECT_SSH_CAPTURE="$direct_ssh_capture"
+    WINVM_TEST_TARGET_ID_LOG="$direct_target_log"
+    WINVM_TEST_DIRECT_UTMCTL_LOG="$direct_utmctl_log"
+)
+
+env "${direct_environment[@]}" \
+    "$REPO_DIR/bin/winvm" ps 'exit 0' >/dev/null
+direct_ssh_arguments="$(paste -sd '|' "$direct_ssh_capture")"
+[[ "$direct_ssh_arguments" == \
+    '-o|BatchMode=yes|-o|ProxyCommand=none|-o|HostName=192.0.2.10|-o|HostKeyAlias=fixture-ssh-alias|-o|CheckHostIP=no|-p|22|fixture-ssh-alias|exit 0' ]]
+[[ "$(wc -l <"$direct_target_log" | tr -d ' ')" == 1 ]]
+[[ "$(grep -c '^ip-address ' "$direct_utmctl_log")" == 1 ]]
+
+rm -f -- "$direct_ssh_capture" "$direct_target_log" "$direct_utmctl_log"
+if env "${direct_environment[@]}" \
+        WINVM_EXPECTED_UTM_ID=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee \
+        "$REPO_DIR/bin/winvm" ps 'exit 0' >/dev/null 2>&1; then
+    printf 'Direct SSH accepted a mismatched exact target.\n' >&2
+    exit 1
+fi
+[[ ! -e "$direct_ssh_capture" ]]
+
+if env "${direct_environment[@]}" \
+        WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-always-stopped" \
+        WINVM_SSH_ALLOW_START=false \
+        "$REPO_DIR/bin/winvm" ps 'exit 0' >/dev/null 2>&1; then
+    printf 'Direct SSH started a target when start was prohibited.\n' >&2
+    exit 1
+fi
+[[ ! -e "$direct_ssh_capture" ]]
+
+rm -f -- "$direct_ssh_capture" "$direct_target_log" "$direct_utmctl_log"
+direct_control="$(env "${direct_environment[@]}" \
+    "$REPO_DIR/bin/winvm" control '{"operation":"status"}')"
+[[ "$direct_control" == '{"fixture":"resident-call"}' ]]
+[[ "$(wc -l <"$direct_target_log" | tr -d ' ')" == 1 ]]
+[[ "$(grep -c '^ip-address ' "$direct_utmctl_log")" == 1 ]]
+
 set +e
 doctor_json="$(
     WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-always-stopped" \
@@ -166,6 +217,7 @@ doctor_environment=(
     WINVM_TARGET_ROLE=candidate
     WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-target-id"
     WINVM_SSH_BIN="$REPO_DIR/tests/fixtures/ssh-doctor"
+    WINVM_NC_BIN=/usr/bin/true
     WINVM_SUSPEND_POLICY=disabled
     WINVM_FORBID_OUTER_UI=true
 )

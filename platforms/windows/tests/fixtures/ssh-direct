@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+
+import json
+import os
+from pathlib import Path
+import sys
+
+
+arguments = sys.argv[1:]
+capture = Path(os.environ["WINVM_TEST_DIRECT_SSH_CAPTURE"])
+capture.write_text("\n".join(arguments) + "\n", encoding="utf-8")
+
+command = arguments[-1] if arguments else ""
+if "[ScriptBlock]::Create" in command:
+    print(json.dumps({"fixture": "resident-call"}, separators=(",", ":")))

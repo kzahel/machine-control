@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ -n "${WINVM_TEST_DIRECT_UTMCTL_LOG:-}" ]]; then
+    printf '%s\n' "$*" >>"$WINVM_TEST_DIRECT_UTMCTL_LOG"
+fi
+
+command="${1:-}"
+case "$command" in
+    status)
+        printf 'started\n'
+        ;;
+    ip-address)
+        printf '192.0.2.10\n'
+        ;;
+    *)
+        exit 2
+        ;;
+esac

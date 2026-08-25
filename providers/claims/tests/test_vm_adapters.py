@@ -146,6 +146,20 @@ class VmClaimAdapterTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("repair private inventory", result.stderr)
 
+    def test_direct_windows_ui_entry_requires_a_claim(self) -> None:
+        executable = ROOT / "platforms" / "windows" / "bin" / "winui"
+        environment = {
+            "WINVM_CONFIG_FILE": "/dev/null",
+            "WINVM_EXPECTED_UTM_ID": "fixture-windows-id",
+            "WINVM_CLAIM_STATE_DIR": str(self.directory / "windows-ui"),
+        }
+        help_result = self.run_adapter(executable, environment, "--help")
+        self.assertEqual(help_result.returncode, 0, help_result.stderr)
+
+        result = self.run_adapter(executable, environment, "health")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("requires a live claim", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

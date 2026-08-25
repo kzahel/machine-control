@@ -131,7 +131,7 @@ command="${1:-help}"
 shift || true
 
 case "$command" in
-    help|-h|--help|doctor|status|capabilities|target-id|pin-target|claim-*|workspace-capabilities|workspace-inventory|workspace-gc) ;;
+    help|-h|--help|doctor|status|capabilities|target-id|pin-target|claim-*|ui|workspace-capabilities|workspace-inventory|workspace-gc) ;;
     workspace-acquire|workspace-release) ;;
     *) require_target_claim ;;
 esac
@@ -140,6 +140,7 @@ case "$command" in
     help|-h|--help) usage ;;
     doctor)
         export MACHINE_CONTROL_CLAIM_POLICY=optional
+        export WINVM_SSH_ALLOW_START=false
         if [[ "${1:-}" == "--json" ]]; then
             exec "$REPO_DIR/scripts/doctor-json.sh"
         fi
@@ -151,11 +152,9 @@ case "$command" in
         claim_command "$@"
         ;;
     control|control-local)
-        assert_target connect
         exec "$REPO_DIR/scripts/control.sh" "$@"
         ;;
     artifact)
-        assert_target connect
         exec "$REPO_DIR/scripts/fetch-artifact.sh" "$@"
         ;;
     post-update) exec "$REPO_DIR/scripts/post-update.sh" "$@" ;;
@@ -164,8 +163,8 @@ case "$command" in
     stage-bootstrap) provider stage-bootstrap "$@" ;;
     ssh-config) print_ssh_config "$@" ;;
     ui) exec "$REPO_DIR/bin/winui" "$@" ;;
-    ssh|ps) assert_target connect; exec "$WINVM_SSH_BIN" "$WINVM_SSH_HOST" "$@" ;;
-    wsl) assert_target connect; exec "$WINVM_SSH_BIN" "$WINVM_SSH_HOST" wsl.exe "$@" ;;
+    ssh|ps) provider ssh-exec "$@" ;;
+    wsl) provider ssh-exec wsl.exe "$@" ;;
     generalize) exec "$REPO_DIR/scripts/generalize-windows.sh" "$@" ;;
     image-manifest) exec "$REPO_DIR/scripts/image-manifest.sh" "$@" ;;
     workspace-capabilities|workspace-acquire|workspace-inventory|workspace-release|workspace-gc)

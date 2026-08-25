@@ -60,6 +60,8 @@ WINVM_SUSPEND_POLICY="${WINVM_SUSPEND_POLICY:-auto}"
 WINVM_FORBID_OUTER_UI="${WINVM_FORBID_OUTER_UI:-false}"
 WINVM_SSH_BIN="${WINVM_SSH_BIN:-ssh}"
 WINVM_SCP_BIN="${WINVM_SCP_BIN:-scp}"
+WINVM_NC_BIN="${WINVM_NC_BIN:-nc}"
+WINVM_SSH_ALLOW_START="${WINVM_SSH_ALLOW_START:-true}"
 WINVM_UI_PIPE_NAME="${WINVM_UI_PIPE_NAME:-winvm-ui}"
 WINVM_UI_TASK_NAME="${WINVM_UI_TASK_NAME:-WinVM UI Relay}"
 WINVM_UI_REMOTE_RELATIVE="${WINVM_UI_REMOTE_RELATIVE:-AppData/Local/winvm-testbed}"
@@ -123,7 +125,7 @@ export WINVM_OSASCRIPT WINVM_DISPLAY_WIDTH WINVM_DISPLAY_HEIGHT
 export WINVM_UTM_TITLEBAR_HEIGHT
 export WINVM_BOOT_TIMEOUT WINVM_SHUTDOWN_TIMEOUT
 export WINVM_GUEST_SHUTDOWN_GRACE WINVM_SUSPEND_POLICY WINVM_SSH_BIN
-export WINVM_SCP_BIN
+export WINVM_SCP_BIN WINVM_NC_BIN WINVM_SSH_ALLOW_START
 export WINVM_POST_UPDATE_REPORT_TIMEOUT
 export WINVM_CERTIFY_CHECK_TIMEOUT
 export WINVM_DOCTOR_GUEST_TIMEOUT
@@ -160,8 +162,12 @@ winvm_powershell() {
     local powershell_script="$1"
     local encoded_command
     encoded_command="$(printf '%s' "$powershell_script" | winvm_encode_powershell)"
-    "$WINVM_SSH_BIN" "$WINVM_SSH_HOST" \
+    winvm_ssh \
         "& ([ScriptBlock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('$encoded_command'))))"
+}
+
+winvm_ssh() {
+    "$(winvm_provider_path)" ssh-exec "$@"
 }
 
 winvm_run_bounded() {
@@ -190,15 +196,15 @@ winvm_powershell_bounded() {
     local encoded_command
     encoded_command="$(printf '%s' "$powershell_script" | winvm_encode_powershell)"
     winvm_run_bounded "$timeout" \
-        "$WINVM_SSH_BIN" "$WINVM_SSH_HOST" \
+        "$(winvm_provider_path)" ssh-exec \
         "& ([ScriptBlock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('$encoded_command'))))"
 }
 
 winvm_tcp_check() {
     local host="$1" port="$2" timeout="${3:-2}"
     if [[ "$(uname -s)" == "Darwin" ]]; then
-        nc -G "$timeout" -z "$host" "$port" >/dev/null 2>&1
+        "$WINVM_NC_BIN" -G "$timeout" -z "$host" "$port" >/dev/null 2>&1
     else
-        nc -w "$timeout" -z "$host" "$port" >/dev/null 2>&1
+        "$WINVM_NC_BIN" -w "$timeout" -z "$host" "$port" >/dev/null 2>&1
     fi
 }

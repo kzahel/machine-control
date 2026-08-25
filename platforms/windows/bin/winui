@@ -5,9 +5,12 @@ set -euo pipefail
 readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../scripts/common.sh
 source "$REPO_DIR/scripts/common.sh"
+# shellcheck source=../../../providers/claims/common.sh
+source "$REPO_DIR/../../providers/claims/common.sh"
 
 readonly REMOTE_CLIENT='$env:LOCALAPPDATA\winvm-testbed\ui-client.ps1'
 readonly REQUEST_TIMEOUT_MS="${WINUI_TIMEOUT_MS:-120000}"
+readonly WINUI_CLAIM_PROVIDER=utm-macos-windows
 
 usage() {
     cat <<'EOF'
@@ -62,9 +65,7 @@ send_request() {
     request_base64="$(printf '%s' "$request" | base64 | tr -d '\n')"
 
     set +e
-    response="$(ssh \
-        -o BatchMode=yes \
-        "$WINVM_SSH_HOST" \
+    response="$(winvm_ssh \
         "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"$REMOTE_CLIENT\" -RequestBase64 $request_base64 -PipeName $WINVM_UI_PIPE_NAME")"
     ssh_exit=$?
     set -e
@@ -122,12 +123,18 @@ capture_response() {
     printf '%s\n' "$capture_path"
 }
 
-require_tools
-"$REPO_DIR/bin/winvm" assert-target connect >/dev/null
 command="${1:-}"
 if [[ -n "$command" ]]; then
     shift
 fi
+if [[ "$command" == help || "$command" == -h || "$command" == --help ]]; then
+    usage
+    exit 0
+fi
+require_tools
+claim_require_tools
+claim_require_exact "$WINVM_CLAIM_STATE_DIR" "$WINUI_CLAIM_PROVIDER" \
+    "$WINVM_EXPECTED_UTM_ID"
 
 case "$command" in
     health)
