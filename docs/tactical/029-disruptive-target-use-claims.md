@@ -1,6 +1,6 @@
 # Disruptive Target-Use Claims
 
-Status: active
+Status: complete
 
 Owning topics:
 
@@ -85,12 +85,50 @@ this tactical with the implemented behavior and validation result.
 - `python3 -m unittest discover -s tests/client -v`
 - `python3 -m unittest discover -s providers/workspaces/tests -v`
 - `bash platforms/windows/tests/smoke.sh`
-- `bash platforms/linux/tests/smoke.sh`
-- `bash platforms/macos/tests/smoke.sh`
+- `bash platforms/linux/tests/static.sh`
+- `bash platforms/macos/tests/smoke.sh --static`
 - `python3 bin/check --portable`
 - `python3 bin/check --native`
 
 ## Result
 
-Active. Record the final contract, adapter coverage, validation evidence, and
-remaining controller-affordance work here when the slice completes.
+Completed on 2026-08-25.
+
+The shared claim contract and private authority now expose `useClasses` policy
+and a per-claim `useClass`. Acquisition defaults to `ordinary` and accepts the
+explicit `--disruptive` flag. A class-aware check returns
+`disruptive_claim_required` with the current minimized holder descriptor when
+an ordinary claim is presented. Legacy active records without the field load
+as ordinary and are upgraded in private state on their next write.
+
+The common client validates and projects the expanded contract, forwards
+explicit disruptive acquisition, keeps workspace-composed claims ordinary,
+and performs a typed preflight for known host-side VM commands. The Windows,
+Linux, and macOS public wrappers independently repeat the exact-resource
+disruptive check for every host-visible screenshot, pointer, keyboard, drag,
+and scan-code command before provider dispatch. Existing provider target,
+geometry, role, and absolute outer-UI prohibitions remain unchanged and are
+still evaluated after a disruptive claim passes.
+
+Implementation landed in the following commits:
+
+- `e83d716` added the claim-store and JSON-contract use classes, class-aware
+  validation, compatibility default, and store tests;
+- `07efedf` added the common client flag, validation, typed preflight, and
+  client fixtures;
+- `d1dc413` added authoritative wrapper enforcement and full command-set
+  adapter tests; and
+- `8bd6c49` published current topic, contract, platform, and agent guidance.
+
+The claim, client, and workspace suites passed. Windows smoke, Linux native
+static, macOS native static, `python3 bin/check --portable`, and
+`python3 bin/check --native` passed, including tracked JSON, Bash syntax, and
+whitespace checks. The Linux and macOS full smoke runners require a configured
+accepted guest, while the behavior in this slice is deterministically refused
+before provider dispatch; their fixture/static variants were used instead.
+No live outer capture or input was invoked, and no claim policy was bypassed
+for target operation.
+
+Notifications, approval, a persistent active indicator, and immediate
+controller revocation remain the explicitly deferred controller-affordance
+layer.
