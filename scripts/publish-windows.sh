@@ -10,6 +10,29 @@ esac
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 publish_parent="$repo_root/publish"
 publish_root="$publish_parent/$runtime_id"
+
+if ! command -v dotnet >/dev/null 2>&1; then
+  printf 'The .NET SDK is required to publish Windows packages.\n' >&2
+  exit 1
+fi
+sdk_version="$(dotnet --version)"
+sdk_base="$(dotnet --list-sdks | awk -v version="$sdk_version" '
+  $1 == version {
+    value = $0
+    sub(/^[^[]*\[/, "", value)
+    sub(/\].*$/, "", value)
+    print value
+    exit
+  }
+')"
+windows_desktop_targets="$sdk_base/$sdk_version/Sdks/Microsoft.NET.Sdk.WindowsDesktop/targets/Microsoft.NET.Sdk.WindowsDesktop.targets"
+if [[ -z "$sdk_base" || ! -f "$windows_desktop_targets" ]]; then
+  printf '%s\n' \
+    'The selected .NET SDK lacks WindowsDesktop cross-publish targets.' \
+    'Install the full Microsoft .NET SDK and select it on PATH.' >&2
+  exit 1
+fi
+
 mkdir -p "$publish_parent"
 staged_root="$(mktemp -d "$publish_parent/.$runtime_id.XXXXXX")"
 cleanup() {

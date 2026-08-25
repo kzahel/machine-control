@@ -35,6 +35,8 @@ grep -Fq '$wingetOutput = @(& $winget.Source install' \
 grep -Fq "'Microsoft.DotNet.SDK.8'" \
     "$REPO_DIR/guests/windows/bootstrap-development.ps1"
 grep -Fq 'post-update.ps1' "$REPO_DIR/../../scripts/publish-windows.sh"
+grep -Fq 'Microsoft.NET.Sdk.WindowsDesktop.targets' \
+    "$REPO_DIR/../../scripts/publish-windows.sh"
 temporary="$(mktemp -d /tmp/winvm-smoke.XXXXXX)"
 trap 'rm -rf -- "$temporary"' EXIT
 
