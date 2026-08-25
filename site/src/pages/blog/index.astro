@@ -1,0 +1,67 @@
+---
+import { getCollection } from "astro:content";
+import SiteFooter from "../../components/SiteFooter.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import NewsletterSignup from "../../components/NewsletterSignup.astro";
+import SiteLayout from "../../layouts/SiteLayout.astro";
+
+const posts = (await getCollection("blog", ({ data }) => !data.draft)).sort(
+  (a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf(),
+);
+const title = "Notes — Machine Control";
+const description =
+  "Field notes about cross-platform application development, target-native automation, compact observations, and evidence-driven computer control.";
+---
+
+<SiteLayout title={title} description={description} canonicalPath="/blog/">
+  <SiteHeader />
+  <main class="blog-index">
+    <section class="page-intro">
+      <div class="shell narrow-shell">
+        <p class="eyebrow">Field notes</p>
+        <h1>Building a better machine layer for coding agents.</h1>
+        <p class="lede">
+          Architecture, experiments, and practical workflows from developing
+          applications across operating systems and devices.
+        </p>
+      </div>
+    </section>
+    <section class="section">
+      <div class="shell narrow-shell post-list">
+        {posts.map((post, index) => (
+          <article class="post-card">
+            <div class="post-number">{String(index + 1).padStart(2, "0")}</div>
+            <div>
+              <div class="post-kicker">
+                <span>{post.data.category}</span>
+                <time datetime={post.data.publishedAt.toISOString()}>
+                  {post.data.publishedAt.toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                    timeZone: "UTC",
+                  })}
+                </time>
+                <span>{post.data.readingMinutes} min read</span>
+              </div>
+              <h2><a href={`/blog/${post.id}/`}>{post.data.title}</a></h2>
+              <p>{post.data.description}</p>
+              <a class="text-link" href={`/blog/${post.id}/`}>Read note →</a>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+    <section class="section newsletter-section">
+      <div class="shell narrow-shell newsletter-grid">
+        <div>
+          <p class="eyebrow">Occasional updates</p>
+          <h2>Follow the evidence.</h2>
+          <p>New platform results and useful development workflows, sent rarely.</p>
+        </div>
+        <NewsletterSignup source="blog" />
+      </div>
+    </section>
+  </main>
+  <SiteFooter />
+</SiteLayout>

@@ -1,0 +1,21 @@
+---
+import SiteFooter from "../components/SiteFooter.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteLayout from "../layouts/SiteLayout.astro";
+---
+
+<SiteLayout
+  title="Page not found — Machine Control"
+  description="The requested Machine Control page was not found."
+  canonicalPath="/404/"
+>
+  <SiteHeader />
+  <main class="not-found">
+    <div class="shell narrow-shell">
+      <p class="eyebrow">404 / target unavailable</p>
+      <h1>This route does not exist.</h1>
+      <p><a class="button button-primary" href="/">Return home →</a></p>
+    </div>
+  </main>
+  <SiteFooter />
+</SiteLayout>

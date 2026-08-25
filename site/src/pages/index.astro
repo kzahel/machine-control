@@ -1,0 +1,300 @@
+---
+import SiteFooter from "../components/SiteFooter.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import NewsletterSignup from "../components/NewsletterSignup.astro";
+import SiteLayout from "../layouts/SiteLayout.astro";
+
+const title = "Machine Control — A cross-platform test lab for coding agents";
+const description =
+  "Machine Control lets coding agents build, launch, inspect, and verify applications across Windows, macOS, and Linux VMs through one target-native interface.";
+---
+
+<SiteLayout title={title} description={description} canonicalPath="/">
+  <SiteHeader />
+  <main>
+    <section class="hero">
+      <div class="shell hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">Open source · active pre-1.0</p>
+          <h1>Give your coding agent a cross-platform test lab.</h1>
+          <p class="lede">
+            Build on one machine. Let the agent launch, inspect, and verify the
+            real application across Windows, macOS, and Linux VMs through one
+            compact, target-native interface.
+          </p>
+          <div class="actions">
+            <a class="button button-primary" href="https://github.com/kzahel/machine-control#quick-start">
+              Read the quick start <span aria-hidden="true">→</span>
+            </a>
+            <a class="button button-secondary" href="https://github.com/kzahel/machine-control">
+              View source
+            </a>
+          </div>
+          <ul class="proof-list" aria-label="Project facts">
+            <li>Windows · macOS · Linux</li>
+            <li>Native UI semantics</li>
+            <li>Local or remote</li>
+            <li>MIT licensed</li>
+          </ul>
+        </div>
+
+        <div class="terminal-card" aria-label="Example Machine Control session">
+          <div class="terminal-heading">
+            <span>application check</span>
+            <span>3 targets</span>
+          </div>
+          <pre><code><span class="prompt">$</span> mc targets
+windows   ready   windows.uia
+macos     ready   macos.ax
+linux     ready   linux.atspi
+
+<span class="prompt">$</span> mc --target windows desktop snapshot \
+    --query Save --projection compact
+
+route          windows.uia
+delivery       confirmed
+effect         confirmed
+host impact    none</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="how-it-works">
+      <div class="shell">
+        <div class="section-heading">
+          <p class="eyebrow">One workflow, native controls</p>
+          <h2>The interface is shared. The platform stays real.</h2>
+          <p>
+            Machine Control normalizes target selection, observations, actions,
+            and results without pretending that every operating system works the
+            same way.
+          </p>
+        </div>
+
+        <div class="architecture" role="img" aria-label="A coding agent calls Machine Control, which routes work to native Windows, macOS, and Linux controls and returns evidence about the outcome">
+          <div class="diagram-node diagram-agent">
+            <span class="node-label">CALLER</span>
+            <strong>Coding agent</strong>
+            <small>build · deploy · test</small>
+          </div>
+          <div class="diagram-arrow" aria-hidden="true">→</div>
+          <div class="diagram-node diagram-core">
+            <span class="node-label">COMMON INTERFACE</span>
+            <strong>Machine Control</strong>
+            <small>target · claim · observe · act</small>
+          </div>
+          <div class="diagram-arrow" aria-hidden="true">→</div>
+          <div class="target-stack">
+            <div><strong>Windows</strong><span>UIA / Win32</span></div>
+            <div><strong>macOS</strong><span>AX / Quartz</span></div>
+            <div><strong>Linux</strong><span>AT-SPI / Wayland</span></div>
+          </div>
+          <div class="diagram-return">
+            <span class="node-label">RESULT</span>
+            actual route · delivery · effect · evidence · uncertainty
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-ink" id="development-loop">
+      <div class="shell">
+        <div class="section-heading">
+          <p class="eyebrow">The development loop</p>
+          <h2>From a code change to evidence on every target.</h2>
+          <p>
+            An agent or CI system chooses the work. Machine Control provides
+            the safe, repeatable boundary to each configured test machine.
+          </p>
+        </div>
+        <ol class="workflow">
+          <li>
+            <span>01</span>
+            <div><strong>Discover</strong><p>List eligible targets and inspect their real capabilities.</p></div>
+          </li>
+          <li>
+            <span>02</span>
+            <div><strong>Claim</strong><p>Reserve an exact VM or acquire an isolated workspace.</p></div>
+          </li>
+          <li>
+            <span>03</span>
+            <div><strong>Deploy</strong><p>Build, install, launch, and prepare the application.</p></div>
+          </li>
+          <li>
+            <span>04</span>
+            <div><strong>Exercise</strong><p>Observe compact semantics and act through native controls.</p></div>
+          </li>
+          <li>
+            <span>05</span>
+            <div><strong>Verify</strong><p>Separate action delivery from independently observed effect.</p></div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section section-white" id="compact-observations">
+      <div class="shell context-grid">
+        <div class="context-copy">
+          <p class="eyebrow">Context is part of the system</p>
+          <h2>Send useful state, not an endless desktop stream.</h2>
+          <p>
+            Compact semantic projections keep stable roles, labels, values,
+            bounds, and actions while filtering provider noise. Content digests
+            let an unchanged observation return without repeating the element
+            tree.
+          </p>
+          <p class="fine-print">
+            These are measured response bytes from current Windows fixtures,
+            not a claim about exact model-token savings. A cross-provider token
+            benchmark is planned.
+          </p>
+          <a class="text-link" href="https://github.com/kzahel/machine-control/blob/main/topics/capabilities-and-results.md">
+            Read the measurements →
+          </a>
+        </div>
+        <div class="measurements" aria-label="Measured semantic response sizes">
+          <article>
+            <div class="measurement-heading"><strong>Calculator</strong><span>response bytes</span></div>
+            <div class="bar-row"><span>full</span><i class="bar-100"></i><b>9,971</b></div>
+            <div class="bar-row"><span>compact</span><i class="bar-66"></i><b>6,577</b></div>
+            <div class="bar-row"><span>unchanged</span><i class="bar-12"></i><b>1,165</b></div>
+          </article>
+          <article>
+            <div class="measurement-heading"><strong>Settings</strong><span>response bytes</span></div>
+            <div class="bar-row"><span>full</span><i class="bar-100"></i><b>4,971</b></div>
+            <div class="bar-row"><span>compact</span><i class="bar-77"></i><b>3,843</b></div>
+            <div class="bar-row"><span>unchanged</span><i class="bar-20"></i><b>986</b></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="why">
+      <div class="shell">
+        <div class="section-heading">
+          <p class="eyebrow">What it solves</p>
+          <h2>A machine layer for cross-platform application work.</h2>
+        </div>
+        <div class="feature-grid">
+          <article>
+            <span class="feature-index">01 / ONE VOCABULARY</span>
+            <h3>Change the target, not the agent workflow.</h3>
+            <p>
+              Applications, windows, semantic snapshots, captures, workspaces,
+              and results share a stable ergonomic direction across platforms.
+            </p>
+          </article>
+          <article>
+            <span class="feature-index">02 / NATIVE DEPTH</span>
+            <h3>Keep the operating system’s strongest controls.</h3>
+            <p>
+              UIA, Accessibility, AT-SPI, XCTest, ADB, and platform services
+              remain real providers rather than disappearing behind pixels.
+            </p>
+          </article>
+          <article>
+            <span class="feature-index">03 / QUIET OPERATION</span>
+            <h3>Test the target without taking over the host.</h3>
+            <p>
+              Ordinary operations execute inside the target. Hypervisor windows
+              and host input stay explicit recovery routes.
+            </p>
+          </article>
+          <article>
+            <span class="feature-index">04 / TRUTHFUL RESULTS</span>
+            <h3>Know whether the application actually changed.</h3>
+            <p>
+              Acceptance, delivery, effect, evidence, provider route, and
+              uncertainty are reported separately.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-white" id="projects">
+      <div class="shell project-grid">
+        <div class="project-intro">
+          <p class="eyebrow">Built under real application pressure</p>
+          <h2>Powering cross-platform development at Graehl Arts.</h2>
+          <p>
+            Machine Control is used to develop and exercise applications across
+            desktop and device targets—not only synthetic automation fixtures.
+          </p>
+          <a class="text-link" href="https://graehlarts.com">Visit Graehl Arts →</a>
+        </div>
+        <div class="project-list">
+          <a href="https://jstorrent.com"><strong>JSTorrent</strong><span>Shared TypeScript product across desktop, browser, Android, ChromeOS, and iOS.</span></a>
+          <a href="https://github.com/kzahel/rstorrent"><strong>RSTorrent</strong><span>Rust engine with maintained desktop, Android, and iOS clients.</span></a>
+          <a href="https://at-piano.com"><strong>Atpiano</strong><span>Native macOS and Windows application packaging and UI workflows.</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="status">
+      <div class="shell">
+        <div class="section-heading status-heading">
+          <div>
+            <p class="eyebrow">Current evidence</p>
+            <h2>Broad destination. Honest status.</h2>
+          </div>
+          <p>
+            The common desktop contract is exercised today. Device families
+            retain explicit native operations while broader facade coverage is
+            still growing.
+          </p>
+        </div>
+        <div class="status-table" role="table" aria-label="Current platform status">
+          <div class="status-row status-header" role="row"><span>Target</span><span>Current route</span><span>Status</span></div>
+          <div class="status-row" role="row"><strong>Windows</strong><span>Common desktop · UIA / Cua / Win32</span><em>First complete vertical slice</em></div>
+          <div class="status-row" role="row"><strong>macOS</strong><span>Common desktop · AX / Quartz / Cua</span><em>Accepted VM appliance</em></div>
+          <div class="status-row" role="row"><strong>Linux</strong><span>Common desktop · AT-SPI / Wayland</span><em>Accepted VM appliance</em></div>
+          <div class="status-row" role="row"><strong>Devices</strong><span>ChromeOS · iOS · Android · Quest</span><em>Working native routes; varied coverage</em></div>
+        </div>
+        <p class="table-note">
+          “Accepted” means exercised against the repository’s conformance and
+          real-application workflows. It is not a production support SLA.
+          <a href="https://github.com/kzahel/machine-control#what-works-today">Full platform status →</a>
+        </p>
+      </div>
+    </section>
+
+    <section class="section section-ink notes-preview">
+      <div class="shell notes-grid">
+        <div>
+          <p class="eyebrow">Field notes</p>
+          <h2>Why app-development agents need a machine layer.</h2>
+          <p>
+            The first project note explains why screenshots, native automation,
+            VM lifecycle, and effect verification belong in one development
+            loop—but not one lowest-common-denominator implementation.
+          </p>
+          <a class="button button-on-dark" href="/blog/why-app-development-agents-need-a-machine-layer/">
+            Read the note →
+          </a>
+        </div>
+        <div class="note-meta">
+          <span>01</span>
+          <p>Architecture</p>
+          <p>8 minute read</p>
+          <p>August 25, 2026</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section newsletter-section" id="newsletter">
+      <div class="shell newsletter-grid">
+        <div>
+          <p class="eyebrow">Occasional updates</p>
+          <h2>Follow the work as the lab grows.</h2>
+          <p>
+            New platform evidence, compact-control measurements, and useful
+            development workflows. No cadence promises and no marketing drip.
+          </p>
+        </div>
+        <NewsletterSignup source="homepage" />
+      </div>
+    </section>
+  </main>
+  <SiteFooter />
+</SiteLayout>

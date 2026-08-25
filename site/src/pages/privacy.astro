@@ -1,0 +1,54 @@
+---
+import SiteFooter from "../components/SiteFooter.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteLayout from "../layouts/SiteLayout.astro";
+
+const title = "Newsletter privacy note — Machine Control";
+const description = "How Machine Control handles addresses submitted for project updates.";
+---
+
+<SiteLayout title={title} description={description} canonicalPath="/privacy/">
+  <SiteHeader />
+  <main class="article-page">
+    <article class="article-header article-body shell prose-shell prose">
+      <p class="eyebrow">Privacy</p>
+      <h1>A small list with a narrow purpose.</h1>
+      <p class="lede">
+        If you subscribe for Machine Control updates, your email address is used
+        only for occasional project news about releases, platform evidence, and
+        development notes.
+      </p>
+
+      <h2>What is stored</h2>
+      <p>
+        The list stores your email address, when you joined, whether you joined
+        from the homepage or blog, and the version of this notice. Duplicate
+        signups update the existing entry.
+      </p>
+
+      <h2>Where it is stored</h2>
+      <p>
+        The site and signup database run on Cloudflare. Cloudflare Turnstile is
+        used to reject automated submissions. The Machine Control list does not
+        intentionally retain your IP address or browser fingerprint.
+      </p>
+
+      <h2>What it is not used for</h2>
+      <p>
+        The address is not sold, shared for unrelated marketing, or used to
+        create a Machine Control account.
+      </p>
+
+      <h2>Removal and questions</h2>
+      <p>
+        To ask what is stored or have your address removed, email
+        <a href="mailto:kyle@graehlarts.com?subject=Machine%20Control%20privacy">kyle@graehlarts.com</a>.
+        Future project emails will also provide a way to opt out.
+      </p>
+
+      <p>Last updated: August 25, 2026.</p>
+      <p><a href="/">← Return to the homepage</a></p>
+    </article>
+  </main>
+  <SiteFooter />
+</SiteLayout>

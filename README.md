@@ -2,6 +2,10 @@
 
 **Target-native automation for computers and devices.**
 
+[machinecontrol.dev](https://machinecontrol.dev) presents the project for
+cross-platform application developers; this repository contains the complete
+source, contracts, evidence, and implementation.
+
 Machine Control gives software agents one target-oriented interface for
 operating Windows, macOS, Linux, ChromeOS, iOS, Android, and other devices. It
 combines system administration, semantic UI automation, screen capture, input,
@@ -400,6 +404,7 @@ operations. The deeper routing and authorization policy is in
 | [`topics/`](topics/README.md) | Living architectural decisions and current direction |
 | [`research/`](research/README.md) | Provider dossiers and platform comparisons with evidence levels |
 | [`docs/tactical/`](docs/tactical/README.md) | Bounded implementation plans and completed execution records |
+| [`site/`](site/README.md) | Astro source for machinecontrol.dev |
 
 Concrete machine inventory, credentials, private routes, and deployment state
 do not belong in this public repository.

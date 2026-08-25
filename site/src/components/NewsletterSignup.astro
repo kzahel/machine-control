@@ -1,0 +1,52 @@
+---
+import { env } from "cloudflare:workers";
+
+interface Props {
+  source?: "homepage" | "blog";
+}
+
+const { source = "homepage" } = Astro.props;
+const turnstileSiteKey =
+  env.TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
+---
+
+<form class="newsletter-form" action="/api/newsletter" method="post" data-newsletter-form>
+  <label for={`newsletter-email-${source}`}>Email address</label>
+  <div class="newsletter-form-row">
+    <input
+      id={`newsletter-email-${source}`}
+      name="email"
+      type="email"
+      autocomplete="email"
+      placeholder="you@example.com"
+      required
+    />
+    <button type="submit">Subscribe</button>
+  </div>
+  <div class="honeypot" aria-hidden="true">
+    <label for={`newsletter-company-${source}`}>Leave this field empty</label>
+    <input
+      id={`newsletter-company-${source}`}
+      name="company"
+      type="text"
+      tabindex="-1"
+      autocomplete="off"
+    />
+  </div>
+  <input type="hidden" name="source" value={source} />
+  <div
+    class="cf-turnstile"
+    data-sitekey={turnstileSiteKey}
+    data-theme="light"
+    data-size="flexible"
+    data-appearance="interaction-only"
+    data-action="newsletter-signup"
+  ></div>
+  <p class="form-note">
+    Project updates only. Unsubscribe anytime. See the <a href="/privacy/">privacy note</a>.
+  </p>
+  <p class="form-status" data-form-status aria-live="polite"></p>
+</form>
+
+<script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script is:inline src="/scripts/newsletter.js"></script>

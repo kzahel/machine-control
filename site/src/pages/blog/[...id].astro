@@ -1,0 +1,51 @@
+---
+import { getCollection, render } from "astro:content";
+import SiteFooter from "../../components/SiteFooter.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import SiteLayout from "../../layouts/SiteLayout.astro";
+
+export const prerender = true;
+
+export async function getStaticPaths() {
+  const posts = await getCollection("blog", ({ data }) => !data.draft);
+  return posts.map((post) => ({ params: { id: post.id }, props: { post } }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+const canonicalPath = `/blog/${post.id}/`;
+---
+
+<SiteLayout
+  title={`${post.data.title} — Machine Control`}
+  description={post.data.description}
+  canonicalPath={canonicalPath}
+  type="article"
+>
+  <SiteHeader />
+  <main>
+    <article class="article-page">
+      <header class="article-header shell prose-shell">
+        <a class="back-link" href="/blog/">← All notes</a>
+        <p class="eyebrow">{post.data.category}</p>
+        <h1>{post.data.title}</h1>
+        <p class="lede">{post.data.description}</p>
+        <div class="article-meta">
+          <time datetime={post.data.publishedAt.toISOString()}>
+            {post.data.publishedAt.toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+              timeZone: "UTC",
+            })}
+          </time>
+          <span>{post.data.readingMinutes} minute read</span>
+        </div>
+      </header>
+      <div class="article-body shell prose-shell prose">
+        <Content />
+      </div>
+    </article>
+  </main>
+  <SiteFooter />
+</SiteLayout>
