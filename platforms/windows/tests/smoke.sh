@@ -7,6 +7,7 @@ set -euo pipefail
 export MACHINE_CONTROL_CLAIM_POLICY=optional
 
 readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly HOST_OS="$(uname -s)"
 grep -Fq 'sshd_config_default' \
     "$REPO_DIR/guests/windows/bootstrap-openssh.ps1"
 grep -Fq "'System32\OpenSSH\ssh-keygen.exe'" \
@@ -74,6 +75,7 @@ help_output="$(WINVM_UTM_NAME='Smoke Test VM' "$REPO_DIR/bin/winvm" help)"
 [[ "$help_output" == *'factory-create NAME WINDOWS_ISO SEED_ISO [BOOT_IMAGE]'* ]]
 [[ "$help_output" == *'factory-detach-installer'* ]]
 [[ "$help_output" == *'factory-detach-media'* ]]
+[[ "$help_output" == *'factory-status --json'* ]]
 [[ "$help_output" == *'generalize [--check|--decrypt|--confirm-target]'* ]]
 [[ "$help_output" == *'generalize --remove-appx EXACT_PACKAGE_NAME'* ]]
 [[ "$help_output" == *'export-image PATH'* ]]
@@ -84,10 +86,16 @@ help_output="$(WINVM_UTM_NAME='Smoke Test VM' "$REPO_DIR/bin/winvm" help)"
 [[ "$help_output" == *'repair-registration'* ]]
 [[ "$help_output" == *'workspace-capabilities'* ]]
 
+workspace_provider=utm-macos
+if [[ "$HOST_OS" == Linux ]]; then
+    workspace_provider=libvirt-linux
+fi
 workspace_caps="$(env \
     WINVM_CONFIG_FILE=/dev/null \
     WINVM_TARGET_FILE="$temporary/absent-target" \
+    WINVM_PROVIDER="$workspace_provider" \
     WINVM_UTMCTL=/usr/bin/true \
+    WINVM_LIBVIRT_VIRSH=/usr/bin/true \
     WINVM_WORKSPACE_STATE_DIR="$temporary/windows-workspaces" \
     WINVM_WORKSPACE_DEVELOPMENT_PROVEN=false \
     "$REPO_DIR/bin/winvm" workspace-capabilities --json)"
@@ -111,6 +119,12 @@ selection="$({ env \
     bash -c 'source "$1"; printf "%s|%s|%s\n" "$WINVM_UTM_NAME" "$WINVM_EXPECTED_UTM_ID" "$WINVM_TARGET_ROLE"' \
         _ "$REPO_DIR/scripts/common.sh"; } 2>/dev/null)"
 [[ "$selection" == 'fixture-workspace|fixture-workspace-id|seal' ]]
+
+# The remaining provider tests use injected UTM and AppleScript fixtures. Make
+# the production host guard observe their modeled platform on non-macOS hosts.
+if [[ "$HOST_OS" != Darwin ]]; then
+    export PATH="$REPO_DIR/tests/fixtures/darwin-bin:$PATH"
+fi
 
 for command in screenshot type click key scan; do
     if WINVM_FORBID_OUTER_UI=true \
@@ -652,7 +666,7 @@ env "${identity_provider_env[@]}" \
     WINVM_ALLOW_PERSISTENT_SEAL_BOOT=1 \
     "$provider" assert-target up >/dev/null
 
-if command -v swiftc >/dev/null 2>&1; then
+if [[ "$HOST_OS" == Darwin ]] && command -v swiftc >/dev/null 2>&1; then
     swiftc -typecheck "$REPO_DIR/providers/utm-macos/window-id.swift"
     swiftc -typecheck "$REPO_DIR/providers/utm-macos/normalize-screenshot.swift"
 

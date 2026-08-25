@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+if [[ "${1:-}" == -s || $# == 0 ]]; then
+    printf 'Darwin\n'
+    exit 0
+fi
+exec /usr/bin/uname "$@"

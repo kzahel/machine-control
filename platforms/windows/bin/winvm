@@ -59,6 +59,7 @@ Image lifecycle:
   workspace-release | workspace-gc
 
 Image factory:
+  factory-status --json  Read minimized first-logon factory progress via QGA
   factory-create NAME WINDOWS_ISO SEED_ISO [BOOT_IMAGE]
                          Create a stopped QEMU VM from explicit local media
   factory-detach-installer
@@ -172,7 +173,7 @@ case "$command" in
     workspace-capabilities|workspace-acquire|workspace-inventory|workspace-release|workspace-gc)
         exec "$REPO_DIR/providers/$WINVM_PROVIDER/workspace.sh" "$command" "$@"
         ;;
-    status|capabilities|target-id|pin-target|assert-target|repair-registration|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop|seal|disposable-up|export-image|factory-create|factory-detach-installer|factory-detach-media|delete)
+    status|capabilities|target-id|pin-target|assert-target|repair-registration|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop|seal|disposable-up|export-image|factory-status|factory-create|factory-detach-installer|factory-detach-media|delete)
         provider "$command" "$@"
         ;;
     *)

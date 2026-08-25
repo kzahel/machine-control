@@ -52,7 +52,7 @@ persistent_seal_boot_authorized() {
 role_allows_operation() {
     local role="$1" operation="$2"
     case "$operation" in
-        inspect|status|capabilities|target-id|screenshot|down|shutdown|suspend)
+        inspect|status|capabilities|target-id|factory-status|screenshot|down|shutdown|suspend)
             return 0
             ;;
         seal|export-image)
@@ -267,6 +267,58 @@ post_update_guest_agent() {
     return "$result"
 }
 
+factory_status() (
+    if (( $# != 1 )) || [[ "$1" != --json ]]; then
+        printf 'Usage: winvm factory-status --json\n' >&2
+        return 2
+    fi
+    assert_target factory-status >/dev/null
+
+    local state_file report_file
+    state_file="$(mktemp "${TMPDIR:-/tmp}/winvm-factory-state.XXXXXX")"
+    report_file="$(mktemp "${TMPDIR:-/tmp}/winvm-factory-report.XXXXXX")"
+    trap 'rm -f -- "$state_file" "$report_file"' EXIT
+
+    if core pull 'C:\ProgramData\WinVM-Factory\state.json' \
+        "$state_file" >/dev/null 2>&1; then
+        if ! jq -e '
+            .schema == "winvm-image-factory-first-logon/v0" and
+            .completed == true and
+            .guest_agent_state == "Running" and
+            .seed_removal_required == true
+        ' "$state_file" >/dev/null; then
+            printf 'Factory completion attestation is invalid.\n' >&2
+            return 1
+        fi
+        jq -n '{schema:"winvm-image-factory-status/v0",state:"complete",
+            completed:true,guest_agent:"running",ssh_bootstrap:"complete",
+            seed_removal_required:true}'
+        return
+    fi
+
+    if core pull 'C:\ProgramData\WinVM-Factory\first-logon-report.json' \
+        "$report_file" >/dev/null 2>&1; then
+        if ! jq -e '
+            .administrator == true and
+            .password_authentication == "disabled" and
+            .keyboard_interactive_authentication == "disabled" and
+            .sshd_status == "Running" and
+            .localhost_port_22 == true
+        ' "$report_file" >/dev/null; then
+            printf 'Factory OpenSSH attestation is invalid.\n' >&2
+            return 1
+        fi
+        jq -n '{schema:"winvm-image-factory-status/v0",state:"finalizing",
+            completed:false,guest_agent:"running",ssh_bootstrap:"complete",
+            seed_removal_required:true}'
+        return
+    fi
+
+    jq -n '{schema:"winvm-image-factory-status/v0",state:"pending",
+        completed:false,guest_agent:"running",
+        ssh_bootstrap:"pending_or_unavailable",seed_removal_required:true}'
+)
+
 require_outer_ui_allowed() {
     if [[ "$WINVM_FORBID_OUTER_UI" == true ]]; then
         printf 'Refusing host-side libvirt screenshot/input: outer UI is forbidden\n' >&2
@@ -331,6 +383,7 @@ case "$command" in
     ip) guest_ipv4_once ;;
     ssh-exec) ssh_exec "$@" ;;
     stage-bootstrap) assert_target stage-bootstrap >/dev/null; stage_bootstrap "$@" ;;
+    factory-status) factory_status "$@" ;;
     post-update-guest-agent)
         assert_target post-update-repair >/dev/null
         post_update_guest_agent "$@"
