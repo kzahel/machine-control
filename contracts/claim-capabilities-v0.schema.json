@@ -4,11 +4,30 @@
   "title": "Machine Control Claim Capabilities v0",
   "type": "object",
   "required": [
-    "schema", "mode", "durations", "claimant", "resourceBinding", "queueing"
+    "schema", "mode", "useClasses", "durations", "claimant",
+    "resourceBinding", "queueing"
   ],
   "properties": {
     "schema": { "const": "machine-control-claim-capabilities/v0" },
     "mode": { "const": "exclusive" },
+    "useClasses": {
+      "type": "object",
+      "required": ["supported", "default"],
+      "properties": {
+        "supported": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "ordinary" },
+            { "const": "disruptive" }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "default": { "const": "ordinary" }
+      },
+      "additionalProperties": false
+    },
     "durations": {
       "type": "object",
       "required": [

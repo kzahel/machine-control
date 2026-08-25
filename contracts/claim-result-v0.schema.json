@@ -45,13 +45,14 @@
     "claim": {
       "type": "object",
       "required": [
-        "claimId", "mode", "generation", "claimant", "reason",
+        "claimId", "mode", "useClass", "generation", "claimant", "reason",
         "acquiredAt", "renewedAt", "expiresAt", "maxExpiresAt",
         "remainingSeconds"
       ],
       "properties": {
         "claimId": { "type": "string", "pattern": "^c-[a-f0-9]{24}$" },
         "mode": { "const": "exclusive" },
+        "useClass": { "enum": ["ordinary", "disruptive"] },
         "generation": { "type": "integer", "minimum": 1 },
         "claimant": { "$ref": "#/$defs/claimant" },
         "reason": { "type": "string", "minLength": 1, "maxLength": 512 },

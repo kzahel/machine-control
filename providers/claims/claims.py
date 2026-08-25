@@ -22,6 +22,7 @@ RECORD_SCHEMA = "machine-control-target-claim-record/v0"
 RESULT_SCHEMA = "machine-control-claim/v0"
 CAPABILITIES_SCHEMA = "machine-control-claim-capabilities/v0"
 CLAIM_PATTERN = re.compile(r"c-[a-f0-9]{24}")
+USE_CLASSES = ("ordinary", "disruptive")
 MAX_REASON_LENGTH = 512
 MAX_IDENTITY_LENGTH = 128
 MAX_LABEL_LENGTH = 256
@@ -287,7 +288,7 @@ def validate_metadata(value: Any) -> dict[str, str]:
 
 
 def validate_claim(value: Any, generation: int) -> dict[str, Any]:
-    required = {
+    legacy_required = {
         "claimId",
         "mode",
         "generation",
@@ -298,12 +299,18 @@ def validate_claim(value: Any, generation: int) -> dict[str, Any]:
         "expiresAt",
         "maxExpiresAt",
     }
+    if isinstance(value, dict) and set(value) == legacy_required:
+        # Records written before use classes existed must remain usable, but
+        # can never gain disruptive access through compatibility defaulting.
+        value["useClass"] = "ordinary"
+    required = legacy_required | {"useClass"}
     if not isinstance(value, dict) or set(value) != required:
         raise ClaimError("claim_state_invalid", "Active claim shape is invalid")
     if (
         not isinstance(value.get("claimId"), str)
         or CLAIM_PATTERN.fullmatch(value["claimId"]) is None
         or value.get("mode") != "exclusive"
+        or value.get("useClass") not in USE_CLASSES
         or value.get("generation") != generation
     ):
         raise ClaimError("claim_state_invalid", "Active claim value is invalid")
@@ -463,6 +470,10 @@ def command_capabilities(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "schema": CAPABILITIES_SCHEMA,
         "mode": "exclusive",
+        "useClasses": {
+            "supported": list(USE_CLASSES),
+            "default": "ordinary",
+        },
         "durations": {
             "defaultSeconds": args.default_duration,
             "minimumSeconds": args.minimum_duration,
@@ -483,6 +494,11 @@ def command_acquire(args: argparse.Namespace) -> dict[str, Any]:
     validate_policy(args)
     provider, resource_id = resource(args)
     duration = requested_duration(args)
+    use_class = args.use_class
+    if use_class not in USE_CLASSES:
+        raise ClaimError(
+            "invalid_claim_request", "Claim use class is invalid"
+        )
     reason = private_text(args.reason, "reason", MAX_REASON_LENGTH)
     claimant: dict[str, Any] = {
         "authority": private_text(
@@ -517,6 +533,7 @@ def command_acquire(args: argparse.Namespace) -> dict[str, Any]:
         active = {
             "claimId": f"c-{secrets.token_hex(12)}",
             "mode": "exclusive",
+            "useClass": use_class,
             "generation": generation,
             "claimant": claimant,
             "reason": reason,
@@ -580,6 +597,20 @@ def command_check(args: argparse.Namespace) -> dict[str, Any]:
         now = utc_now()
         _, record = load_record(directory, provider, resource_id)
         active = require_matching_live_claim(record, claim_id, now)
+        required_use_class = args.required_use_class
+        if required_use_class not in {None, *USE_CLASSES}:
+            raise ClaimError(
+                "invalid_claim_request", "Required claim use class is invalid"
+            )
+        if (
+            required_use_class == "disruptive"
+            and active["useClass"] != "disruptive"
+        ):
+            raise ClaimError(
+                "disruptive_claim_required",
+                "Host-visible VM capture or input requires a disruptive claim",
+                data={"state": "held", "claim": public_claim(active, now)},
+            )
     return accepted("check", {
         "state": "held",
         "claimId": active["claimId"],
@@ -672,6 +703,13 @@ def parser() -> argparse.ArgumentParser:
     acquire.add_argument("--session-id")
     acquire.add_argument("--label")
     acquire.add_argument("--metadata-json", default="{}")
+    acquire.add_argument(
+        "--disruptive",
+        dest="use_class",
+        action="store_const",
+        const="disruptive",
+        default="ordinary",
+    )
     acquire.set_defaults(function=command_acquire)
 
     status = commands.add_parser("status")
@@ -686,6 +724,10 @@ def parser() -> argparse.ArgumentParser:
         operation = commands.add_parser(name)
         add_resource_arguments(operation)
         operation.add_argument("--claim-id", required=True)
+        if name == "check":
+            operation.add_argument(
+                "--required-use-class", choices=USE_CLASSES
+            )
         if name == "renew":
             operation.add_argument("--duration-seconds", type=int)
         operation.set_defaults(function=function)

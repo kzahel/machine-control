@@ -48,6 +48,8 @@ class ClaimStoreTests(unittest.TestCase):
             "label": "fixture claim",
             "metadata_json": '{"suite":"claims"}',
             "claim_id": None,
+            "use_class": "ordinary",
+            "required_use_class": None,
             "command": command,
         }
         values.update(overrides)
@@ -61,6 +63,7 @@ class ClaimStoreTests(unittest.TestCase):
         acquired = self.acquire()
         descriptor = acquired["data"]["claim"]
         self.assertEqual(descriptor["generation"], 1)
+        self.assertEqual(descriptor["useClass"], "ordinary")
         self.assertEqual(descriptor["claimant"]["assurance"], "self_asserted")
         self.assertNotIn("private-resource", json.dumps(acquired))
 
@@ -73,6 +76,64 @@ class ClaimStoreTests(unittest.TestCase):
             self.acquire(claimant_id="case-2")
         self.assertEqual(raised.exception.code, "target_claimed")
         self.assertNotIn("private-resource", json.dumps(raised.exception.data))
+
+    def test_disruptive_use_class_is_explicit_and_enforced(self) -> None:
+        ordinary = self.acquire()
+        ordinary_id = ordinary["data"]["claim"]["claimId"]
+        with mock.patch.object(claims, "utc_now", return_value=self.now):
+            with self.assertRaises(claims.ClaimError) as raised:
+                claims.command_check(
+                    self.args(
+                        "check",
+                        claim_id=ordinary_id,
+                        required_use_class="disruptive",
+                    )
+                )
+        self.assertEqual(
+            raised.exception.code, "disruptive_claim_required"
+        )
+        self.assertEqual(
+            raised.exception.data["claim"]["useClass"], "ordinary"
+        )
+
+        with mock.patch.object(claims, "utc_now", return_value=self.now):
+            claims.command_release(self.args("release", claim_id=ordinary_id))
+        disruptive = self.acquire(use_class="disruptive")
+        disruptive_id = disruptive["data"]["claim"]["claimId"]
+        self.assertEqual(
+            disruptive["data"]["claim"]["useClass"], "disruptive"
+        )
+        with mock.patch.object(claims, "utc_now", return_value=self.now):
+            checked = claims.command_check(
+                self.args(
+                    "check",
+                    claim_id=disruptive_id,
+                    required_use_class="disruptive",
+                )
+            )
+        self.assertTrue(checked["accepted"])
+
+    def test_legacy_active_claim_defaults_to_ordinary(self) -> None:
+        acquired = self.acquire()
+        record_path = next(self.directory.glob("resource-*.json"))
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        del record["active"]["useClass"]
+        record_path.write_text(json.dumps(record), encoding="utf-8")
+
+        with mock.patch.object(claims, "utc_now", return_value=self.now):
+            status = claims.command_status(self.args("status"))
+        self.assertEqual(
+            status["data"]["claim"]["claimId"],
+            acquired["data"]["claim"]["claimId"],
+        )
+        self.assertEqual(status["data"]["claim"]["useClass"], "ordinary")
+
+    def test_capabilities_disclose_use_class_policy(self) -> None:
+        capabilities = claims.command_capabilities(self.args("capabilities"))
+        self.assertEqual(capabilities["useClasses"], {
+            "supported": ["ordinary", "disruptive"],
+            "default": "ordinary",
+        })
 
     def test_renew_expire_and_reacquire_fence_old_holder(self) -> None:
         acquired = self.acquire(duration_seconds=60)
