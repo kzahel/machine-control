@@ -85,6 +85,32 @@ if [[ "$profile" == development ]] &&
     exit 1
 fi
 
+# ubuntu-desktop selects NetworkManager, while the cloud image's fallback
+# network definition is regenerated late by cloud-init and leaves networkd's
+# online waiter blocking boot. Retain a portable, MAC-independent DHCP profile
+# and let NetworkManager render it before the next boot.
+install -d -m 0755 /etc/cloud/cloud.cfg.d /etc/netplan
+cat >/etc/cloud/cloud.cfg.d/99-machine-control-network.cfg <<'EOF'
+network: {config: disabled}
+EOF
+cat >/etc/netplan/99-machine-control.yaml <<'EOF'
+network:
+  version: 2
+  renderer: NetworkManager
+  ethernets:
+    primary:
+      match:
+        name: "en*"
+      dhcp4: true
+      dhcp6: true
+EOF
+chmod 0600 /etc/cloud/cloud.cfg.d/99-machine-control-network.cfg \
+    /etc/netplan/99-machine-control.yaml
+rm -f /etc/netplan/50-cloud-init.yaml
+netplan generate
+systemctl disable systemd-networkd-wait-online.service >/dev/null 2>&1 || true
+systemctl add-wants basic.target qemu-guest-agent.service >/dev/null
+
 # Ubuntu's qemu-guest-agent service is a static unit activated by the VirtIO
 # guest-agent device, so enabling it directly is neither necessary nor valid.
 systemctl start qemu-guest-agent

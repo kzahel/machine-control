@@ -93,12 +93,25 @@ render_seed() {
           package_upgrade: false,
           packages: ["qemu-guest-agent"],
           write_files: [{
-            path: "/etc/gdm3/custom.conf",
-            owner: "root:root",
-            permissions: "0644",
-            content: ("[daemon]\nAutomaticLoginEnable=true\n" +
-              "AutomaticLogin=" + $username + "\nWaylandEnable=true\n")
-          }],
+              path: "/etc/gdm3/custom.conf",
+              owner: "root:root",
+              permissions: "0644",
+              content: ("[daemon]\nAutomaticLoginEnable=true\n" +
+                "AutomaticLogin=" + $username + "\nWaylandEnable=true\n")
+            }, {
+              path: "/etc/cloud/cloud.cfg.d/99-machine-control-network.cfg",
+              owner: "root:root",
+              permissions: "0600",
+              content: "network: {config: disabled}\n"
+            }, {
+              path: "/etc/netplan/99-machine-control.yaml",
+              owner: "root:root",
+              permissions: "0600",
+              content: ("network:\n  version: 2\n" +
+                "  renderer: NetworkManager\n  ethernets:\n" +
+                "    primary:\n      match:\n        name: \"en*\"\n" +
+                "      dhcp4: true\n      dhcp6: true\n")
+            }],
           runcmd: [
             ["bash", "-lc", ("set -euo pipefail; " +
               "systemctl start qemu-guest-agent.service; " +
@@ -109,6 +122,10 @@ render_seed() {
               "python3-pyqt5 wl-clipboard jq git build-essential " +
               "python3-venv; " +
               "snap install chromium; " +
+              "rm -f /etc/netplan/50-cloud-init.yaml; " +
+              "netplan generate; " +
+              "systemctl disable systemd-networkd-wait-online.service; " +
+              "systemctl add-wants basic.target qemu-guest-agent.service; " +
               "systemctl set-default graphical.target; " +
               "systemctl enable gdm3.service; " +
               "systemctl start gdm3.service")]
