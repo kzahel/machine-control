@@ -352,25 +352,20 @@ h1 {
 
 .workflow li {
   display: grid;
-  grid-template-columns: 62px 1fr;
+  grid-template-columns: 210px 1fr;
   gap: 20px;
+  align-items: baseline;
   padding: 20px 0;
   border-bottom: 1px solid #4a504c;
 }
 
-.workflow li > span {
-  color: #91a198;
-  font: 700 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
 .workflow strong {
-  display: inline-block;
-  min-width: 120px;
+  display: block;
   font-size: 17px;
 }
 
 .workflow p {
-  display: inline;
+  display: block;
   margin: 0;
   color: #b7beb9;
   font-size: 14px;
@@ -473,40 +468,107 @@ h1 {
   text-align: right;
 }
 
-.feature-grid {
+.target-families {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  border-top: 1px solid var(--line-dark);
-  border-left: 1px solid var(--line-dark);
+  grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
+  gap: 22px;
 }
 
-.feature-grid article {
-  min-height: 260px;
-  padding: 30px;
-  border-right: 1px solid var(--line-dark);
+.target-family {
+  border: 1px solid var(--line-dark);
+  background: var(--paper-bright);
+}
+
+.target-family > header {
+  display: grid;
+  gap: 7px;
+  padding: 22px 24px;
   border-bottom: 1px solid var(--line-dark);
 }
 
-.feature-index {
+.target-family > header span {
   color: var(--moss);
   font: 700 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.feature-grid h3 {
-  max-width: 430px;
-  margin: 48px 0 14px;
-  font-size: 23px;
-  font-weight: 620;
-  letter-spacing: -0.025em;
-  line-height: 1.2;
+.target-family > header strong {
+  font-size: 16px;
+  font-weight: 650;
 }
 
-.feature-grid p {
-  max-width: 470px;
-  margin: 0;
+.target-cards {
+  display: grid;
+}
+
+.target-cards > div {
+  display: grid;
+  grid-template-columns: 100px 1fr minmax(150px, 0.8fr);
+  gap: 18px;
+  align-items: center;
+  min-height: 76px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.target-cards > div:last-child {
+  border-bottom: 0;
+}
+
+.target-cards strong {
+  font-size: 13px;
+}
+
+.target-cards span {
   color: var(--ink-soft);
-  font-size: 14px;
+  font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.target-cards small {
+  color: var(--moss-dark);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.target-family-physical {
+  box-shadow: inset 0 4px 0 var(--moss);
+}
+
+.release-path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin: 28px 0 24px;
+  padding: 14px;
+  border-top: 1px solid var(--line-dark);
+  border-bottom: 1px solid var(--line-dark);
+}
+
+.release-path strong,
+.release-path em {
+  font: 700 9px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.release-path strong {
+  margin-right: 3px;
+  color: var(--moss-dark);
+}
+
+.release-path span {
+  color: var(--line-dark);
+}
+
+.release-path em {
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-style: normal;
 }
 
 .compare-callout {
@@ -634,18 +696,11 @@ h1 {
 
 .note-meta {
   display: grid;
-  grid-template-columns: 70px 1fr;
-  gap: 7px 20px;
+  gap: 7px;
   padding: 20px 0 0;
   border-top: 1px solid #4a504c;
   font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
   text-transform: uppercase;
-}
-
-.note-meta span {
-  grid-row: 1 / 4;
-  color: #92a198;
-  font-size: 38px;
 }
 
 .note-meta p {
@@ -1322,6 +1377,10 @@ h1 {
     gap: 44px;
   }
 
+  .target-families {
+    grid-template-columns: 1fr;
+  }
+
   .layer-map {
     grid-template-columns: 1fr;
   }
@@ -1353,11 +1412,8 @@ h1 {
   }
 
   .site-nav {
-    gap: 14px;
-  }
-
-  .nav-how {
-    display: none;
+    gap: 10px;
+    font-size: 11px;
   }
 
   .hero {
@@ -1389,30 +1445,19 @@ h1 {
     padding: 16px;
   }
 
-  .feature-grid {
-    grid-template-columns: 1fr;
-  }
-
   .compare-callout {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .feature-grid article {
-    min-height: 0;
-  }
-
-  .feature-grid h3 {
-    margin-top: 28px;
-  }
-
   .workflow li {
-    grid-template-columns: 40px 1fr;
+    grid-template-columns: 1fr;
+    gap: 5px;
   }
 
-  .workflow strong,
-  .workflow p {
-    display: block;
+  .target-cards > div {
+    grid-template-columns: 1fr;
+    gap: 5px;
   }
 
   .project-list a,

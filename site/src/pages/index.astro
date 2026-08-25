@@ -4,9 +4,9 @@ import SiteHeader from "../components/SiteHeader.astro";
 import NewsletterSignup from "../components/NewsletterSignup.astro";
 import SiteLayout from "../layouts/SiteLayout.astro";
 
-const title = "Machine Control — A cross-platform test lab for coding agents";
+const title = "Machine Control — One agent session across every target";
 const description =
-  "Machine Control lets coding agents build, launch, inspect, and verify applications across Windows, macOS, and Linux VMs through one target-native interface.";
+  "Machine Control lets coding agents build, launch, inspect, and verify applications across Windows, macOS, Linux, ChromeOS, iOS, and Android VMs and physical devices.";
 ---
 
 <SiteLayout title={title} description={description} canonicalPath="/">
@@ -15,46 +15,142 @@ const description =
     <section class="hero">
       <div class="shell hero-grid">
         <div class="hero-copy">
-          <p class="eyebrow">Open source · active pre-1.0</p>
-          <h1>Give your coding agent a cross-platform test lab.</h1>
+          <p class="eyebrow">Virtual machines · physical devices · one agent session</p>
+          <h1>Let one coding agent test every platform you ship.</h1>
           <p class="lede">
-            Build on one machine. Let the agent launch, inspect, and verify the
-            real application across Windows, macOS, and Linux VMs through one
-            compact, target-native interface.
+            Build anywhere, then let the agent install, launch, inspect, and
+            verify the real application across Windows, macOS, Linux, ChromeOS,
+            iOS, and Android through one target-native interface.
           </p>
           <div class="actions">
-            <a class="button button-primary" href="https://github.com/kzahel/machine-control#quick-start">
-              Read the quick start <span aria-hidden="true">→</span>
+            <a class="button button-primary" href="#targets">
+              Explore the targets <span aria-hidden="true">↓</span>
             </a>
-            <a class="button button-secondary" href="https://github.com/kzahel/machine-control">
-              View source
+            <a class="button button-secondary" href="https://github.com/kzahel/machine-control#quick-start">
+              Read the quick start
             </a>
           </div>
           <ul class="proof-list" aria-label="Project facts">
-            <li>Windows · macOS · Linux</li>
-            <li>Native UI semantics</li>
-            <li>Local or remote</li>
-            <li>MIT licensed</li>
+            <li>Desktop · mobile · ChromeOS</li>
+            <li>VMs and physical hardware</li>
+            <li>Native semantics and input</li>
+            <li>Open source</li>
           </ul>
         </div>
 
         <div class="terminal-card" aria-label="Example Machine Control session">
           <div class="terminal-heading">
-            <span>application check</span>
-            <span>3 targets</span>
+            <span>release check</span>
+            <span>VM + physical</span>
           </div>
           <pre><code><span class="prompt">$</span> mc targets
-windows   ready   windows.uia
-macos     ready   macos.ax
-linux     ready   linux.atspi
+windows    vm         ready
+macos      vm         ready
+linux      vm         ready
+chromeos   physical   ready
+ios        physical   ready
+android    physical   ready
 
-<span class="prompt">$</span> mc --target windows desktop snapshot \
-    --query Save --projection compact
+<span class="prompt">$</span> mc --target ios ios snapshot --interactive
 
-route          windows.uia
-delivery       confirmed
-effect         confirmed
-host impact    none</code></pre>
+provider        XCTest
+device          physical
+observation     semantic + screenshot</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="section target-section" id="targets">
+      <div class="shell">
+        <div class="section-heading">
+          <p class="eyebrow">The whole test lab</p>
+          <h2>VMs when isolation matters. Physical devices when hardware matters.</h2>
+          <p>
+            A virtual machine is ideal for repeatable desktop builds and clean
+            workspaces. A real Chromebook, iPhone, Android device, headset, or
+            handheld exposes hardware, security, drivers, and lifecycle behavior
+            that simulation cannot prove.
+          </p>
+        </div>
+        <div class="target-families">
+          <article class="target-family">
+            <header>
+              <span>Virtual targets</span>
+              <strong>Repeatable desktop environments</strong>
+            </header>
+            <div class="target-cards">
+              <div>
+                <strong>Windows</strong>
+                <span>UIA · Cua · Win32</span>
+                <small>First complete vertical slice</small>
+              </div>
+              <div>
+                <strong>macOS</strong>
+                <span>AX · Cua · Quartz</span>
+                <small>Accepted VM appliance</small>
+              </div>
+              <div>
+                <strong>Linux</strong>
+                <span>AT-SPI · Cua · Wayland</span>
+                <small>Accepted VM appliance</small>
+              </div>
+            </div>
+          </article>
+          <article class="target-family target-family-physical">
+            <header>
+              <span>Physical targets</span>
+              <strong>Real hardware and native device runners</strong>
+            </header>
+            <div class="target-cards">
+              <div>
+                <strong>ChromeOS</strong>
+                <span>chrome.automation · CDP · native capture/input</span>
+                <small>Working physical reference</small>
+              </div>
+              <div>
+                <strong>iOS</strong>
+                <span>CoreDevice · XCTest · screenshots/actions</span>
+                <small>Working physical-device route</small>
+              </div>
+              <div>
+                <strong>Android</strong>
+                <span>ADB · deploy · capture · input · logs</span>
+                <small>Working handheld foundation</small>
+              </div>
+              <div>
+                <strong>Quest · Steam Deck</strong>
+                <span>Device-specific native operations</span>
+                <small>Working specialized routes</small>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-white" id="projects">
+      <div class="shell project-grid">
+        <div class="project-intro">
+          <p class="eyebrow">Why it exists</p>
+          <h2>One development session for every app we ship.</h2>
+          <p>
+            At Graehl Arts, an agent can make a code change, send the build to
+            the right VM or physical device, exercise the real application, and
+            bring back evidence—without the developer juggling six separate
+            consoles and tool vocabularies.
+          </p>
+          <div class="release-path" aria-label="One agent session reaches Windows, macOS, Linux, ChromeOS, iOS, and Android">
+            <strong>one agent session</strong>
+            <span>→</span>
+            <em>Win</em><em>Mac</em><em>Linux</em><em>ChromeOS</em><em>iOS</em><em>Android</em>
+          </div>
+          <a class="text-link" href="https://graehlarts.com">Visit Graehl Arts →</a>
+        </div>
+        <div class="project-list">
+          <a href="https://jstorrent.com"><strong>JSTorrent</strong><span>Shared TypeScript product across desktop, browser, Android, ChromeOS, and iOS.</span></a>
+          <a href="https://github.com/kzahel/rstorrent"><strong>RSTorrent</strong><span>Rust engine with maintained desktop, Android, and iOS clients.</span></a>
+          <a href="https://at-piano.com"><strong>Atpiano</strong><span>Native macOS and Windows application packaging and UI workflows.</span></a>
+          <a href="https://ok200.app"><strong>200 OK Web Server</strong><span>Cross-platform web-server application for desktop, Android, and ChromeOS.</span></a>
         </div>
       </div>
     </section>
@@ -71,7 +167,7 @@ host impact    none</code></pre>
           </p>
         </div>
 
-        <div class="architecture" role="img" aria-label="A coding agent calls Machine Control, which routes work to native Windows, macOS, and Linux controls and returns evidence about the outcome">
+        <div class="architecture" role="img" aria-label="A coding agent calls Machine Control, which routes work to desktop virtual machines, physical ChromeOS hardware, and mobile devices, then returns evidence about the outcome">
           <div class="diagram-node diagram-agent">
             <span class="node-label">CALLER</span>
             <strong>Coding agent</strong>
@@ -85,9 +181,9 @@ host impact    none</code></pre>
           </div>
           <div class="diagram-arrow" aria-hidden="true">→</div>
           <div class="target-stack">
-            <div><strong>Windows</strong><span>UIA / Win32</span></div>
-            <div><strong>macOS</strong><span>AX / Quartz</span></div>
-            <div><strong>Linux</strong><span>AT-SPI / Wayland</span></div>
+            <div><strong>Desktop VMs</strong><span>Windows · macOS · Linux</span></div>
+            <div><strong>ChromeOS</strong><span>physical · target-native</span></div>
+            <div><strong>Devices</strong><span>iOS · Android · Quest</span></div>
           </div>
           <div class="diagram-return">
             <span class="node-label">RESULT</span>
@@ -100,35 +196,36 @@ host impact    none</code></pre>
     <section class="section section-ink" id="development-loop">
       <div class="shell">
         <div class="section-heading">
-          <p class="eyebrow">The development loop</p>
-          <h2>From a code change to evidence on every target.</h2>
+          <p class="eyebrow">A release loop one agent can finish</p>
+          <h2>Build once. Visit every target. Come back with evidence.</h2>
           <p>
-            An agent or CI system chooses the work. Machine Control provides
-            the safe, repeatable boundary to each configured test machine.
+            The coding session does not end when compilation succeeds. The same
+            agent can move through the configured lab and finish the platform
+            work on each real target.
           </p>
         </div>
-        <ol class="workflow">
+        <ul class="workflow">
           <li>
-            <span>01</span>
-            <div><strong>Discover</strong><p>List eligible targets and inspect their real capabilities.</p></div>
+            <strong>Choose a target</strong>
+            <p>Find the right VM or physical device and inspect its real capabilities.</p>
           </li>
           <li>
-            <span>02</span>
-            <div><strong>Claim</strong><p>Reserve an exact VM or acquire an isolated workspace.</p></div>
+            <strong>Reserve and prepare it</strong>
+            <p>Claim an exact shared target or acquire an isolated workspace, then prove readiness.</p>
           </li>
           <li>
-            <span>03</span>
-            <div><strong>Deploy</strong><p>Build, install, launch, and prepare the application.</p></div>
+            <strong>Install and launch</strong>
+            <p>Send the build to the target and start the application in the real operating system.</p>
           </li>
           <li>
-            <span>04</span>
-            <div><strong>Exercise</strong><p>Observe compact semantics and act through native controls.</p></div>
+            <strong>Inspect and exercise</strong>
+            <p>Use semantic UI, screenshots, keyboard, pointer, and platform-native operations.</p>
           </li>
           <li>
-            <span>05</span>
-            <div><strong>Verify</strong><p>Separate action delivery from independently observed effect.</p></div>
+            <strong>Verify and release</strong>
+            <p>Confirm the application effect, retain useful evidence, and cleanly release the target.</p>
           </li>
-        </ol>
+        </ul>
       </div>
     </section>
 
@@ -169,76 +266,6 @@ host impact    none</code></pre>
       </div>
     </section>
 
-    <section class="section" id="why">
-      <div class="shell">
-        <div class="section-heading">
-          <p class="eyebrow">What it solves</p>
-          <h2>A machine layer for cross-platform application work.</h2>
-        </div>
-        <div class="feature-grid">
-          <article>
-            <span class="feature-index">01 / ONE VOCABULARY</span>
-            <h3>Change the target, not the agent workflow.</h3>
-            <p>
-              Applications, windows, semantic snapshots, captures, workspaces,
-              and results share a stable ergonomic direction across platforms.
-            </p>
-          </article>
-          <article>
-            <span class="feature-index">02 / NATIVE DEPTH</span>
-            <h3>Keep the operating system’s strongest controls.</h3>
-            <p>
-              UIA, Accessibility, AT-SPI, XCTest, ADB, and platform services
-              remain real providers rather than disappearing behind pixels.
-            </p>
-          </article>
-          <article>
-            <span class="feature-index">03 / QUIET OPERATION</span>
-            <h3>Test the target without taking over the host.</h3>
-            <p>
-              Ordinary operations execute inside the target. Hypervisor windows
-              and host input stay explicit recovery routes.
-            </p>
-          </article>
-          <article>
-            <span class="feature-index">04 / TRUTHFUL RESULTS</span>
-            <h3>Know whether the application actually changed.</h3>
-            <p>
-              Acceptance, delivery, effect, evidence, provider route, and
-              uncertainty are reported separately.
-            </p>
-          </article>
-        </div>
-        <div class="compare-callout">
-          <div>
-            <span>Decision guide</span>
-            <strong>See where Machine Control fits beside Playwright, Appium, Cua, and BrowserStack.</strong>
-          </div>
-          <a class="button button-secondary" href="/compare/">Compare the options →</a>
-        </div>
-      </div>
-    </section>
-
-    <section class="section section-white" id="projects">
-      <div class="shell project-grid">
-        <div class="project-intro">
-          <p class="eyebrow">Built under real application pressure</p>
-          <h2>Powering cross-platform development at Graehl Arts.</h2>
-          <p>
-            Machine Control is used to develop and exercise applications across
-            desktop and device targets—not only synthetic automation fixtures.
-          </p>
-          <a class="text-link" href="https://graehlarts.com">Visit Graehl Arts →</a>
-        </div>
-        <div class="project-list">
-          <a href="https://jstorrent.com"><strong>JSTorrent</strong><span>Shared TypeScript product across desktop, browser, Android, ChromeOS, and iOS.</span></a>
-          <a href="https://github.com/kzahel/rstorrent"><strong>RSTorrent</strong><span>Rust engine with maintained desktop, Android, and iOS clients.</span></a>
-          <a href="https://at-piano.com"><strong>Atpiano</strong><span>Native macOS and Windows application packaging and UI workflows.</span></a>
-          <a href="https://ok200.app"><strong>200 OK Web Server</strong><span>Cross-platform web-server application for desktop, Android, and ChromeOS.</span></a>
-        </div>
-      </div>
-    </section>
-
     <section class="section" id="status">
       <div class="shell">
         <div class="section-heading status-heading">
@@ -246,24 +273,30 @@ host impact    none</code></pre>
             <p class="eyebrow">Current evidence</p>
             <h2>Broad destination. Honest status.</h2>
           </div>
-          <p>
-            The common desktop contract is exercised today. Device families
-            retain explicit native operations while broader facade coverage is
-            still growing.
-          </p>
+          <p>Desktop VMs and physical devices have different maturity, but both are part of the product—not a future category bolted onto a desktop-only design.</p>
         </div>
         <div class="status-table" role="table" aria-label="Current platform status">
           <div class="status-row status-header" role="row"><span>Target</span><span>Current route</span><span>Status</span></div>
           <div class="status-row" role="row"><strong>Windows</strong><span>Common desktop · UIA / Cua / Win32</span><em>First complete vertical slice</em></div>
           <div class="status-row" role="row"><strong>macOS</strong><span>Common desktop · AX / Quartz / Cua</span><em>Accepted VM appliance</em></div>
           <div class="status-row" role="row"><strong>Linux</strong><span>Common desktop · AT-SPI / Wayland</span><em>Accepted VM appliance</em></div>
-          <div class="status-row" role="row"><strong>Devices</strong><span>ChromeOS · iOS · Android · Quest</span><em>Working native routes; varied coverage</em></div>
+          <div class="status-row" role="row"><strong>ChromeOS</strong><span>Desktop accessibility · CDP · native capture/input</span><em>Working physical reference</em></div>
+          <div class="status-row" role="row"><strong>iOS</strong><span>CoreDevice lifecycle · XCTest semantics/actions</span><em>Working physical-device route</em></div>
+          <div class="status-row" role="row"><strong>Android</strong><span>ADB administration · deploy · capture/input/logs</span><em>Working handheld foundation</em></div>
+          <div class="status-row" role="row"><strong>Other</strong><span>Quest · Steam Deck</span><em>Working specialized native routes</em></div>
         </div>
         <p class="table-note">
           “Accepted” means exercised against the repository’s conformance and
           real-application workflows. It is not a production support SLA.
           <a href="https://github.com/kzahel/machine-control#what-works-today">Full platform status →</a>
         </p>
+        <div class="compare-callout">
+          <div>
+            <span>Choosing the rest of the stack?</span>
+            <strong>See how Machine Control works alongside Playwright, Appium, Cua, and BrowserStack.</strong>
+          </div>
+          <a class="button button-secondary" href="/compare/">Open the comparison →</a>
+        </div>
       </div>
     </section>
 
@@ -282,7 +315,6 @@ host impact    none</code></pre>
           </a>
         </div>
         <div class="note-meta">
-          <span>01</span>
           <p>Architecture</p>
           <p>8 minute read</p>
           <p>August 25, 2026</p>
