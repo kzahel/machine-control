@@ -367,6 +367,9 @@ render_seed() {
         if [[ "$tools_attached" == "1" ]]; then
             hdiutil detach "$tools_mount" >/dev/null 2>&1 || true
         fi
+        if [[ -d "$tools_mount" ]]; then
+            chmod -R u+w "$tools_mount" 2>/dev/null || true
+        fi
         rm -rf -- "$staging"
         if [[ -n "$media_build" ]]; then
             rm -rf -- "$media_build"
@@ -399,11 +402,22 @@ render_seed() {
         mkdir "$staging/Drivers"
         local driver_directory
         for driver_directory in Balloon NetKVM vioscsi vioserial viostor; do
-            if [[ ! -d "$tools_mount/$driver_directory" ]]; then
-                printf 'VirtIO media lacks a required Windows driver.\n' >&2
+            local driver_source="$tools_mount/$driver_directory/w11/$driver_architecture"
+            local driver_target="$staging/Drivers/$driver_directory/w11"
+            if [[ ! -d "$driver_source" ]]; then
+                printf 'VirtIO media lacks a required Windows 11 driver.\n' >&2
                 return 1
             fi
-            cp -R "$tools_mount/$driver_directory" "$staging/Drivers/"
+            mkdir -p "$driver_target"
+            find "$driver_source" -maxdepth 1 -type f ! -name '*.pdb' \
+                -exec cp {} "$driver_target/" \;
+            for required_extension in cat inf sys; do
+                if ! compgen -G \
+                        "$driver_target/*.$required_extension" >/dev/null; then
+                    printf 'VirtIO driver is missing required signed payloads.\n' >&2
+                    return 1
+                fi
+            done
         done
     fi
     chmod -R u+w "$staging/Drivers"
@@ -412,6 +426,9 @@ render_seed() {
         hdiutil detach "$tools_mount" >/dev/null
         tools_attached=0
         rmdir "$tools_mount"
+    else
+        chmod -R u+w "$tools_mount"
+        rm -rf -- "$tools_mount"
     fi
     local content
     content="$(<"$TEMPLATE")"

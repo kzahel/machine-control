@@ -69,6 +69,11 @@ UTM Guest Tools silently, and invokes the seed's OpenSSH bootstrap. Offline
 injection is material: WinPE storage access alone does not give Windows OOBE a
 NetKVM adapter.
 
+For Fedora VirtIO media, the renderer copies only the Windows 11 directory for
+the selected guest architecture from each required driver family. It does not
+carry debug symbols, legacy Windows drivers, or drivers for the other CPU
+architecture into credential-bearing answer media.
+
 Windows Setup does not define an empty product-key value for guaranteed quiet
 installation. For the currently supported `windows-11-pro` edition, the
 renderer embeds Microsoft's public Pro KMS client setup key and sets its UI to
