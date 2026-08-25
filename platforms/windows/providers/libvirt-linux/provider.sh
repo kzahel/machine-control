@@ -57,6 +57,8 @@ role_allows_operation() {
         up)
             [[ "$role" == candidate ]] ||
                 { [[ "$role" == source ]] && source_mutation_authorized; } ||
+                { [[ "$role" == seal &&
+                     -n "${MACHINE_CONTROL_WORKSPACE_HANDLE:-}" ]]; } ||
                 { [[ "$role" == seal ]] && persistent_seal_boot_authorized; }
             ;;
         connect)

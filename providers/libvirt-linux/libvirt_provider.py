@@ -127,6 +127,8 @@ def run(
             "provider_unavailable", "The local virtualization provider failed"
         ) from error
     if check and completed.returncode != 0:
+        if os.environ.get("MC_LIBVIRT_DEBUG") == "true":
+            print(completed.stderr.rstrip(), file=sys.stderr)
         raise ProviderError(
             "provider_refused", "The local virtualization provider refused the operation"
         )
@@ -463,8 +465,8 @@ def inspect_domain(
 ) -> dict[str, Any]:
     expected_uuid = require_uuid(configuration.expected_uuid)
     try:
-        actual_uuid = require_uuid(provider.text("domuuid", expected_uuid))
         actual_name = provider.text("domname", expected_uuid)
+        actual_uuid = require_uuid(provider.text("domuuid", actual_name))
     except ProviderError as error:
         raise ProviderError(
             "identity_unavailable", "The exact provider domain is unavailable"
