@@ -121,6 +121,11 @@ def portable_checks() -> None:
             ROOT / "providers" / "workspaces" / "tests",
         ),
         (
+            "libvirt Linux provider",
+            ROOT,
+            ROOT / "providers" / "libvirt-linux" / "tests",
+        ),
+        (
             "Android dependency-free",
             ROOT / "platforms" / "android",
             ROOT / "platforms" / "android" / "tests",
