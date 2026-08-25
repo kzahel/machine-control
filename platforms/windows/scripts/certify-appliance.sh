@@ -192,6 +192,48 @@ function Stop-CheckTree {
     }
     [void]$Process.WaitForExit(10000)
 }
+function Invoke-BoundedCheck {
+    param(
+        [Parameter(Mandatory = $true)][string]$Python,
+        [Parameter(Mandatory = $true)][string]$Mode,
+        [Parameter(Mandatory = $true)][string]$WorkingDirectory,
+        [Parameter(Mandatory = $true)][string]$StandardOutputPath,
+        [Parameter(Mandatory = $true)][string]$StandardErrorPath
+    )
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $Python
+    $startInfo.Arguments = "-3 bin\check --$Mode"
+    $startInfo.WorkingDirectory = $WorkingDirectory
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    try {
+        if (-not $process.Start()) { throw 'check process did not start' }
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        $completed = $process.WaitForExit(__CHECK_TIMEOUT_MS__)
+        if (-not $completed) {
+            Stop-CheckTree -Process $process
+        }
+        else {
+            $process.WaitForExit()
+        }
+        [IO.File]::WriteAllText(
+            $StandardOutputPath, ($stdoutTask.GetAwaiter()).GetResult())
+        [IO.File]::WriteAllText(
+            $StandardErrorPath, ($stderrTask.GetAwaiter()).GetResult())
+        return [pscustomobject]@{
+            Completed = $completed
+            ExitCode = $(if ($completed) { $process.ExitCode } else { $null })
+        }
+    }
+    finally {
+        $process.Dispose()
+    }
+}
 try {
     $result.failure = 'source_digest_failed'
     $digest = (Get-FileHash -Algorithm SHA256 `
@@ -208,20 +250,13 @@ try {
     $result.failure = 'portable_execution_failed'
     $portableOut = Join-Path $stage 'portable.out.log'
     $portableErr = Join-Path $stage 'portable.err.log'
-    $portable = Start-Process -FilePath $python `
-        -ArgumentList @('-3', 'bin\check', '--portable') `
-        -WorkingDirectory $source -PassThru -NoNewWindow `
-        -RedirectStandardOutput $portableOut `
-        -RedirectStandardError $portableErr
-    if (-not $portable.WaitForExit(__CHECK_TIMEOUT_MS__)) {
-        Stop-CheckTree -Process $portable
+    $portable = Invoke-BoundedCheck -Python $python -Mode portable `
+        -WorkingDirectory $source -StandardOutputPath $portableOut `
+        -StandardErrorPath $portableErr
+    if (-not $portable.Completed) {
         $result.failure = 'portable_checks_timeout'
         throw 'portable checks timed out'
     }
-    # Timed WaitForExit does not complete asynchronous redirected-stream
-    # handling. Finish that drain before reading the final process exit code.
-    $portable.WaitForExit()
-    $portable.Refresh()
     $result.check_observation.portable_exit_code = $portable.ExitCode
     $result.check_observation.portable_completed = [bool](Select-String `
         -LiteralPath $portableOut -SimpleMatch 'all requested checks passed' `
@@ -236,18 +271,13 @@ try {
     $result.failure = 'native_execution_failed'
     $nativeOut = Join-Path $stage 'native.out.log'
     $nativeErr = Join-Path $stage 'native.err.log'
-    $native = Start-Process -FilePath $python `
-        -ArgumentList @('-3', 'bin\check', '--native') `
-        -WorkingDirectory $source -PassThru -NoNewWindow `
-        -RedirectStandardOutput $nativeOut `
-        -RedirectStandardError $nativeErr
-    if (-not $native.WaitForExit(__CHECK_TIMEOUT_MS__)) {
-        Stop-CheckTree -Process $native
+    $native = Invoke-BoundedCheck -Python $python -Mode native `
+        -WorkingDirectory $source -StandardOutputPath $nativeOut `
+        -StandardErrorPath $nativeErr
+    if (-not $native.Completed) {
         $result.failure = 'native_checks_timeout'
         throw 'native checks timed out'
     }
-    $native.WaitForExit()
-    $native.Refresh()
     $result.check_observation.native_exit_code = $native.ExitCode
     $result.check_observation.native_completed = [bool](Select-String `
         -LiteralPath $nativeOut -SimpleMatch 'all requested checks passed' `
