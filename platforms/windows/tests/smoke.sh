@@ -41,6 +41,10 @@ grep -Fq 'winvm_run_bounded "$WINVM_POST_UPDATE_REPORT_TIMEOUT"' \
     "$REPO_DIR/scripts/post-update.sh"
 grep -Fq 'winvm_doctor_appliance_ready' \
     "$REPO_DIR/scripts/post-update.sh"
+grep -Fq '$portable.WaitForExit()' \
+    "$REPO_DIR/scripts/certify-appliance.sh"
+grep -Fq '$native.WaitForExit()' \
+    "$REPO_DIR/scripts/certify-appliance.sh"
 grep -Fq 'Microsoft.NET.Sdk.WindowsDesktop.targets' \
     "$REPO_DIR/../../scripts/publish-windows.sh"
 temporary="$(mktemp -d /tmp/winvm-smoke.XXXXXX)"

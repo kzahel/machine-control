@@ -208,6 +208,10 @@ try {
         $result.failure = 'portable_checks_timeout'
         throw 'portable checks timed out'
     }
+    # Timed WaitForExit does not complete asynchronous redirected-stream
+    # handling. Finish that drain before reading the final process exit code.
+    $portable.WaitForExit()
+    $portable.Refresh()
     if ($portable.ExitCode -ne 0) {
         $result.failure = 'portable_checks_failed'
         throw 'portable checks failed'
@@ -224,6 +228,8 @@ try {
         $result.failure = 'native_checks_timeout'
         throw 'native checks timed out'
     }
+    $native.WaitForExit()
+    $native.Refresh()
     if ($native.ExitCode -ne 0) {
         $result.failure = 'native_checks_failed'
         throw 'native checks failed'
