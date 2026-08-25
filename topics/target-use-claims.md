@@ -171,6 +171,15 @@ records live beneath platform workspace state by default. The adapter checks
 the selected claim again immediately before dispatch, so bypassing the common
 client does not accidentally bypass cooperative coordination.
 
+**Current:** the Windows adapter performs that claim check once at its public
+dispatch boundary, then its UTM provider verifies the exact target and role
+once while constructing the direct SSH handoff. Administration, resident
+control, bounded artifact retrieval, WSL, and the optional WinApp comparison
+route no longer re-enter the standalone SSH proxy. Direct `winui` use enforces
+the same claim itself. The independently callable SSH alias remains
+self-guarding, and no caller-provided “already checked” flag can bypass either
+boundary.
+
 **Current:** persistent and isolated workspace acquisition claims the selected
 resource before it starts. Candidate derivation temporarily claims its stopped
 source, claims the exact derivative before starting it, then returns the

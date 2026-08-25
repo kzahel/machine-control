@@ -1,6 +1,6 @@
 # Windows Claimed Direct Transport
 
-Status: active
+Status: complete
 
 Owning topics:
 
@@ -125,10 +125,53 @@ live validation pass.
 
 ## Result
 
-Active. The originating live diagnosis measured approximately 0.4 seconds for
-a fresh SSH call to an already-resolved guest, 6.1 seconds through the
+Complete. The originating live diagnosis measured approximately 0.40 seconds
+for a fresh SSH call to an already-resolved guest, 6.1 seconds through the
 self-guarding alias, and 8.3–10.4 seconds through the complete common Windows
 administration path. A correctly owned shared SSH connection reduced the
-already-direct call only to approximately 0.23 seconds. These measurements
-make recursive provider validation the first implementation target; session
-reuse remains conditional on the post-change residual.
+already-direct call only to approximately 0.23 seconds.
+
+The UTM provider now owns one internal direct connector. It checks the exact
+target and role, observes or starts the target according to operation policy,
+resolves its address once, waits for SSH, and invokes OpenSSH with the private
+address suppressed from results and the logical alias retained as the
+host-key identity. The common Windows administration, resident, artifact,
+WSL, and optional WinApp paths use that connector. The public SSH alias keeps
+its standalone self-guarding proxy. Direct WinApp entry enforces the same
+claim, and doctor explicitly prohibits target start throughout its bounded
+guest probe.
+
+Fixture work found and closed a real refusal bug: Bash command-substitution
+semantics could allow a failed exact-target assertion to fall through inside
+the new endpoint resolver. The resolver now propagates that failure
+explicitly. Tests prove one target resolution per direct handoff, exact-target
+refusal before SSH, stopped-target refusal when start is prohibited, direct
+WinApp claim enforcement, logical host-key preservation, and retention of the
+standalone proxy.
+
+The live acceptance pass began with the target off, acquired one attributed
+30-minute claim, used no outer UI, verified administration, resident status,
+and bounded retrieval of a synthetic PNG, then removed the artifact, cleanly
+shut down the target, and released the claim. No temporary workspace receipt
+was created; the existing retained persistent receipt was left unchanged.
+Measured medians were:
+
+- cold `ensure-ready`: 41.20 seconds;
+- hot doctor: 7.19 seconds;
+- common OS administration: 3.07 seconds across five calls;
+- selected native-adapter escape: 2.92 seconds across three calls;
+- resident status: 3.60 seconds across three calls; and
+- bounded artifact retrieval: 3.51 seconds.
+
+Persistent SSH reuse is intentionally deferred. Its measured benefit over a
+fresh already-resolved connection was approximately 0.17 seconds, while the
+post-change selected-adapter path still spends roughly 2.5 seconds in claim,
+process, provider-identity, power, and address setup. A persistent connection
+would add fencing and teardown machinery without addressing that dominant
+cost. Future latency work should profile and reduce those bounded setup stages
+before reconsidering a claim-scoped session.
+
+Portable checks, macOS-native static checks, Windows shell smoke tests, claim
+adapter tests, and common-client tests passed. No Windows resident source
+changed, so a new Windows publish was not required for this transport-only
+slice.

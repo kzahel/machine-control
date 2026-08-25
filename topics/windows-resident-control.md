@@ -37,6 +37,19 @@ Windows doctor obtains its guest readiness dimensions in one explicitly
 bounded SSH session. Live repair-and-reboot acceptance observed a changed boot
 epoch and returned the full resident surface without PTY or outer recovery.
 
+**Current:**
+[`Tactical 027`](../docs/tactical/027-windows-claimed-direct-transport.md)
+removed recursive claim, target, lifecycle, address, and SSH-proxy discovery
+from ordinary claimed Windows calls. One adapter dispatch now checks the claim,
+verifies the exact UTM identity and role, resolves readiness, and invokes
+OpenSSH directly while preserving the logical host-key identity. The public
+SSH alias retains its independent self-guarding proxy. Live acceptance reduced
+the median common OS call from 8.3–10.4 seconds to 3.07 seconds; resident status
+was 3.60 seconds and bounded artifact retrieval 3.51 seconds. Cold readiness
+remained a separate 41.20-second lifecycle cost. A shared connection saved only
+about 0.17 seconds over fresh already-resolved SSH, so claim-scoped session
+machinery was not justified.
+
 **Current:** [`Tactical 018`](../docs/tactical/018-appliance-readiness-and-promotion.md)
 reused one retained stateful candidate rather than creating another large VM.
 It restored key-only SSH, automatic guest-agent/SSH services, and the complete

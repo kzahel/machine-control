@@ -102,6 +102,14 @@ print and add the SSH entry, replacing the username:
 bin/winvm ssh-config WINDOWS_USER
 ```
 
+The generated alias remains safe for independent `ssh` use: its proxy verifies
+the exact pinned target before resolving the guest. Commands entered through
+`bin/winvm` or the common client use an adapter-owned direct handoff after the
+public entry point has checked the live claim. That path still verifies the
+exact target and role, preserves the alias as the host-key identity, and does
+not expose the resolved address. It avoids recursively entering the standalone
+proxy on every administration or resident call.
+
 After `ssh winvm` works, install the target-resident runtime and reproducible
 development profile:
 

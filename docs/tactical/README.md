@@ -66,4 +66,4 @@ the commits' `Topic:` trailers and register that exact string in
 | [`024-quest-wireless-adb.md`](024-quest-wireless-adb.md) | complete | Guarded temporary Quest ADB-over-TCP bound to the pinned USB identity, with private endpoint state and cable-free fallback |
 | [`025-windows-non-pty-administration-readiness.md`](025-windows-non-pty-administration-readiness.md) | complete | Native PowerShell OpenSSH shell, single bounded Windows doctor probe, and changed-epoch reboot persistence |
 | [`026-exclusive-target-use-claims.md`](026-exclusive-target-use-claims.md) | complete | Coordinator-neutral expiring exclusive-use claims for accepted VM targets, exact-resource arbitration, workspace composition, and agent-facing enforcement |
-| [`027-windows-claimed-direct-transport.md`](027-windows-claimed-direct-transport.md) | active | Single-validation direct Windows administration and resident transport under an exclusive target-use claim |
+| [`027-windows-claimed-direct-transport.md`](027-windows-claimed-direct-transport.md) | complete | Single-validation direct Windows administration and resident transport under an exclusive target-use claim |

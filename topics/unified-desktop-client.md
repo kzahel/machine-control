@@ -52,6 +52,18 @@ The common client does not treat the transport as the contract. Windows SSH,
 Tart guest execution, QEMU guest-agent execution, a future authenticated
 tunnel, and direct local IPC may all carry the same request.
 
+**Current:** the selected Windows adapter now hands ordinary administration
+and resident calls directly to OpenSSH after one claim check and one exact UTM
+target resolution. The connection uses the resolved guest address internally
+while retaining the logical alias as its host-key identity. The generated
+standalone alias still uses its self-guarding proxy for independent callers.
+A live initially-off acceptance pass measured a 3.07-second median common OS
+call and 3.60-second resident status call, down from the earlier 8.3–10.4
+second common administration path. A fresh already-resolved SSH call was about
+0.40 seconds and a shared connection about 0.23 seconds, so persistent SSH
+reuse is deferred: it would not materially reduce the remaining adapter and
+claim cost.
+
 ## Escape hatches
 
 **Decision:** Unification stops where platform semantics become misleading.
@@ -131,8 +143,10 @@ the deeper Windows corpus already covers Unicode input. See the
 - Extend ChromeOS beyond its common readiness/maintenance projection only when
   measured desktop operations support honest shared capability and result
   semantics. Its complete native vocabulary remains available explicitly.
-- Use the captured latency and result-size baseline to reduce transport
-  overhead, especially on the current Windows and Linux administrative routes.
+- Profile the remaining Windows provider/claim setup and the Linux
+  administrative route when iteration latency justifies another bounded
+  transport slice. Do not add persistent sessions merely to save the measured
+  approximately 0.17-second Windows SSH handshake delta.
 
 ## Non-goals
 
