@@ -44,6 +44,13 @@ WINVM_UTM_BUNDLE="${WINVM_UTM_BUNDLE:-$HOME/Library/Containers/com.utmapp.UTM/Da
 WINVM_ALLOW_SOURCE_MUTATION="${WINVM_ALLOW_SOURCE_MUTATION:-0}"
 WINVM_ALLOW_PERSISTENT_SEAL_BOOT="${WINVM_ALLOW_PERSISTENT_SEAL_BOOT:-0}"
 WINVM_UTMCTL="${WINVM_UTMCTL:-/Applications/UTM.app/Contents/MacOS/utmctl}"
+WINVM_LIBVIRT_URI="${WINVM_LIBVIRT_URI:-qemu:///system}"
+WINVM_LIBVIRT_DOMAIN_NAME="${WINVM_LIBVIRT_DOMAIN_NAME:-$WINVM_UTM_NAME}"
+WINVM_LIBVIRT_VIRSH="${WINVM_LIBVIRT_VIRSH:-virsh}"
+WINVM_LIBVIRT_QEMU="${WINVM_LIBVIRT_QEMU:-qemu-system-x86_64}"
+WINVM_LIBVIRT_NETWORK="${WINVM_LIBVIRT_NETWORK:-default}"
+WINVM_LIBVIRT_POOL="${WINVM_LIBVIRT_POOL:-default}"
+WINVM_LIBVIRT_MIN_FREE_BYTES="${WINVM_LIBVIRT_MIN_FREE_BYTES:-68719476736}"
 WINVM_OSASCRIPT="${WINVM_OSASCRIPT:-/usr/bin/osascript}"
 WINVM_OPEN="${WINVM_OPEN:-/usr/bin/open}"
 WINVM_PLUTIL="${WINVM_PLUTIL:-/usr/bin/plutil}"
@@ -91,7 +98,7 @@ winvm_apply_workspace_selection() {
     local provider target_name target_id intent
     provider="$(workspace_receipt_field \
         "$WINVM_WORKSPACE_STATE_DIR" "$handle" provider)" || return
-    if [[ "$provider" != "utm-macos-windows" ]]; then
+    if [[ "$provider" != "$WINVM_PROVIDER-windows" ]]; then
         printf 'Workspace receipt belongs to a different provider\n' >&2
         return 1
     fi
@@ -102,6 +109,7 @@ winvm_apply_workspace_selection() {
     intent="$(workspace_receipt_field \
         "$WINVM_WORKSPACE_STATE_DIR" "$handle" intent)" || return
     WINVM_UTM_NAME="$target_name"
+    WINVM_LIBVIRT_DOMAIN_NAME="$target_name"
     WINVM_EXPECTED_UTM_ID="$target_id"
     case "$intent" in
         persistent|candidate) WINVM_TARGET_ROLE=candidate ;;
@@ -118,6 +126,9 @@ export WINVM_COMMON_LOADED
 export WINVM_TARGET_FILE
 export WINVM_CONFIGURED_UTM_NAME
 export WINVM_SSH_HOST WINVM_SSH_PORT WINVM_UTM_NAME WINVM_UTMCTL
+export WINVM_LIBVIRT_URI WINVM_LIBVIRT_DOMAIN_NAME
+export WINVM_LIBVIRT_VIRSH WINVM_LIBVIRT_QEMU
+export WINVM_LIBVIRT_NETWORK WINVM_LIBVIRT_POOL WINVM_LIBVIRT_MIN_FREE_BYTES
 export WINVM_UTM_BUNDLE WINVM_OPEN WINVM_PLUTIL
 export WINVM_EXPECTED_UTM_ID WINVM_TARGET_ROLE
 export WINVM_ALLOW_SOURCE_MUTATION WINVM_ALLOW_PERSISTENT_SEAL_BOOT

@@ -2,6 +2,13 @@
 # config.local is ignored by Git. Environment variables override these values.
 
 WINVM_PROVIDER=utm-macos
+# Linux-hosted native x86_64 route:
+# WINVM_PROVIDER=libvirt-linux
+# WINVM_LIBVIRT_URI=qemu:///system
+# WINVM_LIBVIRT_DOMAIN_NAME=PRIVATE_DOMAIN_NAME
+# WINVM_LIBVIRT_NETWORK=PRIVATE_NETWORK_NAME
+# WINVM_LIBVIRT_POOL=PRIVATE_STORAGE_POOL
+# WINVM_LIBVIRT_MIN_FREE_BYTES=68719476736
 WINVM_GUEST_DRIVER=windows
 WINVM_UTM_NAME=Windows
 # Used only by the explicit, UUID-checked UTM registration repair. The default

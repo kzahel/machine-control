@@ -8,13 +8,14 @@ source "$BIN_DIR/../scripts/common.sh"
 # shellcheck source=../../../providers/claims/common.sh
 source "$LINUXVM_REPO_DIR/../../providers/claims/common.sh"
 readonly PROVIDER="$(linuxvm_provider_path)"
-readonly LINUXVM_CLAIM_PROVIDER=utm-macos-linux
+readonly LINUXVM_CLAIM_PROVIDER="$LINUXVM_PROVIDER-linux"
 
 usage() {
     cat <<'EOF'
 Usage: linuxvm COMMAND [ARG...]
 
 Lifecycle and transport:
+  host-doctor                    Check the controller hypervisor without a VM
   status | up | ip | suspend | reboot | shutdown | force-stop
   claim-capabilities | claim-status | claim-acquire | claim-check
   claim-renew | claim-release       Coordinate exact-target exclusive use
@@ -195,13 +196,14 @@ command="${1:-help}"
 if (( $# > 0 )); then shift; fi
 
 case "$command" in
-    help|-h|--help|doctor|status|claim-*|workspace-capabilities|workspace-inventory|workspace-gc) ;;
+    help|-h|--help|host-doctor|doctor|status|claim-*|workspace-capabilities|workspace-inventory|workspace-gc) ;;
     workspace-acquire|workspace-release) ;;
     *) require_target_claim ;;
 esac
 
 case "$command" in
     help|-h|--help) usage ;;
+    host-doctor) exec "$PROVIDER" host-doctor ;;
     exec)
         [[ "${1:-}" == "--" ]] && shift
         "$PROVIDER" exec "$@"

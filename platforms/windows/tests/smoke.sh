@@ -48,6 +48,7 @@ scripts=(
     "$REPO_DIR/scripts/image-manifest.sh"
     "$REPO_DIR/scripts/post-update.sh"
     "$REPO_DIR/providers/utm-macos/provider.sh"
+    "$REPO_DIR/providers/libvirt-linux/provider.sh"
     "$REPO_DIR/providers/utm-macos/workspace.sh"
     "$REPO_DIR/providers/utm-macos/screenshot"
     "$REPO_DIR/providers/utm-macos/ssh-proxy"

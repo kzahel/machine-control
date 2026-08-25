@@ -483,6 +483,27 @@ def inspect_domain(
     )
 
 
+def resolve_domain_uuid(
+    configuration: Configuration, provider: Libvirt
+) -> str:
+    if not configuration.domain_name:
+        raise ProviderError(
+            "identity_unpinned", "The provider domain name is unconfigured"
+        )
+    actual_uuid = require_uuid(
+        provider.text("domuuid", configuration.domain_name)
+    )
+    xml_text = provider.text("dumpxml", "--inactive", actual_uuid)
+    validate_domain_xml(
+        xml_text,
+        expected_uuid=actual_uuid,
+        expected_name=configuration.domain_name,
+        require_secure_boot=configuration.require_secure_boot,
+        require_tpm2=configuration.require_tpm2,
+    )
+    return actual_uuid
+
+
 def domain_state(configuration: Configuration, provider: Libvirt) -> str:
     inspect_domain(configuration, provider)
     raw = provider.text("domstate", configuration.expected_uuid).lower()
@@ -633,6 +654,21 @@ def wait_for_agent(configuration: Configuration, provider: Libvirt) -> None:
     )
 
 
+def agent_ready(configuration: Configuration, provider: Libvirt) -> bool:
+    if domain_state(configuration, provider) != "started":
+        return False
+    try:
+        agent_command(
+            configuration,
+            provider,
+            {"execute": "guest-ping"},
+            timeout=5,
+        )
+        return True
+    except ProviderError:
+        return False
+
+
 def guest_exec(
     configuration: Configuration,
     provider: Libvirt,
@@ -781,8 +817,18 @@ def guest_pull(
         guest_file_close(configuration, provider, handle)
 
 
-def guest_ipv4(configuration: Configuration, provider: Libvirt) -> str:
-    start_domain(configuration, provider)
+def guest_ipv4(
+    configuration: Configuration,
+    provider: Libvirt,
+    *,
+    allow_start: bool,
+) -> str:
+    if allow_start:
+        start_domain(configuration, provider)
+    elif domain_state(configuration, provider) != "started":
+        raise ProviderError(
+            "target_not_running", "The domain is not running"
+        )
     wait_for_agent(configuration, provider)
     deadline = time.monotonic() + configuration.boot_timeout
     address_pattern = re.compile(r"\b([0-9]+(?:\.[0-9]+){3})/\d+\b")
@@ -805,16 +851,83 @@ def guest_ipv4(configuration: Configuration, provider: Libvirt) -> str:
     )
 
 
+def linux_boot_id(
+    configuration: Configuration, provider: Libvirt
+) -> str:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "exec",
+            "--",
+            "/usr/bin/cat",
+            "/proc/sys/kernel/random/boot_id",
+        ],
+        env=os.environ,
+        capture_output=True,
+        text=True,
+        timeout=configuration.exec_timeout + 10,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise ProviderError(
+            "guest_agent_unavailable", "The Linux boot identity is unavailable"
+        )
+    return completed.stdout.strip()
+
+
+def reboot_linux(configuration: Configuration, provider: Libvirt) -> None:
+    inspect_domain(configuration, provider)
+    if domain_state(configuration, provider) != "started":
+        raise ProviderError(
+            "target_not_running", "The domain is not running"
+        )
+    old_boot_id = linux_boot_id(configuration, provider)
+    result = provider.command(
+        "reboot",
+        configuration.expected_uuid,
+        "--mode",
+        "agent",
+        check=False,
+    )
+    if result.returncode != 0:
+        raise ProviderError(
+            "reboot_refused", "The guest agent refused the reboot"
+        )
+    deadline = time.monotonic() + configuration.boot_timeout
+    while time.monotonic() < deadline:
+        try:
+            if agent_ready(configuration, provider):
+                new_boot_id = linux_boot_id(configuration, provider)
+                if new_boot_id and new_boot_id != old_boot_id:
+                    if not query_kvm(configuration, provider):
+                        raise ProviderError(
+                            "hardware_acceleration_required",
+                            "The rebooted domain is not using KVM acceleration",
+                        )
+                    return
+        except ProviderError:
+            pass
+        time.sleep(2)
+    raise ProviderError(
+        "reboot_timeout", "The guest did not complete a changed-boot reboot"
+    )
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("host-doctor")
+    subparsers.add_parser("resolve-uuid")
     subparsers.add_parser("inspect")
     subparsers.add_parser("status")
     subparsers.add_parser("start")
     subparsers.add_parser("shutdown")
     subparsers.add_parser("force-stop")
-    subparsers.add_parser("ip")
+    subparsers.add_parser("agent-ready")
+    subparsers.add_parser("reboot-linux")
+    ip = subparsers.add_parser("ip")
+    ip.add_argument("--start", action="store_true")
     execute = subparsers.add_parser("exec")
     execute.add_argument("arguments", nargs=argparse.REMAINDER)
     push = subparsers.add_parser("push")
@@ -835,6 +948,9 @@ def main() -> int:
             print(json.dumps(value, separators=(",", ":"), sort_keys=True))
             return exit_code
         provider = Libvirt(configuration)
+        if arguments.command == "resolve-uuid":
+            print(resolve_domain_uuid(configuration, provider))
+            return 0
         if arguments.command == "inspect":
             print(
                 json.dumps(
@@ -865,8 +981,18 @@ def main() -> int:
             )
             print("stopped")
             return 0
+        if arguments.command == "agent-ready":
+            return 0 if agent_ready(configuration, provider) else 1
+        if arguments.command == "reboot-linux":
+            reboot_linux(configuration, provider)
+            print(guest_ipv4(configuration, provider, allow_start=False))
+            return 0
         if arguments.command == "ip":
-            print(guest_ipv4(configuration, provider))
+            print(
+                guest_ipv4(
+                    configuration, provider, allow_start=arguments.start
+                )
+            )
             return 0
         if arguments.command == "exec":
             command = arguments.arguments

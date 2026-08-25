@@ -8,13 +8,14 @@ source "$REPO_DIR/scripts/common.sh"
 # shellcheck source=../../../providers/claims/common.sh
 source "$REPO_DIR/../../providers/claims/common.sh"
 
-readonly WINVM_CLAIM_PROVIDER=utm-macos-windows
+readonly WINVM_CLAIM_PROVIDER="$WINVM_PROVIDER-windows"
 
 usage() {
     cat <<'EOF'
 Usage: winvm COMMAND [ARG...]
 
 Start here:
+  host-doctor            Check the controller hypervisor without selecting a VM
   doctor [--json]        Check lifecycle, administration, desktop, and resident
   claim-capabilities | claim-status | claim-acquire | claim-check
   claim-renew | claim-release
@@ -131,13 +132,14 @@ command="${1:-help}"
 shift || true
 
 case "$command" in
-    help|-h|--help|doctor|status|capabilities|target-id|pin-target|claim-*|ui|workspace-capabilities|workspace-inventory|workspace-gc) ;;
+    help|-h|--help|host-doctor|doctor|status|capabilities|target-id|pin-target|claim-*|ui|workspace-capabilities|workspace-inventory|workspace-gc) ;;
     workspace-acquire|workspace-release) ;;
     *) require_target_claim ;;
 esac
 
 case "$command" in
     help|-h|--help) usage ;;
+    host-doctor) provider host-doctor ;;
     doctor)
         export MACHINE_CONTROL_CLAIM_POLICY=optional
         export WINVM_SSH_ALLOW_START=false
