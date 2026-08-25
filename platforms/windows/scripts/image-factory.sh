@@ -19,8 +19,8 @@ Usage:
 
 Prepared installation media and the rendered seed are written under ignored
 .factory.local. Preparation preserves the source ISO and replaces only the
-verified prompted loader in a private copy with Microsoft's equal-size
-no-prompt loader from that same ISO. SECRET_FILE must be mode 0600, contain one
+verified prompted loader in a private copy with Microsoft's no-prompt loader
+from that same ISO. SECRET_FILE must be mode 0600, contain one
 non-empty line, and is never accepted as an argument or environment value.
 EDITION is currently windows-11-pro and selects Microsoft's public
 installation-only KMS client setup key; it does not activate Windows.
@@ -82,8 +82,8 @@ prepare_install_media() (
     mkdir -p "$FACTORY_ROOT"
     chmod 700 "$FACTORY_ROOT"
     if ! command -v hdiutil >/dev/null 2>&1 &&
-            ! command -v xorriso >/dev/null 2>&1; then
-        printf 'hdiutil or xorriso is required to inspect installation media.\n' >&2
+            ! command -v 7z >/dev/null 2>&1; then
+        printf 'hdiutil or 7z is required to inspect installation media.\n' >&2
         return 1
     fi
     local source_iso output build mount source_device="" complete=0
@@ -122,8 +122,9 @@ prepare_install_media() (
             return 1
         fi
     else
-        xorriso -osirrox on -indev "$source_iso" -extract / "$mount" \
-            >/dev/null 2>&1
+        7z x -y -o"$mount" "$source_iso" \
+            efi/microsoft/boot/cdboot.efi \
+            efi/microsoft/boot/cdboot_noprompt.efi >/dev/null
     fi
     local prompted="$mount/efi/microsoft/boot/cdboot.efi"
     local no_prompt="$mount/efi/microsoft/boot/cdboot_noprompt.efi"
@@ -131,11 +132,15 @@ prepare_install_media() (
         printf 'Windows media lacks the expected CD boot loaders.\n' >&2
         return 1
     fi
-    perl - "$source_iso" "$output" "$prompted" "$no_prompt" <<'PERL'
+    local boot_image="$build/efi-boot.img"
+    local patch_state="$build/patch-state"
+    perl - "$source_iso" "$output" "$prompted" "$no_prompt" \
+        "$boot_image" "$patch_state" <<'PERL'
 use strict;
 use warnings;
 
-my ($source, $output, $prompted_path, $no_prompt_path) = @ARGV;
+my ($source, $output, $prompted_path, $no_prompt_path, $boot_path,
+    $state_path) = @ARGV;
 open my $source_fh, '<:raw', $source or die "open source ISO: $!\n";
 my $catalog_lba;
 for my $sector (16 .. 63) {
@@ -155,20 +160,48 @@ read($source_fh, my $catalog, 2048) == 2048 or die "read boot catalog\n";
 ord(substr($catalog, 30, 1)) == 0x55 && ord(substr($catalog, 31, 1)) == 0xaa
     or die "invalid El Torito validation entry\n";
 my $entry;
-for (my $offset = 32; $offset + 32 <= length($catalog); $offset += 32) {
-    my $candidate = substr($catalog, $offset, 32);
-    if (ord(substr($candidate, 0, 1)) == 0x88) {
-        $entry = $candidate;
-        last;
-    }
+my $default_platform = ord(substr($catalog, 1, 1));
+my $default_entry = substr($catalog, 32, 32);
+if ($default_platform == 0xef && ord(substr($default_entry, 0, 1)) == 0x88) {
+    $entry = $default_entry;
 }
-defined $entry or die "bootable El Torito entry not found\n";
-my $sector_count = unpack('v', substr($entry, 6, 2));
+for (my $offset = 64; !defined($entry) && $offset + 32 <= length($catalog);) {
+    my $header = substr($catalog, $offset, 32);
+    my $indicator = ord(substr($header, 0, 1));
+    last if $indicator == 0;
+    if ($indicator != 0x90 && $indicator != 0x91) {
+        $offset += 32;
+        next;
+    }
+    my $platform = ord(substr($header, 1, 1));
+    my $count = unpack('v', substr($header, 2, 2));
+    for my $index (1 .. $count) {
+        my $entry_offset = $offset + $index * 32;
+        $entry_offset + 32 <= length($catalog)
+            or die "truncated El Torito section\n";
+        my $candidate = substr($catalog, $entry_offset, 32);
+        if ($platform == 0xef && ord(substr($candidate, 0, 1)) == 0x88) {
+            $entry = $candidate;
+            last;
+        }
+    }
+    $offset += ($count + 1) * 32;
+}
+defined $entry or die "bootable EFI El Torito entry not found\n";
 my $image_lba = unpack('V', substr($entry, 8, 4));
-$sector_count > 0 && $image_lba > 0 or die "invalid boot image extent\n";
+$image_lba > 0 or die "invalid boot image extent\n";
 seek $source_fh, $image_lba * 2048, 0 or die "seek boot image: $!\n";
-read($source_fh, my $boot_image, $sector_count * 512) == $sector_count * 512
-    or die "read boot image\n";
+read($source_fh, my $boot_sector, 512) == 512 or die "read boot sector\n";
+my $bytes_per_sector = unpack('v', substr($boot_sector, 11, 2));
+my $total16 = unpack('v', substr($boot_sector, 19, 2));
+my $total32 = unpack('V', substr($boot_sector, 32, 4));
+my $total_sectors = $total16 || $total32;
+my $boot_size = $bytes_per_sector * $total_sectors;
+$bytes_per_sector == 512 && $boot_size >= 65536 && $boot_size <= 67108864
+    or die "invalid EFI FAT boot image\n";
+seek $source_fh, $image_lba * 2048, 0 or die "seek full boot image: $!\n";
+read($source_fh, my $boot_image, $boot_size) == $boot_size
+    or die "read full boot image\n";
 
 sub read_file {
     my ($path) = @_;
@@ -178,22 +211,76 @@ sub read_file {
 }
 my $prompted = read_file($prompted_path);
 my $no_prompt = read_file($no_prompt_path);
-length($prompted) == length($no_prompt) && length($prompted) > 0
-    or die "Windows boot-loader sizes differ\n";
+length($prompted) > 0 && length($no_prompt) > 0
+    or die "Windows boot loaders are empty\n";
 my $loader_offset = index($boot_image, $prompted);
 $loader_offset >= 0 or die "prompted loader not found in boot image\n";
 index($boot_image, $prompted, $loader_offset + 1) < 0
     or die "prompted loader is not unique in boot image\n";
 
-open my $output_fh, '+<:raw', $output or die "open output ISO: $!\n";
-my $patch_offset = $image_lba * 2048 + $loader_offset;
-seek $output_fh, $patch_offset, 0 or die "seek output loader: $!\n";
-print {$output_fh} $no_prompt or die "write no-prompt loader: $!\n";
-seek $output_fh, $patch_offset, 0 or die "verify output loader seek: $!\n";
-read($output_fh, my $verified, length($no_prompt)) == length($no_prompt)
-    or die "verify output loader read\n";
-$verified eq $no_prompt or die "output loader verification failed\n";
+if (length($prompted) == length($no_prompt)) {
+    open my $output_fh, '+<:raw', $output or die "open output ISO: $!\n";
+    my $patch_offset = $image_lba * 2048 + $loader_offset;
+    seek $output_fh, $patch_offset, 0 or die "seek output loader: $!\n";
+    print {$output_fh} $no_prompt or die "write no-prompt loader: $!\n";
+    seek $output_fh, $patch_offset, 0 or die "verify output loader seek: $!\n";
+    read($output_fh, my $verified, length($no_prompt)) == length($no_prompt)
+        or die "verify output loader read\n";
+    $verified eq $no_prompt or die "output loader verification failed\n";
+    open my $state_fh, '>', $state_path or die "open patch state: $!\n";
+    print {$state_fh} "direct\n";
+} else {
+    open my $boot_fh, '>:raw', $boot_path or die "open boot image: $!\n";
+    print {$boot_fh} $boot_image or die "write boot image: $!\n";
+    close $boot_fh or die "close boot image: $!\n";
+    open my $state_fh, '>', $state_path or die "open patch state: $!\n";
+    print {$state_fh} "fat $image_lba $boot_size\n";
+}
 PERL
+    local patch_mode image_lba image_size
+    read -r patch_mode image_lba image_size <"$patch_state"
+    if [[ "$patch_mode" == fat ]]; then
+        for command_name in mcopy mdir; do
+            if ! command -v "$command_name" >/dev/null 2>&1; then
+                printf 'Required command not found: %s\n' "$command_name" >&2
+                return 1
+            fi
+        done
+        local loader_name=""
+        if mdir -i "$boot_image" ::/EFI/BOOT/BOOTX64.EFI >/dev/null 2>&1; then
+            loader_name=BOOTX64.EFI
+        elif mdir -i "$boot_image" ::/EFI/BOOT/BOOTAA64.EFI >/dev/null 2>&1; then
+            loader_name=BOOTAA64.EFI
+        else
+            printf 'EFI boot image lacks the expected architecture loader.\n' >&2
+            return 1
+        fi
+        mcopy -o -i "$boot_image" "$no_prompt" "::/EFI/BOOT/$loader_name"
+        local verified_loader="$build/verified-loader.efi"
+        mcopy -i "$boot_image" "::/EFI/BOOT/$loader_name" "$verified_loader"
+        cmp -s "$no_prompt" "$verified_loader" || {
+            printf 'EFI no-prompt loader replacement could not be verified.\n' >&2
+            return 1
+        }
+        perl - "$output" "$boot_image" "$image_lba" "$image_size" <<'PERL'
+use strict;
+use warnings;
+my ($output, $boot_path, $image_lba, $image_size) = @ARGV;
+open my $boot_fh, '<:raw', $boot_path or die "open boot image: $!\n";
+read($boot_fh, my $boot_image, $image_size) == $image_size
+    or die "read boot image: $!\n";
+open my $output_fh, '+<:raw', $output or die "open output ISO: $!\n";
+seek $output_fh, $image_lba * 2048, 0 or die "seek output boot image: $!\n";
+print {$output_fh} $boot_image or die "write output boot image: $!\n";
+seek $output_fh, $image_lba * 2048, 0 or die "verify boot image seek: $!\n";
+read($output_fh, my $verified, $image_size) == $image_size
+    or die "verify boot image read\n";
+$verified eq $boot_image or die "output boot image verification failed\n";
+PERL
+    elif [[ "$patch_mode" != direct ]]; then
+        printf 'Windows media preparation returned invalid patch state.\n' >&2
+        return 1
+    fi
     if [[ -n "$source_device" ]]; then
         hdiutil detach "$source_device" >/dev/null
         source_device=""

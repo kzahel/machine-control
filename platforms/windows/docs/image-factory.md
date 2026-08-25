@@ -86,8 +86,11 @@ both an interactive firmware-shell stop and Windows media's `Press any key`
 prompt without forcing Setup media again during installation reboots. The
 prepared installer exposes the no-prompt loader in its firmware-visible boot
 image. Preparation first proves that the official ISO contains both expected,
-equal-size Microsoft-signed loaders and that the embedded payload is exactly
-the prompted loader; media validation is not an assumption about every ISO.
+Microsoft-signed loaders and that the embedded payload is exactly the prompted
+loader; media validation is not an assumption about every ISO. When the two
+loaders differ in size, as they do on current x64 media, preparation replaces
+the file inside the EFI FAT image and verifies the resulting file byte for
+byte. Equal-size loaders retain a smaller verified in-place path.
 
 The checked-in AppleScript configuration surface does not expose UTM's Windows
 wizard flags for TPM 2.0 and preloaded Secure Boot keys. The answer media uses
@@ -104,9 +107,9 @@ scripts/image-factory.sh validate-media PRIVATE_WINDOWS_ISO
 scripts/image-factory.sh prepare-install-media PRIVATE_WINDOWS_ISO
 ```
 
-The preparation command works with `hdiutil` on macOS and `xorriso` on Linux.
+The preparation command works with `hdiutil` on macOS and `7z` on Linux.
 It preserves the verified source ISO and creates an
-ignored copy whose El Torito EFI image substitutes Microsoft's equal-size
+ignored copy whose El Torito EFI image substitutes Microsoft's
 `cdboot_noprompt.efi` payload for the byte-verified prompted loader. This is
 necessary because UEFI maps the small El Torito image, not the ISO's main UDF
 tree; the seed cannot execute a loader path that exists only in UDF. The copy
