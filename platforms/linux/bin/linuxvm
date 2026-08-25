@@ -196,12 +196,19 @@ require_target_claim() {
         "$LINUXVM_CLAIM_PROVIDER" "$LINUXVM_EXPECTED_UUID"
 }
 
+require_disruptive_target_claim() {
+    claim_require_tools || return
+    claim_require_disruptive_exact "$LINUXVM_CLAIM_STATE_DIR" \
+        "$LINUXVM_CLAIM_PROVIDER" "$LINUXVM_EXPECTED_UUID"
+}
+
 command="${1:-help}"
 if (( $# > 0 )); then shift; fi
 
 case "$command" in
     help|-h|--help|host-doctor|doctor|status|target-id|factory-create|claim-*|workspace-capabilities|workspace-inventory|workspace-gc) ;;
     workspace-acquire|workspace-release) ;;
+    screenshot|click|drag|type|key|scan) require_disruptive_target_claim ;;
     *) require_target_claim ;;
 esac
 

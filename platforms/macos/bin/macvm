@@ -97,12 +97,19 @@ require_target_claim() {
         "$MACVM_EXPECTED_NAME"
 }
 
+require_disruptive_target_claim() {
+    claim_require_tools || return
+    claim_require_disruptive_exact "$MACVM_CLAIM_STATE_DIR" \
+        "$MACVM_CLAIM_PROVIDER" "$MACVM_EXPECTED_NAME"
+}
+
 command="${1:-help}"
 shift || true
 
 case "$command" in
     help|-h|--help|doctor|status|claim-*|workspace-capabilities|workspace-inventory|workspace-gc) ;;
     workspace-acquire|workspace-release) ;;
+    screenshot|click|drag|type|key) require_disruptive_target_claim ;;
     *) require_target_claim ;;
 esac
 

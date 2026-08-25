@@ -35,8 +35,9 @@ claim_store() {
 
 claim_check_exact() {
     local state_dir="$1" provider="$2" resource_id="$3" claim_id="$4"
+    shift 4
     claim_store "$state_dir" check --provider "$provider" \
-        --resource-id "$resource_id" --claim-id "$claim_id"
+        --resource-id "$resource_id" --claim-id "$claim_id" "$@"
 }
 
 claim_require_exact() {
@@ -54,6 +55,27 @@ claim_require_exact() {
     fi
     claim_check_exact "$state_dir" "$provider" "$resource_id" \
         "$MACHINE_CONTROL_CLAIM_ID" >/dev/null
+}
+
+claim_require_disruptive_exact() {
+    local state_dir="$1" provider="$2" resource_id="$3" result
+    if [[ "${MACHINE_CONTROL_CLAIM_POLICY:-required}" == optional ]]; then
+        return 0
+    fi
+    if [[ -z "$resource_id" ]]; then
+        printf 'Exact target identity is unavailable; repair private inventory and rerun doctor\n' >&2
+        return 1
+    fi
+    if [[ -z "${MACHINE_CONTROL_CLAIM_ID:-}" ]]; then
+        printf 'Exclusive target use requires a live claim\n' >&2
+        return 1
+    fi
+    if ! result="$(claim_check_exact "$state_dir" "$provider" \
+        "$resource_id" "$MACHINE_CONTROL_CLAIM_ID" \
+        --required-use-class disruptive)"; then
+        printf '%s\n' "$result" >&2
+        return 1
+    fi
 }
 
 claim_adapter_main() {

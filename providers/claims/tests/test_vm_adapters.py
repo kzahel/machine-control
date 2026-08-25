@@ -32,6 +32,7 @@ class VmClaimAdapterTests(unittest.TestCase):
                     "WINVM_CLAIM_STATE_DIR": str(self.directory / "windows"),
                 },
                 ["ssh-config", "fixture-user"],
+                ["screenshot", "type", "click", "key", "scan"],
             ),
             (
                 ROOT / "platforms" / "linux" / "bin" / "linuxvm",
@@ -41,6 +42,7 @@ class VmClaimAdapterTests(unittest.TestCase):
                     "LINUXVM_CLAIM_STATE_DIR": str(self.directory / "linux"),
                 },
                 ["bootstrap-command"],
+                ["screenshot", "click", "drag", "type", "key", "scan"],
             ),
             (
                 ROOT / "platforms" / "macos" / "bin" / "macvm",
@@ -50,6 +52,7 @@ class VmClaimAdapterTests(unittest.TestCase):
                     "MACVM_CLAIM_STATE_DIR": str(self.directory / "macos"),
                 },
                 ["up"],
+                ["screenshot", "click", "drag", "type", "key"],
             ),
         )
 
@@ -68,7 +71,7 @@ class VmClaimAdapterTests(unittest.TestCase):
         )
 
     def test_vm_adapters_expose_claims_and_gate_effectful_use(self) -> None:
-        for executable, environment, effectful in self.adapters():
+        for executable, environment, effectful, disruptive in self.adapters():
             with self.subTest(adapter=executable.parent.parent.name):
                 result = self.run_adapter(
                     executable, environment, "claim-capabilities", "--json"
@@ -76,6 +79,9 @@ class VmClaimAdapterTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 capabilities = json.loads(result.stdout)
                 self.assertEqual(capabilities["mode"], "exclusive")
+                self.assertEqual(
+                    capabilities["useClasses"]["default"], "ordinary"
+                )
 
                 result = self.run_adapter(executable, environment, *effectful)
                 self.assertNotEqual(result.returncode, 0)
@@ -100,6 +106,23 @@ class VmClaimAdapterTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 acquired = json.loads(result.stdout)
                 claim_id = acquired["data"]["claim"]["claimId"]
+                self.assertEqual(
+                    acquired["data"]["claim"]["useClass"], "ordinary"
+                )
+
+                for command in disruptive:
+                    result = self.run_adapter(
+                        executable,
+                        {
+                            **environment,
+                            "MACHINE_CONTROL_CLAIM_ID": claim_id,
+                        },
+                        command,
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(
+                        "disruptive_claim_required", result.stderr
+                    )
 
                 result = self.run_adapter(
                     executable,
@@ -125,6 +148,53 @@ class VmClaimAdapterTests(unittest.TestCase):
                     json.loads(result.stdout)["data"]["disposition"],
                     "released",
                 )
+
+                result = self.run_adapter(
+                    executable,
+                    environment,
+                    "claim-acquire",
+                    "--disruptive",
+                    "--duration-seconds",
+                    "60",
+                    "--reason",
+                    "exercise disruptive adapter enforcement",
+                    "--claimant-authority",
+                    "claim-adapter-tests",
+                    "--claimant-id",
+                    self.id(),
+                    "--metadata-json",
+                    '{}',
+                    "--json",
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                disruptive_claim = json.loads(result.stdout)["data"]["claim"]
+                self.assertEqual(
+                    disruptive_claim["useClass"], "disruptive"
+                )
+                disruptive_id = disruptive_claim["claimId"]
+
+                result = self.run_adapter(
+                    executable,
+                    environment,
+                    "claim-check",
+                    "--claim-id",
+                    disruptive_id,
+                    "--required-use-class",
+                    "disruptive",
+                    "--json",
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertTrue(json.loads(result.stdout)["accepted"])
+
+                result = self.run_adapter(
+                    executable,
+                    environment,
+                    "claim-release",
+                    "--claim-id",
+                    disruptive_id,
+                    "--json",
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_missing_private_identity_points_to_inventory_repair(self) -> None:
         executable = ROOT / "platforms" / "windows" / "bin" / "winvm"

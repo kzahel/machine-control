@@ -112,6 +112,12 @@ require_target_claim() {
         "$WINVM_EXPECTED_UTM_ID"
 }
 
+require_disruptive_target_claim() {
+    claim_require_tools || return
+    claim_require_disruptive_exact "$WINVM_CLAIM_STATE_DIR" \
+        "$WINVM_CLAIM_PROVIDER" "$WINVM_EXPECTED_UTM_ID"
+}
+
 print_ssh_config() {
     if [[ $# -ne 1 ]]; then
         printf 'Usage: winvm ssh-config WINDOWS_USER\n' >&2
@@ -136,6 +142,7 @@ shift || true
 case "$command" in
     help|-h|--help|host-doctor|doctor|status|capabilities|target-id|pin-target|factory-create|claim-*|ui|workspace-capabilities|workspace-inventory|workspace-gc) ;;
     workspace-acquire|workspace-release) ;;
+    screenshot|type|click|key|scan) require_disruptive_target_claim ;;
     *) require_target_claim ;;
 esac
 
