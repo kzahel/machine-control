@@ -125,6 +125,61 @@ observation     semantic + screenshot</code></pre>
             </div>
           </article>
         </div>
+
+        <div class="host-support" id="vm-hosts">
+          <div class="host-support-heading">
+            <div>
+              <p class="eyebrow">VM controller hosts</p>
+              <h3>Run the VM lab from macOS or Linux today.</h3>
+            </div>
+            <p>
+              The controller host runs the hypervisor adapter; the target is the
+              guest being tested. Windows already runs the portable coordinator,
+              while its local Hyper-V host route is the next planned addition.
+            </p>
+          </div>
+          <div class="host-matrix-wrap">
+            <table class="host-matrix" aria-label="Current desktop virtual-machine controller-host support">
+              <thead>
+                <tr>
+                  <th scope="col">Controller host</th>
+                  <th scope="col">Host status</th>
+                  <th scope="col">Windows guest</th>
+                  <th scope="col">macOS guest</th>
+                  <th scope="col">Linux guest</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row"><strong>macOS</strong><small>Apple hardware</small></th>
+                  <td data-label="Host status"><span class="matrix-state matrix-live">Supported</span><small>Current baseline</small></td>
+                  <td data-label="Windows guest"><span>Supported</span><small>UTM / QEMU</small></td>
+                  <td data-label="macOS guest"><span>Supported</span><small>Tart</small></td>
+                  <td data-label="Linux guest"><span>Supported</span><small>UTM / QEMU</small></td>
+                </tr>
+                <tr>
+                  <th scope="row"><strong>Linux</strong><small>native x86_64 KVM</small></th>
+                  <td data-label="Host status"><span class="matrix-state matrix-live">Supported</span><small>Live accepted</small></td>
+                  <td data-label="Windows guest"><span>Supported</span><small>libvirt / KVM</small></td>
+                  <td data-label="macOS guest"><span class="matrix-muted">Apple hardware only</span><small>Remote route instead</small></td>
+                  <td data-label="Linux guest"><span>Supported</span><small>libvirt / KVM</small></td>
+                </tr>
+                <tr>
+                  <th scope="row"><strong>Windows</strong><small>eligible editions</small></th>
+                  <td data-label="Host status"><span class="matrix-state matrix-soon">Coming soon</span><small>Coordinator works today</small></td>
+                  <td data-label="Windows guest"><span>Planned</span><small>Hyper-V</small></td>
+                  <td data-label="macOS guest"><span class="matrix-muted">Apple hardware only</span><small>Remote route instead</small></td>
+                  <td data-label="Linux guest"><span>Planned</span><small>Hyper-V</small></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="table-note">
+            This matrix describes desktop VM hosting, not where the agent may
+            run or which physical devices it can control.
+            <a href="https://github.com/kzahel/machine-control#controller-host-support">Full controller-host details →</a>
+          </p>
+        </div>
       </div>
     </section>
 
@@ -270,8 +325,8 @@ observation     semantic + screenshot</code></pre>
       <div class="shell">
         <div class="section-heading status-heading">
           <div>
-            <p class="eyebrow">Current evidence</p>
-            <h2>Broad destination. Honest status.</h2>
+            <p class="eyebrow">Target-platform status</p>
+            <h2>Broad target support. Honest maturity.</h2>
           </div>
           <p>Desktop VMs and physical devices have different maturity, but both are part of the product—not a future category bolted onto a desktop-only design.</p>
         </div>
