@@ -1,0 +1,227 @@
+---
+import SiteFooter from "../components/SiteFooter.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteLayout from "../layouts/SiteLayout.astro";
+
+const title = "Getting started — Machine Control";
+const description =
+  "Clone Machine Control, point your coding agent at the repository, and let it discover, claim, operate, and verify applications on configured VMs and physical devices.";
+const agentPrompt = `Use Machine Control in this repository to develop and test <application>
+on <targets>.
+
+Read AGENTS.md and README.md first. Use bin/machine-control as the common
+interface. Start by listing the configured targets and checking inventory
+status.
+
+Before meaningful use of a target, run its read-only doctor. For an accepted
+VM, acquire an exclusive claim with a truthful authority, claimant ID, and
+reason; carry the claim ID through every operation and release it promptly. For
+a physical device, follow its platform guide's exact selection and lease rules.
+
+Build and deploy the application, exercise the relevant native workflows, and
+verify the observed application effect. Prefer target-native semantic control,
+capture, and input. Do not use host-console input except for explicit bootstrap
+or recovery.
+
+Report the actual provider route, delivery, observed effect, evidence, and any
+uncertainty for each target.`;
+---
+
+<SiteLayout title={title} description={description} canonicalPath="/getting-started/">
+  <SiteHeader />
+  <main class="getting-started-page">
+    <section class="page-intro start-intro">
+      <div class="shell start-shell">
+        <p class="eyebrow">Getting started · Python 3.10+</p>
+        <h1>Clone the repository. Point your agent at it.</h1>
+        <p class="lede">
+          If your machines and devices are already configured, that is almost
+          the entire handoff. Machine Control gives the agent the project
+          guidance and one common entry point for the lab.
+        </p>
+        <div class="actions">
+          <a class="button button-primary" href="#agent-prompt">Copy the agent prompt ↓</a>
+          <a class="button button-secondary" href="https://github.com/kzahel/machine-control">View the repository</a>
+        </div>
+        <ul class="proof-list" aria-label="Getting-started facts">
+          <li>No common-client package install</li>
+          <li>Standard-library client</li>
+          <li>Works with any coding agent</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="first-session">
+      <div class="shell start-shell">
+        <div class="section-heading">
+          <p class="eyebrow">The short path</p>
+          <h2>Already have a configured lab?</h2>
+          <p>Clone, inspect the available targets, and hand the repository to the agent that is working on your application.</p>
+        </div>
+
+        <div class="start-paths">
+          <article class="start-path start-path-primary">
+            <span>Configured targets</span>
+            <h3>This is the whole setup.</h3>
+            <pre><code>git clone https://github.com/kzahel/machine-control.git
+cd machine-control
+
+bin/machine-control targets
+bin/machine-control inventory status
+python3 bin/check --portable</code></pre>
+            <p>
+              On Windows, use <code>py -3 bin/machine-control</code> and
+              <code>py -3 bin/check --portable</code>.
+            </p>
+          </article>
+
+          <article class="start-path">
+            <span>What “point the agent at it” means</span>
+            <h3>Open the checkout in the coding session.</h3>
+            <p>
+              The repository’s <code>AGENTS.md</code> and <code>README.md</code>
+              explain target selection, safety, platform routes, claims, and
+              evidence. The common command is:
+            </p>
+            <pre><code>bin/machine-control --target &lt;name&gt; ...</code></pre>
+            <p>
+              Tell the agent what application to work on and which configured
+              targets matter. It can discover the rest from the repository and
+              the private inventory available on the controller.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-ink" id="agent-prompt">
+      <div class="shell start-shell">
+        <div class="prompt-heading">
+          <div>
+            <p class="eyebrow">Agent handoff</p>
+            <h2>Give the coding agent this prompt.</h2>
+          </div>
+          <p>
+            Replace the two angle-bracket placeholders. The prompt preserves
+            the safe operating loop without requiring you to explain every
+            command yourself.
+          </p>
+        </div>
+
+        <div class="agent-prompt-card">
+          <div class="agent-prompt-toolbar">
+            <span>machine-control handoff</span>
+            <button type="button" data-copy-prompt aria-describedby="copy-status">Copy prompt</button>
+          </div>
+          <pre data-agent-prompt><code>{agentPrompt}</code></pre>
+          <p id="copy-status" class="copy-status" data-copy-status aria-live="polite"></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-white" id="operating-loop">
+      <div class="shell start-shell">
+        <div class="section-heading">
+          <p class="eyebrow">Every target session</p>
+          <h2>The agent follows one guarded loop.</h2>
+          <p>
+            The target may be a desktop VM, a physical Chromebook, or a phone.
+            The provider changes; the surrounding development discipline stays
+            recognizable.
+          </p>
+        </div>
+        <div class="session-flow" aria-label="Discover, doctor, reserve, operate, verify, and release the target">
+          <div><strong>Discover</strong><span>eligible targets</span></div>
+          <i aria-hidden="true">→</i>
+          <div><strong>Doctor</strong><span>read-only readiness</span></div>
+          <i aria-hidden="true">→</i>
+          <div><strong>Reserve</strong><span>claim or device lease</span></div>
+          <i aria-hidden="true">→</i>
+          <div><strong>Operate</strong><span>build · deploy · test</span></div>
+          <i aria-hidden="true">→</i>
+          <div><strong>Verify</strong><span>effect and evidence</span></div>
+          <i aria-hidden="true">→</i>
+          <div><strong>Release</strong><span>prompt cleanup</span></div>
+        </div>
+        <div class="loop-notes">
+          <p><strong>Doctor is read-only.</strong> It proves exact identity and readiness before the agent changes a shared target.</p>
+          <p><strong>Reservations are explicit.</strong> The agent carries a VM claim or follows the device route’s lease model, then releases it in finally-style cleanup.</p>
+          <p><strong>Delivery is not effect.</strong> Results keep the attempted action separate from what the application demonstrably did.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="new-lab">
+      <div class="shell start-shell setup-grid">
+        <div>
+          <p class="eyebrow">One-time setup</p>
+          <h2>Starting without a configured lab?</h2>
+          <p>
+            This is the longer path. Choose the target, prepare its VM host or
+            authorized device controller, install the platform-owned components,
+            and keep concrete machine identity in private configuration.
+          </p>
+          <a class="text-link" href="https://github.com/kzahel/machine-control#controller-host-support">Check VM controller-host support →</a>
+        </div>
+        <div class="setup-steps">
+          <article>
+            <strong>Choose a platform guide</strong>
+            <p>Follow the target’s prerequisites, bootstrap, resident or device-runner, and recovery guidance.</p>
+            <nav aria-label="Platform setup guides">
+              <a href="https://github.com/kzahel/machine-control/tree/main/platforms/windows">Windows</a>
+              <a href="https://github.com/kzahel/machine-control/tree/main/platforms/macos">macOS</a>
+              <a href="https://github.com/kzahel/machine-control/tree/main/platforms/linux">Linux</a>
+              <a href="https://github.com/kzahel/machine-control/tree/main/platforms/chromeos">ChromeOS</a>
+              <a href="https://github.com/kzahel/machine-control/tree/main/platforms/ios">iOS</a>
+              <a href="https://github.com/kzahel/machine-control/tree/main/platforms/android">Android</a>
+            </nav>
+          </article>
+          <article>
+            <strong>Keep target identity private</strong>
+            <p>Machine names, endpoints, device identifiers, credentials, and concrete routes belong in ignored local configuration or a private inventory provider—not the public checkout.</p>
+          </article>
+          <article>
+            <strong>Prove the route before using it</strong>
+            <p>List the logical target, run its read-only doctor, repair identity or readiness when necessary, then let the normal claim-and-control loop begin.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section start-cta">
+      <div class="shell start-shell start-cta-inner">
+        <div>
+          <p class="eyebrow">Ready</p>
+          <h2>Give the agent the repository and a real target.</h2>
+        </div>
+        <div class="actions">
+          <a class="button button-primary" href="https://github.com/kzahel/machine-control">Clone Machine Control</a>
+          <a class="button button-secondary" href="/#targets">See current targets</a>
+        </div>
+      </div>
+    </section>
+  </main>
+  <SiteFooter />
+</SiteLayout>
+
+<script>
+  const copyButton = document.querySelector("[data-copy-prompt]");
+  const promptElement = document.querySelector("[data-agent-prompt]");
+  const copyStatus = document.querySelector("[data-copy-status]");
+
+  if (copyButton instanceof HTMLButtonElement && promptElement instanceof HTMLElement) {
+    copyButton.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(promptElement.textContent ?? "");
+        copyButton.textContent = "Copied";
+        if (copyStatus) copyStatus.textContent = "Prompt copied to the clipboard.";
+        window.setTimeout(() => {
+          copyButton.textContent = "Copy prompt";
+          if (copyStatus) copyStatus.textContent = "";
+        }, 2400);
+      } catch {
+        if (copyStatus) copyStatus.textContent = "Select the prompt text and copy it manually.";
+      }
+    });
+  }
+</script>

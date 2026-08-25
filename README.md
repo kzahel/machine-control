@@ -223,6 +223,10 @@ ownership boundaries.
 
 ## Quick start
 
+For the shortest agent-oriented handoff, use the
+[website getting-started guide](https://machinecontrol.dev/getting-started/).
+The details below cover the same path at operator depth.
+
 The common client requires Python 3.10 or later and uses only the standard
 library.
 
