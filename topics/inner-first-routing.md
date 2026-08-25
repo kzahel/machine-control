@@ -124,3 +124,30 @@ incremental safeguards are:
 The first implementation should enforce this at the YA/testbed tool boundary.
 Prompt instructions remain useful guidance, but they are not the authorization
 mechanism.
+
+### UI-less disruptive claims first
+
+**Proposal:** The smallest next safeguard is to distinguish an ordinary
+target-use claim from an explicitly disruptive claim. Ordinary remains the
+default. Host-visible VM screenshot, focus, pointer, keyboard, and exclusive
+input operations require a live disruptive claim in addition to any
+platform-owner prohibition. Acquisition uses an explicit `--disruptive` flag,
+the existing required reason and claimant attribution, and the normal bounded
+claim lifetime; it does not prompt again for every outer operation. The
+authoritative adapter enforces the distinction so the common `testbed --`
+escape cannot bypass it.
+
+This is a cooperative safety interlock against accidental route selection, not
+strong authorization against a same-user process with an unrestricted shell.
+The claim result and status should disclose the disruptive class, reason,
+holder, and expiry. Keep the existing claim `mode` as `exclusive`; represent
+ordinary versus disruptive as a separate use class rather than overloading
+exclusivity.
+
+**Open — controller affordance:** A future supervising controller may notify
+the user when disruptive access is requested or activated, require approval,
+show a persistent active indicator, and offer immediate revocation. Machine
+Control should expose enough structured state for that affordance, while the
+coordination/controller UI owns presentation. The first interlock remains
+UI-less and does not add a Rust GUI/notification dependency or platform-native
+approval dialog to each testbed adapter.

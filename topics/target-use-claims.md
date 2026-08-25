@@ -157,6 +157,31 @@ binary outside the governed interface is not prevented. Stronger separation
 requires a different OS identity, sandbox, or authorization service outside
 the agent's authority.
 
+## Proposed disruptive use class
+
+**Proposal:** Extend the exclusive claim with a separate `ordinary` or
+`disruptive` use class. `ordinary` is the default. Callers request the latter
+explicitly with `claim acquire --disruptive` for bounded base-OS bring-up,
+bootstrap, independent diagnosis, or recovery. Host-visible VM capture and
+host-injected pointer or keyboard commands refuse with
+`disruptive_claim_required` unless the selected live claim has that class.
+Lifecycle, administration, and target-native desktop operations continue to
+use an ordinary claim.
+
+The claim remains one exact-resource exclusive lease; the use class is not a
+second lease and does not overload the existing `mode: exclusive` field. The
+authoritative adapter must enforce the class for direct platform commands as
+well as calls through the common client. A platform owner's absolute outer-UI
+prohibition remains stronger than a disruptive claim. This first slice is
+UI-less, uses the existing reason, attribution, duration, renewal, status, and
+release workflow, and adds no confirmation per screenshot or input action.
+
+**Open:** A future controller-owned affordance may notify the supervising user,
+hold disruptive activation pending approval, display its reason and expiry,
+and provide revocation. That presentation belongs above this provider-neutral
+claim store; the claim contract should supply structured state and events
+without requiring each platform adapter to acquire a GUI runtime.
+
 ## Current implementation
 
 **Current:** `bin/machine-control` projects claim policy in target inventory,

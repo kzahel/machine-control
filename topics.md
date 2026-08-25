@@ -25,6 +25,8 @@ commits with no expected follow-up do not need a trailer or registry entry.
   lifecycle verbs, normalized doctor state, and authoritative testbed adapters.
 - `target-use-claims` — coordinator-neutral exclusive target-use leases,
   claimant attribution, expiry, renewal, exact-resource binding, and fencing.
+- `inner-first-routing` — ordinary target-native control, explicit disruptive
+  outer recovery, host-interference policy, and route authorization.
 - `vm-workspaces-and-storage-policy` — persistent, isolated, and candidate VM
   workspace intent; provider-selected derivation; storage budgets; and safe
   receipt-bound cleanup.
