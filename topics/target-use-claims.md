@@ -157,9 +157,9 @@ binary outside the governed interface is not prevented. Stronger separation
 requires a different OS identity, sandbox, or authorization service outside
 the agent's authority.
 
-## Proposed disruptive use class
+## Disruptive use class
 
-**Proposal:** Extend the exclusive claim with a separate `ordinary` or
+**Decision:** The exclusive claim has a separate `ordinary` or
 `disruptive` use class. `ordinary` is the default. Callers request the latter
 explicitly with `claim acquire --disruptive` for bounded base-OS bring-up,
 bootstrap, independent diagnosis, or recovery. Host-visible VM capture and
@@ -172,9 +172,11 @@ The claim remains one exact-resource exclusive lease; the use class is not a
 second lease and does not overload the existing `mode: exclusive` field. The
 authoritative adapter must enforce the class for direct platform commands as
 well as calls through the common client. A platform owner's absolute outer-UI
-prohibition remains stronger than a disruptive claim. This first slice is
-UI-less, uses the existing reason, attribution, duration, renewal, status, and
-release workflow, and adds no confirmation per screenshot or input action.
+prohibition remains stronger than a disruptive claim. The implemented first
+slice is UI-less, uses the existing reason, attribution, duration, renewal,
+status, and release workflow, and adds no confirmation per screenshot or input
+action. Active records created before use classes existed load as `ordinary`,
+so compatibility cannot silently grant disruptive access.
 
 **Open:** A future controller-owned affordance may notify the supervising user,
 hold disruptive activation pending approval, display its reason and expiry,
@@ -190,11 +192,23 @@ self-asserted caller metadata, and requires `--claim` before meaningful VM
 operations. `claim --help` and `workspace --help` expose the full workflow
 without assuming a particular coordinator.
 
+**Current:** Claim capabilities disclose the supported use classes and the
+ordinary default. Acquire, status, conflict, and renewal results disclose the
+selected class. The common client requests disruptive validation before
+dispatching known outer VM capture or input and returns
+`disruptive_claim_required` for an ordinary holder.
+
 **Current:** the Windows and Linux UTM adapters and macOS Tart adapter bind the
 shared claim authority to their existing exact private UUID/name pins. Private
 records live beneath platform workspace state by default. The adapter checks
 the selected claim again immediately before dispatch, so bypassing the common
 client does not accidentally bypass cooperative coordination.
+
+**Current:** The Windows, Linux, and macOS public VM wrappers independently
+require the disruptive class for their host-visible screenshot, pointer,
+keyboard, drag, and scan-code commands. Workspace-acquired claims remain
+ordinary. Provider-owner outer-UI prohibitions are evaluated after the class
+check and remain absolute.
 
 **Current:** the Windows adapter performs that claim check once at its public
 dispatch boundary, then its UTM provider verifies the exact target and role

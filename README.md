@@ -176,7 +176,8 @@ Depending on the target, Machine Control can provide:
 - truthful login, lock, interactive-session, integrity, and desktop state;
 - explicitly authorized protected operations on dedicated test appliances;
 - persistent, isolated, and retained-candidate VM workspaces;
-- exclusive, expiring VM-use claims with visible caller attribution;
+- exclusive, expiring ordinary/disruptive VM-use claims with visible caller
+  attribution;
 - bounded maintenance, reboot proof, candidate validation, and image
   certification; and
 - route, delivery, effect, evidence, host-interference, and uncertainty

@@ -88,6 +88,12 @@ task says otherwise. Claim status, doctor, capabilities, `target-id`, and
 `pin-target` remain available without a claim so private inventory can be
 diagnosed and initially pinned.
 
+Ordinary claims cover lifecycle, administration, and target-native desktop
+control. Provider-level recovery commands require a claim acquired with
+`--disruptive`; an ordinary holder receives `disruptive_claim_required` before
+UTM or libvirt capture/input dispatch. `WINVM_FORBID_OUTER_UI=true` remains an
+absolute prohibition even with a disruptive claim.
+
 For a fresh guest, install UTM Windows Guest Tools, log into Windows, and
 stage the OpenSSH bootstrap plus your public key through the guest agent:
 

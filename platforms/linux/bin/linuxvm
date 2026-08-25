@@ -41,6 +41,7 @@ Desktop automation:
   post-update audit|repair [--reboot]
                                  Audit or restore installed startup invariants
   appliance-certify             Reboot and check exact source on the candidate
+  The following recovery commands require a claim acquired with --disruptive:
   screenshot [OUTPUT.png]
   click X Y [left|right|middle] | drag X1 Y1 X2 Y2
   type TEXT | key NAME | scan CODE...

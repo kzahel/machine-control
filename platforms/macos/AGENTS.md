@@ -21,6 +21,13 @@ rerun doctor before claiming or operating the VM. Use `bin/macvm help` for the
 direct platform command surface and read `skills/drive-macvm/SKILL.md` for the
 operating workflow.
 
+Routine lifecycle, administration, and target-native desktop work uses an
+ordinary claim. Tart-window screenshot and input recovery requires a claim
+acquired with `--disruptive`. If unplanned outer recovery becomes necessary,
+release the ordinary claim and acquire a new disruptive claim with a truthful
+recovery reason; do not reuse the released ID. A platform-owner outer-UI
+prohibition remains absolute.
+
 Prefer control channels in this order:
 
 1. `tart exec` for system and file operations.

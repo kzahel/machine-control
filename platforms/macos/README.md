@@ -63,6 +63,13 @@ from trap/finally cleanup. Caller authority and identity are bounded,
 self-asserted coordination metadata and are not tied to a particular agent
 system.
 
+Ordinary claims cover lifecycle, administration, and target-native desktop
+control. Tart-window screenshot and input commands require a claim acquired
+with `--disruptive`; an ordinary holder receives
+`disruptive_claim_required` before Tart dispatch.
+`MACVM_FORBID_OUTER_UI=true` remains an absolute prohibition even with a
+disruptive claim.
+
 ## Daily Use
 
 ```bash

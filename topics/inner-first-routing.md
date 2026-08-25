@@ -125,9 +125,9 @@ The first implementation should enforce this at the YA/testbed tool boundary.
 Prompt instructions remain useful guidance, but they are not the authorization
 mechanism.
 
-### UI-less disruptive claims first
+### UI-less disruptive claims
 
-**Proposal:** The smallest next safeguard is to distinguish an ordinary
+**Decision:** Machine Control distinguishes an ordinary
 target-use claim from an explicitly disruptive claim. Ordinary remains the
 default. Host-visible VM screenshot, focus, pointer, keyboard, and exclusive
 input operations require a live disruptive claim in addition to any
@@ -136,6 +136,13 @@ the existing required reason and claimant attribution, and the normal bounded
 claim lifetime; it does not prompt again for every outer operation. The
 authoritative adapter enforces the distinction so the common `testbed --`
 escape cannot bypass it.
+
+**Current:** The shared claim authority records and validates the use class.
+The common client performs a typed disruptive preflight for known outer VM
+commands, and the Windows, Linux, and macOS wrappers recheck it before provider
+dispatch. An ordinary claim receives `disruptive_claim_required`; a disruptive
+claim continues to the existing provider target, geometry, role, and
+outer-UI-policy checks.
 
 This is a cooperative safety interlock against accidental route selection, not
 strong authorization against a same-user process with an unrestricted shell.
@@ -148,6 +155,6 @@ exclusivity.
 the user when disruptive access is requested or activated, require approval,
 show a persistent active indicator, and offer immediate revocation. Machine
 Control should expose enough structured state for that affordance, while the
-coordination/controller UI owns presentation. The first interlock remains
-UI-less and does not add a Rust GUI/notification dependency or platform-native
-approval dialog to each testbed adapter.
+coordination/controller UI owns presentation. The implemented interlock
+remains UI-less and does not add a Rust GUI/notification dependency or
+platform-native approval dialog to each testbed adapter.

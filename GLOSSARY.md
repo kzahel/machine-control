@@ -127,8 +127,10 @@ an authorization lease.
 
 An exclusive, expiring coordination lease on an exact machine or workspace.
 It records bounded caller-supplied attribution and a reason, but does not grant
-a protected capability or authenticate self-asserted metadata. Workspace
-ownership and target-use claiming are separate facts.
+a protected capability or authenticate self-asserted metadata. Its ordinary
+use class is sufficient for target-native control; an explicit disruptive
+class is required for governed host-visible VM capture or injected input.
+Workspace ownership and target-use claiming are separate facts.
 
 **Route**  
 The actual mechanism used for an operation. Initial route classes are

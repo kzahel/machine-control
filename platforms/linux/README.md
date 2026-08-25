@@ -61,6 +61,12 @@ from trap/finally cleanup. Caller authority and identity are bounded,
 self-asserted coordination metadata and are not tied to a particular agent
 system.
 
+Ordinary claims cover lifecycle, administration, and target-native desktop
+control. The outer screenshot and input commands require a claim acquired with
+`--disruptive`; an ordinary holder receives `disruptive_claim_required` before
+UTM or libvirt dispatch. `LINUXVM_FORBID_OUTER_UI=true` remains an absolute
+prohibition even with a disruptive claim.
+
 ## Daily Use
 
 ```bash

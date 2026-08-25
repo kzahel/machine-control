@@ -62,6 +62,7 @@ Setup:
                          Deploy resident/support and verify the tool profile
 
 Out-of-band recovery:
+  A claim acquired with --disruptive is required for these commands.
   screenshot [PATH]      Capture the Tart guest display to a PNG
   click X Y [BUTTON]     Click guest-display coordinates
   drag X1 Y1 X2 Y2       Drag between guest-display coordinates

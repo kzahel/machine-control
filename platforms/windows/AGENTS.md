@@ -63,6 +63,13 @@ when the verified bundle repair refuses a genuine private-inventory mismatch.
 If no exact UUID is pinned yet, `target-id` and `pin-target` are the bounded
 native inventory-bootstrap commands; rerun doctor before acquiring a claim.
 
+Routine lifecycle, administration, and target-native desktop work uses an
+ordinary claim. Provider screenshot and input recovery requires a claim
+acquired with `--disruptive`. If unplanned outer recovery becomes necessary,
+release the ordinary claim and acquire a new disruptive claim with a truthful
+recovery reason; do not reuse the released ID. A platform-owner outer-UI
+prohibition remains absolute.
+
 Prefer control channels in this order:
 
 1. PowerShell over key-only SSH for system and file operations.

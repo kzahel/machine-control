@@ -40,6 +40,7 @@ Setup:
   ssh-config USER        Print the recommended OpenSSH client entry
 
 UTM/macOS recovery:
+  A claim acquired with --disruptive is required for these commands.
   screenshot [PATH]      Capture the visible UTM VM window to a PNG
   type TEXT              Type ASCII text through UTM input automation
   click X Y [BUTTON]     Click guest coordinates (left, right, or middle)

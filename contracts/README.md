@@ -18,11 +18,11 @@ than a frozen cross-device wire protocol.
 - [`targets-v0.schema.json`](targets-v0.schema.json) describes ignored local
   target selection. It contains adapter commands, never bearer authority.
 - [`claim-capabilities-v0.schema.json`](claim-capabilities-v0.schema.json)
-  describes exclusive exact-resource claim policy, duration bounds, claimant
-  attribution limits, and queueing behavior.
+  describes exclusive exact-resource claim policy, ordinary/disruptive use
+  classes, duration bounds, claimant attribution limits, and queueing behavior.
 - [`claim-result-v0.schema.json`](claim-result-v0.schema.json) describes claim
-  acquisition, status, validation, renewal, release, and typed conflicts
-  without exposing the concrete provider identity.
+  acquisition, use class, status, validation, renewal, release, and typed
+  conflicts without exposing the concrete provider identity.
 - [`workspace-capabilities-v0.schema.json`](workspace-capabilities-v0.schema.json)
   describes provider-neutral persistent, isolated, and candidate workspace
   support without naming the hypervisor or a concrete VM.
