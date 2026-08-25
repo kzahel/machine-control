@@ -290,7 +290,8 @@ libvirt_workspace_acquire_derived() {
         --arg retention "$retention" --arg cleanup "$cleanup" \
         '{handle:$handle,requestedIntent:$intent,
           actualMechanism:"qcow_backing_overlay",retention:$retention,
-          cleanup:$cleanup,storage:{costClass:"overlay",measurement:"exact",
+          cleanup:(if $cleanup == "release" then "explicitRelease" else $cleanup end),
+          storage:{costClass:"overlay",measurement:"exact",
             preflight:"pass"}}')"
     data="$(workspace_data_with_claim "$data" "$claim")"
     workspace_result acquire bounded "$data"
