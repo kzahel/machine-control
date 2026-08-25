@@ -121,6 +121,29 @@ class DerivationTests(unittest.TestCase):
                 require_tpm2=True,
             )
 
+    def test_requires_posix_absolute_workspace_paths_on_every_controller(self):
+        for field, value in (
+            ("target_disk", r"C:\private\derived.qcow2"),
+            ("target_nvram", "private/derived-vars.fd"),
+            ("nvram_template", "private/template-vars.fd"),
+        ):
+            arguments = {
+                "source_uuid": SOURCE_UUID,
+                "source_name": "fixture-source",
+                "target_uuid": TARGET_UUID,
+                "target_name": "fixture-derived",
+                "target_disk": "/private/derived.qcow2",
+                "target_nvram": "/private/derived-vars.fd",
+                "nvram_template": "/private/template-vars.fd",
+                "require_secure_boot": True,
+                "require_tpm2": True,
+            }
+            arguments[field] = value
+            with self.subTest(field=field), self.assertRaisesRegex(
+                PROVIDER.ProviderError, "paths must be absolute"
+            ):
+                WORKSPACE.derive_domain_xml(SOURCE_XML, **arguments)
+
 
 if __name__ == "__main__":
     unittest.main()

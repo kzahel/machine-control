@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import sys
 import tempfile
@@ -77,7 +77,8 @@ def derive_domain_xml(
         raise ProviderError(
             "workspace_name_invalid", "The generated workspace name is invalid"
         )
-    if not Path(target_disk).is_absolute() or not Path(target_nvram).is_absolute():
+    workspace_paths = (target_disk, target_nvram, nvram_template)
+    if not all(PurePosixPath(path).is_absolute() for path in workspace_paths):
         raise ProviderError(
             "workspace_path_invalid", "Workspace paths must be absolute"
         )
