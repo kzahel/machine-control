@@ -45,6 +45,8 @@ grep -Fq '$portable.WaitForExit()' \
     "$REPO_DIR/scripts/certify-appliance.sh"
 grep -Fq '$native.WaitForExit()' \
     "$REPO_DIR/scripts/certify-appliance.sh"
+grep -Fq 'portable_failure_markers' \
+    "$REPO_DIR/scripts/certify-appliance.sh"
 grep -Fq 'Microsoft.NET.Sdk.WindowsDesktop.targets' \
     "$REPO_DIR/../../scripts/publish-windows.sh"
 temporary="$(mktemp -d /tmp/winvm-smoke.XXXXXX)"

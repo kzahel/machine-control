@@ -170,6 +170,14 @@ $result = [ordered]@{
     native_checks = 'not_run'
     staging_removed = $false
     failure = $null
+    check_observation = [ordered]@{
+        portable_exit_code = $null
+        portable_completed = $false
+        portable_failure_markers = 0
+        native_exit_code = $null
+        native_completed = $false
+        native_failure_markers = 0
+    }
 }
 function Stop-CheckTree {
     param([Parameter(Mandatory = $true)]$Process)
@@ -198,11 +206,13 @@ try {
     $result.failure = 'source_entry_failed'
     $python = (Get-Command py.exe -ErrorAction Stop).Source
     $result.failure = 'portable_execution_failed'
+    $portableOut = Join-Path $stage 'portable.out.log'
+    $portableErr = Join-Path $stage 'portable.err.log'
     $portable = Start-Process -FilePath $python `
         -ArgumentList @('-3', 'bin\check', '--portable') `
         -WorkingDirectory $source -PassThru -NoNewWindow `
-        -RedirectStandardOutput (Join-Path $stage 'portable.out.log') `
-        -RedirectStandardError (Join-Path $stage 'portable.err.log')
+        -RedirectStandardOutput $portableOut `
+        -RedirectStandardError $portableErr
     if (-not $portable.WaitForExit(__CHECK_TIMEOUT_MS__)) {
         Stop-CheckTree -Process $portable
         $result.failure = 'portable_checks_timeout'
@@ -212,17 +222,25 @@ try {
     # handling. Finish that drain before reading the final process exit code.
     $portable.WaitForExit()
     $portable.Refresh()
+    $result.check_observation.portable_exit_code = $portable.ExitCode
+    $result.check_observation.portable_completed = [bool](Select-String `
+        -LiteralPath $portableOut -SimpleMatch 'all requested checks passed' `
+        -Quiet)
+    $result.check_observation.portable_failure_markers = @(Select-String `
+        -LiteralPath $portableErr -Pattern '^(FAILED|ERROR)' -AllMatches).Count
     if ($portable.ExitCode -ne 0) {
         $result.failure = 'portable_checks_failed'
         throw 'portable checks failed'
     }
     $result.portable_checks = 'passed'
     $result.failure = 'native_execution_failed'
+    $nativeOut = Join-Path $stage 'native.out.log'
+    $nativeErr = Join-Path $stage 'native.err.log'
     $native = Start-Process -FilePath $python `
         -ArgumentList @('-3', 'bin\check', '--native') `
         -WorkingDirectory $source -PassThru -NoNewWindow `
-        -RedirectStandardOutput (Join-Path $stage 'native.out.log') `
-        -RedirectStandardError (Join-Path $stage 'native.err.log')
+        -RedirectStandardOutput $nativeOut `
+        -RedirectStandardError $nativeErr
     if (-not $native.WaitForExit(__CHECK_TIMEOUT_MS__)) {
         Stop-CheckTree -Process $native
         $result.failure = 'native_checks_timeout'
@@ -230,6 +248,12 @@ try {
     }
     $native.WaitForExit()
     $native.Refresh()
+    $result.check_observation.native_exit_code = $native.ExitCode
+    $result.check_observation.native_completed = [bool](Select-String `
+        -LiteralPath $nativeOut -SimpleMatch 'all requested checks passed' `
+        -Quiet)
+    $result.check_observation.native_failure_markers = @(Select-String `
+        -LiteralPath $nativeErr -Pattern '^(FAILED|ERROR)' -AllMatches).Count
     if ($native.ExitCode -ne 0) {
         $result.failure = 'native_checks_failed'
         throw 'native checks failed'
