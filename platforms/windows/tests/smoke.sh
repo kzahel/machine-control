@@ -636,6 +636,15 @@ jq -e '.schema == "machine-control-windows-appliance-certification/v0" and
 [[ -f "$temporary/certify-stopped" ]]
 
 rm -f -- "$temporary/certify-rebooted" "$temporary/certify-stopped"
+locked_certification="$(env "${certify_environment[@]}" \
+    WINVM_TEST_CERTIFY_LOCKED=1 \
+    "$REPO_DIR/bin/winvm" appliance-certify --json)"
+jq -e '.healthy == true and .reboot.final.doctor.ready == false and
+    .reboot.final.doctor.states.desktop == "locked" and
+    .final_power == "off"' <<<"$locked_certification" >/dev/null
+[[ -f "$temporary/certify-stopped" ]]
+
+rm -f -- "$temporary/certify-rebooted" "$temporary/certify-stopped"
 if env "${certify_environment[@]}" WINVM_TEST_CERTIFY_GUEST_FAIL=1 \
         "$REPO_DIR/bin/winvm" appliance-certify --json \
         >/dev/null 2>&1; then

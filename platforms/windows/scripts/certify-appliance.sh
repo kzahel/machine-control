@@ -8,6 +8,25 @@ source "$SCRIPT_DIR/common.sh"
 readonly WINVM="${WINVM_CERTIFY_WINVM:-$WINVM_REPO_DIR/bin/winvm}"
 readonly ROOT_DIR="$(cd "$WINVM_REPO_DIR/../.." && pwd)"
 
+certification_ready() {
+    jq -e '
+        .healthy == true and .post_update.healthy == true and
+        (
+            .doctor.ready == true or
+            (
+                .doctor.ready == false and
+                .doctor.states.administration == "ready" and
+                .doctor.states.desktop == "locked" and
+                .doctor.states.resident == "ready" and
+                .doctor.states.semantic == "ready" and
+                .doctor.states.capture == "ready" and
+                .doctor.states.input == "ready" and
+                .doctor.states.outer == "prohibited"
+            )
+        )
+    '
+}
+
 usage() {
     cat <<'EOF'
 Usage: winvm appliance-certify [--profile development|runtime] [--json]
@@ -69,8 +88,7 @@ if [[ "$($WINVM status 2>/dev/null || true)" != started ]]; then
 fi
 
 initial_audit="$($WINVM post-update audit --profile "$profile" --json)"
-if ! jq -e '.healthy == true and .post_update.healthy == true and
-        .doctor.ready == true' <<<"$initial_audit" >/dev/null; then
+if ! certification_ready <<<"$initial_audit" >/dev/null; then
     printf 'Initial post-update audit is not healthy; certification will not repair it.\n' >&2
     exit 1
 fi
@@ -84,17 +102,17 @@ deadline=$((SECONDS + WINVM_BOOT_TIMEOUT))
 while (( SECONDS < deadline )); do
     reboot_audit="$($WINVM post-update audit --profile "$profile" \
         --json 2>/dev/null || true)"
-    if jq -e --arg epoch "$initial_epoch" \
-            '.healthy == true and .post_update.healthy == true and
-             .doctor.ready == true and
-             .post_update.boot_epoch_utc != $epoch' \
+    if certification_ready <<<"$reboot_audit" >/dev/null 2>&1 &&
+        jq -e --arg epoch "$initial_epoch" \
+            '.post_update.boot_epoch_utc != $epoch' \
             <<<"$reboot_audit" >/dev/null 2>&1; then
         break
     fi
     sleep 2
 done
-if ! jq -e --arg epoch "$initial_epoch" \
-        '.healthy == true and .post_update.boot_epoch_utc != $epoch' \
+if ! certification_ready <<<"$reboot_audit" >/dev/null 2>&1 ||
+    ! jq -e --arg epoch "$initial_epoch" \
+        '.post_update.boot_epoch_utc != $epoch' \
         <<<"$reboot_audit" >/dev/null 2>&1; then
     printf 'Certification did not observe healthy readiness after a changed boot epoch.\n' >&2
     exit 1

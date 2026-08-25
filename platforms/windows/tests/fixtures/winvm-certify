@@ -26,7 +26,14 @@ case "$command" in
         else
             epoch='2026-01-01T00:00:00.0000000Z'
         fi
-        jq -cn --arg epoch "$epoch" '{
+        doctor='{"schema":"machine-control-doctor/v0","ready":true}'
+        if [[ "${WINVM_TEST_CERTIFY_LOCKED:-0}" == 1 ]]; then
+            doctor='{"schema":"machine-control-doctor/v0","ready":false,
+                "states":{"administration":"ready","desktop":"locked",
+                "resident":"ready","semantic":"ready","capture":"ready",
+                "input":"ready","outer":"prohibited"}}'
+        fi
+        jq -cn --arg epoch "$epoch" --argjson doctor "$doctor" '{
             schema:"machine-control-windows-post-update-orchestration/v0",
             operation:"audit",route:"key_only_ssh",healthy:true,
             reboot:{requested:false,observed:false},
@@ -34,7 +41,7 @@ case "$command" in
                 schema:"machine-control-windows-post-update/v0",
                 healthy:true,boot_epoch_utc:$epoch,checks:[]
             },
-            doctor:{schema:"machine-control-doctor/v0",ready:true}
+            doctor:$doctor
         }'
         ;;
     shutdown)
