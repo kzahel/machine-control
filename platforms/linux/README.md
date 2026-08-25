@@ -7,29 +7,29 @@ This directory is the canonical public source. The former
 `linuxvm-testbed` repository is retained only as legacy history and a possible
 future generated distribution.
 
-LinuxVM Testbed fills the gap between “UTM is running” and “an automated agent
-can reliably operate the Linux desktop.” It combines UTM lifecycle and guest
-execution, normalized screenshots, virtual keyboard/mouse recovery, and
-semantic AT-SPI inspection and actions behind one CLI.
+LinuxVM Testbed fills the gap between “the VM is running” and “an automated
+agent can reliably operate the Linux desktop.” It combines provider lifecycle
+and guest execution, guarded visual/input recovery, and semantic AT-SPI
+inspection and actions behind one CLI.
 
 ## Supported Today
 
 | Layer | Current implementation |
 | --- | --- |
-| Host | Apple-silicon macOS |
-| VM provider | UTM 4.7+ / QEMU |
-| Guest | Ubuntu 24.04 LTS ARM64 with GNOME Wayland |
-| Command channel | UTM `qemu-guest-agent` execution and file transfer |
+| Host | Apple-silicon macOS or x86_64 Linux |
+| VM provider | UTM/QEMU on macOS; libvirt/QEMU/KVM on Linux |
+| Guest | Ubuntu 24.04 LTS ARM64 or x86_64 with GNOME Wayland |
+| Command channel | Typed QEMU guest-agent bootstrap, then guest administration |
 | Semantic UI | AT-SPI in the active desktop user's D-Bus session |
 | Resident facade | Active-user Unix socket with `machine-control/v0` envelopes |
 | Inner capture | GNOME Wayland display and active-window PNG artifacts |
 | Inner input | Root appliance broker with active-user-only virtual HID socket |
 | Application coverage | GNOME Shell/Settings, GTK, Qt/XWayland, and Chromium |
-| Recovery | Normalized UTM capture, text, scan codes, mouse, and drag |
+| Recovery | Guarded UTM or headless QEMU capture and input |
 
-The initial target is the existing local UTM VM named `Linux`. A future pass
-can add a reproducible unattended Ubuntu installation without changing the
-daily command or UI contracts.
+Private inventory selects the exact provider-native target. The accepted Linux
+route can also provision the native x86_64 appliance from Ubuntu's official
+cloud image without changing the daily command or UI contracts.
 
 ## Quick Start With The Existing VM
 
@@ -272,11 +272,11 @@ uses target-native virtual HID, and verifies the resulting setting through an
 independent `gsettings` read. This is an explicit visual fallback, not a
 semantic-coordinate claim.
 
-`linuxvm shutdown` does not return until UTM reports `stopped`, or until the
-configured `LINUXVM_SHUTDOWN_TIMEOUT` expires.
+`linuxvm shutdown` does not return until the selected provider reports its
+stopped state, or until the configured `LINUXVM_SHUTDOWN_TIMEOUT` expires.
 
 From the repository root, `target ensure-ready` may make the ordinary guarded
-`up` transition and then repeat doctor; it never uses the outer UTM route or
+`up` transition and then repeat doctor; it never uses an outer provider route or
 guesses a guest-agent repair. `target validate-candidate` combines a fresh
 running-ready doctor with the exact candidate assertion. `target
 prepare-promotion` then cleanly shuts down and reasserts the stopped selection
@@ -284,8 +284,8 @@ before private inventory may classify it as a development/ready base.
 
 ## Guarded Acceptance
 
-Ordinary target-native acceptance should select a clone in ignored
-`config.local` and bind mutation to both its exact name and UTM UUID:
+Ordinary target-native acceptance should select a target in ignored/private
+inventory and bind mutation to its exact provider-native identity:
 
 ```bash
 LINUXVM_REQUIRE_MUTATION_GUARD=true
@@ -310,7 +310,7 @@ it does not inspect guest pixels or inject input.
 ```text
 Host agent
   |
-  +-- utmctl + qemu-ga -------- root commands, files, IP, lifecycle
+  +-- provider + qemu-ga ------ root commands, files, IP, lifecycle
   |
   +-- runuser + session D-Bus - AT-SPI tree, actions, text, values
   |
@@ -318,12 +318,13 @@ Host agent
   |
   +-- root appliance broker --- active-user-scoped virtual HID operations
   |
-  +-- UTM window -------------- pixels, virtual HID, lock/setup recovery
+  +-- guarded outer provider -- pixels, virtual HID, lock/setup recovery
 ```
 
 These layers are independent. A broken desktop does not remove root command
 access. A broken guest agent does not remove visible keyboard and screenshot
-recovery. A Wayland compositor restriction does not block UTM's virtual input.
+recovery. A Wayland compositor restriction does not block the provider's
+virtual input.
 
 ## Reliable Command Completion
 
@@ -352,6 +353,7 @@ Open automation gaps found while driving real applications are tracked in
 bin/linuxvm                     Main agent-facing CLI
 bin/linuxui                     Guest AT-SPI wrapper
 providers/utm-macos/            Lifecycle, capture, files, and raw input
+providers/libvirt-linux/        Native-KVM lifecycle, recovery, and workspaces
 guests/ubuntu/bootstrap/        Package profiles and post-update support
 guests/ubuntu/ui/linuxui.py     Semantic accessibility helper
 guests/ubuntu/ui/linuxcontrol.py Persistent resident and socket client
@@ -361,12 +363,18 @@ skills/drive-linuxvm/           Reusable agent operating skill
 
 ## Requirements
 
-Host:
+macOS host:
 
 - macOS with UTM and its bundled `utmctl`
 - Bash, `jq`, Swift, and the built-in `screencapture` utility
 - Screen Recording and Accessibility permission for the invoking terminal or
   agent host
+
+Linux host:
+
+- x86_64 Linux with hardware virtualization and accessible KVM
+- system libvirt/QEMU, Q35/OVMF, and a dedicated storage pool
+- Bash, Python 3, `jq`, and QEMU guest-agent tools
 
 Guest:
 

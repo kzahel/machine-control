@@ -2,8 +2,9 @@
 
 Status: first implemented platform; the resident Cua/native composition is
 adopted and conformance-tested on ARM64 VM and physical x64, WinApp remains a
-live external differential, the public-ISO ARM64 factory path is accepted,
-and other candidates remain source review or search triage.
+live external differential, and public-ISO factory paths are accepted on ARM64
+UTM/macOS and native x86_64 libvirt/Linux. Other candidates remain source
+review or search triage.
 
 Current decision topic:
 [`windows-resident-control.md`](../../topics/windows-resident-control.md).
@@ -189,6 +190,16 @@ need a well-known-SID ACL repair, and current packaged apps may require separate
 content and application-frame HWNDs for UIA versus capture/lifecycle. The exact
 execution record is
 [`Tactical 007`](../../docs/tactical/007-windows-iso-factory-acceptance.md).
+
+**Current — native x86_64 Linux-host acceptance:** Tactical 028 created a
+separate Windows 11 appliance from an official x64 ISO on a hardware-only
+libvirt/QEMU/KVM route. Provider inspection and fixtures reject TCG,
+cross-architecture emulators, non-KVM domains, non-Q35 machines, missing
+Secure Boot, missing TPM 2.0, and stale identity. The live appliance passed
+VirtIO/QEMU-agent bootstrap, hardened OpenSSH, full resident application and
+provider-composition conformance, exact-source portable/native certification,
+disk-only protected Winlogon control, typed one-shot login, and a discarded
+QCOW2-workspace effect. Ordinary control kept outer UI prohibited.
 
 ## Architecture options
 

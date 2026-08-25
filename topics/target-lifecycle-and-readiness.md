@@ -211,6 +211,15 @@ on-disk bundle whose name and embedded UUID match the existing private pin. It
 does not boot the guest or rewrite inventory, so re-pinning remains reserved
 for a genuine bundle/selector mismatch.
 
+**Current:** Linux-hosted Windows and Ubuntu adapters now use the same common
+lifecycle and doctor envelopes over local libvirt/QEMU/KVM. Provider-native
+inspection revalidates the exact UUID, `kvm` domain type, x86_64 architecture,
+Q35 machine, emulator, guest-agent channel, and platform security requirements
+before start. Windows clean shutdown and both guests' changed-boot readiness
+were live-observed. A locked Windows boot remains `ready: false` because no
+ordinary interactive desktop is present while independently reporting the
+protected resident semantic, capture, and input routes as ready.
+
 The desktop VM adapters also expose the additive workspace protocol. Public
 macOS and Linux examples now require an exact ignored/private
 candidate-or-disposable binding before any lifecycle mutation; a plausible

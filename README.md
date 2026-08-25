@@ -134,16 +134,18 @@ attached to its hypervisor or device. These are independent: coordinator code
 running on Linux is not by itself a Linux-hosted route to a Windows VM.
 
 The common coordinator and its fixture-backed checks run on macOS, Linux, and
-Windows. Live desktop-VM hosting is narrower today:
+Windows. Live desktop-VM hosting remains provider-specific:
 
 | Controller host | Coordinator evidence | Live-tested desktop VM routes | Planned desktop VM routes |
 | --- | --- | --- | --- |
 | macOS | Portable and native checks; current live controller | UTM/QEMU for Windows and Linux; Tart for macOS | Current baseline |
-| Linux | Hosted CI plus execution inside the retained Linux appliance | None | libvirt with QEMU/KVM for Windows and Linux guests |
+| Linux | Portable and native checks plus exact-source execution inside both native guests | libvirt with QEMU/KVM for native x86_64 Windows and Linux guests | Broader host and guest-profile coverage |
 | Windows | Hosted CI plus execution inside the retained Windows appliance | None | Hyper-V on eligible Windows editions for Windows and Linux guests; evaluate QEMU/WHPX only for measured gaps |
 
-The Linux and Windows rows therefore claim coordinator portability, not a
-live-tested local hypervisor adapter. Each planned provider must independently
+The Linux row is live-accepted only for native x86_64 KVM domains. Its provider
+refuses software emulation and cross-architecture domains before start or
+derivation. The Windows row still claims coordinator portability rather than a
+live-tested local hypervisor adapter. Each new provider must independently
 prove exact target identity, guarded lifecycle, administration, workspace
 isolation and cleanup, resident desktop conformance, explicit recovery, and
 host non-interference before being documented as supported.

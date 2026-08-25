@@ -68,15 +68,30 @@ refuses it unless private policy and storage headroom explicitly allow it.
 Every selection is backed by a mode-protected private receipt. Later commands
 resolve `MACHINE_CONTROL_WORKSPACE_HANDLE` to the exact receipt identity and
 then pass through the existing UUID/role assertion. Cleanup dry-run publishes
-only opaque handles and normalized mechanism/state. A future libvirt provider
-may implement the same intent using QCOW2 overlays without changing the
-Windows guest driver.
+only opaque handles and normalized mechanism/state.
 
-UTM's AppleScript VM UUID is the current provider identity. Every mutating
+UTM's AppleScript VM UUID is that provider's identity. Every mutating
 operation compares it to the ignored configured pin before applying the
 source/candidate/seal role policy. SSH's proxy performs the same assertion, so
 a missing override cannot silently fall back to the default stopped source and
 start it merely because an alias was reused.
+
+## Current libvirt/Linux Provider
+
+The Linux provider uses system libvirt over QEMU/KVM and accepts only native
+x86_64 `kvm` domains. Host doctor proves KVM access, Q35/OVMF, QEMU's KVM
+accelerator, the selected network and dedicated storage pool, and required
+capacity. Every start and workspace derivation revalidates the exact private
+UUID, architecture, domain type, emulator, Q35 machine, and guest-agent
+channel. Windows additionally requires enrolled-key Secure Boot and an
+emulated TPM 2.0. There is no TCG or cross-architecture fallback.
+
+Persistent intent reuses the proven stopped development domain. Isolated
+intent creates a receipt-bound transient domain and QCOW2 backing overlay;
+release verifies exact identities before removing both. Administration and
+ordinary resident calls use guest networking. Typed QEMU guest-agent calls and
+headless QMP display/input remain bootstrap or explicit recovery routes. The
+outer-UI guard prohibits them during ordinary acceptance.
 
 ## Windows Guest Driver
 
@@ -91,13 +106,13 @@ non-elevated and cannot operate secure desktops or higher-integrity windows.
 
 ## Adding Host Providers
 
-Linux and Windows hosts can reuse the Windows guest driver and SSH/UI protocol.
-A new provider needs a `providers/NAME/provider.sh` with the command contract
-above. Hypervisor-native screenshots and input are optional but should be
-implemented where possible because they are the recovery path when SSH fails.
-
-Examples include libvirt/QEMU on Linux, UTM on a future non-macOS host, VMware,
-Parallels, or Hyper-V/PowerShell Direct.
+The accepted libvirt/Linux provider demonstrates reuse of the Windows guest
+driver and resident protocol. Another provider needs a
+`providers/NAME/provider.sh` with the command contract above.
+Hypervisor-native screenshots and input are optional but should be implemented
+where possible because they are the recovery path when guest administration
+fails. Hyper-V/PowerShell Direct is the next Windows-host candidate; VMware
+and other hypervisors remain unselected.
 
 ## Adding Guest Drivers
 

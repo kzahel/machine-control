@@ -1,15 +1,16 @@
 # Fresh Windows Guest Bootstrap
 
 This runbook establishes a durable command channel first, then adds semantic
-desktop automation. It records the failure modes discovered while bootstrapping
-a Windows 11 ARM64 guest in UTM 4.7.5 without retaining machine identifiers or
-credentials.
+desktop automation. It applies to the ARM64 UTM/macOS and native x86_64
+libvirt/Linux routes while retaining the original bootstrap failure evidence.
+It contains no concrete machine identifiers or credentials.
 
 ## 1. Prepare the Guest
 
-Create or import a Windows 11 VM in UTM using the QEMU backend. Complete
-Windows setup, install UTM Windows Guest Tools, and log into an administrator
-account. Confirm the provider can see the running VM:
+Create or import a Windows 11 VM through the selected provider. UTM uses its
+Windows Guest Tools; libvirt uses the separately verified VirtIO tools and the
+native-x86_64 image factory. Complete setup and confirm the provider can see
+the running VM:
 
 ```bash
 bin/winvm status
@@ -211,13 +212,15 @@ The Windows-provided OpenSSH rule was enabled but did not admit traffic from
 UTM's shared network. The bootstrap's explicit profile-independent TCP/22 rule
 fixed it. A timeout suggests the firewall path; a refusal suggests the listener.
 
-### UI automation disappears after reboot
+### The ordinary user helper is absent after a locked reboot
 
-This is expected until an interactive Windows login exists. SSH starts before
-login, but the relay intentionally has no credential. Use UTM's visible console
-for the login, then `bin/winvm doctor`. A dedicated test appliance may instead
-use explicitly authorized guest-local auto-logon; never place that credential
-in this repository or command output.
+SSH and the protected resident start before login, while the Medium user
+helper correctly waits for an interactive desktop. A dedicated-appliance
+doctor therefore reports the desktop locked but protected semantics, capture,
+and input ready. Use the typed one-shot secret login operation when authorized,
+or an explicitly armed outer console for recovery, then rerun doctor. Do not
+enable persistent auto-logon or place a credential in repository content,
+arguments, environment variables, logs, or ordinary JSON.
 
 ## Recovery Order
 

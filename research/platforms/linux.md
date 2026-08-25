@@ -1,9 +1,10 @@
 # Linux Control Research
 
-Status: Ubuntu 24.04 GNOME 46 Wayland logged-in appliance accepted; other
-desktop sessions, compositors, protected planes, and physical hardware remain
-research-stage. Every claim must identify X11, XWayland, the Wayland
-compositor, and the active desktop session rather than saying only “Linux.”
+Status: Ubuntu 24.04 GNOME 46 Wayland logged-in appliances are accepted on
+ARM64 UTM/macOS and native x86_64 libvirt/Linux; other desktop sessions,
+compositors, protected planes, and physical hardware remain research-stage.
+Every claim must identify X11, XWayland, the Wayland compositor, and the active
+desktop session rather than saying only “Linux.”
 
 ## Native foundation
 
@@ -52,6 +53,14 @@ route but is unnecessary for the explicitly privileged test appliance.
 
 Exact pinned evidence, timings, observation sizes, and cleanup are recorded in
 the [Linux findings](../../../machine-control-spike/docs/linux-findings.md).
+
+**Current — native x86_64 Linux-host acceptance:** Tactical 028 provisioned a
+separate Ubuntu appliance from the official cloud image through a KVM-only
+libvirt provider. The unchanged GNOME resident and maintenance contracts
+passed exact-source certification, local/outside generation parity, semantic
+fixture effects, capture/input, reboot persistence, and receipt-bound QCOW2
+discard. The base was left stopped and claim-free. This is evidence for the
+accepted GNOME profile and controller route, not every Linux host or desktop.
 
 ## Remaining profiles
 

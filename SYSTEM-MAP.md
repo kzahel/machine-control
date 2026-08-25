@@ -60,9 +60,9 @@ not flatten their platform semantics into one generic implementation.
 
 | Repository | Administration/inner control | Outer control |
 | --- | --- | --- |
-| [`platforms/windows`](platforms/windows/README.md) | Authoritative UTM lifecycle/workspace policy, minimized doctor, PowerShell/SSH administration, and bounded access to the Windows resident | UTM/QEMU screenshot, keyboard, scan codes, and pointer remain explicit recovery routes |
+| [`platforms/windows`](platforms/windows/README.md) | Authoritative UTM/macOS and libvirt/Linux lifecycle/workspace policy, minimized doctor, PowerShell/SSH administration, and bounded access to the Windows resident | UTM or headless QEMU screenshot and input remain explicit recovery routes |
 | [`platforms/macos`](platforms/macos/README.md) | Authoritative Tart lifecycle/COW-workspace policy, minimized doctor, selected guest administration, and bounded access to the macOS resident | Tart screenshot, pointer, and keyboard remain explicit recovery routes |
-| [`platforms/linux`](platforms/linux/README.md) | Authoritative UTM lifecycle/workspace policy, minimized doctor, guest/session execution, and bounded access to the Linux resident | UTM screenshot, keyboard, and pointer remain explicit recovery routes |
+| [`platforms/linux`](platforms/linux/README.md) | Authoritative UTM/macOS and libvirt/Linux lifecycle/workspace policy, minimized doctor, guest/session execution, and bounded access to the Linux resident | UTM or headless QEMU screenshot and input remain explicit recovery routes |
 
 These repositories implement the right broad ordering: lifecycle and
 administration, then resident semantic/capture/input control, with outer

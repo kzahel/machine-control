@@ -16,17 +16,17 @@ Automation, and low-level visual recovery.
 
 | Layer | Current implementation |
 | --- | --- |
-| Host | macOS |
-| VM provider | UTM/QEMU |
+| Host | macOS or x86_64 Linux |
+| VM provider | UTM/QEMU on macOS; libvirt/QEMU/KVM on Linux |
 | Guest driver | Windows 11 (x64 or ARM64) |
 | Command channel | Windows OpenSSH and PowerShell |
 | Semantic UI | Microsoft WinApp CLI in the interactive desktop session |
-| Recovery | UTM screenshot, text, scan-code, and mouse APIs |
+| Recovery | Guarded UTM or headless QEMU screenshot/input APIs |
 
-The host provider and guest driver are separate. Future providers can support
-UTM or other hypervisors on Linux and Windows. A future macOS guest driver is
-possible, although its accessibility and TCC model will require a different
-guest-side implementation.
+The host provider and guest driver are separate. The Linux provider accepts
+only native x86_64 KVM domains and reuses the same guest contract. A future
+Windows-host provider or macOS guest driver remains separate; the latter's
+Accessibility and TCC model requires a different guest-side implementation.
 
 ## Why a Relay Is Necessary
 
@@ -339,6 +339,7 @@ bin/winvm                      Main agent-facing CLI
 bin/winui                      Windows UI relay client
 guests/windows/                Windows bootstrap and relay implementation
 providers/utm-macos/           UTM lifecycle, discovery, capture, and input
+providers/libvirt-linux/       KVM lifecycle, discovery, recovery, workspaces
 scripts/                       Shared configuration, deployment, and doctor
 docs/                          Architecture and recovery details
 skills/drive-winvm/            Reusable agent skill
@@ -352,15 +353,21 @@ Open automation gaps found while driving real applications are tracked in
 
 ## Requirements
 
-Host:
+macOS host:
 
 - macOS with UTM and its bundled `utmctl`
 - Bash, OpenSSH, `jq`, `base64`, `iconv`, `nc`, and Swift
 - macOS Screen Recording permission for live UTM-window capture
 
+Linux host:
+
+- x86_64 Linux with hardware virtualization and accessible KVM
+- system libvirt/QEMU, Q35/OVMF, `swtpm`, and a dedicated storage pool
+- Bash, Python 3, OpenSSH, `jq`, `base64`, `iconv`, and `nc`
+
 Windows guest:
 
-- Windows 11 with UTM Windows Guest Tools
+- Windows 11 with UTM Windows Guest Tools or Fedora VirtIO tools
 - An administrator account
 - `winget` for automatic WinApp installation
 - An interactive login for UI automation

@@ -46,6 +46,14 @@ exact-source portable and Linux-native certification after a changed-boot-ID
 reboot, and a final outer-prohibited resident smoke cycle. No clone or
 workspace was used, and the appliance was left stopped.
 
+**Current:**
+[`Tactical 028`](../docs/tactical/028-linux-libvirt-controller-host.md) built a
+separate native x86_64 Ubuntu 24.04 GNOME Wayland appliance under Linux
+libvirt/QEMU/KVM. The same resident, AT-SPI, capture, input, fixture,
+maintenance, exact-source certification, and local/outside contracts passed
+without ordinary host-console access. A receipt-bound QCOW2 workspace proved
+discard semantics, and the accepted base was left stopped and claim-free.
+
 ## Current goal
 
 **Decision:** Keep this accepted GNOME Wayland profile stable while extending

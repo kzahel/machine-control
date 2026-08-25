@@ -1,6 +1,6 @@
 # Tactical 028: Linux Libvirt Controller Host
 
-Status: active.
+Status: complete.
 
 Topics: [`vm-workspaces-and-storage-policy`](../../topics/vm-workspaces-and-storage-policy.md),
 [`target-lifecycle-and-readiness`](../../topics/target-lifecycle-and-readiness.md),
@@ -161,8 +161,49 @@ and platform reports with only minimized evidence.
 
 ## Result
 
-In progress. The initial authorized-host audit found working AMD-V/KVM,
-libvirt system services, Q35 UEFI with enrolled Secure Boot keys, emulated TPM
-2.0, a default NAT network, and sufficient storage after cleanup. No libvirt
-domains or public provider implementation existed at the start of this
-tactical.
+Complete. The initial authorized-host audit found working AMD-V/KVM, libvirt
+system services, Q35/OVMF with enrolled Secure Boot keys, emulated TPM 2.0, a
+provider network, and sufficient dedicated-pool capacity. The implemented host
+doctor minimizes those observations. The shared provider validates the exact
+UUID and native x86_64 KVM/Q35 domain shape before lifecycle or derivation and
+has no TCG or cross-architecture fallback. Fixture tests cover identity,
+security devices, guest-agent transport, recovery input, factory media,
+capacity, and receipt-bound QCOW2 derivation.
+
+The Linux route provisioned a separate Ubuntu 24.04 GNOME Wayland appliance
+from the official x86_64 cloud image. Development bootstrap, maintenance,
+changed-boot exact-source certification, common target-native conformance, and
+an isolated overlay outcome passed. Local and outside calls used the same
+resident generation, independently observed semantic and Unicode effects, and
+left outer UI prohibited. Release removed the exact derivative and overlay.
+
+The Windows route provisioned a separate native x86_64 Windows 11 appliance
+from official installation media and separately verified VirtIO media. Q35
+UEFI Secure Boot, TPM 2.0, VirtIO storage/networking, QEMU guest agent,
+hardened key-only OpenSSH, native PowerShell, the development toolchain, and
+the resident/provider composition passed. Appliance certification observed a
+reboot, verified the exact committed archive, ran portable and Windows-native
+checks in the guest, removed staging, and shut down cleanly. All installer and
+seed attachments were then removed and deleted from provider storage.
+
+A disk-only Windows boot reached the stock locked Winlogon state without
+persistent auto-logon. The protected resident reported native semantics,
+capture, and input ready with no host interference. Its dedicated one-shot
+secret route entered the ordinary desktop, where full doctor passed. An
+isolated QCOW2 workspace repeated the protected and ordinary readiness paths,
+matched local/outside generations, produced an independently observed Cua
+fixture effect and exact window capture, and was discarded through its
+claim-bound receipt. Generated answer media and the setup secret were removed
+after acceptance.
+
+Headless QMP capture and bounded keyboard/text were exercised only during
+bootstrap/recovery; ordinary acceptance prohibited every outer route. Pointer
+normalization and bounded delivery remain fixture-covered. Private inventory
+contains all concrete domains, UUIDs, storage/network selectors, transports,
+roles, proof flags, and receipts. No such value entered this repository.
+
+Final controller validation passed the root portable and Linux-native checks,
+Windows smoke and target-safety suites, the Linux-native Windows factory test,
+and all 22 shared libvirt provider tests. Both accepted bases are stopped,
+claims are available, temporary workspace inventories are empty, and no
+factory removable media remains attached.

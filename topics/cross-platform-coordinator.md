@@ -130,6 +130,14 @@ verification directly without exposing a device or partition, and a subsequent
 live regression proved it no longer starts the optional ChromeOS-local ADB
 client.
 
+**Current (2026-08-25):** Tactical 028 live-proved Linux as a controller host,
+not only a coordinator platform. Local libvirt/QEMU/KVM adapters provisioned
+native x86_64 Windows and Ubuntu guests, ran their unchanged common lifecycle,
+resident, maintenance, claim, and workspace surfaces, and left both bases
+stopped. The root portable and Linux-native checks also pass directly on the
+controller. Hardware validation and every domain start refuse TCG,
+cross-architecture emulation, or a non-KVM domain type.
+
 ## Current direction
 
 - Provide one portable root check command that owns correct suite working
@@ -138,6 +146,8 @@ client.
 - Keep live target rehearsals deliberate and controller-owned.
 - Keep the retained Windows and Linux development appliances reproducible and
   re-run exact-archive checks after material coordinator or toolchain changes.
+- Preserve native x86_64 KVM-only enforcement on the accepted Linux-hosted
+  Windows and Linux routes; treat another architecture as a separate profile.
 - Use the same explicit maintenance namespace for retained macOS development
   appliances; do not fold platform repair into routine readiness.
 - Keep ChromeOS runtime readiness and maintenance portable across eligible

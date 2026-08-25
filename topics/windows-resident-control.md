@@ -50,6 +50,18 @@ remained a separate 41.20-second lifecycle cost. A shared connection saved only
 about 0.17 seconds over fresh already-resolved SSH, so claim-scoped session
 machinery was not justified.
 
+**Current:**
+[`Tactical 028`](../docs/tactical/028-linux-libvirt-controller-host.md) built
+and accepted a separate native x86_64 Windows 11 appliance on a Linux
+libvirt/QEMU/KVM host. Q35 UEFI with enrolled Secure Boot keys, TPM 2.0,
+VirtIO, QEMU guest agent, hardened key-only SSH, the development profile, and
+the unchanged resident composition all passed. Exact-source certification ran
+portable and Windows-native checks after a reboot and cleanly stopped the
+appliance. A disk-only locked boot proved protected Winlogon semantics and
+capture; the one-shot secret route then reached full ordinary readiness. An
+isolated QCOW2 workspace produced an independent fixture effect and exact
+window capture before receipt-bound discard.
+
 **Current:** [`Tactical 018`](../docs/tactical/018-appliance-readiness-and-promotion.md)
 reused one retained stateful candidate rather than creating another large VM.
 It restored key-only SSH, automatic guest-agent/SSH services, and the complete

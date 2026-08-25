@@ -40,7 +40,7 @@ fresh_provision
 ```
 
 An isolated UTM/QEMU target may use provider disposable mode. Tart may use an
-APFS copy-on-write clone. A future libvirt/QEMU provider may use a transient
+APFS copy-on-write clone. The libvirt/QEMU provider uses a transient native-KVM
 domain with a QCOW2 backing overlay. These are equivalent only in the promised
 workspace outcome; their concurrency, base dependency, capacity, and recovery
 properties remain explicit.
@@ -149,21 +149,20 @@ claim and relinquishes it only after safe retain-or-discard handling completes.
 
 ## Provider direction
 
-**Current:** Windows and Linux lifecycle use UTM/QEMU on macOS; macOS uses
-Tart. UTM already exposes non-persistent start and registered clone operations.
-Tart exposes APFS copy-on-write local clones. Existing provider-specific
-commands remain compatibility escape hatches while the workspace surface is
-adopted.
+**Current:** Windows and Linux lifecycle use UTM/QEMU on macOS and
+[libvirt QEMU/KVM](https://libvirt.org/drvqemu.html) on Linux; macOS uses Tart.
+UTM exposes non-persistent start and registered clone operations. Tart exposes
+APFS copy-on-write local clones. Libvirt uses receipt-bound transient domains
+over QCOW2 backing overlays. Existing provider-specific commands remain
+compatibility escape hatches beside the common workspace surface.
 
-**Decision:** a future [libvirt QEMU/KVM provider](https://libvirt.org/drvqemu.html)
-implements the same platform adapter contract. The Windows guest driver,
-resident facade, and readiness contract remain unchanged when lifecycle moves
-from UTM/macOS to libvirt/Linux. Virt-manager may be a human-facing libvirt UI
-but is not part of the portable contract. The provider should use libvirt as
-its owned automation surface over QEMU/KVM, use QEMU guest-agent or guest
-networking only through typed adapter operations, and prove QCOW2
-backing-overlay cleanup rather than assuming that a snapshot or overlay
-satisfies `isolated` intent.
+**Decision:** the libvirt provider preserves each guest driver, resident
+facade, and readiness contract while moving lifecycle ownership to Linux. It
+uses libvirt as the owned automation surface over QEMU/KVM and accepts only
+native x86_64 KVM domains. QEMU guest-agent and guest networking remain typed
+adapter operations. Virt-manager is an optional human UI, not part of the
+portable contract. Live discard acceptance proved that release removed the
+exact overlay and transient domain without changing the stopped base.
 
 **Decision:** [Hyper-V](https://learn.microsoft.com/windows-server/virtualization/hyper-v/overview)
 is the first Windows-host provider candidate for Windows and Linux guests. Its
@@ -209,9 +208,11 @@ reserves provider storage headroom, and prohibits implicit full-copy fallback.
 Each UTM base also passed one minimal disposable-outcome rehearsal. A marker
 created in provider disposable mode was absent after release and persistent
 restart; both receipt inventories ended empty and both bases ended stopped.
-This validates discard-on-release without making a disposable VM the default
-for ordinary stateful work. A future provider repeats the outcome with its own
-declared overlay mechanism.
+The native x86_64 libvirt bases then passed the equivalent QCOW2-overlay
+outcome. The Windows derivative additionally reached full common readiness,
+performed an independently observed resident UI effect, captured the exact
+fixture window, and was discarded with an empty receipt inventory. Both
+libvirt bases ended stopped and claim-free.
 
 ## Open work
 
@@ -220,8 +221,6 @@ declared overlay mechanism.
   per-workspace precision.
 - Decide when an isolated failure should be retained automatically versus
   stopped with only its receipt retained for operator-directed recovery.
-- Add a libvirt/Linux host provider only when an authorized host is available
-  for real capability and cleanup validation.
 - After the Linux provider proves the adapter boundary, add and live-validate
   a Hyper-V/Windows host provider, beginning with a Windows guest and then a
   Linux guest. Keep its supported host editions and CPU architectures explicit
