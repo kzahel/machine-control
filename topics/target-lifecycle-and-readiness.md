@@ -189,6 +189,13 @@ start or repair the target. Live acceptance proved common clean shutdown and
 subsequent `powerState: off` on all three profiles. See the
 [three-desktop evidence](../docs/evidence/desktop-common-entry.md).
 
+**Current:** macOS guest-IP resolution follows the selected command transport:
+Tart always uses guest-agent discovery, while SSH uses an explicit endpoint
+only when one is configured and otherwise discovers the current address
+through Tart. A live persistent appliance passed the full common doctor over
+both Tart and dynamically discovered SSH after an expired fixed lease was
+removed, then returned to its inherited stopped state with its claim released.
+
 **Current:** Windows readiness uses one non-PTY guest session for its
 administration, desktop, resident-status, and resident-capability observations.
 The guest probe has an explicit 60-second bound, reports timeout as an

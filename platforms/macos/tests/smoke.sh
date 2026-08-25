@@ -141,6 +141,42 @@ selection="$({ env \
         _ "$REPO_DIR/scripts/common.sh"; } 2>/dev/null)"
 [[ "$selection" == \
     'fixture-workspace|fixture-workspace|disposable|ssh|' ]]
+tart_ip="$(env \
+    MACVM_CONFIG_FILE=/dev/null \
+    MACVM_TART="$REPO_DIR/tests/fixtures/tart" \
+    MACVM_NAME=fixture-development \
+    MACVM_GUEST_TRANSPORT=tart \
+    MACVM_SSH_HOST=198.51.100.5 \
+    bash -c 'source "$1"; macvm_guest_ip' \
+        _ "$REPO_DIR/scripts/common.sh")"
+[[ "$tart_ip" == '192.0.2.1' ]]
+ssh_fixed_ip="$(env \
+    MACVM_CONFIG_FILE=/dev/null \
+    MACVM_TART="$REPO_DIR/tests/fixtures/tart" \
+    MACVM_NAME=fixture-development \
+    MACVM_GUEST_TRANSPORT=ssh \
+    MACVM_SSH_HOST=198.51.100.5 \
+    bash -c 'source "$1"; macvm_guest_ip' \
+        _ "$REPO_DIR/scripts/common.sh")"
+[[ "$ssh_fixed_ip" == '198.51.100.5' ]]
+ssh_discovered_ip="$(env \
+    MACVM_CONFIG_FILE=/dev/null \
+    MACVM_TART="$REPO_DIR/tests/fixtures/tart" \
+    MACVM_NAME=fixture-development \
+    MACVM_GUEST_TRANSPORT=ssh \
+    bash -c 'source "$1"; macvm_guest_ip' \
+        _ "$REPO_DIR/scripts/common.sh")"
+[[ "$ssh_discovered_ip" == '192.0.2.1' ]]
+if env \
+        MACVM_CONFIG_FILE=/dev/null \
+        MACVM_TART="$REPO_DIR/tests/fixtures/tart" \
+        MACVM_NAME=fixture-development \
+        MACVM_GUEST_TRANSPORT=invalid \
+        bash -c 'source "$1"; macvm_guest_ip' \
+            _ "$REPO_DIR/scripts/common.sh" >/dev/null 2>&1; then
+    printf 'Unsupported macOS guest transport resolved an IP address\n' >&2
+    exit 1
+fi
 if MACVM_FORBID_OUTER_UI=true bin/macvm screenshot >/dev/null 2>&1; then
     printf 'Outer-UI guard allowed a Tart screenshot\n' >&2
     exit 1

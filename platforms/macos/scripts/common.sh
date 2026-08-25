@@ -188,19 +188,27 @@ macvm_display_size() {
 }
 
 macvm_guest_ip() {
-    if [[ -n "$MACVM_SSH_HOST" ]]; then
-        printf '%s\n' "$MACVM_SSH_HOST"
-        return 0
-    fi
-    if [[ "$MACVM_GUEST_TRANSPORT" == "tart" ]]; then
-        "$MACVM_TART" ip "$MACVM_NAME" --wait "$MACVM_BOOT_TIMEOUT" \
-            --resolver agent
-        return
-    fi
-    "$MACVM_TART" ip "$MACVM_NAME" --wait "$MACVM_BOOT_TIMEOUT" \
-        --resolver arp 2>/dev/null \
-        || "$MACVM_TART" ip "$MACVM_NAME" --wait "$MACVM_BOOT_TIMEOUT" \
-            --resolver dhcp
+    case "$MACVM_GUEST_TRANSPORT" in
+        tart)
+            "$MACVM_TART" ip "$MACVM_NAME" --wait "$MACVM_BOOT_TIMEOUT" \
+                --resolver agent
+            ;;
+        ssh)
+            if [[ -n "$MACVM_SSH_HOST" ]]; then
+                printf '%s\n' "$MACVM_SSH_HOST"
+                return 0
+            fi
+            "$MACVM_TART" ip "$MACVM_NAME" --wait "$MACVM_BOOT_TIMEOUT" \
+                --resolver arp 2>/dev/null \
+                || "$MACVM_TART" ip "$MACVM_NAME" \
+                    --wait "$MACVM_BOOT_TIMEOUT" --resolver dhcp
+            ;;
+        *)
+            printf 'Unsupported guest transport: %s\n' \
+                "$MACVM_GUEST_TRANSPORT" >&2
+            return 2
+            ;;
+    esac
 }
 
 macvm_quote_remote_argument() {
