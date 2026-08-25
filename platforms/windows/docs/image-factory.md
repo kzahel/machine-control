@@ -1,10 +1,11 @@
 # Windows Image Factory
 
-This factory has two related paths:
+This factory has three related paths:
 
-1. create a Windows testbed base from explicit local installation media and
-   locally rendered answer and firmware-boot media; and
-2. generalize and export a configured candidate as a stopped UTM appliance.
+1. create an ARM64 Windows testbed base under UTM/macOS;
+2. create a native x86_64 Windows testbed base under libvirt/QEMU/KVM on
+   Linux; and
+3. generalize and export a configured candidate as a stopped appliance.
 
 The first path removes the undocumented manual-OOBE dependency. The second
 path proves that a configured appliance can cross the Windows generalization
@@ -39,6 +40,15 @@ scripts/image-factory.sh render-seed \
   CONTROLLER_PUBLIC_KEY PRIVATE_UTM_GUEST_TOOLS_ISO
 ```
 
+For the native Linux-hosted path, use `amd64` and Fedora's separately verified
+stable `virtio-win.iso`:
+
+```bash
+scripts/image-factory.sh render-seed \
+  amd64 APPLIANCE_USER IMAGE_INDEX windows-11-pro PRIVATE_SECRET_FILE \
+  CONTROLLER_PUBLIC_KEY PRIVATE_VIRTIO_WIN_ISO
+```
+
 The renderer XML-escapes all substituted values, rejects weak file
 permissions, validates the XML when `xmllint` is present, and builds two
 purpose-specific media. `winvm-seed.iso`, labeled `WINVM_SEED`, carries the
@@ -67,7 +77,7 @@ activating Windows; activation remains suppressed and must be observed after
 installation. The renderer rejects arbitrary editions rather than accepting a
 possibly private activation key on its command line.
 
-The FAT boot image supplies UEFI Shell `startup.nsh`. The factory maps the
+On macOS, the FAT boot image supplies UEFI Shell `startup.nsh`. The UTM factory maps the
 Windows installer as the first filesystem, the data seed as a second CD, and
 the boot image as a USB filesystem. The script refreshes mappings, prefers an
 installed Windows Boot Manager on any later filesystem, and otherwise launches
@@ -82,9 +92,10 @@ the prompted loader; media validation is not an assumption about every ISO.
 The checked-in AppleScript configuration surface does not expose UTM's Windows
 wizard flags for TPM 2.0 and preloaded Secure Boot keys. The answer media uses
 the same Windows Setup hardware-check bypasses shipped on UTM's guest-tools
-media for this QEMU recipe. This is an explicit compatibility compromise for
-the dedicated test appliance, not a claim that the VM satisfies Microsoft's
-Windows 11 hardware baseline.
+media only for that ARM64 QEMU recipe. The `amd64` renderer omits every
+hardware-check bypass. Its libvirt factory requires native KVM, Q35 UEFI with
+enrolled Secure Boot keys, TPM 2.0, at least 8 GiB RAM, six virtual CPUs, and a
+128-GiB system disk before Windows Setup starts.
 
 Validate a separately acquired Windows ISO before creation:
 
@@ -93,7 +104,8 @@ scripts/image-factory.sh validate-media PRIVATE_WINDOWS_ISO
 scripts/image-factory.sh prepare-install-media PRIVATE_WINDOWS_ISO
 ```
 
-The preparation command preserves the verified source ISO and creates an
+The preparation command works with `hdiutil` on macOS and `xorriso` on Linux.
+It preserves the verified source ISO and creates an
 ignored copy whose El Torito EFI image substitutes Microsoft's equal-size
 `cdboot_noprompt.efi` payload for the byte-verified prompted loader. This is
 necessary because UEFI maps the small El Torito image, not the ISO's main UDF
@@ -120,10 +132,31 @@ bin/winvm pin-target candidate PRIVATE_NAME
 bin/winvm up
 ```
 
-The current UTM recipe creates an ARM64 QEMU VM with UEFI, a 128-GiB NVMe
+The Linux-hosted native x86_64 route does not need the UTM firmware-shell
+image:
+
+```bash
+bin/winvm factory-create PRIVATE_NAME \
+  .factory.local/windows-install-noprompt.iso \
+  .factory.local/winvm-seed.iso
+bin/winvm target-id
+```
+
+Write the returned exact UUID into private inventory before any accepted
+target operation. Rerun common doctor, acquire a target-use claim, and carry
+that claim through installation, bootstrap, media detachment, and shutdown.
+
+The UTM recipe creates an ARM64 QEMU VM with UEFI, a 128-GiB NVMe
 disk, shared networking, and removable installer, data-seed, and boot-seed
 media. Media compatibility, Windows edition/index, driver availability, and
 activation are caller-owned inputs and must be proven on the exact ISO.
+
+The libvirt recipe defines but does not start a persistent native x86_64 KVM
+domain. It uses CPU host passthrough, Q35, enrolled-key Secure Boot firmware,
+an emulated TPM 2.0 CRB device, VirtIO QCOW2 storage and networking, a QEMU
+guest-agent channel, a USB tablet, and a private SPICE display for explicit
+bootstrap/recovery. Creation refuses an existing name or volume and rolls back
+only its exact newly owned domain and volume after a failed definition.
 
 Windows Setup restarts after laying down the system disk, while first logon
 still needs the seed. If UEFI remains at `Start boot option`, stop the candidate
@@ -322,6 +355,8 @@ manifest were not modified and remain stopped. `tests/smoke.sh` and
 - [Microsoft Sysprep command-line options](https://learn.microsoft.com/windows-hardware/manufacture/desktop/sysprep-command-line-options?view=windows-11)
 - [Microsoft answer files overview](https://learn.microsoft.com/windows-hardware/customize/desktop/wsim/answer-files-overview)
 - [Microsoft Windows 11 Arm64 ISO download](https://www.microsoft.com/software-download/windows11arm64)
+- [Microsoft Windows 11 x64 ISO download](https://www.microsoft.com/software-download/windows11)
+- [Fedora VirtIO Windows drivers](https://docs.fedoraproject.org/en-US/quick-docs/creating-windows-virtual-machines-using-virtio-drivers/)
 - [Microsoft Windows Setup configuration passes](https://learn.microsoft.com/windows-hardware/manufacture/desktop/windows-setup-configuration-passes?view=windows-11)
 - [UTM scripting reference](https://docs.getutm.app/scripting/reference/)
 - [UTM scripting cheat sheet](https://docs.getutm.app/scripting/cheat-sheet/)

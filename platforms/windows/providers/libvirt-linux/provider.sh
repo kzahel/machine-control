@@ -7,6 +7,7 @@ readonly PROVIDER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$PROVIDER_DIR/../../scripts/common.sh"
 
 readonly LIBVIRT_CORE="$WINVM_REPO_DIR/../../providers/libvirt-linux/libvirt_provider.py"
+readonly LIBVIRT_FACTORY="$WINVM_REPO_DIR/../../providers/libvirt-linux/domain_factory.py"
 
 export MC_LIBVIRT_URI="$WINVM_LIBVIRT_URI"
 export MC_LIBVIRT_DOMAIN_NAME="$WINVM_LIBVIRT_DOMAIN_NAME"
@@ -32,6 +33,11 @@ EOF
 
 core() {
     "$LIBVIRT_CORE" "$@"
+}
+
+factory() {
+    MC_LIBVIRT_FACTORY_ROOT="${WINVM_FACTORY_LOCAL_ROOT:-$WINVM_REPO_DIR/.factory.local}" \
+        "$LIBVIRT_FACTORY" "$@"
 }
 
 source_mutation_authorized() {
@@ -236,9 +242,8 @@ post_update_guest_agent() {
     fi
     local guest_script="C:\Users\Public\winvm-post-update-$nonce.ps1"
     local guest_report="C:\ProgramData\MachineControl\reports\post-update-$nonce.json"
-    local pulled_report
+    local pulled_report result=0
     pulled_report="$(mktemp "${TMPDIR:-/tmp}/winvm-post-update.XXXXXX")"
-    trap 'rm -f -- "$pulled_report"' RETURN
     ensure_running
     core push "$WINVM_REPO_DIR/guests/windows/post-update.ps1" "$guest_script"
     core exec -- powershell.exe -NoLogo -NoProfile -NonInteractive \
@@ -247,16 +252,18 @@ post_update_guest_agent() {
         >/dev/null 2>&1 || true
     core pull "$guest_report" "$pulled_report" || {
         printf 'Guest-agent repair produced no fresh attested report.\n' >&2
-        return 1
+        result=1
     }
-    jq -e --arg nonce "$nonce" \
+    if [[ "$result" == 0 ]] && ! jq -e --arg nonce "$nonce" \
         '.schema == "machine-control-windows-post-update/v0" and
          .mode == "repair" and .nonce == $nonce' \
-        "$pulled_report" >/dev/null || {
+        "$pulled_report" >/dev/null; then
         printf 'Guest-agent repair report was invalid.\n' >&2
-        return 1
-    }
-    cat "$pulled_report"
+        result=1
+    fi
+    if [[ "$result" == 0 ]]; then cat "$pulled_report"; fi
+    rm -f -- "$pulled_report"
+    return "$result"
 }
 
 require_outer_ui_allowed() {
@@ -289,13 +296,28 @@ case "$command" in
         assert_target post-update-repair >/dev/null
         post_update_guest_agent "$@"
         ;;
+    factory-create)
+        if (( $# != 3 )); then
+            printf 'Usage: winvm factory-create NAME WINDOWS_ISO SEED_ISO\n' >&2
+            exit 2
+        fi
+        factory create-windows "$@"
+        ;;
+    factory-detach-installer)
+        assert_target factory-detach-installer >/dev/null
+        factory detach-installer
+        ;;
+    factory-detach-media)
+        assert_target factory-detach-media >/dev/null
+        factory detach-media
+        ;;
     down|shutdown) assert_target shutdown >/dev/null; core shutdown ;;
     force-stop) assert_target force-stop >/dev/null; core force-stop ;;
     screenshot|type|click|key|scan)
         require_outer_ui_allowed
         unsupported
         ;;
-    repair-registration|suspend|seal|disposable-up|export-image|factory-create|factory-detach-installer|factory-detach-media|delete)
+    repair-registration|suspend|seal|disposable-up|export-image|delete)
         unsupported
         ;;
     *) usage >&2; exit 2 ;;

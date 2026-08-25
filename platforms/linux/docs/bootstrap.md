@@ -222,10 +222,37 @@ AT-SPI belongs to the logged-in desktop and does not control GDM or a distinct
 lock-screen session. Use the normalized screenshot and virtual input. The user
 enters any authentication secret directly.
 
-## Future Unattended Installation
+## Native x86_64 libvirt image factory
 
-A later phase should build a reproducible Ubuntu ARM64 image using autoinstall
-or cloud-init, with:
+**Current implementation:** A Linux controller can now create a fresh native
+x86_64 appliance from an explicit official Ubuntu 24.04 amd64 QCOW2 cloud
+image. The host-side factory validates QCOW2 input, copies and expands it to a
+128-GiB volume in the configured dedicated libvirt pool, defines a Q35 UEFI
+KVM domain with CPU host passthrough and VirtIO devices, and refuses any
+existing destination.
+
+Render the ignored NoCloud seed from a controller public key:
+
+```bash
+scripts/image-factory.sh validate-cloud-image PRIVATE_UBUNTU_CLOUD_IMAGE
+scripts/image-factory.sh render-seed APPLIANCE_USER CONTROLLER_PUBLIC_KEY
+bin/linuxvm factory-create PRIVATE_NAME PRIVATE_UBUNTU_CLOUD_IMAGE \
+  .factory.local/linuxvm-seed.iso
+bin/linuxvm target-id
+```
+
+The seed contains no password or private key. It creates a locked, key-only
+dedicated-appliance user with passwordless sudo, starts QEMU guest-agent,
+installs the Ubuntu desktop and development package profile, enables GNOME
+Wayland auto-login, and reboots after cloud-init completes. Exact UUID pinning,
+common doctor, and a target-use claim are required before operating the new
+domain. After cloud-init and the normal resident bootstrap pass, stop the
+candidate and use `factory-detach-media` under the same claim to remove its
+NoCloud seed.
+
+## Earlier unattended-install direction
+
+The original ARM64/UTM plan called for autoinstall or cloud-init with:
 
 - a non-secret account/bootstrap policy chosen by the maintainer;
 - UTM guest and SPICE packages installed during provisioning;

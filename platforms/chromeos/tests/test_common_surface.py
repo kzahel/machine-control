@@ -27,6 +27,15 @@ class CommonSurfaceTests(unittest.TestCase):
         self.directory = Path(self.temporary.name)
         self.state = self.directory / "state"
         self.log = self.directory / "mutations"
+        self.registry = self.directory / "targets.json"
+        self.registry.write_text(
+            json.dumps({
+                "schema": "machine-control-targets/v0",
+                "includeDefaults": True,
+                "targets": {},
+            }),
+            encoding="utf-8",
+        )
         self.state.write_text("ready", encoding="utf-8")
         for path in (DOCTOR_SOURCE, POST_UPDATE_SOURCE, COMMON_DOCTOR):
             path.chmod(path.stat().st_mode | stat.S_IXUSR)
@@ -44,6 +53,7 @@ class CommonSurfaceTests(unittest.TestCase):
             "FAKE_CHROMEOS_STATE": str(self.state),
             "FAKE_CHROMEOS_MUTATION_LOG": str(self.log),
             "FAKE_CHROMEOS_SESSION": session,
+            "MACHINE_CONTROL_TARGETS_FILE": str(self.registry),
         })
         return value
 

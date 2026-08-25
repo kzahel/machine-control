@@ -1,0 +1,443 @@
+#!/usr/bin/env python3
+"""Typed native-x86_64 libvirt appliance factory operations."""
+
+from __future__ import annotations
+
+import argparse
+from dataclasses import replace
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import xml.etree.ElementTree as ET
+
+from libvirt_provider import (
+    Configuration,
+    Libvirt,
+    ProviderError,
+    host_doctor,
+    inspect_domain,
+    require_uuid,
+    run,
+)
+
+
+NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+
+
+def require_name(configuration: Configuration, name: str) -> str:
+    if not NAME_PATTERN.fullmatch(name):
+        raise ProviderError("factory_name_invalid", "The factory name is invalid")
+    if configuration.domain_name and name != configuration.domain_name:
+        raise ProviderError(
+            "factory_identity_mismatch",
+            "The factory name does not match private inventory",
+        )
+    return name
+
+
+def require_media(path_value: str) -> str:
+    path = Path(path_value).expanduser().resolve()
+    if not path.is_file() or not os.access(path, os.R_OK):
+        raise ProviderError(
+            "factory_media_unavailable", "Required factory media is unavailable"
+        )
+    return str(path)
+
+
+def require_factory_host(configuration: Configuration) -> None:
+    _value, exit_code = host_doctor(configuration)
+    if exit_code != 0:
+        raise ProviderError("host_not_ready", "The KVM controller host is not ready")
+
+
+def absent_domain(provider: Libvirt, name: str) -> None:
+    result = provider.command("domuuid", name, check=False)
+    if result.returncode == 0:
+        raise ProviderError(
+            "factory_destination_exists", "The factory destination already exists"
+        )
+
+
+def absent_volume(provider: Libvirt, pool: str, volume: str) -> None:
+    result = provider.command("vol-info", "--pool", pool, volume, check=False)
+    if result.returncode == 0:
+        raise ProviderError(
+            "factory_destination_exists", "The factory storage already exists"
+        )
+
+
+def create_volume(
+    provider: Libvirt,
+    pool: str,
+    volume: str,
+    capacity: str,
+) -> None:
+    provider.command(
+        "vol-create-as",
+        "--pool",
+        pool,
+        "--name",
+        volume,
+        "--capacity",
+        capacity,
+        "--format",
+        "qcow2",
+    )
+
+
+def delete_volume(provider: Libvirt, pool: str, volume: str) -> None:
+    provider.command("vol-delete", "--pool", pool, volume, check=False)
+
+
+def define_domain(
+    configuration: Configuration,
+    provider: Libvirt,
+    arguments: list[str],
+    *,
+    name: str,
+) -> str:
+    completed = run(
+        [
+            "virt-install",
+            "--connect",
+            configuration.uri,
+            "--name",
+            name,
+            *arguments,
+            "--noautoconsole",
+            "--print-xml",
+        ],
+        timeout=120,
+    )
+    provider.command("define", "/dev/stdin", input_text=completed.stdout)
+    actual_uuid = require_uuid(provider.text("domuuid", name))
+    exact = replace(
+        configuration,
+        domain_name=name,
+        expected_uuid=actual_uuid,
+    )
+    inspect_domain(exact, provider)
+    return actual_uuid
+
+
+def common_domain_arguments(
+    configuration: Configuration,
+    volume: str,
+    *,
+    memory_mib: int,
+    vcpus: int,
+    osinfo: str,
+) -> list[str]:
+    return [
+        "--memory",
+        str(memory_mib),
+        "--vcpus",
+        str(vcpus),
+        "--cpu",
+        "host-passthrough",
+        "--machine",
+        "q35",
+        "--features",
+        "smm.state=on",
+        "--disk",
+        f"vol={configuration.pool}/{volume},bus=virtio,format=qcow2",
+        "--network",
+        f"network={configuration.network},model=virtio",
+        "--graphics",
+        "spice,listen=none",
+        "--video",
+        "virtio",
+        "--channel",
+        "unix,target.type=virtio,target.name=org.qemu.guest_agent.0",
+        "--controller",
+        "usb,model=qemu-xhci",
+        "--input",
+        "tablet,bus=usb",
+        "--osinfo",
+        osinfo,
+    ]
+
+
+def cleanup_failed_creation(
+    provider: Libvirt, name: str, pool: str, volume: str
+) -> None:
+    provider.command("undefine", name, "--nvram", "--tpm", check=False)
+    delete_volume(provider, pool, volume)
+
+
+def create_windows(
+    configuration: Configuration,
+    provider: Libvirt,
+    name_value: str,
+    windows_iso_value: str,
+    seed_iso_value: str,
+) -> None:
+    name = require_name(configuration, name_value)
+    windows_iso = require_media(windows_iso_value)
+    seed_iso = require_media(seed_iso_value)
+    require_factory_host(configuration)
+    absent_domain(provider, name)
+    volume = f"{name}.qcow2"
+    absent_volume(provider, configuration.pool, volume)
+    create_volume(provider, configuration.pool, volume, "128G")
+    try:
+        arguments = common_domain_arguments(
+            configuration,
+            volume,
+            memory_mib=8192,
+            vcpus=6,
+            osinfo="win11",
+        )
+        arguments.extend(
+            [
+                "--boot",
+                "uefi,firmware.feature0.name=secure-boot,"
+                "firmware.feature0.enabled=yes,"
+                "firmware.feature1.name=enrolled-keys,"
+                "firmware.feature1.enabled=yes",
+                "--tpm",
+                "backend.type=emulator,backend.version=2.0,model=tpm-crb",
+                "--disk",
+                f"path={windows_iso},device=cdrom,bus=sata,readonly=on",
+                "--disk",
+                f"path={seed_iso},device=cdrom,bus=sata,readonly=on",
+            ]
+        )
+        define_domain(configuration, provider, arguments, name=name)
+    except Exception:
+        cleanup_failed_creation(provider, name, configuration.pool, volume)
+        raise
+    print("factory target created")
+
+
+def validate_cloud_image(configuration: Configuration, image: str) -> None:
+    qemu_img = shutil.which("qemu-img")
+    if qemu_img is None:
+        raise ProviderError(
+            "provider_unavailable", "The QCOW2 image tool is unavailable"
+        )
+    completed = run(
+        [qemu_img, "info", "--output", "json", image]
+    )
+    try:
+        value = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise ProviderError(
+            "factory_media_invalid", "The cloud image metadata is invalid"
+        ) from error
+    if value.get("format") != "qcow2" or not isinstance(
+        value.get("virtual-size"), int
+    ):
+        raise ProviderError(
+            "factory_media_invalid", "The cloud image must be QCOW2"
+        )
+
+
+def upload_cloud_volume(
+    configuration: Configuration,
+    provider: Libvirt,
+    volume: str,
+    cloud_image: str,
+) -> None:
+    factory_root = Path(
+        os.environ.get("MC_LIBVIRT_FACTORY_ROOT", ".factory.local")
+    ).resolve()
+    factory_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(factory_root, 0o700)
+    descriptor, temporary_path = tempfile.mkstemp(
+        prefix=".cloud-image.", suffix=".qcow2", dir=factory_root
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_path)
+    try:
+        run(["cp", "--reflink=auto", "--sparse=always", cloud_image, str(temporary)])
+        os.chmod(temporary, 0o600)
+        run(["qemu-img", "resize", str(temporary), "128G"])
+        create_volume(
+            provider,
+            configuration.pool,
+            volume,
+            str(temporary.stat().st_size),
+        )
+        provider.command(
+            "vol-upload",
+            "--pool",
+            configuration.pool,
+            "--sparse",
+            volume,
+            str(temporary),
+            timeout=600,
+        )
+        provider.command("pool-refresh", configuration.pool)
+        provider.command(
+            "vol-resize", "--pool", configuration.pool, volume, "128G"
+        )
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def create_linux(
+    configuration: Configuration,
+    provider: Libvirt,
+    name_value: str,
+    cloud_image_value: str,
+    seed_iso_value: str,
+) -> None:
+    name = require_name(configuration, name_value)
+    cloud_image = require_media(cloud_image_value)
+    seed_iso = require_media(seed_iso_value)
+    validate_cloud_image(configuration, cloud_image)
+    require_factory_host(configuration)
+    absent_domain(provider, name)
+    volume = f"{name}.qcow2"
+    absent_volume(provider, configuration.pool, volume)
+    try:
+        upload_cloud_volume(
+            configuration, provider, volume, cloud_image
+        )
+        arguments = common_domain_arguments(
+            configuration,
+            volume,
+            memory_mib=6144,
+            vcpus=4,
+            osinfo="ubuntu24.04",
+        )
+        arguments.extend(
+            [
+                "--boot",
+                "uefi",
+                "--import",
+                "--disk",
+                f"path={seed_iso},device=cdrom,bus=sata,readonly=on",
+            ]
+        )
+        define_domain(configuration, provider, arguments, name=name)
+    except Exception:
+        cleanup_failed_creation(provider, name, configuration.pool, volume)
+        raise
+    print("factory target created")
+
+
+def cdrom_targets(xml_text: str) -> list[str]:
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError as error:
+        raise ProviderError(
+            "domain_xml_invalid", "The provider returned invalid domain XML"
+        ) from error
+    targets: list[str] = []
+    for disk in root.findall("./devices/disk[@device='cdrom']"):
+        source = disk.find("source")
+        target = disk.find("target")
+        if source is None or not source.get("file") or target is None:
+            raise ProviderError(
+                "factory_media_shape_invalid",
+                "The factory removable-media shape is invalid",
+            )
+        device = target.get("dev") or ""
+        if not re.fullmatch(r"sd[a-z]", device):
+            raise ProviderError(
+                "factory_media_shape_invalid",
+                "The factory removable-media target is invalid",
+            )
+        targets.append(device)
+    return sorted(targets)
+
+
+def detach_media(
+    configuration: Configuration,
+    provider: Libvirt,
+    *,
+    installer_only: bool,
+) -> None:
+    inspect_domain(configuration, provider)
+    state = provider.text("domstate", configuration.expected_uuid).lower()
+    if state != "shut off":
+        raise ProviderError(
+            "lifecycle_state_invalid", "Factory media detachment requires a stopped target"
+        )
+    before = cdrom_targets(
+        provider.text("dumpxml", "--inactive", configuration.expected_uuid)
+    )
+    expected = 2 if installer_only else 1
+    if len(before) != expected:
+        raise ProviderError(
+            "factory_media_shape_invalid",
+            "The factory removable-media shape is invalid",
+        )
+    selected = before[:1] if installer_only else before
+    for target in selected:
+        provider.command(
+            "detach-disk", configuration.expected_uuid, target, "--config"
+        )
+    after = cdrom_targets(
+        provider.text("dumpxml", "--inactive", configuration.expected_uuid)
+    )
+    if after != (before[1:] if installer_only else []):
+        raise ProviderError(
+            "factory_media_detach_unverified",
+            "Factory media detachment could not be verified",
+        )
+    if installer_only:
+        print("factory installer detached: seed_media_remaining=1")
+    else:
+        print("factory media detached: remaining=0")
+
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    windows = subparsers.add_parser("create-windows")
+    windows.add_argument("name")
+    windows.add_argument("windows_iso")
+    windows.add_argument("seed_iso")
+    linux = subparsers.add_parser("create-linux")
+    linux.add_argument("name")
+    linux.add_argument("cloud_image")
+    linux.add_argument("seed_iso")
+    subparsers.add_parser("detach-installer")
+    subparsers.add_parser("detach-media")
+    return parser.parse_args()
+
+
+def main() -> int:
+    try:
+        arguments = parse_arguments()
+        configuration = Configuration.from_environment()
+        provider = Libvirt(configuration)
+        if arguments.command == "create-windows":
+            create_windows(
+                configuration,
+                provider,
+                arguments.name,
+                arguments.windows_iso,
+                arguments.seed_iso,
+            )
+        elif arguments.command == "create-linux":
+            create_linux(
+                configuration,
+                provider,
+                arguments.name,
+                arguments.cloud_image,
+                arguments.seed_iso,
+            )
+        elif arguments.command == "detach-installer":
+            detach_media(configuration, provider, installer_only=True)
+        elif arguments.command == "detach-media":
+            detach_media(configuration, provider, installer_only=False)
+        return 0
+    except ProviderError as error:
+        print(f"{error.code}: {error.message}", file=sys.stderr)
+        return 1
+    except (OSError, subprocess.SubprocessError):
+        print("factory_failed: The provider factory failed", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

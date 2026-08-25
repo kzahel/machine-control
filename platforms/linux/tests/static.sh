@@ -34,6 +34,32 @@ help_output="$($REPO_DIR/bin/linuxvm help)"
 [[ "$help_output" == *'post-update audit|repair'* ]]
 [[ "$help_output" == *'appliance-certify'* ]]
 [[ "$help_output" == *'bootstrap [--profile'* ]]
+[[ "$help_output" == *'factory-create NAME CLOUD_IMAGE SEED_ISO'* ]]
+if [[ "$(uname -s)" == Linux ]] && command -v cloud-localds >/dev/null; then
+    cloud_fixture="$temporary/cloud-fixture.qcow2"
+    public_key_fixture="$temporary/controller.pub"
+    seed_extract="$temporary/seed-extract"
+    qemu-img create -q -f qcow2 "$cloud_fixture" 2G
+    printf 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureOnly linux@test\n' \
+        >"$public_key_fixture"
+    LINUXVM_FACTORY_LOCAL_ROOT="$temporary/factory" \
+        "$REPO_DIR/scripts/image-factory.sh" validate-cloud-image \
+        "$cloud_fixture" >/dev/null
+    LINUXVM_FACTORY_LOCAL_ROOT="$temporary/factory" \
+        "$REPO_DIR/scripts/image-factory.sh" render-seed \
+        fixture "$public_key_fixture" >/dev/null
+    mkdir "$seed_extract"
+    xorriso -osirrox on -indev "$temporary/factory/linuxvm-seed.iso" \
+        -extract / "$seed_extract" >/dev/null 2>&1
+    tail -n +2 "$seed_extract/user-data" | jq -e '
+        .ssh_pwauth == false and .users[0].name == "fixture" and
+        .users[0].lock_passwd == true and
+        (.users[0].sudo | contains("NOPASSWD")) and
+        (.packages | index("qemu-guest-agent")) != null and
+        ([.runcmd[][] | strings] | index("ubuntu-desktop")) != null' \
+        >/dev/null
+    ! rg -n 'password:' "$seed_extract/user-data"
+fi
 default_guard="$(env LINUXVM_CONFIG_FILE=/dev/null bash -c \
     'source "$1"; printf "%s|%s|%s|%s" "$LINUXVM_REQUIRE_MUTATION_GUARD" "$LINUXVM_TARGET_ROLE" "$LINUXVM_EXPECTED_NAME" "$LINUXVM_EXPECTED_UUID"' \
     _ "$REPO_DIR/scripts/common.sh")"

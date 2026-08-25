@@ -24,10 +24,12 @@ no-prompt loader from that same ISO. SECRET_FILE must be mode 0600, contain one
 non-empty line, and is never accepted as an argument or environment value.
 EDITION is currently windows-11-pro and selects Microsoft's public
 installation-only KMS client setup key; it does not activate Windows.
-GUEST_TOOLS_ISO must be UTM Windows Guest Tools media. Its drivers and
-installer are copied into the private seed so Windows Setup sees one
-authoritative Autounattend.xml. The output contains plaintext setup credentials
-and must be detached and securely discarded after bootstrap.
+GUEST_TOOLS_ISO must be UTM Windows Guest Tools media or Fedora's stable
+virtio-win media. Its drivers and installer are copied into the private seed
+so Windows Setup sees one authoritative Autounattend.xml. The output contains
+plaintext setup credentials and must be detached and securely discarded after
+bootstrap. Linux renders the data seed used by libvirt; macOS additionally
+renders UTM's firmware-shell boot image.
 EOF
 }
 
@@ -49,7 +51,11 @@ validate_media() {
         return 1
     fi
     local size
-    size="$(stat -f %z "$1" 2>/dev/null || stat -c %s "$1")"
+    if [[ "$(uname -s)" == Darwin ]]; then
+        size="$(stat -f %z "$1")"
+    else
+        size="$(stat -c %s "$1")"
+    fi
     if [[ "$size" -lt 1073741824 ]]; then
         printf 'Windows installation media is unexpectedly small.\n' >&2
         return 1
@@ -67,7 +73,7 @@ prepare_install_media() (
         printf 'Windows installation media is absent or unreadable.\n' >&2
         return 1
     fi
-    for command_name in hdiutil perl cp; do
+    for command_name in perl cp; do
         if ! command -v "$command_name" >/dev/null 2>&1; then
             printf 'Required command not found: %s\n' "$command_name" >&2
             return 1
@@ -75,6 +81,11 @@ prepare_install_media() (
     done
     mkdir -p "$FACTORY_ROOT"
     chmod 700 "$FACTORY_ROOT"
+    if ! command -v hdiutil >/dev/null 2>&1 &&
+            ! command -v xorriso >/dev/null 2>&1; then
+        printf 'hdiutil or xorriso is required to inspect installation media.\n' >&2
+        return 1
+    fi
     local source_iso output build mount source_device="" complete=0
     source_iso="$(cd "$(dirname "$1")" && pwd -P)/$(basename "$1")"
     output="$FACTORY_ROOT/windows-install-noprompt.iso"
@@ -95,20 +106,29 @@ prepare_install_media() (
         fi
     }
     trap cleanup_install_media EXIT
-    if ! cp -c "$source_iso" "$output" 2>/dev/null; then
-        cp "$source_iso" "$output"
+    if [[ "$(uname -s)" == Darwin ]]; then
+        if ! cp -c "$source_iso" "$output" 2>/dev/null; then
+            cp "$source_iso" "$output"
+        fi
+    else
+        cp --reflink=auto --sparse=always "$source_iso" "$output"
     fi
-    source_device="$(hdiutil attach -readonly -nobrowse \
-        -mountpoint "$mount" "$source_iso" | \
-        awk 'NF { device=$1 } END { print device }')"
-    if [[ -z "$source_device" ]]; then
-        printf 'Windows media did not expose an attached device.\n' >&2
-        return 1
+    if command -v hdiutil >/dev/null 2>&1; then
+        source_device="$(hdiutil attach -readonly -nobrowse \
+            -mountpoint "$mount" "$source_iso" | \
+            awk 'NF { device=$1 } END { print device }')"
+        if [[ -z "$source_device" ]]; then
+            printf 'Windows media did not expose an attached device.\n' >&2
+            return 1
+        fi
+    else
+        xorriso -osirrox on -indev "$source_iso" -extract / "$mount" \
+            >/dev/null 2>&1
     fi
     local prompted="$mount/efi/microsoft/boot/cdboot.efi"
     local no_prompt="$mount/efi/microsoft/boot/cdboot_noprompt.efi"
     if [[ ! -f "$prompted" || ! -f "$no_prompt" ]]; then
-        printf 'Windows media lacks the expected ARM64 CD boot loaders.\n' >&2
+        printf 'Windows media lacks the expected CD boot loaders.\n' >&2
         return 1
     fi
     perl - "$source_iso" "$output" "$prompted" "$no_prompt" <<'PERL'
@@ -174,8 +194,10 @@ read($output_fh, my $verified, length($no_prompt)) == length($no_prompt)
     or die "verify output loader read\n";
 $verified eq $no_prompt or die "output loader verification failed\n";
 PERL
-    hdiutil detach "$source_device" >/dev/null
-    source_device=""
+    if [[ -n "$source_device" ]]; then
+        hdiutil detach "$source_device" >/dev/null
+        source_device=""
+    fi
     chmod 600 "$output"
     complete=1
     printf 'private no-prompt installation media prepared\n'
@@ -211,7 +233,11 @@ render_seed() {
         return 1
     fi
     local mode
-    mode="$(stat -f %Lp "$secret_file" 2>/dev/null || stat -c %a "$secret_file")"
+    if [[ "$(uname -s)" == Darwin ]]; then
+        mode="$(stat -f %Lp "$secret_file")"
+    else
+        mode="$(stat -c %a "$secret_file")"
+    fi
     if [[ "$mode" != "600" ]]; then
         printf 'Secret file must have mode 0600.\n' >&2
         return 1
@@ -224,9 +250,15 @@ render_seed() {
         return 1
     fi
     local escaped_user escaped_password language="en-US"
-    local driver_architecture
+    local driver_architecture hardware_compatibility=""
     if [[ "$architecture" == "arm64" ]]; then
         driver_architecture="ARM64"
+        hardware_compatibility='<RunSynchronous>
+        <RunSynchronousCommand wcm:action="add"><Order>1</Order><Path>reg add HKLM\System\Setup\LabConfig /v BypassCPUCheck /t REG_DWORD /d 1 /f</Path></RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add"><Order>2</Order><Path>reg add HKLM\System\Setup\LabConfig /v BypassRAMCheck /t REG_DWORD /d 1 /f</Path></RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add"><Order>3</Order><Path>reg add HKLM\System\Setup\LabConfig /v BypassSecureBootCheck /t REG_DWORD /d 1 /f</Path></RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add"><Order>4</Order><Path>reg add HKLM\System\Setup\LabConfig /v BypassTPMCheck /t REG_DWORD /d 1 /f</Path></RunSynchronousCommand>
+      </RunSynchronous>'
     else
         driver_architecture="amd64"
     fi
@@ -255,21 +287,45 @@ render_seed() {
     }
     trap cleanup_seed_render RETURN
     mkdir -p "$tools_mount"
-    hdiutil attach -readonly -nobrowse -mountpoint "$tools_mount" \
-        "$guest_tools_iso" >/dev/null
-    tools_attached=1
-    local installers=("$tools_mount"/utm-guest-tools-*.exe)
-    if [[ ! -d "$tools_mount/Drivers" || ${#installers[@]} -ne 1 ||
-        ! -f "${installers[0]}" ]]; then
-        printf 'Guest-tools media lacks Drivers or one UTM installer.\n' >&2
+    if command -v hdiutil >/dev/null 2>&1; then
+        hdiutil attach -readonly -nobrowse -mountpoint "$tools_mount" \
+            "$guest_tools_iso" >/dev/null
+        tools_attached=1
+    elif command -v xorriso >/dev/null 2>&1; then
+        xorriso -osirrox on -indev "$guest_tools_iso" -extract / \
+            "$tools_mount" >/dev/null 2>&1
+    else
+        printf 'hdiutil or xorriso is required to inspect guest-tools media.\n' >&2
         return 1
     fi
-    cp -R "$tools_mount/Drivers" "$staging/Drivers"
+    local installers=("$tools_mount"/utm-guest-tools-*.exe)
+    if [[ -f "$tools_mount/virtio-win-guest-tools.exe" ]]; then
+        installers=("$tools_mount/virtio-win-guest-tools.exe")
+    fi
+    if [[ ${#installers[@]} -ne 1 || ! -f "${installers[0]}" ]]; then
+        printf 'Guest-tools media lacks one supported tools installer.\n' >&2
+        return 1
+    fi
+    if [[ -d "$tools_mount/Drivers" ]]; then
+        cp -R "$tools_mount/Drivers" "$staging/Drivers"
+    else
+        mkdir "$staging/Drivers"
+        local driver_directory
+        for driver_directory in Balloon NetKVM vioscsi vioserial viostor; do
+            if [[ ! -d "$tools_mount/$driver_directory" ]]; then
+                printf 'VirtIO media lacks a required Windows driver.\n' >&2
+                return 1
+            fi
+            cp -R "$tools_mount/$driver_directory" "$staging/Drivers/"
+        done
+    fi
     chmod -R u+w "$staging/Drivers"
     cp "${installers[0]}" "$staging/"
-    hdiutil detach "$tools_mount" >/dev/null
-    tools_attached=0
-    rmdir "$tools_mount"
+    if [[ "$tools_attached" == "1" ]]; then
+        hdiutil detach "$tools_mount" >/dev/null
+        tools_attached=0
+        rmdir "$tools_mount"
+    fi
     local content
     content="$(<"$TEMPLATE")"
     content="${content//__ARCHITECTURE__/$architecture}"
@@ -277,6 +333,7 @@ render_seed() {
     content="${content//__LANGUAGE__/$language}"
     content="${content//__IMAGE_INDEX__/$image_index}"
     content="${content//__INSTALLATION_KEY__/$installation_key}"
+    content="${content//__HARDWARE_COMPATIBILITY__/$hardware_compatibility}"
     content="${content//__USERNAME__/$escaped_user}"
     content="${content//__PASSWORD__/$escaped_password}"
     printf '%s\n' "$content" > "$staging/Autounattend.xml"
@@ -298,32 +355,40 @@ render_seed() {
     fi
     local seed_output="$FACTORY_ROOT/winvm-seed.iso"
     local boot_output="$FACTORY_ROOT/winvm-boot.img"
-    if [[ -e "$seed_output" || -e "$boot_output" ]]; then
+    if [[ -e "$seed_output" ||
+          "$(uname -s)" == Darwin && -e "$boot_output" ]]; then
         printf 'Factory seed media already exists; remove it explicitly.\n' >&2
         return 1
     fi
-    if ! command -v hdiutil >/dev/null 2>&1; then
-        printf 'hdiutil is required to build answer media.\n' >&2
+    if command -v hdiutil >/dev/null 2>&1; then
+        hdiutil makehybrid -quiet -iso -joliet \
+            -default-volume-name WINVM_SEED -o "$seed_output" "$staging"
+    elif command -v xorriso >/dev/null 2>&1; then
+        xorriso -as mkisofs -iso-level 3 -J -R -V WINVM_SEED \
+            -o "$seed_output" "$staging" >/dev/null 2>&1
+    else
+        printf 'hdiutil or xorriso is required to build answer media.\n' >&2
         return 1
     fi
-    hdiutil makehybrid -quiet -iso -joliet \
-        -default-volume-name WINVM_SEED -o "$seed_output" "$staging"
-    local media_image
-    media_build="$(mktemp -d "$FACTORY_ROOT/.seed-media.XXXXXX")"
-    media_mount="$media_build/mount"
-    mkdir "$media_mount"
-    hdiutil create -quiet -size 2m \
-        -fs 'MS-DOS FAT12' -layout NONE -type UDTO \
-        -volname WINVM_BOOT "$media_build/winvm-boot"
-    media_image="$media_build/winvm-boot.cdr"
-    hdiutil attach -nobrowse -mountpoint "$media_mount" \
-        "$media_image" >/dev/null
-    media_attached=1
-    cp "$staging/startup.nsh" "$media_mount/startup.nsh"
-    hdiutil detach "$media_mount" >/dev/null
-    media_attached=0
-    mv "$media_image" "$boot_output"
-    chmod 600 "$seed_output" "$boot_output"
+    chmod 600 "$seed_output"
+    if command -v hdiutil >/dev/null 2>&1; then
+        local media_image
+        media_build="$(mktemp -d "$FACTORY_ROOT/.seed-media.XXXXXX")"
+        media_mount="$media_build/mount"
+        mkdir "$media_mount"
+        hdiutil create -quiet -size 2m \
+            -fs 'MS-DOS FAT12' -layout NONE -type UDTO \
+            -volname WINVM_BOOT "$media_build/winvm-boot"
+        media_image="$media_build/winvm-boot.cdr"
+        hdiutil attach -nobrowse -mountpoint "$media_mount" \
+            "$media_image" >/dev/null
+        media_attached=1
+        cp "$staging/startup.nsh" "$media_mount/startup.nsh"
+        hdiutil detach "$media_mount" >/dev/null
+        media_attached=0
+        mv "$media_image" "$boot_output"
+        chmod 600 "$boot_output"
+    fi
     printf 'seed media rendered in ignored factory storage\n'
 }
 

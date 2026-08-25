@@ -59,7 +59,7 @@ Image lifecycle:
   workspace-release | workspace-gc
 
 Image factory:
-  factory-create NAME WINDOWS_ISO SEED_ISO BOOT_IMAGE
+  factory-create NAME WINDOWS_ISO SEED_ISO [BOOT_IMAGE]
                          Create a stopped QEMU VM from explicit local media
   factory-detach-installer
                          Remove only the installer from a stopped candidate
@@ -132,7 +132,7 @@ command="${1:-help}"
 shift || true
 
 case "$command" in
-    help|-h|--help|host-doctor|doctor|status|capabilities|target-id|pin-target|claim-*|ui|workspace-capabilities|workspace-inventory|workspace-gc) ;;
+    help|-h|--help|host-doctor|doctor|status|capabilities|target-id|pin-target|factory-create|claim-*|ui|workspace-capabilities|workspace-inventory|workspace-gc) ;;
     workspace-acquire|workspace-release) ;;
     *) require_target_claim ;;
 esac

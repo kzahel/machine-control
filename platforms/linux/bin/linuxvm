@@ -49,6 +49,10 @@ Bootstrap:
   bootstrap [--profile development|runtime]
                                  Install package profile and resident stack
   bootstrap-command              Print the initial visible-terminal command
+  factory-create NAME CLOUD_IMAGE SEED_ISO
+                                 Create a stopped native x86_64 KVM appliance
+  factory-detach-media           Remove the stopped candidate's NoCloud seed
+  target-id                      Resolve the configured domain's exact UUID
 EOF
 }
 
@@ -196,7 +200,7 @@ command="${1:-help}"
 if (( $# > 0 )); then shift; fi
 
 case "$command" in
-    help|-h|--help|host-doctor|doctor|status|claim-*|workspace-capabilities|workspace-inventory|workspace-gc) ;;
+    help|-h|--help|host-doctor|doctor|status|target-id|factory-create|claim-*|workspace-capabilities|workspace-inventory|workspace-gc) ;;
     workspace-acquire|workspace-release) ;;
     *) require_target_claim ;;
 esac
@@ -241,7 +245,7 @@ case "$command" in
         exec "$LINUXVM_REPO_DIR/providers/$LINUXVM_PROVIDER/workspace.sh" \
             "$command" "$@"
         ;;
-    status|guard-status|host-state|up|ip|shell|push|pull|screenshot|click|drag|type|key|scan|permissions|window-info|suspend|reboot|shutdown|force-stop|clone|disposable)
+    status|target-id|guard-status|host-state|up|ip|shell|push|pull|screenshot|click|drag|type|key|scan|permissions|window-info|suspend|reboot|shutdown|force-stop|factory-create|factory-detach-media|clone|disposable)
         exec "$PROVIDER" "$command" "$@"
         ;;
     *) printf 'Unknown command: %s\n' "$command" >&2; usage >&2; exit 2 ;;

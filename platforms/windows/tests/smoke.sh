@@ -71,7 +71,7 @@ help_output="$(WINVM_UTM_NAME='Smoke Test VM' "$REPO_DIR/bin/winvm" help)"
 [[ "$help_output" == *'seal'* ]]
 [[ "$help_output" == *'disposable-up'* ]]
 [[ "$help_output" == *'delete --confirm NAME'* ]]
-[[ "$help_output" == *'factory-create NAME WINDOWS_ISO SEED_ISO BOOT_IMAGE'* ]]
+[[ "$help_output" == *'factory-create NAME WINDOWS_ISO SEED_ISO [BOOT_IMAGE]'* ]]
 [[ "$help_output" == *'factory-detach-installer'* ]]
 [[ "$help_output" == *'factory-detach-media'* ]]
 [[ "$help_output" == *'generalize [--check|--decrypt|--confirm-target]'* ]]

@@ -12,18 +12,23 @@ if (-not (Test-Path -LiteralPath $bootstrap) -or
 }
 
 $guestTools = @(Get-ChildItem -LiteralPath $seedRoot -File |
-    Where-Object Name -Like 'utm-guest-tools-*.exe')
+    Where-Object Name -Match '^(utm-guest-tools-.*|virtio-win-guest-tools)\.exe$')
 if ($guestTools.Count -ne 1) {
-    throw 'WINVM_SEED must contain exactly one UTM guest-tools installer'
+    throw 'WINVM_SEED must contain exactly one supported guest-tools installer'
+}
+$guestToolsArguments = if ($guestTools[0].Name -eq 'virtio-win-guest-tools.exe') {
+    @('/install', '/quiet', '/norestart')
+} else {
+    @('/S')
 }
 $guestToolsProcess = Start-Process -FilePath $guestTools[0].FullName `
-    -ArgumentList '/S' -Wait -PassThru
+    -ArgumentList $guestToolsArguments -Wait -PassThru
 if ($guestToolsProcess.ExitCode -notin @(0, 3010)) {
     throw "UTM guest-tools installer exited with $($guestToolsProcess.ExitCode)"
 }
 $guestAgent = Get-Service -Name qemu-ga -ErrorAction SilentlyContinue
 if (-not $guestAgent) {
-    throw 'UTM guest tools did not install the QEMU guest agent service'
+    throw 'Guest tools did not install the QEMU guest agent service'
 }
 Set-Service -Name qemu-ga -StartupType Automatic
 if ($guestAgent.Status -ne 'Running') {
