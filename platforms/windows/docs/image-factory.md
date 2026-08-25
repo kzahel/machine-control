@@ -135,6 +135,13 @@ bin/winvm pin-target candidate PRIVATE_NAME
 bin/winvm up
 ```
 
+On a Linux controller, the libvirt factory stages private installer and seed
+copies as owned volumes in the exact dedicated pool before defining the
+domain. QEMU therefore does not need access to the source download or
+checkout. The stopped-candidate detach commands verify the expected pool
+paths and names, update the domain configuration, and delete the staged
+installer and seed volumes after use.
+
 The Linux-hosted native x86_64 route does not need the UTM firmware-shell
 image:
 

@@ -78,6 +78,13 @@ class FactoryPolicyTests(unittest.TestCase):
         </devices></domain>
         """
         self.assertEqual(MODULE.cdrom_targets(xml), ["sda", "sdb"])
+        self.assertEqual(
+            MODULE.cdrom_media(xml),
+            [
+                ("sda", "/private/installer.iso"),
+                ("sdb", "/private/seed.iso"),
+            ],
+        )
 
     def test_cdrom_without_source_is_refused(self):
         xml = """

@@ -233,7 +233,9 @@ existing destination. The configured pool path must resolve exactly to
 libvirt's pool target and be writable by the controller account. The factory
 converts into that local pool directly, atomically publishes the destination,
 refreshes libvirt, and verifies the registered path and QCOW2 geometry. It
-does not depend on a long-running libvirt volume-upload stream.
+does not depend on a long-running libvirt volume-upload stream. The NoCloud
+seed is likewise staged as an owned pool volume so QEMU never needs access to
+the source checkout. Verified media detachment also deletes that staged copy.
 
 Render the ignored NoCloud seed from a controller public key:
 

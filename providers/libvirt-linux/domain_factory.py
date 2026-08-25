@@ -164,10 +164,60 @@ def common_domain_arguments(
 
 
 def cleanup_failed_creation(
-    provider: Libvirt, name: str, pool: str, volume: str
+    provider: Libvirt, name: str, pool: str, volumes: list[str]
 ) -> None:
     provider.command("undefine", name, "--nvram", "--tpm", check=False)
-    delete_volume(provider, pool, volume)
+    for volume in volumes:
+        delete_volume(provider, pool, volume)
+
+
+def stage_pool_file(
+    configuration: Configuration,
+    provider: Libvirt,
+    volume: str,
+    source: str,
+) -> str:
+    pool_path = require_local_pool_path(provider, configuration.pool)
+    destination = pool_path / volume
+    if destination.exists() or destination.is_symlink():
+        raise ProviderError(
+            "factory_destination_exists", "The factory storage already exists"
+        )
+    descriptor, temporary_path = tempfile.mkstemp(
+        prefix=f".{volume}.", suffix=".stage", dir=pool_path
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_path)
+    temporary.unlink()
+    linked_destination = False
+    try:
+        run(
+            ["cp", "--reflink=auto", "--sparse=always", source, str(temporary)],
+            timeout=600,
+        )
+        os.chmod(temporary, 0o600)
+        os.link(temporary, destination)
+        linked_destination = True
+        temporary.unlink()
+        provider.command("pool-refresh", configuration.pool)
+        registered = Path(
+            provider.text(
+                "vol-path", "--pool", configuration.pool, volume
+            )
+        ).resolve(strict=True)
+        if registered != destination.resolve(strict=True):
+            raise ProviderError(
+                "factory_volume_identity_mismatch",
+                "The staged media does not match the exact pool path",
+            )
+        return str(registered)
+    except Exception:
+        if linked_destination:
+            destination.unlink(missing_ok=True)
+            provider.command("pool-refresh", configuration.pool, check=False)
+        raise
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def create_windows(
@@ -183,9 +233,22 @@ def create_windows(
     require_factory_host(configuration)
     absent_domain(provider, name)
     volume = f"{name}.qcow2"
+    installer_volume = f"{name}.installer.iso"
+    seed_volume = f"{name}.seed.iso"
     absent_volume(provider, configuration.pool, volume)
+    absent_volume(provider, configuration.pool, installer_volume)
+    absent_volume(provider, configuration.pool, seed_volume)
     create_volume(provider, configuration.pool, volume, "128G")
+    owned_volumes = [volume]
     try:
+        staged_installer = stage_pool_file(
+            configuration, provider, installer_volume, windows_iso
+        )
+        owned_volumes.append(installer_volume)
+        staged_seed = stage_pool_file(
+            configuration, provider, seed_volume, seed_iso
+        )
+        owned_volumes.append(seed_volume)
         arguments = common_domain_arguments(
             configuration,
             volume,
@@ -203,14 +266,16 @@ def create_windows(
                 "--tpm",
                 "backend.type=emulator,backend.version=2.0,model=tpm-crb",
                 "--disk",
-                f"path={windows_iso},device=cdrom,bus=sata,readonly=on",
+                f"path={staged_installer},device=cdrom,bus=sata,readonly=on",
                 "--disk",
-                f"path={seed_iso},device=cdrom,bus=sata,readonly=on",
+                f"path={staged_seed},device=cdrom,bus=sata,readonly=on",
             ]
         )
         define_domain(configuration, provider, arguments, name=name)
     except Exception:
-        cleanup_failed_creation(provider, name, configuration.pool, volume)
+        cleanup_failed_creation(
+            provider, name, configuration.pool, owned_volumes
+        )
         raise
     print("factory target created")
 
@@ -364,11 +429,19 @@ def create_linux(
     require_factory_host(configuration)
     absent_domain(provider, name)
     volume = f"{name}.qcow2"
+    seed_volume = f"{name}.seed.iso"
     absent_volume(provider, configuration.pool, volume)
+    absent_volume(provider, configuration.pool, seed_volume)
+    owned_volumes: list[str] = []
     try:
         import_cloud_volume(
             configuration, provider, volume, cloud_image
         )
+        owned_volumes.append(volume)
+        staged_seed = stage_pool_file(
+            configuration, provider, seed_volume, seed_iso
+        )
+        owned_volumes.append(seed_volume)
         arguments = common_domain_arguments(
             configuration,
             volume,
@@ -382,24 +455,26 @@ def create_linux(
                 "uefi",
                 "--import",
                 "--disk",
-                f"path={seed_iso},device=cdrom,bus=sata,readonly=on",
+                f"path={staged_seed},device=cdrom,bus=sata,readonly=on",
             ]
         )
         define_domain(configuration, provider, arguments, name=name)
     except Exception:
-        cleanup_failed_creation(provider, name, configuration.pool, volume)
+        cleanup_failed_creation(
+            provider, name, configuration.pool, owned_volumes
+        )
         raise
     print("factory target created")
 
 
-def cdrom_targets(xml_text: str) -> list[str]:
+def cdrom_media(xml_text: str) -> list[tuple[str, str]]:
     try:
         root = ET.fromstring(xml_text)
     except ET.ParseError as error:
         raise ProviderError(
             "domain_xml_invalid", "The provider returned invalid domain XML"
         ) from error
-    targets: list[str] = []
+    media: list[tuple[str, str]] = []
     for disk in root.findall("./devices/disk[@device='cdrom']"):
         source = disk.find("source")
         target = disk.find("target")
@@ -414,8 +489,12 @@ def cdrom_targets(xml_text: str) -> list[str]:
                 "factory_media_shape_invalid",
                 "The factory removable-media target is invalid",
             )
-        targets.append(device)
-    return sorted(targets)
+        media.append((device, source.get("file") or ""))
+    return sorted(media)
+
+
+def cdrom_targets(xml_text: str) -> list[str]:
+    return [target for target, _source in cdrom_media(xml_text)]
 
 
 def detach_media(
@@ -430,7 +509,7 @@ def detach_media(
         raise ProviderError(
             "lifecycle_state_invalid", "Factory media detachment requires a stopped target"
         )
-    before = cdrom_targets(
+    before = cdrom_media(
         provider.text("dumpxml", "--inactive", configuration.expected_uuid)
     )
     expected = 2 if installer_only else 1
@@ -439,19 +518,53 @@ def detach_media(
             "factory_media_shape_invalid",
             "The factory removable-media shape is invalid",
         )
-    selected = before[:1] if installer_only else before
-    for target in selected:
+    seed_volume = f"{configuration.domain_name}.seed.iso"
+    installer_volume = f"{configuration.domain_name}.installer.iso"
+    expected_volumes = (
+        {installer_volume, seed_volume} if installer_only else {seed_volume}
+    )
+    actual_volumes = {Path(source).name for _target, source in before}
+    if actual_volumes != expected_volumes:
+        raise ProviderError(
+            "factory_media_shape_invalid",
+            "The factory removable-media names are invalid",
+        )
+    selected = (
+        [item for item in before if Path(item[1]).name == installer_volume]
+        if installer_only
+        else before
+    )
+    pool_path = require_local_pool_path(provider, configuration.pool)
+    for _target, source in selected:
+        expected_path = pool_path / Path(source).name
+        if Path(source).resolve(strict=True) != expected_path.resolve(strict=True):
+            raise ProviderError(
+                "factory_media_shape_invalid",
+                "Factory media is outside the exact dedicated pool",
+            )
+    for target, _source in selected:
         provider.command(
             "detach-disk", configuration.expected_uuid, target, "--config"
         )
-    after = cdrom_targets(
+    after = cdrom_media(
         provider.text("dumpxml", "--inactive", configuration.expected_uuid)
     )
-    if after != (before[1:] if installer_only else []):
+    remaining = [item for item in before if item not in selected]
+    if after != remaining:
         raise ProviderError(
             "factory_media_detach_unverified",
             "Factory media detachment could not be verified",
         )
+    for _target, source in selected:
+        volume = Path(source).name
+        delete_volume(provider, configuration.pool, volume)
+        if Path(source).exists() or provider.command(
+            "vol-info", "--pool", configuration.pool, volume, check=False
+        ).returncode == 0:
+            raise ProviderError(
+                "factory_media_cleanup_unverified",
+                "Detached factory media cleanup could not be verified",
+            )
     if installer_only:
         print("factory installer detached: seed_media_remaining=1")
     else:
