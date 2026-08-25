@@ -1,7 +1,10 @@
 import importlib.util
+import os
 from pathlib import Path
 import sys
+import tempfile
 import unittest
+from unittest import mock
 
 
 PROVIDER_SOURCE = Path(__file__).resolve().parents[1] / "libvirt_provider.py"
@@ -84,6 +87,47 @@ class FactoryPolicyTests(unittest.TestCase):
         """
         with self.assertRaisesRegex(PROVIDER.ProviderError, "shape"):
             MODULE.cdrom_targets(xml)
+
+    def test_local_pool_path_requires_exact_writable_directory(self):
+        class Provider:
+            def __init__(self, path):
+                self.path = path
+
+            def text(self, *arguments):
+                self.arguments = arguments
+                return f"<pool><target><path>{self.path}</path></target></pool>"
+
+        with tempfile.TemporaryDirectory() as directory:
+            provider = Provider(directory)
+            with mock.patch.dict(
+                os.environ, {"MC_LIBVIRT_POOL_PATH": directory}, clear=False
+            ):
+                self.assertEqual(
+                    MODULE.require_local_pool_path(provider, "fixture-pool"),
+                    Path(directory),
+                )
+            self.assertEqual(provider.arguments, ("pool-dumpxml", "fixture-pool"))
+
+    def test_local_pool_path_refuses_inventory_mismatch(self):
+        class Provider:
+            def text(self, *arguments):
+                return "<pool><target><path>/different</path></target></pool>"
+
+        with tempfile.TemporaryDirectory() as directory, \
+             tempfile.TemporaryDirectory() as different:
+            provider = Provider()
+            provider.text = mock.Mock(
+                return_value=(
+                    f"<pool><target><path>{different}</path></target></pool>"
+                )
+            )
+            with mock.patch.dict(
+                os.environ, {"MC_LIBVIRT_POOL_PATH": directory}, clear=False
+            ):
+                with self.assertRaisesRegex(
+                    PROVIDER.ProviderError, "exact libvirt pool"
+                ):
+                    MODULE.require_local_pool_path(provider, "fixture-pool")
 
 
 if __name__ == "__main__":

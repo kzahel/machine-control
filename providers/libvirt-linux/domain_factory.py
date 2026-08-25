@@ -238,45 +238,114 @@ def validate_cloud_image(configuration: Configuration, image: str) -> None:
         )
 
 
-def upload_cloud_volume(
+def require_local_pool_path(provider: Libvirt, pool: str) -> Path:
+    configured = os.environ.get("MC_LIBVIRT_POOL_PATH", "")
+    if not configured or not Path(configured).is_absolute():
+        raise ProviderError(
+            "factory_pool_path_unconfigured",
+            "The local factory pool path is not configured",
+        )
+    try:
+        root = ET.fromstring(provider.text("pool-dumpxml", pool))
+    except ET.ParseError as error:
+        raise ProviderError(
+            "factory_pool_shape_invalid", "The factory pool XML is invalid"
+        ) from error
+    declared = root.findtext("./target/path") or ""
+    try:
+        configured_path = Path(configured).resolve(strict=True)
+        declared_path = Path(declared).resolve(strict=True)
+    except OSError as error:
+        raise ProviderError(
+            "factory_pool_unavailable", "The local factory pool is unavailable"
+        ) from error
+    if configured_path != declared_path:
+        raise ProviderError(
+            "factory_pool_identity_mismatch",
+            "The configured path does not match the exact libvirt pool",
+        )
+    if not configured_path.is_dir() or not os.access(
+        configured_path, os.W_OK | os.X_OK
+    ):
+        raise ProviderError(
+            "factory_pool_unwritable",
+            "The dedicated local factory pool is not controller-writable",
+        )
+    return configured_path
+
+
+def import_cloud_volume(
     configuration: Configuration,
     provider: Libvirt,
     volume: str,
     cloud_image: str,
 ) -> None:
-    factory_root = Path(
-        os.environ.get("MC_LIBVIRT_FACTORY_ROOT", ".factory.local")
-    ).resolve()
-    factory_root.mkdir(mode=0o700, parents=True, exist_ok=True)
-    os.chmod(factory_root, 0o700)
+    pool_path = require_local_pool_path(provider, configuration.pool)
+    destination = pool_path / volume
+    if destination.exists() or destination.is_symlink():
+        raise ProviderError(
+            "factory_destination_exists", "The factory storage already exists"
+        )
     descriptor, temporary_path = tempfile.mkstemp(
-        prefix=".cloud-image.", suffix=".qcow2", dir=factory_root
+        prefix=f".{volume}.", suffix=".import", dir=pool_path
     )
     os.close(descriptor)
     temporary = Path(temporary_path)
+    temporary.unlink()
+    linked_destination = False
     try:
-        run(["cp", "--reflink=auto", "--sparse=always", cloud_image, str(temporary)])
-        os.chmod(temporary, 0o600)
-        run(["qemu-img", "resize", str(temporary), "128G"])
-        create_volume(
-            provider,
-            configuration.pool,
-            volume,
-            str(temporary.stat().st_size),
-        )
-        provider.command(
-            "vol-upload",
-            "--pool",
-            configuration.pool,
-            "--sparse",
-            volume,
-            str(temporary),
+        run(
+            [
+                "qemu-img",
+                "convert",
+                "-O",
+                "qcow2",
+                "-S",
+                "4096",
+                cloud_image,
+                str(temporary),
+            ],
             timeout=600,
         )
+        run(["qemu-img", "resize", str(temporary), "128G"])
+        os.chmod(temporary, 0o600)
+        os.link(temporary, destination)
+        linked_destination = True
+        temporary.unlink()
         provider.command("pool-refresh", configuration.pool)
-        provider.command(
-            "vol-resize", "--pool", configuration.pool, volume, "128G"
-        )
+        registered = Path(
+            provider.text(
+                "vol-path", "--pool", configuration.pool, volume
+            )
+        ).resolve(strict=True)
+        if registered != destination.resolve(strict=True):
+            raise ProviderError(
+                "factory_volume_identity_mismatch",
+                "The imported volume does not match the exact pool path",
+            )
+        try:
+            metadata = json.loads(
+                run(
+                    ["qemu-img", "info", "--output", "json", str(registered)]
+                ).stdout
+            )
+        except json.JSONDecodeError as error:
+            raise ProviderError(
+                "factory_volume_invalid",
+                "The imported cloud volume metadata is invalid",
+            ) from error
+        if metadata.get("format") != "qcow2" or metadata.get(
+            "virtual-size"
+        ) != 128 * 1024**3:
+            raise ProviderError(
+                "factory_volume_invalid",
+                "The imported cloud volume failed exact validation",
+            )
+    except Exception:
+        if linked_destination:
+            destination.unlink(missing_ok=True)
+            provider.command("pool-refresh", configuration.pool, check=False)
+        raise
     finally:
         temporary.unlink(missing_ok=True)
 
@@ -297,7 +366,7 @@ def create_linux(
     volume = f"{name}.qcow2"
     absent_volume(provider, configuration.pool, volume)
     try:
-        upload_cloud_volume(
+        import_cloud_volume(
             configuration, provider, volume, cloud_image
         )
         arguments = common_domain_arguments(

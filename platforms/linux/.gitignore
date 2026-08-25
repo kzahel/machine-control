@@ -1,4 +1,5 @@
 .artifacts/
+.factory.local/
 config.local
 *.pyc
 __pycache__/

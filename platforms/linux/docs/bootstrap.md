@@ -229,7 +229,11 @@ x86_64 appliance from an explicit official Ubuntu 24.04 amd64 QCOW2 cloud
 image. The host-side factory validates QCOW2 input, copies and expands it to a
 128-GiB volume in the configured dedicated libvirt pool, defines a Q35 UEFI
 KVM domain with CPU host passthrough and VirtIO devices, and refuses any
-existing destination.
+existing destination. The configured pool path must resolve exactly to
+libvirt's pool target and be writable by the controller account. The factory
+converts into that local pool directly, atomically publishes the destination,
+refreshes libvirt, and verifies the registered path and QCOW2 geometry. It
+does not depend on a long-running libvirt volume-upload stream.
 
 Render the ignored NoCloud seed from a controller public key:
 
