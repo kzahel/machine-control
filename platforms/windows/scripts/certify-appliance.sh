@@ -9,22 +9,12 @@ readonly WINVM="${WINVM_CERTIFY_WINVM:-$WINVM_REPO_DIR/bin/winvm}"
 readonly ROOT_DIR="$(cd "$WINVM_REPO_DIR/../.." && pwd)"
 
 certification_ready() {
-    jq -e '
-        .healthy == true and .post_update.healthy == true and
-        (
-            .doctor.ready == true or
-            (
-                .doctor.ready == false and
-                .doctor.states.administration == "ready" and
-                .doctor.states.desktop == "locked" and
-                .doctor.states.resident == "ready" and
-                .doctor.states.semantic == "ready" and
-                .doctor.states.capture == "ready" and
-                .doctor.states.input == "ready" and
-                .doctor.states.outer == "prohibited"
-            )
-        )
-    '
+    local value doctor
+    value="$(cat)"
+    jq -e '.healthy == true and .post_update.healthy == true and
+        (.doctor | type) == "object"' <<<"$value" >/dev/null || return
+    doctor="$(jq -c '.doctor' <<<"$value")"
+    winvm_doctor_appliance_ready <<<"$doctor"
 }
 
 usage() {

@@ -188,6 +188,25 @@ winvm_ssh_host_key_alias() {
     printf '%s\n' "${WINVM_SSH_HOST##*@}"
 }
 
+winvm_doctor_appliance_ready() {
+    jq -e '
+        .schema == "machine-control-doctor/v0" and
+        (
+            .ready == true or
+            (
+                .ready == false and
+                .states.administration == "ready" and
+                .states.desktop == "locked" and
+                .states.resident == "ready" and
+                .states.semantic == "ready" and
+                .states.capture == "ready" and
+                .states.input == "ready" and
+                .states.outer == "prohibited"
+            )
+        )
+    '
+}
+
 winvm_run_bounded() {
     local timeout="$1"
     shift

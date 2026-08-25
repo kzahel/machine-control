@@ -77,8 +77,9 @@ if [[ ${#nonce} -ne 24 ]]; then
 fi
 
 ssh_available() {
-    "$WINVM_SSH_BIN" -o BatchMode=yes -o ConnectTimeout=10 \
-        "$WINVM_SSH_HOST" exit >/dev/null 2>&1
+    winvm_run_bounded 15 \
+        "$WINVM_SSH_BIN" -o BatchMode=yes -o ConnectTimeout=10 \
+            "$WINVM_SSH_HOST" exit >/dev/null 2>&1
 }
 
 validate_guest_report() {
@@ -98,10 +99,11 @@ run_guest_over_ssh() {
         *) return 2 ;;
     esac
     set +e
-    output="$($WINVM_SSH_BIN -o BatchMode=yes -o ConnectTimeout=15 \
-        "$WINVM_SSH_HOST" \
-        "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"$GUEST_SCRIPT\" -Mode '$mode' -Profile '$profile_title' -Nonce '$nonce'" \
-        2>/dev/null)"
+    output="$(winvm_run_bounded "$WINVM_POST_UPDATE_REPORT_TIMEOUT" \
+        "$WINVM_SSH_BIN" -o BatchMode=yes -o ConnectTimeout=15 \
+            "$WINVM_SSH_HOST" \
+            "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"$GUEST_SCRIPT\" -Mode '$mode' -Profile '$profile_title' -Nonce '$nonce'" \
+            2>/dev/null)"
     status=$?
     set -e
     output="$(printf '%s\n' "$output" | tr -d '\r' | tail -n 1)"
@@ -134,11 +136,11 @@ wait_for_ssh() {
     return 1
 }
 
-wait_for_ready_doctor() {
+wait_for_appliance_doctor() {
     local deadline=$((SECONDS + WINVM_BOOT_TIMEOUT)) output=""
     while (( SECONDS < deadline )); do
         output="$(run_doctor || true)"
-        if jq -e '.ready == true' <<<"$output" >/dev/null 2>&1; then
+        if winvm_doctor_appliance_ready <<<"$output" >/dev/null 2>&1; then
             printf '%s\n' "$output"
             return 0
         fi
@@ -155,10 +157,11 @@ Remove-Item -LiteralPath 'C:\Users\Public\winvm-post-update-$nonce.ps1' -Force -
 Remove-Item -LiteralPath 'C:\ProgramData\MachineControl\reports\post-update-$nonce.json' -Force -ErrorAction SilentlyContinue
 POWERSHELL
     encoded="$(printf '%s' "$cleanup_script" | winvm_encode_powershell)"
-    "$WINVM_SSH_BIN" -o BatchMode=yes -o ConnectTimeout=10 \
-        "$WINVM_SSH_HOST" \
-        "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand $encoded" \
-        >/dev/null 2>&1 || true
+    winvm_run_bounded 15 \
+        "$WINVM_SSH_BIN" -o BatchMode=yes -o ConnectTimeout=10 \
+            "$WINVM_SSH_HOST" \
+            "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand $encoded" \
+            >/dev/null 2>&1 || true
 }
 
 if [[ "$operation" == repair ]]; then
@@ -235,9 +238,9 @@ if [[ "$reboot" == true ]]; then
     fi
 fi
 
-doctor="$(wait_for_ready_doctor || true)"
+doctor="$(wait_for_appliance_doctor || true)"
 doctor_ready=false
-if jq -e '.ready == true' <<<"$doctor" >/dev/null 2>&1; then
+if winvm_doctor_appliance_ready <<<"$doctor" >/dev/null 2>&1; then
     doctor_ready=true
 elif ! jq -e '.schema == "machine-control-doctor/v0"' \
         <<<"$doctor" >/dev/null 2>&1; then

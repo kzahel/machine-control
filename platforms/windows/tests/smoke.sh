@@ -26,6 +26,8 @@ grep -Fq "'machine-control-windows-post-update/v0'" \
     "$REPO_DIR/guests/windows/post-update.ps1"
 grep -Fq "'openssh_automation_shell'" \
     "$REPO_DIR/guests/windows/post-update.ps1"
+grep -Fq "'ready_protected_winlogon'" \
+    "$REPO_DIR/guests/windows/post-update.ps1"
 grep -Fq "'Python.Python.3.13'" \
     "$REPO_DIR/guests/windows/bootstrap-development.ps1"
 grep -Fq "'*\Microsoft\WindowsApps\*'" \
@@ -35,6 +37,10 @@ grep -Fq '$wingetOutput = @(& $winget.Source install' \
 grep -Fq "'Microsoft.DotNet.SDK.8'" \
     "$REPO_DIR/guests/windows/bootstrap-development.ps1"
 grep -Fq 'post-update.ps1' "$REPO_DIR/../../scripts/publish-windows.sh"
+grep -Fq 'winvm_run_bounded "$WINVM_POST_UPDATE_REPORT_TIMEOUT"' \
+    "$REPO_DIR/scripts/post-update.sh"
+grep -Fq 'winvm_doctor_appliance_ready' \
+    "$REPO_DIR/scripts/post-update.sh"
 grep -Fq 'Microsoft.NET.Sdk.WindowsDesktop.targets' \
     "$REPO_DIR/../../scripts/publish-windows.sh"
 temporary="$(mktemp -d /tmp/winvm-smoke.XXXXXX)"
@@ -127,6 +133,24 @@ selection="$({ env \
     bash -c 'source "$1"; printf "%s|%s|%s\n" "$WINVM_UTM_NAME" "$WINVM_EXPECTED_UTM_ID" "$WINVM_TARGET_ROLE"' \
         _ "$REPO_DIR/scripts/common.sh"; } 2>/dev/null)"
 [[ "$selection" == 'fixture-workspace|fixture-workspace-id|seal' ]]
+
+locked_doctor='{"schema":"machine-control-doctor/v0","ready":false,
+    "states":{"administration":"ready","desktop":"locked",
+    "resident":"ready","semantic":"ready","capture":"ready",
+    "input":"ready","outer":"prohibited"}}'
+env WINVM_CONFIG_FILE=/dev/null \
+    WINVM_TARGET_FILE="$temporary/absent-appliance-target" \
+    bash -c 'source "$1"; winvm_doctor_appliance_ready' \
+        _ "$REPO_DIR/scripts/common.sh" <<<"$locked_doctor" >/dev/null
+if env WINVM_CONFIG_FILE=/dev/null \
+        WINVM_TARGET_FILE="$temporary/absent-appliance-target" \
+        bash -c 'source "$1"; winvm_doctor_appliance_ready' \
+            _ "$REPO_DIR/scripts/common.sh" \
+            <<<"${locked_doctor/\"capture\":\"ready\"/\"capture\":\"unavailable\"}" \
+            >/dev/null 2>&1; then
+    printf 'Partial locked doctor unexpectedly passed appliance readiness.\n' >&2
+    exit 1
+fi
 
 # The remaining provider tests use injected UTM and AppleScript fixtures. Make
 # the production host guard observe their modeled platform on non-macOS hosts.

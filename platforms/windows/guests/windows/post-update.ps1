@@ -310,18 +310,39 @@ function Set-SshFirewall {
         -Action Allow -LocalPort 22 | Out-Null
 }
 
-function Test-ResidentProbe {
-    if (-not (Test-Path -LiteralPath $runtimeExecutable)) { return $false }
+function Get-ResidentProbe {
+    if (-not (Test-Path -LiteralPath $runtimeExecutable)) {
+        return [pscustomobject]@{ Healthy = $false; State = 'unavailable' }
+    }
     try {
         $text = '{"operation":"status"}' | & $runtimeExecutable call `
             2>$null | Out-String
         $status = $text | ConvertFrom-Json
-        return $status.accepted -eq $true -and
+        $mediumReady = $status.accepted -eq $true -and
             $status.desktop -eq 'Default' -and
             $status.data.isLocalSystem -eq $false -and
             [int]$status.data.integrityRid -eq 8192
+        $protectedReady = $status.accepted -eq $true -and
+            $status.desktop -eq 'Winlogon' -and
+            $status.sessionLocked -eq $true -and
+            $status.actualRoute -like 'windows.protected_session/*' -and
+            $status.data.isLocalSystem -eq $true -and
+            [int]$status.data.integrityRid -eq 16384
+        if ($mediumReady) {
+            return [pscustomobject]@{
+                Healthy = $true
+                State = 'ready_medium_default'
+            }
+        }
+        if ($protectedReady) {
+            return [pscustomobject]@{
+                Healthy = $true
+                State = 'ready_protected_winlogon'
+            }
+        }
     }
-    catch { return $false }
+    catch { }
+    return [pscustomobject]@{ Healthy = $false; State = 'unavailable' }
 }
 
 function Test-Python3 {
@@ -422,9 +443,9 @@ function Get-Audit {
     $runtime = Get-ServiceObservation -Name 'MachineControlRuntime' `
         -RequiredIdentity 'LocalSystem'
     Add-AuditCheck 'resident_service' $true $runtime.Healthy $runtime.State
-    $residentProbe = Test-ResidentProbe
-    Add-AuditCheck 'resident_interactive_probe' $true $residentProbe `
-        $(if ($residentProbe) { 'ready' } else { 'unavailable' })
+    $residentProbe = Get-ResidentProbe
+    Add-AuditCheck 'resident_control_probe' $true $residentProbe.Healthy `
+        $residentProbe.State
 
     $relay = Get-ScheduledTask -TaskName $RelayTaskName `
         -ErrorAction SilentlyContinue
@@ -543,7 +564,7 @@ if ($Mode -eq 'Repair') {
         if ((Get-Service -Name MachineControlRuntime).Status -ne 'Running') {
             Start-Service -Name MachineControlRuntime
         }
-        elseif (-not (Test-ResidentProbe)) {
+        elseif (-not (Get-ResidentProbe).Healthy) {
             Restart-Service -Name MachineControlRuntime -Force
         }
     } $repairs
