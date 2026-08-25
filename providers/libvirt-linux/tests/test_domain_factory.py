@@ -111,7 +111,7 @@ class FactoryPolicyTests(unittest.TestCase):
             ):
                 self.assertEqual(
                     MODULE.require_local_pool_path(provider, "fixture-pool"),
-                    Path(directory),
+                    Path(directory).resolve(strict=True),
                 )
             self.assertEqual(provider.arguments, ("pool-dumpxml", "fixture-pool"))
 
