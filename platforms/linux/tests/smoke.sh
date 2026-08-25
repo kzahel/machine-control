@@ -20,8 +20,13 @@ python3 -m py_compile \
     "$REPO_DIR/guests/ubuntu/fixtures/qt_fixture.py"
 python3 -m py_compile \
     "$REPO_DIR/guests/ubuntu/fixtures/browser_fixture.py"
-swiftc -typecheck "$REPO_DIR/providers/utm-macos/host-control.swift"
-swiftc -typecheck "$REPO_DIR/providers/utm-macos/normalize-screenshot.swift"
+if command -v swiftc >/dev/null 2>&1; then
+    swiftc -typecheck "$REPO_DIR/providers/utm-macos/host-control.swift"
+    swiftc -typecheck "$REPO_DIR/providers/utm-macos/normalize-screenshot.swift"
+elif [[ "$(uname -s)" == Darwin ]]; then
+    printf 'swiftc is required to validate the macOS UTM provider.\n' >&2
+    exit 1
+fi
 
 help_output="$("$LINUXVM" help)"
 [[ "$help_output" == *'gui-launch'* ]]

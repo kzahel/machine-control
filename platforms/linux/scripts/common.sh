@@ -182,17 +182,21 @@ linuxvm_require_command() {
 }
 
 linuxvm_selected_uuid() {
-    "$LINUXVM_UTMCTL" list | /usr/bin/awk -v expected="$LINUXVM_UTM_NAME" '
-        NR > 1 {
-            uuid = $1
-            $1 = ""
-            $2 = ""
-            sub(/^[[:space:]]+/, "")
-            if ($0 == expected) {
-                print uuid
-                exit
-            }
-        }'
+    if [[ "$LINUXVM_PROVIDER" == utm-macos ]]; then
+        "$LINUXVM_UTMCTL" list | /usr/bin/awk -v expected="$LINUXVM_UTM_NAME" '
+            NR > 1 {
+                uuid = $1
+                $1 = ""
+                $2 = ""
+                sub(/^[[:space:]]+/, "")
+                if ($0 == expected) {
+                    print uuid
+                    exit
+                }
+            }'
+        return
+    fi
+    "$(linuxvm_provider_path)" target-id
 }
 
 linuxvm_assert_mutation_target() {

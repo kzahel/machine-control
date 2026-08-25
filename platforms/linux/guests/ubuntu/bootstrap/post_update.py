@@ -119,6 +119,10 @@ def package_profile_ready(runner: Runner, profile: str) -> bool:
         )
         if result.returncode != 0 or not result.stdout.startswith("ii"):
             return False
+    if profile == "development" and not command_ok(
+        runner, "snap", "list", "chromium"
+    ):
+        return False
     return True
 
 

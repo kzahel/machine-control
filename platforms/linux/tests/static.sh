@@ -56,7 +56,10 @@ if [[ "$(uname -s)" == Linux ]] && command -v cloud-localds >/dev/null; then
         .users[0].lock_passwd == true and
         (.users[0].sudo | contains("NOPASSWD")) and
         (.packages | index("qemu-guest-agent")) != null and
-        ([.runcmd[][] | strings] | index("ubuntu-desktop")) != null' \
+        ([.runcmd[][] | strings] |
+          any(contains("ubuntu-desktop") and
+              contains("snap install chromium") and
+              contains("systemctl start gdm3.service")))' \
         >/dev/null
     ! rg -n 'password:' "$seed_extract/user-data"
 fi

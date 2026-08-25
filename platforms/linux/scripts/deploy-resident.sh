@@ -70,7 +70,7 @@ done
 "$LINUXVM" exec -- /usr/bin/install -m 0755 \
     "$STAGING.machine-control" /usr/local/bin/machine-control
 "$LINUXVM" exec -- /usr/bin/install -d -m 0755 -o "$user" -g "$group" \
-    "$home/.config/systemd/user"
+    "$home/.config" "$home/.config/systemd" "$home/.config/systemd/user"
 "$LINUXVM" exec -- /usr/bin/install -m 0644 -o "$user" -g "$group" \
     "$STAGING.linuxvm-control.service" \
     "$home/.config/systemd/user/linuxvm-control.service"

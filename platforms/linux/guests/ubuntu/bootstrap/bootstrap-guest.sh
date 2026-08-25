@@ -71,9 +71,17 @@ fi
 log="$(mktemp /var/tmp/machine-control-bootstrap.XXXXXX.log)"
 trap 'rm -f -- "$log"' EXIT
 if ! apt-get update >"$log" 2>&1 ||
-        ! apt-get install -y "${packages[@]}" >>"$log" 2>&1; then
+        ! apt-get -o Dpkg::Options::=--force-confold install -y \
+            "${packages[@]}" >>"$log" 2>&1; then
     emit_report false package_install_failed
     printf 'Ubuntu package profile installation failed\n' >&2
+    exit 1
+fi
+if [[ "$profile" == development ]] &&
+        ! snap list chromium >/dev/null 2>&1 &&
+        ! snap install chromium >>"$log" 2>&1; then
+    emit_report false browser_install_failed
+    printf 'Ubuntu development browser installation failed\n' >&2
     exit 1
 fi
 

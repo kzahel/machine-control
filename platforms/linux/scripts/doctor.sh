@@ -13,11 +13,26 @@ failures=0
 ok() { printf '[ok]   %s\n' "$1"; }
 bad() { printf '[fail] %s\n' "$1"; failures=$((failures + 1)); }
 
-if [[ "$(uname -s)" == "Darwin" && -x "$LINUXVM_UTMCTL" ]]; then
-    ok "UTM $("$LINUXVM_UTMCTL" version) on macOS"
-else
-    bad "UTM CLI on macOS"
-fi
+case "$LINUXVM_PROVIDER" in
+    utm-macos)
+        if [[ "$(uname -s)" == Darwin && -x "$LINUXVM_UTMCTL" ]]; then
+            ok "UTM $("$LINUXVM_UTMCTL" version) on macOS"
+        else
+            bad "UTM CLI on macOS"
+        fi
+        ;;
+    libvirt-linux)
+        host_doctor="$($PROVIDER host-doctor 2>/dev/null || true)"
+        if jq -e '.ready == true and .architecture == "x86_64" and
+                .acceleration.required == "kvm"' \
+                <<<"$host_doctor" >/dev/null 2>&1; then
+            ok "native x86_64 KVM provider on Linux"
+        else
+            bad "native x86_64 KVM provider on Linux"
+        fi
+        ;;
+    *) bad "supported controller-host provider" ;;
+esac
 
 status="$($PROVIDER status 2>/dev/null || true)"
 [[ "$status" == "started" ]] && ok "VM state: started" || bad "VM state: $status"
@@ -26,7 +41,7 @@ if [[ "$LINUXVM_FORBID_OUTER_UI" == "true" ]]; then
     if $PROVIDER screenshot >/dev/null 2>&1; then
         bad "outer UI guard"
     else
-        ok "outer UI is prohibited; UTM window capture/input is not required"
+        ok "outer recovery is prohibited by policy"
     fi
 else
     permissions="$($PROVIDER permissions 2>/dev/null || true)"
@@ -78,6 +93,8 @@ else
 fi
 if $PROVIDER exec /usr/bin/pgrep -x spice-vdagent >/dev/null 2>&1; then
     ok "interactive SPICE agent"
+elif [[ "$LINUXVM_PROVIDER" == libvirt-linux ]]; then
+    ok "interactive SPICE agent is optional on headless libvirt"
 else
     bad "interactive SPICE agent"
 fi

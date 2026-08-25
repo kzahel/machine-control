@@ -100,16 +100,20 @@ render_seed() {
               "AutomaticLogin=" + $username + "\nWaylandEnable=true\n")
           }],
           runcmd: [
-            ["systemctl", "start", "qemu-guest-agent.service"],
-            ["env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install",
-              "-y", "ubuntu-desktop", "spice-vdagent", "python3-gi",
-              "gir1.2-atspi-2.0", "gnome-screenshot", "python3-evdev",
-              "python3-pyqt5", "wl-clipboard", "jq", "git",
-              "build-essential", "python3-venv"],
-            ["systemctl", "set-default", "graphical.target"],
-            ["systemctl", "enable", "gdm3.service"]
+            ["bash", "-lc", ("set -euo pipefail; " +
+              "systemctl start qemu-guest-agent.service; " +
+              "DEBIAN_FRONTEND=noninteractive apt-get " +
+              "-o Dpkg::Options::=--force-confold install -y " +
+              "ubuntu-desktop spice-vdagent python3-gi " +
+              "gir1.2-atspi-2.0 gnome-screenshot python3-evdev " +
+              "python3-pyqt5 wl-clipboard jq git build-essential " +
+              "python3-venv; " +
+              "snap install chromium; " +
+              "systemctl set-default graphical.target; " +
+              "systemctl enable gdm3.service; " +
+              "systemctl start gdm3.service")]
           ],
-          power_state: {mode: "reboot", timeout: 30, condition: true}
+          power_state: {mode: "reboot", timeout: 120, condition: true}
         }'
     } >"$user_data"
     jq -n --arg username "$username" '{
