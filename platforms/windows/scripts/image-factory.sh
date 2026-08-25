@@ -403,7 +403,7 @@ render_seed() {
         local driver_directory
         for driver_directory in Balloon NetKVM vioscsi vioserial viostor; do
             local driver_source="$tools_mount/$driver_directory/w11/$driver_architecture"
-            local driver_target="$staging/Drivers/$driver_directory/w11"
+            local driver_target="$staging/Drivers/$driver_directory/w11/$driver_architecture"
             if [[ ! -d "$driver_source" ]]; then
                 printf 'VirtIO media lacks a required Windows 11 driver.\n' >&2
                 return 1

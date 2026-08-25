@@ -16,6 +16,16 @@ outer recovery. No healthy layer is allowed to hide failure in another.
 The provider contains no GNOME widget knowledge. Display dimensions come from
 configuration and must match the guest's current logical mode.
 
+`providers/libvirt-linux/provider.sh` supplies the same guest driver on a
+Linux controller. Ordinary administration remains QEMU guest-agent based and
+desktop control remains target-resident. Its separately armed outer-recovery
+route captures the headless libvirt console to a mode-0600 PNG and sends
+bounded US-ASCII key events or absolute tablet pointer events through QEMU's
+typed `input-send-event` command. Exact domain identity and live KVM state are
+rechecked first. Raw scan codes are deliberately unavailable; recovery uses
+named keys so press and release state is explicit. No host window is opened,
+focused, or manipulated.
+
 The workspace adapter composes UTM lifecycle without changing the Linux guest
 driver. `persistent` reuses an explicitly proven UUID-pinned development VM;
 `isolated` runs a proven stopped base in UTM disposable mode; and `candidate`

@@ -117,5 +117,36 @@ class DomainValidationTests(unittest.TestCase):
             )
 
 
+class RecoveryInputTests(unittest.TestCase):
+    def test_text_input_is_bounded_us_ascii_with_explicit_key_up(self):
+        events = MODULE.text_input_events("Az !\n")
+        self.assertEqual(events[0]["data"]["key"]["data"], "shift")
+        self.assertTrue(events[0]["data"]["down"])
+        self.assertEqual(events[-2]["data"]["key"]["data"], "ret")
+        self.assertFalse(events[-1]["data"]["down"])
+        with self.assertRaisesRegex(MODULE.ProviderError, "US-ASCII"):
+            MODULE.text_input_events("é")
+
+    def test_named_chord_releases_keys_in_reverse_order(self):
+        events = MODULE.named_key_events("ctrl-alt-delete")
+        self.assertEqual(
+            [event["data"]["key"]["data"] for event in events],
+            ["ctrl", "alt", "delete", "delete", "alt", "ctrl"],
+        )
+        self.assertEqual(
+            [event["data"]["down"] for event in events],
+            [True, True, True, False, False, False],
+        )
+
+    def test_pointer_coordinates_are_scaled_and_bounded(self):
+        events = MODULE.pointer_events(1280, 800, 0, 0, "left", 1279, 799)
+        self.assertEqual(events[0]["data"]["value"], 0)
+        self.assertEqual(events[1]["data"]["value"], 0)
+        self.assertEqual(events[3]["data"]["value"], 0x7FFF)
+        self.assertEqual(events[4]["data"]["value"], 0x7FFF)
+        with self.assertRaisesRegex(MODULE.ProviderError, "out of bounds"):
+            MODULE.pointer_events(1280, 800, 1280, 0, "left")
+
+
 if __name__ == "__main__":
     unittest.main()

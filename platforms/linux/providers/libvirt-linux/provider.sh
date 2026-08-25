@@ -45,7 +45,7 @@ role_allows_operation() {
     local operation="$1"
     case "$operation" in
         inspect|status|host-doctor) return 0 ;;
-        connect|up|reboot|shutdown|force-stop|input|factory-detach-media)
+        connect|up|reboot|shutdown|force-stop|capture|input|factory-detach-media)
             [[ "$LINUXVM_TARGET_ROLE" == candidate ||
                 "$LINUXVM_TARGET_ROLE" == disposable ]]
             ;;
@@ -123,10 +123,43 @@ require_outer_ui_allowed() {
     fi
 }
 
-unsupported_outer() {
-    require_outer_ui_allowed
-    printf 'This libvirt recovery operation is not implemented yet\n' >&2
-    return 1
+recovery_screenshot() {
+    (( $# <= 1 )) || { printf 'Usage: linuxvm screenshot [OUTPUT.png]\n' >&2; return 2; }
+    assert_target capture
+    local output="${1:-$LINUXVM_REPO_DIR/.artifacts/libvirt-recovery.png}"
+    core screenshot "$output"
+}
+
+recovery_click() {
+    (( $# >= 2 && $# <= 3 )) || {
+        printf 'Usage: linuxvm click X Y [left|right|middle]\n' >&2
+        return 2
+    }
+    assert_target input
+    core input-click "$LINUXVM_DISPLAY_WIDTH" "$LINUXVM_DISPLAY_HEIGHT" \
+        "$1" "$2" "${3:-left}"
+}
+
+recovery_drag() {
+    (( $# >= 4 && $# <= 5 )) || {
+        printf 'Usage: linuxvm drag X1 Y1 X2 Y2 [left|right|middle]\n' >&2
+        return 2
+    }
+    assert_target input
+    core input-drag "$LINUXVM_DISPLAY_WIDTH" "$LINUXVM_DISPLAY_HEIGHT" \
+        "$1" "$2" "$3" "$4" "${5:-left}"
+}
+
+recovery_type() {
+    (( $# == 1 )) || { printf 'Usage: linuxvm type TEXT\n' >&2; return 2; }
+    assert_target input
+    core input-text "$1"
+}
+
+recovery_key() {
+    (( $# == 1 )) || { printf 'Usage: linuxvm key NAME\n' >&2; return 2; }
+    assert_target input
+    core input-key "$1"
 }
 
 command="${1:-}"
@@ -169,14 +202,23 @@ case "$command" in
         assert_target factory-detach-media
         factory detach-media
         ;;
-    screenshot|click|drag|type|key|scan)
-        unsupported_outer
+    screenshot) require_outer_ui_allowed; recovery_screenshot "$@" ;;
+    click) require_outer_ui_allowed; recovery_click "$@" ;;
+    drag) require_outer_ui_allowed; recovery_drag "$@" ;;
+    type) require_outer_ui_allowed; recovery_type "$@" ;;
+    key) require_outer_ui_allowed; recovery_key "$@" ;;
+    scan)
+        require_outer_ui_allowed
+        printf 'Raw scan-code recovery is unavailable; use typed key names.\n' >&2
+        exit 1
         ;;
     permissions)
         printf '{"capture":"provider","input":"provider","status":"unavailable"}\n'
         ;;
     window-info)
-        unsupported_outer
+        require_outer_ui_allowed
+        printf 'Host-window inspection is not part of headless libvirt recovery.\n' >&2
+        exit 1
         ;;
     suspend|shell|disposable|clone)
         printf 'The libvirt provider operation is not implemented yet\n' >&2

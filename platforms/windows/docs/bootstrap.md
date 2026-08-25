@@ -231,3 +231,10 @@ in this repository or command output.
 Do not otherwise weaken authentication or disable Windows security controls to
 recover access. See [auto-logon.md](auto-logon.md) when the user explicitly
 authorizes automatic login for a dedicated test appliance.
+
+On the Linux/libvirt route, explicit outer recovery does not require a visible
+virt-manager or SPICE window. The guarded provider can capture the exact
+running KVM domain to a private PNG and can send bounded named-key, US-ASCII,
+and absolute-tablet events through QEMU. Private inventory prohibits that
+route during ordinary work; temporarily arming it remains a separate recovery
+decision and every command still requires the exact target-use claim.

@@ -274,6 +274,44 @@ require_outer_ui_allowed() {
     fi
 }
 
+require_recovery_display_geometry() {
+    if [[ ! "$WINVM_DISPLAY_WIDTH" =~ ^[1-9][0-9]*$ ||
+          ! "$WINVM_DISPLAY_HEIGHT" =~ ^[1-9][0-9]*$ ]]; then
+        printf 'Recovery display geometry is unconfigured.\n' >&2
+        return 1
+    fi
+}
+
+recovery_screenshot() {
+    (( $# <= 1 )) || { printf 'Usage: winvm screenshot [OUTPUT.png]\n' >&2; return 2; }
+    assert_target screenshot >/dev/null
+    local output="${1:-$WINVM_REPO_DIR/.artifacts/libvirt-recovery.png}"
+    core screenshot "$output"
+}
+
+recovery_type() {
+    (( $# == 1 )) || { printf 'Usage: winvm type TEXT\n' >&2; return 2; }
+    assert_target input >/dev/null
+    core input-text "$1"
+}
+
+recovery_click() {
+    (( $# >= 2 && $# <= 3 )) || {
+        printf 'Usage: winvm click X Y [left|right|middle]\n' >&2
+        return 2
+    }
+    require_recovery_display_geometry
+    assert_target input >/dev/null
+    core input-click "$WINVM_DISPLAY_WIDTH" "$WINVM_DISPLAY_HEIGHT" \
+        "$1" "$2" "${3:-left}"
+}
+
+recovery_key() {
+    (( $# == 1 )) || { printf 'Usage: winvm key NAME\n' >&2; return 2; }
+    assert_target input >/dev/null
+    core input-key "$1"
+}
+
 unsupported() {
     printf 'This libvirt provider operation is not implemented yet\n' >&2
     return 1
@@ -314,9 +352,14 @@ case "$command" in
         ;;
     down|shutdown) assert_target shutdown >/dev/null; core shutdown ;;
     force-stop) assert_target force-stop >/dev/null; core force-stop ;;
-    screenshot|type|click|key|scan)
+    screenshot) require_outer_ui_allowed; recovery_screenshot "$@" ;;
+    type) require_outer_ui_allowed; recovery_type "$@" ;;
+    click) require_outer_ui_allowed; recovery_click "$@" ;;
+    key) require_outer_ui_allowed; recovery_key "$@" ;;
+    scan)
         require_outer_ui_allowed
-        unsupported
+        printf 'Raw scan-code recovery is unavailable; use typed key names.\n' >&2
+        exit 1
         ;;
     repair-registration|suspend|seal|disposable-up|export-image|delete)
         unsupported

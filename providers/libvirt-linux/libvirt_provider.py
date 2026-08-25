@@ -16,6 +16,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 from typing import Any, Sequence
 import uuid
@@ -533,6 +534,274 @@ def query_kvm(configuration: Configuration, provider: Libvirt) -> bool:
     return value.get("enabled") is True and value.get("present") is True
 
 
+def require_live_kvm(configuration: Configuration, provider: Libvirt) -> None:
+    inspect_domain(configuration, provider)
+    if domain_state(configuration, provider) != "started":
+        raise ProviderError("target_not_running", "The domain is not running")
+    if not query_kvm(configuration, provider):
+        raise ProviderError(
+            "hardware_acceleration_required",
+            "The running domain is not using KVM acceleration",
+        )
+
+
+def recovery_screenshot(
+    configuration: Configuration, provider: Libvirt, output_value: str
+) -> str:
+    require_live_kvm(configuration, provider)
+    output = Path(output_value).expanduser().resolve()
+    if output.exists() and (not output.is_file() or output.is_symlink()):
+        raise ProviderError(
+            "capture_destination_invalid", "The capture destination is invalid"
+        )
+    output.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    descriptor, temporary_value = tempfile.mkstemp(
+        prefix=".libvirt-capture.", suffix=".ppm", dir=output.parent
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_value)
+    temporary.unlink()
+    try:
+        provider.command(
+            "screenshot",
+            configuration.expected_uuid,
+            "--file",
+            str(temporary),
+            "--screen",
+            "0",
+            timeout=60,
+        )
+        converter = shutil.which("magick") or shutil.which("convert")
+        if converter is None:
+            raise ProviderError(
+                "capture_converter_unavailable",
+                "The recovery capture converter is unavailable",
+            )
+        arguments = [converter]
+        if Path(converter).name == "magick":
+            arguments.append("convert")
+        arguments.extend([str(temporary), f"png:{output}"])
+        run(arguments, timeout=60)
+        with output.open("rb") as captured:
+            header = captured.read(24)
+        if (
+            len(header) != 24
+            or header[:8] != b"\x89PNG\r\n\x1a\n"
+            or int.from_bytes(header[16:20], "big") < 1
+            or int.from_bytes(header[20:24], "big") < 1
+        ):
+            raise ProviderError(
+                "capture_invalid", "The recovery capture is not a valid PNG"
+            )
+        os.chmod(output, 0o600)
+        return str(output)
+    except Exception:
+        output.unlink(missing_ok=True)
+        raise
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def qmp_input_events(
+    configuration: Configuration,
+    provider: Libvirt,
+    events: list[dict[str, Any]],
+    *,
+    verify_live: bool = True,
+) -> None:
+    if not events or len(events) > 2048:
+        raise ProviderError("input_invalid", "The recovery input batch is invalid")
+    if verify_live:
+        require_live_kvm(configuration, provider)
+    payload = json.dumps(
+        {"execute": "input-send-event", "arguments": {"events": events}},
+        separators=(",", ":"),
+    )
+    response = provider.text(
+        "qemu-monitor-command", configuration.expected_uuid, payload
+    )
+    try:
+        value = json.loads(response)
+    except json.JSONDecodeError as error:
+        raise ProviderError(
+            "input_unverified", "The recovery input response is invalid"
+        ) from error
+    if value.get("return") != {}:
+        raise ProviderError(
+            "input_refused", "The recovery input provider refused the batch"
+        )
+
+
+def qcode_event(qcode: str, down: bool) -> dict[str, Any]:
+    return {
+        "type": "key",
+        "data": {
+            "down": down,
+            "key": {"type": "qcode", "data": qcode},
+        },
+    }
+
+
+UNSHIFTED_QCODES = {
+    " ": "spc",
+    "-": "minus",
+    "=": "equal",
+    "[": "bracket_left",
+    "]": "bracket_right",
+    "\\": "backslash",
+    ";": "semicolon",
+    "'": "apostrophe",
+    "`": "grave_accent",
+    ",": "comma",
+    ".": "dot",
+    "/": "slash",
+    "\n": "ret",
+    "\r": "ret",
+    "\t": "tab",
+}
+SHIFTED_QCODES = {
+    "!": "1",
+    "@": "2",
+    "#": "3",
+    "$": "4",
+    "%": "5",
+    "^": "6",
+    "&": "7",
+    "*": "8",
+    "(": "9",
+    ")": "0",
+    "_": "minus",
+    "+": "equal",
+    "{": "bracket_left",
+    "}": "bracket_right",
+    "|": "backslash",
+    ":": "semicolon",
+    '"': "apostrophe",
+    "~": "grave_accent",
+    "<": "comma",
+    ">": "dot",
+    "?": "slash",
+}
+
+
+def text_input_events(text: str) -> list[dict[str, Any]]:
+    if not text or len(text) > 512:
+        raise ProviderError("input_invalid", "Recovery text must be 1-512 characters")
+    events: list[dict[str, Any]] = []
+    for character in text:
+        shifted = False
+        if "a" <= character <= "z" or "0" <= character <= "9":
+            qcode = character
+        elif "A" <= character <= "Z":
+            qcode = character.lower()
+            shifted = True
+        elif character in UNSHIFTED_QCODES:
+            qcode = UNSHIFTED_QCODES[character]
+        elif character in SHIFTED_QCODES:
+            qcode = SHIFTED_QCODES[character]
+            shifted = True
+        else:
+            raise ProviderError(
+                "input_character_unsupported",
+                "Recovery typing supports bounded US-ASCII text only",
+            )
+        if shifted:
+            events.append(qcode_event("shift", True))
+        events.extend([qcode_event(qcode, True), qcode_event(qcode, False)])
+        if shifted:
+            events.append(qcode_event("shift", False))
+    return events
+
+
+def send_recovery_text(
+    configuration: Configuration, provider: Libvirt, text: str
+) -> None:
+    if not text or len(text) > 512:
+        raise ProviderError("input_invalid", "Recovery text must be 1-512 characters")
+    require_live_kvm(configuration, provider)
+    for character in text:
+        qmp_input_events(
+            configuration,
+            provider,
+            text_input_events(character),
+            verify_live=False,
+        )
+        time.sleep(0.03)
+
+
+NAMED_KEY_CHORDS = {
+    "enter": ["ret"],
+    "escape": ["esc"],
+    "tab": ["tab"],
+    "backspace": ["backspace"],
+    "delete": ["delete"],
+    "left": ["left"],
+    "right": ["right"],
+    "up": ["up"],
+    "down": ["down"],
+    "home": ["home"],
+    "end": ["end"],
+    "page-up": ["pgup"],
+    "page-down": ["pgdn"],
+    "ctrl-alt-t": ["ctrl", "alt", "t"],
+    "super-d": ["meta_l", "d"],
+    "alt-f4": ["alt", "f4"],
+    "ctrl-c": ["ctrl", "c"],
+    "shift-f10": ["shift", "f10"],
+    "ctrl-alt-delete": ["ctrl", "alt", "delete"],
+    **{f"f{number}": [f"f{number}"] for number in range(1, 13)},
+}
+
+
+def named_key_events(name: str) -> list[dict[str, Any]]:
+    chord = NAMED_KEY_CHORDS.get(name)
+    if chord is None:
+        raise ProviderError("input_key_unsupported", "Recovery key name is unsupported")
+    return [qcode_event(key, True) for key in chord] + [
+        qcode_event(key, False) for key in reversed(chord)
+    ]
+
+
+def pointer_value(coordinate: int, extent: int) -> int:
+    if extent < 2 or coordinate < 0 or coordinate >= extent:
+        raise ProviderError(
+            "input_coordinate_invalid", "Recovery coordinates are out of bounds"
+        )
+    return round(coordinate * 0x7FFF / (extent - 1))
+
+
+def pointer_events(
+    width: int,
+    height: int,
+    start_x: int,
+    start_y: int,
+    button: str,
+    end_x: int | None = None,
+    end_y: int | None = None,
+) -> list[dict[str, Any]]:
+    if button not in {"left", "right", "middle"}:
+        raise ProviderError("input_button_invalid", "Recovery button is invalid")
+
+    def move(x: int, y: int) -> list[dict[str, Any]]:
+        return [
+            {
+                "type": "abs",
+                "data": {"axis": "x", "value": pointer_value(x, width)},
+            },
+            {
+                "type": "abs",
+                "data": {"axis": "y", "value": pointer_value(y, height)},
+            },
+        ]
+
+    events = move(start_x, start_y)
+    events.append({"type": "btn", "data": {"down": True, "button": button}})
+    if end_x is not None and end_y is not None:
+        events.extend(move(end_x, end_y))
+    events.append({"type": "btn", "data": {"down": False, "button": button}})
+    return events
+
+
 def wait_for_state(
     configuration: Configuration,
     provider: Libvirt,
@@ -938,6 +1207,26 @@ def parse_arguments() -> argparse.Namespace:
     pull = subparsers.add_parser("pull")
     pull.add_argument("remote")
     pull.add_argument("local", nargs="?")
+    screenshot = subparsers.add_parser("screenshot")
+    screenshot.add_argument("output")
+    input_text = subparsers.add_parser("input-text")
+    input_text.add_argument("text")
+    input_key = subparsers.add_parser("input-key")
+    input_key.add_argument("name")
+    input_click = subparsers.add_parser("input-click")
+    input_click.add_argument("width", type=int)
+    input_click.add_argument("height", type=int)
+    input_click.add_argument("x", type=int)
+    input_click.add_argument("y", type=int)
+    input_click.add_argument("button", choices=["left", "right", "middle"])
+    input_drag = subparsers.add_parser("input-drag")
+    input_drag.add_argument("width", type=int)
+    input_drag.add_argument("height", type=int)
+    input_drag.add_argument("x1", type=int)
+    input_drag.add_argument("y1", type=int)
+    input_drag.add_argument("x2", type=int)
+    input_drag.add_argument("y2", type=int)
+    input_drag.add_argument("button", choices=["left", "right", "middle"])
     return parser.parse_args()
 
 
@@ -1006,6 +1295,45 @@ def main() -> int:
             return 0
         if arguments.command == "pull":
             guest_pull(configuration, provider, arguments.remote, arguments.local)
+            return 0
+        if arguments.command == "screenshot":
+            print(recovery_screenshot(configuration, provider, arguments.output))
+            return 0
+        if arguments.command == "input-text":
+            send_recovery_text(configuration, provider, arguments.text)
+            return 0
+        if arguments.command == "input-key":
+            qmp_input_events(
+                configuration, provider, named_key_events(arguments.name)
+            )
+            return 0
+        if arguments.command == "input-click":
+            qmp_input_events(
+                configuration,
+                provider,
+                pointer_events(
+                    arguments.width,
+                    arguments.height,
+                    arguments.x,
+                    arguments.y,
+                    arguments.button,
+                ),
+            )
+            return 0
+        if arguments.command == "input-drag":
+            qmp_input_events(
+                configuration,
+                provider,
+                pointer_events(
+                    arguments.width,
+                    arguments.height,
+                    arguments.x1,
+                    arguments.y1,
+                    arguments.button,
+                    arguments.x2,
+                    arguments.y2,
+                ),
+            )
             return 0
         raise ProviderError("arguments_invalid", "Unsupported provider command")
     except ProviderError as error:
