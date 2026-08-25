@@ -88,6 +88,25 @@ that the same provider pair fits every platform.
 The [provider index](../research/providers/README.md) records the wider set,
 license posture, and actual evidence level.
 
+## Public comparison
+
+**Decision:** The public [comparison guide](https://machinecontrol.dev/compare/)
+positions Machine Control as a target and development-loop layer, not as a
+replacement for every tool below it. The capability matrix distinguishes
+first-class scope, narrower or provider-dependent support, deliberate pairing,
+and out-of-scope work. It must retain honest disadvantages, including that
+Machine Control is pre-1.0, has uneven platform maturity, and does not supply a
+hosted target fleet.
+
+**Current:** The guide was reviewed on 2026-08-25 against official Playwright,
+Appium, Cua, and BrowserStack documentation. It explains that Playwright is the
+deeper page-level choice, Appium is the established driver framework for
+native mobile suites, Cua is both a direct option and an adopted Machine
+Control desktop provider, and BrowserStack supplies managed capacity rather
+than the same product boundary. The
+[adjacent-project ledger](../research/adjacent-projects.md) records the upstream
+scope and license posture behind those classifications.
+
 ## Common exact-window requirements
 
 **Decision:** “Window control” is not one capability flag. Conformance must

@@ -7,7 +7,7 @@ for the repository. Upstream documents MIT-0 terms for skill copies published
 through ClawHub; treat that as a narrower distribution boundary, not as a
 change to the repository license.
 
-Last corpus review: 2026-08-10.
+Last corpus review: 2026-08-25.
 
 ## Evidence by platform
 
@@ -47,6 +47,24 @@ and Tauri fixtures exercise semantic/pixel addressing, foreground/background
 delivery, and window/desktop scope. Independent fixture, focus, z-order,
 cursor, leaked-input, accessibility, and pixel oracles are a particularly
 strong match for this project's conformance direction.
+
+## Adjacent Cua sandbox scope
+
+**Current — upstream-claimed, not adopted here:** The wider Cua product now
+documents local and hosted full-computer sandboxes alongside Cua Driver. A
+sandbox combines shell and GUI access in one isolated machine; current docs
+describe Linux containers, macOS/Windows/Android VMs, immutable starting
+images, reusable warm pools, named pool claims, and claim expiry. See
+[How sandboxes work](https://cua.ai/docs/concepts/how-sandboxes-work),
+[sandbox pool claims](https://cua.ai/docs/how-to-guides/sandbox/create-pool-with-python),
+and [claim expiry](https://cua.ai/docs/how-to-guides/sandbox/expire-pools-and-claims).
+
+This broader service overlaps Machine Control's workspace and claim vocabulary
+but does not change the current adoption boundary: the checked-in resident
+runtime embeds pinned Cua Driver operations, not Cua Sandbox or Fleet. Machine
+Control continues to own heterogeneous existing-target inventory, lifecycle,
+provider arbitration, physical-device routes, protected/recovery policy, and
+the cross-provider result contract.
 
 ## North Star fit
 

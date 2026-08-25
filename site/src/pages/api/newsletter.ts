@@ -108,7 +108,7 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const sourceValue = String(form.get("source") ?? "homepage");
-  const source = sourceValue === "blog" ? "blog" : "homepage";
+  const source = ["blog", "comparison"].includes(sourceValue) ? sourceValue : "homepage";
   const now = new Date().toISOString();
 
   try {

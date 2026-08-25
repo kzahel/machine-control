@@ -1,0 +1,394 @@
+---
+import NewsletterSignup from "../components/NewsletterSignup.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteLayout from "../layouts/SiteLayout.astro";
+
+const title = "Compare Machine Control — Playwright, Appium, Cua, and BrowserStack";
+const description =
+  "See how Machine Control differs from browser automation, app drivers, computer-use infrastructure, and hosted device clouds—and when to use them together.";
+
+type MatrixState = "yes" | "partial" | "pair" | "no";
+type MatrixCell = {
+  state: MatrixState;
+  label: string;
+  note: string;
+};
+
+const products = [
+  { name: "Machine Control", kind: "target layer", machine: true },
+  { name: "Playwright", kind: "web testing" },
+  { name: "Appium", kind: "driver framework" },
+  { name: "Cua", kind: "computer use" },
+  { name: "BrowserStack", kind: "test cloud" },
+];
+
+const symbols: Record<MatrixState, string> = {
+  yes: "✓",
+  partial: "◐",
+  pair: "↔",
+  no: "—",
+};
+
+const rows: Array<{ capability: string; cells: MatrixCell[] }> = [
+  {
+    capability: "Web-page DOM and browser assertions",
+    cells: [
+      { state: "pair", label: "Pair it", note: "Use Playwright or CDP for page-level depth." },
+      { state: "yes", label: "Core", note: "DOM locators, assertions, traces, and browser projects." },
+      { state: "partial", label: "Driver-based", note: "Browsers and WebViews through installed drivers." },
+      { state: "partial", label: "Available", note: "Browser semantics, pixels, and a page escalation route." },
+      { state: "yes", label: "Hosted", note: "Runs Playwright, Selenium, Cypress, and related frameworks." },
+    ],
+  },
+  {
+    capability: "Native mobile application automation",
+    cells: [
+      { state: "partial", label: "Growing", note: "Working iOS and Android routes; common coverage varies." },
+      { state: "no", label: "Mobile web", note: "Device profiles emulate browser viewports, not native apps." },
+      { state: "yes", label: "Core", note: "XCUITest, UiAutomator2, Espresso, and other drivers." },
+      { state: "partial", label: "Available", note: "Android sandboxes and optional device tooling." },
+      { state: "yes", label: "Core", note: "Real iOS and Android devices with native test frameworks." },
+    ],
+  },
+  {
+    capability: "Desktop applications and operating-system UI",
+    cells: [
+      { state: "yes", label: "Core", note: "Windows, macOS, Linux, and system surfaces." },
+      { state: "partial", label: "Electron", note: "Experimental Electron API; otherwise browser-focused." },
+      { state: "partial", label: "Driver-based", note: "Official Mac2 and Windows drivers; other coverage varies." },
+      { state: "yes", label: "Core", note: "Real Windows, macOS, and Linux desktops." },
+      { state: "no", label: "Not its focus", note: "Its documented products focus on web and mobile testing." },
+    ],
+  },
+  {
+    capability: "Hosted, disposable machines or devices",
+    cells: [
+      { state: "no", label: "Bring your own", note: "Machine Control is not a hosted test-lab service." },
+      { state: "no", label: "Bring a runner", note: "A framework, not a machine fleet." },
+      { state: "no", label: "Bring infrastructure", note: "A server and driver ecosystem, not a device cloud." },
+      { state: "yes", label: "Core", note: "Cloud and local computer sandboxes." },
+      { state: "yes", label: "Core", note: "Managed browser and real-device capacity." },
+    ],
+  },
+  {
+    capability: "Target inventory, readiness, and lifecycle",
+    cells: [
+      { state: "yes", label: "Core", note: "Logical targets, read-only doctor, start, stop, and workspaces." },
+      { state: "partial", label: "Browser scope", note: "Launches or attaches to browsers, not whole targets." },
+      { state: "partial", label: "Session scope", note: "Capabilities, app install, and device actions vary by driver." },
+      { state: "yes", label: "Core", note: "Driver doctor plus image and sandbox lifecycle." },
+      { state: "yes", label: "Managed", note: "A live catalog, sessions, queues, and plan capacity." },
+    ],
+  },
+  {
+    capability: "Exclusive use of a shared existing target",
+    cells: [
+      { state: "yes", label: "Core", note: "Expiring claims bind exact targets and workspaces." },
+      { state: "no", label: "Not its scope", note: "Parallelism is organized around browser workers." },
+      { state: "no", label: "Not its scope", note: "Infrastructure decides how a device is allocated." },
+      { state: "partial", label: "Fleet claims", note: "Named claims allocate Cua-managed sandbox pools." },
+      { state: "partial", label: "Session slots", note: "Managed allocation and queues, not a bring-your-own lease contract." },
+    ],
+  },
+  {
+    capability: "Semantic UI state plus pixels",
+    cells: [
+      { state: "yes", label: "Unified", note: "OS semantics, screenshots, windows, and stable target vocabulary." },
+      { state: "partial", label: "Web scope", note: "DOM and ARIA locators plus page screenshots." },
+      { state: "yes", label: "Driver-based", note: "Element models and screenshots through the selected driver." },
+      { state: "yes", label: "Unified", note: "Accessibility trees and screenshots in one desktop observation." },
+      { state: "partial", label: "Framework-based", note: "Underlying tools plus visual logs and session media." },
+    ],
+  },
+  {
+    capability: "Compact repeated observations for agent context",
+    cells: [
+      { state: "yes", label: "Built in", note: "Compact projections and unchanged-content digests." },
+      { state: "no", label: "Different model", note: "Locators query a page rather than returning machine state." },
+      { state: "no", label: "No common digest", note: "Page source and elements remain driver-specific." },
+      { state: "partial", label: "Snapshots", note: "Lightweight and full snapshots; no shared unchanged digest." },
+      { state: "no", label: "Different model", note: "Logs, videos, and results are retained as test evidence." },
+    ],
+  },
+  {
+    capability: "Route, delivery, effect, and evidence in action results",
+    cells: [
+      { state: "yes", label: "Across providers", note: "Also reports attempts, uncertainty, fallback, and host impact." },
+      { state: "partial", label: "In test code", note: "Actions, assertions, and traces are separate primitives." },
+      { state: "partial", label: "In test code", note: "Driver response and postcondition assertions stay separate." },
+      { state: "yes", label: "Driver contract", note: "Effect, route, delivery, evidence, and escalation are explicit." },
+      { state: "partial", label: "Observability", note: "Session logs, screenshots, video, and test status." },
+    ],
+  },
+  {
+    capability: "Provider arbitration and explicit safe escalation",
+    cells: [
+      { state: "yes", label: "Core", note: "Routes each operation across Cua and native providers." },
+      { state: "no", label: "Single layer", note: "Browser engines are test targets, not fallback providers." },
+      { state: "partial", label: "Choose a driver", note: "The caller selects the driver before the session." },
+      { state: "yes", label: "Action ladder", note: "Accessibility, pixels, foreground, and page escalation." },
+      { state: "partial", label: "Choose a framework", note: "Runs several frameworks without unifying their contracts." },
+    ],
+  },
+  {
+    capability: "Open-source, self-hostable core",
+    cells: [
+      { state: "yes", label: "MIT", note: "Public contracts, implementation, fixtures, and evidence." },
+      { state: "yes", label: "Apache-2.0", note: "Open-source browser automation and test runner." },
+      { state: "yes", label: "Apache-2.0", note: "Open-source server, clients, drivers, and plugins." },
+      { state: "yes", label: "MIT", note: "Open-source core with optional hosted services." },
+      { state: "no", label: "Commercial", note: "A self-hosted browser-grid product is available commercially." },
+    ],
+  },
+];
+---
+
+<SiteLayout title={title} description={description} canonicalPath="/compare/">
+  <SiteHeader />
+  <main class="comparison-page">
+    <section class="page-intro compare-intro">
+      <div class="shell">
+        <p class="eyebrow">Comparison guide · reviewed August 25, 2026</p>
+        <h1>Different layers. Different jobs.</h1>
+        <p class="lede">
+          Machine Control is the target layer between an agent or CI job and the
+          strongest controls available on each machine. It does not replace a
+          browser test framework, a mobile driver, a computer-use provider, or
+          a hosted device cloud. It makes those pieces usable as one governed
+          cross-platform test lab.
+        </p>
+        <div class="comparison-position">
+          <div><span>Not</span><strong>an autonomous agent</strong></div>
+          <div><span>Not</span><strong>one universal UI driver</strong></div>
+          <div><span>It is</span><strong>the machine-facing contract</strong></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-white">
+      <div class="shell">
+        <div class="section-heading">
+          <p class="eyebrow">Where it sits</p>
+          <h2>Keep specialized depth. Standardize the development loop.</h2>
+          <p>
+            The caller selects and claims a target once. Machine Control then
+            routes each operation to a native or upstream provider and returns
+            the actual route and observed outcome.
+          </p>
+        </div>
+        <div class="layer-map" role="img" aria-label="An agent or CI job calls Machine Control, which routes to Playwright or CDP, Cua and desktop-native providers, or Appium and device-native providers before reaching test targets">
+          <div class="layer-node layer-caller">
+            <span>CALLER</span>
+            <strong>Agent or CI</strong>
+          </div>
+          <div class="layer-arrow" aria-hidden="true">→</div>
+          <div class="layer-node layer-machine">
+            <span>TARGET CONTRACT</span>
+            <strong>Machine Control</strong>
+            <small>inventory · doctor · claim · route · verify</small>
+          </div>
+          <div class="layer-arrow" aria-hidden="true">→</div>
+          <div class="layer-providers">
+            <div><strong>Web</strong><span>Playwright · CDP</span></div>
+            <div><strong>Desktop</strong><span>Cua · UIA · AX · AT-SPI</span></div>
+            <div><strong>Devices</strong><span>XCTest · ADB · Appium</span></div>
+          </div>
+          <div class="layer-targets">
+            Windows and macOS VMs · Linux desktops · ChromeOS · iOS · Android · Quest
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section comparison-matrix-section" id="matrix">
+      <div class="shell">
+        <div class="section-heading">
+          <p class="eyebrow">Capability matrix</p>
+          <h2>What each option owns.</h2>
+          <p>
+            This compares documented first-class scope, not every feature that
+            could be added with custom code. A partial mark means the capability
+            is narrower, provider-dependent, or belongs to an adjacent product.
+          </p>
+        </div>
+        <div class="matrix-legend" aria-label="Comparison legend">
+          <span><b class="legend-yes">✓</b> First-class</span>
+          <span><b class="legend-partial">◐</b> Partial or narrower</span>
+          <span><b class="legend-pair">↔</b> Pair another layer</span>
+          <span><b class="legend-no">—</b> Not its scope</span>
+        </div>
+        <div class="matrix-scroll" tabindex="0" aria-label="Scrollable capability comparison table">
+          <table class="comparison-matrix">
+            <thead>
+              <tr>
+                <th scope="col">Capability</th>
+                {products.map((product) => (
+                  <th scope="col" class:list={{ "matrix-machine-column": product.machine }}>
+                    <strong>{product.name}</strong>
+                    <span>{product.kind}</span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr>
+                  <th scope="row">{row.capability}</th>
+                  {row.cells.map((cell, index) => (
+                    <td class:list={{ "matrix-machine-column": index === 0 }}>
+                      <span class={`matrix-state matrix-${cell.state}`}>
+                        <b aria-hidden="true">{symbols[cell.state]}</b>
+                        <strong>{cell.label}</strong>
+                      </span>
+                      <small>{cell.note}</small>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p class="matrix-note">
+          “Supported” is not a universal quality score. Playwright is much
+          deeper inside a web page; Appium is much more established for native
+          mobile test suites; Cua already supplies several excellent desktop and
+          sandbox primitives; BrowserStack supplies infrastructure Machine
+          Control does not attempt to sell.
+        </p>
+      </div>
+    </section>
+
+    <section class="section section-ink">
+      <div class="shell">
+        <div class="section-heading">
+          <p class="eyebrow">The practical choice</p>
+          <h2>Choose by the boundary your test crosses.</h2>
+        </div>
+        <div class="choice-grid">
+          <article>
+            <span>01 / PLAYWRIGHT</span>
+            <h3>Your work begins and ends inside a web page.</h3>
+            <p>Use Playwright. Pair it with Machine Control when the same test must also install an app, handle native dialogs, exercise an updater, or verify behavior on several operating systems.</p>
+          </article>
+          <article>
+            <span>02 / APPIUM</span>
+            <h3>You are building a conventional native mobile test suite.</h3>
+            <p>Use Appium and its platform drivers. Machine Control’s device routes are for bringing lifecycle, target selection, evidence, and agent ergonomics into the larger cross-platform loop.</p>
+          </article>
+          <article>
+            <span>03 / CUA</span>
+            <h3>You need excellent computer-use primitives or fresh sandboxes.</h3>
+            <p>Use Cua directly when that is the whole job. Machine Control already uses pinned Cua Driver routes where they win, then adds native adapters and a broader target, lifecycle, policy, and conformance boundary.</p>
+          </article>
+          <article>
+            <span>04 / BROWSERSTACK</span>
+            <h3>You want to buy broad browser and real-device capacity.</h3>
+            <p>Use BrowserStack. Machine Control is aimed at an open, agent-facing contract over machines and devices you operate or explicitly connect—not a replacement commercial device cloud.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-white">
+      <div class="shell comparison-detail-grid">
+        <div>
+          <p class="eyebrow">The difference in one sentence</p>
+          <h2>Machine Control governs the whole target, not only the next click.</h2>
+        </div>
+        <div class="difference-list">
+          <article>
+            <strong>Before the action</strong>
+            <p>Resolve the exact target, inspect readiness without mutation, acquire exclusive use, and start only through an authorized lifecycle route.</p>
+          </article>
+          <article>
+            <strong>During the action</strong>
+            <p>Use native semantics and pixels through the best measured provider without silently switching to a disruptive host-side route.</p>
+          </article>
+          <article>
+            <strong>After the action</strong>
+            <p>Report acceptance, delivery, observed effect, evidence, uncertainty, and cleanup ownership as different facts.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section comparison-limits">
+      <div class="shell comparison-detail-grid">
+        <div>
+          <p class="eyebrow">Honest limits</p>
+          <h2>Broad destination. Uneven maturity.</h2>
+        </div>
+        <div>
+          <ul class="limits-list">
+            <li>Machine Control is active and pre-1.0; schemas and setup are still evolving.</li>
+            <li>Windows is the first complete vertical slice. macOS and Linux have accepted VM appliances.</li>
+            <li>ChromeOS, iOS, Android, Quest, and Steam Deck have working native routes with varied common-facade coverage.</li>
+            <li>You currently supply and configure the machines, hypervisors, and physical devices.</li>
+            <li>Use Playwright for deep browser tests and Appium or native frameworks for mature mobile suites.</li>
+          </ul>
+          <a class="text-link" href="https://github.com/kzahel/machine-control#what-works-today">Read the current platform status →</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-white comparison-sources">
+      <div class="shell">
+        <div class="section-heading">
+          <p class="eyebrow">Sources and methodology</p>
+          <h2>Check the claims.</h2>
+          <p>
+            The matrix was reviewed against each project’s official documentation
+            and Machine Control’s checked-in implementation evidence. Products
+            evolve; corrections are welcome.
+          </p>
+        </div>
+        <div class="source-grid">
+          <article>
+            <h3>Machine Control</h3>
+            <a href="https://github.com/kzahel/machine-control#what-works-today">Current platform status</a>
+            <a href="https://github.com/kzahel/machine-control/blob/main/topics/provider-landscape.md">Provider landscape</a>
+            <a href="https://github.com/kzahel/machine-control/blob/main/topics/capabilities-and-results.md">Capabilities and results</a>
+          </article>
+          <article>
+            <h3>Playwright</h3>
+            <a href="https://playwright.dev/docs/browsers">Browsers and projects</a>
+            <a href="https://playwright.dev/docs/locators">Locators</a>
+            <a href="https://playwright.dev/docs/api/class-electron">Electron API</a>
+          </article>
+          <article>
+            <h3>Appium</h3>
+            <a href="https://appium.io/docs/en/latest/intro/">Appium in a nutshell</a>
+            <a href="https://appium.io/docs/en/latest/intro/drivers/">How drivers work</a>
+            <a href="https://appium.io/docs/en/latest/ecosystem/drivers/">Driver ecosystem</a>
+          </article>
+          <article>
+            <h3>Cua</h3>
+            <a href="https://cua.ai/docs/concepts/how-sandboxes-work">Sandboxes and real machines</a>
+            <a href="https://cua.ai/docs/reference/cua-driver/contracts">Cua Driver contracts</a>
+            <a href="https://cua.ai/docs/how-to-guides/sandbox/create-pool-with-python">Sandbox pool claims</a>
+          </article>
+          <article>
+            <h3>BrowserStack</h3>
+            <a href="https://www.browserstack.com/docs/">Product documentation</a>
+            <a href="https://www.browserstack.com/docs/automate/selenium/select-browsers-and-devices">Browser and device selection</a>
+            <a href="https://www.browserstack.com/docs/app-automate/appium/view-logs-and-debug-tests">App Automate evidence</a>
+          </article>
+        </div>
+        <p class="source-note">Product names and trademarks belong to their respective owners. This project is not affiliated with or endorsed by them.</p>
+      </div>
+    </section>
+
+    <section class="section newsletter-section">
+      <div class="shell newsletter-grid">
+        <div>
+          <p class="eyebrow">Follow the evidence</p>
+          <h2>Get occasional comparison and platform updates.</h2>
+          <p>The matrix will change as Machine Control and the surrounding tools change.</p>
+        </div>
+        <NewsletterSignup source="comparison" />
+      </div>
+    </section>
+  </main>
+  <SiteFooter />
+</SiteLayout>
