@@ -43,6 +43,12 @@ WORKSPACE_MECHANISMS = {
 }
 CLAIM_POLICIES = {"required", "optional", "unsupported"}
 CLAIM_PATTERN = re.compile(r"c-[a-f0-9]{24}")
+CLAIM_USE_CLASSES = {"ordinary", "disruptive"}
+DISRUPTIVE_TESTBED_COMMANDS = {
+    "windows": {"screenshot", "type", "click", "key", "scan"},
+    "linux": {"screenshot", "click", "drag", "type", "key", "scan"},
+    "macos": {"screenshot", "click", "drag", "type", "key"},
+}
 
 DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
     "windows": {
@@ -915,7 +921,7 @@ def _valid_claim_timestamp(value: Any) -> bool:
 
 def _validate_claim_descriptor(value: Any) -> None:
     if not isinstance(value, dict) or set(value) != {
-        "claimId", "mode", "generation", "claimant", "reason",
+        "claimId", "mode", "useClass", "generation", "claimant", "reason",
         "acquiredAt", "renewedAt", "expiresAt", "maxExpiresAt",
         "remainingSeconds",
     }:
@@ -953,6 +959,7 @@ def _validate_claim_descriptor(value: Any) -> None:
     if (
         not _valid_claim_id(value.get("claimId"))
         or value.get("mode") != "exclusive"
+        or value.get("useClass") not in CLAIM_USE_CLASSES
         or not isinstance(value.get("generation"), int)
         or isinstance(value.get("generation"), bool)
         or value["generation"] < 1
@@ -973,8 +980,8 @@ def validate_claim_capabilities(value: Any) -> dict[str, Any]:
     if (
         not isinstance(value, dict)
         or set(value) != {
-            "schema", "mode", "durations", "claimant", "resourceBinding",
-            "queueing",
+            "schema", "mode", "useClasses", "durations", "claimant",
+            "resourceBinding", "queueing",
         }
         or value.get("schema") != CLAIM_CAPABILITIES_SCHEMA
         or value.get("mode") != "exclusive"
@@ -985,6 +992,16 @@ def validate_claim_capabilities(value: Any) -> dict[str, Any]:
             "invalid_claim_capabilities",
             f"Claim capabilities must use {CLAIM_CAPABILITIES_SCHEMA}",
             1,
+        )
+    use_classes = value.get("useClasses")
+    if (
+        not isinstance(use_classes, dict)
+        or set(use_classes) != {"supported", "default"}
+        or use_classes.get("supported") != ["ordinary", "disruptive"]
+        or use_classes.get("default") != "ordinary"
+    ):
+        raise ClientError(
+            "invalid_claim_capabilities", "Claim use-class policy is invalid", 1
         )
     durations = value.get("durations")
     if not isinstance(durations, dict) or set(durations) != {
@@ -2431,6 +2448,7 @@ def claim_acquire_options(arguments: list[str]) -> argparse.Namespace:
         arguments,
         [
             (("--duration",), {"type": parse_duration_seconds}),
+            (("--disruptive",), {"action": "store_true"}),
             (("--reason",), {"required": True}),
             (("--claimant-authority",), {"required": True}),
             (("--claimant-id",), {"required": True}),
@@ -2449,6 +2467,8 @@ def claim_acquire_adapter_arguments(options: argparse.Namespace) -> list[str]:
     ]
     if options.duration is not None:
         result.extend(["--duration-seconds", str(options.duration)])
+    if options.disruptive:
+        result.append("--disruptive")
     if options.session_id is not None:
         result.extend(["--session-id", options.session_id])
     if options.label is not None:
@@ -2578,7 +2598,9 @@ def handle_claim(
     return 0 if value.get("accepted", True) else 1
 
 
-def require_selected_claim(target: dict[str, Any]) -> None:
+def require_selected_claim(
+    target: dict[str, Any], required_use_class: str | None = None
+) -> None:
     if target.get("claimPolicy", "unsupported") != "required":
         return
     claim_id = target.get("_claimId")
@@ -2595,8 +2617,17 @@ def require_selected_claim(target: dict[str, Any]) -> None:
                 }
             },
         )
+    adapter_arguments = ["claim-check", "--claim-id", claim_id]
+    if required_use_class is not None:
+        if required_use_class not in CLAIM_USE_CLASSES:
+            raise ClientError(
+                "invalid_claim_use_class", "Required claim use class is invalid"
+            )
+        adapter_arguments.extend([
+            "--required-use-class", required_use_class,
+        ])
     parsed, _ = _claim_adapter_call(
-        target, ["claim-check", "--claim-id", claim_id, "--json"]
+        target, [*adapter_arguments, "--json"]
     )
     value = validate_claim_result(parsed, "check")
     if not value["accepted"]:
@@ -2617,6 +2648,19 @@ def operation_requires_claim(operation: str, arguments: list[str]) -> bool:
     if operation == "workspace":
         return False
     return operation in {"desktop", "ios", "testbed", "os"}
+
+
+def operation_required_claim_use_class(
+    operation: str, arguments: list[str], target: dict[str, Any]
+) -> str | None:
+    if operation != "testbed":
+        return None
+    values = list(arguments)
+    if values and values[0] == "--":
+        values = values[1:]
+    command = values[0] if values else ""
+    disruptive = DISRUPTIVE_TESTBED_COMMANDS.get(target["platform"], set())
+    return "disruptive" if command in disruptive else None
 
 
 def _workspace_adapter_call(
@@ -2685,6 +2729,7 @@ def _workspace_claim_arguments(
             )
         claim_options = argparse.Namespace(
             duration=options.claim_duration,
+            disruptive=False,
             reason=options.reason,
             claimant_authority=options.claimant_authority,
             claimant_id=options.claimant_id,
@@ -2973,6 +3018,7 @@ Commands:
 def claim_usage() -> str:
     return """Usage: machine-control --target ALIAS claim capabilities|status
        machine-control --target ALIAS claim acquire [--duration DURATION]
+           [--disruptive]
            --reason TEXT --claimant-authority NAMESPACE --claimant-id ID
            [--session-id ID] [--label TEXT] [--metadata KEY=VALUE]...
        machine-control --target ALIAS claim renew CLAIM_ID
@@ -2983,6 +3029,8 @@ Durations accept seconds or an s, m, or h suffix. Caller attribution is
 bounded and self-asserted; do not include secrets or private target identity.
 Carry the returned claim ID with global --claim, renew during active work, and
 release from cleanup. Accepted VM use is exclusive.
+Ordinary is the default use class. --disruptive is required for host-visible
+VM capture and host-injected pointer or keyboard recovery.
 """
 
 
@@ -3124,7 +3172,12 @@ def main(argv: list[str] | None = None) -> int:
         if operation != "claim" and operation_requires_claim(
             operation, remainder[1:]
         ):
-            require_selected_claim(target)
+            require_selected_claim(
+                target,
+                operation_required_claim_use_class(
+                    operation, remainder[1:], target
+                ),
+            )
         if operation == "target":
             return handle_target(alias, target, remainder[1:])
         if operation == "claim":

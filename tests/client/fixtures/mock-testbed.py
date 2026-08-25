@@ -33,10 +33,14 @@ if expected_claim is not None and os.environ.get(
 CLAIM_ID = "c-0123456789abcdef01234567"
 
 
-def claim_descriptor(claim_id=CLAIM_ID):
+def claim_descriptor(claim_id=CLAIM_ID, use_class=None):
+    use_class = use_class or os.environ.get(
+        "MACHINE_CONTROL_MOCK_CLAIM_USE_CLASS", "ordinary"
+    )
     return {
         "claimId": claim_id,
         "mode": "exclusive",
+        "useClass": use_class,
         "generation": 3,
         "claimant": {
             "authority": "fixture-runner",
@@ -59,6 +63,10 @@ if command == "claim-capabilities" and arguments[1:] == ["--json"]:
     print(json.dumps({
         "schema": "machine-control-claim-capabilities/v0",
         "mode": "exclusive",
+        "useClasses": {
+            "supported": ["ordinary", "disruptive"],
+            "default": "ordinary",
+        },
         "durations": {
             "defaultSeconds": 1800,
             "minimumSeconds": 60,
@@ -91,12 +99,16 @@ if command == "claim-status" and arguments[1:] == ["--json"]:
     raise SystemExit(0)
 
 if command == "claim-acquire":
+    use_class = "disruptive" if "--disruptive" in arguments else "ordinary"
     print(json.dumps({
         "schema": "machine-control-claim/v0",
         "operation": "acquire",
         "accepted": True,
         "uncertainty": "none",
-        "data": {"state": "held", "claim": claim_descriptor()},
+        "data": {
+            "state": "held",
+            "claim": claim_descriptor(use_class=use_class),
+        },
     }))
     raise SystemExit(0)
 
@@ -111,6 +123,26 @@ if command == "claim-check":
             "errorCode": "claim_expired",
             "message": "The supplied target-use claim has expired",
             "data": {},
+        }))
+        raise SystemExit(1)
+    if (
+        "--required-use-class" in arguments
+        and arguments[arguments.index("--required-use-class") + 1]
+        == "disruptive"
+        and os.environ.get(
+            "MACHINE_CONTROL_MOCK_CLAIM_USE_CLASS", "ordinary"
+        ) != "disruptive"
+    ):
+        print(json.dumps({
+            "schema": "machine-control-claim/v0",
+            "operation": "check",
+            "accepted": False,
+            "uncertainty": "none",
+            "errorCode": "disruptive_claim_required",
+            "message": (
+                "Host-visible VM capture or input requires a disruptive claim"
+            ),
+            "data": {"state": "held", "claim": claim_descriptor(claim_id)},
         }))
         raise SystemExit(1)
     print(json.dumps({
@@ -510,6 +542,8 @@ if command == "status":
     print(power_state)
 elif command == "probe":
     print("ready")
+elif command in {"screenshot", "click", "drag", "type", "key", "scan"}:
+    print("provider-dispatched")
 elif command in {"up", "suspend", "shutdown", "force-stop", "reboot"}:
     if command == "up" and os.environ.get("MACHINE_CONTROL_MOCK_UP_FAIL"):
         print("private-adapter-failure", file=sys.stderr)

@@ -135,6 +135,10 @@ class ClientTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0)
         self.assertEqual(value["mode"], "exclusive")
+        self.assertEqual(value["useClasses"], {
+            "supported": ["ordinary", "disruptive"],
+            "default": "ordinary",
+        })
         self.assertEqual(value["durations"]["defaultSeconds"], 1800)
         self.assertEqual(value["target"]["logicalTarget"], "fixture")
 
@@ -156,6 +160,7 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIsNone(value)
         self.assertIn("--claimant-authority", result.stdout)
+        self.assertIn("--disruptive", result.stdout)
         self.assertIn("release from cleanup", result.stdout)
 
         result, value = self.run_cli(
@@ -181,6 +186,7 @@ class ClientTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0)
         self.assertEqual(value["data"]["claim"]["mode"], "exclusive")
+        self.assertEqual(value["data"]["claim"]["useClass"], "ordinary")
         arguments = json.loads(log.read_text(encoding="utf-8"))
         self.assertEqual(
             arguments[arguments.index("--duration-seconds") + 1], "1800"
@@ -189,6 +195,22 @@ class ClientTests(unittest.TestCase):
             arguments[arguments.index("--metadata-json") + 1]
         )
         self.assertEqual(metadata, {"suite": "client"})
+
+    def test_claim_acquire_forwards_explicit_disruptive_use(self):
+        log = self.directory / "arguments.json"
+        result, value = self.run_cli(
+            "--target", "fixture", "claim", "acquire",
+            "--disruptive",
+            "--reason", "recover the fixture",
+            "--claimant-authority", "test-runner",
+            "--claimant-id", "case-1",
+            extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(value["data"]["claim"]["useClass"], "disruptive")
+        self.assertIn(
+            "--disruptive", json.loads(log.read_text(encoding="utf-8"))
+        )
 
     def test_claim_renew_and_release_validate_opaque_id(self):
         claim_id = "c-0123456789abcdef01234567"
@@ -253,6 +275,44 @@ class ClientTests(unittest.TestCase):
             json.loads(log.read_text(encoding="utf-8"))[0], "claim-check"
         )
 
+    def test_outer_vm_command_requires_a_disruptive_claim(self):
+        claim_id = "c-0123456789abcdef01234567"
+        log = self.directory / "arguments.json"
+        self.write_registry("linux", claim_policy="required")
+        result, value = self.run_cli(
+            "--target", "fixture", "--claim", claim_id,
+            "testbed", "--", "screenshot",
+            extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(value["errorCode"], "disruptive_claim_required")
+        self.assertEqual(
+            json.loads(log.read_text(encoding="utf-8")),
+            [
+                "claim-check", "--claim-id", claim_id,
+                "--required-use-class", "disruptive", "--json",
+            ],
+        )
+
+    def test_outer_vm_command_dispatches_with_a_disruptive_claim(self):
+        claim_id = "c-0123456789abcdef01234567"
+        log = self.directory / "arguments.json"
+        self.write_registry("linux", claim_policy="required")
+        result, value = self.run_cli(
+            "--target", "fixture", "--claim", claim_id,
+            "testbed", "--", "screenshot",
+            extra_env={
+                "MACHINE_CONTROL_MOCK_CLAIM_USE_CLASS": "disruptive",
+                "MACHINE_CONTROL_MOCK_LOG": str(log),
+            },
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertIsNone(value)
+        self.assertEqual(result.stdout.strip(), "provider-dispatched")
+        self.assertEqual(
+            json.loads(log.read_text(encoding="utf-8")), ["screenshot"]
+        )
+
     def test_required_target_keeps_doctor_claim_free(self):
         self.write_registry("linux", claim_policy="required")
         result, value = self.run_cli(
@@ -273,6 +333,7 @@ class ClientTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0)
         self.assertEqual(value["data"]["claim"]["mode"], "exclusive")
+        self.assertEqual(value["data"]["claim"]["useClass"], "ordinary")
 
     def test_required_workspace_acquire_requires_attribution(self):
         log = self.directory / "arguments.json"
