@@ -52,7 +52,7 @@ persistent_seal_boot_authorized() {
 role_allows_operation() {
     local role="$1" operation="$2"
     case "$operation" in
-        inspect|status|capabilities|target-id|factory-status|screenshot|down|shutdown|suspend)
+        inspect|status|capabilities|target-id|factory-status|trust-host-key|screenshot|down|shutdown|suspend)
             return 0
             ;;
         seal|export-image)
@@ -319,6 +319,63 @@ factory_status() (
         ssh_bootstrap:"pending_or_unavailable",seed_removal_required:true}'
 )
 
+trust_ssh_host_key() (
+    if (( $# != 0 )); then
+        printf 'Usage: winvm trust-ssh-host-key\n' >&2
+        return 2
+    fi
+    assert_target trust-host-key >/dev/null
+    winvm_require_command ssh-keygen
+    if [[ ! "$WINVM_SSH_HOST" =~ ^[A-Za-z0-9@._-]+$ ]]; then
+        printf 'The stable SSH alias is invalid for known_hosts.\n' >&2
+        return 1
+    fi
+
+    local temporary_root public_key key_type key_data extra fingerprint
+    local ssh_directory known_hosts updated_known_hosts
+    temporary_root="$(mktemp -d "${TMPDIR:-/tmp}/winvm-host-key.XXXXXX")"
+    chmod 700 "$temporary_root"
+    trap 'rm -rf -- "$temporary_root"' EXIT
+    public_key="$temporary_root/ssh_host_ed25519_key.pub"
+    core pull 'C:\ProgramData\ssh\ssh_host_ed25519_key.pub' \
+        "$public_key" >/dev/null
+    if (( "$(wc -l <"$public_key")" != 1 )); then
+        printf 'Guest SSH host key is not a single public-key record.\n' >&2
+        return 1
+    fi
+    read -r key_type key_data extra <"$public_key"
+    if [[ "$key_type" != ssh-ed25519 ||
+          ! "$key_data" =~ ^[A-Za-z0-9+/]+={0,3}$ ]]; then
+        printf 'Guest SSH host key is invalid.\n' >&2
+        return 1
+    fi
+    fingerprint="$(ssh-keygen -l -E sha256 -f "$public_key" | awk '{print $2}')"
+    if [[ ! "$fingerprint" =~ ^SHA256:[A-Za-z0-9+/]+$ ]]; then
+        printf 'Guest SSH host-key fingerprint is invalid.\n' >&2
+        return 1
+    fi
+
+    ssh_directory="$HOME/.ssh"
+    known_hosts="$ssh_directory/known_hosts"
+    mkdir -p "$ssh_directory"
+    chmod 700 "$ssh_directory"
+    touch "$known_hosts"
+    chmod 600 "$known_hosts"
+    updated_known_hosts="$(mktemp "$ssh_directory/known_hosts.machine-control.XXXXXX")"
+    cp -- "$known_hosts" "$updated_known_hosts"
+    ssh-keygen -R "$WINVM_SSH_HOST" -f "$updated_known_hosts" \
+        >/dev/null 2>&1 || true
+    rm -f -- "$updated_known_hosts.old"
+    printf '%s %s %s\n' "$WINVM_SSH_HOST" "$key_type" "$key_data" \
+        >>"$updated_known_hosts"
+    chmod 600 "$updated_known_hosts"
+    mv -- "$updated_known_hosts" "$known_hosts"
+    jq -n --arg fingerprint "$fingerprint" \
+        '{schema:"machine-control-ssh-host-trust/v0",updated:true,
+          key_type:"ssh-ed25519",fingerprint:$fingerprint,
+          source:"authenticated_guest_agent"}'
+)
+
 require_outer_ui_allowed() {
     if [[ "$WINVM_FORBID_OUTER_UI" == true ]]; then
         printf 'Refusing host-side libvirt screenshot/input: outer UI is forbidden\n' >&2
@@ -384,6 +441,7 @@ case "$command" in
     ssh-exec) ssh_exec "$@" ;;
     stage-bootstrap) assert_target stage-bootstrap >/dev/null; stage_bootstrap "$@" ;;
     factory-status) factory_status "$@" ;;
+    trust-ssh-host-key) trust_ssh_host_key "$@" ;;
     post-update-guest-agent)
         assert_target post-update-repair >/dev/null
         post_update_guest_agent "$@"

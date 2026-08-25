@@ -61,6 +61,7 @@ done
 
 help_output="$(WINVM_UTM_NAME='Smoke Test VM' "$REPO_DIR/bin/winvm" help)"
 [[ "$help_output" == *'stage-bootstrap'* ]]
+[[ "$help_output" == *'trust-ssh-host-key'* ]]
 [[ "$help_output" == *'deploy-ui'* ]]
 [[ "$help_output" == *'doctor [--json]'* ]]
 [[ "$help_output" == *'control-local JSON'* ]]

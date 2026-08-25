@@ -35,6 +35,7 @@ Start here:
 
 Setup:
   stage-bootstrap [KEY]  Stage OpenSSH bootstrap files through the provider
+  trust-ssh-host-key     Trust the exact guest's SSH host key via QGA
   deploy-ui              Install WinApp and deploy/restart the session-1 relay
   ssh-config USER        Print the recommended OpenSSH client entry
 
@@ -173,7 +174,7 @@ case "$command" in
     workspace-capabilities|workspace-acquire|workspace-inventory|workspace-release|workspace-gc)
         exec "$REPO_DIR/providers/$WINVM_PROVIDER/workspace.sh" "$command" "$@"
         ;;
-    status|capabilities|target-id|pin-target|assert-target|repair-registration|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop|seal|disposable-up|export-image|factory-status|factory-create|factory-detach-installer|factory-detach-media|delete)
+    status|capabilities|target-id|pin-target|assert-target|repair-registration|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop|seal|disposable-up|export-image|factory-status|factory-create|factory-detach-installer|factory-detach-media|trust-ssh-host-key|delete)
         provider "$command" "$@"
         ;;
     *)
