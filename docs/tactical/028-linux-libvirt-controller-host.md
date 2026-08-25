@@ -193,8 +193,10 @@ secret route entered the ordinary desktop, where full doctor passed. An
 isolated QCOW2 workspace repeated the protected and ordinary readiness paths,
 matched local/outside generations, produced an independently observed Cua
 fixture effect and exact window capture, and was discarded through its
-claim-bound receipt. Generated answer media and the setup secret were removed
-after acceptance.
+claim-bound receipt. The disposable setup credential was rotated through a
+secret-only standard-input channel without entering arguments, environment,
+JSON, or logs. Its replacement then passed the protected login effect, and the
+generated answer media and setup secret were removed after acceptance.
 
 Headless QMP capture and bounded keyboard/text were exercised only during
 bootstrap/recovery; ordinary acceptance prohibited every outer route. Pointer
