@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly PROVIDER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../scripts/common.sh
+source "$PROVIDER_DIR/../../scripts/common.sh"
+readonly PORT="${1:-22}"
+readonly CONNECT_TIMEOUT="$WINVM_BOOT_TIMEOUT"
+
+if [[ ! "$PORT" =~ ^[1-9][0-9]{0,4}$ || "$PORT" -gt 65535 ]]; then
+    printf 'SSH proxy port is invalid.\n' >&2
+    exit 2
+fi
+winvm_require_command "$WINVM_NC_BIN"
+
+"$WINVM_REPO_DIR/bin/winvm" assert-target connect >/dev/null
+if [[ "$("$WINVM_REPO_DIR/bin/winvm" status)" == stopped ]]; then
+    ip="$("$WINVM_REPO_DIR/bin/winvm" up)"
+else
+    ip="$("$WINVM_REPO_DIR/bin/winvm" ip)"
+fi
+
+deadline=$((SECONDS + CONNECT_TIMEOUT))
+while (( SECONDS < deadline )); do
+    if winvm_tcp_check "$ip" "$PORT" 1; then
+        exec "$WINVM_NC_BIN" "$ip" "$PORT"
+    fi
+    sleep 1
+done
+
+printf 'Timed out waiting for the target SSH endpoint\n' >&2
+exit 1

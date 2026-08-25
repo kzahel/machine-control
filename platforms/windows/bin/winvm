@@ -122,7 +122,7 @@ Host $WINVM_SSH_HOST
     HostName $WINVM_SSH_HOST
     User $1
     Port $WINVM_SSH_PORT
-    HostKeyAlias $WINVM_SSH_HOST
+    HostKeyAlias $(winvm_ssh_host_key_alias)
     CheckHostIP no
     ProxyCommand $WINVM_REPO_DIR/providers/$WINVM_PROVIDER/ssh-proxy %p
     ServerAliveInterval 15

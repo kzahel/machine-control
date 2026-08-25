@@ -202,7 +202,7 @@ guest_ipv4_once() {
 
 ssh_exec() {
     assert_target connect >/dev/null
-    local state ip
+    local state ip host_key_alias
     state="$(core status)"
     if [[ "$state" != started ]]; then
         if [[ "$WINVM_SSH_ALLOW_START" != true ]]; then
@@ -212,9 +212,10 @@ ssh_exec() {
         ensure_running
     fi
     ip="$(core ip)"
+    host_key_alias="$(winvm_ssh_host_key_alias)"
     "$WINVM_SSH_BIN" \
         -o BatchMode=yes -o ProxyCommand=none -o "HostName=$ip" \
-        -o "HostKeyAlias=$WINVM_SSH_HOST" -o CheckHostIP=no \
+        -o "HostKeyAlias=$host_key_alias" -o CheckHostIP=no \
         -p "$WINVM_SSH_PORT" "$WINVM_SSH_HOST" "$@"
 }
 
@@ -332,7 +333,13 @@ trust_ssh_host_key() (
     fi
 
     local temporary_root public_key key_type key_data extra fingerprint
+    local host_key_alias
     local ssh_directory known_hosts updated_known_hosts
+    host_key_alias="$(winvm_ssh_host_key_alias)"
+    if [[ ! "$host_key_alias" =~ ^[A-Za-z0-9._-]+$ ]]; then
+        printf 'The stable SSH host-key alias is invalid.\n' >&2
+        return 1
+    fi
     temporary_root="$(mktemp -d "${TMPDIR:-/tmp}/winvm-host-key.XXXXXX")"
     chmod 700 "$temporary_root"
     trap 'rm -rf -- "$temporary_root"' EXIT
@@ -363,10 +370,14 @@ trust_ssh_host_key() (
     chmod 600 "$known_hosts"
     updated_known_hosts="$(mktemp "$ssh_directory/known_hosts.machine-control.XXXXXX")"
     cp -- "$known_hosts" "$updated_known_hosts"
-    ssh-keygen -R "$WINVM_SSH_HOST" -f "$updated_known_hosts" \
+    ssh-keygen -R "$host_key_alias" -f "$updated_known_hosts" \
         >/dev/null 2>&1 || true
+    if [[ "$host_key_alias" != "$WINVM_SSH_HOST" ]]; then
+        ssh-keygen -R "$WINVM_SSH_HOST" -f "$updated_known_hosts" \
+            >/dev/null 2>&1 || true
+    fi
     rm -f -- "$updated_known_hosts.old"
-    printf '%s %s %s\n' "$WINVM_SSH_HOST" "$key_type" "$key_data" \
+    printf '%s %s %s\n' "$host_key_alias" "$key_type" "$key_data" \
         >>"$updated_known_hosts"
     chmod 600 "$updated_known_hosts"
     mv -- "$updated_known_hosts" "$known_hosts"

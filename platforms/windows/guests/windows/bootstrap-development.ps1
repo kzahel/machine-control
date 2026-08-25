@@ -24,6 +24,9 @@ function Test-Python3 {
     }
     $python = Get-Command python.exe -ErrorAction SilentlyContinue
     if (-not $python) { return $false }
+    if ($python.Source -like '*\Microsoft\WindowsApps\*') {
+        return $false
+    }
     & $python.Source -c `
         'import sys; raise SystemExit(sys.version_info.major != 3)' 2>$null
     return $LASTEXITCODE -eq 0
@@ -45,11 +48,12 @@ function Install-WinGetPackage {
     if (-not $winget) {
         throw 'winget.exe is required for the development profile'
     }
-    & $winget.Source install --id $Identifier --exact --silent `
+    $wingetOutput = @(& $winget.Source install --id $Identifier --exact --silent `
         --disable-interactivity --accept-source-agreements `
-        --accept-package-agreements
-    if ($LASTEXITCODE -ne 0) {
-        throw "winget package installation failed with $LASTEXITCODE"
+        --accept-package-agreements 2>&1)
+    $wingetExitCode = $LASTEXITCODE
+    if ($wingetExitCode -ne 0) {
+        throw "winget package installation failed with $wingetExitCode"
     }
 }
 

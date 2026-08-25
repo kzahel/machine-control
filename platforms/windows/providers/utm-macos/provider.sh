@@ -838,14 +838,15 @@ ssh_endpoint() {
 }
 
 ssh_exec() {
-    local ip
+    local ip host_key_alias
     winvm_require_command "$WINVM_SSH_BIN" || return
     ip="$(ssh_endpoint)" || return
+    host_key_alias="$(winvm_ssh_host_key_alias)"
     exec "$WINVM_SSH_BIN" \
         -o BatchMode=yes \
         -o ProxyCommand=none \
         -o HostName="$ip" \
-        -o HostKeyAlias="$WINVM_SSH_HOST" \
+        -o HostKeyAlias="$host_key_alias" \
         -o CheckHostIP=no \
         -p "$WINVM_SSH_PORT" \
         "$WINVM_SSH_HOST" "$@"

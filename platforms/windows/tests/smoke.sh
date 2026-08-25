@@ -28,6 +28,10 @@ grep -Fq "'openssh_automation_shell'" \
     "$REPO_DIR/guests/windows/post-update.ps1"
 grep -Fq "'Python.Python.3.13'" \
     "$REPO_DIR/guests/windows/bootstrap-development.ps1"
+grep -Fq "'*\Microsoft\WindowsApps\*'" \
+    "$REPO_DIR/guests/windows/bootstrap-development.ps1"
+grep -Fq '$wingetOutput = @(& $winget.Source install' \
+    "$REPO_DIR/guests/windows/bootstrap-development.ps1"
 grep -Fq "'Microsoft.DotNet.SDK.8'" \
     "$REPO_DIR/guests/windows/bootstrap-development.ps1"
 grep -Fq 'post-update.ps1' "$REPO_DIR/../../scripts/publish-windows.sh"
@@ -50,6 +54,7 @@ scripts=(
     "$REPO_DIR/scripts/post-update.sh"
     "$REPO_DIR/providers/utm-macos/provider.sh"
     "$REPO_DIR/providers/libvirt-linux/provider.sh"
+    "$REPO_DIR/providers/libvirt-linux/ssh-proxy"
     "$REPO_DIR/providers/utm-macos/workspace.sh"
     "$REPO_DIR/providers/utm-macos/screenshot"
     "$REPO_DIR/providers/utm-macos/ssh-proxy"
@@ -172,6 +177,14 @@ direct_ssh_arguments="$(paste -sd '|' "$direct_ssh_capture")"
     '-o|BatchMode=yes|-o|ProxyCommand=none|-o|HostName=192.0.2.10|-o|HostKeyAlias=fixture-ssh-alias|-o|CheckHostIP=no|-p|22|fixture-ssh-alias|exit 0' ]]
 [[ "$(wc -l <"$direct_target_log" | tr -d ' ')" == 1 ]]
 [[ "$(grep -c '^ip-address ' "$direct_utmctl_log")" == 1 ]]
+
+rm -f -- "$direct_ssh_capture" "$direct_target_log" "$direct_utmctl_log"
+env "${direct_environment[@]}" \
+    WINVM_SSH_HOST=fixture-user@fixture-ssh-alias \
+    "$REPO_DIR/bin/winvm" ps 'exit 0' >/dev/null
+direct_ssh_arguments="$(paste -sd '|' "$direct_ssh_capture")"
+[[ "$direct_ssh_arguments" == \
+    '-o|BatchMode=yes|-o|ProxyCommand=none|-o|HostName=192.0.2.10|-o|HostKeyAlias=fixture-ssh-alias|-o|CheckHostIP=no|-p|22|fixture-user@fixture-ssh-alias|exit 0' ]]
 
 rm -f -- "$direct_ssh_capture" "$direct_target_log" "$direct_utmctl_log"
 if env "${direct_environment[@]}" \

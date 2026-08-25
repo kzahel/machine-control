@@ -184,6 +184,10 @@ winvm_ssh() {
     "$(winvm_provider_path)" ssh-exec "$@"
 }
 
+winvm_ssh_host_key_alias() {
+    printf '%s\n' "${WINVM_SSH_HOST##*@}"
+}
+
 winvm_run_bounded() {
     local timeout="$1"
     shift
