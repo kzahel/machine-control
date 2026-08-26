@@ -102,11 +102,22 @@ automation is available unless the guest has explicitly authorized auto-logon.
 Auto-logon credentials must remain guest-local and must never be stored in this
 repository, shell history, or command output.
 
+The guest login password itself may be held in the controller's explicitly
+declared host-local credential file. Before a cold-login or administrator
+workflow, run `bin/machine-control inventory credentials winvm` at the
+repository root. A missing locator file is a handoff defect: do not guess or
+test password candidates. After creating, rotating, or recovering the VM
+password, replace that declared file and verify it in the same task. The
+private inventory passes only `WINVM_LOGIN_SECRET_FILE`; credential bytes still
+use the dedicated standard-input login channel.
+
 ## Configuration and Deployment
 
 Machine configuration belongs in the controller's private inventory, ignored
-`config.local`, or `WINVM_*` environment variables. Never commit credentials,
-private keys, addresses, hostnames, VM UUIDs, or personal screenshots here.
+`config.local`, or `WINVM_*` environment variables. A private inventory may
+declare a credential-file path but never the password value. Never commit
+credentials, private keys, addresses, hostnames, VM UUIDs, or personal
+screenshots here.
 
 After changing files under `guests/windows/ui/`, deploy and verify them:
 

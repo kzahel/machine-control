@@ -2992,7 +2992,8 @@ def usage() -> str:
                        COMMAND ...
 
 Commands:
-  inventory list|status|guide|doctor  Use the private deployment inventory
+  inventory list|status|guide|credentials|doctor
+                                    Use the private deployment inventory
   targets                         List logical targets without private paths
   target status|up|suspend|shutdown|force-stop|reboot|doctor|capabilities
          ensure-ready|validate-candidate|prepare-promotion

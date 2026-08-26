@@ -16,7 +16,7 @@ or generated one-way.
 | Component | Current role | Does not own |
 | --- | --- | --- |
 | [`~/code/yepanywhere`](../yepanywhere/README.md) | Agent provider sessions, user supervision, relay transport, peer identity/grants, and proposed cross-host delegation | VM/device implementation details; generic hypervisor or desktop drivers |
-| [`~/code/dotfiles/testbeds`](../dotfiles/testbeds/README.md) | Private concrete testbed inventory, controller availability, and portable discovery; link to each current authoritative guide | Public lifecycle implementation, UI control, recovery, product assertions |
+| [`~/code/dotfiles/testbeds`](../dotfiles/testbeds/README.md) | Private concrete testbed inventory, controller availability, portable discovery, and locators for controller-local credential files; link to each current authoritative guide | Credential values, public lifecycle implementation, UI control, recovery, product assertions |
 | Consuming application repository | Builds, fixtures, test intent, application-specific assertions, and cross-platform campaign logic | Machine provisioning and generic control transport |
 
 Machine Control owns exact-resource target-use arbitration. A coordinator may

@@ -285,9 +285,11 @@ Guest:
 
 ## Security
 
-- No credential is accepted in JSON, arguments, environment, or files. The
-  administrator-sheet helper reads one credential from an interactive terminal
-  without echo and streams it directly to the resident.
+- No credential is accepted in JSON, arguments, environment variables,
+  repository files, logs, or results. Private inventory may locate a
+  controller-local credential file for VM handoff; the administrator-sheet
+  helper still streams credential bytes through its dedicated one-shot
+  channel.
 - Initial TCC consent still requires direct guest-user interaction because the
   resident does not yet have Accessibility permission.
 - The repository share is read-only by default.

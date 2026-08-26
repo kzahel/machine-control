@@ -29,6 +29,13 @@ a mode-0600 file, never an argument or environment variable. Detach and
 securely discard the ISO after first-logon bootstrap. The factory keeps the
 controller's public SSH key, but never its private key.
 
+For a retained test appliance, use the credential file declared by the private
+inventory as `PRIVATE_SECRET_FILE`. If the setup password is rotated, replace
+that same file atomically with the current password before ending the task.
+Run `bin/machine-control inventory credentials winvm` from the repository root
+to discover and validate the file. A random temporary path that is later
+deleted is appropriate only when the VM itself is also discarded.
+
 ## Render unattended answer media
 
 Prepare a mode-0600 file containing one setup password and select a public SSH
@@ -185,8 +192,9 @@ drive shape differs.
 
 After Windows first-logon bootstrap completes, verify key-only SSH, remove the
 one-use answer media and Windows ISO with `bin/winvm factory-detach-media`
-while the candidate is stopped, rotate the setup credential, and install
-the development appliance through its UUID-bound bootstrap:
+while the candidate is stopped, rotate the setup credential, update and verify
+the private inventory's declared credential file, and install the development
+appliance through its UUID-bound bootstrap:
 
 ```bash
 ../../scripts/bootstrap-windows.sh --testbed . \

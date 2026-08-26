@@ -247,15 +247,19 @@ To connect a real target:
 
 1. Choose its guide from the [platform index](platforms/README.md).
 2. Install that platform's prerequisites and target-resident components.
-3. Put concrete selectors, endpoints, paths, and policy in ignored local
-   configuration or an optional private inventory provider.
-4. Run the read-only doctor, repair private identity if necessary, then claim
-   the target before meaningful use.
+3. Put concrete selectors, endpoints, paths, policy, and locators for any
+   host-held credentials in ignored local configuration or an optional private
+   inventory provider. Keep credential values in its declared local secret
+   store, not in this repository or the target registry.
+4. Run `inventory credentials TARGET` when the target uses a stored guest
+   credential, then run the read-only doctor, repair private identity if
+   necessary, and claim the target before meaningful use.
 
 On a configured controller:
 
 ```bash
 bin/machine-control inventory status
+bin/machine-control inventory credentials winvm
 bin/machine-control --target windows target doctor
 claim="$(bin/machine-control --target windows claim acquire \
   --duration 30m --reason 'validate the Windows appliance' \

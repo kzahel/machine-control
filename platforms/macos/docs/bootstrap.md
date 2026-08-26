@@ -18,7 +18,9 @@ A complete guest has:
 - explicit Accessibility permission for that app identity; and
 - a warning-free `bin/macvm doctor` result.
 
-The CLI never needs or stores the guest password.
+The public CLI never stores the guest password. A controller's private
+inventory may declare a host-local password file so a VM-creation or recovery
+task can hand the credential to later sessions without placing it in Git.
 
 ## Host Preparation
 
@@ -64,8 +66,10 @@ bin/macvm authorize-ui
 Cirrus's prepared-image convention uses a short account name of `admin` and
 an initial password of `admin`; the full name may appear as “Managed via
 Tart.” Treat that as a public bootstrap credential, not a durable secret.
-Change it for any non-disposable guest and never place it in a shell command,
-repository file, or agent message.
+For a retained VM, write the current value to the credential file reported by
+`bin/machine-control inventory credentials macvm`; if it is changed, replace
+that file in the same task. Never place the value in a shell argument,
+repository file, log, or ordinary request.
 
 Continue at [Grant guest Accessibility](#grant-guest-accessibility).
 
@@ -100,8 +104,10 @@ MACVM_NAME=macos-clean bin/macvm key enter
 ### Complete Setup Assistant
 
 Use a screenshot before every coordinate action. Create a local administrator
-account and record its credential in the user's approved password manager,
-not in this repository or the agent transcript.
+account and record its credential in the user's approved password manager or
+the host-local file declared by private inventory, not in this repository.
+Run `bin/machine-control inventory credentials macvm` before ending setup and
+do not leave the declared file missing.
 
 After the desktop appears, open Terminal through Spotlight:
 
@@ -250,6 +256,8 @@ For a guest with irreplaceable state:
    user's direct supervision.
 4. Restart normally and re-run `doctor`; TCC and keychain-backed state may
    require fresh consent or repair.
+5. Replace the private inventory's declared host-local credential file with
+   the recovered password and verify it with `inventory credentials macvm`.
 
 Password reset can affect the login keychain. Preserve the VM first with a
 named Tart clone or export when its state matters, and do not perform the

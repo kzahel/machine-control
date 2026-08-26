@@ -49,9 +49,11 @@ UI app, are explicit macOS consent decisions. An agent may navigate to and
 explain the initial consent surface; the user enters any password directly in
 the VM while MacVM UI is not yet trusted. After Accessibility is granted, a
 matching normal Aqua administrator sheet uses `authorization.begin` and the
-interactive, non-echoing `authorization-submit` helper. Never place a
-credential in request JSON, arguments, environment, files, logs, captures, or
-result values, and never retry a failed credential automatically.
+interactive, non-echoing `authorization-submit` helper. A dedicated test VM's
+password may be retained in the controller's declared host-local credential
+file for handoff, but its bytes must never enter request JSON, arguments,
+environment variables, repository files, logs, captures, or result values.
+Never retry a failed credential automatically.
 
 ## Fresh Guest Boundary
 
@@ -64,9 +66,12 @@ the intended bridge into a new interactive desktop.
 ## Configuration And Deployment
 
 Machine configuration belongs in the controller's private inventory, ignored
-`config.local`, or `MACVM_*` environment variables. Never commit credentials,
-private keys, machine identifiers, personal screenshots, VM images, or TCC
-databases here.
+`config.local`, or `MACVM_*` environment variables. Before bootstrap or
+administrator work, run `bin/machine-control inventory credentials macvm` at
+the repository root. Creation, rotation, or password recovery must update the
+declared host-local file in the same task. The inventory passes only the
+`MACVM_ADMIN_SECRET_FILE` path. Never commit credential values, private keys,
+machine identifiers, personal screenshots, VM images, or TCC databases here.
 
 After changing `guests/macos/ui/macui.swift`, deploy and verify it:
 

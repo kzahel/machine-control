@@ -23,4 +23,9 @@ write it to repository files or command output. Holding Shift during boot
 bypasses auto-logon for that login. Use the Autologon utility's **Disable**
 action to remove the configuration.
 
+Auto-logon does not replace credential handoff. The controller's private
+inventory may locate a host-local password file for the dedicated appliance;
+the guest retains its own LSA copy independently. Update the host-local file
+whenever the guest password changes.
+
 [autologon]: https://learn.microsoft.com/en-us/sysinternals/downloads/autologon

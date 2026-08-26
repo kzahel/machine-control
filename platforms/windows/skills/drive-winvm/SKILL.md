@@ -20,6 +20,7 @@ already configured.
 ```bash
 cd ~/code/machine-control
 bin/machine-control inventory status
+bin/machine-control inventory credentials winvm
 bin/machine-control --target windows target doctor
 ```
 
@@ -28,6 +29,10 @@ Read the result before acting:
 - Acquire a target-use claim before mutation and record the power state while
   holding it. If the VM is stopped, run `target ensure-ready` with that claim
   and remember that this caller owns the corresponding cleanup.
+- If the required login credential is not `ready`, stop treating the VM as
+  fully handed off. Do not guess password variants; create, rotate, or recover
+  the credential through the Windows setup procedure and update the declared
+  host-local file in the same task.
 - If the identity check says the pinned target is not registered in UTM, run
   `bin/machine-control --target windows testbed -- repair-registration` and
   repeat doctor. The repair accepts only the on-disk bundle whose name and
@@ -63,6 +68,31 @@ Do not launch GUI apps through raw SSH because SSH is in session 0. Use:
 ```bash
 winvm ui launch notepad.exe
 ```
+
+## Credential Login
+
+Private inventory stores a typed locator next to the VM metadata and keeps the
+password bytes in an untracked controller-local file. With a live target-use
+claim in `claim_id`, resolve the ready locator and stream it through the
+dedicated login helper:
+
+```bash
+WINVM_LOGIN_SECRET_FILE="$(
+  bin/machine-control inventory credentials winvm --json |
+    jq -er '.testbeds[] | select(.id == "winvm") | .credentials[] |
+      select(.id == "guest-login-password" and .state == "ready") | .file'
+)"
+
+MACHINE_CONTROL_CLAIM_ID="$claim_id" \
+  scripts/login-windows.sh winvm password < "$WINVM_LOGIN_SECRET_FILE"
+unset WINVM_LOGIN_SECRET_FILE
+```
+
+Use this only for a confirmed Windows credential surface. The protected login
+route refuses before secret submission when provider or field discovery is
+uncertain. Submit once; do not retry a failed or unknown result. Creating,
+rotating, or recovering the password is incomplete until `inventory
+credentials winvm` reports the declared file as `ready`.
 
 ## Quick Reference
 
@@ -110,8 +140,9 @@ targeting is ambiguous and use `-w HWND`.
   avoid saved-state storage entirely.
 - If clean shutdown fails, leave the VM running and report it. Do not quit UTM
   or silently substitute suspend or `force-stop`.
-- Never put passwords, private keys, PINs, machine identifiers, or screenshots
-  in this repository or command logs.
+- Keep passwords and PINs only in their declared controller-local credential
+  files. Never put them, private keys, machine identifiers, or screenshots in
+  this repository or command logs.
 - Treat auto-logon as an explicit test-appliance choice. Never place its
   credential in this repository, shell history, or command output.
 

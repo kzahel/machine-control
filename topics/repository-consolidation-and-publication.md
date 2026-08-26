@@ -62,6 +62,14 @@ Public examples use generic logical targets and placeholders. The common CLI
 must keep portable results free of private inventory even when its local
 adapter has access to that inventory.
 
+**Current:** Private inventory records typed locators for host-managed test-VM
+credentials alongside target metadata. Secret bytes remain in untracked local
+files with restrictive permissions. `machine-control inventory credentials`
+reports each locator's purpose and file state without reading its contents,
+and the private adapter environment receives only the path. VM creation,
+password rotation, and password recovery are incomplete until they update that
+file and verify the locator. Auto-login remains a separate guest-local policy.
+
 ## Transition rule
 
 There is no period in which two repositories are editable authorities for one

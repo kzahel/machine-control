@@ -308,7 +308,9 @@ nor boots or clones a seal.
   started in disposable mode for verification without saving guest changes.
 - A cold boot normally requires one manual Windows login. A dedicated test
   appliance may use explicitly authorized guest-local auto-logon, but its
-  credential must never be stored in this repository or command output.
+  credential must never be stored in this repository or command output. A
+  private inventory may locate a controller-local password file so creation,
+  rotation, and recovery survive an agent handoff.
 - Windows update/recovery and post-boot service initialization can take several
   minutes. Ordinary start waits up to ten minutes by default. A `started` UTM
   state with guest-agent, SSH, or resident readiness still unavailable is not
@@ -382,7 +384,9 @@ Windows guest:
 
 - Public-key SSH is required; password and keyboard-interactive SSH are
   disabled by the bootstrap.
-- No passwords, private keys, or auto-login settings are stored.
+- No passwords, private keys, or auto-login settings are stored in this public
+  repository. Private inventory may declare a mode-`0600` host-local password
+  file and exposes only its path to the adapter.
 - The UI relay pipe is restricted to the current Windows user and SYSTEM.
 - Secure desktops and elevated windows remain protected by Windows.
 
