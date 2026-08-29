@@ -295,6 +295,13 @@ Administration and UI testing remain distinct intents: a direct Settings URI
 or OS API is efficient for configuration, while the Windows-shell acceptance
 track deliberately drives and verifies the visible Settings experience.
 
+The Windows `key` operation defaults to `keyMode: "virtual_key"` for ordinary
+desktop applications. Callers may explicitly select `keyMode: "scan_code"`
+for DirectInput-style software that polls physical key positions, and may set
+`durationMs` from 1 through 5000 to request a bounded hold before release.
+Results disclose the selected route and duration; scan-code delivery still
+requires an independent visual or application-level effect oracle.
+
 The facade should allow compact semantic/visual scopes for Start, taskbar,
 notification area, a shell flyout, and a Settings window so agents do not pay
 for the entire desktop tree on every action.

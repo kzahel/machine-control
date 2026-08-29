@@ -67,6 +67,8 @@ internal sealed record Request
     public int? X { get; init; }
     public int? Y { get; init; }
     public string? Key { get; init; }
+    public string? KeyMode { get; init; }
+    public int? DurationMs { get; init; }
     public string? Text { get; init; }
     public string? Button { get; init; }
     public string? State { get; init; }

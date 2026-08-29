@@ -1068,16 +1068,53 @@ internal static class DesktopController
                 "invalid_request",
                 "key requires a supported key name");
         }
-        SendKey(request.Key);
+        var keyMode = request.KeyMode?.ToLowerInvariant() ?? "virtual_key";
+        if (keyMode is not ("virtual_key" or "scan_code"))
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "invalid_key_mode",
+                "keyMode must be virtual_key or scan_code");
+        }
+        var durationMs = request.DurationMs ?? 50;
+        if (durationMs is < 1 or > 5000)
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "invalid_key_duration",
+                "durationMs must be between 1 and 5000");
+        }
+        if (keyMode == "scan_code" && !TryGetScanCodeChord(request.Key, out _))
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "unsupported_scan_code_key",
+                $"Unsupported scan-code key '{request.Key}'");
+        }
+        SendKey(request.Key, keyMode, durationMs);
         return Success(
             request,
             generation,
             desktopName,
             timer,
-            "windows.native/send_input",
+            keyMode == "scan_code"
+                ? "windows.native/send_input_scan_code"
+                : "windows.native/send_input",
             "confirmed",
             "unverifiable",
-            new { key = request.Key });
+            new { key = request.Key, keyMode, durationMs },
+            fidelity: keyMode == "scan_code"
+                ? "hardware_scan_code_compatible"
+                : "native");
     }
 
     private static Result TypeText(
@@ -2065,7 +2102,21 @@ internal static class DesktopController
             },
         };
 
-    private static void SendKey(string key)
+    private static void SendKey(
+        string key,
+        string keyMode = "virtual_key",
+        int durationMs = 50)
+    {
+        if (keyMode == "scan_code")
+        {
+            SendScanCodeKey(key, durationMs);
+            return;
+        }
+
+        SendVirtualKey(key, durationMs);
+    }
+
+    private static void SendVirtualKey(string key, int durationMs)
     {
         var strokes = key.ToLowerInvariant() switch
         {
@@ -2093,27 +2144,139 @@ internal static class DesktopController
             "win+s" => new ushort[] { 0x5B, 0x53 },
             _ => throw new ArgumentException($"Unsupported key '{key}'"),
         };
-        var inputs = new List<NativeMethods.INPUT>();
-        foreach (var stroke in strokes)
+        SendKeyboardInputs(strokes
+            .Select(stroke => KeyboardInput(stroke, 0))
+            .ToArray());
+        Thread.Sleep(durationMs);
+        SendKeyboardInputs(strokes
+            .Reverse()
+            .Select(stroke => KeyboardInput(
+                stroke,
+                NativeMethods.KEYEVENTF_KEYUP))
+            .ToArray());
+    }
+
+    private static void SendScanCodeKey(string key, int durationMs)
+    {
+        if (!TryGetScanCodeChord(key, out var strokes))
         {
-            inputs.Add(KeyboardInput(stroke, 0));
+            throw new ArgumentException($"Unsupported scan-code key '{key}'");
         }
-        for (var i = strokes.Length - 1; i >= 0; i--)
+
+        var inputs = strokes
+            .Select(stroke => ScanCodeInput(stroke.ScanCode, stroke.Extended, false))
+            .ToArray();
+        SendKeyboardInputs(inputs);
+        Thread.Sleep(durationMs);
+        inputs = strokes
+            .Reverse()
+            .Select(stroke => ScanCodeInput(stroke.ScanCode, stroke.Extended, true))
+            .ToArray();
+        SendKeyboardInputs(inputs);
+    }
+
+    private static bool TryGetScanCodeChord(string key, out ScanCodeStroke[] strokes)
+    {
+        var parsed = new List<ScanCodeStroke>();
+        foreach (var name in key.Split('+', StringSplitOptions.RemoveEmptyEntries |
+                     StringSplitOptions.TrimEntries))
         {
-            inputs.Add(KeyboardInput(
-                strokes[i],
-                NativeMethods.KEYEVENTF_KEYUP));
+            var stroke = name.ToLowerInvariant() switch
+            {
+                "escape" => new ScanCodeStroke(0x01),
+                "1" => new ScanCodeStroke(0x02),
+                "2" => new ScanCodeStroke(0x03),
+                "3" => new ScanCodeStroke(0x04),
+                "4" => new ScanCodeStroke(0x05),
+                "5" => new ScanCodeStroke(0x06),
+                "6" => new ScanCodeStroke(0x07),
+                "7" => new ScanCodeStroke(0x08),
+                "8" => new ScanCodeStroke(0x09),
+                "9" => new ScanCodeStroke(0x0A),
+                "0" => new ScanCodeStroke(0x0B),
+                "tab" => new ScanCodeStroke(0x0F),
+                "q" => new ScanCodeStroke(0x10),
+                "w" => new ScanCodeStroke(0x11),
+                "e" => new ScanCodeStroke(0x12),
+                "r" => new ScanCodeStroke(0x13),
+                "a" => new ScanCodeStroke(0x1E),
+                "s" => new ScanCodeStroke(0x1F),
+                "d" => new ScanCodeStroke(0x20),
+                "f" => new ScanCodeStroke(0x21),
+                "g" => new ScanCodeStroke(0x22),
+                "enter" => new ScanCodeStroke(0x1C),
+                "ctrl" => new ScanCodeStroke(0x1D),
+                "shift" => new ScanCodeStroke(0x2A),
+                "z" => new ScanCodeStroke(0x2C),
+                "x" => new ScanCodeStroke(0x2D),
+                "c" => new ScanCodeStroke(0x2E),
+                "alt" => new ScanCodeStroke(0x38),
+                "space" => new ScanCodeStroke(0x39),
+                "f1" => new ScanCodeStroke(0x3B),
+                "f2" => new ScanCodeStroke(0x3C),
+                "f3" => new ScanCodeStroke(0x3D),
+                "f4" => new ScanCodeStroke(0x3E),
+                "f5" => new ScanCodeStroke(0x3F),
+                "f6" => new ScanCodeStroke(0x40),
+                "f7" => new ScanCodeStroke(0x41),
+                "f8" => new ScanCodeStroke(0x42),
+                "f9" => new ScanCodeStroke(0x43),
+                "f10" => new ScanCodeStroke(0x44),
+                "f11" => new ScanCodeStroke(0x57),
+                "f12" => new ScanCodeStroke(0x58),
+                "up" => new ScanCodeStroke(0x48, true),
+                "left" => new ScanCodeStroke(0x4B, true),
+                "right" => new ScanCodeStroke(0x4D, true),
+                "down" => new ScanCodeStroke(0x50, true),
+                _ => default,
+            };
+            if (stroke.ScanCode == 0)
+            {
+                strokes = [];
+                return false;
+            }
+            parsed.Add(stroke);
         }
+
+        strokes = parsed.ToArray();
+        return strokes.Length > 0;
+    }
+
+    private static NativeMethods.INPUT ScanCodeInput(
+        ushort scanCode,
+        bool extended,
+        bool keyUp) =>
+        new()
+        {
+            type = NativeMethods.INPUT_KEYBOARD,
+            union = new NativeMethods.INPUTUNION
+            {
+                keyboard = new NativeMethods.KEYBDINPUT
+                {
+                    wScan = scanCode,
+                    dwFlags = NativeMethods.KEYEVENTF_SCANCODE |
+                        (extended ? NativeMethods.KEYEVENTF_EXTENDEDKEY : 0) |
+                        (keyUp ? NativeMethods.KEYEVENTF_KEYUP : 0),
+                },
+            },
+        };
+
+    private static void SendKeyboardInputs(NativeMethods.INPUT[] inputs)
+    {
         RequireDesktopAuthority();
         if (SendDesktopInput(
-                (uint)inputs.Count,
-                inputs.ToArray(),
-                Marshal.SizeOf<NativeMethods.INPUT>()) != inputs.Count)
+                (uint)inputs.Length,
+                inputs,
+                Marshal.SizeOf<NativeMethods.INPUT>()) != inputs.Length)
         {
             throw new System.ComponentModel.Win32Exception(
                 Marshal.GetLastWin32Error());
         }
     }
+
+    private readonly record struct ScanCodeStroke(
+        ushort ScanCode,
+        bool Extended = false);
 
     private static void SendText(string value)
     {
