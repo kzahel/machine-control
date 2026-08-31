@@ -18,7 +18,9 @@ platform operating guidance.
 Use [`../bin/machine-control`](../bin/machine-control) as the normal front
 door. `machine-control targets` lists configured logical targets without
 private commands or environment. `machine-control inventory ...` delegates
-discovery and availability to an optional private inventory provider. Native
+discovery and availability to an optional private inventory provider; it is
+not required for ignored `config.local` or `targets.local.json` setups. See the
+[target-registry guide](../docs/target-registry.md) for all three modes. Native
 platform commands remain explicit through:
 
 ```text
@@ -26,8 +28,9 @@ machine-control --target <logical-target> testbed -- <platform-command>
 ```
 
 Concrete machine selectors, endpoints, controller availability, local paths,
-and signing values do not belong here. The controller user's private dotfiles
-inventory supplies them at runtime.
+and signing values do not belong in tracked public configuration. Supply them
+through ignored platform configuration, an ignored local target registry, or
+an explicitly selected private inventory provider.
 
 Former standalone `*-testbed` repositories are legacy after their cutover.
 They may later be regenerated as focused, discoverable distributions, but

@@ -16,7 +16,9 @@ than a frozen cross-device wire protocol.
   reasons, and the provider's default down action without implying that an
   unavailable operation is safe.
 - [`targets-v0.schema.json`](targets-v0.schema.json) describes ignored local
-  target selection. It contains adapter commands, never bearer authority.
+  target selection. It contains adapter commands, never bearer authority. See
+  the [target-registry guide](../docs/target-registry.md) for setup modes,
+  source precedence, and the optional inventory-provider contract.
 - [`claim-capabilities-v0.schema.json`](claim-capabilities-v0.schema.json)
   describes exclusive exact-resource claim policy, ordinary/disruptive use
   classes, duration bounds, claimant attribution limits, and queueing behavior.

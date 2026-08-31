@@ -10,8 +10,8 @@ const agentPrompt = `Use Machine Control in this repository to develop and test 
 on <targets>.
 
 Read AGENTS.md and README.md first. Use bin/machine-control as the common
-interface. Start by listing the configured targets and checking inventory
-status.
+interface. Start by listing the configured targets. If this controller uses a
+private inventory provider, also check inventory status.
 
 Before meaningful use of a target, run its read-only doctor. For an accepted
 VM, acquire an exclusive claim with a truthful authority, claimant ID, and
@@ -67,11 +67,15 @@ uncertainty for each target.`;
 cd machine-control
 
 bin/machine-control targets
-bin/machine-control inventory status
 python3 bin/check --portable</code></pre>
             <p>
               On Windows, use <code>py -3 bin/machine-control</code> and
               <code>py -3 bin/check --portable</code>.
+            </p>
+            <p>
+              If the controller uses a private inventory provider, also run
+              <code>bin/machine-control inventory status</code>. Local registry
+              and <code>config.local</code> setups do not require that provider.
             </p>
           </article>
 
@@ -179,6 +183,7 @@ python3 bin/check --portable</code></pre>
           <article>
             <strong>Keep target identity private</strong>
             <p>Machine names, endpoints, device identifiers, credentials, and concrete routes belong in ignored local configuration or a private inventory provider—not the public checkout.</p>
+            <a class="text-link" href="https://github.com/kzahel/machine-control/blob/main/docs/target-registry.md">Choose a registry setup →</a>
           </article>
           <article>
             <strong>Prove the route before using it</strong>

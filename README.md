@@ -249,13 +249,15 @@ To connect a real target:
 2. Install that platform's prerequisites and target-resident components.
 3. Put concrete selectors, endpoints, paths, policy, and locators for any
    host-held credentials in ignored local configuration or an optional private
-   inventory provider. Keep credential values in its declared local secret
-   store, not in this repository or the target registry.
-4. Run `inventory credentials TARGET` when the target uses a stored guest
-   credential, then run the read-only doctor, repair private identity if
-   necessary, and claim the target before meaningful use.
+   inventory provider, following the
+   [target-registry guide](docs/target-registry.md). Keep credential values in
+   its declared local secret store, not in this repository or the target
+   registry.
+4. When an inventory provider declares a stored guest credential, run
+   `inventory credentials TARGET`. Then run the read-only doctor, repair
+   private identity if necessary, and claim the target before meaningful use.
 
-On a configured controller:
+On a controller with a private inventory provider:
 
 ```bash
 bin/machine-control inventory status
@@ -276,7 +278,10 @@ repair for a running unhealthy target.
 
 Local target registries use the
 [`machine-control-targets/v0`](contracts/targets-v0.schema.json) schema. Logical
-target names are selectors, not credentials or bearer authority.
+target names are selectors, not credentials or bearer authority. The
+[target-registry guide](docs/target-registry.md) documents standalone
+`config.local`, ignored registry files, provider setup, resolution precedence,
+and the provider command contract.
 
 ## Common workflows
 
@@ -424,6 +429,8 @@ do not belong in this public repository.
 
 Start with the document that matches your question:
 
+- **How do I configure targets?** Read the
+  [target-registry and private-inventory guide](docs/target-registry.md).
 - **How do I operate a target?** Use the
   [platform implementation index](platforms/README.md) and the selected
   platform's README or agent guide.

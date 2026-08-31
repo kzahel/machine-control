@@ -49,15 +49,20 @@ elevation, so it cannot bypass Windows secure desktops or UIPI.
 
 ## Quick Start
 
-From a `machine-control` checkout, let the common client discover the private
-inventory and inspect the configured machine:
+From a `machine-control` checkout, inspect the resolved logical targets and
+the configured machine:
 
 ```bash
 cd ~/code/machine-control
-bin/machine-control inventory status
+bin/machine-control targets
 bin/machine-control --target windows target doctor
 bin/machine-control --target windows testbed -- help
 ```
+
+When the controller uses a private inventory provider, also run
+`bin/machine-control inventory status`. A standalone setup may instead use the
+ignored `platforms/windows/config.local`; see the
+[target-registry guide](../../docs/target-registry.md) for the distinction.
 
 Direct `platforms/windows/bin/winvm` calls are supported for platform debugging
 when ignored configuration or the documented `WINVM_*` inventory environment
