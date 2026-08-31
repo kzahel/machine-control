@@ -206,6 +206,8 @@ internal static class DesktopController
                 "key" => Key(request, generation, desktopName, timer),
                 "key.timeline" => KeyTimeline(
                     request, generation, desktopName, timer),
+                "key.delayed_hold" => KeyDelayedHold(
+                    request, generation, desktopName, timer),
                 "type" => TypeText(request, generation, desktopName, timer),
                 "window.state" => WindowState(
                     request, generation, desktopName, timer),
@@ -1200,6 +1202,92 @@ internal static class DesktopController
                 tapDurationMs,
                 tailDurationMs,
                 totalDurationMs = leadDurationMs + tapDurationMs + tailDurationMs,
+            },
+            fidelity: "hardware_scan_code_compatible");
+    }
+
+    private static Result KeyDelayedHold(
+        Request request,
+        string generation,
+        string desktopName,
+        Stopwatch timer)
+    {
+        if (string.IsNullOrWhiteSpace(request.Key) ||
+            string.IsNullOrWhiteSpace(request.SecondaryKey))
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "invalid_request",
+                "key.delayed_hold requires key and secondaryKey");
+        }
+        if (request.KeyMode is not null &&
+            !string.Equals(request.KeyMode, "scan_code", StringComparison.OrdinalIgnoreCase))
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "invalid_key_mode",
+                "key.delayed_hold supports only scan_code input");
+        }
+        var delayDurationMs = request.LeadDurationMs ?? 250;
+        var tapDurationMs = request.DurationMs ?? 80;
+        var holdDurationMs = request.TailDurationMs ?? 1_000;
+        if (delayDurationMs is < 1 or > 5_000 ||
+            tapDurationMs is < 1 or > 5_000 ||
+            holdDurationMs is < 1 or > 5_000 ||
+            delayDurationMs < tapDurationMs ||
+            delayDurationMs + holdDurationMs > 5_000)
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "invalid_key_duration",
+                "key.delayed_hold requires tap <= delay and delay + hold <= 5000 ms");
+        }
+        if (!TryGetScanCodeChord(request.Key, out var primary) ||
+            primary.Length != 1 ||
+            !TryGetScanCodeChord(request.SecondaryKey, out var secondary) ||
+            secondary.Length != 1 ||
+            primary[0] == secondary[0])
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "invalid_key_delayed_hold",
+                "key.delayed_hold requires two distinct single scan-code keys");
+        }
+        SendScanCodeDelayedHold(
+            primary[0],
+            secondary[0],
+            delayDurationMs,
+            tapDurationMs,
+            holdDurationMs);
+        return Success(
+            request,
+            generation,
+            desktopName,
+            timer,
+            "windows.native/send_input_scan_code_delayed_hold",
+            "confirmed",
+            "unverifiable",
+            new
+            {
+                key = request.Key,
+                secondaryKey = request.SecondaryKey,
+                keyMode = "scan_code",
+                delayDurationMs,
+                tapDurationMs,
+                holdDurationMs,
+                totalDurationMs = delayDurationMs + holdDurationMs,
             },
             fidelity: "hardware_scan_code_compatible");
     }
@@ -2294,6 +2382,42 @@ internal static class DesktopController
         {
             SendKeyboardInputs([
                 ScanCodeInput(primary.ScanCode, primary.Extended, true),
+            ]);
+        }
+    }
+
+    private static void SendScanCodeDelayedHold(
+        ScanCodeStroke primary,
+        ScanCodeStroke secondary,
+        int delayDurationMs,
+        int tapDurationMs,
+        int holdDurationMs)
+    {
+        SendKeyboardInputs([
+            ScanCodeInput(primary.ScanCode, primary.Extended, false),
+        ]);
+        try
+        {
+            Thread.Sleep(tapDurationMs);
+        }
+        finally
+        {
+            SendKeyboardInputs([
+                ScanCodeInput(primary.ScanCode, primary.Extended, true),
+            ]);
+        }
+        Thread.Sleep(delayDurationMs - tapDurationMs);
+        SendKeyboardInputs([
+            ScanCodeInput(secondary.ScanCode, secondary.Extended, false),
+        ]);
+        try
+        {
+            Thread.Sleep(holdDurationMs);
+        }
+        finally
+        {
+            SendKeyboardInputs([
+                ScanCodeInput(secondary.ScanCode, secondary.Extended, true),
             ]);
         }
     }

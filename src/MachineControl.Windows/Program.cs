@@ -98,6 +98,7 @@ internal static class Program
                             "status", "app.launch", "app.activate", "windows",
                             "snapshot", "screenshot",
                             "capabilities", "invoke", "click", "key", "key.timeline",
+                            "key.delayed_hold",
                             "type", "window.state",
                             "session.lock", "session.logoff",
                             "session.login (dedicated secret transport)",
@@ -189,13 +190,12 @@ internal static class Program
             requestText = await Console.In.ReadToEndAsync();
         }
         var request = Contract.ParseRequest(requestText);
-        if (!string.Equals(
+        if (!new[] { "key.timeline", "key.delayed_hold" }.Contains(
                 request.Operation,
-                "key.timeline",
-                StringComparison.OrdinalIgnoreCase))
+                StringComparer.OrdinalIgnoreCase))
         {
             throw new ArgumentException(
-                "input-call accepts only the typed key.timeline operation");
+                "input-call accepts only typed bounded key timeline operations");
         }
         var generation = $"local-input:{Environment.ProcessId}:{Guid.NewGuid():n}";
         var result = await DesktopController.ExecuteAsync(

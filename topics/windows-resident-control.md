@@ -308,10 +308,14 @@ single-key scan codes, a positive lead, a positive tap, and a non-negative
 tail whose total is at most 5000 ms. The resident worker sends both releases
 in `finally` paths. This is one request deliberately: separate facade calls
 are serialized and cannot establish overlapping holds.
-The local CLI exposes that single operation through `input-call` when a
-non-elevated current-session caller needs the newly published operation before
-the installed resident runtime is upgraded. That verb refuses every other
-operation; it is not a general direct-dispatch escape hatch.
+The typed `key.delayed_hold` operation covers the complementary sequence: tap
+one physical key, wait until an exact offset from its press, then hold a second
+key. The tap must fit inside the delay, and delay plus hold is bounded to 5000
+ms. Both keys are released in `finally` paths.
+The local CLI exposes only these bounded timeline operations through
+`input-call` when a non-elevated current-session caller needs newly published
+input operations before the installed resident runtime is upgraded. It is not
+a general direct-dispatch escape hatch.
 
 The facade should allow compact semantic/visual scopes for Start, taskbar,
 notification area, a shell flyout, and a Settings window so agents do not pay
