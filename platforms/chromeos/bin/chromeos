@@ -45,7 +45,7 @@
 #   install-apk <file> [--keep] [--authorize]  Install Android APK
 #   power-status        Show idle/lid power overrides and current policy
 #   keep-awake [--lid-closed]  Disable idle suspend; optionally ignore the lid
-#   restore-power       Restore default idle and lid behavior
+#   restore-power --confirm-make-unavailable  Exceptional opt-out; explicit user request only
 #   shell               Interactive SSH session
 #   help                Show this help
 
@@ -1355,6 +1355,16 @@ read_pref() {
 }
 read_pref use_lid
 read_pref disable_idle_suspend
+boot_id=\$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
+helper=no
+[ -r /mnt/stateful_partition/etc/ssh/apply_power_policy.sh ] && helper=yes
+boot_applied=no
+if grep -q \"boot_id=\$boot_id .*status=ready\" \\
+    /mnt/stateful_partition/etc/ssh/power-policy.log 2>/dev/null; then
+    boot_applied=yes
+fi
+printf 'power_policy_helper\\t%s\\tstate\\n' \"\$helper\"
+printf 'current_boot_applied\\t%s\\tstate\\n' \"\$boot_applied\"
 printf 'ac_connected\\t%s\\tstatus\\n' \"\$(dump_power_status 2>/dev/null | awk '\$1 == \"line_power_connected\" { print \$2; exit }')\"
 printf 'policy\\t%s\\tlog\\n' \"\$(grep -E 'Updated settings:' /var/log/power_manager/powerd.LATEST 2>/dev/null | tail -1)\"
 " 2>/dev/null)
@@ -1378,8 +1388,20 @@ print(json.dumps({
     'use_lid_source': sources.get('use_lid'),
     'disable_idle_suspend': data.get('disable_idle_suspend'),
     'disable_idle_suspend_source': sources.get('disable_idle_suspend'),
+    'power_policy_helper': data.get('power_policy_helper') == 'yes',
+    'current_boot_applied': data.get('current_boot_applied') == 'yes',
+    'closed_lid_ready': (
+        data.get('use_lid') == '0'
+        and data.get('disable_idle_suspend') == '1'
+        and data.get('power_policy_helper') == 'yes'
+        and data.get('current_boot_applied') == 'yes'
+    ),
     'ac_connected': data.get('ac_connected') == '1',
     'current_lid_action': lid_match.group(1) if lid_match else None,
+    'effective_lid_action': (
+        'ignored' if data.get('use_lid') == '0'
+        else (lid_match.group(1) if lid_match else None)
+    ),
     'current_idle_action': idle_match.group(1) if idle_match else None,
     'policy_log': policy or None,
 }))
@@ -1399,8 +1421,10 @@ lid='ignored' if r['use_lid'] == '0' else 'enabled'
 idle='disabled' if r['disable_idle_suspend'] == '1' else 'enabled'
 print(f\"Lid handling: {lid} ({r['use_lid_source']})\")
 print(f\"Idle suspend: {idle} ({r['disable_idle_suspend_source']})\")
-print(f\"Current powerd lid action: {r['current_lid_action'] or 'unknown'}\")
+print(f\"Configured powerd lid action: {r['current_lid_action'] or 'unknown'}\")
+print(f\"Effective lid behavior: {r['effective_lid_action'] or 'unknown'}\")
 print(f\"Current powerd idle action: {r['current_idle_action'] or 'unknown'}\")
+print(f\"Required closed-lid readiness: {'ready' if r['closed_lid_ready'] else 'not ready'}\")
 print(f\"AC connected: {'yes' if r['ac_connected'] else 'no'}\")
 "
     fi
@@ -1420,9 +1444,13 @@ mkdir -p /var/lib/power_manager; \
 printf '1\\n' > /var/lib/power_manager/disable_idle_suspend"
     if [[ -n "$lid_closed" ]]; then
         ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; \
-ectool forcelidopen 1; \
-printf '0\\n' > /var/lib/power_manager/use_lid; \
-restart powerd"
+if [ -r /mnt/stateful_partition/etc/ssh/apply_power_policy.sh ]; then \
+  bash /mnt/stateful_partition/etc/ssh/apply_power_policy.sh manual --reload; \
+else \
+  ectool forcelidopen 1; \
+  printf '0\\n' > /var/lib/power_manager/use_lid; \
+  restart powerd; \
+fi"
     fi
 
     if json_mode; then
@@ -1443,7 +1471,17 @@ print(json.dumps(r))
 }
 
 cmd_restore_power() {
+    if [[ $# -ne 1 || "$1" != "--confirm-make-unavailable" ]]; then
+        echo "[REFUSED] Stock sleep behavior makes this dedicated test appliance unavailable." >&2
+        echo "Always-awake is the required baseline, not temporary test state to clean up." >&2
+        echo "Only after an explicit user request, run:" >&2
+        echo "  chromeos restore-power --confirm-make-unavailable" >&2
+        return 2
+    fi
+
     ssh "${SSH_OPTS[@]}" "$SSH_HOST" "$REMOTE_PATH_SETUP; \
+printf 'manual\n' > /etc/init/chromeos-testbed-power-policy.override; \
+initctl reload-configuration; \
 ectool forcelidopen 0; \
 rm -f /var/lib/power_manager/use_lid /var/lib/power_manager/disable_idle_suspend; \
 restart powerd"

@@ -10,6 +10,7 @@
 #   - Firewall rules
 #   - Automatic SSH startup after network connection when rootfs is writable
 #   - Persistent manual start script as an update-safe fallback
+#   - Required idle- and lid-suspend inhibition for the dedicated test appliance
 #   - Remote debugging (if rootfs is writable)
 
 set -e
@@ -22,6 +23,9 @@ AUTOSTART_JOB="/etc/init/openssh-server.conf"
 FAILED_AUTOSTART_JOB="/etc/init/chromeos-testbed-sshd.conf"
 FAILED_AUTOSTART_BACKUP="$SSH_DIR/failed-chromeos-testbed-sshd.conf"
 SYSTEM_AUTOSTART_BACKUP="$SSH_DIR/original-openssh-server.conf"
+POWER_POLICY="$SSH_DIR/apply_power_policy.sh"
+POWER_POLICY_JOB="/etc/init/chromeos-testbed-power-policy.conf"
+POWER_POLICY_OVERRIDE="/etc/init/chromeos-testbed-power-policy.override"
 CONTROLLER_PUBKEY="${CHROMEOS_TESTBED_CONTROLLER_PUBKEY:-}"
 PORT=2223
 
@@ -82,6 +86,65 @@ Subsystem sftp internal-sftp
 CONFIG
 chmod 600 "$SSHD_CONFIG"
 
+# Keep the dedicated test appliance available for remote control while idle or
+# closed. The powerd preferences live on the stateful partition, and the helper
+# also reapplies the embedded-controller lid override on every SSH boot path.
+cat > "$POWER_POLICY" << 'SCRIPT'
+#!/bin/bash
+set -u
+
+PATH=/bin:/usr/bin:/usr/local/bin:/usr/sbin:/sbin
+POWER_DIR=/var/lib/power_manager
+LOG=/mnt/stateful_partition/etc/ssh/power-policy.log
+SOURCE="${1:-manual}"
+RELOAD="${2:-}"
+changed=no
+status_value=ready
+
+mkdir -p "$POWER_DIR" || status_value=failed
+
+if [ "$(cat "$POWER_DIR/disable_idle_suspend" 2>/dev/null)" != 1 ]; then
+    printf '1\n' > "$POWER_DIR/disable_idle_suspend" || status_value=failed
+    changed=yes
+fi
+if [ "$(cat "$POWER_DIR/use_lid" 2>/dev/null)" != 0 ]; then
+    printf '0\n' > "$POWER_DIR/use_lid" || status_value=failed
+    changed=yes
+fi
+
+if ! command -v ectool >/dev/null 2>&1 ||
+   ! ectool forcelidopen 1 >/dev/null 2>&1; then
+    status_value=failed
+fi
+
+if [ "$changed" = yes ] || [ "$RELOAD" = --reload ]; then
+    if status powerd 2>/dev/null | grep -q 'start/running'; then
+        restart powerd >/dev/null 2>&1 || status_value=failed
+    else
+        status_value=failed
+    fi
+fi
+
+if [ "$(cat "$POWER_DIR/disable_idle_suspend" 2>/dev/null)" != 1 ] ||
+   [ "$(cat "$POWER_DIR/use_lid" 2>/dev/null)" != 0 ]; then
+    status_value=failed
+fi
+
+printf '%s boot_id=%s source=%s status=%s\n' \
+    "$(date -Is)" \
+    "$(cat /proc/sys/kernel/random/boot_id 2>/dev/null || echo unknown)" \
+    "$SOURCE" \
+    "$status_value" >> "$LOG"
+
+[ "$status_value" = ready ]
+SCRIPT
+chmod 700 "$POWER_POLICY"
+
+POWER_POLICY_READY=no
+if bash "$POWER_POLICY" bootstrap --reload; then
+    POWER_POLICY_READY=yes
+fi
+
 # Create a persistent manual fallback. Prefer the automatic Upstart job when
 # it is present in the writable rootfs.
 cat > "$SSH_DIR/start_sshd.sh" << 'SCRIPT'
@@ -90,10 +153,19 @@ set -e
 SSH_DIR=/mnt/stateful_partition/etc/ssh
 SSHD_CONFIG="$SSH_DIR/sshd_config"
 SSHD_PID="$SSH_DIR/sshd.pid"
+POWER_POLICY="$SSH_DIR/apply_power_policy.sh"
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "[FAIL] start_sshd.sh must run as root. Run: sudo -i" >&2
     exit 1
+fi
+
+if [ -r "$POWER_POLICY" ]; then
+    if ! bash "$POWER_POLICY" manual --reload; then
+        echo "[WARN] Closed-lid power policy could not be applied; re-run bootstrap" >&2
+    fi
+else
+    echo "[WARN] Closed-lid power policy helper is missing; re-run bootstrap" >&2
 fi
 
 # Prefer the Upstart-managed listener when its rootfs job is installed.
@@ -147,6 +219,7 @@ chmod +x "$SSH_DIR/start_sshd.sh"
 # can be replaced by OS updates; the stateful start script remains the fallback
 # and bootstrap reinstalls it.
 ROOTFS_WRITABLE=no
+POWER_POLICY_GUARD_READY=no
 if touch /etc/.chromeos-testbed-probe 2>/dev/null; then
     rm -f /etc/.chromeos-testbed-probe
     ROOTFS_WRITABLE=yes
@@ -175,6 +248,12 @@ pre-start script
   SSHD_CONFIG="$SSH_DIR/sshd_config"
   SSHD_PID="$SSH_DIR/sshd.pid"
   START_LOG="$SSH_DIR/startup.log"
+  POWER_POLICY="$SSH_DIR/apply_power_policy.sh"
+
+  power_policy_status=failed
+  if [ -r "$POWER_POLICY" ] && bash "$POWER_POLICY" upstart; then
+    power_policy_status=ready
+  fi
 
   /usr/sbin/sshd -t -f "$SSHD_CONFIG"
 
@@ -189,11 +268,12 @@ pre-start script
     "$cmd" -w -C INPUT -p tcp --dport 2223 -j ACCEPT
   done
 
-  printf '%s boot_id=%s uptime=%s events=%s\n' \
+  printf '%s boot_id=%s uptime=%s events=%s power_policy=%s\n' \
     "$(date -Is)" \
     "$(cat /proc/sys/kernel/random/boot_id)" \
     "$(cut -d' ' -f1 /proc/uptime)" \
-    "${UPSTART_EVENTS:-manual}" >> "$START_LOG"
+    "${UPSTART_EVENTS:-manual}" \
+    "$power_policy_status" >> "$START_LOG"
 
   if [ -r "$SSHD_PID" ]; then
     kill "$(cat "$SSHD_PID")" 2>/dev/null || true
@@ -210,6 +290,30 @@ post-stop script
 end script
 JOB
     chmod 644 "$AUTOSTART_JOB"
+
+    # Reassert the dedicated-appliance baseline whenever powerd starts. This
+    # heals an accidental preference reset or EC override change without
+    # waiting for a reboot, SSH restart, or agent-driven repair.
+    cat > "$POWER_POLICY_JOB" << 'POWER_JOB'
+description "ChromeOS testbed always-awake power policy"
+author "chromeos-testbed"
+
+start on started powerd
+stop on stopping system-services or starting halt or starting reboot
+task
+
+script
+  POWER_POLICY=/mnt/stateful_partition/etc/ssh/apply_power_policy.sh
+  if [ ! -r "$POWER_POLICY" ] || ! bash "$POWER_POLICY" powerd-started; then
+    logger -t chromeos-testbed-power-policy \
+      "failed to reapply the required always-awake policy"
+    exit 1
+  fi
+end script
+POWER_JOB
+    chmod 644 "$POWER_POLICY_JOB"
+    rm -f "$POWER_POLICY_OVERRIDE"
+    POWER_POLICY_GUARD_READY=yes
     initctl reload-configuration
 
     # The alternate custom job selected during the rebase did not start on
@@ -237,8 +341,15 @@ else
     echo "    SSH ready on port $PORT (manual fallback; rootfs is read-only)"
 fi
 
+echo "[2/5] Verifying closed-lid availability..."
+if [ "$POWER_POLICY_READY" = yes ] && [ "$POWER_POLICY_GUARD_READY" = yes ]; then
+    echo "    Idle and lid suspend are disabled and guarded for the dedicated test appliance"
+else
+    echo "    [FAIL] Could not apply and guard the required closed-lid power policy"
+fi
+
 # --- Remote Debugging ---
-echo "[2/4] Configuring remote debugging..."
+echo "[3/5] Configuring remote debugging..."
 
 if [ "$ROOTFS_WRITABLE" = yes ]; then
     if ! grep -q "remote-debugging-port" /etc/chrome_dev.conf 2>/dev/null; then
@@ -257,7 +368,7 @@ else
 fi
 
 # --- Dev password ---
-echo "[3/4] Developer password..."
+echo "[4/5] Developer password..."
 if [ -f /mnt/stateful_partition/etc/devmode.passwd ]; then
     echo "    Developer password already set"
 else
@@ -271,7 +382,7 @@ PREPARED_RELEASE=$(awk -F= '$1 == "CHROMEOS_RELEASE_VERSION" { print $2; exit }'
 printf '%s\n' "${PREPARED_RELEASE:-unknown}" > "$SSH_DIR/prepared-release"
 
 # --- Summary ---
-echo "[4/4] Done!"
+echo "[5/5] Done!"
 echo
 
 IP=$(ip addr show wlan0 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d/ -f1)
@@ -289,6 +400,7 @@ else
     echo "  cd $SSH_DIR && bash start_sshd.sh"
 fi
 echo "ChromeOS still waits at the profile sign-in screen after reboot."
+echo "Idle and lid suspend remain disabled; keep the closed device ventilated and on AC power."
 echo "From the dev machine, run: chromeos login"
 echo
 echo "Add to ~/.ssh/config on your dev machine:"
@@ -297,3 +409,7 @@ echo "    HostName $IP"
 echo "    Port $PORT"
 echo "    User root"
 echo "=========================================="
+
+if [ "$POWER_POLICY_READY" != yes ] || [ "$POWER_POLICY_GUARD_READY" != yes ]; then
+    exit 1
+fi

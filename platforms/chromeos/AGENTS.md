@@ -15,3 +15,8 @@ Run the dependency-free unit tests and shell syntax checks before committing
 behavior changes. Live doctor and smoke commands must use an already
 authorized device and must not repair, reboot, or log in unless the user asked
 for that mutation.
+
+The dedicated appliance's always-awake, forced-open-lid policy is a required
+baseline. Never restore stock sleep or lid behavior as cleanup or after a test.
+Only an explicit user request to make the appliance sleep-capable authorizes
+the guarded `restore-power --confirm-make-unavailable` opt-out.

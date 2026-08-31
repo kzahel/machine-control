@@ -53,6 +53,9 @@ starts SSH automatically after reboot. The boot timing follows ChromeOS's own
 network event through the `openssh-server` job. A stateful manual start script
 is retained as a fallback because ChromeOS updates may replace files under
 `/etc/init`.
+Bootstrap also installs the dedicated-appliance power policy: inactivity and
+lid-close suspend are disabled, and every SSH boot path reapplies the embedded
+controller's forced-open lid state before accepting remote work.
 
 The controller public key is deployment inventory and is supplied explicitly;
 the public bootstrap does not embed one. A post-update reinstall preserves an
@@ -79,10 +82,10 @@ bin/chromeos doctor
 
 ## After a Reboot
 
-With the current bootstrap and writable rootfs, SSH and its firewall rule are
-restored automatically. ChromeOS itself still waits at the profile sign-in
-screen after reboot: browser automation, extensions, and Crostini are not
-usable until the profile is unlocked.
+With the current bootstrap and writable rootfs, SSH, its firewall rule, and the
+required closed-lid power policy are restored automatically. ChromeOS itself
+still waits at the profile sign-in screen after reboot: browser automation,
+extensions, and Crostini are not usable until the profile is unlocked.
 
 ```bash
 bin/chromeos doctor  # Warns when no user session is active
@@ -169,8 +172,9 @@ bin/machine-control --target chromeos maintenance repair --profile runtime
 ```
 
 The common doctor distinguishes SSH reachability, active-image rootfs
-verification, automatic startup evidence from the current boot, profile lock,
-and target-native semantics/capture/input. The minimized
+verification, automatic startup evidence from the current boot, required
+closed-lid availability, profile lock, and target-native
+semantics/capture/input. The minimized
 `rootfs_verification` check and `rootfsVerification` extension report
 `disabled`, `enabled`, or `unknown` without exposing a device or partition.
 After a reboot, maintenance can be healthy while ordinary desktop readiness is
@@ -184,8 +188,9 @@ waiting or rootfs verification is enabled, common repair returns
 `post-update --repair` VT2 workflow for that boundary.
 
 This evidence starts after ChromeOS boots. A laptop that fully loses power may
-remain physically off or be governed by firmware, lid, and battery policy;
-software SSH autostart cannot make a powered-off device turn itself on.
+remain physically off; software SSH autostart cannot make a powered-off device
+turn itself on. Closed-lid operation deliberately removes the normal thermal
+and battery safeguard, so keep the appliance ventilated and preferably on AC.
 
 ## Usage
 
@@ -297,29 +302,43 @@ Inspect the effective powerd overrides and its most recently logged policy:
 bin/chromeos power-status
 ```
 
-For a long-running testbed, idle suspend can be disabled independently:
+Closed-lid availability is a required invariant of this dedicated test
+appliance. Bootstrap and post-update repair install it automatically, the SSH
+boot path reapplies it, and both routine doctor and maintenance audit fail
+closed when it is missing. Doctor remains read-only.
+
+To reapply only the idle-suspend override manually:
 
 ```bash
 bin/chromeos keep-awake
 ```
 
-To keep the Chromebook running even while its lid is closed:
+To reapply the complete required policy manually:
 
 ```bash
 bin/chromeos keep-awake --lid-closed
 ```
 
-This writes ChromeOS powerd's documented stateful developer overrides,
-forces the embedded controller's lid state open, and restarts powerd. It
-persists across ordinary reboots. Keep a closed machine ventilated and
-preferably connected to AC power: the normal lid power safeguard is
-intentionally disabled.
+This writes ChromeOS powerd's documented stateful developer overrides, forces
+the embedded controller's lid state open, and restarts powerd. The stateful
+preferences persist across ordinary reboots, while the bootstrap-installed
+helper records and reapplies the controller override on every SSH boot path.
+Keep a closed machine ventilated and preferably connected to AC power: the
+normal lid power safeguard is intentionally disabled.
 
-Restore stock behavior with:
+Always-awake is the baseline for this dedicated appliance, not temporary test
+state. Do not restore stock power behavior as routine cleanup. If the user
+explicitly requests a sleep-capable machine for exceptional troubleshooting,
+the guarded opt-out is:
 
 ```bash
-bin/chromeos restore-power
+bin/chromeos restore-power --confirm-make-unavailable
 ```
+
+The verbose acknowledgement is required because this intentionally makes the
+dedicated appliance unready. The powerd-start self-healing guard normally
+repairs preference or embedded-controller resets during the current boot; the
+next bootstrap or post-update repair also restores the required policy.
 
 These commands implement the procedure in the official
 [ChromeOS Power Management FAQ](https://chromium.googlesource.com/chromiumos/platform2/+/main/power_manager/docs/faq.md).

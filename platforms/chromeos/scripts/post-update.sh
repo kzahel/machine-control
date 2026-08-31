@@ -70,6 +70,10 @@ BOOT_EVIDENCE=none
 DEVTOOLS_CONFIGURED=no
 DEVTOOLS_LISTENING=no
 REPAIR_STAGED=no
+POWER_POLICY_HELPER=no
+POWER_POLICY_GUARD=no
+POWER_POLICY_CONFIGURED=no
+POWER_POLICY_BOOT_EVIDENCE=none
 STATUS=unknown
 FAIL_COUNT=0
 WARN_COUNT=0
@@ -169,6 +173,32 @@ repair_staged=no
 [ -r /mnt/stateful_partition/etc/ssh/post-update-repair.pending ] &&
   repair_staged=yes
 
+power_policy_helper=no
+[ -r /mnt/stateful_partition/etc/ssh/apply_power_policy.sh ] &&
+  power_policy_helper=yes
+
+power_policy_guard=no
+if [ -f /etc/init/chromeos-testbed-power-policy.conf ] &&
+   grep -qx 'author "chromeos-testbed"' /etc/init/chromeos-testbed-power-policy.conf &&
+   grep -qx 'start on started powerd' /etc/init/chromeos-testbed-power-policy.conf &&
+   grep -q '/mnt/stateful_partition/etc/ssh/apply_power_policy.sh' \
+     /etc/init/chromeos-testbed-power-policy.conf &&
+   ! grep -qx 'manual' /etc/init/chromeos-testbed-power-policy.override \
+     2>/dev/null; then
+  power_policy_guard=yes
+fi
+
+power_policy_configured=no
+[ "$(cat /var/lib/power_manager/disable_idle_suspend 2>/dev/null)" = 1 ] &&
+[ "$(cat /var/lib/power_manager/use_lid 2>/dev/null)" = 0 ] &&
+  power_policy_configured=yes
+
+power_policy_boot_evidence=none
+if grep -q "boot_id=$boot_id .*status=ready" \
+    /mnt/stateful_partition/etc/ssh/power-policy.log 2>/dev/null; then
+  power_policy_boot_evidence=applied
+fi
+
 printf 'release\t%s\n' "${release:-unknown}"
 printf 'boot_id\t%s\n' "${boot_id:-unknown}"
 printf 'update_operation\t%s\n' "${update_operation:-unknown}"
@@ -180,6 +210,10 @@ printf 'boot_evidence\t%s\n' "$boot_evidence"
 printf 'devtools_configured\t%s\n' "$devtools_configured"
 printf 'devtools_listening\t%s\n' "$devtools_listening"
 printf 'repair_staged\t%s\n' "$repair_staged"
+printf 'power_policy_helper\t%s\n' "$power_policy_helper"
+printf 'power_policy_guard\t%s\n' "$power_policy_guard"
+printf 'power_policy_configured\t%s\n' "$power_policy_configured"
+printf 'power_policy_boot_evidence\t%s\n' "$power_policy_boot_evidence"
 REMOTE
 ) || return 1
 
@@ -196,6 +230,10 @@ REMOTE
             devtools_configured) DEVTOOLS_CONFIGURED="$value" ;;
             devtools_listening) DEVTOOLS_LISTENING="$value" ;;
             repair_staged) REPAIR_STAGED="$value" ;;
+            power_policy_helper) POWER_POLICY_HELPER="$value" ;;
+            power_policy_guard) POWER_POLICY_GUARD="$value" ;;
+            power_policy_configured) POWER_POLICY_CONFIGURED="$value" ;;
+            power_policy_boot_evidence) POWER_POLICY_BOOT_EVIDENCE="$value" ;;
         esac
     done <<< "$snapshot"
 }
@@ -299,6 +337,34 @@ evaluate_snapshot() {
         add_check ok "DevTools port 9222 is listening"
     else
         add_check fail "DevTools port 9222 is not listening" "" \
+             "Run: chromeos post-update --repair"
+    fi
+
+    if [[ "$POWER_POLICY_HELPER" == yes ]]; then
+        add_check ok "Closed-lid power policy helper is installed"
+    else
+        add_check fail "Closed-lid power policy helper is missing" "" \
+            "Run: chromeos post-update --repair"
+    fi
+
+    if [[ "$POWER_POLICY_GUARD" == yes ]]; then
+        add_check ok "Always-awake power policy self-healing guard is installed"
+    else
+        add_check fail "Always-awake power policy self-healing guard is missing" "" \
+            "Run: chromeos post-update --repair"
+    fi
+
+    if [[ "$POWER_POLICY_CONFIGURED" == yes ]]; then
+        add_check ok "Closed-lid availability policy disables idle and lid suspend"
+    else
+        add_check fail "Closed-lid availability policy is not configured" "" \
+            "Run: chromeos post-update --repair"
+    fi
+
+    if [[ "$POWER_POLICY_BOOT_EVIDENCE" == applied ]]; then
+        add_check ok "Current boot applied the closed-lid power policy"
+    else
+        add_check fail "Current boot lacks closed-lid power policy evidence" "" \
             "Run: chromeos post-update --repair"
     fi
 
@@ -461,7 +527,11 @@ ROOTDEV=\$(rootdev -s); PARTNUM=\${ROOTDEV##*p}; echo \$((PARTNUM - 1))" 2>/dev/
 
     if [[ "$AUTOSTART" != running ||
           "$PREPARED_RELEASE" != "$RELEASE" ||
-          "$DEVTOOLS_CONFIGURED" != yes ]]; then
+          "$DEVTOOLS_CONFIGURED" != yes ||
+          "$POWER_POLICY_HELPER" != yes ||
+          "$POWER_POLICY_GUARD" != yes ||
+          "$POWER_POLICY_CONFIGURED" != yes ||
+          "$POWER_POLICY_BOOT_EVIDENCE" != applied ]]; then
         echo "Installing the current SSH autostart and DevTools configuration..."
         if ! ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; bash -s" < "$REPO_DIR/scripts/bootstrap.sh"; then
             echo "[FAIL] Bootstrap did not complete." >&2
@@ -493,7 +563,11 @@ verify_reboot() {
           "$AUTOSTART" != running ||
           "$FALLBACK" != yes ||
           "$PREPARED_RELEASE" != "$RELEASE" ||
-          "$DEVTOOLS_CONFIGURED" != yes ]]; then
+          "$DEVTOOLS_CONFIGURED" != yes ||
+          "$POWER_POLICY_HELPER" != yes ||
+          "$POWER_POLICY_GUARD" != yes ||
+          "$POWER_POLICY_CONFIGURED" != yes ||
+          "$POWER_POLICY_BOOT_EVIDENCE" != applied ]]; then
         echo "[FAIL] The device is not ready for a proof reboot."
         echo "Run: chromeos post-update --repair"
         return 1
@@ -532,7 +606,8 @@ verify_reboot() {
         evaluate_snapshot
         if [[ "$BOOT_EVIDENCE" == automatic &&
               "$AUTOSTART" == running &&
-              "$DEVTOOLS_LISTENING" == yes ]]; then
+              "$DEVTOOLS_LISTENING" == yes &&
+              "$POWER_POLICY_BOOT_EVIDENCE" == applied ]]; then
             break
         fi
         sleep 2

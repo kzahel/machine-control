@@ -35,9 +35,14 @@ CHECK_PREFIXES = (
     ("SSH autostart", "ssh_autostart"),
     ("Incompatible SSH autostart", "ssh_autostart"),
     ("Current ChromeOS release", "release_prepared"),
+    ("Current boot applied the closed-lid", "power_policy_boot_persistence"),
+    ("Current boot lacks closed-lid", "power_policy_boot_persistence"),
     ("Current boot", "ssh_boot_persistence"),
     ("Remote debugging", "devtools_configuration"),
     ("DevTools port", "devtools_listener"),
+    ("Closed-lid power policy helper", "power_policy_helper"),
+    ("Always-awake power policy self-healing guard", "power_policy_guard"),
+    ("Closed-lid availability policy", "closed_lid_availability"),
 )
 
 

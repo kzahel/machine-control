@@ -14,13 +14,23 @@ on the target:
   accessibility extension;
 - page-specific semantics through CDP;
 - DRM/EGL capture;
-- evdev keyboard/touch and experimental uinput mouse; and
+- evdev keyboard/touch and experimental uinput mouse;
+- a required stateful powerd/embedded-controller policy for idle and closed-lid
+  SSH availability; and
 - a Chromebook-local ADB proxy for ARCVM as a distinct Android target.
 
 This already proves that an outside agent can receive compact, rich control
 without running another agent on the target and without manipulating a host VM
 window. `chrome.automation` covers native system surfaces as well as web
 content, so ChromeOS must not be reduced to generic Linux or page ARIA.
+
+**Current — live-tested:** Bootstrap and post-update repair install the
+documented powerd overrides that disable idle and lid suspend. The stateful SSH
+boot helper reapplies the embedded-controller lid override and records
+current-boot evidence, and a powerd-start guard heals in-boot resets. Common
+doctor and maintenance audit observe the helper, guard, effective preferences,
+and boot evidence without mutating power state; a changed-boot live proof
+returned the original three policy checks healthy.
 
 ## Provider relationship
 

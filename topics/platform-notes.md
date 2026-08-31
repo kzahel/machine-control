@@ -51,8 +51,12 @@ See [Linux control research](../research/platforms/linux.md).
 **Current:** The developer-mode Chromebook is the closest working desktop
 North Star implementation: SSH administration, `chrome.automation`, page CDP,
 DRM/EGL capture, and device-native input all execute on the target while an
-outside agent receives ergonomic control. ARCVM remains a distinct Android
-target reached through a Chromebook-local ADB proxy.
+outside agent receives ergonomic control. Required readiness now includes
+stateful idle/lid-suspend inhibition, current-boot application evidence, and a
+powerd-start self-healing guard, so the dedicated appliance remains reachable
+through SSH with its lid closed. Stock sleep behavior is not a cleanup state.
+ARCVM remains a distinct Android target reached through a Chromebook-local ADB
+proxy.
 
 **Decision:** Wrap and preserve the adopted stack before considering a rewrite
 or common-provider backend. Do not classify ChromeOS as generic Linux.

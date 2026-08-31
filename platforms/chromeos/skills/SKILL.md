@@ -34,7 +34,7 @@ chromeos adb-status          # Explicit ADB probe; may show approval prompt
 chromeos adb-connect         # Connect to 127.0.0.1:5555 and wait for readiness
 chromeos power-status        # Show effective idle/lid policy
 chromeos keep-awake [--lid-closed]  # Persistently disable idle/lid suspend
-chromeos restore-power       # Restore ChromeOS power defaults
+chromeos restore-power --confirm-make-unavailable  # Exceptional user-authorized opt-out
 chromeos shell               # Interactive SSH session
 ```
 
@@ -84,9 +84,10 @@ degradation.
 ### Post-Reboot Login
 
 The bootstrap-installed Upstart job normally restores SSH and its firewall
-rule automatically. ChromeOS remains at the profile sign-in screen until the
-selected user profile is unlocked. A driver needs the profile PIN before
-browser, extension, or Crostini automation can resume.
+rule automatically. It also reapplies the required closed-lid availability
+policy before SSH accepts work. ChromeOS remains at the profile sign-in screen
+until the selected user profile is unlocked. A driver needs the profile PIN
+before browser, extension, or Crostini automation can resume.
 
 ```bash
 chromeos doctor            # Warns that the user session is not active
@@ -274,13 +275,23 @@ and screenshot in a timestamped artifact directory.
 chromeos power-status
 chromeos keep-awake                 # Disable inactivity suspend
 chromeos keep-awake --lid-closed    # Also ignore the lid switch
-chromeos restore-power              # Undo both overrides
 ```
 
-Closed-lid mode uses the stateful ChromeOS powerd developer preference and EC
-override documented by ChromiumOS. It survives normal reboots. Warn the user
-to keep the laptop ventilated and preferably on AC power; do not enable it
-merely to inspect status.
+Closed-lid availability is required for this dedicated test appliance.
+Bootstrap and post-update repair install the stateful ChromeOS powerd
+preferences, every SSH boot path reapplies and records the EC override, and a
+powerd-start guard heals resets during the current boot. Doctor and maintenance
+audit are read-only and fail when the preferences, helper, self-healing guard,
+or current-boot evidence is missing.
+
+Always-awake is the appliance baseline, not temporary test state. Never run
+`restore-power` as cleanup or merely to return settings to stock defaults. Only
+an explicit user request to make the appliance sleep-capable authorizes the
+exceptional `restore-power --confirm-make-unavailable` opt-out. After an
+unexpected reset, use common maintenance repair without `--reboot`.
+
+Keep the laptop ventilated and preferably on AC power because the normal lid
+thermal/battery safeguard is disabled.
 
 ### Extending the CLI
 
@@ -329,6 +340,6 @@ Then verify: `chromeos doctor`
 
 | Event | What breaks | Fix |
 |-------|-------------|-----|
-| Reboot | User session is signed out; browser/extensions/Crostini unavailable | Wait for automatic SSH, then `chromeos login` |
-| ChromeOS update | SSH boot job and chrome_dev.conf may reset; rootfs may become read-only | VT2: start stateful SSH, then `chromeos post-update --repair` and `--verify-reboot` |
+| Reboot | User session is signed out; browser/extensions/Crostini unavailable; SSH boot path reapplies closed-lid policy | Wait for automatic SSH, then `chromeos login` |
+| ChromeOS update | SSH boot job and chrome_dev.conf may reset; rootfs may become read-only; power policy is revalidated | VT2: start stateful SSH, then `chromeos post-update --repair` and `--verify-reboot` |
 | IP change | SSH config stale | Update `~/.ssh/config` HostName |

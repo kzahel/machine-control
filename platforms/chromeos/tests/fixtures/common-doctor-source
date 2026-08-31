@@ -30,6 +30,12 @@ else:
             "name": "SSH starts through openssh-server after network connection",
         },
         {
+            "status": "ok",
+            "name": (
+                "Closed-lid availability policy is active for the current boot"
+            ),
+        },
+        {
             "status": "ok" if session == "unlocked" else "warn",
             "name": (
                 "ChromeOS user session active"
@@ -52,7 +58,7 @@ else:
     value = {
         "ok": True,
         "host": "private-device.invalid",
-        "passed": 8,
+        "passed": 9,
         "failed": 0,
         "checks": checks,
     }

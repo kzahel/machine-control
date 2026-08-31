@@ -138,6 +138,14 @@ stopped. The root portable and Linux-native checks also pass directly on the
 controller. Hardware validation and every domain start refuse TCG,
 cross-architecture emulation, or a non-KVM domain type.
 
+**Current (2026-08-31):** ChromeOS closed-lid availability became a required
+runtime invariant. The common doctor and maintenance projection now expose
+stateful power-policy configuration and current-boot application without
+mutating the target. Safe-image repair installed the helper and powerd
+preferences, and a changed-boot proof returned automatic SSH plus all power
+checks healthy. A required powerd-start guard now heals in-boot resets, while
+the stock-sleep opt-out requires an explicit make-unavailable acknowledgement.
+
 ## Current direction
 
 - Provide one portable root check command that owns correct suite working

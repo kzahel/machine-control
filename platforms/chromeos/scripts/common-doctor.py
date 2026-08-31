@@ -116,6 +116,30 @@ def main() -> int:
         rootfs_verification = "unknown"
     maintenance_ready = maintenance.get("ok") is True
     boot_ready = ssh_ready and boot_automatic and maintenance_ready
+    power_policy_configured = (
+        status_with_prefix(
+            maintenance,
+            "Closed-lid availability policy disables idle and lid suspend",
+        ) == "ok"
+    )
+    power_policy_current_boot = (
+        status_with_prefix(
+            maintenance,
+            "Current boot applied the closed-lid power policy",
+        ) == "ok"
+    )
+    power_policy_guard = (
+        status_with_prefix(
+            maintenance,
+            "Always-awake power policy self-healing guard is installed",
+        ) == "ok"
+    )
+    closed_lid_ready = (
+        ssh_ready
+        and power_policy_configured
+        and power_policy_current_boot
+        and power_policy_guard
+    )
 
     power = "running" if ssh_ready else "unknown"
     administration = "ready" if ssh_ready else "unavailable"
@@ -138,6 +162,7 @@ def main() -> int:
         semantic_ready,
         capture_ready,
         input_ready,
+        closed_lid_ready,
     ))
 
     checks: list[dict[str, str]] = []
@@ -170,6 +195,12 @@ def main() -> int:
             "Active rootfs verification state is unavailable",
             unavailable_status="warn",
         )
+    common_check(
+        checks, "closed_lid_availability", closed_lid_ready,
+        "Idle and lid suspend are disabled for this boot",
+        "Closed-lid SSH availability is not prepared for this boot",
+        unavailable_status="fail" if ssh_ready else "warn",
+    )
     common_check(
         checks, "desktop_session", session_ready,
         "ChromeOS profile session is unlocked",
@@ -252,6 +283,11 @@ def main() -> int:
             "profileState": "unlocked" if session_ready else "locked",
             "sshBootPersistence": boot_persistence,
             "rootfsVerification": rootfs_verification,
+            "closedLidAvailability": (
+                "ready" if closed_lid_ready else (
+                    "unavailable" if ssh_ready else "unknown"
+                )
+            ),
             "updateState": update_state,
             "captureProbe": "configured_not_exercised",
             "outerRecovery": "physical_vt2_explicit",

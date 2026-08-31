@@ -25,6 +25,10 @@ def log(action):
 
 if "--repair" in arguments:
     log("repair")
+    if state == "repair_required_power":
+        state_path.write_text("ready", encoding="utf-8")
+        print("closed-lid power policy repaired")
+        raise SystemExit(0)
     if state == "repair_required_safe":
         state_path.write_text("reboot_verification_required", encoding="utf-8")
         print("active image repaired")
@@ -56,6 +60,13 @@ checks = [
     check("ok", "Current boot automatically started SSH after network connection"),
     check("ok", "Remote debugging is configured"),
     check("ok", "DevTools port 9222 is listening"),
+    check("ok", "Closed-lid power policy helper is installed"),
+    check("ok", "Always-awake power policy self-healing guard is installed"),
+    check(
+        "ok",
+        "Closed-lid availability policy disables idle and lid suspend",
+    ),
+    check("ok", "Current boot applied the closed-lid power policy"),
 ]
 ok = state == "ready"
 status = state
@@ -80,6 +91,24 @@ elif state == "repair_required_safe":
     checks[7] = check(
         "fail", "Remote debugging configuration is missing",
         detail="private config detail",
+    )
+    status = "repair_required"
+elif state == "repair_required_power":
+    checks[9] = check(
+        "fail", "Closed-lid power policy helper is missing",
+        detail="private power helper detail",
+    )
+    checks[10] = check(
+        "fail", "Always-awake power policy self-healing guard is missing",
+        detail="private power guard detail",
+    )
+    checks[11] = check(
+        "fail", "Closed-lid availability policy is not configured",
+        detail="private power preference detail",
+    )
+    checks[12] = check(
+        "fail", "Current boot lacks closed-lid power policy evidence",
+        detail="private power boot detail",
     )
     status = "repair_required"
 elif state == "reboot_verification_required":

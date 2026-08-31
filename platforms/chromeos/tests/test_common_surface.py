@@ -84,6 +84,7 @@ class CommonSurfaceTests(unittest.TestCase):
         self.assertEqual(value["states"]["boot"], "ready")
         self.assertEqual(value["states"]["desktop"], "unlocked")
         self.assertEqual(value["extensions"]["rootfsVerification"], "disabled")
+        self.assertEqual(value["extensions"]["closedLidAvailability"], "ready")
         self.assertEqual(
             next(
                 check for check in value["checks"]
@@ -92,6 +93,23 @@ class CommonSurfaceTests(unittest.TestCase):
             "pass",
         )
         self.assertEqual(value["lifecycleOperations"], [])
+        self.assertFalse(self.log.exists())
+        self.assert_minimized(result)
+
+    def test_common_doctor_requires_closed_lid_availability(self):
+        self.state.write_text("repair_required_power", encoding="utf-8")
+        result, value = self.run_cli("common-doctor", session="unlocked")
+
+        self.assertEqual(result.returncode, 1)
+        self.assertFalse(value["ready"])
+        self.assertEqual(
+            value["extensions"]["closedLidAvailability"], "unavailable"
+        )
+        check = next(
+            check for check in value["checks"]
+            if check["id"] == "closed_lid_availability"
+        )
+        self.assertEqual(check["status"], "fail")
         self.assertFalse(self.log.exists())
         self.assert_minimized(result)
 
@@ -141,6 +159,18 @@ class CommonSurfaceTests(unittest.TestCase):
         self.assertTrue(value["healthy"])
         self.assertFalse(value["doctor"]["ready"])
         self.assertEqual(value["doctor"]["states"]["boot"], "ready")
+        self.assertIn(
+            "closed_lid_availability",
+            {check["id"] for check in value["post_update"]["checks"]},
+        )
+        self.assertIn(
+            "power_policy_boot_persistence",
+            {check["id"] for check in value["post_update"]["checks"]},
+        )
+        self.assertIn(
+            "power_policy_guard",
+            {check["id"] for check in value["post_update"]["checks"]},
+        )
         self.assertFalse(self.log.exists())
         self.assert_minimized(result)
 
@@ -156,6 +186,25 @@ class CommonSurfaceTests(unittest.TestCase):
             [{"id": "active_image", "status": "not_needed"}],
         )
         self.assertFalse(self.log.exists())
+
+    def test_repair_applies_missing_closed_lid_policy_without_reboot(self):
+        self.state.write_text("repair_required_power", encoding="utf-8")
+        result, value = self.run_cli(
+            "maintenance", "repair", "--profile", "runtime", "--json",
+            session="unlocked",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(value["healthy"])
+        self.assertFalse(value["reboot"]["requested"])
+        self.assertEqual(
+            value["post_update"]["repairs"],
+            [{"id": "active_image", "status": "completed"}],
+        )
+        self.assertEqual(
+            self.log.read_text(encoding="utf-8").splitlines(), ["repair"]
+        )
+        self.assertEqual(self.state.read_text(encoding="utf-8"), "ready")
 
     def test_guided_recovery_states_refuse_before_mutation(self):
         for state in ("update_pending", "repair_required_rootfs"):

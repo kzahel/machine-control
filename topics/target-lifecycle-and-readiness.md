@@ -241,6 +241,16 @@ and Android currently declare full reboot; Quest deliberately does not. iOS
 full reboot is live-accepted for the passcode-free profile and preserves a
 typed manual-first-unlock state for passcode-protected devices.
 
+ChromeOS readiness also requires closed-lid availability for the dedicated
+test-appliance profile. Bootstrap and safe-image maintenance repair install
+stateful idle/lid-suspend overrides; automatic and manual SSH startup reapply
+the embedded-controller override and record current-boot evidence. A required
+powerd-start guard heals resets during the current boot. Doctor and audit remain
+read-only, report the power invariant explicitly, and fail closed when the
+helper, guard, effective preferences, or boot evidence is missing. Restoring
+stock sleep behavior is an exceptional, explicitly acknowledged opt-out rather
+than routine cleanup.
+
 iOS additionally has an explicit common `ios` operation family beside target
 lifecycle. This does not add application or semantic verbs to the portable
 lifecycle set and does not make Android or Quest inherit XCTest semantics.

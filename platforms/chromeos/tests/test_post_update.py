@@ -61,6 +61,10 @@ class PostUpdateAuditTests(unittest.TestCase):
             devtools_configured\tyes
             devtools_listening\tyes
             repair_staged\tno
+            power_policy_helper\tyes
+            power_policy_guard\tyes
+            power_policy_configured\tyes
+            power_policy_boot_evidence\tapplied
         """)
 
         self.assertEqual(0, result.returncode, result.stderr)
@@ -81,6 +85,10 @@ class PostUpdateAuditTests(unittest.TestCase):
             devtools_configured\tno
             devtools_listening\tno
             repair_staged\tno
+            power_policy_helper\tno
+            power_policy_guard\tno
+            power_policy_configured\tno
+            power_policy_boot_evidence\tnone
         """)
 
         self.assertEqual(1, result.returncode)
@@ -105,11 +113,52 @@ class PostUpdateAuditTests(unittest.TestCase):
             devtools_configured\tyes
             devtools_listening\tyes
             repair_staged\tno
+            power_policy_helper\tyes
+            power_policy_guard\tyes
+            power_policy_configured\tyes
+            power_policy_boot_evidence\tapplied
         """)
 
         self.assertEqual(1, result.returncode)
         payload = json.loads(result.stdout)
         self.assertEqual("update_pending", payload["status"])
+
+    def test_missing_closed_lid_policy_requires_repair(self):
+        result = self.run_audit("""
+            release\t16700.60.0
+            boot_id\tcurrent-boot
+            update_operation\tUPDATE_STATUS_IDLE
+            rootfs_writable\tyes
+            autostart\trunning
+            fallback\tyes
+            prepared_release\t16700.60.0
+            boot_evidence\tautomatic
+            devtools_configured\tyes
+            devtools_listening\tyes
+            repair_staged\tno
+            power_policy_helper\tno
+            power_policy_guard\tno
+            power_policy_configured\tno
+            power_policy_boot_evidence\tnone
+        """)
+
+        self.assertEqual(1, result.returncode)
+        payload = json.loads(result.stdout)
+        self.assertEqual("repair_required", payload["status"])
+        failed = {
+            item["name"] for item in payload["checks"]
+            if item["status"] == "fail"
+        }
+        self.assertIn("Closed-lid power policy helper is missing", failed)
+        self.assertIn(
+            "Always-awake power policy self-healing guard is missing", failed
+        )
+        self.assertIn(
+            "Closed-lid availability policy is not configured", failed
+        )
+        self.assertIn(
+            "Current boot lacks closed-lid power policy evidence", failed
+        )
 
     def test_unreachable_ssh_has_actionable_json(self):
         result = self.run_audit("", ssh_up=False)

@@ -142,7 +142,37 @@ case "$SSH_AUTOSTART" in
         ;;
 esac
 
-# 3. ChromeOS user session
+# 3. Required closed-lid availability policy
+POWER_POLICY_STATE=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; \
+boot_id=\$(cat /proc/sys/kernel/random/boot_id 2>/dev/null); \
+if [ ! -r /mnt/stateful_partition/etc/ssh/apply_power_policy.sh ]; then \
+  echo helper_missing; \
+elif [ \"\$(cat /var/lib/power_manager/disable_idle_suspend 2>/dev/null)\" != 1 ] || \
+     [ \"\$(cat /var/lib/power_manager/use_lid 2>/dev/null)\" != 0 ]; then \
+  echo unconfigured; \
+elif grep -q \"boot_id=\$boot_id .*status=ready\" \
+     /mnt/stateful_partition/etc/ssh/power-policy.log 2>/dev/null; then \
+  echo ready; \
+else echo unproven; fi" 2>/dev/null || true)
+case "$POWER_POLICY_STATE" in
+    ready)
+        ok "Closed-lid availability policy is active for the current boot"
+        ;;
+    helper_missing)
+        fail "Closed-lid power policy helper is missing" \
+             "chromeos post-update --repair"
+        ;;
+    unconfigured)
+        fail "Idle or lid suspend is enabled" \
+             "chromeos post-update --repair"
+        ;;
+    *)
+        fail "Current boot lacks closed-lid power policy evidence" \
+             "chromeos post-update --repair"
+        ;;
+esac
+
+# 4. ChromeOS user session
 SESSION_MOUNTED=$(ssh "$SSH_HOST" \
     "$REMOTE_PATH_SETUP; cryptohome --action=is_mounted" 2>/dev/null | tail -n 1 | tr -d '\r')
 if [ "$SESSION_MOUNTED" = "true" ]; then
@@ -152,7 +182,7 @@ else
          "Run: chromeos login (or pipe an approved secret source to chromeos login --pin-stdin)"
 fi
 
-# 4. Check rootfs writability
+# 5. Check rootfs writability
 ROOTFS_WRITABLE=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; touch /etc/.chromeos-testbed-probe 2>/dev/null && rm -f /etc/.chromeos-testbed-probe && echo yes || echo no" 2>/dev/null)
 if [ "$ROOTFS_WRITABLE" = "yes" ]; then
     ok "Rootfs is writable"
@@ -161,7 +191,7 @@ else
          "chromeos fix-devtools"
 fi
 
-# 5. Remote debugging configured
+# 6. Remote debugging configured
 DEVTOOLS_CONFIGURED=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; /bin/cat /etc/chrome_dev.conf 2>/dev/null" | grep -c "remote-debugging-port" || true)
 if [ "$DEVTOOLS_CONFIGURED" -gt 0 ]; then
     ok "Remote debugging configured in chrome_dev.conf"
@@ -169,7 +199,7 @@ else
     fail "Remote debugging not configured" "chromeos fix-devtools"
 fi
 
-# 6. DevTools port listening
+# 7. DevTools port listening
 DEVTOOLS_LISTENING=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; /bin/cat /proc/net/tcp 2>/dev/null" | awk '{print $2}' | grep -ci ":2406" || true)
 # 9222 decimal = 0x2406
 if [ "$DEVTOOLS_LISTENING" -gt 0 ]; then
@@ -183,7 +213,7 @@ else
     fi
 fi
 
-# 7. Remote Python
+# 8. Remote Python
 PYTHON_PATH=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; command -v python3" 2>/dev/null || true)
 if [ -n "$PYTHON_PATH" ]; then
     ok "Remote Python available at $PYTHON_PATH"
@@ -192,7 +222,7 @@ else
          "Check REMOTE_PATH_SETUP; expected /usr/local/bin/python3 or /usr/bin/python3"
 fi
 
-# 8. client.py deployed
+# 9. client.py deployed
 CLIENT_EXISTS=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; test -f $CLIENT_PATH && echo yes || echo no" 2>/dev/null)
 if [ "$CLIENT_EXISTS" = "yes" ]; then
     ok "client.py deployed at $CLIENT_PATH"
@@ -200,7 +230,7 @@ else
     warn "client.py not deployed" "Run: chromeos deploy"
 fi
 
-# 9. Touchscreen (only if client.py and Python are available)
+# 10. Touchscreen (only if client.py and Python are available)
 if [ "$CLIENT_EXISTS" = "yes" ] && [ -n "$PYTHON_PATH" ]; then
     TS_INFO=$(echo '{"cmd":"info"}' | ssh "$SSH_HOST" \
         "$REMOTE_PATH_SETUP; LD_LIBRARY_PATH=/usr/local/lib64 python3 $CLIENT_PATH" 2>/dev/null || true)
@@ -213,7 +243,7 @@ if [ "$CLIENT_EXISTS" = "yes" ] && [ -n "$PYTHON_PATH" ]; then
     fi
 fi
 
-# 10. SSH tunnel for devtools (local check)
+# 11. SSH tunnel for devtools (local check)
 if curl -s --connect-timeout 2 http://localhost:9222/json/version &>/dev/null; then
     ok "DevTools tunnel active (localhost:9222)"
 else
@@ -221,7 +251,7 @@ else
          "The chromeos CLI connects on-device. For other local CDP tools: ssh -NL 9222:127.0.0.1:9222 $SSH_HOST"
 fi
 
-# 11. ARCVM ADB availability (optional and deliberately passive)
+# 12. ARCVM ADB availability (optional and deliberately passive)
 if ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; command -v adb >/dev/null" &>/dev/null; then
     warn "ARCVM ADB was not probed (optional)" \
          "Run: chromeos adb-status (explicit probe may request authorization)"

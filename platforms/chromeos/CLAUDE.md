@@ -13,7 +13,15 @@ The skill definition is at `skills/SKILL.md`. Other projects can reference it fo
 Key commands: `doctor`, `post-update`, `smoke-test`, `diagnostics`, `fix-ssh`,
 `fix-devtools`, `screenshot`, `desktop-tap`, `desktop-wait`, `adb-status`,
 `adb-connect`, `tap`, `type`, `shortcut`, `vt2`, `gui`, `info`, `deploy`,
-`power-status`, `keep-awake`, `restore-power`, `shell`.
+`power-status`, `keep-awake`, `shell`.
+
+## Power invariant
+
+This dedicated test appliance must remain awake and SSH-reachable while idle
+or closed. Always-awake is its baseline, not temporary state to restore after a
+test. Never restore stock sleep or lid behavior as cleanup. The exceptional
+`restore-power --confirm-make-unavailable` opt-out requires an explicit user
+request to make the appliance sleep-capable.
 
 ## Prerequisites
 
