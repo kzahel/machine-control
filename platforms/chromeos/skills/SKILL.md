@@ -242,7 +242,9 @@ chromeos tap 2619 1673
 
 For a real touch event on an accessible system element, use calibrated
 `desktop-tap`. It converts the logical built-in-display coordinates to the
-touchscreen's raw evdev range:
+touchscreen's evdev range and injects them through an isolated virtual direct
+input device. This remains reliable when a closed convertible holds contacts
+against its physical panel:
 
 ```bash
 chromeos desktop-tap "^Settings$" --role button

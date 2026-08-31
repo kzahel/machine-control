@@ -258,8 +258,10 @@ bin/chromeos target-wait 'PhysBox'
 ```
 
 Use `desktop-tap` when a real touch event is important. It maps logical
-`chrome.automation` coordinates to the raw touchscreen range using the
-built-in display bounds, so display scaling does not need to be guessed:
+`chrome.automation` coordinates to the touchscreen range using the built-in
+display bounds, then injects through an isolated virtual direct-input device.
+Display scaling does not need to be guessed, and physical contacts cannot join
+the injected gesture:
 
 ```bash
 bin/chromeos desktop-tap '^Settings$' --role button

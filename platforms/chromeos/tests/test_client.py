@@ -1,4 +1,5 @@
 from pathlib import Path
+import struct
 import sys
 import unittest
 from unittest import mock
@@ -150,6 +151,36 @@ class DesktopTapTest(unittest.TestCase):
         self.assertEqual(result["tapped"]["touch"], {"x": 1746, "y": 984})
         tap.assert_called_once_with(1746, 984)
 
+    @mock.patch.object(client, "tap")
+    @mock.patch("cdp.desktop_tree")
+    @mock.patch("cdp.desktop_find")
+    def test_preserves_top_left_origin_away_from_display_center(
+            self, desktop_find, desktop_tree, tap):
+        desktop_find.return_value = [{
+            "role": "button",
+            "name": "Settings",
+            "location": {"x": 1544, "y": 796, "width": 32, "height": 32},
+        }]
+        desktop_tree.return_value = {
+            "role": "desktop",
+            "location": {"x": 0, "y": 0, "width": 1600, "height": 900},
+            "children": [{
+                "role": "window",
+                "name": "Built-in display",
+                "location": {"x": 0, "y": 0, "width": 1600, "height": 900},
+            }],
+        }
+
+        with mock.patch.object(client, "_ts_device", "/dev/input/event6"), \
+             mock.patch.object(client, "_ts_max_x", 3492), \
+             mock.patch.object(client, "_ts_max_y", 1968):
+            result = client.cmd_desktop_tap({
+                "pattern": "^Settings$", "role": "button",
+            })
+
+        self.assertEqual(result["tapped"]["touch"], {"x": 3405, "y": 1776})
+        tap.assert_called_once_with(3405, 1776)
+
     @mock.patch("cdp.desktop_tree")
     @mock.patch("cdp.desktop_find")
     def test_rejects_element_on_external_display(self, desktop_find, desktop_tree):
@@ -174,6 +205,60 @@ class DesktopTapTest(unittest.TestCase):
             result = client.cmd_desktop_tap({"pattern": "External"})
 
         self.assertIn("not on the built-in display", result["error"])
+
+
+class TapTest(unittest.TestCase):
+    @mock.patch.object(client, "VirtualTouchscreen")
+    def test_uses_isolated_virtual_touchscreen(self, virtual_touchscreen):
+        touchscreen = virtual_touchscreen.return_value
+        with mock.patch.object(client, "_ts_max_x", 3492), \
+             mock.patch.object(client, "_ts_max_y", 1968):
+            client.tap(123, 456)
+
+        virtual_touchscreen.assert_called_once_with(3492, 1968)
+        touchscreen.tap.assert_called_once_with(123, 456)
+        touchscreen.close.assert_called_once_with()
+
+    @mock.patch.object(client, "VirtualTouchscreen")
+    def test_closes_virtual_touchscreen_after_tap_failure(
+            self, virtual_touchscreen):
+        touchscreen = virtual_touchscreen.return_value
+        touchscreen.tap.side_effect = RuntimeError("input failed")
+
+        with self.assertRaisesRegex(RuntimeError, "input failed"):
+            client.tap(123, 456)
+
+        touchscreen.close.assert_called_once_with()
+
+
+@unittest.skipIf(client.fcntl is None, "requires Linux fcntl")
+class VirtualTouchscreenTest(unittest.TestCase):
+    def test_declares_direct_device_and_emits_complete_contact(self):
+        fd = mock.Mock()
+        fd.fileno.return_value = 12
+        with (
+            mock.patch("builtins.open", return_value=fd),
+            mock.patch.object(client.fcntl, "ioctl") as ioctl,
+            mock.patch.object(client.time, "sleep"),
+        ):
+            touchscreen = client.VirtualTouchscreen(3492, 1968)
+            touchscreen.tap(123, 456)
+            touchscreen.close()
+
+        ioctl.assert_any_call(12, client._UI_SET_PROPBIT,
+                              client._INPUT_PROP_DIRECT)
+        ioctl.assert_any_call(12, client._UI_DEV_CREATE)
+        ioctl.assert_any_call(12, client._UI_DEV_DESTROY)
+        events = [
+            struct.unpack("llHHi", call.args[0])[-3:]
+            for call in fd.write.call_args_list[1:]
+        ]
+        self.assertIn((client.EV_ABS, client.ABS_MT_POSITION_X, 123), events)
+        self.assertIn((client.EV_ABS, client.ABS_MT_POSITION_Y, 456), events)
+        self.assertIn((client.EV_ABS, client.ABS_X, 123), events)
+        self.assertIn((client.EV_ABS, client.ABS_Y, 456), events)
+        self.assertIn((client.EV_KEY, client.BTN_TOUCH, 1), events)
+        self.assertIn((client.EV_KEY, client.BTN_TOUCH, 0), events)
 
 
 if __name__ == "__main__":

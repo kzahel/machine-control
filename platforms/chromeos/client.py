@@ -47,10 +47,16 @@ EV_SYN, EV_KEY, EV_REL, EV_ABS = 0, 1, 2, 3
 
 # Touch
 BTN_TOUCH = 330
+ABS_X = 0x00
+ABS_Y = 0x01
+ABS_PRESSURE = 0x18
 ABS_MT_SLOT = 0x2f
+ABS_MT_TOUCH_MAJOR = 0x30
+ABS_MT_TOUCH_MINOR = 0x31
 ABS_MT_TRACKING_ID = 0x39
 ABS_MT_POSITION_X = 0x35
 ABS_MT_POSITION_Y = 0x36
+ABS_MT_PRESSURE = 0x3a
 
 # Mouse buttons
 BTN_LEFT, BTN_RIGHT, BTN_MIDDLE = 0x110, 0x111, 0x112
@@ -62,8 +68,11 @@ REL_X, REL_Y, REL_WHEEL = 0, 1, 8
 _UI_SET_EVBIT  = 0x40045564
 _UI_SET_KEYBIT = 0x40045565
 _UI_SET_RELBIT = 0x40045566
+_UI_SET_ABSBIT = 0x40045567
+_UI_SET_PROPBIT = 0x4004556e
 _UI_DEV_CREATE  = 0x5501
 _UI_DEV_DESTROY = 0x5502
+_INPUT_PROP_DIRECT = 0x01
 
 # Keys
 KEY_LEFTMETA = 125
@@ -333,32 +342,101 @@ atexit.register(_cleanup_mouse)
 
 
 # === Touchscreen ===
-def tap(x, y):
-    """Tap at raw touchscreen coordinates."""
-    fd = os.open(_ts_device, os.O_WRONLY)
-    try:
-        def emit(ev_type, code, value):
-            os.write(fd, struct.pack("llHHi", 0, 0, ev_type, code, value))
+class VirtualTouchscreen:
+    """Short-lived direct-input device independent of physical contacts."""
 
-        def sync():
-            emit(EV_SYN, 0, 0)
+    _UINPUT_MAX_NAME_SIZE = 80
+    _ABS_CNT = 64
+    _BUS_VIRTUAL = 0x06
 
-        # Touch down
-        emit(EV_ABS, ABS_MT_SLOT, 0)
-        emit(EV_ABS, ABS_MT_TRACKING_ID, int(time.time() * 1000) % 65535)
-        emit(EV_ABS, ABS_MT_POSITION_X, int(x))
-        emit(EV_ABS, ABS_MT_POSITION_Y, int(y))
-        emit(EV_KEY, BTN_TOUCH, 1)
-        sync()
+    def __init__(self, max_x, max_y):
+        if fcntl is None:
+            raise RuntimeError("uinput control requires Linux fcntl")
+        fd = open('/dev/uinput', 'wb', buffering=0)
+        fno = fd.fileno()
+        fcntl.ioctl(fno, _UI_SET_EVBIT, EV_KEY)
+        fcntl.ioctl(fno, _UI_SET_EVBIT, EV_ABS)
+        fcntl.ioctl(fno, _UI_SET_KEYBIT, BTN_TOUCH)
+        fcntl.ioctl(fno, _UI_SET_PROPBIT, _INPUT_PROP_DIRECT)
+        for axis in (
+            ABS_X, ABS_Y, ABS_PRESSURE, ABS_MT_SLOT,
+            ABS_MT_TOUCH_MAJOR, ABS_MT_TOUCH_MINOR,
+            ABS_MT_POSITION_X, ABS_MT_POSITION_Y,
+            ABS_MT_TRACKING_ID, ABS_MT_PRESSURE,
+        ):
+            fcntl.ioctl(fno, _UI_SET_ABSBIT, axis)
 
+        absmax = [0] * self._ABS_CNT
+        absmin = [0] * self._ABS_CNT
+        absfuzz = [0] * self._ABS_CNT
+        absflat = [0] * self._ABS_CNT
+        absmax[ABS_X] = max_x
+        absmax[ABS_Y] = max_y
+        absmax[ABS_PRESSURE] = 255
+        absmax[ABS_MT_SLOT] = 0
+        absmax[ABS_MT_TOUCH_MAJOR] = 96
+        absmax[ABS_MT_TOUCH_MINOR] = 96
+        absmax[ABS_MT_POSITION_X] = max_x
+        absmax[ABS_MT_POSITION_Y] = max_y
+        absmax[ABS_MT_TRACKING_ID] = 65535
+        absmax[ABS_MT_PRESSURE] = 255
+        name = b'ChromeOS Remote Touchscreen\x00'.ljust(
+            self._UINPUT_MAX_NAME_SIZE, b'\x00'
+        )
+        udev = struct.pack(
+            f'{self._UINPUT_MAX_NAME_SIZE}sHHHHI{self._ABS_CNT}i'
+            f'{self._ABS_CNT}i{self._ABS_CNT}i{self._ABS_CNT}i',
+            name, self._BUS_VIRTUAL, 0x1, 0x2, 1, 0,
+            *absmax, *absmin, *absfuzz, *absflat,
+        )
+        fd.write(udev)
+        fcntl.ioctl(fno, _UI_DEV_CREATE)
+        self._fd = fd
+        time.sleep(0.5)
+
+    def _emit(self, ev_type, code, value):
+        self._fd.write(struct.pack('llHHi', 0, 0, ev_type, code, value))
+
+    def _sync(self):
+        self._emit(EV_SYN, 0, 0)
+
+    def tap(self, x, y):
+        self._emit(EV_ABS, ABS_MT_SLOT, 0)
+        self._emit(EV_ABS, ABS_MT_TRACKING_ID, 1)
+        self._emit(EV_ABS, ABS_MT_POSITION_X, int(x))
+        self._emit(EV_ABS, ABS_MT_POSITION_Y, int(y))
+        self._emit(EV_ABS, ABS_MT_TOUCH_MAJOR, 48)
+        self._emit(EV_ABS, ABS_MT_TOUCH_MINOR, 48)
+        self._emit(EV_ABS, ABS_MT_PRESSURE, 128)
+        self._emit(EV_ABS, ABS_X, int(x))
+        self._emit(EV_ABS, ABS_Y, int(y))
+        self._emit(EV_ABS, ABS_PRESSURE, 128)
+        self._emit(EV_KEY, BTN_TOUCH, 1)
+        self._sync()
         time.sleep(0.08)
+        self._emit(EV_ABS, ABS_MT_TRACKING_ID, -1)
+        self._emit(EV_ABS, ABS_MT_PRESSURE, 0)
+        self._emit(EV_ABS, ABS_PRESSURE, 0)
+        self._emit(EV_KEY, BTN_TOUCH, 0)
+        self._sync()
+        time.sleep(0.2)
 
-        # Touch up
-        emit(EV_ABS, ABS_MT_TRACKING_ID, -1)
-        emit(EV_KEY, BTN_TOUCH, 0)
-        sync()
+    def close(self):
+        if self._fd:
+            try:
+                fcntl.ioctl(self._fd.fileno(), _UI_DEV_DESTROY)
+            finally:
+                self._fd.close()
+                self._fd = None
+
+
+def tap(x, y):
+    """Tap at touchscreen-range coordinates through an isolated device."""
+    touchscreen = VirtualTouchscreen(_ts_max_x, _ts_max_y)
+    try:
+        touchscreen.tap(x, y)
     finally:
-        os.close(fd)
+        touchscreen.close()
 
 
 def swipe(x1, y1, x2, y2, duration_ms=300):
