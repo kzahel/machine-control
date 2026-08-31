@@ -62,6 +62,7 @@ internal sealed class WindowsNativeProvider : IControlProvider
             Semantic("set.value", "desktop", "UIA ValuePattern plus readback"),
             Input("click", "coordinate input"),
             Input("key", "virtual-key or scan-code keyboard input"),
+            Input("key.timeline", "bounded held-key plus secondary scan-code tap"),
             Input("type", "Unicode keyboard input"),
             Semantic("window.state", "desktop", "Win32 state plus readback"),
             Semantic("session.lock", "session", "Win32 plus WTS readback"),

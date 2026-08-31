@@ -204,6 +204,8 @@ internal static class DesktopController
                     request, generation, desktopName, timer),
                 "click" => Click(request, generation, desktopName, timer),
                 "key" => Key(request, generation, desktopName, timer),
+                "key.timeline" => KeyTimeline(
+                    request, generation, desktopName, timer),
                 "type" => TypeText(request, generation, desktopName, timer),
                 "window.state" => WindowState(
                     request, generation, desktopName, timer),
@@ -1115,6 +1117,91 @@ internal static class DesktopController
             fidelity: keyMode == "scan_code"
                 ? "hardware_scan_code_compatible"
                 : "native");
+    }
+
+    private static Result KeyTimeline(
+        Request request,
+        string generation,
+        string desktopName,
+        Stopwatch timer)
+    {
+        if (string.IsNullOrWhiteSpace(request.Key) ||
+            string.IsNullOrWhiteSpace(request.SecondaryKey))
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "invalid_request",
+                "key.timeline requires key and secondaryKey");
+        }
+        if (request.KeyMode is not null &&
+            !string.Equals(request.KeyMode, "scan_code", StringComparison.OrdinalIgnoreCase))
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "invalid_key_mode",
+                "key.timeline supports only scan_code input");
+        }
+        var leadDurationMs = request.LeadDurationMs ?? 100;
+        var tapDurationMs = request.DurationMs ?? 80;
+        var tailDurationMs = request.TailDurationMs ?? 0;
+        if (leadDurationMs is < 1 or > 5_000 ||
+            tapDurationMs is < 1 or > 5_000 ||
+            tailDurationMs is < 0 or > 5_000 ||
+            leadDurationMs + tapDurationMs + tailDurationMs > 5_000)
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "invalid_key_duration",
+                "key.timeline durations must be bounded and total no more than 5000 ms");
+        }
+        if (!TryGetScanCodeChord(request.Key, out var primary) ||
+            primary.Length != 1 ||
+            !TryGetScanCodeChord(request.SecondaryKey, out var secondary) ||
+            secondary.Length != 1 ||
+            primary[0] == secondary[0])
+        {
+            return Failure(
+                request,
+                generation,
+                desktopName,
+                timer,
+                "invalid_key_timeline",
+                "key.timeline requires two distinct single scan-code keys");
+        }
+        SendScanCodeTimeline(
+            primary[0],
+            secondary[0],
+            leadDurationMs,
+            tapDurationMs,
+            tailDurationMs);
+        return Success(
+            request,
+            generation,
+            desktopName,
+            timer,
+            "windows.native/send_input_scan_code_timeline",
+            "confirmed",
+            "unverifiable",
+            new
+            {
+                key = request.Key,
+                secondaryKey = request.SecondaryKey,
+                keyMode = "scan_code",
+                leadDurationMs,
+                tapDurationMs,
+                tailDurationMs,
+                totalDurationMs = leadDurationMs + tapDurationMs + tailDurationMs,
+            },
+            fidelity: "hardware_scan_code_compatible");
     }
 
     private static Result TypeText(
@@ -2173,6 +2260,42 @@ internal static class DesktopController
             .Select(stroke => ScanCodeInput(stroke.ScanCode, stroke.Extended, true))
             .ToArray();
         SendKeyboardInputs(inputs);
+    }
+
+    private static void SendScanCodeTimeline(
+        ScanCodeStroke primary,
+        ScanCodeStroke secondary,
+        int leadDurationMs,
+        int tapDurationMs,
+        int tailDurationMs)
+    {
+        SendKeyboardInputs([
+            ScanCodeInput(primary.ScanCode, primary.Extended, false),
+        ]);
+        try
+        {
+            Thread.Sleep(leadDurationMs);
+            SendKeyboardInputs([
+                ScanCodeInput(secondary.ScanCode, secondary.Extended, false),
+            ]);
+            try
+            {
+                Thread.Sleep(tapDurationMs);
+            }
+            finally
+            {
+                SendKeyboardInputs([
+                    ScanCodeInput(secondary.ScanCode, secondary.Extended, true),
+                ]);
+            }
+            Thread.Sleep(tailDurationMs);
+        }
+        finally
+        {
+            SendKeyboardInputs([
+                ScanCodeInput(primary.ScanCode, primary.Extended, true),
+            ]);
+        }
     }
 
     private static bool TryGetScanCodeChord(string key, out ScanCodeStroke[] strokes)

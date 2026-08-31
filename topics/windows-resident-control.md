@@ -302,6 +302,17 @@ for DirectInput-style software that polls physical key positions, and may set
 Results disclose the selected route and duration; scan-code delivery still
 requires an independent visual or application-level effect oracle.
 
+The typed `key.timeline` operation covers the narrower case where one physical
+key must remain down while a second key is tapped. It accepts distinct
+single-key scan codes, a positive lead, a positive tap, and a non-negative
+tail whose total is at most 5000 ms. The resident worker sends both releases
+in `finally` paths. This is one request deliberately: separate facade calls
+are serialized and cannot establish overlapping holds.
+The local CLI exposes that single operation through `input-call` when a
+non-elevated current-session caller needs the newly published operation before
+the installed resident runtime is upgraded. That verb refuses every other
+operation; it is not a general direct-dispatch escape hatch.
+
 The facade should allow compact semantic/visual scopes for Start, taskbar,
 notification area, a shell flyout, and a Settings window so agents do not pay
 for the entire desktop tree on every action.

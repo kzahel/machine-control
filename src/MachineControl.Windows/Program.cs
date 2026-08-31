@@ -71,6 +71,8 @@ internal static class Program
                     return 0;
                 case "call":
                     return await RunClientAsync(args);
+                case "input-call":
+                    return await RunLocalInputClientAsync(args);
                 case "login":
                     return await RunLoginClientAsync(args);
                 case "unlock-service":
@@ -95,7 +97,7 @@ internal static class Program
                             "service.status", "service.revoke",
                             "status", "app.launch", "app.activate", "windows",
                             "snapshot", "screenshot",
-                            "capabilities", "invoke", "click", "key",
+                            "capabilities", "invoke", "click", "key", "key.timeline",
                             "type", "window.state",
                             "session.lock", "session.logoff",
                             "session.login (dedicated secret transport)",
@@ -175,6 +177,35 @@ internal static class Program
         return 0;
     }
 
+    private static async Task<int> RunLocalInputClientAsync(string[] args)
+    {
+        string requestText;
+        if (args.Length > 1)
+        {
+            requestText = args[1];
+        }
+        else
+        {
+            requestText = await Console.In.ReadToEndAsync();
+        }
+        var request = Contract.ParseRequest(requestText);
+        if (!string.Equals(
+                request.Operation,
+                "key.timeline",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException(
+                "input-call accepts only the typed key.timeline operation");
+        }
+        var generation = $"local-input:{Environment.ProcessId}:{Guid.NewGuid():n}";
+        var result = await DesktopController.ExecuteAsync(
+            request,
+            generation,
+            CancellationToken.None);
+        Console.WriteLine(Contract.Serialize(result));
+        return result.Accepted ? 0 : 3;
+    }
+
     private static async Task<int> RunLoginClientAsync(string[] args)
     {
         var credentialKind = GetOption(args, "--kind")?.ToLowerInvariant()
@@ -246,7 +277,7 @@ internal static class Program
         Console.Error.WriteLine(
             "usage: machine-control-windows " +
             "service|service-console|session|desktop-worker|user [--instance NAME]|" +
-            "call [JSON] [--profile appliance|user] [--instance NAME] [--session-id ID]|login|" +
+            "input-call [JSON]|call [JSON] [--profile appliance|user] [--instance NAME] [--session-id ID]|login|" +
             "unlock [--status|--relay] [--instance NAME] [--grant FILE --key FILE] [--kind password|pin]|schema");
     }
 }
