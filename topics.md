@@ -41,3 +41,5 @@ commits with no expected follow-up do not need a trailer or registry entry.
   profile and protected credential operation, and distinct Quest policy.
 - `ios-device-control` — CoreDevice/XCTest common readiness, lifecycle,
   protected-authentication boundaries, and unattended recovery evidence.
+- `platform-notes` — current platform-specific control routes, readiness
+  posture, limitations, and next integration direction.

@@ -250,6 +250,9 @@ against its physical panel:
 chromeos desktop-tap "^Settings$" --role button
 ```
 
+Raw `tap` and `swipe` use that isolated virtual device as well. The physical
+panel supplies its coordinate range but does not receive injected gestures.
+
 The virtual `mouse-*` commands are best-effort only. The one-shot client cannot
 observe ChromeOS's current cursor position or pointer acceleration. Prefer
 accessibility actions or calibrated touch.

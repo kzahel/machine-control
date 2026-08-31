@@ -14,8 +14,8 @@ on the target:
   accessibility extension;
 - page-specific semantics through CDP;
 - DRM/EGL capture;
-- evdev keyboard/swipe input, isolated uinput direct-touch taps, and an
-  experimental uinput mouse;
+- evdev keyboard input, isolated uinput direct-touch tap/swipe gestures, and
+  an experimental uinput mouse;
 - a required stateful powerd/embedded-controller policy for idle and closed-lid
   SSH availability; and
 - a Chromebook-local ADB proxy for ARCVM as a distinct Android target.
@@ -33,11 +33,12 @@ doctor and maintenance audit observe the helper, guard, effective preferences,
 and boot evidence without mutating power state; a changed-boot live proof
 returned the original three policy checks healthy.
 
-**Current — live-tested:** Direct touchscreen taps use a short-lived uinput
-device after a closed-panel run found held physical contacts sharing the old
-evdev gesture slots. The isolated device preserved top-left desktop coordinate
-mapping and opened the exact Quick Settings control in the restoring physical
-smoke test.
+**Current — live-tested:** Direct touchscreen tap and swipe gestures use a
+short-lived uinput device after a closed-panel run found held physical contacts
+sharing the old evdev gesture slots. The isolated device preserved top-left
+desktop coordinate mapping, opened the exact Quick Settings control, and
+scrolled the ChromeOS Settings sidebar while two physical contacts remained
+held. Both physical checks restored their initial UI state.
 
 ## Provider relationship
 

@@ -267,6 +267,9 @@ the injected gesture:
 bin/chromeos desktop-tap '^Settings$' --role button
 ```
 
+Raw `tap` and `swipe` commands use the same isolated route. The physical panel
+supplies their coordinate range but receives no injected touch events.
+
 The `mouse-*` commands use a relative virtual uinput device and cannot observe
 ChromeOS pointer acceleration or the existing cursor position. They are
 explicitly experimental; prefer accessibility actions, `desktop-tap`, or raw

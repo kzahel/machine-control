@@ -400,25 +400,52 @@ class VirtualTouchscreen:
     def _sync(self):
         self._emit(EV_SYN, 0, 0)
 
-    def tap(self, x, y):
+    def _move_contact(self, x, y):
+        x, y = int(x), int(y)
+        self._emit(EV_ABS, ABS_MT_POSITION_X, x)
+        self._emit(EV_ABS, ABS_MT_POSITION_Y, y)
+        self._emit(EV_ABS, ABS_X, x)
+        self._emit(EV_ABS, ABS_Y, y)
+
+    def _start_contact(self, x, y):
         self._emit(EV_ABS, ABS_MT_SLOT, 0)
         self._emit(EV_ABS, ABS_MT_TRACKING_ID, 1)
-        self._emit(EV_ABS, ABS_MT_POSITION_X, int(x))
-        self._emit(EV_ABS, ABS_MT_POSITION_Y, int(y))
+        self._move_contact(x, y)
         self._emit(EV_ABS, ABS_MT_TOUCH_MAJOR, 48)
         self._emit(EV_ABS, ABS_MT_TOUCH_MINOR, 48)
         self._emit(EV_ABS, ABS_MT_PRESSURE, 128)
-        self._emit(EV_ABS, ABS_X, int(x))
-        self._emit(EV_ABS, ABS_Y, int(y))
         self._emit(EV_ABS, ABS_PRESSURE, 128)
         self._emit(EV_KEY, BTN_TOUCH, 1)
         self._sync()
-        time.sleep(0.08)
+
+    def _end_contact(self):
         self._emit(EV_ABS, ABS_MT_TRACKING_ID, -1)
+        self._emit(EV_ABS, ABS_MT_TOUCH_MAJOR, 0)
+        self._emit(EV_ABS, ABS_MT_TOUCH_MINOR, 0)
         self._emit(EV_ABS, ABS_MT_PRESSURE, 0)
         self._emit(EV_ABS, ABS_PRESSURE, 0)
         self._emit(EV_KEY, BTN_TOUCH, 0)
         self._sync()
+
+    def tap(self, x, y):
+        self._start_contact(x, y)
+        time.sleep(0.08)
+        self._end_contact()
+        time.sleep(0.2)
+
+    def swipe(self, x1, y1, x2, y2, duration_ms=300):
+        steps = 20
+        delay = (duration_ms / 1000) / steps
+        self._start_contact(x1, y1)
+        for i in range(1, steps + 1):
+            progress = i / steps
+            self._move_contact(
+                x1 + (x2 - x1) * progress,
+                y1 + (y2 - y1) * progress,
+            )
+            self._sync()
+            time.sleep(delay)
+        self._end_contact()
         time.sleep(0.2)
 
     def close(self):
@@ -440,42 +467,12 @@ def tap(x, y):
 
 
 def swipe(x1, y1, x2, y2, duration_ms=300):
-    """Swipe between raw touchscreen coordinates."""
-    fd = os.open(_ts_device, os.O_WRONLY)
+    """Swipe through an isolated device using touchscreen-range coordinates."""
+    touchscreen = VirtualTouchscreen(_ts_max_x, _ts_max_y)
     try:
-        def emit(ev_type, code, value):
-            os.write(fd, struct.pack("llHHi", 0, 0, ev_type, code, value))
-
-        def sync():
-            emit(EV_SYN, 0, 0)
-
-        steps = 20
-        delay = (duration_ms / 1000) / steps
-
-        # Touch down
-        emit(EV_ABS, ABS_MT_SLOT, 0)
-        emit(EV_ABS, ABS_MT_TRACKING_ID, int(time.time() * 1000) % 65535)
-        emit(EV_ABS, ABS_MT_POSITION_X, int(x1))
-        emit(EV_ABS, ABS_MT_POSITION_Y, int(y1))
-        emit(EV_KEY, BTN_TOUCH, 1)
-        sync()
-
-        # Move
-        for i in range(1, steps + 1):
-            t = i / steps
-            x = int(x1 + (x2 - x1) * t)
-            y = int(y1 + (y2 - y1) * t)
-            emit(EV_ABS, ABS_MT_POSITION_X, x)
-            emit(EV_ABS, ABS_MT_POSITION_Y, y)
-            sync()
-            time.sleep(delay)
-
-        # Touch up
-        emit(EV_ABS, ABS_MT_TRACKING_ID, -1)
-        emit(EV_KEY, BTN_TOUCH, 0)
-        sync()
+        touchscreen.swipe(x1, y1, x2, y2, duration_ms)
     finally:
-        os.close(fd)
+        touchscreen.close()
 
 
 # === Keyboard ===

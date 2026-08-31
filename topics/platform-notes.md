@@ -54,10 +54,11 @@ DRM/EGL capture, and device-native input all execute on the target while an
 outside agent receives ergonomic control. Required readiness now includes
 stateful idle/lid-suspend inhibition, current-boot application evidence, and a
 powerd-start self-healing guard, so the dedicated appliance remains reachable
-through SSH with its lid closed. Touch taps use an isolated target-native
-uinput device so contacts held against the closed physical panel cannot join
-the automation gesture. Stock sleep behavior is not a cleanup state. ARCVM
-remains a distinct Android target reached through a Chromebook-local ADB proxy.
+through SSH with its lid closed. Touch taps and swipes use an isolated
+target-native uinput device so contacts held against the closed physical panel
+cannot join automation gestures. Stock sleep behavior is not a cleanup state.
+ARCVM remains a distinct Android target reached through a Chromebook-local ADB
+proxy.
 
 **Decision:** Wrap and preserve the adopted stack before considering a rewrite
 or common-provider backend. Do not classify ChromeOS as generic Linux.

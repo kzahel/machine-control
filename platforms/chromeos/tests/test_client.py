@@ -207,7 +207,7 @@ class DesktopTapTest(unittest.TestCase):
         self.assertIn("not on the built-in display", result["error"])
 
 
-class TapTest(unittest.TestCase):
+class TouchGestureTest(unittest.TestCase):
     @mock.patch.object(client, "VirtualTouchscreen")
     def test_uses_isolated_virtual_touchscreen(self, virtual_touchscreen):
         touchscreen = virtual_touchscreen.return_value
@@ -227,6 +227,29 @@ class TapTest(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "input failed"):
             client.tap(123, 456)
+
+        touchscreen.close.assert_called_once_with()
+
+    @mock.patch.object(client, "VirtualTouchscreen")
+    def test_swipe_uses_isolated_virtual_touchscreen(
+            self, virtual_touchscreen):
+        touchscreen = virtual_touchscreen.return_value
+        with mock.patch.object(client, "_ts_max_x", 3492), \
+             mock.patch.object(client, "_ts_max_y", 1968):
+            client.swipe(100, 200, 300, 400, 500)
+
+        virtual_touchscreen.assert_called_once_with(3492, 1968)
+        touchscreen.swipe.assert_called_once_with(100, 200, 300, 400, 500)
+        touchscreen.close.assert_called_once_with()
+
+    @mock.patch.object(client, "VirtualTouchscreen")
+    def test_closes_virtual_touchscreen_after_swipe_failure(
+            self, virtual_touchscreen):
+        touchscreen = virtual_touchscreen.return_value
+        touchscreen.swipe.side_effect = RuntimeError("input failed")
+
+        with self.assertRaisesRegex(RuntimeError, "input failed"):
+            client.swipe(100, 200, 300, 400)
 
         touchscreen.close.assert_called_once_with()
 
@@ -259,6 +282,37 @@ class VirtualTouchscreenTest(unittest.TestCase):
         self.assertIn((client.EV_ABS, client.ABS_Y, 456), events)
         self.assertIn((client.EV_KEY, client.BTN_TOUCH, 1), events)
         self.assertIn((client.EV_KEY, client.BTN_TOUCH, 0), events)
+
+    def test_swipe_moves_both_multitouch_and_legacy_coordinates(self):
+        fd = mock.Mock()
+        fd.fileno.return_value = 12
+        with (
+            mock.patch("builtins.open", return_value=fd),
+            mock.patch.object(client.fcntl, "ioctl"),
+            mock.patch.object(client.time, "sleep"),
+        ):
+            touchscreen = client.VirtualTouchscreen(3492, 1968)
+            touchscreen.swipe(100, 200, 300, 400, 500)
+            touchscreen.close()
+
+        events = [
+            struct.unpack("llHHi", call.args[0])[-3:]
+            for call in fd.write.call_args_list[1:]
+        ]
+        for event in (
+            (client.EV_ABS, client.ABS_MT_POSITION_X, 100),
+            (client.EV_ABS, client.ABS_MT_POSITION_Y, 200),
+            (client.EV_ABS, client.ABS_X, 100),
+            (client.EV_ABS, client.ABS_Y, 200),
+            (client.EV_ABS, client.ABS_MT_POSITION_X, 300),
+            (client.EV_ABS, client.ABS_MT_POSITION_Y, 400),
+            (client.EV_ABS, client.ABS_X, 300),
+            (client.EV_ABS, client.ABS_Y, 400),
+        ):
+            self.assertIn(event, events)
+        release = (client.EV_ABS, client.ABS_MT_TRACKING_ID, -1)
+        self.assertGreater(events.index(release), events.index(
+            (client.EV_ABS, client.ABS_MT_POSITION_Y, 400)))
 
 
 if __name__ == "__main__":
