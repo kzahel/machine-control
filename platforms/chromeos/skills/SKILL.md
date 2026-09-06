@@ -14,6 +14,8 @@ CLI tools for bootstrapping, troubleshooting, and controlling a ChromeOS Chromeb
 ```bash
 machine-control --target chromeos target doctor  # Common minimized readiness
 machine-control --target chromeos maintenance audit --profile runtime
+chromeos setup               # Complete/resume first-time appliance setup
+chromeos network-check       # Read-only controller route + SSH preflight
 chromeos doctor              # Routine health check; never probes ADB
 chromeos post-update         # Read-only focused audit after a ChromeOS update
 chromeos post-update --repair  # Guided repair across the required reboot
@@ -310,29 +312,26 @@ Changes to these files are auto-deployed to the Chromebook on next command run. 
 
 ## Setup (First-Time)
 
-### On the Chromebook
+Follow the [new-device walkthrough](../README.md#initial-setup-on-a-new-chromebook).
+From VT2 as root, download the canonical GitHub script to the stateful
+partition and run it from that file. It reuses existing or locally supplied
+SSH public keys, prompts for appliance approval, prepares rootfs verification
+if needed, and saves progress
+before rebooting. `--yes` is for already-authorized unattended setup.
 
-1. Enter developer mode ([instructions](https://chromium.googlesource.com/chromiumos/docs/+/main/developer_mode.md))
-2. Switch to VT2: **Ctrl+Alt+F2**
-3. Log in as `chronos`, then:
-   ```
-   sudo -i
-   export CHROMEOS_TESTBED_CONTROLLER_PUBKEY="$(cat /path/to/id_ed25519.pub)"
-   curl -fsSL https://kzahel.github.io/chromeos-testbed/bootstrap.sh | bash
-   ```
-4. Note the IP address and SSH port shown
+After a preparation reboot, the familiar `start_sshd.sh` is enough to restore
+access. The controller's `chromeos setup` command resumes preparation, deploys
+the runtime, waits for DevTools and profile sign-in, enables Select-to-speak
+when needed, proves automatic SSH, and runs doctor plus smoke tests. The saved
+approval covers this setup until completion; do not ask for the same consent
+again on resume. `bootstrap.sh --repair-only` retains maintenance's no-reboot
+behavior. Setup does not collect passwords or PINs.
 
-### On Your Dev Machine
-
-Add to `~/.ssh/config`:
-```
-Host chromeos-testbed
-    HostName <chromebook-ip>
-    Port 2223
-    User root
-```
-
-Then verify: `chromeos doctor`
+Always select additional devices with `CHROMEBOOK_HOST=<ssh-alias>` or an
+explicit private Machine Control target. Do not overwrite another device's
+selector. Run `chromeos network-check` if SSH fails: a working target-to-host
+curl does not prove the host-to-target SSH route. Check VPN/exit-node LAN
+routing before changing the Chromebook firewall.
 
 ## Environment Variables
 

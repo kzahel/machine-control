@@ -40,6 +40,15 @@ desktop coordinate mapping, opened the exact Quick Settings control, and
 scrolled the ChromeOS Settings sidebar while two physical contacts remained
 held. Both physical checks restored their initial UI state.
 
+**Current — live-tested:** New-device bring-up exposed three prerequisites:
+controller VPN routing can break LAN SSH even after a target downloads a
+bootstrap successfully; developer Python can require `/usr/local/lib64` at
+runtime; and the desktop accessibility provider may require Select-to-speak.
+The bootstrap now reports local SSH handshakes separately from remote
+reachability, while explicit setup provisions Python and verifies desktop
+accessibility. The UI smoke test distinguishes a newly opened Quick Settings
+gear from a preexisting pinned Settings button using baseline observations.
+
 ## Provider relationship
 
 No surveyed common desktop provider currently supplies a first-class ChromeOS

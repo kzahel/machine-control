@@ -58,39 +58,38 @@ capture_step() {
     if "$@" >"$output/$file" 2>&1; then
         record "$name" passed
         return 0
+    else
+        local rc=$?
+        record "$name" failed "exit $rc; see $file"
+        return "$rc"
     fi
-    local rc=$?
-    record "$name" failed "exit $rc; see $file"
-    return "$rc"
+}
+
+wait_quick_settings() {
+    local mode="${1:-}" attempt
+    for attempt in {1..16}; do
+        "$CLI" --json desktop-find '^Settings$' --role button \
+            >"$output/current-settings-buttons.json" 2>/dev/null || return 1
+        if python3 "$REPO_DIR/scripts/smoke-ui.py" \
+            "$output/baseline-settings-buttons.json" \
+            "$output/current-settings-buttons.json" $mode; then
+            return 0
+        fi
+        sleep 0.5
+    done
+    return 1
 }
 
 restore_ui() {
-    if (( ! settings_preexisting )); then
-        local visible
-        visible=$("$CLI" --json desktop-find '^Settings$' --role window 2>/dev/null || true)
-        if [[ -n "$visible" ]] && python3 -c "
-import json,sys
-try: raise SystemExit(0 if json.loads(sys.argv[1]).get('count',0) > 0 else 1)
-except Exception: raise SystemExit(1)
-" "$visible"; then
-            settings_open=1
-            quick_settings_open=0
-        fi
-    fi
     if (( settings_open )); then
-        "$CLI" shortcut ctrl shift w >/dev/null 2>&1 || true
-        if ! "$CLI" --json desktop-wait '^Settings$' --role window --absent --timeout 5 \
-            >"$output/wait-settings-closed.json" 2>&1; then
-            "$CLI" desktop-action '^Settings$' focus --role window >/dev/null 2>&1 || true
-            "$CLI" shortcut ctrl shift w >/dev/null 2>&1 || true
-            "$CLI" --json desktop-wait '^Settings$' --role window --absent --timeout 5 \
-                >"$output/wait-settings-closed-retry.json" 2>&1 || return 1
-        fi
+        "$CLI" shortcut ctrl shift w >/dev/null 2>&1 || return 1
+        "$CLI" --json target-wait 'chrome://os-settings' --absent --timeout 8 \
+            >"$output/wait-settings-closed.json" 2>&1 || return 1
         settings_open=0
-    elif (( quick_settings_open )); then
+    fi
+    if (( quick_settings_open )); then
         "$CLI" shortcut escape >/dev/null 2>&1 || true
-        "$CLI" --json desktop-wait '^Settings$' --role button --absent --timeout 5 \
-            >"$output/wait-quick-settings-closed.json" 2>&1 || return 1
+        wait_quick_settings --absent >"$output/wait-quick-settings-closed.txt" || return 1
         quick_settings_open=0
     fi
     return 0
@@ -122,22 +121,22 @@ then
     touch_available=1
 fi
 
-settings_matches=$("$CLI" --json desktop-find '^Settings$' --role window 2>/dev/null || true)
-if [[ -n "$settings_matches" ]] && python3 -c "
-import json,sys
-try:
-    raise SystemExit(0 if json.loads(sys.argv[1]).get('count',0) > 0 else 1)
-except Exception:
-    raise SystemExit(1)
-" "$settings_matches"; then
+"$CLI" --json desktop-find '^Settings$' --role button \
+    >"$output/baseline-settings-buttons.json" 2>/dev/null
+if python3 - "$output/targets.json" <<'PY_TARGETS'
+import json, sys
+payload = json.load(open(sys.argv[1]))
+raise SystemExit(0 if any(t.get('url', '').startswith('chrome://os-settings')
+                         for t in payload.get('targets', [])) else 1)
+PY_TARGETS
+then
     settings_preexisting=1
 fi
 
 if (( run_ui )); then
     if "$CLI" shortcut alt shift s >"$output/open-quick-settings.json" 2>&1; then
         quick_settings_open=1
-        if "$CLI" --json desktop-wait '^Settings$' --role button --timeout 8 \
-            >"$output/wait-quick-settings.json" 2>&1; then
+        if settings_button_nth=$(wait_quick_settings); then
             record "Keyboard opens Quick Settings" passed
             capture_step "Quick Settings screenshot" quick-settings.json \
                 "$CLI" --json screenshot "$output/quick-settings.jpg" || true
@@ -146,9 +145,9 @@ if (( run_ui )); then
                 record "Calibrated touchscreen opens Settings" skipped \
                     "Settings was already open; preserving initial UI state"
             elif (( touch_available )); then
-                if "$CLI" --json desktop-tap '^Settings$' --role button \
+                if "$CLI" --json desktop-tap '^Settings$' --role button --nth "$settings_button_nth" \
                     >"$output/tap-settings.json" 2>&1; then
-                    if "$CLI" --json desktop-wait '^Settings$' --role window --timeout 10 \
+                    if "$CLI" --json target-wait 'chrome://os-settings' --timeout 10 \
                         >"$output/wait-settings.json" 2>&1; then
                         settings_open=1
                         quick_settings_open=0
@@ -181,7 +180,7 @@ fi
 if restore_ui; then
     record "UI state restored" passed
 else
-    record "UI state restored" failed "see wait-*-closed.json"
+    record "UI state restored" failed "see wait-*-closed artifacts"
 fi
 trap - EXIT INT TERM
 capture_step "Restored-state screenshot" restored.json \

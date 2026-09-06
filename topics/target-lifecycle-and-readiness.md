@@ -257,6 +257,14 @@ lifecycle set and does not make Android or Quest inherit XCTest semantics.
 ChromeOS platform-specific desktop/login/recovery verbs and all Steam Deck
 operations remain behind the explicit `testbed --` escape.
 
+**Current:** ChromeOS has an explicit resumable `testbed -- setup` workflow.
+The GitHub-hosted bootstrap reuses locally supplied SSH public keys, records
+appliance approval, and prepares the active rootfs with a staged reboot when
+needed. The controller command finishes deployment, verifies automatic SSH,
+and checks desktop accessibility and UI behavior. Read-only `network-check`
+distinguishes controller routing failures from target SSH health. See the
+[ChromeOS setup guide](../platforms/chromeos/README.md#initial-setup-on-a-new-chromebook).
+
 ## Failure behavior
 
 - Missing inventory, target, adapter, or command returns a typed refusal.

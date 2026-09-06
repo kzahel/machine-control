@@ -10,6 +10,23 @@ set -euo pipefail
 AUTO_YES=false
 [[ "${1:-}" == "-y" ]] && AUTO_YES=true
 
+wait_for_devtools() {
+    echo "Waiting up to 30 seconds for Chrome DevTools..."
+    if ssh -o ConnectTimeout=5 "$SSH_HOST" "$REMOTE_PATH_SETUP; bash -s" <<'REMOTE_WAIT'
+deadline=$((SECONDS + 30))
+while ! awk '$2 ~ /:2406$/ && $4 == "0A" { found=1 } END { exit !found }' /proc/net/tcp; do
+    [ "$SECONDS" -lt "$deadline" ] || exit 1
+    sleep 1
+done
+REMOTE_WAIT
+    then
+        echo "[OK] Port 9222 is now listening"
+        return 0
+    fi
+    echo "[FAIL] DevTools did not start within 30 seconds; inspect Chrome logs."
+    return 1
+}
+
 echo "Checking remote debugging on $SSH_HOST..."
 
 # Check SSH
@@ -31,16 +48,8 @@ if [ "$CONFIGURED" -gt 0 ]; then
     else
         echo "Port 9222 not listening. Restarting Chrome UI..."
         ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; restart ui" 2>/dev/null
-        echo "Waiting for Chrome to restart..."
-        sleep 5
-        LISTENING=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; /bin/cat /proc/net/tcp 2>/dev/null" | awk '{print $2}' | grep -ci ":2406" || true)
-        if [ "$LISTENING" -gt 0 ]; then
-            echo "[OK] Port 9222 is now listening"
-            exit 0
-        else
-            echo "[WARN] Port 9222 still not listening after restart. May need more time."
-            exit 1
-        fi
+        wait_for_devtools
+        exit $?
     fi
 fi
 
@@ -52,15 +61,7 @@ if echo "$WRITE_RESULT" | grep -q "SUCCESS"; then
     echo "[OK] Flag added to chrome_dev.conf"
     echo "Restarting Chrome UI..."
     ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; restart ui" 2>/dev/null
-    echo "Waiting for Chrome to restart..."
-    sleep 5
-
-    LISTENING=$(ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; /bin/cat /proc/net/tcp 2>/dev/null" | awk '{print $2}' | grep -ci ":2406" || true)
-    if [ "$LISTENING" -gt 0 ]; then
-        echo "[OK] Port 9222 is now listening"
-    else
-        echo "[WARN] Port 9222 not yet listening. Chrome may still be starting up."
-    fi
+    wait_for_devtools
 else
     echo "[FAIL] Cannot write to /etc/chrome_dev.conf — rootfs verification is enabled."
     echo

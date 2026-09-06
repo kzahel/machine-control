@@ -8,7 +8,7 @@ possible future generated distribution.
 
 ChromeOS has no automation story. Android has ADB and UIAutomator. Desktop Linux has xdotool and AT-SPI2. macOS has AppleScript. ChromeOS has nothing — no public automation API, no accessibility bus, no scriptable input layer. And the OS actively fights you: every reboot returns to the profile sign-in screen, while updates can re-lock the root filesystem and reset your devtools config.
 
-This project fills that gap. It's the missing **"ADB for the ChromeOS desktop"** — screenshots, input injection, accessibility-tree-driven UI automation, browser control, extension deployment, and APK installation, all from a single CLI over SSH. There is no SDK or build system: the development machine needs Bash, OpenSSH, and Python 3, while the Chromebook uses its built-in Python and system libraries without pip packages.
+This project fills that gap. It's the missing **"ADB for the ChromeOS desktop"** — screenshots, input injection, accessibility-tree-driven UI automation, browser control, extension deployment, and APK installation, all from a single CLI over SSH. There is no SDK or build system: the development machine needs Bash, OpenSSH, and Python 3, while the Chromebook uses Python from ChromeOS developer packages and system libraries without pip packages.
 
 **Who it's for:**
 - Developers building and testing on ChromeOS who need programmatic device control
@@ -19,66 +19,153 @@ This project fills that gap. It's the missing **"ADB for the ChromeOS desktop"**
 
 ---
 
-## Initial Setup
+## Initial setup on a new Chromebook
 
-### 1. Enable developer mode
+Use a dedicated test device with Developer Mode already enabled. Enabling
+Developer Mode erases local user data; follow the device's
+[official instructions](https://www.chromium.org/chromium-os/developer-library/guides/device/developer-mode/)
+before starting here. Connect the Chromebook to Wi-Fi and power. The controller
+needs this repository, Bash, OpenSSH, and Python 3.10 or later.
 
-Follow the [official instructions](https://www.chromium.org/chromium-os/developer-library/guides/device/developer-mode/) for your device. This wipes the Chromebook.
+### 1. Download and run from VT2
 
-### 2. (Maybe) Set a developer password
+Press **Ctrl+Alt+Forward (F2)**, log in as `chronos`, and run `sudo -i`.
+If console login requires a developer password, use the password configured
+on that device; the bootstrap does not change console passwords.
 
-After developer mode is enabled and you've gone through ChromeOS setup, you may need to set a password so you can log in on VT2 after reboots:
-
-```
-chromeos-setdevpasswd
-```
-
-> **Unconfirmed:** It's unclear whether this is strictly required or if chronos has a default password in developer mode. Setting it ensures you can log in on VT2.
-
-### 3. Bootstrap SSH from VT2
-
-Switch to VT2: **Ctrl+Alt+F2** (F2 is the right-arrow key on the top row).
-
-Log in as `chronos` (using the dev password if you set one), then:
+From the root shell, these commands work verbatim:
 
 ```bash
-sudo -i
-export CHROMEOS_TESTBED_CONTROLLER_PUBKEY="$(cat /path/to/id_ed25519.pub)"
-curl -fsSL https://kzahel.github.io/chromeos-testbed/bootstrap.sh | bash
+curl -fSL https://raw.githubusercontent.com/kzahel/machine-control/main/platforms/chromeos/scripts/bootstrap.sh -o /mnt/stateful_partition/bootstrap.sh
+bash /mnt/stateful_partition/bootstrap.sh
 ```
 
-This sets up SSH on port 2223 with key auth, opens the firewall, configures
-remote debugging, and—when rootfs is writable—installs an Upstart job that
-starts SSH automatically after reboot. The boot timing follows ChromeOS's own
-network event through the `openssh-server` job. A stateful manual start script
-is retained as a fallback because ChromeOS updates may replace files under
-`/etc/init`.
-Bootstrap also installs the dedicated-appliance power policy: inactivity and
-lid-close suspend are disabled, and every SSH boot path reapplies the embedded
-controller's forced-open lid state before accepting remote work.
+Only run the second command after a successful download. GitHub hosts only
+this script; setup never looks up your account or downloads SSH keys.
+Existing SSH authorized keys on the Chromebook are preserved and reused.
 
-The controller public key is deployment inventory and is supplied explicitly;
-the public bootstrap does not embed one. A post-update reinstall preserves an
-existing nonempty authorized-keys file when the variable is omitted.
+For a brand-new device, an SSH public key from your laptop must first be
+supplied through `CHROMEOS_TESTBED_CONTROLLER_PUBKEY`, or packaged locally
+with `scripts/prepare-bootstrap.py` (see the local development workflow below).
+The plain GitHub download does not contain your laptop's key and stops with
+a clear message if none is installed. Never supply or upload a private key.
 
-Switch back to the GUI: **Ctrl+Alt+F1**.
+The script prompts for approval of the dedicated-appliance configuration.
+For an already-authorized unattended installation with a key installed, use
+`bash /mnt/stateful_partition/bootstrap.sh --yes`.
+GitHub's `main` URL follows the latest source; replace `main` with a reviewed
+commit SHA to pin a version.
 
-### 4. Configure SSH on your dev machine
+The approved setup installs key-only root SSH on port 2223, Python developer
+bootstrap packages, DevTools configuration, and persistent idle/lid-suspend
+inhibition. It also authorizes the controller to enable Select-to-speak for
+desktop accessibility and verify automatic SSH with a reboot.
 
-The bootstrap output shows the Chromebook's IP. Add to `~/.ssh/config`:
+When the rootfs is read-only, setup validates the active A/B partition,
+disables its rootfs verification, saves progress on the stateful partition,
+and reboots. A pending OS update is booted first. It never enables Developer
+Mode or powerwashes the device. The final result block reports the current
+phase and next step; a required reboot is a resumable phase, not a completed
+installation.
 
+### 2. Restore SSH after the preparation reboot, if needed
+
+Return to VT2, log in as `chronos`, run `sudo -i`, then use the familiar command:
+
+```bash
+bash /mnt/stateful_partition/etc/ssh/start_sshd.sh
 ```
-Host chromeos-testbed
+
+This restores the connection. It does not have to finish installation itself.
+The controller resumes the saved setup in the next step. You can also rerun
+`bash /mnt/stateful_partition/bootstrap.sh`; both paths are supported.
+Ordinary reboots after completed setup require neither command.
+
+### 3. Finish from the controller
+
+Use the Chromebook IP shown in the result block to add a distinct SSH alias
+to the controller's `~/.ssh/config`:
+
+```sshconfig
+Host my-chromebook
     HostName <chromebook-ip>
     Port 2223
     User root
+    IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes
 ```
 
-### 5. Verify
+Select that alias and run the setup command from the repository root:
 
 ```bash
-bin/chromeos doctor
+export CHROMEBOOK_HOST=my-chromebook
+./platforms/chromeos/bin/chromeos setup
 ```
+
+Setup first checks the controller route and authenticated SSH. SSH may ask you
+to trust the new device's host key. Approval recorded by the VT2 setup is reused
+until installation completes, so a reboot or interrupted connection does not
+require approving the same setup again. For unattended controllers,
+`setup --yes` approves setup and accepts previously unknown host keys; changed
+host keys are still refused.
+
+This command stages the current bootstrap, resumes image preparation if
+necessary, deploys the client, waits for DevTools, proves automatic SSH startup,
+enables and verifies desktop accessibility, and runs doctor plus the UI smoke
+test. Sign in normally on the Chromebook when asked. It waits up to 180 seconds
+at each physical recovery/sign-in step; use `--wait-timeout SECONDS` to change
+that. On timeout it exits with status 2 and a resume instruction. Rerun the
+same `chromeos setup` command after completing the requested physical step.
+Passwords and PINs are never collected by setup.
+
+`SETUP COMPLETE` means the final checks passed. Status is saved in
+`/mnt/stateful_partition/etc/ssh/setup-state`; the approval receipt is removed
+on completion. Device identity and SSH aliases belong in your private inventory.
+For registered targets, the equivalent common entry is
+`machine-control --target YOUR_TARGET testbed -- setup`.
+
+### Controller routing and VPNs
+
+Both endpoints need a working route to the other for controller-hosted
+bootstrap development: Chromebook → controller HTTP, and controller → Chromebook
+SSH. A successful curl download or diagnostic POST proves only the first
+connection. The standard GitHub URL needs internet access and no LAN HTTP server;
+SSH still needs a route to the Chromebook.
+
+If SSH times out, run the read-only preflight before changing the target:
+
+```bash
+./platforms/chromeos/bin/chromeos network-check
+```
+
+It resolves the SSH alias, reports the controller route, and attempts an
+actual authenticated SSH connection. For a Chromebook on your current LAN,
+check that a VPN is not taking that local subnet. Tailscale exit-node mode
+with local LAN access disabled can cause exactly this symptom. Enable local
+LAN access in the exit-node settings or temporarily disconnect the VPN, then
+rerun the preflight. A VPN route may be intentional for a remote target;
+the tool reports it and never changes VPN settings or firewall rules.
+
+### Diagnostics and development downloads
+
+Bootstrap ends with a compact `BOOTSTRAP RESULT` block: local SSH handshake,
+listener, first INPUT rule, Python, power/rootfs state, and setup phase. Local
+success is separate from controller reachability. Detailed output is saved
+with private permissions in `/mnt/stateful_partition/etc/ssh/bootstrap.log`
+and `bootstrap-report.txt`. Photograph the final result block if needed.
+
+Local HTTP serving is only for testing unpublished bootstrap changes.
+`scripts/prepare-bootstrap.py PUBLIC_KEY OUTPUT` packages the local script and
+one controller public key. Serve only its temporary directory on a trusted
+LAN, verify the controller's current LAN address, and stop the server afterward.
+The optional `--report-url URL` sends private device/network diagnostics to
+an explicit controller-owned HTTP(S) POST endpoint. A normal
+`python3 -m http.server` does not accept that POST. No report upload occurs by
+default; never put generated bundles, reports, or private endpoints in Git.
+
+`bootstrap.sh --repair-only` is for the existing maintenance workflow. It
+installs what the active image permits and never disables verification or
+reboots. First-time users should use the default guided setup instead.
 
 ## After a Reboot
 
@@ -107,14 +194,14 @@ If automatic SSH itself fails, use VT2 and the stateful fallback:
 
 ```bash
 sudo -i
-/mnt/stateful_partition/etc/ssh/start_sshd.sh
+bash /mnt/stateful_partition/etc/ssh/start_sshd.sh
 ```
 
 An OS update can replace the Upstart job under `/etc`; re-run bootstrap after
 restoring SSH if that happens.
 
 If `start_sshd.sh` doesn't exist, the device needs re-bootstrapping (see
-Initial Setup step 3). ChromeOS documents automatic SSH as a developer feature
+Initial setup step 1). ChromeOS documents automatic SSH as a developer feature
 once rootfs verification has been removed; see its
 [`openssh-server.conf.README`](https://chromium.googlesource.com/chromiumos/overlays/chromiumos-overlay/+/master/chromeos-base/chromeos-sshd-init/files/openssh-server.conf.README).
 

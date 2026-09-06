@@ -533,7 +533,7 @@ ROOTDEV=\$(rootdev -s); PARTNUM=\${ROOTDEV##*p}; echo \$((PARTNUM - 1))" 2>/dev/
           "$POWER_POLICY_CONFIGURED" != yes ||
           "$POWER_POLICY_BOOT_EVIDENCE" != applied ]]; then
         echo "Installing the current SSH autostart and DevTools configuration..."
-        if ! ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; bash -s" < "$REPO_DIR/scripts/bootstrap.sh"; then
+        if ! ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; bash -s -- --repair-only" < "$REPO_DIR/scripts/bootstrap.sh"; then
             echo "[FAIL] Bootstrap did not complete." >&2
             return 1
         fi

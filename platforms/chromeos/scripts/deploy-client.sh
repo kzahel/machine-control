@@ -17,4 +17,4 @@ scp -q "$REPO_DIR/client.py" "$REPO_DIR/drm_screenshot.py" "$REPO_DIR/cdp.py" "$
 echo '{"cmd":"ping"}' | ssh "$SSH_HOST" \
     "$REMOTE_PATH_SETUP; LD_LIBRARY_PATH=/usr/local/lib64 python3 $CLIENT_PATH" 2>/dev/null \
     && echo "[OK] client.py deployed and responding" \
-    || echo "[FAIL] client.py deployed but not responding"
+    || { echo "[FAIL] client.py deployed but not responding"; exit 1; }

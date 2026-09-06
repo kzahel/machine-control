@@ -2,8 +2,8 @@
 # ChromeOS SSH Bootstrap
 #
 # Run as root on VT2:
-#   export CHROMEOS_TESTBED_CONTROLLER_PUBKEY="$(cat /path/to/id_ed25519.pub)"
-#   curl -fsSL https://kzahel.github.io/chromeos-testbed/bootstrap.sh | bash
+#   curl -fSL https://raw.githubusercontent.com/kzahel/machine-control/main/platforms/chromeos/scripts/bootstrap.sh -o /mnt/stateful_partition/bootstrap.sh
+#   bash /mnt/stateful_partition/bootstrap.sh
 #
 # Sets up:
 #   - SSH server on port 2223 with key auth
@@ -29,6 +29,95 @@ POWER_POLICY_OVERRIDE="/etc/init/chromeos-testbed-power-policy.override"
 CONTROLLER_PUBKEY="${CHROMEOS_TESTBED_CONTROLLER_PUBKEY:-}"
 PORT=2223
 
+# BEGIN setup workflow
+usage() {
+    echo 'Usage: bash bootstrap.sh [--yes] [--repair-only]'
+    echo 'Default: guided first-time setup, including rootfs preparation and reboot.'
+    echo '--yes: approve dedicated-appliance setup without prompting.'
+    echo '--repair-only: install on this image; never change boot verification or reboot.'
+}
+AUTO_YES=no
+REPAIR_ONLY=no
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --yes|-y) AUTO_YES=yes; shift ;;
+        --repair-only) REPAIR_ONLY=yes; shift ;;
+        --help|-h) usage; exit 0 ;;
+        *) usage >&2; exit 1 ;;
+    esac
+done
+
+set_setup_state() {
+    printf '%s\n' "$1" > "$SSH_DIR/setup-state.next"
+    mv "$SSH_DIR/setup-state.next" "$SSH_DIR/setup-state"
+}
+
+approve_setup() {
+    [ "$REPAIR_ONLY" = yes ] && return 0
+    [ "$(cat "$SSH_DIR/setup-approved" 2>/dev/null)" = dedicated-appliance-v1 ] && return 0
+    if [ "$AUTO_YES" != yes ]; then
+        echo 'Set up this dedicated ChromeOS test appliance?'
+        echo 'This authorizes key-only root SSH, developer Python, DevTools,'
+        echo 'always-awake operation, and Select-to-speak for desktop control.'
+        echo 'If needed, setup disables rootfs verification and reboots.'
+        echo 'The controller will also verify automatic SSH with a reboot.'
+        echo 'Developer Mode must already be enabled; setup does not enable it or wipe data.'
+        if ! read -r -p 'Proceed with setup? [y/N] ' answer; then
+            echo 'No input available. Use --yes for an explicitly authorized unattended setup.' >&2
+            return 1
+        fi
+        case "$answer" in y|Y|yes|YES) ;; *) echo 'Setup cancelled.'; return 1 ;; esac
+    fi
+    printf '%s\n' dedicated-appliance-v1 > "$SSH_DIR/setup-approved"
+}
+
+import_controller_keys() {
+    local keyfile="$SSH_DIR/controller-key.validate" line
+    if [ -z "$CONTROLLER_PUBKEY" ] && [ ! -s "$AUTH_DIR/authorized_keys" ]; then
+        echo 'No SSH public key is installed yet.' >&2
+        echo 'Supply your laptop SSH public key through CHROMEOS_TESTBED_CONTROLLER_PUBKEY' >&2
+        echo 'or use prepare-bootstrap.py on your laptop to package it locally.' >&2
+        return 1
+    fi
+    if [ -n "$CONTROLLER_PUBKEY" ]; then
+        # Validate every line before adding any access; a single valid key must
+        # not mask malformed lines or authorized_keys options in the input.
+        while IFS= read -r line; do
+            case "$line" in ssh-*\ *|ecdsa-*\ *|sk-*\ *) ;; *) echo 'Expected OpenSSH public keys without options.' >&2; return 1 ;; esac
+            printf '%s\n' "$line" > "$keyfile"
+            ssh-keygen -lf "$keyfile" || return 1
+        done <<< "$CONTROLLER_PUBKEY"
+        while IFS= read -r line; do
+            grep -qxF "$line" "$AUTH_DIR/authorized_keys" 2>/dev/null || printf '%s\n' "$line" >> "$AUTH_DIR/authorized_keys"
+        done <<< "$CONTROLLER_PUBKEY"
+        rm -f "$keyfile"
+    fi
+    [ -s "$AUTH_DIR/authorized_keys" ] || { echo 'No controller key installed.' >&2; return 1; }
+    chmod 600 "$AUTH_DIR/authorized_keys"
+}
+
+prepare_boot_transition() {
+    local root_device root_partition kernel_partition update_operation
+    [ "$REPAIR_ONLY" = yes ] && return 0
+    update_operation=$(update_engine_client --status 2>/dev/null | awk -F= '$1 == "CURRENT_OP" {print $2}')
+    if [ "$update_operation" = UPDATE_STATUS_UPDATED_NEED_REBOOT ]; then
+        set_setup_state awaiting-update-reboot
+    elif [ "$ROOTFS_WRITABLE" = no ]; then
+        root_device=$(rootdev -s) || return 1
+        case "$root_device" in /dev/mmcblk*p[35]|/dev/nvme*n*p[35]|/dev/sd?[35]) ;; *) echo 'Cannot safely identify active A/B root partition.' >&2; return 1 ;; esac
+        root_partition=${root_device: -1}
+        kernel_partition=$((root_partition - 1))
+        /usr/share/vboot/bin/make_dev_ssd.sh --remove_rootfs_verification --partitions "$kernel_partition" || return 1
+        set_setup_state awaiting-rootfs-reboot
+    else
+        set_setup_state controller-required
+        return 0
+    fi
+    # Diagnostics print recovery instructions before the EXIT handler reboots.
+    BOOTSTRAP_REBOOT=yes
+}
+# END setup workflow
+
 if [ "$(id -u)" -ne 0 ]; then
     echo "[FAIL] This bootstrap must run as root." >&2
     echo "Run: sudo -i" >&2
@@ -36,11 +125,144 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
+# Keep diagnostics private on the device. Do not enable shell xtrace: the
+# controller public-key import and future credential handling are not traces.
+export PATH=/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin:$PATH
+umask 077
+if ! grep -q '^CHROMEOS_RELEASE_NAME=' /etc/lsb-release 2>/dev/null ||
+   [ "$(crossystem devsw_boot 2>/dev/null)" != 1 ]; then
+    echo 'This setup requires ChromeOS already in Developer Mode.' >&2
+    exit 1
+fi
+mkdir -p "$SSH_DIR" "$AUTH_DIR"
+chmod 700 "$AUTH_DIR"
+approve_setup
+import_controller_keys
+if [ "$REPAIR_ONLY" != yes ]; then
+    if [ ! -f "${BASH_SOURCE[0]}" ]; then
+        echo 'Download bootstrap.sh to a file before running guided setup.' >&2
+        exit 1
+    fi
+    if [ "${BASH_SOURCE[0]}" != "$SSH_DIR/setup-bootstrap.sh" ]; then
+        cp "${BASH_SOURCE[0]}" "$SSH_DIR/setup-bootstrap.sh"
+    fi
+    chmod 700 "$SSH_DIR/setup-bootstrap.sh"
+fi
+BOOTSTRAP_REBOOT=no
+BOOTSTRAP_LOG="$SSH_DIR/bootstrap.log"
+BOOTSTRAP_REPORT="$SSH_DIR/bootstrap-report.txt"
+BOOTSTRAP_FAILED_LINE=none
+touch "$BOOTSTRAP_LOG" "$BOOTSTRAP_REPORT"
+chmod 600 "$BOOTSTRAP_LOG" "$BOOTSTRAP_REPORT"
+exec 3>&1 4>&2
+# BEGIN bootstrap diagnostics
+bootstrap_diagnostics() {
+    local result="$1" addresses listener banner input_first
+    set +e
+    trap - ERR EXIT
+    exec 1>&3 2>&4
+    addresses=$(ip -o -4 addr show scope global 2>/dev/null | awk '{print $2 "=" $4}' | paste -sd ' ' -)
+    listener=$(ss -lntp 2>/dev/null | awk '$4 ~ /:2223$/')
+    banner=$(ssh-keyscan -T 3 -p "$PORT" 127.0.0.1 2>/dev/null)
+    SSH_LOCAL_STATUS=FAIL
+    if printf '%s\n' "$banner" | grep -q ' ssh-\| ecdsa-'; then
+        SSH_LOCAL_STATUS=OK
+    fi
+    input_first=$(iptables -S INPUT 2>/dev/null | awk '/^-A / { print; exit }')
+    {
+        echo "BOOTSTRAP DIAGNOSTICS v2"
+        echo "exit=$result failed_line=${BOOTSTRAP_FAILED_LINE:-none}"
+        echo "host=$(hostname) addresses=$addresses"
+        echo "rootfs_writable=${ROOTFS_WRITABLE:-unknown}"
+        echo "power_applied=${POWER_POLICY_READY:-unknown} power_guard=${POWER_POLICY_GUARD_READY:-unknown}"
+        echo "python_ready=${PYTHON_READY:-unknown}"
+        echo "local_ssh=$SSH_LOCAL_STATUS"
+        echo "--- listeners ---"
+        ss -lntp 2>&1
+        echo "--- SSH configuration validation ---"
+        /usr/sbin/sshd -t -f "$SSHD_CONFIG" 2>&1
+        echo "sshd_config_exit=$?"
+        echo "--- network addresses and routes ---"
+        ip -o addr show 2>&1
+        ip route show 2>&1
+        echo "--- INPUT rules and packet counters ---"
+        iptables -nvL INPUT --line-numbers 2>&1
+        echo "--- OUTPUT rules and packet counters ---"
+        iptables -nvL OUTPUT --line-numbers 2>&1
+        echo "--- all IPv4 filter chains ---"
+        iptables -S 2>&1
+        echo "--- root image and release ---"
+        rootdev -s 2>&1
+        cat /etc/lsb-release 2>&1
+        echo "--- power policy evidence ---"
+        tail -n 5 "$SSH_DIR/power-policy.log" 2>&1
+        echo "--- bootstrap output ---"
+        cat "$BOOTSTRAP_LOG"
+    } > "$BOOTSTRAP_REPORT" 2>&1
+    echo
+    echo "========== BOOTSTRAP RESULT v2 =========="
+    if [ "${BOOTSTRAP_REBOOT:-no}" = yes ]; then
+        echo "SETUP: reboot required; progress saved"
+    elif [ "$result" -eq 0 ] && [ "$SSH_LOCAL_STATUS" = OK ]; then
+        echo "SETUP: completed locally; remote access not yet verified"
+    else
+        echo "SETUP: INCOMPLETE (exit $result, failed line ${BOOTSTRAP_FAILED_LINE:-none})"
+    fi
+    echo "NETWORK: ${addresses:-no global IPv4 address found}"
+    echo "SSH LOCAL HANDSHAKE: $SSH_LOCAL_STATUS (127.0.0.1:$PORT)"
+    if [ -n "$listener" ]; then
+        echo "SSH LISTENER: $listener"
+    else
+        echo "SSH LISTENER: NOT FOUND (or ss unavailable)"
+    fi
+    echo "FIRST INPUT RULE: ${input_first:-unavailable}"
+    echo "ROOTFS WRITABLE: ${ROOTFS_WRITABLE:-unknown}"
+    echo "POWER: applied=${POWER_POLICY_READY:-unknown} guard=${POWER_POLICY_GUARD_READY:-unknown}"
+    echo "PYTHON RUNTIME: ${PYTHON_READY:-not checked}"
+    if [ "${ROOTFS_WRITABLE:-unknown}" = no ]; then
+        echo "PERSISTENCE: pending writable-rootfs setup"
+    fi
+    echo "LOG: $BOOTSTRAP_LOG"
+    echo "REPORT: $BOOTSTRAP_REPORT"
+    if [ -n "${CHROMEOS_TESTBED_REPORT_URL:-}" ]; then
+        if curl -fsS --connect-timeout 3 --max-time 15 \
+            -H 'Content-Type: text/plain' --data-binary "@$BOOTSTRAP_REPORT" \
+            "$CHROMEOS_TESTBED_REPORT_URL" >/dev/null 2>&1; then
+            echo "REPORT DELIVERY: OK - controller has the full diagnostics"
+        else
+            echo "REPORT DELIVERY: FAILED - photograph this result block"
+        fi
+    else
+        echo "Photograph this result block if remote SSH is unavailable."
+    fi
+    echo "SETUP PHASE: $(cat "$SSH_DIR/setup-state" 2>/dev/null || echo repair-only)"
+    if [ "${BOOTSTRAP_REBOOT:-no}" = yes ]; then
+        echo 'Rebooting. After boot, return to VT2 as root and run:'
+        echo "  bash $SSH_DIR/start_sshd.sh"
+        echo 'Then the controller can finish with: chromeos setup'
+        echo "========================================"
+        if ! reboot; then
+            echo "[FAIL] Could not reboot. Progress is saved; inspect the system reboot error."
+            exit 1
+        fi
+        exit 2
+    fi
+    echo 'Continue on the controller with: chromeos setup'
+    echo "========================================"
+    [ "$SSH_LOCAL_STATUS" = OK ] || result=1
+    exit "$result"
+}
+# END bootstrap diagnostics
+
+trap 'BOOTSTRAP_FAILED_LINE=$LINENO' ERR
+trap 'bootstrap_diagnostics "$?"' EXIT
+echo "ChromeOS bootstrap v2: running checks; final report follows."
+exec > "$BOOTSTRAP_LOG" 2>&1
 echo "[+] ChromeOS testbed bootstrap"
 echo
 
 # --- SSH Setup ---
-echo "[1/4] Setting up SSH..."
+echo "[1/5] Setting up SSH..."
 
 mkdir -p "$AUTH_DIR"
 chmod 700 "$AUTH_DIR"
@@ -49,23 +271,6 @@ chmod 700 "$AUTH_DIR"
 [ -f "$SSH_DIR/ssh_host_ed25519_key" ] || ssh-keygen -t ed25519 -f "$SSH_DIR/ssh_host_ed25519_key" -N "" -q
 [ -f "$SSH_DIR/ssh_host_rsa_key" ] || ssh-keygen -t rsa -b 4096 -f "$SSH_DIR/ssh_host_rsa_key" -N "" -q
 chmod 600 "$SSH_DIR/ssh_host_ed25519_key" "$SSH_DIR/ssh_host_rsa_key"
-
-# Preserve any existing access and optionally authorize the supplied controller
-# key. A post-update reinstall normally reuses the existing key file; an
-# initial bootstrap must explicitly supply its deployment-specific key.
-touch "$AUTH_DIR/authorized_keys"
-if [ -n "$CONTROLLER_PUBKEY" ]; then
-    if ! grep -qxF "$CONTROLLER_PUBKEY" "$AUTH_DIR/authorized_keys"; then
-        printf '%s\n' "$CONTROLLER_PUBKEY" >> "$AUTH_DIR/authorized_keys"
-    fi
-elif [ ! -s "$AUTH_DIR/authorized_keys" ]; then
-    echo "[FAIL] No controller key is installed." >&2
-    echo "Set CHROMEOS_TESTBED_CONTROLLER_PUBKEY to an SSH public key and retry." >&2
-    exit 1
-else
-    echo "[+] Preserving existing controller authorized keys"
-fi
-chmod 600 "$AUTH_DIR/authorized_keys"
 
 # Keep the entire sshd configuration on the stateful partition. Without an
 # explicit -f, ChromeOS sshd tries to read /etc/ssh/sshd_config, which may be
@@ -197,8 +402,10 @@ if [ -f /etc/init/chromeos-testbed-sshd.conf ] &&
     exit 0
 fi
 
-iptables -C INPUT -p tcp --dport 2223 -j ACCEPT 2>/dev/null ||
-    iptables -I INPUT 3 -p tcp --dport 2223 -j ACCEPT
+# An existing rule can sit behind ChromeOS's terminating reject/drop rule.
+# Move our exact allow rule to the front, including on repeated bootstrap.
+while iptables -D INPUT -p tcp --dport 2223 -j ACCEPT 2>/dev/null; do :; done
+iptables -I INPUT 1 -p tcp --dport 2223 -j ACCEPT
 
 if [ -r "$SSHD_PID" ]; then
     kill "$(cat "$SSHD_PID")" 2>/dev/null || true
@@ -258,11 +465,13 @@ pre-start script
   /usr/sbin/sshd -t -f "$SSHD_CONFIG"
 
   for cmd in iptables ip6tables; do
+    # Existence alone does not prove reachability: a preceding deny wins.
+    # Remove old copies and install one allow before ChromeOS's deny rules.
+    while "$cmd" -w -D INPUT -p tcp --dport 2223 -j ACCEPT 2>/dev/null; do :; done
     attempt=0
-    while ! "$cmd" -w -C INPUT -p tcp --dport 2223 -j ACCEPT 2>/dev/null; do
+    until "$cmd" -w -I INPUT 1 -p tcp --dport 2223 -j ACCEPT 2>/dev/null; do
       attempt=$((attempt + 1))
-      "$cmd" -w -I INPUT 3 -p tcp --dport 2223 -j ACCEPT 2>/dev/null || true
-      [ "$attempt" -ge 5 ] && break
+      [ "$attempt" -ge 5 ] && exit 1
       sleep 1
     done
     "$cmd" -w -C INPUT -p tcp --dport 2223 -j ACCEPT
@@ -335,10 +544,10 @@ POWER_JOB
     else
         start openssh-server
     fi
-    echo "    SSH ready on port $PORT (automatic after network connection)"
+    echo "    SSH start requested (automatic after network connection); verifying at exit"
 else
     bash "$SSH_DIR/start_sshd.sh"
-    echo "    SSH ready on port $PORT (manual fallback; rootfs is read-only)"
+    echo "    SSH start requested (manual fallback; rootfs is read-only); verifying at exit"
 fi
 
 echo "[2/5] Verifying closed-lid availability..."
@@ -360,15 +569,30 @@ if [ "$ROOTFS_WRITABLE" = yes ]; then
         echo "    Remote debugging already configured"
     fi
 else
-    echo "    [SKIP] Rootfs is read-only. To enable remote debugging later:"
-    ROOTDEV=$(rootdev -s); PARTNUM=${ROOTDEV##*p}; KERN_PART=$((PARTNUM - 1))
-    echo "    /usr/share/vboot/bin/make_dev_ssd.sh --remove_rootfs_verification --partitions $KERN_PART"
-    echo "    reboot"
-    echo "    Then run: chromeos fix-devtools"
+    echo "    Remote debugging requires writable-rootfs preparation."
+fi
+
+# --- Target runtime ---
+echo "[4/5] Preparing Python runtime and developer access..."
+PYTHON_READY=no
+if LD_LIBRARY_PATH=/usr/local/lib64 python3 -c 'import ssl, ctypes, fcntl, json' >/dev/null 2>&1; then
+    PYTHON_READY=yes
+else
+    echo "    Installing ChromeOS developer bootstrap packages for Python..."
+    if command -v dev_install >/dev/null 2>&1 &&
+       LD_LIBRARY_PATH=/usr/local/lib64 dev_install --only_bootstrap --yes; then
+        if LD_LIBRARY_PATH=/usr/local/lib64 python3 -c 'import ssl, ctypes, fcntl, json'; then
+            PYTHON_READY=yes
+        fi
+    fi
+fi
+if [ "$PYTHON_READY" = yes ]; then
+    echo "    Python runtime is usable with the platform CLI library path"
+else
+    echo "    [FAIL] Python runtime is unavailable; inspect the developer installer output above"
 fi
 
 # --- Dev password ---
-echo "[4/5] Developer password..."
 if [ -f /mnt/stateful_partition/etc/devmode.passwd ]; then
     echo "    Developer password already set"
 else
@@ -381,35 +605,15 @@ fi
 PREPARED_RELEASE=$(awk -F= '$1 == "CHROMEOS_RELEASE_VERSION" { print $2; exit }' /etc/lsb-release)
 printf '%s\n' "${PREPARED_RELEASE:-unknown}" > "$SSH_DIR/prepared-release"
 
-# --- Summary ---
-echo "[5/5] Done!"
-echo
-
-IP=$(ip addr show wlan0 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d/ -f1)
-[ -z "$IP" ] && IP=$(ip addr show eth0 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d/ -f1)
-
-echo "=========================================="
-echo "SSH:       ssh -p $PORT root@$IP"
-if [ "$ROOTFS_WRITABLE" = yes ]; then
-    echo "After reboot, SSH starts automatically once ChromeOS joins the network."
-    echo "ChromeOS updates may remove the boot job; re-run bootstrap if needed."
-else
-    echo "After reboot, restart SSH from VT2 (Ctrl+Alt+F2):"
-    echo "  Log in as chronos, then:"
-    echo "  sudo -i"
-    echo "  cd $SSH_DIR && bash start_sshd.sh"
+# Guided setup owns boot transitions; repair-only never changes boot state.
+prepare_boot_transition
+if [ "$BOOTSTRAP_REBOOT" = yes ]; then
+    exit 2
 fi
-echo "ChromeOS still waits at the profile sign-in screen after reboot."
-echo "Idle and lid suspend remain disabled; keep the closed device ventilated and on AC power."
-echo "From the dev machine, run: chromeos login"
-echo
-echo "Add to ~/.ssh/config on your dev machine:"
-echo "  Host chromeos-testbed"
-echo "    HostName $IP"
-echo "    Port $PORT"
-echo "    User root"
-echo "=========================================="
 
-if [ "$POWER_POLICY_READY" != yes ] || [ "$POWER_POLICY_GUARD_READY" != yes ]; then
+# The EXIT report verifies the listener and local SSH handshake and clearly
+# separates current reachability from reboot persistence.
+if [ "$POWER_POLICY_READY" != yes ] || [ "$POWER_POLICY_GUARD_READY" != yes ] ||
+   [ "$PYTHON_READY" != yes ]; then
     exit 1
 fi
