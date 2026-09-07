@@ -77,6 +77,10 @@ bin/machine-control --target ios ios application copy-to com.example.app \
   /tmp/fixture.json /tmp/fixture.json
 bin/machine-control --target ios ios application copy-from com.example.app \
   /tmp/export.json /tmp/export.json
+bin/machine-control --target ios ios crashes list --match Example
+bin/machine-control --target ios ios crashes collect \
+  DiagnosticLogs/Example.ips /tmp/Example.ips
+bin/machine-control --target ios ios application uninstall com.example.app
 bin/machine-control --target ios ios home
 bin/machine-control --target ios ios application terminate Settings
 ```
@@ -118,6 +122,34 @@ The default log bound is 1 MiB and the maximum is 16 MiB. This route captures
 only the selected application's stdout and stderr through CoreDevice console
 launch. It does not include SpringBoard, system daemons, or the system
 `os_log` stream.
+
+System logging uses libimobiledevice 1.4.0's `os_trace_relay` route. It is also
+transactional, retains at most 16 MiB in its private spool, and writes a
+create-only tail outside the repository. Collection defaults to 1 MiB:
+
+```bash
+platforms/ios/bin/ios-device session -- bash -lc '
+  mc="$PWD/bin/machine-control"
+  "$mc" --target ios ios system-logs start
+  # Reproduce the OS- or application-level behavior here.
+  "$mc" --target ios ios system-logs collect /tmp/ios-system.log
+'
+```
+
+Session cleanup stops and discards an active system-log stream when `collect`
+was skipped. The stream can contain private application and device data; keep
+its artifact in private test output.
+
+`ios crashes list [--match TEXT]` returns a bounded CoreDevice inventory from
+the native `systemCrashLogs` domain. `ios crashes collect SOURCE OUTPUT` copies
+one exact readable `.ips`, `.log`, or `.txt` report without removing it from
+the phone. The output is create-only, outside this repository, and at most
+16 MiB. Use the inventory's relative `path` as `SOURCE`.
+
+`application uninstall` accepts only an exact installed application that
+CoreDevice identifies as developer-built, non-default, and removable. It
+confirms the effect with a second installed-app inventory readback. iOS removes
+the application's container as part of uninstall.
 
 `ios fill` carries its request to the adapter over standard input, but Agent
 Device's downstream CLI does not provide a protected one-shot secret channel.
@@ -184,7 +216,7 @@ pair [--timeout SECONDS]       Explicit exact-device CoreDevice pairing
 prepare [--refresh]            Build/sign/install/health-check the XCTest runner
 reboot [--timeout SECONDS]     Full reboot with observed disconnect/reconnect
 session -- COMMAND             Run under an exclusive recoverable device lease
-recover [--force]              Stop the dedicated daemon and clear a stale lease
+recover [--force]              Stop owned workers/daemon and clear a stale lease
 
 install PATH.app               Install an already-built signed application
 normal-launch BUNDLE_ID        Launch outside XCTest automation
@@ -240,6 +272,8 @@ The wrapper uses `~/.ios-device-testbed` by default:
 ~/.ios-device-testbed/
   lease.json                   private exclusive-device journal
   agent-device/                isolated daemon, session, and log state
+  system-log-capture.json      active private os_trace_relay worker identity
+  system-log-capture.log       bounded private system-log spool
 ```
 
 This is deliberately separate from `~/.agent-device`. The daemon inherits

@@ -82,8 +82,12 @@ delivery is confirmed while the application effect and iOS system-routing
 decision remain unverifiable. Copy-to confirms effect with a CoreDevice
 readback hash; copy-from and log collection are observations with create-only
 host artifacts outside the public repository. Capabilities disclose the
-container domain, byte limits, transactional requirement, lack of system logs,
-and intentional absence of arbitrary shell and filesystem-wide access.
+container domain, byte limits, transactional requirements, and intentional
+absence of arbitrary shell and filesystem-wide access. The extension composes
+a bounded libimobiledevice `os_trace_relay` artifact, native CoreDevice crash
+inventory/copy, and exact application uninstall. System-log start confirms the
+owned capture worker is live; collection is an observation. Uninstall confirms
+delivery with independent application-inventory absence.
 
 **Current — full macOS Aqua exercise:** Tacticals 010 and 011 extend the same result
 vocabulary across settings-managed privacy, native panels and sheets,

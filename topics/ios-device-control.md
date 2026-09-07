@@ -21,9 +21,10 @@ emits `machine-control-doctor/v0` with device connection, boot, interaction,
 runner, semantic, capture, input, and device-host route state. The common
 client exposes `target status|doctor|capabilities` plus a bounded `ios` family
 for runner preparation, development-app inventory, application install/launch/
-termination, direct URL payload delivery, transactional app-console logs,
-bounded app-container file exchange, semantic snapshot/press/fill, and Home.
-These remain explicitly iOS operations rather than Android or desktop parity.
+termination/uninstall, direct URL payload delivery, transactional app-console
+and system `os_log` capture, crash-report inventory/collection, bounded
+app-container file exchange, semantic snapshot/press/fill, and Home. These
+remain explicitly iOS operations rather than Android or desktop parity.
 
 Read-only selection now merges the ordinary CoreDevice list with Apple's
 lower-level Developer Mode inventory and deduplicates CoreDevice and hardware
@@ -110,6 +111,16 @@ following XCTest snapshot confirmed that the named application was available
 for semantic observation, but direct payload delivery deliberately does not
 claim that iOS system routing or an associated-domain decision was observed.
 
+The required extension then adopted libimobiledevice 1.4.0 solely for its
+physical-device `os_trace_relay` stream. A private worker retained a bounded
+tail, common collection produced a create-only system-log artifact, and
+transactional cleanup stopped and discarded an intentionally uncollected
+stream. CoreDevice's native `systemCrashLogs` domain supplied bounded crash
+inventory and copied one existing `.ips` report without removing it. Finally,
+common uninstall removed the exact TomConnect development bundle and a second
+CoreDevice inventory confirmed its absence and platform-owned container
+removal.
+
 **Current — live-tested boundary, passcoded:** Before passcode removal, a full
 reboot visibly required the local device passcode and the phone did not become
 ordinary automation-ready before that first unlock. The new normalized
@@ -136,8 +147,9 @@ surface:
 | Application logs | Accepted/common | Transactional start/collect window for application stdout/stderr; create-only artifact outside the public repository; 1 MiB default and 16 MiB maximum |
 | App-container file exchange | Accepted/common | One bounded regular file per call in `appDataContainer`; copy-to effect confirmed by device readback hash and copy-from writes create-only |
 | Process inventory | Limited/not exposed | CoreDevice returned hundreds of executable/PID rows without bundle identity; launch deltas were useful experimentally but a standalone common result would be noisy and weakly attributable |
-| Uninstall | Deferred | CoreDevice has the route, but the installed TomConnect build had no matching reinstallable signed device artifact; acceptance requires a disposable fixture |
-| System `os_log` | Deferred | Neither adopted provider supplies it; add another dependency only when an actual debugging case requires SpringBoard or system-daemon evidence |
+| Uninstall | Accepted/common | Exact CoreDevice developer-built/removable preflight followed by uninstall and absence readback; live-tested by removing TomConnect as explicitly authorized |
+| System `os_log` | Accepted/common | libimobiledevice 1.4.0 `os_trace_relay`, held in a transactional bounded private spool and collected as a create-only artifact; abandoned capture cleanup live-tested |
+| Crash reports | Accepted/common | Bounded CoreDevice `systemCrashLogs` inventory and exact `.ips`/`.log`/`.txt` collection; reports remain on the phone |
 | Genuine system URL routing | Deferred | Direct payload delivery bypasses the chooser/association decision; activate a link from another application and inspect the resulting foreground state when needed |
 | Wake, keyguard, and PIN unlock | Intentional boundary | The passcode-free dedicated profile needs none; a passcoded phone remains human after reboot |
 | Arbitrary shell or filesystem access | Unsupported | Stock iOS has no general shell route; the facade remains typed and container-scoped |
@@ -151,6 +163,13 @@ current application console; collect stops it and materializes a bounded local
 artifact. This makes capture lifetime and cleanup explicit and avoids inline
 log content in normalized JSON.
 
+**Decision:** Compose one narrow libimobiledevice route with CoreDevice/XCTest.
+Stable Homebrew libimobiledevice 1.4.0 exposes the missing `os_trace_relay`
+service over the existing paired USB connection. It avoids the broader Python
+runtime and iOS 17+ developer-tunnel surface of pymobiledevice3 for this use
+case. Keep crash reports on CoreDevice rather than duplicating them through the
+new dependency.
+
 **Decision:** Treat direct URL payload delivery as a named-app launch input,
 not proof of universal-link registration or iOS system routing. Preserve that
 limitation in capabilities and results.
@@ -158,19 +177,20 @@ limitation in capabilities and results.
 **Decision:** Treat wake, keyguard, PIN unlock, arbitrary shell, and
 filesystem-wide access as intentionally without iOS counterparts.
 
-**Open:** Whether a concrete TomConnect diagnosis needs system `os_log`, crash
-report collection, notification injection, or another provider. Add one only
-after the app-scoped route proves insufficient for a reproducible case.
+**Open:** Correlate a newly induced TomConnect crash with its resulting `.ips`
+report when a reinstallable debug build is available. Inventory and collection
+are live-proven against an existing device report; deliberate crash generation
+is consuming-application work.
 
 ## Recommended next work
 
-- Use the new URL, application-log, inventory, and container-copy operations in
-  real TomConnect investigations. Let those cases determine whether system
-  logs, crash reports, notification injection, or richer lifecycle evidence
-  should be added next.
-- Prove uninstall and independently attributable process evidence with a
-  disposable development fixture before exposing either operation.
-
+- Use URL payloads, application logs, system logs, crash reports, inventory,
+  lifecycle, and container exchange together in real TomConnect investigations.
+- Add filters or logarchive capture only when an observed system-log workflow
+  needs them; the accepted first surface deliberately captures a bounded raw
+  window.
+- Keep independently attributable process inventory deferred until a provider
+  returns stable bundle association.
 - Exercise the normalized passcoded post-reboot result on a separate dedicated
   fixture if one is available; do not restore a credential merely to increase
   test coverage on the accepted passcode-free phone.

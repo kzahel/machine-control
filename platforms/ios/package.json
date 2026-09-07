@@ -10,7 +10,7 @@
   },
   "scripts": {
     "test": "python3 -m unittest discover -s tests -v",
-    "check": "python3 -m compileall -q ios_device.py tests && python3 -m unittest discover -s tests -v"
+    "check": "python3 -m compileall -q ios_device.py system_log_worker.py tests && python3 -m unittest discover -s tests -v"
   },
   "dependencies": {
     "agent-device": "0.20.5"

@@ -6,12 +6,14 @@ import os
 import stat
 import tempfile
 import unittest
+from collections import deque
 from contextlib import redirect_stdout
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
 import ios_device
+import system_log_worker
 
 
 def fake_device(
@@ -628,6 +630,13 @@ class CommandTests(unittest.TestCase):
             ):
                 ios_device.require_url({"url": value})
 
+    def test_crash_report_path_refuses_absolute_and_traversal(self) -> None:
+        for value in ("/Diagnostic/report.ips", "../report.ips", "report.bin"):
+            with self.subTest(value=value), self.assertRaises(
+                ios_device.TestbedError
+            ):
+                ios_device.require_crash_report_path({"source": value})
+
     @mock.patch("ios_device.installed_app_records")
     @mock.patch("ios_device.selected_device_name", return_value="iPhone")
     def test_application_list_projects_only_stable_development_fields(
@@ -714,11 +723,75 @@ class CommandTests(unittest.TestCase):
         self.assertFalse(result["data"]["systemRoutingObserved"])
         self.assertNotIn("https://example.test/path", json.dumps(result))
 
+    @mock.patch("ios_device.devicectl_json", return_value={"result": {}})
+    @mock.patch("ios_device.installed_app_records")
+    @mock.patch("ios_device.selected_device_name", return_value="iPhone")
+    def test_uninstall_confirms_inventory_absence(
+        self,
+        _selected: mock.Mock,
+        records: mock.Mock,
+        devicectl: mock.Mock,
+    ) -> None:
+        records.side_effect = [
+            [
+                {
+                    "bundleIdentifier": "com.example.fixture",
+                    "builtByDeveloper": True,
+                    "defaultApp": False,
+                    "removable": True,
+                }
+            ],
+            [],
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            result = ios_device.uninstall_result(
+                self.config(Path(directory)), "com.example.fixture"
+            )
+        self.assertTrue(result["accepted"])
+        self.assertEqual(result["effect"], "confirmed")
+        self.assertTrue(result["data"]["absenceConfirmed"])
+        devicectl.assert_called_once()
+
+    @mock.patch("ios_device.crash_report_records")
+    def test_crash_inventory_projects_bounded_coredevice_fields(
+        self, records: mock.Mock
+    ) -> None:
+        records.return_value = [
+            {
+                "relativePath": "DiagnosticLogs/Fixture-2026.ips",
+                "metadata": {
+                    "size": 321,
+                    "lastModDate": "2026-09-07T10:00:00Z",
+                    "ownerUid": 501,
+                },
+                "resources": {
+                    "isDirectory": False,
+                    "isReadable": True,
+                    "isWritable": False,
+                },
+            }
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            result = ios_device.crash_list_result(
+                self.config(Path(directory)), "fixture"
+            )
+        rendered = json.dumps(result)
+        self.assertTrue(result["accepted"])
+        self.assertEqual(result["data"]["reports"][0]["bytes"], 321)
+        self.assertNotIn("ownerUid", rendered)
+        self.assertNotIn("isWritable", rendered)
+
     def test_logs_require_a_transactional_session(self) -> None:
         with tempfile.TemporaryDirectory() as directory, mock.patch(
             "ios_device.active_nested_lease", return_value=None
         ), self.assertRaisesRegex(ios_device.TestbedError, "session"):
             ios_device.log_start_result(self.config(Path(directory)))
+
+    def test_system_logs_require_a_transactional_session(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, mock.patch(
+            "ios_device.active_nested_lease", return_value=None
+        ), self.assertRaisesRegex(ios_device.TestbedError, "session"):
+            ios_device.system_log_start_result(self.config(Path(directory)))
 
     @mock.patch("ios_device.run_agent_json")
     @mock.patch("ios_device.active_nested_lease", return_value=mock.Mock())
@@ -777,6 +850,28 @@ class CommandTests(unittest.TestCase):
             ios_device.require_remote_container_path(
                 {"source": "/Documents/../private"}, "source"
             )
+
+    def test_system_log_worker_keeps_only_bounded_tail(self) -> None:
+        chunks: deque[bytes] = deque()
+        total = system_log_worker.append_bounded(
+            chunks, 0, b"first", 8
+        )
+        total = system_log_worker.append_bounded(
+            chunks, total, b"-second", 8
+        )
+        self.assertEqual(total, 8)
+        self.assertEqual(b"".join(chunks), b"t-second")
+
+    def test_bounded_tail_preserves_raced_existing_output(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source.log"
+            destination = root / "destination.log"
+            source.write_bytes(b"new diagnostic")
+            destination.write_bytes(b"existing artifact")
+            with self.assertRaises(ios_device.TestbedError):
+                ios_device.write_bounded_tail(source, destination, 1024)
+            self.assertEqual(destination.read_bytes(), b"existing artifact")
 
     @mock.patch("ios_device.stop_daemon")
     @mock.patch("ios_device.provider_control_result")

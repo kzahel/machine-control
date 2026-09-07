@@ -78,9 +78,10 @@ account data, captured logs, machine-link payloads, or device identity here.
 - Restrict file exchange to an explicit application data-container domain and
   bounded caller-selected files. Do not generalize it into device filesystem
   access.
-- Perform uninstall acceptance only on an explicitly selected disposable
+- Perform uninstall acceptance only on an explicitly selected removable
   development build. Report that uninstall removes its application container,
-  and independently confirm the intended bundle is absent.
+  and independently confirm the intended bundle is absent. The installed
+  TomConnect development build is explicitly authorized for this run.
 - Keep generated logs, copied data, screenshots, and other application
   artifacts outside the repository and remove them after acceptance.
 - Do not automate the simulator in this slice. Physical-device and simulator
@@ -100,9 +101,11 @@ These are investigation candidates, not mandatory one-to-one deliverables:
 | Safe uninstall | CoreDevice `device uninstall app` plus inventory readback | Can the wrapper prove the exact disposable/development bundle is eligible and confirm its absence afterward? |
 | App-container file exchange | CoreDevice `device copy to|from` with `appDataContainer` | Which source/destination path rules, size bounds, overwrite behavior, and readback evidence are reliable on the accepted build? |
 
-System `os_log`, crash-report collection, notifications, richer gestures, and
-other facilities may be recorded as follow-up candidates when live debugging
-shows a concrete need. They do not expand this slice automatically.
+The first pass treated system `os_log` and crash-report collection as possible
+follow-up work. The required extension below brought both into this tactical
+after the near-term TomConnect debugging workflow established the concrete
+need. Notifications, richer gestures, and other facilities remain outside the
+slice.
 
 ## Adaptive implementation approach
 
@@ -178,9 +181,10 @@ universal-link association or system routing. Observe genuine system routing
 separately by activating a link from another application when the installed
 TomConnect build and associated-domain environment make that test meaningful.
 
-Use a disposable development fixture for uninstall or for deterministic
-stdout, container, and deep-link behavior that TomConnect does not expose
-safely. Restore or reinstall only when the consuming project needs that state.
+Use TomConnect for uninstall in this acceptance run. A disposable development
+fixture remains preferable for deterministic stdout, container, deep-link, or
+intentional-crash behavior that TomConnect does not expose safely. Restore or
+reinstall only when the consuming project needs that state.
 
 ### 6 — record the resulting surface
 
@@ -216,6 +220,11 @@ than restating the original candidate list as completed.
 
 ## Result
 
+### Initial diagnostic slice
+
+This table records the first pass. Its uninstall and system-log deferrals were
+subsequently resolved by the required extension below.
+
 The tactical produced a deliberately iOS-native diagnostic surface rather than
 a literal ADB clone:
 
@@ -229,11 +238,12 @@ a literal ADB clone:
 | Uninstall | **deferred** | The CoreDevice route exists, but the installed TomConnect build had no matching signed device artifact available for safe restoration. A disposable reinstallable fixture is required before adoption |
 | System logs and genuine URL routing | **deferred** | App console capture does not include `os_log`; direct payload delivery bypasses iOS's system routing decision. Neither justified a new provider or broader operation without a concrete debugging case |
 
-The wrapper and common client now validate bundle identifiers, URLs, byte
+The initial wrapper and common client validated bundle identifiers, URLs, byte
 bounds, remote container paths, transactional log lifetime, create-only local
-artifacts, and development-app eligibility. Capability output declares route,
-scope, limits, omissions, and the unsupported shell, filesystem-wide,
-protected-authentication, wake/keyguard, and system-log surfaces.
+artifacts, and development-app eligibility. At that point, capability output
+declared route, scope, limits, omissions, and the unsupported shell,
+filesystem-wide, protected-authentication, wake/keyguard, and system-log
+surfaces.
 
 The installed TomConnect development build exercised inventory, an HTTPS
 payload, an application-console window around an XCTest observation, and a
@@ -248,3 +258,77 @@ portable repository check, final probe and doctor readiness, whitespace and
 tracked-JSON checks, and public-data review. The portable check was run with
 private VM target-file discovery disabled so ignored local inventory could not
 change isolation-test expectations.
+
+## Required extension
+
+The initial slice established useful application-scoped diagnostics, but the
+near-term TomConnect workflow also requires lifecycle cleanup and evidence
+outside application stdout/stderr. This extension is required before the
+tactical returns to complete:
+
+- add typed uninstall for an exact removable development application, with
+  installed-app preflight and absence readback;
+- select and adopt the most reasonable maintained physical-iOS system-log
+  provider, then expose bounded transactional `os_log` collection without
+  returning log content inline;
+- expose bounded crash-report inventory and collection with enough metadata to
+  select relevant application crashes while keeping reports outside the public
+  repository; and
+- live-test all three routes on the accepted phone, using TomConnect for
+  uninstall as explicitly authorized and using generated diagnostic artifacts
+  only outside this repository.
+
+Process inventory remains deferred unless the investigation finds a stable
+bundle-attributed route. Its presence is not a completion condition.
+
+### Extension approach
+
+1. Source-review current CoreDevice, Agent Device, libimobiledevice, and
+   pymobiledevice3 routes. Prefer an already-installed Apple facility when it
+   provides the needed evidence; otherwise choose the smallest maintained
+   dependency that works with the accepted modern physical-iOS connection.
+2. Probe system logs and crash reports read-only before fixing their request
+   and result contracts. Record pairing/tunnel requirements, scope, bounds,
+   cancellation behavior, and artifact format.
+3. Add typed platform operations, focused refusal and cleanup tests, capability
+   declarations, and common-client commands only for live-proven routes.
+4. Uninstall the exact installed TomConnect development bundle, then confirm
+   its absence through independent CoreDevice inventory. No reinstall is
+   required for this acceptance run.
+5. Repeat platform and common-facade acceptance, update current topic/provider
+   evidence, run the portable suite, and return this tactical to complete with
+   the actual provider choice and remaining limitations.
+
+### Extension result
+
+The extension completed the remaining high-value diagnostic surface:
+
+| Capability | Outcome | Result |
+| --- | --- | --- |
+| Safe uninstall | **accepted/common** | `application uninstall APP` requires an exact installed application reported as developer-built, non-default, and removable; CoreDevice performs the uninstall and a fresh inventory confirms absence. The authorized TomConnect development build was removed during live acceptance and was not reinstalled |
+| System `os_log` | **accepted/common** | Transactional `system-logs start` and `system-logs collect OUTPUT` use libimobiledevice 1.4.0's `os_trace_relay` stream. A private worker retains only the newest 16 MiB, collection writes a create-only artifact bounded to 16 MiB with a 1 MiB default, and session cleanup stops and discards abandoned streams |
+| Crash-report inventory | **accepted/common** | `crashes list [--match TEXT]` projects at most 512 readable `.ips`, `.log`, and `.txt` records from CoreDevice's native `systemCrashLogs` domain using relative path, name, size, modification time, and format |
+| Crash-report collection | **accepted/common** | `crashes collect SOURCE OUTPUT` preflights one exact inventory path, copies at most 16 MiB to a create-only host artifact, hashes it, and leaves the report on the phone |
+| Process inventory | **limited/not exposed** | CoreDevice still supplies only a large PID/executable projection without stable application-bundle attribution. Lifecycle-specific observations remain more truthful than a noisy standalone inventory |
+
+libimobiledevice was selected only for the system-log gap. Its stable 1.4.0
+CLI is a small packaged dependency, works with the phone's existing pairing,
+and reaches `os_trace_relay` without a developer tunnel. CoreDevice remains the
+native route for uninstall and crash reports. pymobiledevice3 was investigated
+but not added: its structured syslog and broader services are potentially
+useful, while its Python and optional tunnel surface add no benefit to the
+accepted USB logging workflow.
+
+Live common-facade acceptance captured a 524,142-byte bounded system-log tail
+containing 3,413 lines, listed 53 crash reports, and copied an existing
+20,510-byte `.ips` report without removing it from the phone. Transaction exit
+left no system-log worker or private spool state. A deliberately induced new
+TomConnect crash was not attempted because the authorized uninstall had
+already removed the build; collection of an existing device report proves the
+transport and artifact contract, while deterministic crash generation remains
+fixture work rather than a dependency of this capability.
+
+The focused iOS and common-client suites pass 53 and 87 tests respectively.
+The wrapper probe and doctor, live platform/common workflows, portable checks,
+diff validation, artifact cleanup, and public-data review completed without
+committing device identity or captured diagnostics.

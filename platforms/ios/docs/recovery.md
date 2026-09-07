@@ -45,7 +45,8 @@ not necessarily that XCTest is authorized:
 ## Interrupted testbed session
 
 A transactional session records a private controller-local `lease.json` and
-cleans the named Agent Device session and dedicated daemon on ordinary exit.
+cleans the named Agent Device session, dedicated daemon, and any owned
+system-log worker on ordinary exit.
 If the controlling process dies, the next session may recover a dead lease from
 the same controller. Explicit recovery is:
 
@@ -53,9 +54,10 @@ the same controller. Explicit recovery is:
 bin/ios-device recover
 ```
 
-Recovery stops only the daemon in this testbed's isolated state directory and
-removes its stale lease. It does not uninstall apps, erase data, change phone
-settings, revoke pairing, delete certificates, or remove profiles.
+Recovery stops only the daemon and verified system-log worker in this testbed's
+isolated state directory and removes its stale lease. It does not uninstall
+apps, erase data, change phone settings, revoke pairing, delete certificates,
+or remove profiles.
 
 If the recorded owner PID is still alive or the journal belongs to another
 controller, recovery refuses. Inspect that owner first. Use `recover --force`

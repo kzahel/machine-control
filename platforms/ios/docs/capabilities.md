@@ -35,6 +35,9 @@ Validated combination:
 | Direct URL payload | The common facade delivered an HTTPS payload to an explicit TomConnect development bundle through Agent Device's CoreDevice route; a following XCTest snapshot succeeded, while system routing remained explicitly unclaimed |
 | Application console logs | A transactional `logs start` and `logs collect` flow captured a bounded TomConnect stdout/stderr artifact, reported byte/line/truncation metadata, and stopped with session cleanup |
 | App-container copy | Common `copy-to` and `copy-from` round-tripped one bounded file through TomConnect's `appDataContainer`; copy-to hash readback and caller-side byte comparison both matched |
+| App uninstall | Common CoreDevice uninstall removed the exact installed TomConnect development bundle; a second inventory returned zero matches, while iOS owned the associated container removal |
+| System `os_log` | libimobiledevice 1.4.0 `idevicesyslog` streamed the accepted phone's `os_trace_relay`; typed transactional collection returned a bounded artifact, and session cleanup stopped and discarded an uncollected stream |
+| Crash reports | CoreDevice `systemCrashLogs` inventory returned readable diagnostic records and common collection copied one bounded `.ips` report without removing it from the phone |
 | Signing lifetime | Developer Program and Personal Team runner profiles have both supported live control; the current Personal Team cache reports a valid short-lived profile, while automatic near-expiry refresh remains unit-tested rather than live-tested |
 
 Healthy initial snapshots measured 313–569 ms. The later JSTorrent run reported
@@ -52,9 +55,10 @@ Track both latency and cause instead of treating one number as a stable SLA.
 - Multiple simultaneously connected physical iOS devices.
 - Standalone process inventory that can reliably associate CoreDevice process
   rows with an application bundle.
-- Typed uninstall and its absence readback against a disposable reinstallable
-  development fixture.
-- System `os_log`, SpringBoard, and system-daemon capture.
+- Long-duration, high-volume system-log capture beyond the bounded acceptance
+  interval.
+- A newly induced TomConnect crash correlated to its resulting `.ips` report;
+  inventory and collection are proven against an existing device report.
 - Genuine universal-link or custom-scheme routing selected by iOS rather than
   direct payload delivery to a named bundle.
 

@@ -525,6 +525,75 @@ class ClientTests(unittest.TestCase):
             },
         )
 
+    def test_ios_common_uninstall_uses_exact_application(self):
+        self.write_registry("ios", interface="native")
+        result, value = self.run_cli(
+            "--target", "fixture", "ios", "application", "uninstall",
+            "com.example.fixture",
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(
+            value["data"]["request"],
+            {
+                "operation": "application.uninstall",
+                "application": "com.example.fixture",
+            },
+        )
+
+    def test_ios_common_system_logs_expose_start_and_bounded_collect(self):
+        self.write_registry("ios", interface="native")
+        started, start_value = self.run_cli(
+            "--target", "fixture", "ios", "system-logs", "start"
+        )
+        collected, collect_value = self.run_cli(
+            "--target", "fixture", "ios", "system-logs", "collect",
+            "/tmp/system.log", "--max-bytes", "4096",
+        )
+        self.assertEqual(started.returncode, 0)
+        self.assertEqual(collected.returncode, 0)
+        self.assertEqual(
+            start_value["data"]["request"],
+            {"operation": "diagnostics.system_logs.start"},
+        )
+        self.assertEqual(
+            collect_value["data"]["request"],
+            {
+                "operation": "diagnostics.system_logs.collect",
+                "output": "/tmp/system.log",
+                "maxBytes": 4096,
+            },
+        )
+
+    def test_ios_common_crash_inventory_and_collect_are_typed(self):
+        self.write_registry("ios", interface="native")
+        listed, list_value = self.run_cli(
+            "--target", "fixture", "ios", "crashes", "list",
+            "--match", "Fixture",
+        )
+        collected, collect_value = self.run_cli(
+            "--target", "fixture", "ios", "crashes", "collect",
+            "DiagnosticLogs/Fixture.ips", "/tmp/Fixture.ips",
+            "--max-bytes", "8192",
+        )
+        self.assertEqual(listed.returncode, 0)
+        self.assertEqual(collected.returncode, 0)
+        self.assertEqual(
+            list_value["data"]["request"],
+            {
+                "operation": "diagnostics.crashes.list",
+                "match": "Fixture",
+            },
+        )
+        self.assertEqual(
+            collect_value["data"]["request"],
+            {
+                "operation": "diagnostics.crashes.collect",
+                "source": "DiagnosticLogs/Fixture.ips",
+                "output": "/tmp/Fixture.ips",
+                "maxBytes": 8192,
+            },
+        )
+
     def test_ios_common_family_refuses_non_ios_target_without_dispatch(self):
         log = self.directory / "arguments.json"
         self.write_registry("android", interface="native")

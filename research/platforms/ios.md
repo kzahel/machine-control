@@ -12,7 +12,9 @@ an authorized Mac and treats the phone as a distinct target. CoreDevice and
 A signed persistent XCTest runner, currently driven through
 [Agent Device](../providers/agent-device.md), supplies compact semantic
 snapshots and actions; screenshots and gestures provide observation/action
-fallbacks. Leases and recovery remain testbed responsibilities.
+fallbacks. [libimobiledevice](../providers/libimobiledevice.md) 1.4.0 supplies
+the one missing system `os_log` stream. Leases, bounded artifacts, and recovery
+remain testbed responsibilities.
 
 This placement is a first-class North Star implementation. A stock phone
 cannot host the same resident process as a desktop VM, and forcing that shape
@@ -64,7 +66,10 @@ not expose the provider's device descriptor. Development-app inventory, direct
 URL payload delivery to TomConnect, transactional application-console capture,
 and bounded app-container copy also passed through both the platform wrapper
 and common facade. Copy-to effect was confirmed by device readback hash;
-copy-from independently matched the source file.
+copy-from independently matched the source file. The extended common surface
+then passed CoreDevice crash inventory and `.ips` collection, bounded
+libimobiledevice `os_trace_relay` capture and abandoned-stream cleanup, and
+exact TomConnect uninstall with an independent zero-match inventory readback.
 
 **Current — source-reviewed and unit-tested signing lifecycle:** The adapter
 observes the exact matching cached runner's embedded provisioning dates.
@@ -94,33 +99,40 @@ Available routes per operation are:
 | --- | --- | --- | --- |
 | URL / deep-link payload | `device process launch --payload-url URL BUNDLE_ID`; requires the target bundle | `open <url>` wraps the same flag once the app bundle is known; XCTest-backed open rejects URLs | Not needed |
 | App stdout/stderr | `device process launch --console` attaches and waits | `logs clear --restart` relaunches through `--console`; `logs stop` returns a file | Not needed |
-| System `os_log` stream | None | None | `idevicesyslog` or `pymobiledevice3 syslog live`; both stream from a paired USB device |
+| System `os_log` stream | None | None | Adopted: libimobiledevice 1.4.0 `idevicesyslog` over `os_trace_relay`; pymobiledevice3 remains an unneeded alternative |
 | Uninstall | `device uninstall app BUNDLE_ID` | Not exposed for physical iOS | Alternative exists, not needed |
 | Installed apps / processes | `device info apps`, `device info processes` | Session-scoped only | Alternative exists, not needed |
 | File copy | `device copy to|from` with `--domain-type appDataContainer --domain-identifier BUNDLE_ID` | None | AFC routes; broader but a second dependency |
 | Arbitrary shell | None | None | None on stock iOS |
-| Crash and diagnostics bundle | `device sysdiagnose`, `device notification` | Crash-log helpers exist, unreviewed | Crash report pull routes exist |
+| Crash reports and diagnostics | Adopted `device info files`/`copy from` with `systemCrashLogs`; `device sysdiagnose` remains broader and unadopted | Crash-log helpers exist, unreviewed | Duplicate crash pull routes exist |
 
 Evidence levels:
 
 - CoreDevice development-app inventory and app-container copy:
   `live-tested` through the platform wrapper and common facade on the accepted
-  phone. Process inventory remains `live-tested` only as an exploratory route;
-  its rows lacked bundle identity and were not adopted. Uninstall remains
-  `source-reviewed` because no safely reinstallable fixture was available.
+  phone. CoreDevice crash inventory/copy and exact TomConnect uninstall with
+  absence readback are also `live-tested` through the common facade. Process
+  inventory remains `live-tested` only as an exploratory route; its rows lacked
+  bundle identity and were not adopted.
 - Agent Device URL payload delivery and application-console capture:
   `live-tested` through the platform wrapper and common facade with TomConnect.
   Direct payload delivery does not observe iOS system routing, and the console
   contains application stdout/stderr rather than system `os_log`.
-- libimobiledevice and pymobiledevice3: `discovered` only. Neither is
-  installed on the controller and neither has a provider dossier.
+- libimobiledevice 1.4.0 `idevicesyslog`: `adopted` after live paired-USB
+  `os_trace_relay`, bounded common collection, and session-cleanup tests.
+- pymobiledevice3: `upstream-claimed` in its published CLI documentation as a
+  broader alternative with structured syslog and crash commands. It was not
+  installed or adopted because the
+  narrower stable libimobiledevice CLI filled the only remaining provider gap
+  without another Python runtime or developer-tunnel surface.
 
 **Decision:** Prefer CoreDevice for every useful operation it covers, reached
 through Agent Device where the pinned provider already owns the session and
 wraps the same flag. Keep the common surface use-case driven: do not expose
 weakly attributable process rows merely because the provider returns them.
-Add a second provider dependency only if a concrete diagnosis proves that
-application stdout/stderr is insufficient and system `os_log` is necessary.
+Compose libimobiledevice only for system logs; CoreDevice remains authoritative
+for crash reports and uninstall. Keep pymobiledevice3 unadopted until a
+different concrete gap justifies its broader runtime and service surface.
 
 **Open:** Decide whether physical and simulator routes share one stable
 device-family identity with capability differences. Keep passcode, biometrics,

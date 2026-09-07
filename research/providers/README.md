@@ -11,6 +11,7 @@ components remain necessary. Evidence levels are defined in the
 | [Open Computer Use](open-computer-use.md) | MIT; third-party notices apply | Windows, macOS, Linux | Source-reviewed at the spike pin |
 | [WinApp](winapp.md) | MIT | Windows | Adopted by `winvm-testbed`; external differential for the resident runtime |
 | [Agent Device](agent-device.md) | MIT | iOS, Android, macOS, Linux, web, TV/device variants | Adopted for iOS; macOS source-reviewed |
+| [libimobiledevice](libimobiledevice.md) | LGPL-2.1-or-later | Apple device services from macOS, Linux, and Windows hosts | Adopted narrowly for physical-iOS `os_trace_relay` capture |
 | [Touchpoint](touchpoint.md) | MIT | Windows, macOS, Linux, browser CDP | Source-reviewed |
 | [Peekaboo](peekaboo.md) | MIT | macOS | Source-reviewed |
 | [kwin-mcp](kwin-mcp.md) | MIT | Linux/KDE Wayland | Source-reviewed |

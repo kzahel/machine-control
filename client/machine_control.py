@@ -2330,11 +2330,12 @@ def ios_request(arguments: list[str]) -> dict[str, Any]:
             "list",
             "open-url",
             "terminate",
+            "uninstall",
         }:
             raise ClientError(
                 "usage",
                 "ios application requires copy-from, copy-to, install, launch, "
-                "list, open-url, or terminate",
+                "list, open-url, terminate, or uninstall",
             )
         action, values = rest[0], rest[1:]
         if action == "list":
@@ -2379,6 +2380,12 @@ def ios_request(arguments: list[str]) -> dict[str, Any]:
                 "url": options.url,
                 "relaunch": options.relaunch,
             }
+        if action == "uninstall":
+            options = parse_options(values, [(("application",), {})])
+            return {
+                "operation": "application.uninstall",
+                "application": options.application,
+            }
         if action in {"copy-to", "copy-from"}:
             options = parse_options(
                 values,
@@ -2420,6 +2427,58 @@ def ios_request(arguments: list[str]) -> dict[str, Any]:
         )
         request = {
             "operation": "diagnostics.logs.collect",
+            "output": options.output,
+        }
+        if options.max_bytes is not None:
+            request["maxBytes"] = options.max_bytes
+        return request
+    if command == "system-logs":
+        if not rest or rest[0] not in {"start", "collect"}:
+            raise ClientError(
+                "usage", "ios system-logs requires start or collect"
+            )
+        action, values = rest[0], rest[1:]
+        if action == "start":
+            if values:
+                raise ClientError(
+                    "usage", "ios system-logs start accepts no arguments"
+                )
+            return {"operation": "diagnostics.system_logs.start"}
+        options = parse_options(
+            values,
+            [
+                (("output",), {}),
+                (("--max-bytes",), {"type": int}),
+            ],
+        )
+        request = {
+            "operation": "diagnostics.system_logs.collect",
+            "output": options.output,
+        }
+        if options.max_bytes is not None:
+            request["maxBytes"] = options.max_bytes
+        return request
+    if command == "crashes":
+        if not rest or rest[0] not in {"list", "collect"}:
+            raise ClientError("usage", "ios crashes requires list or collect")
+        action, values = rest[0], rest[1:]
+        if action == "list":
+            options = parse_options(values, [(("--match",), {})])
+            request = {"operation": "diagnostics.crashes.list"}
+            if options.match is not None:
+                request["match"] = options.match
+            return request
+        options = parse_options(
+            values,
+            [
+                (("source",), {}),
+                (("output",), {}),
+                (("--max-bytes",), {"type": int}),
+            ],
+        )
+        request = {
+            "operation": "diagnostics.crashes.collect",
+            "source": options.source,
             "output": options.output,
         }
         if options.max_bytes is not None:
@@ -3083,9 +3142,11 @@ Commands:
   desktop raw|raw-local JSON       Send a provider-native resident request
   desktop artifact HANDLE [PATH]   Fetch a bounded resident artifact
   ios capabilities|runner prepare [--refresh]
-  ios application install|list|launch|open-url|terminate
+  ios application install|list|launch|open-url|terminate|uninstall
   ios application copy-to|copy-from
   ios logs start|collect           Typed physical-iOS diagnostics
+  ios system-logs start|collect    Bounded physical-iOS os_log capture
+  ios crashes list|collect         Inventory and copy crash reports
   ios snapshot|press|fill|home     Typed physical-iOS XCTest operations
   testbed -- ARG...                Explicit testbed escape hatch
   os -- ARG...                     Explicit guest administration escape hatch

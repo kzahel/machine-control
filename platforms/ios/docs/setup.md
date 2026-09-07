@@ -4,6 +4,8 @@
 
 - A Mac with full Xcode and the matching iOS platform support.
 - Node.js 24 or newer, pnpm 11, and Python 3.10 or newer.
+- libimobiledevice 1.4.0 or newer for bounded system `os_log` capture. On a
+  Homebrew controller, install it with `brew install libimobiledevice`.
 - An Apple development team signed into Xcode. The validated long-lived setup
   uses an Apple Developer Program team. A free Personal Team is supported as a
   distinct short-lived signing profile. Initial setup and ordinary control are

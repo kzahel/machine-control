@@ -1,6 +1,6 @@
 ---
 name: ios-device
-description: Safely inspect, install, launch, diagnose, and automate applications on a physical iPhone testbed from macOS. Use for real-device iOS QA, accessibility-driven UI control, URL delivery, bounded application logs, app-container file exchange, SpringBoard interaction, screenshots, input, app installation, device readiness diagnosis, or recovery of the dedicated XCTest runner.
+description: Safely inspect, install, launch, diagnose, and automate applications on a physical iPhone testbed from macOS. Use for real-device iOS QA, accessibility-driven UI control, URL delivery, bounded application and system logs, crash reports, uninstall, app-container file exchange, SpringBoard interaction, screenshots, input, app installation, device readiness diagnosis, or recovery of the dedicated XCTest runner.
 ---
 
 # iOS Device Testbed
@@ -73,9 +73,9 @@ build, release, or publishing scripts.
 ## Diagnose an application
 
 Use the common `ios` family for normalized development-app inventory, direct
-URL payload delivery, bounded application stdout/stderr, and single-file
-container exchange. Keep log capture inside the surrounding transactional
-session:
+URL payload delivery, bounded application stdout/stderr and system `os_log`,
+crash reports, uninstall, and single-file container exchange. Keep live log
+capture inside the surrounding transactional session:
 
 ```bash
 mc=/path/to/machine-control/bin/machine-control
@@ -85,15 +85,23 @@ mc=/path/to/machine-control/bin/machine-control
 "$mc" --target ios ios logs start
 "$mc" --target ios ios snapshot --interactive
 "$mc" --target ios ios logs collect /tmp/example-app.log
+"$mc" --target ios ios system-logs start
+"$mc" --target ios ios system-logs collect /tmp/ios-system.log
+"$mc" --target ios ios crashes list --match Example
+"$mc" --target ios ios crashes collect \
+  DiagnosticLogs/Example.ips /tmp/Example.ips
 "$mc" --target ios ios application copy-from com.example.app \
   /tmp/export.json /tmp/export.json
 ```
 
 `open-url` sends a payload to the named bundle; it is not evidence that iOS
 selected that bundle through universal-link routing. Application logs exclude
-system `os_log`, SpringBoard, and daemon lines. Container operations are fixed
-to `appDataContainer`, accept one bounded file, and never provide general
-device filesystem access. Keep their output outside source repositories.
+system `os_log`, while `system-logs` captures the broader and much noisier
+`os_trace_relay`. Crash reports come from CoreDevice's `systemCrashLogs`
+domain and remain on the phone after collection. Container operations are
+fixed to `appDataContainer`, accept one bounded file, and never provide general
+device filesystem access. Keep all diagnostic output outside source
+repositories.
 
 ## Inspect and interact
 

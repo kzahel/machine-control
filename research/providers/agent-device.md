@@ -66,6 +66,8 @@ common facade with TomConnect. URL results describe direct payload delivery,
 not iOS system routing; log results require a transactional session and write a
 bounded create-only artifact outside the public repository. See the
 [platform report](../platforms/ios.md#route-comparison-for-diagnostic-operations).
+The composed iOS adapter now uses libimobiledevice for system logs rather than
+expanding Agent Device beyond its actual physical-device console scope.
 
 **Open:** Determine whether its Android route should wrap or complement the
 project's ADB/UIAutomator adapter and whether simulator and physical-device

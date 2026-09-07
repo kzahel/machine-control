@@ -10,6 +10,7 @@ import plistlib
 import re
 import secrets
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -19,7 +20,7 @@ from urllib.parse import urlsplit
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 LEASE_SCHEMA = 1
 PINNED_AGENT_DEVICE_VERSION = "0.20.5"
@@ -36,6 +37,9 @@ URL_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*$")
 MAX_URL_LENGTH = 8192
 MAX_TRANSFER_BYTES = 16 * 1024 * 1024
 DEFAULT_LOG_BYTES = 1024 * 1024
+SYSTEM_LOG_SCHEMA = 1
+SYSTEM_LOG_WORKER = Path(__file__).with_name("system_log_worker.py")
+CRASH_REPORT_SUFFIXES = {".ips", ".log", ".txt"}
 
 
 class TestbedError(RuntimeError):
@@ -59,6 +63,22 @@ class Config:
     @property
     def lease_path(self) -> Path:
         return self.state_dir / "lease.json"
+
+    @property
+    def system_log_state_path(self) -> Path:
+        return self.state_dir / "system-log-capture.json"
+
+    @property
+    def system_log_source_path(self) -> Path:
+        return self.state_dir / "system-log-capture.log"
+
+    @property
+    def system_log_ready_path(self) -> Path:
+        return self.state_dir / "system-log-ready"
+
+    @property
+    def system_log_worker_stderr_path(self) -> Path:
+        return self.state_dir / "system-log-worker.stderr"
 
 
 @dataclass(frozen=True)
@@ -584,6 +604,21 @@ def command_exists(name: str) -> bool:
     return shutil.which(name) is not None
 
 
+def idevicesyslog_observation() -> tuple[str | None, str, bool]:
+    binary = shutil.which("idevicesyslog")
+    if binary is None:
+        return None, "not installed", False
+    result = run_capture([binary, "--version"], check=False)
+    version = result.stdout.strip()
+    match = re.search(r"\b([0-9]+)\.([0-9]+)\.([0-9]+)\b", version)
+    supported = bool(match) and tuple(int(item) for item in match.groups()) >= (
+        1,
+        4,
+        0,
+    )
+    return binary, version or "unknown version", supported
+
+
 def doctor_checks(config: Config) -> list[Check]:
     checks: list[Check] = []
     checks.append(
@@ -608,6 +643,22 @@ def doctor_checks(config: Config) -> list[Check]:
                 None if command_exists(command) else fix,
             )
         )
+
+    _, system_log_version, system_log_supported = (
+        idevicesyslog_observation()
+    )
+    checks.append(
+        Check(
+            "idevicesyslog",
+            "ok" if system_log_supported else "error",
+            system_log_version,
+            (
+                None
+                if system_log_supported
+                else "Install libimobiledevice 1.4.0 or newer."
+            ),
+        )
+    )
 
     if config.agent_device.is_file():
         version = run_capture(
@@ -920,7 +971,11 @@ def common_doctor_document(
         "lifecycleOperations": ["status", "doctor", "capabilities", "reboot"],
         "extensions": {
             "routeClass": "host.device",
-            "providers": ["ios.coredevice", "ios.xctest"],
+            "providers": [
+                "ios.coredevice",
+                "ios.xctest",
+                "ios.libimobiledevice.os_trace_relay",
+            ],
             "developerMode": developer_mode,
             "transport": str(summary.get("transport", "")).casefold() or "unknown",
             "lockState": {
@@ -948,10 +1003,15 @@ def common_doctor_document(
                 "application.launch",
                 "application.open_url",
                 "application.terminate",
+                "application.uninstall",
                 "application.copy_to",
                 "application.copy_from",
                 "diagnostics.logs.start",
                 "diagnostics.logs.collect",
+                "diagnostics.system_logs.start",
+                "diagnostics.system_logs.collect",
+                "diagnostics.crashes.list",
+                "diagnostics.crashes.collect",
                 "semantic.snapshot",
                 "semantic.press",
                 "semantic.fill",
@@ -1358,6 +1418,7 @@ def strip_separator(args: Sequence[str]) -> list[str]:
 
 def cleanup_session(config: Config, lease: Lease) -> None:
     try:
+        stop_system_log_capture(config, lease.token, discard=True)
         try:
             device_name = selected_device_name(config)
         except TestbedError:
@@ -1413,6 +1474,7 @@ def recover(config: Config, *, force: bool = False) -> int:
         )
     if lease and lease.controller != controller_name() and not force:
         raise TestbedError("foreign-controller lease requires recover --force")
+    stop_system_log_capture(config, None, discard=True)
     stop_daemon(config)
     if lease:
         config.lease_path.unlink(missing_ok=True)
@@ -1497,10 +1559,15 @@ IOS_CONTROL_OPERATIONS = {
     "application.launch",
     "application.open_url",
     "application.terminate",
+    "application.uninstall",
     "application.copy_to",
     "application.copy_from",
     "diagnostics.logs.start",
     "diagnostics.logs.collect",
+    "diagnostics.system_logs.start",
+    "diagnostics.system_logs.collect",
+    "diagnostics.crashes.list",
+    "diagnostics.crashes.collect",
     "semantic.snapshot",
     "semantic.press",
     "semantic.fill",
@@ -1620,6 +1687,33 @@ def require_remote_container_path(request: dict[str, object], key: str) -> str:
     return value
 
 
+def require_crash_report_path(request: dict[str, object]) -> str:
+    value = require_control_string(request, "source")
+    assert value is not None
+    path = PurePosixPath(value)
+    if (
+        path.is_absolute()
+        or value in {".", ""}
+        or "\x00" in value
+        or any(ord(character) < 32 for character in value)
+        or any(part in {"", ".", ".."} for part in path.parts)
+        or path.suffix.casefold() not in CRASH_REPORT_SUFFIXES
+    ):
+        raise TestbedError(
+            "crash report source must be one relative .ips, .log, or .txt path"
+        )
+    return value
+
+
+def require_optional_match(request: dict[str, object]) -> str | None:
+    value = require_control_string(request, "match", optional=True)
+    if value is None:
+        return None
+    if len(value) > 256 or any(ord(character) < 32 for character in value):
+        raise TestbedError("diagnostic match must be at most 256 printable characters")
+    return value
+
+
 def resolve_external_output_path(value: str) -> Path:
     path = Path(value).expanduser().resolve()
     repository = REPO_ROOT.resolve()
@@ -1639,6 +1733,32 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def write_bounded_tail(
+    source: Path, destination: Path, maximum_bytes: int
+) -> tuple[int, int, bool]:
+    source_bytes = source.stat().st_size
+    with source.open("rb") as handle:
+        if source_bytes > maximum_bytes:
+            handle.seek(-maximum_bytes, os.SEEK_END)
+        payload = handle.read(maximum_bytes)
+    truncated = source_bytes > len(payload)
+    if truncated and b"\n" in payload:
+        payload = payload.split(b"\n", 1)[1]
+    created = False
+    try:
+        descriptor = os.open(
+            destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
+        )
+        created = True
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(payload)
+    except OSError as error:
+        if created:
+            destination.unlink(missing_ok=True)
+        raise TestbedError("could not write the diagnostic artifact") from error
+    return source_bytes, len(payload), truncated
+
+
 def control_capabilities(upstream: object) -> dict[str, object]:
     available = []
     if isinstance(upstream, dict):
@@ -1647,6 +1767,7 @@ def control_capabilities(upstream: object) -> dict[str, object]:
             available = sorted(
                 command for command in commands if isinstance(command, str)
             )
+    _, system_log_version, system_log_available = idevicesyslog_observation()
     return {
         "operations": [
             {
@@ -1690,6 +1811,12 @@ def control_capabilities(upstream: object) -> dict[str, object]:
                 "mutating": True,
             },
             {
+                "operation": "application.uninstall",
+                "route": "ios.coredevice",
+                "mutating": True,
+                "effect": "installed-app absence readback",
+            },
+            {
                 "operation": "application.copy_to",
                 "route": "ios.coredevice",
                 "mutating": True,
@@ -1717,6 +1844,40 @@ def control_capabilities(upstream: object) -> dict[str, object]:
                 "scope": "application_stdout_stderr",
                 "requires": "transactional_session",
                 "defaultMaximumBytes": DEFAULT_LOG_BYTES,
+                "maximumBytes": MAX_TRANSFER_BYTES,
+            },
+            {
+                "operation": "diagnostics.system_logs.start",
+                "route": "ios.libimobiledevice.os_trace_relay",
+                "mutating": True,
+                "scope": "system_os_log",
+                "requires": "transactional_session",
+                "sourceMaximumBytes": MAX_TRANSFER_BYTES,
+                "available": system_log_available,
+                "providerVersion": system_log_version,
+            },
+            {
+                "operation": "diagnostics.system_logs.collect",
+                "route": "ios.libimobiledevice.os_trace_relay",
+                "mutating": False,
+                "scope": "system_os_log",
+                "requires": "transactional_session",
+                "defaultMaximumBytes": DEFAULT_LOG_BYTES,
+                "maximumBytes": MAX_TRANSFER_BYTES,
+                "available": system_log_available,
+                "providerVersion": system_log_version,
+            },
+            {
+                "operation": "diagnostics.crashes.list",
+                "route": "ios.coredevice",
+                "mutating": False,
+                "scope": "systemCrashLogs",
+            },
+            {
+                "operation": "diagnostics.crashes.collect",
+                "route": "ios.coredevice",
+                "mutating": False,
+                "scope": "systemCrashLogs",
                 "maximumBytes": MAX_TRANSFER_BYTES,
             },
             {
@@ -1750,7 +1911,6 @@ def control_capabilities(upstream: object) -> dict[str, object]:
             "filesystem_wide_access",
             "protected_authentication",
             "wake_keyguard_control",
-            "system_os_log",
         ],
     }
 
@@ -2148,6 +2308,256 @@ def open_url_result(
     )
 
 
+def uninstall_result(config: Config, application: str) -> dict[str, object]:
+    started = time.monotonic()
+    device_name = selected_device_name(config)
+    record = require_development_app(device_name, application)
+    if record.get("removable") is not True:
+        raise TestbedError("the selected development application is not removable")
+    try:
+        devicectl_json(
+            [
+                "device",
+                "uninstall",
+                "app",
+                "--device",
+                device_name,
+                application,
+            ]
+        )
+    except TestbedError:
+        return ios_result(
+            "application.uninstall",
+            accepted=False,
+            route="ios.coredevice",
+            elapsed_ms=int((time.monotonic() - started) * 1000),
+            delivery="unknown",
+            effect="unknown",
+            uncertainty="CoreDevice did not confirm uninstall delivery",
+            error_code="coredevice_uninstall_failed",
+            message="CoreDevice application uninstall failed",
+        )
+    absent = not installed_app_records(device_name, application)
+    return ios_result(
+        "application.uninstall",
+        accepted=True,
+        route="ios.coredevice",
+        elapsed_ms=int((time.monotonic() - started) * 1000),
+        delivery="confirmed",
+        effect="confirmed" if absent else "unknown",
+        uncertainty=(
+            "none"
+            if absent
+            else "CoreDevice accepted uninstall but inventory still contains the bundle"
+        ),
+        data={
+            "applicationId": application,
+            "removable": True,
+            "absenceConfirmed": absent,
+            "containerRemoval": "platform_owned",
+        },
+    )
+
+
+def crash_report_records(config: Config) -> list[dict[str, object]]:
+    device_name = selected_device_name(config)
+    document = devicectl_json(
+        [
+            "device",
+            "info",
+            "files",
+            "--device",
+            device_name,
+            "--domain-type",
+            "systemCrashLogs",
+        ]
+    )
+    result = document.get("result")
+    files = result.get("files") if isinstance(result, dict) else None
+    if not isinstance(files, list):
+        raise TestbedError("CoreDevice crash inventory returned an invalid result")
+    return [record for record in files if isinstance(record, dict)]
+
+
+def normalized_crash_report(record: dict[str, object]) -> dict[str, object] | None:
+    relative = record.get("relativePath")
+    metadata = record.get("metadata")
+    resources = record.get("resources")
+    if (
+        not isinstance(relative, str)
+        or not isinstance(metadata, dict)
+        or not isinstance(resources, dict)
+        or resources.get("isDirectory") is True
+        or resources.get("isReadable") is not True
+    ):
+        return None
+    path = PurePosixPath(relative)
+    if (
+        path.is_absolute()
+        or any(ord(character) < 32 for character in relative)
+        or any(part in {"", ".", ".."} for part in path.parts)
+        or path.suffix.casefold() not in CRASH_REPORT_SUFFIXES
+    ):
+        return None
+    size = metadata.get("size")
+    modified = metadata.get("lastModDate")
+    if not isinstance(size, int) or size < 0:
+        return None
+    return {
+        "path": relative,
+        "name": path.name,
+        "bytes": size,
+        "modifiedAt": modified if isinstance(modified, str) else None,
+        "format": path.suffix.casefold().removeprefix("."),
+    }
+
+
+def crash_list_result(
+    config: Config, match: str | None
+) -> dict[str, object]:
+    started = time.monotonic()
+    try:
+        reports = [
+            normalized
+            for record in crash_report_records(config)
+            if (normalized := normalized_crash_report(record)) is not None
+        ]
+    except TestbedError:
+        return ios_result(
+            "diagnostics.crashes.list",
+            accepted=False,
+            route="ios.coredevice",
+            elapsed_ms=int((time.monotonic() - started) * 1000),
+            delivery="not_applicable",
+            effect="unknown",
+            uncertainty="CoreDevice crash-report observation failed",
+            error_code="coredevice_crash_inventory_failed",
+            message="CoreDevice crash-report inventory failed",
+        )
+    if match is not None:
+        folded = match.casefold()
+        reports = [
+            report
+            for report in reports
+            if folded in str(report["path"]).casefold()
+        ]
+    reports.sort(
+        key=lambda report: (
+            str(report.get("modifiedAt") or ""),
+            str(report["path"]),
+        ),
+        reverse=True,
+    )
+    limit = 512
+    return ios_result(
+        "diagnostics.crashes.list",
+        accepted=True,
+        route="ios.coredevice",
+        elapsed_ms=int((time.monotonic() - started) * 1000),
+        delivery="not_applicable",
+        effect="not_applicable",
+        uncertainty="none",
+        data={
+            "reports": reports[:limit],
+            "count": min(len(reports), limit),
+            "truncated": len(reports) > limit,
+            "scope": "systemCrashLogs",
+            "matchApplied": match is not None,
+        },
+    )
+
+
+def crash_collect_result(
+    config: Config,
+    source_text: str,
+    destination_text: str,
+    maximum_bytes: int,
+) -> dict[str, object]:
+    started = time.monotonic()
+    records = {
+        str(normalized["path"]): normalized
+        for record in crash_report_records(config)
+        if (normalized := normalized_crash_report(record)) is not None
+    }
+    selected = records.get(source_text)
+    if selected is None:
+        raise TestbedError("the exact readable crash report is not present")
+    if int(selected["bytes"]) > maximum_bytes:
+        raise TestbedError("crash report exceeds maxBytes")
+    device_name = selected_device_name(config)
+    destination = resolve_external_output_path(destination_text)
+    destination_created = False
+    try:
+        with tempfile.TemporaryDirectory(prefix="ios-crash-artifact-") as directory:
+            temporary = Path(directory) / "report"
+            devicectl_json(
+                [
+                    "device",
+                    "copy",
+                    "from",
+                    "--device",
+                    device_name,
+                    "--source",
+                    source_text,
+                    "--destination",
+                    str(temporary),
+                    "--domain-type",
+                    "systemCrashLogs",
+                ]
+            )
+            if not temporary.is_file():
+                raise TestbedError("CoreDevice returned no crash-report file")
+            size = temporary.stat().st_size
+            if size > maximum_bytes:
+                raise TestbedError("crash report exceeds maxBytes")
+            digest = sha256_file(temporary)
+            descriptor = os.open(
+                destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
+            )
+            destination_created = True
+            with temporary.open("rb") as source_handle, os.fdopen(
+                descriptor, "wb"
+            ) as destination_handle:
+                shutil.copyfileobj(source_handle, destination_handle)
+    except TestbedError:
+        if destination_created:
+            destination.unlink(missing_ok=True)
+        return ios_result(
+            "diagnostics.crashes.collect",
+            accepted=False,
+            route="ios.coredevice",
+            elapsed_ms=int((time.monotonic() - started) * 1000),
+            delivery="not_applicable",
+            effect="unknown",
+            uncertainty="CoreDevice crash-report collection failed",
+            error_code="coredevice_crash_collect_failed",
+            message="CoreDevice crash-report collection failed",
+        )
+    except OSError as error:
+        if destination_created:
+            destination.unlink(missing_ok=True)
+        raise TestbedError("could not write the crash-report artifact") from error
+    return ios_result(
+        "diagnostics.crashes.collect",
+        accepted=True,
+        route="ios.coredevice",
+        elapsed_ms=int((time.monotonic() - started) * 1000),
+        delivery="not_applicable",
+        effect="not_applicable",
+        uncertainty="none",
+        data={
+            "artifactPath": str(destination),
+            "source": source_text,
+            "bytes": size,
+            "sha256": digest,
+            "format": selected["format"],
+            "modifiedAt": selected["modifiedAt"],
+            "scope": "systemCrashLogs",
+            "removedFromDevice": False,
+        },
+    )
+
+
 def require_transactional_session(config: Config, operation: str) -> None:
     if not active_nested_lease(config):
         raise TestbedError(
@@ -2230,20 +2640,9 @@ def log_collect_result(
     if state_root not in source.parents or not source.is_file():
         raise TestbedError("Agent Device log artifact escaped its private state")
     destination = resolve_external_output_path(output_text)
-    source_bytes = source.stat().st_size
-    with source.open("rb") as handle:
-        if source_bytes > maximum_bytes:
-            handle.seek(-maximum_bytes, os.SEEK_END)
-        payload = handle.read(maximum_bytes)
-    truncated = source_bytes > len(payload)
-    if truncated and b"\n" in payload:
-        payload = payload.split(b"\n", 1)[1]
-    try:
-        with destination.open("xb") as handle:
-            handle.write(payload)
-    except OSError as error:
-        destination.unlink(missing_ok=True)
-        raise TestbedError("could not write the log artifact") from error
+    source_bytes, written_bytes, truncated = write_bounded_tail(
+        source, destination, maximum_bytes
+    )
     return ios_result(
         "diagnostics.logs.collect",
         accepted=True,
@@ -2254,12 +2653,216 @@ def log_collect_result(
         uncertainty="none",
         data={
             "artifactPath": str(destination),
-            "bytes": len(payload),
-            "lineCount": len(payload.splitlines()),
+            "bytes": written_bytes,
+            "lineCount": len(destination.read_bytes().splitlines()),
             "sourceBytes": source_bytes,
             "truncated": truncated,
             "scope": "application_stdout_stderr",
             "systemLogsIncluded": False,
+        },
+    )
+
+
+def read_system_log_state(config: Config) -> dict[str, object] | None:
+    path = config.system_log_state_path
+    if not path.exists():
+        return None
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise TestbedError("system-log capture state is invalid") from error
+    if (
+        not isinstance(value, dict)
+        or value.get("schema") != SYSTEM_LOG_SCHEMA
+        or not isinstance(value.get("pid"), int)
+        or not isinstance(value.get("leaseToken"), str)
+    ):
+        raise TestbedError("system-log capture state is invalid")
+    return value
+
+
+def system_log_worker_matches(pid: int) -> bool:
+    if not pid_is_alive(pid):
+        return False
+    result = run_capture(
+        ["ps", "-p", str(pid), "-o", "command="], check=False
+    )
+    return result.returncode == 0 and str(SYSTEM_LOG_WORKER) in result.stdout
+
+
+def remove_system_log_state(config: Config, *, remove_source: bool) -> None:
+    config.system_log_state_path.unlink(missing_ok=True)
+    config.system_log_ready_path.unlink(missing_ok=True)
+    config.system_log_worker_stderr_path.unlink(missing_ok=True)
+    if remove_source:
+        config.system_log_source_path.unlink(missing_ok=True)
+
+
+def stop_system_log_capture(
+    config: Config, lease_token: str | None, *, discard: bool
+) -> bool:
+    state = read_system_log_state(config)
+    if state is None:
+        if discard:
+            remove_system_log_state(config, remove_source=True)
+        return False
+    if lease_token is not None and not secrets.compare_digest(
+        str(state["leaseToken"]), lease_token
+    ):
+        raise TestbedError("system-log capture belongs to a different session")
+    pid = int(state["pid"])
+    if pid_is_alive(pid):
+        if not system_log_worker_matches(pid):
+            raise TestbedError("refusing to stop an unverified system-log process")
+        os.kill(pid, signal.SIGTERM)
+        deadline = time.monotonic() + 10
+        while pid_is_alive(pid) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        if pid_is_alive(pid):
+            os.kill(pid, signal.SIGKILL)
+            deadline = time.monotonic() + 2
+            while pid_is_alive(pid) and time.monotonic() < deadline:
+                time.sleep(0.05)
+        if pid_is_alive(pid):
+            raise TestbedError("system-log worker did not stop")
+    config.system_log_state_path.unlink(missing_ok=True)
+    config.system_log_ready_path.unlink(missing_ok=True)
+    config.system_log_worker_stderr_path.unlink(missing_ok=True)
+    if discard:
+        config.system_log_source_path.unlink(missing_ok=True)
+    return True
+
+
+def system_log_start_result(config: Config) -> dict[str, object]:
+    lease = active_nested_lease(config)
+    if lease is None:
+        raise TestbedError(
+            "diagnostics.system_logs.start requires bin/ios-device session -- COMMAND"
+        )
+    binary, version, supported = idevicesyslog_observation()
+    if binary is None or not supported:
+        raise TestbedError(
+            "idevicesyslog is unavailable; install libimobiledevice 1.4.0 or newer"
+        )
+    existing = read_system_log_state(config)
+    if existing is not None and system_log_worker_matches(int(existing["pid"])):
+        raise TestbedError("a system-log capture is already active")
+    remove_system_log_state(config, remove_source=True)
+    device = discover_selected_device(config)
+    identifier = device_identifier(device)
+    if not identifier:
+        raise TestbedError("the selected iOS device has no stable identifier")
+    config.state_dir.mkdir(parents=True, exist_ok=True)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "IOS_DEVICE_SYSTEM_LOG_BINARY": binary,
+            "IOS_DEVICE_SYSTEM_LOG_DEVICE": identifier,
+            "IOS_DEVICE_SYSTEM_LOG_OUTPUT": str(config.system_log_source_path),
+            "IOS_DEVICE_SYSTEM_LOG_READY": str(config.system_log_ready_path),
+        }
+    )
+    started = time.monotonic()
+    stderr_descriptor = os.open(
+        config.system_log_worker_stderr_path,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+        0o600,
+    )
+    with os.fdopen(stderr_descriptor, "wb") as stderr_handle:
+        process = subprocess.Popen(
+            [sys.executable, str(SYSTEM_LOG_WORKER)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=stderr_handle,
+            env=environment,
+            start_new_session=True,
+        )
+    state = {
+        "schema": SYSTEM_LOG_SCHEMA,
+        "pid": process.pid,
+        "leaseToken": lease.token,
+        "startedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        descriptor = os.open(
+            config.system_log_state_path,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+        )
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(state, handle)
+            handle.write("\n")
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                break
+            if config.system_log_ready_path.exists():
+                time.sleep(0.25)
+                if process.poll() is None:
+                    return ios_result(
+                        "diagnostics.system_logs.start",
+                        accepted=True,
+                        route="ios.libimobiledevice.os_trace_relay",
+                        elapsed_ms=int((time.monotonic() - started) * 1000),
+                        delivery="confirmed",
+                        effect="confirmed",
+                        uncertainty="none",
+                        data={
+                            "capture": "active",
+                            "scope": "system_os_log",
+                            "provider": "libimobiledevice",
+                            "providerVersion": version,
+                            "sourceMaximumBytes": MAX_TRANSFER_BYTES,
+                        },
+                    )
+            time.sleep(0.05)
+        raise TestbedError("idevicesyslog did not establish a live capture")
+    except (OSError, TestbedError):
+        try:
+            stop_system_log_capture(config, lease.token, discard=True)
+        except TestbedError:
+            pass
+        raise
+
+
+def system_log_collect_result(
+    config: Config, output_text: str, maximum_bytes: int
+) -> dict[str, object]:
+    lease = active_nested_lease(config)
+    if lease is None:
+        raise TestbedError(
+            "diagnostics.system_logs.collect requires bin/ios-device session -- COMMAND"
+        )
+    destination = resolve_external_output_path(output_text)
+    started = time.monotonic()
+    if not stop_system_log_capture(config, lease.token, discard=False):
+        raise TestbedError("no system-log capture is active")
+    source = config.system_log_source_path.resolve()
+    if not source.is_file() or source.parent != config.state_dir.resolve():
+        raise TestbedError("system-log capture produced no private artifact")
+    try:
+        source_bytes, written_bytes, truncated = write_bounded_tail(
+            source, destination, maximum_bytes
+        )
+        line_count = len(destination.read_bytes().splitlines())
+    finally:
+        source.unlink(missing_ok=True)
+    return ios_result(
+        "diagnostics.system_logs.collect",
+        accepted=True,
+        route="ios.libimobiledevice.os_trace_relay",
+        elapsed_ms=int((time.monotonic() - started) * 1000),
+        delivery="not_applicable",
+        effect="not_applicable",
+        uncertainty="none",
+        data={
+            "artifactPath": str(destination),
+            "bytes": written_bytes,
+            "lineCount": line_count,
+            "sourceBytes": source_bytes,
+            "truncated": truncated,
+            "scope": "system_os_log",
+            "provider": "libimobiledevice",
         },
     )
 
@@ -2471,6 +3074,9 @@ def execute_control_request(
         url = require_url(request)
         relaunch = require_control_bool(request, "relaunch")
         return open_url_result(config, application, url, relaunch)
+    if operation == "application.uninstall":
+        application = require_bundle_identifier(request)
+        return uninstall_result(config, application)
     if operation in {"application.copy_to", "application.copy_from"}:
         application = require_bundle_identifier(request)
         maximum_bytes = require_max_bytes(request)
@@ -2494,6 +3100,21 @@ def execute_control_request(
         assert output is not None
         maximum_bytes = require_max_bytes(request, default=DEFAULT_LOG_BYTES)
         return log_collect_result(config, output, maximum_bytes)
+    if operation == "diagnostics.system_logs.start":
+        return system_log_start_result(config)
+    if operation == "diagnostics.system_logs.collect":
+        output = require_control_string(request, "output")
+        assert output is not None
+        maximum_bytes = require_max_bytes(request, default=DEFAULT_LOG_BYTES)
+        return system_log_collect_result(config, output, maximum_bytes)
+    if operation == "diagnostics.crashes.list":
+        return crash_list_result(config, require_optional_match(request))
+    if operation == "diagnostics.crashes.collect":
+        source = require_crash_report_path(request)
+        output = require_control_string(request, "output")
+        assert output is not None
+        maximum_bytes = require_max_bytes(request)
+        return crash_collect_result(config, source, output, maximum_bytes)
     if operation == "application.launch":
         application = require_control_string(request, "application")
         assert application is not None
