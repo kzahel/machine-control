@@ -145,11 +145,12 @@ app's URL handling, not iOS's system routing decision between apps. System
 routing is observable only by pressing a link inside another app and reading
 the resulting foreground snapshot.
 
-**Decision:** Do not add an arbitrary-shell operation for iOS and do not treat
-its absence as a defect to fix. Stock iOS has no shell surface, and the project
-already exposes typed capabilities rather than provider dispatch. Cover the
-diagnostic needs that `shell` serves on Android with typed operations: URL
-open, bounded log capture, app inventory, uninstall, and container file copy.
+**Decision:** Do not list the missing `shell` counterpart as a defect to fix.
+A non-jailbroken iPhone runs no shell daemon, so no provider can offer one;
+CoreDevice reaches only app launch, app-container file copy, app and process
+inventory, uninstall, and reboot. Cover the diagnostic needs that `adb shell`
+serves on Android with one typed operation each: URL open, bounded log
+capture, app inventory, uninstall, and container file copy.
 
 **Decision:** Treat wake, keyguard, and PIN unlock as intentionally without iOS
 counterparts. The passcode-free dedicated profile makes them unnecessary and
