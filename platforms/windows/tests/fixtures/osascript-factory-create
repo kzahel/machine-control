@@ -9,4 +9,6 @@ fi
 
 script="$(</dev/stdin)"
 [[ "$script" == *'make new virtual machine'* ]]
+mkdir -p "$WINVM_FACTORY_UTM_DIRECTORY/$2.utm/Data"
+printf 'undersized store\n' >"$WINVM_FACTORY_UTM_DIRECTORY/$2.utm/Data/efi_vars.fd"
 printf 'provider-private-object-identity\n'

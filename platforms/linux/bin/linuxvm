@@ -51,9 +51,11 @@ Bootstrap:
                                  Install package profile and resident stack
   bootstrap-command              Print the initial visible-terminal command
   factory-create NAME CLOUD_IMAGE SEED_ISO
-                                 Create a stopped native x86_64 KVM appliance
+                                 Create a stopped appliance from a cloud image:
+                                 native x86_64 KVM on a Linux controller, or
+                                 ARM64 UTM on a macOS controller
   factory-detach-media           Remove the stopped candidate's NoCloud seed
-  target-id                      Resolve the configured domain's exact UUID
+  target-id                      Resolve the configured target's exact UUID
 EOF
 }
 

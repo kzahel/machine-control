@@ -13,11 +13,16 @@ Usage:
   image-factory.sh validate-cloud-image UBUNTU_CLOUD_IMAGE
   image-factory.sh render-seed USERNAME CONTROLLER_PUBLIC_KEY
 
-The source must be an official Ubuntu 24.04 amd64 QCOW2 cloud image. Generated
-NoCloud seed media is written under ignored .factory.local storage. The seed
-creates a locked, key-only dedicated-appliance account with passwordless sudo,
-installs QEMU guest-agent and the Ubuntu GNOME development package profile,
-enables GNOME Wayland auto-login, and never contains a private key or password.
+The source must be an official Ubuntu 24.04 QCOW2 cloud image matching the
+guest architecture of the selected route: amd64 for the libvirt/Linux factory,
+arm64 for the UTM/macOS factory. Generated NoCloud seed media is written under
+ignored .factory.local storage. The seed creates a locked, key-only
+dedicated-appliance account with passwordless sudo, installs QEMU guest-agent
+and the Ubuntu GNOME development package profile, enables GNOME Wayland
+auto-login, and never contains a private key or password.
+
+Seed media is architecture-independent. It is built with cloud-localds on a
+Linux controller and with hdiutil on a macOS controller.
 EOF
 }
 
@@ -50,12 +55,19 @@ render_seed() {
         printf 'Controller public key is not a supported OpenSSH public key.\n' >&2
         return 1
     fi
-    for command_name in jq cloud-localds; do
-        command -v "$command_name" >/dev/null 2>&1 || {
-            printf 'Required command not found: %s\n' "$command_name" >&2
-            return 1
-        }
-    done
+    local seed_builder=""
+    if command -v cloud-localds >/dev/null 2>&1; then
+        seed_builder=cloud-localds
+    elif [[ "$(uname -s)" == "Darwin" ]] && command -v hdiutil >/dev/null 2>&1; then
+        seed_builder=hdiutil
+    else
+        printf 'No NoCloud seed builder found: install cloud-image-utils.\n' >&2
+        return 1
+    fi
+    command -v jq >/dev/null 2>&1 || {
+        printf 'Required command not found: %s\n' jq >&2
+        return 1
+    }
     mkdir -p "$FACTORY_ROOT"
     chmod 700 "$FACTORY_ROOT"
     local output="$FACTORY_ROOT/linuxvm-seed.iso"
@@ -138,7 +150,13 @@ render_seed() {
       "local-hostname": "linux-test-appliance"
     }' >"$meta_data"
     chmod 600 "$user_data" "$meta_data"
-    cloud-localds "$output" "$user_data" "$meta_data"
+    # NoCloud requires the filesystem label to be exactly cidata/CIDATA.
+    if [[ "$seed_builder" == cloud-localds ]]; then
+        cloud-localds "$output" "$user_data" "$meta_data"
+    else
+        hdiutil makehybrid -iso -joliet -default-volume-name CIDATA \
+            -o "$output" "$staging" >/dev/null
+    fi
     chmod 600 "$output"
     printf 'seed media rendered in ignored factory storage\n'
 }

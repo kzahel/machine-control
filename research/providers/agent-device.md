@@ -59,3 +59,9 @@ bounded matching-cache refresh policy for declared Personal Teams.
 **Open:** Determine whether its Android route should wrap or complement the
 project's ADB/UIAutomator adapter and whether simulator and physical-device
 identities share one device-family facade.
+
+**Current — live-tested Personal Team setup:** Initial provisioning, runner
+preparation, Settings launch, semantic snapshots, a selector press with an
+independently observed page change, screenshot capture, and session cleanup
+passed. The profiles had a seven-day lifetime. Automatic renewal and two-Mac
+handoff remain untested. See [setup fixes](../../platforms/ios/docs/setup.md#first-time-setup-failures).

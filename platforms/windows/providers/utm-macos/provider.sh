@@ -308,7 +308,41 @@ APPLESCRIPT
         printf 'UTM did not create a stopped factory target.\n' >&2
         return 1
     fi
+    factory_repair_efi_varstore "$destination" || return 1
     printf 'factory target created\n'
+}
+
+# UTM's scripting interface pairs an aarch64 VM with the 32-bit Arm variable
+# store, so a scripted target can receive an efi_vars.fd far smaller than the
+# 64-MiB pflash bank QEMU's `virt` machine maps. edk2 then spins before it
+# examines any boot device: no guest packets, no disk writes, no serial output,
+# and a target that merely looks slow to start. Normalize the bank to the size
+# of the code image UTM pairs it with, keeping a correctly sized store as is.
+factory_repair_efi_varstore() {
+    local destination="$1"
+    local documents="${WINVM_FACTORY_UTM_DIRECTORY:-$HOME/Library/Containers/com.utmapp.UTM/Data/Documents}"
+    # Factory destinations are independent of the currently configured target.
+    local bundle="$documents/$destination.utm"
+    local varstore="$bundle/Data/efi_vars.fd"
+    local code="$HOME/Library/Containers/com.utmapp.UTM/Data/Library/Caches/qemu/edk2-aarch64-code.fd"
+    if [[ ! -f "$varstore" ]]; then
+        printf 'UTM did not create an EFI variable store for the new target.\n' >&2
+        return 1
+    fi
+    local expected=67108864 actual
+    if [[ -f "$code" ]]; then
+        expected="$(stat -f %z "$code")"
+    fi
+    actual="$(stat -f %z "$varstore")"
+    if [[ "$actual" == "$expected" ]]; then
+        return 0
+    fi
+    if ! dd if=/dev/zero of="$varstore" bs=1m count=$((expected / 1048576)) \
+            >/dev/null 2>&1; then
+        printf 'Could not normalize the EFI variable store.\n' >&2
+        return 1
+    fi
+    printf 'normalized EFI variable store: %s -> %s bytes\n' "$actual" "$expected" >&2
 }
 
 factory_detach_media() {

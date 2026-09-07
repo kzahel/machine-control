@@ -449,11 +449,15 @@ touch "$temporary/factory-media/windows.iso" \
     cd "$temporary"
     factory_output="$(WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-factory-create" \
     WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-factory-create" \
+    WINVM_FACTORY_UTM_DIRECTORY="$temporary/factory-targets" \
+    WINVM_UTM_BUNDLE="$temporary/unrelated-target.utm" \
     WINVM_TEST_FACTORY_UTMCTL_MARKER="$temporary/factory-created" \
     "$provider" factory-create fixture \
         factory-media/windows.iso factory-media/seed.iso \
         factory-media/boot.img)"
     [[ "$factory_output" == 'factory target created' ]]
+    [[ "$(wc -c <"$temporary/factory-targets/fixture.utm/Data/efi_vars.fd" | tr -d ' ')" == 67108864 ]]
+    [[ ! -e "$temporary/unrelated-target.utm" ]]
 )
 
 delete_capture="$temporary/delete-target"

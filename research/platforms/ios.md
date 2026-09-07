@@ -67,7 +67,9 @@ observes the exact matching cached runner's embedded provisioning dates.
 Personal Team policy refreshes matching rebuildable derived products within 48
 hours of expiry because Agent Device 0.20.5's cache key does not include profile
 expiration. The current accepted runner uses a long-lived Developer Program
-profile; free-team initial provisioning and renewal remain a live-test gap.
+profile. Personal Team initial provisioning and ordinary control are now
+live-tested through the [adopted provider](../providers/agent-device.md);
+automatic renewal remains a live-test gap.
 
 **Current — boundary:** A passcode-protected phone remains supported after its
 local first unlock. Its full reboot restores Apple's local passcode gate; the
@@ -81,7 +83,6 @@ device-family identity with capability differences. Keep passcode, biometrics,
 payments, account recovery, signing, and protected authorization visible as
 distinct gates. Test a fresh passcoded post-reboot projection on a separate
 fixture when available, and separately evaluate optional Apple Configurator
-supervision. Physically accept free Personal Team initial provisioning and
-near-expiry reprovisioning without conflating it with supervision or passcode
+supervision. Physically accept free Personal Team near-expiry reprovisioning without conflating it with supervision or passcode
 policy. Neither is required for the accepted passcode-free CoreDevice/XCTest
 route.

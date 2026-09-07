@@ -106,6 +106,11 @@ post-reboot `manual_first_unlock_required` result is unit-tested rather than
 repeating a credential-bearing live reboot after converting the dedicated
 phone to passcode-free operation.
 
+**Current — live-tested Personal Team:** Initial setup and ordinary control
+passed with seven-day profiles; see the [provider evidence](../research/providers/agent-device.md)
+and [setup fixes](../platforms/ios/docs/setup.md#first-time-setup-failures).
+Automatic renewal and two-Mac handoff remain untested.
+
 ## Recommended next work
 
 - Exercise the normalized passcoded post-reboot result on a separate dedicated
@@ -113,10 +118,9 @@ phone to passcode-free operation.
   test coverage on the accepted passcode-free phone.
 - Add a typed common bootstrap capability if more device families need pairing;
   until then keep iOS `pair` as an explicit native recovery operation.
-- Live-test free Personal Team initial provisioning and automatic near-expiry
-  rebuild independently of the accepted Developer Program runner cache and
-  independently of passcode policy. The seven-day lifecycle and bounded cache
-  refresh are implemented and unit-tested, not yet physically accepted.
+- Live-test Personal Team automatic near-expiry rebuild. Initial provisioning
+  and ordinary control have passed; bounded cache refresh remains unit-tested
+  rather than physically accepted.
 - Source-review and live-test free Apple Configurator supervision only if
   repeatable erase-and-prepare or supervision-only policy becomes necessary.
 - Decide physical/simulator identity and capability differences only after the

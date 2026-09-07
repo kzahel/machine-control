@@ -256,16 +256,54 @@ domain. After cloud-init and the normal resident bootstrap pass, stop the
 candidate and use `factory-detach-media` under the same claim to remove its
 NoCloud seed.
 
-## Earlier unattended-install direction
+## ARM64 UTM image factory
 
-The original ARM64/UTM plan called for autoinstall or cloud-init with:
+**Current implementation:** A macOS controller can create a fresh ARM64
+appliance from an explicit official Ubuntu 24.04 arm64 QCOW2 cloud image. This
+replaces the earlier manual UTM installation dependency and uses the same
+NoCloud seed contract as the libvirt route, so the two factories differ only in
+guest architecture and hypervisor.
 
-- a non-secret account/bootstrap policy chosen by the maintainer;
-- UTM guest and SPICE packages installed during provisioning;
-- GNOME auto-login and testbed idle policy made explicit;
-- a fixed logical display mode;
-- the semantic helper deployed from the checked-out repository; and
-- a post-install doctor run before the image becomes a clone source.
+The seed renderer is architecture-independent. It builds the NoCloud volume
+with `cloud-localds` on a Linux controller and with `hdiutil` on a macOS
+controller, and in both cases labels it `CIDATA` and writes only `user-data`
+and `meta-data`:
 
-Do not bake personal credentials, SSH private keys, or machine-specific IDs
-into that image.
+```bash
+scripts/image-factory.sh validate-cloud-image PRIVATE_UBUNTU_ARM64_CLOUD_IMAGE
+scripts/image-factory.sh render-seed APPLIANCE_USER CONTROLLER_PUBLIC_KEY
+bin/linuxvm factory-create PRIVATE_NAME PRIVATE_UBUNTU_ARM64_CLOUD_IMAGE \
+  .factory.local/linuxvm-seed.iso
+bin/linuxvm target-id
+```
+
+`factory-create` never mutates the source download. It copies the cloud image
+into ignored factory storage, expands that copy to 128 GiB, and refuses both an
+already-registered destination and an existing system image. UTM then imports
+the copy as a VirtIO system disk. The recipe creates a stopped aarch64 QEMU VM
+with UEFI, hardware acceleration, 4 GiB RAM, four cores, shared networking, and
+a `virtio-ramfb-gl` dynamic-resolution display.
+
+Removable seed media stays an external absolute-path reference rather than a
+copy inside the VM bundle, so the rendered ISO must remain readable until
+`factory-detach-media` removes it. A UTM bundle whose configuration lists a CD
+with no image name is therefore normal for this route; confirm the attachment
+from the running QEMU command line rather than from `config.plist`.
+
+Write the returned exact UUID into `LINUXVM_EXPECTED_UUID` in private
+configuration before any accepted target operation. Rerun common doctor,
+acquire a target-use claim, and carry that claim through cloud-init, the normal
+resident bootstrap, media detachment, and shutdown. After cloud-init and
+bootstrap pass, stop the candidate and use `factory-detach-media` under the same
+claim to remove its NoCloud seed.
+
+The seed contains no password or private key. Do not bake personal credentials,
+SSH private keys, or machine-specific IDs into the image.
+
+### UTM Apple Event timeouts
+
+UTM's scripting interface answers reads while its main thread is blocked, so a
+wedged long-running UTM process reports VM status normally but fails every
+mutation with `AppleEvent timed out. (-1712)`. Lifecycle and configuration
+commands then time out even though `utmctl list` looks healthy. Quit and
+relaunch UTM before treating this as a factory or configuration defect.

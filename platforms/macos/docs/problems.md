@@ -4,6 +4,73 @@ This is a living record of concrete gaps encountered while using MacVM
 Testbed. Keep observed behavior, effect, workaround, and a likely improvement
 direction together so later work can reproduce the problem.
 
+## Observed 2026-09-03 during first bring-up from a non-GUI controller session
+
+### The launchd runner starts a windowless VM, disabling the whole outer path
+
+Observed: `macvm up` bootstraps `tart run` into `gui/$UID` with
+`ProcessType Interactive` and `LimitLoadToSessionType Aqua`, and the VM boots
+and serves `tart exec` normally. But no Tart window is ever created, so every
+outer command fails with `No visible Tart window named 'NAME' was found; run
+without --no-graphics` even though `--no-graphics` was never passed. The window
+is not merely off-screen: a full `CGWindowListCopyWindowInfo(.optionAll)` sweep
+finds zero Tart windows.
+
+The cause is the controller session, not Tart and not the plist. When the
+invoking agent or terminal is not itself in an Aqua GUI session, processes it
+spawns get no window-server connection, and `launchctl bootstrap gui/$UID`
+from that context does not repair it. This reproduces cleanly with any GUI
+binary: launching one through LaunchServices (`open -a Calculator`) yields a
+window, while executing the same binary directly
+(`Calculator.app/Contents/MacOS/Calculator`) yields none. Screen Recording is
+irrelevant to this failure; window titles were fully readable throughout.
+
+Effect: on such a controller the documented bootstrap consent flow is
+unreachable, because granting guest Accessibility and Screen Recording needs
+the outer path and the outer path needs a window. Guest administration,
+`deploy-ui`, and `authorize-ui` still work, so the target looks healthy while
+`semantic`, `capture`, and `input` stay unavailable with no obvious cause.
+
+Workaround: start the VM through LaunchServices so it inherits the Aqua
+session, then activate it before each outer command, because the window is
+created unmapped and only appears on screen once the application is activated:
+
+```bash
+open -a "$(dirname "$(dirname "$MACVM_TART")")/libexec/tart.app" --args \
+  run --suspendable --capture-system-keys --dir=macvm-testbed:REPO:ro NAME
+open -a .../tart.app     # activate; otherwise the window stays off-screen
+bin/macvm screenshot /tmp/guest.png
+```
+
+A VM started this way is outside the launchd runner, so `macvm up` will not
+manage it and a later `up` reproduces the windowless state.
+
+Possible direction: have the provider detect the absent window and either
+launch through LaunchServices itself or fail with a diagnostic that names the
+non-GUI controller session as the cause, rather than suggesting
+`--no-graphics`. A one-shot `macvm activate-window` would also make the
+unmapped-window step explicit instead of incidental.
+
+### Changing run flags silently invalidates a suspend snapshot
+
+Observed: a VM suspended while `MACVM_FORBID_OUTER_UI=true` (so `tart run`
+omitted `--capture-system-keys`) refused to resume once that flag was flipped,
+failing with `VZErrorDomain Code=12 ... failed to restore with error "invalid
+argument"`. Virtualization.framework requires an identical machine
+configuration to restore saved state, and the outer-UI policy changes it.
+A stale `state.vzvmsave` also blocks a cold boot until removed, and killing a
+mid-suspend `tart` leaves `Failed to lock auxiliary storage`.
+
+Effect: a policy change unrelated to lifecycle can strand a suspended VM, and
+the error names neither the flag nor the snapshot.
+
+Workaround: shut the VM down rather than suspending it before changing
+outer-UI policy; to recover, remove `~/.tart/vms/NAME/state.vzvmsave` and cold
+boot, accepting the loss of suspended RAM state.
+
+Possible direction: record the run flags beside the snapshot and refuse to
+suspend, or warn on resume, when the effective configuration has changed.
+
 ## Observed 2026-08-10 during inner-only Aqua acceptance
 
 ### Tart system-key capture retained host keyboard focus

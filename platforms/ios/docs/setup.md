@@ -6,8 +6,8 @@
 - Node.js 24 or newer, pnpm 11, and Python 3.10 or newer.
 - An Apple development team signed into Xcode. The validated long-lived setup
   uses an Apple Developer Program team. A free Personal Team is supported as a
-  distinct short-lived signing profile, but remains to be physically accepted
-  with a separate free account/team.
+  distinct short-lived signing profile. Initial setup and ordinary control are
+  live-tested; automatic near-expiry renewal remains untested on a phone.
 - An Apple Development certificate with its private key available in the login
   Keychain.
 
@@ -82,6 +82,23 @@ Never put a real UDID in committed documentation or examples.
 The runner bundle ID must be unique to the developer team and dedicated to this
 testbed. It is separate from every application under test.
 
+## First-time setup failures
+
+These fixes were needed during a fresh Personal Team setup:
+
+- **Certificate exists but no valid signing identity:** the Mac had an expired
+  WWDR intermediate. Importing the current [Apple WWDR G3 intermediate](https://www.apple.com/certificateauthority/)
+  with normal certificate-chain validation resolved it.
+- **"Your team has no devices":** the provider builds for generic iOS, which
+  did not register the attached phone. A build targeting the exact phone with
+  `-allowProvisioningUpdates -allowProvisioningDeviceRegistration`, under the
+  adapter's transactional session, created the profiles. Normal `prepare`
+  worked afterward.
+- **Runner cannot connect:** Xcode's log reported an untrusted developer
+  certificate. On the iPhone, trust the developer under **Settings → General →
+  VPN & Device Management**. The phone needs internet access to verify it;
+  connecting to Wi-Fi resolved this failure. USB computer trust is separate.
+
 ## Provisioning lifetime
 
 Apple's [developer-account
@@ -103,8 +120,8 @@ bin/ios-device prepare
 bin/ios-device prepare --refresh  # explicit recovery/reprovisioning
 ```
 
-The current physical acceptance uses a long-lived Developer Program profile,
-so weekly reprovisioning is not expected. Certificates, membership, and
+The Developer Program acceptance uses a long-lived profile; the Personal Team
+acceptance observed a seven-day profile requiring renewal. Certificates, membership, and
 Xcode-managed profiles still expire on their normal schedules. Run `doctor`
 before a campaign and `prepare` after an Xcode, iOS, Agent Device, certificate,
 or provisioning change.
