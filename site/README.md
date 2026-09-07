@@ -28,6 +28,26 @@ pnpm generate-types
 pnpm build
 ```
 
+## Automatic production deployment
+
+GitHub Actions deploys the site after a push to `main` changes `site/` or the
+deployment workflow. The `production` GitHub environment must define these
+secrets:
+
+- `CLOUDFLARE_API_TOKEN`: a narrowly scoped **Edit Cloudflare Workers** token
+  for the account and the `machinecontrol.dev` zone;
+- `CLOUDFLARE_ACCOUNT_ID`: the owning Cloudflare account ID; and
+- `CLOUDFLARE_D1_DATABASE_ID`: the existing `machine-control-site` database ID.
+
+The workflow injects the database ID only into the ignored generated build
+configuration. Never add any of these values to this public repository. The
+existing `TURNSTILE_SECRET_KEY` remains a Worker secret in Cloudflare and is
+required at deploy time; it is not copied into GitHub.
+
+The workflow can also be rerun manually from GitHub Actions. D1 migrations are
+not applied automatically: apply and verify a migration deliberately before
+merging code that depends on it.
+
 ## Production resources
 
 The Worker has a D1 binding named `SIGNUPS`, a public `TURNSTILE_SITE_KEY`

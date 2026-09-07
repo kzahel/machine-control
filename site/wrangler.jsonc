@@ -23,6 +23,11 @@
 	"vars": {
 		"TURNSTILE_SITE_KEY": "0x4AAAAAAEbiufLao7TLs8db"
 	},
+	"secrets": {
+		"required": [
+			"TURNSTILE_SECRET_KEY"
+		]
+	},
 	"d1_databases": [
 		{
 			"binding": "SIGNUPS",
