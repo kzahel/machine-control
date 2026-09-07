@@ -55,7 +55,8 @@ android    physical   ready
 
 provider        XCTest
 device          physical
-observation     semantic + screenshot</code></pre>
+observation     semantic + screenshot
+diagnostics     app logs + os_log + crashes</code></pre>
         </div>
       </div>
     </section>
@@ -109,8 +110,8 @@ observation     semantic + screenshot</code></pre>
               </div>
               <div>
                 <strong>iOS</strong>
-                <span>CoreDevice · XCTest · screenshots/actions</span>
-                <small>Working physical-device route</small>
+                <span>CoreDevice · XCTest UI · deploy · logs · crashes</span>
+                <small>Live-tested physical-device route</small>
               </div>
               <div>
                 <strong>Android</strong>
@@ -124,6 +125,54 @@ observation     semantic + screenshot</code></pre>
               </div>
             </div>
           </article>
+        </div>
+
+        <div class="ios-proof" id="ios">
+          <div class="ios-proof-copy">
+            <p class="eyebrow">Physical iOS · stock device</p>
+            <h3>Debug a real iPhone, end to end.</h3>
+            <p>
+              From one coding session, install and launch a development build,
+              inspect its XCTest accessibility state, act on the real UI, move
+              bounded test files, and collect the evidence that explains a
+              failure—not just a final screenshot.
+            </p>
+            <div class="ios-capabilities" aria-label="Current physical iOS capabilities">
+              <div><strong>Deploy and manage</strong><span>install · launch · terminate · uninstall</span></div>
+              <div><strong>Observe and act</strong><span>semantic UI · screenshots · tap · fill · home</span></div>
+              <div><strong>Diagnose</strong><span>app logs · system os_log · crash reports</span></div>
+              <div><strong>Exchange test data</strong><span>deep-link payloads · app-container files</span></div>
+            </div>
+            <p class="ios-constraint">
+              Uses CoreDevice and XCTest through an authorized Mac, plus a
+              narrow libimobiledevice system-log route. The phone stays stock:
+              no jailbreak or general shell, and passcodes, biometrics, and
+              protected credentials remain local to the device.
+            </p>
+            <a class="text-link" href="https://github.com/kzahel/machine-control/tree/main/platforms/ios">
+              Explore the physical iOS guide →
+            </a>
+          </div>
+          <div class="ios-proof-terminal" aria-label="Example physical iOS debugging workflow">
+            <div class="terminal-heading">
+              <span>real iPhone debug loop</span>
+              <span>CoreDevice + XCTest</span>
+            </div>
+            <pre><code><span class="prompt">$</span> mc --target ios target doctor
+ready             true
+device             physical
+
+<span class="prompt">$</span> mc --target ios ios system-logs start
+<span class="prompt">$</span> mc --target ios ios application launch \
+    com.example.app --relaunch
+<span class="prompt">$</span> mc --target ios ios snapshot --interactive
+observation        semantic + screenshot
+
+<span class="prompt">$</span> mc --target ios ios system-logs collect \
+    /tmp/ios-system.log
+<span class="prompt">$</span> mc --target ios ios crashes list
+evidence           bounded + route-reported</code></pre>
+          </div>
         </div>
 
         <div class="host-support" id="vm-hosts">
@@ -336,7 +385,7 @@ observation     semantic + screenshot</code></pre>
           <div class="status-row" role="row"><strong>macOS</strong><span>Common desktop · AX / Quartz / Cua</span><em>Accepted VM appliance</em></div>
           <div class="status-row" role="row"><strong>Linux</strong><span>Common desktop · AT-SPI / Wayland</span><em>Accepted VM appliance</em></div>
           <div class="status-row" role="row"><strong>ChromeOS</strong><span>Desktop accessibility · CDP · native capture/input</span><em>Working physical reference</em></div>
-          <div class="status-row" role="row"><strong>iOS</strong><span>CoreDevice lifecycle · XCTest semantics/actions</span><em>Working physical-device route</em></div>
+          <div class="status-row" role="row"><strong>iOS</strong><span>CoreDevice deploy/lifecycle · XCTest UI · app/system logs · crash reports</span><em>Live-tested physical-device route</em></div>
           <div class="status-row" role="row"><strong>Android</strong><span>ADB administration · deploy · capture/input/logs</span><em>Working handheld foundation</em></div>
           <div class="status-row" role="row"><strong>Other</strong><span>Quest · Steam Deck</span><em>Working specialized native routes</em></div>
         </div>
