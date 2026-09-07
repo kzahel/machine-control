@@ -56,6 +56,16 @@ the common client and sanitizes its structured results. Agent Device's semantic
 build and signing settings but not provisioning expiry, so the adapter owns a
 bounded matching-cache refresh policy for declared Personal Teams.
 
+**Current — source-reviewed physical-iOS diagnostics:** On a physical device,
+`open <url>` routes through CoreDevice `process launch --payload-url` and
+requires an already-known app bundle identifier, so the app must be opened
+first or the host-plus-URL form used. The XCTest-backed open path rejects deep
+links and launch arguments. `logs clear --restart` relaunches the session app
+through `process launch --console` to capture stdout and stderr; there is no
+system `os_log` stream. Neither path is live-tested by this project or exposed
+through the common facade; see the
+[platform report](../platforms/ios.md#route-comparison-for-uncovered-operations).
+
 **Open:** Determine whether its Android route should wrap or complement the
 project's ADB/UIAutomator adapter and whether simulator and physical-device
 identities share one device-family facade.

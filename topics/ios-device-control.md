@@ -111,7 +111,67 @@ passed with seven-day profiles; see the [provider evidence](../research/provider
 and [setup fixes](../platforms/ios/docs/setup.md#first-time-setup-failures).
 Automatic renewal and two-Mac handoff remain untested.
 
+## Operation coverage gap against the Android family
+
+The accepted iOS route was validated for interactive semantic work: launch,
+snapshot, press, fill, gestures, screenshot, Home, install, reboot, and lease
+recovery. Compared with the [Android family](android-family-control.md), the
+operations an agent needs to diagnose and reproduce application behavior are
+largely absent. The gap is in the wrapper and common facade, not in Apple's
+tooling; the [platform report](../research/platforms/ios.md#route-comparison-for-uncovered-operations)
+compares the candidate routes.
+
+| Operation | Android family | iOS today | Route available |
+| --- | --- | --- | --- |
+| Open a URL, custom scheme, or universal link | `shell am start -a VIEW` | Not exposed or live-tested; `launch` forwards raw arguments to Agent Device `open`, and the common facade has no URL operation | CoreDevice `process launch --payload-url`, already wrapped by Agent Device `open <url>` when the app bundle is known |
+| Device log capture | `logcat OUTPUT` bounded snapshot | Runner-side `logs` passthrough only, unproven on the physical phone; no system log stream | App stdout/stderr via CoreDevice `process launch --console` (Agent Device `logs clear --restart`); system `os_log` needs a libimobiledevice or pymobiledevice3 route |
+| Uninstall | `install` replaces; ADB uninstall | Absent | CoreDevice `uninstall app` |
+| Installed-app and process inventory | ADB package/process listing | Absent | CoreDevice `info apps`, `info processes` |
+| File transfer | ADB push/pull | Absent | CoreDevice `copy to|from` into a developer-installed app's data container |
+| Wake and keyguard | `wake`, `dismiss-keyguard`, supervised PIN `unlock` | Passcode-free profile needs none; passcoded phone stays human | Not applicable; a deliberate boundary, not a gap |
+| Arbitrary command execution | `shell -- COMMAND` | Absent | None on stock iOS; no counterpart exists without jailbreak |
+| Multi-touch, pinch, rotate, drag | Partial | Unproven | Runner-side, depends on Agent Device's XCTest runner |
+
+**Current:** `launch`, `logs`, and the `agent --` escape hatch can already reach
+Agent Device's URL open and console log paths, but neither has been exercised on
+the accepted phone, neither appears in the capability matrix, and the common
+`ios` family allowlists none of them.
+
+**Current — source-reviewed upstream behavior:** Agent Device 0.20.5 routes a
+physical-device URL open through CoreDevice `--payload-url` and requires an
+already-known app bundle identifier; its XCTest-backed open path rejects deep
+links and launch arguments outright. This means a URL open tests the named
+app's URL handling, not iOS's system routing decision between apps. System
+routing is observable only by pressing a link inside another app and reading
+the resulting foreground snapshot.
+
+**Decision:** Do not add an arbitrary-shell operation for iOS and do not treat
+its absence as a defect to fix. Stock iOS has no shell surface, and the project
+already exposes typed capabilities rather than provider dispatch. Cover the
+diagnostic needs that `shell` serves on Android with typed operations: URL
+open, bounded log capture, app inventory, uninstall, and container file copy.
+
+**Decision:** Treat wake, keyguard, and PIN unlock as intentionally without iOS
+counterparts. The passcode-free dedicated profile makes them unnecessary and
+the passcoded profile keeps them human.
+
+**Open:** Whether app-scoped console capture is sufficient for ordinary agent
+diagnosis or whether a system `os_log` stream justifies a second iOS provider
+dependency. Universal-link and push-notification debugging often needs
+SpringBoard and system-daemon lines that app stdout does not carry.
+
+**Open:** Whether the common facade should expose a `logs` result as a bounded
+file artifact, matching the Android `logcat OUTPUT` contract, or as inline
+sanitized text. Device logs can contain identifiers and URLs with embedded
+tokens, so the artifact path must stay out of Git and results.
+
 ## Recommended next work
+
+- Close the operation coverage gap through
+  [Tactical 031](../docs/tactical/031-ios-adb-parity-operations.md): URL open,
+  bounded log capture, uninstall, inventory, and container file copy, in that
+  order, each live-tested on the accepted phone and added to the capability
+  matrix before the common facade allowlists it.
 
 - Exercise the normalized passcoded post-reboot result on a separate dedicated
   fixture if one is available; do not restore a credential merely to increase

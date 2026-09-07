@@ -78,6 +78,39 @@ adapter does not enter the credential and reports protected interaction plus
 unit-tested; the earlier phone state live-demonstrated the passcode screen and
 need for local first unlock.
 
+## Route comparison for uncovered operations
+
+The adopted route covers interactive semantic control. The operations the
+[Android family](android.md) exposes for diagnosis and lifecycle are not yet
+covered on iOS; see the gap table in the
+[topic](../../topics/ios-device-control.md#operation-coverage-gap-against-the-android-family).
+Candidate routes per operation:
+
+| Operation | CoreDevice `devicectl` | Agent Device 0.20.5 | libimobiledevice / pymobiledevice3 |
+| --- | --- | --- | --- |
+| URL / deep link / universal link open | `device process launch --payload-url URL BUNDLE_ID`; requires the target bundle | `open <url>` wraps the same flag once the app bundle is known; XCTest-backed open rejects URLs | Not needed |
+| App stdout/stderr | `device process launch --console` attaches and waits | `logs clear --restart` relaunches through `--console`; `logs path` returns a file | Not needed |
+| System `os_log` stream | None | None | `idevicesyslog` or `pymobiledevice3 syslog live`; both stream from a paired USB device |
+| Uninstall | `device uninstall app BUNDLE_ID` | Not exposed for physical iOS | Alternative exists, not needed |
+| Installed apps / processes | `device info apps`, `device info processes` | Session-scoped only | Alternative exists, not needed |
+| File copy | `device copy to|from` with `--domain-type appDataContainer --domain-identifier BUNDLE_ID` | None | AFC routes; broader but a second dependency |
+| Arbitrary shell | None | None | None on stock iOS |
+| Crash and diagnostics bundle | `device sysdiagnose`, `device notification` | Crash-log helpers exist, unreviewed | Crash report pull routes exist |
+
+Evidence levels:
+
+- CoreDevice flags: `source-reviewed` from the installed Xcode 26.6 `devicectl`
+  help output; none of these flags is live-tested through the wrapper yet.
+- Agent Device URL open and console logs: `source-reviewed` in the pinned
+  0.20.5 distribution; not live-tested on the accepted phone.
+- libimobiledevice and pymobiledevice3: `discovered` only. Neither is
+  installed on the controller and neither has a provider dossier.
+
+**Decision:** Prefer CoreDevice for every operation it covers, reached through
+Agent Device where the pinned provider already wraps the same flag, so the
+wrapper keeps one signing and pairing model. Add a second provider dependency
+only if a system `os_log` stream proves necessary for ordinary agent diagnosis.
+
 **Open:** Decide whether physical and simulator routes share one stable
 device-family identity with capability differences. Keep passcode, biometrics,
 payments, account recovery, signing, and protected authorization visible as

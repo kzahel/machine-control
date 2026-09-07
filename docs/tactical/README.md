@@ -70,3 +70,4 @@ the commits' `Topic:` trailers and register that exact string in
 | [`028-linux-libvirt-controller-host.md`](028-linux-libvirt-controller-host.md) | complete | Native x86_64 Windows and Linux appliances on a hardware-accelerated Linux libvirt/QEMU/KVM controller host |
 | [`029-disruptive-target-use-claims.md`](029-disruptive-target-use-claims.md) | complete | UI-less ordinary/disruptive claim classes and authoritative outer VM capture/input enforcement |
 | [`030-chromeos-closed-lid-readiness.md`](030-chromeos-closed-lid-readiness.md) | in progress | Required ChromeOS closed-lid power policy, boot reapplication, doctor enforcement, and live SSH proof |
+| [`031-ios-adb-parity-operations.md`](031-ios-adb-parity-operations.md) | proposed | Typed iOS URL open, bounded log capture, uninstall, inventory, and container file copy to close the diagnostic gap against the Android family without an arbitrary shell |
