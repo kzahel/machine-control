@@ -17,7 +17,11 @@ if [[ "$WINVM_COMMON_LOADED" != "1" && -f "$WINVM_CONFIG_FILE" ]]; then
     # shellcheck source=/dev/null
     source "$WINVM_CONFIG_FILE"
 fi
-for winvm_environment_declaration in "${WINVM_ENVIRONMENT_OVERRIDES[@]}"; do
+# Bash 3.2 treats "${array[@]}" as unbound when the array is empty, so a plain
+# expansion aborts every caller under `set -u` when no WINVM_ variable is set.
+# The `+` form keeps this file safe under `set -u` on both 3.2 and 5.x.
+for winvm_environment_declaration in \
+    ${WINVM_ENVIRONMENT_OVERRIDES[@]+"${WINVM_ENVIRONMENT_OVERRIDES[@]}"}; do
     eval "$winvm_environment_declaration"
 done
 unset WINVM_ENVIRONMENT_OVERRIDES winvm_environment_declaration
