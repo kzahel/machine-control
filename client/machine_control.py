@@ -2322,11 +2322,29 @@ def ios_request(arguments: list[str]) -> dict[str, Any]:
         )
         return {"operation": "runner.prepare", "refresh": options.refresh}
     if command == "application":
-        if not rest or rest[0] not in {"install", "launch", "terminate"}:
+        if not rest or rest[0] not in {
+            "copy-from",
+            "copy-to",
+            "install",
+            "launch",
+            "list",
+            "open-url",
+            "terminate",
+        }:
             raise ClientError(
-                "usage", "ios application requires install, launch, or terminate"
+                "usage",
+                "ios application requires copy-from, copy-to, install, launch, "
+                "list, open-url, or terminate",
             )
         action, values = rest[0], rest[1:]
+        if action == "list":
+            options = parse_options(
+                values, [(('application',), {"nargs": "?"})]
+            )
+            request: dict[str, Any] = {"operation": "application.list"}
+            if options.application:
+                request["application"] = options.application
+            return request
         if action == "install":
             if len(values) != 1:
                 raise ClientError(
@@ -2346,10 +2364,66 @@ def ios_request(arguments: list[str]) -> dict[str, Any]:
                 "application": options.application,
                 "relaunch": options.relaunch,
             }
+        if action == "open-url":
+            options = parse_options(
+                values,
+                [
+                    (("application",), {}),
+                    (("url",), {}),
+                    (("--relaunch",), {"action": "store_true"}),
+                ],
+            )
+            return {
+                "operation": "application.open_url",
+                "application": options.application,
+                "url": options.url,
+                "relaunch": options.relaunch,
+            }
+        if action in {"copy-to", "copy-from"}:
+            options = parse_options(
+                values,
+                [
+                    (("application",), {}),
+                    (("source",), {}),
+                    (("destination",), {}),
+                    (("--max-bytes",), {"type": int}),
+                ],
+            )
+            request = {
+                "operation": f"application.{action.replace('-', '_')}",
+                "application": options.application,
+                "source": options.source,
+                "destination": options.destination,
+            }
+            if options.max_bytes is not None:
+                request["maxBytes"] = options.max_bytes
+            return request
         options = parse_options(values, [(("application",), {"nargs": "?"})])
         request: dict[str, Any] = {"operation": "application.terminate"}
         if options.application:
             request["application"] = options.application
+        return request
+    if command == "logs":
+        if not rest or rest[0] not in {"start", "collect"}:
+            raise ClientError("usage", "ios logs requires start or collect")
+        action, values = rest[0], rest[1:]
+        if action == "start":
+            if values:
+                raise ClientError("usage", "ios logs start accepts no arguments")
+            return {"operation": "diagnostics.logs.start"}
+        options = parse_options(
+            values,
+            [
+                (("output",), {}),
+                (("--max-bytes",), {"type": int}),
+            ],
+        )
+        request = {
+            "operation": "diagnostics.logs.collect",
+            "output": options.output,
+        }
+        if options.max_bytes is not None:
+            request["maxBytes"] = options.max_bytes
         return request
     if command == "snapshot":
         options = parse_options(
@@ -3009,7 +3083,9 @@ Commands:
   desktop raw|raw-local JSON       Send a provider-native resident request
   desktop artifact HANDLE [PATH]   Fetch a bounded resident artifact
   ios capabilities|runner prepare [--refresh]
-  ios application install|launch|terminate
+  ios application install|list|launch|open-url|terminate
+  ios application copy-to|copy-from
+  ios logs start|collect           Typed physical-iOS diagnostics
   ios snapshot|press|fill|home     Typed physical-iOS XCTest operations
   testbed -- ARG...                Explicit testbed escape hatch
   os -- ARG...                     Explicit guest administration escape hatch

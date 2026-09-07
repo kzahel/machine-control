@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import platform
@@ -14,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from urllib.parse import urlsplit
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -29,6 +31,11 @@ IDENTIFIER_PATTERNS = (
     re.compile(r"\b[0-9A-Fa-f]{24,}\b"),
 )
 DEVICE_IDENTIFIER = re.compile(r"^[0-9A-Fa-f]{8}-[0-9A-Fa-f-]{8,}$")
+BUNDLE_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.-]{1,254}$")
+URL_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*$")
+MAX_URL_LENGTH = 8192
+MAX_TRANSFER_BYTES = 16 * 1024 * 1024
+DEFAULT_LOG_BYTES = 1024 * 1024
 
 
 class TestbedError(RuntimeError):
@@ -937,8 +944,14 @@ def common_doctor_document(
                 "capabilities",
                 "runner.prepare",
                 "application.install",
+                "application.list",
                 "application.launch",
+                "application.open_url",
                 "application.terminate",
+                "application.copy_to",
+                "application.copy_from",
+                "diagnostics.logs.start",
+                "diagnostics.logs.collect",
                 "semantic.snapshot",
                 "semantic.press",
                 "semantic.fill",
@@ -1480,8 +1493,14 @@ IOS_CONTROL_OPERATIONS = {
     "capabilities",
     "runner.prepare",
     "application.install",
+    "application.list",
     "application.launch",
+    "application.open_url",
     "application.terminate",
+    "application.copy_to",
+    "application.copy_from",
+    "diagnostics.logs.start",
+    "diagnostics.logs.collect",
     "semantic.snapshot",
     "semantic.press",
     "semantic.fill",
@@ -1535,6 +1554,91 @@ def require_control_string(
     return value
 
 
+def require_control_bool(
+    request: dict[str, object], key: str, *, default: bool = False
+) -> bool:
+    value = request.get(key, default)
+    if not isinstance(value, bool):
+        raise TestbedError(f"iOS control operation {key} must be boolean")
+    return value
+
+
+def require_bundle_identifier(request: dict[str, object]) -> str:
+    value = require_control_string(request, "application")
+    assert value is not None
+    if not BUNDLE_IDENTIFIER.fullmatch(value) or ".." in value or "." not in value:
+        raise TestbedError(
+            "iOS control operation requires an exact application bundle identifier"
+        )
+    return value
+
+
+def require_url(request: dict[str, object]) -> str:
+    value = require_control_string(request, "url")
+    assert value is not None
+    if len(value) > MAX_URL_LENGTH or any(ord(character) < 32 for character in value):
+        raise TestbedError("application.open_url URL is invalid or too long")
+    parsed = urlsplit(value)
+    if not URL_SCHEME.fullmatch(parsed.scheme):
+        raise TestbedError("application.open_url requires an absolute URL")
+    if parsed.scheme.casefold() in {"data", "file", "javascript"}:
+        raise TestbedError("application.open_url URL scheme is unsupported")
+    if parsed.scheme.casefold() in {"http", "https"} and not parsed.hostname:
+        raise TestbedError("application.open_url HTTP URL requires a host")
+    return value
+
+
+def require_max_bytes(
+    request: dict[str, object], *, default: int = MAX_TRANSFER_BYTES
+) -> int:
+    value = request.get("maxBytes", default)
+    if (
+        not isinstance(value, int)
+        or isinstance(value, bool)
+        or value <= 0
+        or value > MAX_TRANSFER_BYTES
+    ):
+        raise TestbedError(
+            f"maxBytes must be between 1 and {MAX_TRANSFER_BYTES}"
+        )
+    return value
+
+
+def require_remote_container_path(request: dict[str, object], key: str) -> str:
+    value = require_control_string(request, key)
+    assert value is not None
+    path = Path(value)
+    if (
+        not value.startswith("/")
+        or value == "/"
+        or "\x00" in value
+        or any(part == ".." for part in path.parts)
+    ):
+        raise TestbedError(
+            f"application container {key} must be an absolute bounded path"
+        )
+    return value
+
+
+def resolve_external_output_path(value: str) -> Path:
+    path = Path(value).expanduser().resolve()
+    repository = REPO_ROOT.resolve()
+    if path == repository or repository in path.parents:
+        raise TestbedError("output path must be outside the public repository")
+    if path.exists():
+        raise TestbedError("output path already exists")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def control_capabilities(upstream: object) -> dict[str, object]:
     available = []
     if isinstance(upstream, dict):
@@ -1563,14 +1667,57 @@ def control_capabilities(upstream: object) -> dict[str, object]:
                 "effect": "installed-app inventory",
             },
             {
+                "operation": "application.list",
+                "route": "ios.coredevice",
+                "mutating": False,
+                "scope": "development_applications",
+            },
+            {
                 "operation": "application.launch",
                 "route": "ios.xctest",
                 "mutating": True,
             },
             {
+                "operation": "application.open_url",
+                "route": "ios.coredevice",
+                "mutating": True,
+                "scope": "direct_payload_to_named_bundle",
+                "systemRoutingObserved": False,
+            },
+            {
                 "operation": "application.terminate",
                 "route": "ios.xctest",
                 "mutating": True,
+            },
+            {
+                "operation": "application.copy_to",
+                "route": "ios.coredevice",
+                "mutating": True,
+                "scope": "appDataContainer",
+                "maximumBytes": MAX_TRANSFER_BYTES,
+            },
+            {
+                "operation": "application.copy_from",
+                "route": "ios.coredevice",
+                "mutating": False,
+                "scope": "appDataContainer",
+                "maximumBytes": MAX_TRANSFER_BYTES,
+            },
+            {
+                "operation": "diagnostics.logs.start",
+                "route": "ios.coredevice",
+                "mutating": True,
+                "scope": "application_stdout_stderr",
+                "requires": "transactional_session",
+            },
+            {
+                "operation": "diagnostics.logs.collect",
+                "route": "ios.coredevice",
+                "mutating": False,
+                "scope": "application_stdout_stderr",
+                "requires": "transactional_session",
+                "defaultMaximumBytes": DEFAULT_LOG_BYTES,
+                "maximumBytes": MAX_TRANSFER_BYTES,
             },
             {
                 "operation": "semantic.snapshot",
@@ -1598,6 +1745,13 @@ def control_capabilities(upstream: object) -> dict[str, object]:
         ],
         "upstreamAvailableCommands": available,
         "protectedAuthentication": "human_only",
+        "unsupported": [
+            "arbitrary_shell",
+            "filesystem_wide_access",
+            "protected_authentication",
+            "wake_keyguard_control",
+            "system_os_log",
+        ],
     }
 
 
@@ -1777,21 +1931,98 @@ def provider_control_result(
     )
 
 
-def installed_app_present(device_name: str, bundle_id: str) -> bool:
-    document = devicectl_json(
-        [
-            "device",
-            "info",
-            "apps",
-            "--device",
-            device_name,
-            "--bundle-id",
-            bundle_id,
-        ]
-    )
+def installed_app_records(
+    device_name: str, bundle_id: str | None = None
+) -> list[dict[str, object]]:
+    arguments = ["device", "info", "apps", "--device", device_name]
+    if bundle_id:
+        arguments.extend(["--bundle-id", bundle_id])
+    document = devicectl_json(arguments)
     result = document.get("result")
     apps = result.get("apps") if isinstance(result, dict) else None
-    return isinstance(apps, list) and bool(apps)
+    if not isinstance(apps, list):
+        raise TestbedError("CoreDevice app inventory returned an invalid result")
+    return [app for app in apps if isinstance(app, dict)]
+
+
+def installed_app_present(device_name: str, bundle_id: str) -> bool:
+    return bool(installed_app_records(device_name, bundle_id))
+
+
+def require_development_app(device_name: str, bundle_id: str) -> dict[str, object]:
+    records = installed_app_records(device_name, bundle_id)
+    if len(records) != 1:
+        raise TestbedError("the exact development application is not installed")
+    record = records[0]
+    if (
+        record.get("defaultApp") is not False
+        or record.get("builtByDeveloper") is not True
+    ):
+        raise TestbedError("the selected application is not a development app")
+    return record
+
+
+def normalized_application(record: dict[str, object]) -> dict[str, object]:
+    return {
+        "applicationId": record.get("bundleIdentifier"),
+        "name": record.get("name"),
+        "version": record.get("version"),
+        "buildVersion": record.get("bundleVersion"),
+        "builtByDeveloper": record.get("builtByDeveloper"),
+        "removable": record.get("removable"),
+    }
+
+
+def application_list_result(
+    config: Config, bundle_id: str | None
+) -> dict[str, object]:
+    started = time.monotonic()
+    device_name = selected_device_name(config)
+    try:
+        records = installed_app_records(device_name, bundle_id)
+    except TestbedError as error:
+        return ios_result(
+            "application.list",
+            accepted=False,
+            route="ios.coredevice",
+            elapsed_ms=int((time.monotonic() - started) * 1000),
+            delivery="not_applicable",
+            effect="unknown",
+            uncertainty="CoreDevice application observation failed",
+            error_code="coredevice_app_inventory_failed",
+            message=redact_config(str(error), config),
+        )
+    applications = [
+        normalized_application(record)
+        for record in records
+        if (
+            record.get("bundleIdentifier") != config.runner_bundle_id
+            and record.get("defaultApp") is False
+            and record.get("builtByDeveloper") is True
+        )
+    ]
+    applications.sort(
+        key=lambda app: (
+            str(app.get("name", "")).casefold(),
+            str(app.get("applicationId", "")),
+        )
+    )
+    limit = 256
+    return ios_result(
+        "application.list",
+        accepted=True,
+        route="ios.coredevice",
+        elapsed_ms=int((time.monotonic() - started) * 1000),
+        delivery="not_applicable",
+        effect="not_applicable",
+        uncertainty="none",
+        data={
+            "applications": applications[:limit],
+            "count": min(len(applications), limit),
+            "truncated": len(applications) > limit,
+            "scope": "development_applications",
+        },
+    )
 
 
 def install_control_result(config: Config, path_text: str) -> dict[str, object]:
@@ -1848,6 +2079,356 @@ def install_control_result(config: Config, path_text: str) -> dict[str, object]:
     )
 
 
+def provider_error_fields(
+    document: dict[str, object] | None, stderr: str, config: Config, *private: str
+) -> tuple[str, str]:
+    error = document.get("error") if isinstance(document, dict) else None
+    error_data = error if isinstance(error, dict) else {}
+    code = str(error_data.get("code", "PROVIDER_FAILED")).casefold()
+    message = str(error_data.get("message", stderr or "provider operation failed"))
+    for value in private:
+        message = message.replace(value, "<private>")
+    return f"agent_device_{code}", redact_config(message, config)
+
+
+def open_url_result(
+    config: Config, application: str, url: str, relaunch: bool
+) -> dict[str, object]:
+    device_name = selected_device_name(config)
+    require_development_app(device_name, application)
+    document, elapsed_ms, stderr = run_agent_json(
+        config,
+        [
+            "open",
+            application,
+            url,
+            *(["--relaunch"] if relaunch else []),
+        ],
+    )
+    success = isinstance(document, dict) and (
+        document.get("success") is True or document.get("ok") is True
+    )
+    if not success:
+        error_code, message = provider_error_fields(
+            document, stderr, config, application, url
+        )
+        return ios_result(
+            "application.open_url",
+            accepted=False,
+            route="ios.coredevice",
+            elapsed_ms=elapsed_ms,
+            delivery="unknown",
+            effect="unknown",
+            uncertainty="URL payload delivery was not confirmed",
+            error_code=error_code,
+            message=message,
+        )
+    data = document.get("data")
+    startup = data.get("startup") if isinstance(data, dict) else None
+    method = startup.get("method") if isinstance(startup, dict) else None
+    return ios_result(
+        "application.open_url",
+        accepted=True,
+        route="ios.coredevice",
+        elapsed_ms=elapsed_ms,
+        delivery="confirmed",
+        effect="unverifiable",
+        uncertainty=(
+            "the named bundle received a direct payload URL; use a following "
+            "snapshot or application assertion to observe its effect"
+        ),
+        data={
+            "applicationId": application,
+            "deliveryMode": "direct_payload_to_named_bundle",
+            "providerIntegration": "agent-device",
+            "providerMethod": method,
+            "relaunch": relaunch,
+            "systemRoutingObserved": False,
+        },
+    )
+
+
+def require_transactional_session(config: Config, operation: str) -> None:
+    if not active_nested_lease(config):
+        raise TestbedError(
+            f"{operation} requires bin/ios-device session -- COMMAND"
+        )
+
+
+def log_start_result(config: Config) -> dict[str, object]:
+    require_transactional_session(config, "diagnostics.logs.start")
+    document, elapsed_ms, stderr = run_agent_json(
+        config, ["logs", "clear", "--restart"]
+    )
+    data = document.get("data") if isinstance(document, dict) else None
+    success = isinstance(document, dict) and (
+        document.get("success") is True or document.get("ok") is True
+    )
+    restarted = data.get("restarted") is True if isinstance(data, dict) else False
+    if not success or not restarted:
+        error_code, message = provider_error_fields(document, stderr, config)
+        return ios_result(
+            "diagnostics.logs.start",
+            accepted=False,
+            route="ios.coredevice",
+            elapsed_ms=elapsed_ms,
+            delivery="unknown",
+            effect="unknown",
+            uncertainty="application console capture did not confirm restart",
+            error_code=error_code,
+            message=message,
+        )
+    return ios_result(
+        "diagnostics.logs.start",
+        accepted=True,
+        route="ios.coredevice",
+        elapsed_ms=elapsed_ms,
+        delivery="confirmed",
+        effect="confirmed",
+        uncertainty="none",
+        data={
+            "capture": "active",
+            "scope": "application_stdout_stderr",
+            "systemLogsIncluded": False,
+        },
+    )
+
+
+def log_collect_result(
+    config: Config, output_text: str, maximum_bytes: int
+) -> dict[str, object]:
+    require_transactional_session(config, "diagnostics.logs.collect")
+    started = time.monotonic()
+    stopped, _, stop_stderr = run_agent_json(config, ["logs", "stop"])
+    stop_data = stopped.get("data") if isinstance(stopped, dict) else None
+    stop_success = isinstance(stopped, dict) and (
+        stopped.get("success") is True or stopped.get("ok") is True
+    )
+    stopped_capture = (
+        isinstance(stop_data, dict) and stop_data.get("stopped") is True
+    )
+    if not stop_success or not stopped_capture:
+        error_code, message = provider_error_fields(
+            stopped, stop_stderr, config
+        )
+        return ios_result(
+            "diagnostics.logs.collect",
+            accepted=False,
+            route="ios.coredevice",
+            elapsed_ms=int((time.monotonic() - started) * 1000),
+            delivery="not_applicable",
+            effect="unknown",
+            uncertainty="application console capture could not be stopped",
+            error_code=error_code,
+            message=message,
+        )
+    source_value = stop_data.get("path")
+    if not isinstance(source_value, str) or not source_value:
+        raise TestbedError("Agent Device log stop returned no artifact path")
+    source = Path(source_value).expanduser().resolve()
+    state_root = config.agent_state_dir.resolve()
+    if state_root not in source.parents or not source.is_file():
+        raise TestbedError("Agent Device log artifact escaped its private state")
+    destination = resolve_external_output_path(output_text)
+    source_bytes = source.stat().st_size
+    with source.open("rb") as handle:
+        if source_bytes > maximum_bytes:
+            handle.seek(-maximum_bytes, os.SEEK_END)
+        payload = handle.read(maximum_bytes)
+    truncated = source_bytes > len(payload)
+    if truncated and b"\n" in payload:
+        payload = payload.split(b"\n", 1)[1]
+    try:
+        with destination.open("xb") as handle:
+            handle.write(payload)
+    except OSError as error:
+        destination.unlink(missing_ok=True)
+        raise TestbedError("could not write the log artifact") from error
+    return ios_result(
+        "diagnostics.logs.collect",
+        accepted=True,
+        route="ios.coredevice",
+        elapsed_ms=int((time.monotonic() - started) * 1000),
+        delivery="not_applicable",
+        effect="not_applicable",
+        uncertainty="none",
+        data={
+            "artifactPath": str(destination),
+            "bytes": len(payload),
+            "lineCount": len(payload.splitlines()),
+            "sourceBytes": source_bytes,
+            "truncated": truncated,
+            "scope": "application_stdout_stderr",
+            "systemLogsIncluded": False,
+        },
+    )
+
+
+def coredevice_copy_failure(operation: str, started: float) -> dict[str, object]:
+    return ios_result(
+        operation,
+        accepted=False,
+        route="ios.coredevice",
+        elapsed_ms=int((time.monotonic() - started) * 1000),
+        delivery="unknown",
+        effect="unknown",
+        uncertainty="CoreDevice failure left file delivery uncertain",
+        error_code="coredevice_copy_failed",
+        message="CoreDevice application-container copy failed",
+    )
+
+
+def copy_to_result(
+    config: Config,
+    application: str,
+    source_text: str,
+    destination_text: str,
+    maximum_bytes: int,
+) -> dict[str, object]:
+    started = time.monotonic()
+    source = Path(source_text).expanduser().resolve()
+    if not source.is_file():
+        raise TestbedError("application.copy_to source must be one existing file")
+    size = source.stat().st_size
+    if size > maximum_bytes:
+        raise TestbedError("application.copy_to source exceeds maxBytes")
+    device_name = selected_device_name(config)
+    require_development_app(device_name, application)
+    arguments = [
+        "device",
+        "copy",
+        "to",
+        "--device",
+        device_name,
+        "--source",
+        str(source),
+        "--destination",
+        destination_text,
+        "--domain-type",
+        "appDataContainer",
+        "--domain-identifier",
+        application,
+    ]
+    try:
+        devicectl_json(arguments)
+    except TestbedError:
+        return coredevice_copy_failure("application.copy_to", started)
+    source_digest = sha256_file(source)
+    observed = False
+    try:
+        with tempfile.TemporaryDirectory(prefix="ios-copy-readback-") as directory:
+            readback = Path(directory) / "file"
+            devicectl_json(
+                [
+                    "device",
+                    "copy",
+                    "from",
+                    "--device",
+                    device_name,
+                    "--source",
+                    destination_text,
+                    "--destination",
+                    str(readback),
+                    "--domain-type",
+                    "appDataContainer",
+                    "--domain-identifier",
+                    application,
+                ]
+            )
+            observed = readback.is_file() and sha256_file(readback) == source_digest
+    except TestbedError:
+        observed = False
+    return ios_result(
+        "application.copy_to",
+        accepted=True,
+        route="ios.coredevice",
+        elapsed_ms=int((time.monotonic() - started) * 1000),
+        delivery="confirmed",
+        effect="confirmed" if observed else "unknown",
+        uncertainty=(
+            "none"
+            if observed
+            else "CoreDevice accepted the copy but readback did not confirm its bytes"
+        ),
+        data={
+            "applicationId": application,
+            "containerDomain": "appDataContainer",
+            "destination": destination_text,
+            "bytes": size,
+            "sha256": source_digest,
+            "readbackConfirmed": observed,
+        },
+    )
+
+
+def copy_from_result(
+    config: Config,
+    application: str,
+    source_text: str,
+    destination_text: str,
+    maximum_bytes: int,
+) -> dict[str, object]:
+    started = time.monotonic()
+    device_name = selected_device_name(config)
+    require_development_app(device_name, application)
+    destination = resolve_external_output_path(destination_text)
+    try:
+        with tempfile.TemporaryDirectory(prefix="ios-copy-artifact-") as directory:
+            temporary = Path(directory) / "file"
+            devicectl_json(
+                [
+                    "device",
+                    "copy",
+                    "from",
+                    "--device",
+                    device_name,
+                    "--source",
+                    source_text,
+                    "--destination",
+                    str(temporary),
+                    "--domain-type",
+                    "appDataContainer",
+                    "--domain-identifier",
+                    application,
+                ]
+            )
+            if not temporary.is_file():
+                raise TestbedError(
+                    "application.copy_from source is not one regular file"
+                )
+            size = temporary.stat().st_size
+            if size > maximum_bytes:
+                raise TestbedError("application.copy_from source exceeds maxBytes")
+            digest = sha256_file(temporary)
+            with temporary.open("rb") as source_handle, destination.open(
+                "xb"
+            ) as destination_handle:
+                shutil.copyfileobj(source_handle, destination_handle)
+    except TestbedError:
+        destination.unlink(missing_ok=True)
+        return coredevice_copy_failure("application.copy_from", started)
+    except OSError as error:
+        destination.unlink(missing_ok=True)
+        raise TestbedError("could not write the copied application artifact") from error
+    return ios_result(
+        "application.copy_from",
+        accepted=True,
+        route="ios.coredevice",
+        elapsed_ms=int((time.monotonic() - started) * 1000),
+        delivery="not_applicable",
+        effect="not_applicable",
+        uncertainty="none",
+        data={
+            "applicationId": application,
+            "containerDomain": "appDataContainer",
+            "source": source_text,
+            "artifactPath": str(destination),
+            "bytes": size,
+            "sha256": digest,
+        },
+    )
+
+
 def execute_control_request(
     config: Config, request: dict[str, object]
 ) -> dict[str, object]:
@@ -1878,6 +2459,41 @@ def execute_control_request(
         path = require_control_string(request, "path")
         assert path is not None
         return install_control_result(config, path)
+    if operation == "application.list":
+        application = require_control_string(
+            request, "application", optional=True
+        )
+        if application is not None:
+            application = require_bundle_identifier(request)
+        return application_list_result(config, application)
+    if operation == "application.open_url":
+        application = require_bundle_identifier(request)
+        url = require_url(request)
+        relaunch = require_control_bool(request, "relaunch")
+        return open_url_result(config, application, url, relaunch)
+    if operation in {"application.copy_to", "application.copy_from"}:
+        application = require_bundle_identifier(request)
+        maximum_bytes = require_max_bytes(request)
+        if operation == "application.copy_to":
+            source = require_control_string(request, "source")
+            assert source is not None
+            destination = require_remote_container_path(request, "destination")
+            return copy_to_result(
+                config, application, source, destination, maximum_bytes
+            )
+        source = require_remote_container_path(request, "source")
+        destination = require_control_string(request, "destination")
+        assert destination is not None
+        return copy_from_result(
+            config, application, source, destination, maximum_bytes
+        )
+    if operation == "diagnostics.logs.start":
+        return log_start_result(config)
+    if operation == "diagnostics.logs.collect":
+        output = require_control_string(request, "output")
+        assert output is not None
+        maximum_bytes = require_max_bytes(request, default=DEFAULT_LOG_BYTES)
+        return log_collect_result(config, output, maximum_bytes)
     if operation == "application.launch":
         application = require_control_string(request, "application")
         assert application is not None

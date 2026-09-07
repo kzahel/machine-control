@@ -462,6 +462,69 @@ class ClientTests(unittest.TestCase):
             },
         )
 
+    def test_ios_common_open_url_uses_typed_adapter_stdin(self):
+        log = self.directory / "arguments.json"
+        self.write_registry("ios", interface="native")
+        result, value = self.run_cli(
+            "--target", "fixture", "ios", "application", "open-url",
+            "com.example.fixture", "https://example.test/path", "--relaunch",
+            extra_env={"MACHINE_CONTROL_MOCK_LOG": str(log)},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(json.loads(log.read_text(encoding="utf-8")), ["control"])
+        self.assertEqual(
+            value["data"]["request"],
+            {
+                "operation": "application.open_url",
+                "application": "com.example.fixture",
+                "url": "https://example.test/path",
+                "relaunch": True,
+            },
+        )
+
+    def test_ios_common_copy_from_keeps_paths_in_typed_request(self):
+        self.write_registry("ios", interface="native")
+        result, value = self.run_cli(
+            "--target", "fixture", "ios", "application", "copy-from",
+            "com.example.fixture", "/Documents/export.db", "/tmp/export.db",
+            "--max-bytes", "4096",
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(
+            value["data"]["request"],
+            {
+                "operation": "application.copy_from",
+                "application": "com.example.fixture",
+                "source": "/Documents/export.db",
+                "destination": "/tmp/export.db",
+                "maxBytes": 4096,
+            },
+        )
+
+    def test_ios_common_logs_expose_explicit_start_and_collect(self):
+        self.write_registry("ios", interface="native")
+        started, start_value = self.run_cli(
+            "--target", "fixture", "ios", "logs", "start"
+        )
+        collected, collect_value = self.run_cli(
+            "--target", "fixture", "ios", "logs", "collect",
+            "/tmp/fixture.log", "--max-bytes", "2048",
+        )
+        self.assertEqual(started.returncode, 0)
+        self.assertEqual(collected.returncode, 0)
+        self.assertEqual(
+            start_value["data"]["request"],
+            {"operation": "diagnostics.logs.start"},
+        )
+        self.assertEqual(
+            collect_value["data"]["request"],
+            {
+                "operation": "diagnostics.logs.collect",
+                "output": "/tmp/fixture.log",
+                "maxBytes": 2048,
+            },
+        )
+
     def test_ios_common_family_refuses_non_ios_target_without_dispatch(self):
         log = self.directory / "arguments.json"
         self.write_registry("android", interface="native")

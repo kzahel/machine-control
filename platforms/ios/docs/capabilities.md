@@ -1,12 +1,12 @@
 # Validated Capabilities
 
-Last physical-device validation: 2026-08-11.
+Last physical-device validation: 2026-09-07.
 
 Validated combination:
 
-- iPhone SE (3rd generation), iOS 26.6.
+- Accepted passcode-free iPhone, iOS 26.6.1.
 - Apple-silicon macOS controller, Xcode 26.6.
-- Paid Apple Developer Program team and Xcode-managed development profile.
+- Free Personal Team runner profile and a removable development application.
 - Agent Device 0.20.5.
 
 ## Proven
@@ -31,7 +31,11 @@ Validated combination:
 | Passcode-free reboot recovery | Common `target reboot` observed full disconnect/reconnect in 38.5 seconds, doctor reported no interaction gate and unlocked-since-boot, and XCTest preparation passed again without device interaction |
 | Pairing bootstrap | Developer Mode discovery plus explicit CoreDevice pairing recovered a trusted passcode-free device without exposing its identifier |
 | Common iOS facade | Typed common capabilities, runner preparation, Settings launch, Home, interactive snapshot, semantic Settings press, foreground readback, termination, and owned-daemon recovery passed without exposing the device identity |
-| Signing lifetime | The matching cached runner's embedded profile was observed as valid and long-lived; Personal Team seven-day refresh behavior is unit-tested but not yet live-tested |
+| Development-app inventory | CoreDevice returned a bounded normalized development-app list with the internal runner and device installation paths omitted |
+| Direct URL payload | The common facade delivered an HTTPS payload to an explicit TomConnect development bundle through Agent Device's CoreDevice route; a following XCTest snapshot succeeded, while system routing remained explicitly unclaimed |
+| Application console logs | A transactional `logs start` and `logs collect` flow captured a bounded TomConnect stdout/stderr artifact, reported byte/line/truncation metadata, and stopped with session cleanup |
+| App-container copy | Common `copy-to` and `copy-from` round-tripped one bounded file through TomConnect's `appDataContainer`; copy-to hash readback and caller-side byte comparison both matched |
+| Signing lifetime | Developer Program and Personal Team runner profiles have both supported live control; the current Personal Team cache reports a valid short-lived profile, while automatic near-expiry refresh remains unit-tested rather than live-tested |
 
 Healthy initial snapshots measured 313–569 ms. The later JSTorrent run reported
 approximately 4.4-second p95 snapshots while the runner/device was under load.
@@ -46,6 +50,13 @@ Track both latency and cause instead of treating one number as a stable SLA.
 - Protected or intentionally obscured screen capture.
 - Long-duration session stability and lease interruption recovery.
 - Multiple simultaneously connected physical iOS devices.
+- Standalone process inventory that can reliably associate CoreDevice process
+  rows with an application bundle.
+- Typed uninstall and its absence readback against a disposable reinstallable
+  development fixture.
+- System `os_log`, SpringBoard, and system-daemon capture.
+- Genuine universal-link or custom-scheme routing selected by iOS rather than
+  direct payload delivery to a named bundle.
 
 ## Expected boundaries
 

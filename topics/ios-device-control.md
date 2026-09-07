@@ -20,9 +20,10 @@ physical-iPhone adapter over CoreDevice and pinned Agent Device XCTest. It now
 emits `machine-control-doctor/v0` with device connection, boot, interaction,
 runner, semantic, capture, input, and device-host route state. The common
 client exposes `target status|doctor|capabilities` plus a bounded `ios` family
-for runner preparation, application install/launch/termination, semantic
-snapshot/press/fill, and Home. These remain explicitly iOS operations rather
-than Android or desktop parity.
+for runner preparation, development-app inventory, application install/launch/
+termination, direct URL payload delivery, transactional app-console logs,
+bounded app-container file exchange, semantic snapshot/press/fill, and Home.
+These remain explicitly iOS operations rather than Android or desktop parity.
 
 Read-only selection now merges the ordinary CoreDevice list with Apple's
 lower-level Developer Mode inventory and deduplicates CoreDevice and hardware
@@ -99,6 +100,16 @@ succeeded. The settled press had no semantic diff, so its own effect remained
 runner profile was observed as valid and long-lived. The capability result did
 not emit the provider's device descriptor.
 
+**Current — live-tested application diagnostics:** The platform wrapper and
+common facade listed development applications, delivered an HTTPS payload
+directly to the installed TomConnect development bundle, captured a bounded
+window of application stdout/stderr, and copied one bounded file into and back
+out of its application data container. The copy-to readback hash confirmed the
+device-side effect; copy-from independently matched the source hash. A
+following XCTest snapshot confirmed that the named application was available
+for semantic observation, but direct payload delivery deliberately does not
+claim that iOS system routing or an associated-domain decision was observed.
+
 **Current — live-tested boundary, passcoded:** Before passcode removal, a full
 reboot visibly required the local device passcode and the phone did not become
 ordinary automation-ready before that first unlock. The new normalized
@@ -111,68 +122,54 @@ passed with seven-day profiles; see the [provider evidence](../research/provider
 and [setup fixes](../platforms/ios/docs/setup.md#first-time-setup-failures).
 Automatic renewal and two-Mac handoff remain untested.
 
-## Operation coverage gap against the Android family
+## Diagnostic operation coverage
 
-The accepted iOS route was validated for interactive semantic work: launch,
-snapshot, press, fill, gestures, screenshot, Home, install, reboot, and lease
-recovery. Compared with the [Android family](android-family-control.md), the
-operations an agent needs to diagnose and reproduce application behavior are
-largely absent. The gap is in the wrapper and common facade, not in Apple's
-tooling; the [platform report](../research/platforms/ios.md#route-comparison-for-uncovered-operations)
-compares the candidate routes.
+[Tactical 031](../docs/tactical/031-ios-adb-parity-operations.md) treated the
+[Android family](android-family-control.md) as a source of debugging needs, not
+an API checklist. Live CoreDevice and Agent Device evidence produced this iOS
+surface:
 
-| Operation | Android family | iOS today | Route available |
-| --- | --- | --- | --- |
-| Open a URL, custom scheme, or universal link | `shell am start -a VIEW` | Not exposed or live-tested; `launch` forwards raw arguments to Agent Device `open`, and the common facade has no URL operation | CoreDevice `process launch --payload-url`, already wrapped by Agent Device `open <url>` when the app bundle is known |
-| Device log capture | `logcat OUTPUT` bounded snapshot | Runner-side `logs` passthrough only, unproven on the physical phone; no system log stream | App stdout/stderr via CoreDevice `process launch --console` (Agent Device `logs clear --restart`); system `os_log` needs a libimobiledevice or pymobiledevice3 route |
-| Uninstall | `install` replaces; ADB uninstall | Absent | CoreDevice `uninstall app` |
-| Installed-app and process inventory | ADB package/process listing | Absent | CoreDevice `info apps`, `info processes` |
-| File transfer | ADB push/pull | Absent | CoreDevice `copy to|from` into a developer-installed app's data container |
-| Wake and keyguard | `wake`, `dismiss-keyguard`, supervised PIN `unlock` | Passcode-free profile needs none; passcoded phone stays human | Not applicable; a deliberate boundary, not a gap |
-| Arbitrary command execution | `shell -- COMMAND` | Absent | None on stock iOS; no counterpart exists without jailbreak |
-| Multi-touch, pinch, rotate, drag | Partial | Unproven | Runner-side, depends on Agent Device's XCTest runner |
+| Debugging need | Current iOS outcome | Scope and evidence |
+| --- | --- | --- |
+| URL or deep-link delivery | Accepted/common | Direct CoreDevice payload delivery to one exact development-app bundle; delivery confirmed, resulting app effect unverifiable, iOS system routing not observed |
+| Development-app inventory | Accepted/common | Privacy-minimized CoreDevice projection of developer-built, non-default applications; bounded to 256 records |
+| Application logs | Accepted/common | Transactional start/collect window for application stdout/stderr; create-only artifact outside the public repository; 1 MiB default and 16 MiB maximum |
+| App-container file exchange | Accepted/common | One bounded regular file per call in `appDataContainer`; copy-to effect confirmed by device readback hash and copy-from writes create-only |
+| Process inventory | Limited/not exposed | CoreDevice returned hundreds of executable/PID rows without bundle identity; launch deltas were useful experimentally but a standalone common result would be noisy and weakly attributable |
+| Uninstall | Deferred | CoreDevice has the route, but the installed TomConnect build had no matching reinstallable signed device artifact; acceptance requires a disposable fixture |
+| System `os_log` | Deferred | Neither adopted provider supplies it; add another dependency only when an actual debugging case requires SpringBoard or system-daemon evidence |
+| Genuine system URL routing | Deferred | Direct payload delivery bypasses the chooser/association decision; activate a link from another application and inspect the resulting foreground state when needed |
+| Wake, keyguard, and PIN unlock | Intentional boundary | The passcode-free dedicated profile needs none; a passcoded phone remains human after reboot |
+| Arbitrary shell or filesystem access | Unsupported | Stock iOS has no general shell route; the facade remains typed and container-scoped |
 
-**Current:** `launch`, `logs`, and the `agent --` escape hatch can already reach
-Agent Device's URL open and console log paths, but neither has been exercised on
-the accepted phone, neither appears in the capability matrix, and the common
-`ios` family allowlists none of them.
+**Decision:** Grow iOS debugging operations from demonstrated application
+workflows. Do not pursue Android-shaped parity when CoreDevice reports
+different semantics or when the result would not improve diagnosis.
 
-**Current — source-reviewed upstream behavior:** Agent Device 0.20.5 routes a
-physical-device URL open through CoreDevice `--payload-url` and requires an
-already-known app bundle identifier; its XCTest-backed open path rejects deep
-links and launch arguments outright. This means a URL open tests the named
-app's URL handling, not iOS's system routing decision between apps. System
-routing is observable only by pressing a link inside another app and reading
-the resulting foreground snapshot.
+**Decision:** Keep log capture transactional. Start clears and restarts the
+current application console; collect stops it and materializes a bounded local
+artifact. This makes capture lifetime and cleanup explicit and avoids inline
+log content in normalized JSON.
 
-**Decision:** Do not list the missing `shell` counterpart as a defect to fix.
-A non-jailbroken iPhone runs no shell daemon, so no provider can offer one;
-CoreDevice reaches only app launch, app-container file copy, app and process
-inventory, uninstall, and reboot. Cover the diagnostic needs that `adb shell`
-serves on Android with one typed operation each: URL open, bounded log
-capture, app inventory, uninstall, and container file copy.
+**Decision:** Treat direct URL payload delivery as a named-app launch input,
+not proof of universal-link registration or iOS system routing. Preserve that
+limitation in capabilities and results.
 
-**Decision:** Treat wake, keyguard, and PIN unlock as intentionally without iOS
-counterparts. The passcode-free dedicated profile makes them unnecessary and
-the passcoded profile keeps them human.
+**Decision:** Treat wake, keyguard, PIN unlock, arbitrary shell, and
+filesystem-wide access as intentionally without iOS counterparts.
 
-**Open:** Whether app-scoped console capture is sufficient for ordinary agent
-diagnosis or whether a system `os_log` stream justifies a second iOS provider
-dependency. Universal-link and push-notification debugging often needs
-SpringBoard and system-daemon lines that app stdout does not carry.
-
-**Open:** Whether the common facade should expose a `logs` result as a bounded
-file artifact, matching the Android `logcat OUTPUT` contract, or as inline
-sanitized text. Device logs can contain identifiers and URLs with embedded
-tokens, so the artifact path must stay out of Git and results.
+**Open:** Whether a concrete TomConnect diagnosis needs system `os_log`, crash
+report collection, notification injection, or another provider. Add one only
+after the app-scoped route proves insufficient for a reproducible case.
 
 ## Recommended next work
 
-- Close the operation coverage gap through
-  [Tactical 031](../docs/tactical/031-ios-adb-parity-operations.md): URL open,
-  bounded log capture, uninstall, inventory, and container file copy, in that
-  order, each live-tested on the accepted phone and added to the capability
-  matrix before the common facade allowlists it.
+- Use the new URL, application-log, inventory, and container-copy operations in
+  real TomConnect investigations. Let those cases determine whether system
+  logs, crash reports, notification injection, or richer lifecycle evidence
+  should be added next.
+- Prove uninstall and independently attributable process evidence with a
+  disposable development fixture before exposing either operation.
 
 - Exercise the normalized passcoded post-reboot result on a separate dedicated
   fixture if one is available; do not restore a credential merely to increase

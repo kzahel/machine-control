@@ -621,6 +621,163 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(result["delivery"], "confirmed")
         self.assertEqual(result["effect"], "confirmed")
 
+    def test_url_validation_refuses_local_and_incomplete_urls(self) -> None:
+        for value in ("file:///tmp/private", "https:///missing-host", "relative"):
+            with self.subTest(value=value), self.assertRaises(
+                ios_device.TestbedError
+            ):
+                ios_device.require_url({"url": value})
+
+    @mock.patch("ios_device.installed_app_records")
+    @mock.patch("ios_device.selected_device_name", return_value="iPhone")
+    def test_application_list_projects_only_stable_development_fields(
+        self, _selected: mock.Mock, records: mock.Mock
+    ) -> None:
+        records.return_value = [
+            {
+                "bundleIdentifier": "com.example.fixture",
+                "name": "Fixture",
+                "version": "1.2",
+                "bundleVersion": "3",
+                "builtByDeveloper": True,
+                "removable": True,
+                "defaultApp": False,
+                "url": "file:///private/device/path/Fixture.app",
+            }
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            result = ios_device.application_list_result(
+                self.config(Path(directory)), None
+            )
+        rendered = json.dumps(result)
+        self.assertTrue(result["accepted"])
+        self.assertNotIn("file:///private/device/path", rendered)
+        self.assertEqual(
+            result["data"]["applications"][0]["applicationId"],
+            "com.example.fixture",
+        )
+
+    @mock.patch("ios_device.installed_app_records")
+    @mock.patch("ios_device.selected_device_name", return_value="iPhone")
+    def test_application_list_excludes_non_development_apps(
+        self, _selected: mock.Mock, records: mock.Mock
+    ) -> None:
+        records.return_value = [
+            {
+                "bundleIdentifier": "com.example.store-app",
+                "name": "Store App",
+                "builtByDeveloper": False,
+                "defaultApp": False,
+                "removable": True,
+            },
+            {
+                "bundleIdentifier": "com.apple.Preferences",
+                "name": "Settings",
+                "builtByDeveloper": True,
+                "defaultApp": True,
+                "removable": False,
+            },
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            result = ios_device.application_list_result(
+                self.config(Path(directory)), None
+            )
+        self.assertEqual(result["data"]["applications"], [])
+
+    @mock.patch("ios_device.run_agent_json")
+    @mock.patch("ios_device.require_development_app")
+    @mock.patch("ios_device.selected_device_name", return_value="iPhone")
+    def test_open_url_reports_direct_payload_without_claiming_system_routing(
+        self,
+        _selected: mock.Mock,
+        _application: mock.Mock,
+        run_json: mock.Mock,
+    ) -> None:
+        run_json.return_value = (
+            {
+                "success": True,
+                "data": {"startup": {"method": "coredevice"}},
+            },
+            8,
+            "",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            result = ios_device.open_url_result(
+                self.config(Path(directory)),
+                "com.example.fixture",
+                "https://example.test/path",
+                True,
+            )
+        self.assertTrue(result["accepted"])
+        self.assertEqual(result["delivery"], "confirmed")
+        self.assertEqual(result["effect"], "unverifiable")
+        self.assertFalse(result["data"]["systemRoutingObserved"])
+        self.assertNotIn("https://example.test/path", json.dumps(result))
+
+    def test_logs_require_a_transactional_session(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, mock.patch(
+            "ios_device.active_nested_lease", return_value=None
+        ), self.assertRaisesRegex(ios_device.TestbedError, "session"):
+            ios_device.log_start_result(self.config(Path(directory)))
+
+    @mock.patch("ios_device.run_agent_json")
+    @mock.patch("ios_device.active_nested_lease", return_value=mock.Mock())
+    def test_log_collection_writes_a_bounded_tail(
+        self, _lease: mock.Mock, run_json: mock.Mock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = self.config(root)
+            source = config.agent_state_dir / "sessions" / "fixture.log"
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b"first line\nsecond line\nthird line\n")
+            output = root / "collected.log"
+            run_json.return_value = (
+                {"success": True, "data": {"path": str(source), "stopped": True}},
+                2,
+                "",
+            )
+            result = ios_device.log_collect_result(
+                config, str(output), len(b"second line\nthird line\n")
+            )
+            payload = output.read_bytes()
+        self.assertTrue(result["accepted"])
+        self.assertTrue(result["data"]["truncated"])
+        self.assertLessEqual(
+            result["data"]["bytes"], len(b"second line\nthird line\n")
+        )
+        self.assertTrue(payload.endswith(b"third line\n"))
+
+    @mock.patch("ios_device.run_agent_json")
+    @mock.patch("ios_device.active_nested_lease", return_value=mock.Mock())
+    def test_log_collection_requires_confirmed_stop(
+        self, _lease: mock.Mock, run_json: mock.Mock
+    ) -> None:
+        run_json.return_value = (
+            {"success": True, "data": {"stopped": False}},
+            2,
+            "",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            result = ios_device.log_collect_result(
+                self.config(Path(directory)),
+                str(Path(directory) / "collected.log"),
+                1024,
+            )
+        self.assertFalse(result["accepted"])
+        self.assertEqual(result["effect"], "unknown")
+
+    def test_copy_failure_is_generic(self) -> None:
+        result = ios_device.coredevice_copy_failure("application.copy_to", 0)
+        self.assertFalse(result["accepted"])
+        self.assertNotIn("/private/", json.dumps(result))
+
+    def test_container_paths_refuse_traversal(self) -> None:
+        with self.assertRaises(ios_device.TestbedError):
+            ios_device.require_remote_container_path(
+                {"source": "/Documents/../private"}, "source"
+            )
+
     @mock.patch("ios_device.stop_daemon")
     @mock.patch("ios_device.provider_control_result")
     @mock.patch("ios_device.refresh_matching_runner_cache", return_value=1)

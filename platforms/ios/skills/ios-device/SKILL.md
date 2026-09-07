@@ -1,6 +1,6 @@
 ---
 name: ios-device
-description: Safely inspect, install, launch, and automate applications on a physical iPhone testbed from macOS. Use for real-device iOS QA, accessibility-driven UI control, SpringBoard interaction, screenshots, input, app installation, device readiness diagnosis, or recovery of the dedicated XCTest runner.
+description: Safely inspect, install, launch, diagnose, and automate applications on a physical iPhone testbed from macOS. Use for real-device iOS QA, accessibility-driven UI control, URL delivery, bounded application logs, app-container file exchange, SpringBoard interaction, screenshots, input, app installation, device readiness diagnosis, or recovery of the dedicated XCTest runner.
 ---
 
 # iOS Device Testbed
@@ -69,6 +69,31 @@ Use `launch <bundle-id-or-app>` inside a session for XCTest automation. Use
 `normal-launch <bundle-id>` after the session when a human needs the ordinary
 non-automation presentation. Do not make the testbed run consuming-project
 build, release, or publishing scripts.
+
+## Diagnose an application
+
+Use the common `ios` family for normalized development-app inventory, direct
+URL payload delivery, bounded application stdout/stderr, and single-file
+container exchange. Keep log capture inside the surrounding transactional
+session:
+
+```bash
+mc=/path/to/machine-control/bin/machine-control
+"$mc" --target ios ios application list
+"$mc" --target ios ios application open-url com.example.app \
+  'https://example.test/debug' --relaunch
+"$mc" --target ios ios logs start
+"$mc" --target ios ios snapshot --interactive
+"$mc" --target ios ios logs collect /tmp/example-app.log
+"$mc" --target ios ios application copy-from com.example.app \
+  /tmp/export.json /tmp/export.json
+```
+
+`open-url` sends a payload to the named bundle; it is not evidence that iOS
+selected that bundle through universal-link routing. Application logs exclude
+system `os_log`, SpringBoard, and daemon lines. Container operations are fixed
+to `appDataContainer`, accept one bounded file, and never provide general
+device filesystem access. Keep their output outside source repositories.
 
 ## Inspect and interact
 

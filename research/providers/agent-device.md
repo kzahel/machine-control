@@ -5,13 +5,13 @@ Upstream: [callstack/agent-device](https://github.com/callstack/agent-device)
 Declared license: [MIT](https://github.com/callstack/agent-device/blob/main/LICENSE)
 for the repository.
 
-Last corpus review: 2026-08-11.
+Last corpus review: 2026-09-07.
 
 ## Evidence by platform
 
 | Platform | Level | Evidence and limit |
 | --- | --- | --- |
-| iOS | `adopted` | The canonical iOS platform uses Agent Device as its semantic XCTest provider; runner preparation passed before and after a live passcode-free full reboot, and typed common launch/snapshot/action/termination passed. |
+| iOS | `adopted` | The canonical iOS platform uses Agent Device as its semantic XCTest provider; runner preparation, typed UI control, direct URL payload delivery, and transactional app-console capture passed on a physical phone. |
 | Android and device variants | `upstream-claimed` | Broad CLI support is documented; this corpus has not independently tested the generic Android backend. |
 | macOS | `source-reviewed` | Desktop helper and public command paths were inspected; exact selected-window control is absent. |
 | Linux/web | `upstream-claimed` | Not candidates to replace the stronger current desktop/device foundations without platform evidence. |
@@ -56,15 +56,16 @@ the common client and sanitizes its structured results. Agent Device's semantic
 build and signing settings but not provisioning expiry, so the adapter owns a
 bounded matching-cache refresh policy for declared Personal Teams.
 
-**Current — source-reviewed physical-iOS diagnostics:** On a physical device,
+**Current — live-tested physical-iOS diagnostics:** On a physical device,
 `open <url>` routes through CoreDevice `process launch --payload-url` and
-requires an already-known app bundle identifier, so the app must be opened
-first or the host-plus-URL form used. The XCTest-backed open path rejects deep
-links and launch arguments. `logs clear --restart` relaunches the session app
-through `process launch --console` to capture stdout and stderr; there is no
-system `os_log` stream. Neither path is live-tested by this project or exposed
-through the common facade; see the
-[platform report](../platforms/ios.md#route-comparison-for-uncovered-operations).
+requires an exact app bundle identifier. The XCTest-backed open path rejects
+deep links and launch arguments. `logs clear --restart` relaunches the session
+app through `process launch --console` to capture stdout and stderr; there is no
+system `os_log` stream. Both routes passed through the platform wrapper and
+common facade with TomConnect. URL results describe direct payload delivery,
+not iOS system routing; log results require a transactional session and write a
+bounded create-only artifact outside the public repository. See the
+[platform report](../platforms/ios.md#route-comparison-for-diagnostic-operations).
 
 **Open:** Determine whether its Android route should wrap or complement the
 project's ADB/UIAutomator adapter and whether simulator and physical-device

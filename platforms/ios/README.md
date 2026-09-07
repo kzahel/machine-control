@@ -67,9 +67,16 @@ not a generic mobile or desktop abstraction:
 ```bash
 bin/machine-control --target ios ios capabilities
 bin/machine-control --target ios ios runner prepare
+bin/machine-control --target ios ios application list
 bin/machine-control --target ios ios application launch Settings --relaunch
+bin/machine-control --target ios ios application open-url com.example.app \
+  'https://example.test/debug' --relaunch
 bin/machine-control --target ios ios snapshot --interactive
 bin/machine-control --target ios ios press 'label=General' --settle
+bin/machine-control --target ios ios application copy-to com.example.app \
+  /tmp/fixture.json /tmp/fixture.json
+bin/machine-control --target ios ios application copy-from com.example.app \
+  /tmp/export.json /tmp/export.json
 bin/machine-control --target ios ios home
 bin/machine-control --target ios ios application terminate Settings
 ```
@@ -79,6 +86,38 @@ return `machine-control/v0` with the actual XCTest or CoreDevice route,
 delivery, effect, uncertainty, retry safety, and sanitized provider data. A
 settled action confirms effect only when its own semantic diff changed;
 otherwise use a following snapshot or assertion as separate evidence.
+
+`application list` returns a bounded, normalized inventory of development
+applications and omits CoreDevice installation paths and the testbed runner.
+`application open-url` delivers a URL directly to one exact development bundle
+through CoreDevice. It does not claim that iOS selected the application through
+universal-link or custom-scheme routing; test system routing by pressing a link
+from another application and observing the resulting foreground app.
+
+Container copy accepts one file of at most 16 MiB and fixes the CoreDevice
+domain to `appDataContainer`. Device-side paths must be absolute container
+paths. `copy-to` performs a hash readback when possible; `copy-from` writes a
+new caller-chosen artifact outside this repository and refuses to replace an
+existing host file.
+
+Application console capture is stateful and must remain inside one
+transactional session. Start it after opening the application, perform the
+actions to diagnose, then collect a bounded tail outside the repository:
+
+```bash
+platforms/ios/bin/ios-device session -- bash -lc '
+  mc="$PWD/bin/machine-control"
+  "$mc" --target ios ios application launch com.example.app --relaunch
+  "$mc" --target ios ios logs start
+  "$mc" --target ios ios snapshot --interactive
+  "$mc" --target ios ios logs collect /tmp/example-app.log
+'
+```
+
+The default log bound is 1 MiB and the maximum is 16 MiB. This route captures
+only the selected application's stdout and stderr through CoreDevice console
+launch. It does not include SpringBoard, system daemons, or the system
+`os_log` stream.
 
 `ios fill` carries its request to the adapter over standard input, but Agent
 Device's downstream CLI does not provide a protected one-shot secret channel.
@@ -158,6 +197,7 @@ press / tap / fill / type      Interact by ref, selector, text, or coordinates
 scroll / swipe / longpress     Gesture input
 home / app-switcher            System navigation
 screenshot / record / logs     Evidence and diagnostics
+control                        Typed common-iOS request on standard input
 agent -- ARGS                  Explicit pinned Agent Device passthrough
 ```
 

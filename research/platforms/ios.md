@@ -60,7 +60,11 @@ common target selection to typed CoreDevice/XCTest operations. Runner prepare,
 Settings launch, Home, interactive semantic snapshot, a Settings selector
 press, a separate foreground snapshot, termination, and daemon recovery passed
 on the passcode-free phone. Results kept delivery separate from effect and did
-not expose the provider's device descriptor.
+not expose the provider's device descriptor. Development-app inventory, direct
+URL payload delivery to TomConnect, transactional application-console capture,
+and bounded app-container copy also passed through both the platform wrapper
+and common facade. Copy-to effect was confirmed by device readback hash;
+copy-from independently matched the source file.
 
 **Current — source-reviewed and unit-tested signing lifecycle:** The adapter
 observes the exact matching cached runner's embedded provisioning dates.
@@ -78,18 +82,18 @@ adapter does not enter the credential and reports protected interaction plus
 unit-tested; the earlier phone state live-demonstrated the passcode screen and
 need for local first unlock.
 
-## Route comparison for uncovered operations
+## Route comparison for diagnostic operations
 
-The adopted route covers interactive semantic control. The operations the
-[Android family](android.md) exposes for diagnosis and lifecycle are not yet
-covered on iOS; see the gap table in the
-[topic](../../topics/ios-device-control.md#operation-coverage-gap-against-the-android-family).
-Candidate routes per operation:
+The [Android family](android.md) supplied diagnostic use cases, while live iOS
+evidence determined the actual surface. See the accepted, limited, and deferred
+outcomes in the
+[topic](../../topics/ios-device-control.md#diagnostic-operation-coverage).
+Available routes per operation are:
 
 | Operation | CoreDevice `devicectl` | Agent Device 0.20.5 | libimobiledevice / pymobiledevice3 |
 | --- | --- | --- | --- |
-| URL / deep link / universal link open | `device process launch --payload-url URL BUNDLE_ID`; requires the target bundle | `open <url>` wraps the same flag once the app bundle is known; XCTest-backed open rejects URLs | Not needed |
-| App stdout/stderr | `device process launch --console` attaches and waits | `logs clear --restart` relaunches through `--console`; `logs path` returns a file | Not needed |
+| URL / deep-link payload | `device process launch --payload-url URL BUNDLE_ID`; requires the target bundle | `open <url>` wraps the same flag once the app bundle is known; XCTest-backed open rejects URLs | Not needed |
+| App stdout/stderr | `device process launch --console` attaches and waits | `logs clear --restart` relaunches through `--console`; `logs stop` returns a file | Not needed |
 | System `os_log` stream | None | None | `idevicesyslog` or `pymobiledevice3 syslog live`; both stream from a paired USB device |
 | Uninstall | `device uninstall app BUNDLE_ID` | Not exposed for physical iOS | Alternative exists, not needed |
 | Installed apps / processes | `device info apps`, `device info processes` | Session-scoped only | Alternative exists, not needed |
@@ -99,17 +103,24 @@ Candidate routes per operation:
 
 Evidence levels:
 
-- CoreDevice flags: `source-reviewed` from the installed Xcode 26.6 `devicectl`
-  help output; none of these flags is live-tested through the wrapper yet.
-- Agent Device URL open and console logs: `source-reviewed` in the pinned
-  0.20.5 distribution; not live-tested on the accepted phone.
+- CoreDevice development-app inventory and app-container copy:
+  `live-tested` through the platform wrapper and common facade on the accepted
+  phone. Process inventory remains `live-tested` only as an exploratory route;
+  its rows lacked bundle identity and were not adopted. Uninstall remains
+  `source-reviewed` because no safely reinstallable fixture was available.
+- Agent Device URL payload delivery and application-console capture:
+  `live-tested` through the platform wrapper and common facade with TomConnect.
+  Direct payload delivery does not observe iOS system routing, and the console
+  contains application stdout/stderr rather than system `os_log`.
 - libimobiledevice and pymobiledevice3: `discovered` only. Neither is
   installed on the controller and neither has a provider dossier.
 
-**Decision:** Prefer CoreDevice for every operation it covers, reached through
-Agent Device where the pinned provider already wraps the same flag, so the
-wrapper keeps one signing and pairing model. Add a second provider dependency
-only if a system `os_log` stream proves necessary for ordinary agent diagnosis.
+**Decision:** Prefer CoreDevice for every useful operation it covers, reached
+through Agent Device where the pinned provider already owns the session and
+wraps the same flag. Keep the common surface use-case driven: do not expose
+weakly attributable process rows merely because the provider returns them.
+Add a second provider dependency only if a concrete diagnosis proves that
+application stdout/stderr is insufficient and system `os_log` is necessary.
 
 **Open:** Decide whether physical and simulator routes share one stable
 device-family identity with capability differences. Keep passcode, biometrics,

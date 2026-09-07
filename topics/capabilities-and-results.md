@@ -75,6 +75,16 @@ A following snapshot remains separate evidence. CoreDevice exposes no usable
 public boot generation here, so results report generation unavailable and
 preserve provider-scoped `refsGeneration` for semantic references.
 
+**Current — iOS diagnostic exercise:** Tactical 031 adds privacy-minimized
+development-app inventory, direct URL payload delivery, transactional bounded
+application-console artifacts, and one-file app-container exchange. URL
+delivery is confirmed while the application effect and iOS system-routing
+decision remain unverifiable. Copy-to confirms effect with a CoreDevice
+readback hash; copy-from and log collection are observations with create-only
+host artifacts outside the public repository. Capabilities disclose the
+container domain, byte limits, transactional requirement, lack of system logs,
+and intentional absence of arbitrary shell and filesystem-wide access.
+
 **Current — full macOS Aqua exercise:** Tacticals 010 and 011 extend the same result
 vocabulary across settings-managed privacy, native panels and sheets,
 Gatekeeper, Safari downloads, DMGs, Installer, AppKit, SwiftUI, browser/web,
