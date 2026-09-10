@@ -18,7 +18,7 @@ add_check() {
 
 power=unknown
 administration=unavailable
-desktop=no_session
+desktop=unknown
 resident=unavailable
 semantic=unavailable
 capture=unavailable
@@ -53,21 +53,17 @@ else
     add_check administration fail 'Guest administration is unavailable'
 fi
 
-console_user=""
+# The shared probe observes lock independently of helper installation and TCC.
 if [[ "$administration" == ready ]]; then
-    console_user="$(macvm_exec /usr/bin/stat -f %Su /dev/console \
-        2>/dev/null || true)"
+    observation="$(macvm_exec "$(macvm_remote_ui_binary)" session-state 2>/dev/null || true)"
+    desktop="$(jq -r '.desktopState // "unknown"' <<<"$observation" 2>/dev/null || printf unknown)"
+    [[ "$desktop" =~ ^(unlocked|locked|no_session|unknown)$ ]] || desktop=unknown
 fi
-if [[ -n "$console_user" && "$console_user" != root &&
-      "$console_user" != loginwindow ]]; then
-    desktop=unlocked
-    add_check desktop pass 'Logged-in Aqua session is ready'
-else
-    add_check desktop fail 'Logged-in Aqua session is unavailable'
-fi
+unlock_json='{"support":"experimental","installation":"unknown","policy":"unknown","callerEligibility":"unknown","readiness":"unknown","reasons":["resident_unreachable"]}'
+display_state=unknown
 
 control_status=""
-if [[ "$desktop" == unlocked ]] &&
+if [[ "$administration" == ready ]] &&
         control_status="$(macvm_resident_request \
             '{"operation":"status"}' 2>/dev/null)" &&
         jq -e '.schema == "machine-control/v0" and .accepted == true' \
@@ -79,13 +75,36 @@ if [[ "$desktop" == unlocked ]] &&
         <<<"$control_status")"
     [[ "$semantic" =~ ^(ready|degraded|unavailable|unknown)$ ]] || semantic=unknown
     [[ "$capture" =~ ^(ready|degraded|unavailable|unknown)$ ]] || capture=unknown
-    input="$semantic"
+    input=unknown
+    # Older residents reported unlocked from console ownership alone. Do not
+    # promote that legacy assertion into a fresh lock-state observation.
+    if jq -e '.data.observationSource == "iokit.console-session" and
+            (.data.desktopGeneration | type == "string")' \
+            <<<"$control_status" >/dev/null; then
+        input="$(jq -r '.data.inputState // "unknown"' <<<"$control_status")"
+        desktop="$(jq -r '.data.desktopState // "unknown"' <<<"$control_status")"
+    else
+        semantic=unknown
+    fi
+    [[ "$desktop" =~ ^(unlocked|locked|no_session|unknown)$ ]] || desktop=unknown
+    [[ "$input" =~ ^(ready|degraded|unavailable|unknown)$ ]] || input=unknown
+    unlock_json="$(jq -c '.data.unlock // {support:"experimental",
+        installation:"unknown",policy:"unknown",callerEligibility:"unknown",
+        readiness:"unknown",reasons:["resident_upgrade_required"]}' <<<"$control_status")"
+    display_state="$(jq -r '.data.displayState // "unknown"' <<<"$control_status")"
     resident_json="$(jq -c \
         '{contract:.schema,generation:.generation}' <<<"$control_status")"
     add_check resident pass 'Target-native resident is ready'
 else
     add_check resident fail 'Target-native resident is unavailable'
 fi
+
+if [[ "$desktop" == unlocked ]]; then
+    add_check desktop pass 'OS reports an unlocked console session'
+else
+    add_check desktop fail "Desktop state: $desktop"
+fi
+add_check unlock skip "Unlock readiness: $(jq -r '.readiness // "unknown"' <<<"$unlock_json"); $(jq -r '(.reasons // []) | join(", ")' <<<"$unlock_json")"
 
 if [[ "$semantic" == ready ]]; then
     add_check semantic pass 'Accessibility semantics are ready'
@@ -130,6 +149,8 @@ jq -cn \
     --arg outer "$outer" \
     --argjson resident "$resident_json" \
     --argjson checks "$checks" \
+    --argjson unlock "$unlock_json" \
+    --arg display_state "$display_state" \
     '{
         schema:"machine-control-doctor/v0",
         ready:$ready,
@@ -155,7 +176,9 @@ jq -cn \
         extensions:{
             administrationRoute:"selected_guest_transport",
             desktopSession:"aqua",
-            privacyAuthority:"tcc"
+            privacyAuthority:"tcc",
+            unlock:$unlock,
+            displayState:$display_state
         }
     }'
 

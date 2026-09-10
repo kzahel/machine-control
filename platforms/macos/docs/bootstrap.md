@@ -73,6 +73,38 @@ repository file, log, or ordinary request.
 
 Continue at [Grant guest Accessibility](#grant-guest-accessibility).
 
+### Image security posture
+
+**Current (2026-09-10), source-reviewed:** Cirrus's
+[base-image workflow](https://github.com/cirruslabs/macos-image-templates/blob/main/.github/workflows/base.yml)
+explicitly disables SIP after cloning its published vanilla image. This is an
+image-build choice, not a requirement imposed by Tart. Do not use the prepared
+base's convenience as evidence for a stock protected macOS profile.
+
+The published
+[Tahoe vanilla template](https://github.com/cirruslabs/macos-image-templates/blob/main/templates/vanilla-tahoe.pkr.hcl)
+does not contain the base workflow's SIP-disable step, but does disable
+Gatekeeper and configure automation conveniences. A registry `vanilla` image
+is therefore a candidate for a SIP-enabled test, not proof of stock security
+posture. It also differs from a fresh IPSW guest: Setup Assistant has already
+been completed, and SSH is enabled, although the Tart guest agent is absent.
+
+**Proposal:** For protected-profile testing, clone a published vanilla image
+and independently verify `csrutil status` inside the running guest, or create
+a fresh guest from Apple IPSW media. Record Gatekeeper state separately with
+`spctl --status`; preserve or restore its normal enabled setting when testing
+distribution/loading behavior representative of a personal Mac. Record the
+actual OS build, plug-in signature, and enabled protection state with each
+result. Do not disable SIP to turn a failed protected-profile test into a pass.
+The [authorization experiment](../experiments/authorization-unlock/README.md#sip-enabled-guest-test)
+defines the bounded screen-unlock test. Its
+[SIP-enabled follow-up](../../../docs/tactical/033-macos-sip-authorization-unlock.md)
+verified a published vanilla guest with SIP enabled, enabled Gatekeeper using
+the normal administration command, and proved plug-in unlock with both on.
+The existing guest Screen Sharing service allowed normal consent bootstrap
+through a headless client without opening or controlling a host desktop
+window; it was disconnected before the native unlock tests.
+
 ## Vanilla IPSW Image
 
 Use this path when the guest must be built from Apple installation media:

@@ -4,7 +4,8 @@ Topic: `macos-resident-control`
 
 Status: full logged-in Aqua software-testing milestone accepted for Tart,
 including Java Swing and Electron;
-lock/login, preboot, Recovery, and physical hardware are deferred.
+existing-session unlock accepted on a SIP-enabled disposable Tart appliance;
+fresh login, preboot, Recovery, and physical hardware remain open.
 
 ## Current state
 
@@ -38,6 +39,51 @@ That provides functional target-native package, file, service, and command
 administration for the current disposable-appliance profile. It is not a claim
 that the common facade yet has a bounded privileged API suitable for a personal
 workstation.
+
+## Current screen state and authorized unlock
+
+**Current (2026-09-10):** The resident and read-only doctor now share a native
+console-session observer. They distinguish locked, unlocked, no-session, and
+unknown state independently of display availability, administration, TCC, and
+ordinary UI readiness. Desktop transitions invalidate element references and
+administrator-sheet leases. Ordinary native/Cua mutations refuse known locked
+or unknown state; app-targeted input also requires successful activation and
+verified focus. OS sampling and global input retain a check-to-dispatch race.
+The [historical investigation](../platforms/macos/docs/lock-screen-investigation.md)
+records the bugs that motivated these changes.
+
+**Current:** `session.unlock` works through the same resident locally and
+remotely on the tested SIP-enabled Tart appliance. An explicitly root-installed
+Authorization Services plug-in and LaunchDaemon authenticate the resident's
+kernel peer identity and pinned code hash. A bounded, single-use grant binds
+to the existing console session, boot, helper epoch, and live requester.
+Native input triggers loginwindow; independent OS readback establishes unlock.
+No account password or per-request sudo enters this operation.
+
+Doctor, status, and capabilities independently report installation health,
+opt-in policy, actual caller eligibility, and immediate unlock readiness. A
+locked target can be unlockable while ordinary desktop readiness is false.
+Read-only checks never arm, wake, install, or display consent UI. An enabled
+helper has its own startup readiness; ordinary desktop readiness does not
+promise that the helper has finished starting.
+
+**Decision:** This is explicit appliance authority. The callback authorizes the
+next matching mechanism evaluation in a short session-wide window and cannot
+authenticate the initiating agent. It is not containment against the same user
+with a shell or sudo. Unlock exposes the desktop and leaves it unlocked; screen
+covers, local-input blocking, and automatic relock remain deferred. The provider
+continues to advertise `experimental` because OS policy/session signals are
+version-sensitive, despite completed acceptance for this bounded VM profile.
+
+[Tactical 034](../docs/tactical/034-macos-session-state-and-unlock.md) records
+implementation and acceptance. The [runbook](../platforms/macos/docs/session-unlock.md)
+explains installation, generation-bound requests, recovery, and removal. Root
+setup and normal TCC consent remain separate. Signed local builds were tested
+with SIP, authenticated-root protection, and Gatekeeper enabled; Developer ID,
+notarized downloads, physical hardware, fresh login, and preboot remain open.
+Headless guest-native Screen Sharing was used for consent/password-fallback
+validation and disconnected during integrated unlock conformance. It is not a
+runtime dependency or controller-desktop input route.
 
 ## Current maintenance and certification
 
@@ -129,9 +175,10 @@ guest desktop from outside.
   exposed and acknowledged its Chromium button without producing the
   file-oracle effect; Cua produced that effect after target activation and
   bounded semantic-readiness polling.
-- Treat loginwindow, FileVault/preboot, Recovery, another user's session, and
-  bounded privileged APIs for less-trusted deployment profiles as later
-  protected-plane slices. A normal Aqua `SecurityAgent` sheet is accepted only
+- Keep the accepted existing-session unlock scope in Tactical 034; retain
+  fresh login, FileVault/preboot, Recovery, another user's session, and broader
+  privileged APIs for less-trusted deployment profiles as later slices.
+  A normal Aqua `SecurityAgent` sheet is accepted only
   through its bounded
   one-shot lease; it is not evidence of unrestricted root control.
 
@@ -221,7 +268,8 @@ after acceptance while the reusable runtimes remain installed.
 - A bounded privileged facade for personal or less-trusted deployment profiles;
   the disposable Tart appliance already has functional passwordless root shell
   access.
-- Lock/loginwindow credential transport and session-state reporting.
+- Loginwindow credential transport beyond the accepted password-free
+  existing-session unlock.
 - FileVault and preboot recovery.
 - Multiple displays, Spaces, minimization/occlusion, localization, and long
   soak runs beyond the first acceptance corpus.

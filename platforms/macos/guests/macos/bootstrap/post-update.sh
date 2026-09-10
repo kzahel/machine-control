@@ -71,9 +71,8 @@ collect_state() {
     if launchd_ready "$domain" "$GUEST_AGENT_LABEL"; then guest_agent=true; fi
 
     aqua_session=false
-    console_user="$(/usr/bin/stat -f %Su /dev/console 2>/dev/null || true)"
-    if [[ -n "$console_user" && "$console_user" != root &&
-          "$console_user" != loginwindow ]]; then
+    session_observation="$("$resident_binary" session-state 2>/dev/null || true)"
+    if [[ "$(json_value "$session_observation" desktopState || true)" == unlocked ]]; then
         aqua_session=true
     fi
 
@@ -113,6 +112,17 @@ collect_state() {
                   "$capture_authorization" == true ]]; then
                 target_native=true
             fi
+        fi
+    fi
+
+    unlock_required=false
+    unlock_healthy=true
+    if [[ -f /Library/Preferences/org.machine-control.unlock.plist ]] &&
+        [[ "$(/usr/libexec/PlistBuddy -c 'Print :enabled' /Library/Preferences/org.machine-control.unlock.plist 2>/dev/null)" == true ]]; then
+        unlock_required=true
+        if [[ "$(json_value "$resident_result" data.unlock.installation || true)" != healthy ||
+              "$(json_value "$resident_result" data.unlock.callerEligibility || true)" != allowed ]]; then
+            unlock_healthy=false
         fi
     fi
 
@@ -184,7 +194,7 @@ healthy=true
 for required_state in "$guest_daemon" "$guest_agent" "$aqua_session" \
         "$resident_bundle" "$resident_launch_agent" "$resident_socket_ready" \
         "$semantic_authorization" "$capture_authorization" "$target_native" \
-        "$profile_tools"; do
+        "$profile_tools" "$unlock_healthy"; do
     if [[ "$required_state" != true ]]; then healthy=false; fi
 done
 
@@ -206,6 +216,7 @@ checks+="$(check_json semantic_authorization true "$semantic_authorization" read
 checks+="$(check_json capture_authorization true "$capture_authorization" ready unavailable),"
 checks+="$(check_json target_native true "$target_native" ready unavailable),"
 checks+="$(check_json profile_tools true "$profile_tools" available missing),"
+checks+="$(check_json unlock_provider "$unlock_required" "$unlock_healthy" ready unavailable),"
 checks+="$(check_json pending_reboot false false not_required not_observable)"
 
 repairs='[]'

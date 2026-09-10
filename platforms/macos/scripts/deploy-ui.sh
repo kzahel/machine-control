@@ -24,6 +24,9 @@ case "${1:-}" in
 esac
 
 source_file="$MACVM_REPO_DIR/guests/macos/ui/macui.swift"
+probe_source="$MACVM_REPO_DIR/guests/macos/unlock/Probe.m"
+session_header="$MACVM_REPO_DIR/guests/macos/unlock/Session.h"
+source_digest="$(cat "$source_file" "$probe_source" "$session_header" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')"
 info_file="$MACVM_REPO_DIR/guests/macos/ui/Info.plist"
 control_cli_file="$MACVM_REPO_DIR/guests/macos/ui/machine-control"
 resident_plist_template="$MACVM_REPO_DIR/guests/macos/ui/com.kzahel.macvm-testbed.resident.plist.in"
@@ -67,12 +70,9 @@ if (( ! force )) &&
         macvm_exec /bin/test -f "$remote_source" >/dev/null 2>&1 &&
         macvm_exec /bin/test -f "$remote_contents/Info.plist" \
             >/dev/null 2>&1; then
-    local_source_hash="$(/usr/bin/shasum -a 256 "$source_file" | /usr/bin/awk '{print $1}')"
+    local_source_hash="$source_digest"
     local_info_hash="$(/usr/bin/shasum -a 256 "$info_file" | /usr/bin/awk '{print $1}')"
-    remote_source_hash="$(
-        macvm_exec /usr/bin/shasum -a 256 "$remote_source" \
-            | /usr/bin/awk '{print $1}'
-    )"
+    remote_source_hash="$(macvm_exec /bin/cat "$remote_directory/source-digest" 2>/dev/null || true)"
     remote_info_hash="$(
         macvm_exec /usr/bin/shasum -a 256 \
             "$remote_contents/Info.plist" | /usr/bin/awk '{print $1}'
@@ -131,6 +131,11 @@ macvm_exec -i /usr/bin/tee "$remote_control_cli" \
     < "$control_cli_file" >/dev/null
 macvm_exec -i /usr/bin/tee "$remote_resident_plist" \
     < "$local_resident_plist" >/dev/null
+macvm_exec -i /usr/bin/tee "$remote_directory/Probe.m" < "$probe_source" >/dev/null
+macvm_exec -i /usr/bin/tee "$remote_directory/Session.h" < "$session_header" >/dev/null
+macvm_exec /usr/bin/xcrun clang -fobjc-arc -Wno-unused-function \
+    -framework Foundation -framework IOKit -o "$remote_contents/Resources/mc-session-probe" \
+    "$remote_directory/Probe.m"
 macvm_exec /usr/bin/xcrun swiftc -O \
     -framework AppKit -framework ApplicationServices -framework CoreGraphics \
     -framework SystemConfiguration \
@@ -144,6 +149,7 @@ macvm_exec /usr/bin/codesign --force --deep \
     --requirements '=designated => identifier "com.kzahel.macvm-testbed.ui"' \
     "$remote_app"
 
+printf '%s\n' "$source_digest" | macvm_exec -i /usr/bin/tee "$remote_directory/source-digest" >/dev/null
 printf 'Deployed %s\n' "$remote_app"
 "$MACVM_REPO_DIR/bin/macui" resident-start >/dev/null
 "$MACVM_REPO_DIR/bin/macui" control '{"operation":"status"}'

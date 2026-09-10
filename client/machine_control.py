@@ -695,6 +695,9 @@ def validate_doctor(value: Any) -> dict[str, Any]:
         raise ClientError(
             "invalid_doctor_result", "Doctor extensions must be an object", 1
         )
+    unlock = value["extensions"].get("unlock")
+    if unlock is not None:
+        validate_unlock_status(unlock)
     lifecycle = value["extensions"].get("lifecycle")
     if lifecycle is not None:
         suspend = lifecycle.get("suspend") if isinstance(lifecycle, dict) else None
@@ -2049,6 +2052,35 @@ def parse_options(
         ) from error
 
 
+def validate_unlock_status(value: Any) -> None:
+    enums = {
+        "support": {"experimental", "native", "unsupported"},
+        "installation": {"missing", "healthy", "inconsistent", "unknown"},
+        "policy": {"enabled", "disabled", "unknown"},
+        "callerEligibility": {"allowed", "denied", "unknown"},
+        "readiness": {"ready", "not_needed", "unavailable", "unknown"},
+    }
+    if not isinstance(value, dict) or any(
+        not isinstance(value.get(key), str) or value[key] not in choices
+        for key, choices in enums.items()
+    ) or not isinstance(value.get("reasons"), list) or any(
+        not isinstance(reason, str) or len(reason) > 128
+        for reason in value.get("reasons", [])
+    ):
+        raise ClientError("invalid_unlock_status", "Unlock readiness is invalid", 1)
+    for key in ("helperGeneration", "helperDesktopGeneration"):
+        if key in value and (
+            not isinstance(value[key], str) or not 1 <= len(value[key]) <= 128
+        ):
+            raise ClientError("invalid_unlock_status", "Unlock generation is invalid", 1)
+    if value["readiness"] == "ready" and (
+        value["support"] == "unsupported" or value["installation"] != "healthy"
+        or value["policy"] != "enabled" or value["callerEligibility"] != "allowed"
+        or value["reasons"]
+    ):
+        raise ClientError("invalid_unlock_status", "Unlock readiness contradicts prerequisites", 1)
+
+
 def desktop_request(arguments: list[str]) -> tuple[dict[str, Any], bool]:
     if not arguments:
         raise ClientError("usage", "desktop requires an operation")
@@ -2077,6 +2109,22 @@ def desktop_request(arguments: list[str]) -> tuple[dict[str, Any], bool]:
                 "usage", f"desktop {command} accepts no arguments"
             )
         return {"operation": command}, False
+    if command == "session":
+        if not rest or rest[0] != "unlock":
+            raise ClientError("usage", "desktop session requires unlock")
+        options = parse_options(rest[1:], [
+            (("--expected-desktop-generation",), {"required": True}),
+            (("--expected-helper-generation",), {}),
+            (("--request-id",), {"required": True}),
+        ])
+        request = {
+            "operation": "session.unlock",
+            "expectedDesktopGeneration": options.expected_desktop_generation,
+            "requestId": options.request_id,
+        }
+        if options.expected_helper_generation is not None:
+            request["expectedHelperGeneration"] = options.expected_helper_generation
+        return request, False
     if command == "windows":
         options = parse_options(
             rest, [(('--target',), {"dest": "target"})]
@@ -2282,6 +2330,8 @@ def add_client_projection(
     elapsed_ms: int,
     local: bool,
 ) -> dict[str, Any]:
+    if isinstance(value.get("data"), dict) and "unlock" in value["data"]:
+        validate_unlock_status(value["data"]["unlock"])
     value["client"] = {
         "version": CLIENT_VERSION,
         "logicalTarget": alias,
@@ -3137,6 +3187,7 @@ Commands:
                                     Use `workspace --help` for claim composition
   desktop status|capabilities|applications|windows|snapshot|action|capture
   desktop input text|key|click|move|drag|scroll
+  desktop session unlock --expected-desktop-generation ID --expected-helper-generation ID --request-id ID
   desktop application launch|activate|terminate
   desktop call|call-local JSON     Translate a common resident request
   desktop raw|raw-local JSON       Send a provider-native resident request

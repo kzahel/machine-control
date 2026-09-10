@@ -29,6 +29,8 @@ for script in \
     scripts/certify-appliance.sh \
     scripts/deploy-maintenance.sh \
     scripts/deploy-ui.sh \
+    scripts/unlock-provider.sh \
+    guests/macos/unlock/build.sh \
     scripts/deploy-fixture.sh \
     scripts/deploy-admin-fixture.sh \
     scripts/deploy-privacy-fixture.sh \
@@ -200,7 +202,7 @@ set -e
 jq -e '.schema == "machine-control-macos-post-update/v0" and
     .mode == "audit" and .profile == "runtime" and
     .nonce == "abcdefghijklmnopqrstuvwx" and .healthy == false and
-    (.checks | length) == 11' <<<"$guest_audit" >/dev/null
+    ([.checks[] | select(.id == "unlock_provider" and .required == false)] | length) == 1' <<<"$guest_audit" >/dev/null
 
 maintenance="$REPO_DIR/tests/fixtures/macvm-maintenance"
 doctor_ready="$REPO_DIR/tests/fixtures/doctor-ready"
@@ -331,6 +333,15 @@ if ${maintenance_env[@]} \
     printf 'macOS certification accepted an invalid timeout\n' >&2
     exit 1
 fi
+# Build the installed protected components without installing on the controller.
+"$REPO_DIR/guests/macos/unlock/build.sh" "$temporary/unlock-build" >/dev/null
+/usr/bin/xcrun clang -fobjc-arc -Wall -Wextra -Werror -Wno-unused-function \
+    "$REPO_DIR/../../tests/macos/session-observation.m" \
+    -framework Foundation -framework IOKit -o "$temporary/session-observation"
+"$temporary/session-observation"
+
+python3 "$REPO_DIR/../../tests/macos/doctor-state.py"
+
 if [[ "$mode" == "--static" ]]; then
     printf 'macOS native static checks passed\n'
     exit 0

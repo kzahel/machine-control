@@ -100,6 +100,16 @@ bin/macvm ui press Downloads --app Safari
 bin/macvm ui launch TextEdit
 ```
 
+For accurate lock/readiness reporting and explicitly installed existing-session
+unlock, see the [session-unlock runbook](docs/session-unlock.md). Doctor and
+resident status share an OS observer; ordinary input refuses known locked or
+unknown state. The optional root helper and authorization plug-in passed
+SIP-enabled disposable-appliance acceptance. Ordinary deployment never installs
+the unlock provider implicitly. The desktop remains exposed after unlock;
+physical hardware and notarized distribution remain untested. The
+[earlier investigation](docs/lock-screen-investigation.md) records the evidence
+and bugs that motivated this implementation.
+
 The resident facade is the normal agent path. Deployment installs its stable
 signed identity as a per-user Aqua LaunchAgent with `RunAtLoad` and `KeepAlive`,
 so it returns after login, reboot, or a crash without using doctor as a start

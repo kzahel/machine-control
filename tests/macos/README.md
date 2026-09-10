@@ -92,3 +92,25 @@ tests/macos/administrator-sheet.sh session
 
 No target name, guest account, network endpoint, or captured artifact is
 written into this repository.
+
+## Existing-session unlock
+
+`session-unlock.py --target macos --claim "$claim_id" [--registry FILE]` runs
+local and remote lock/unlock cycles against an explicitly installed disposable
+appliance. It requires SIP, active input/capture consent, the native counter
+fixture, and outer UI prohibited. It checks locked doctor/input refusal, stale
+generations/references, duplicate requests, no-op behavior, and independent
+post-unlock fixture effects. It leaves the session unlocked and does not install
+a provider or enter credentials. The caller owns claim and appliance cleanup.
+
+`doctor-state.py` verifies current/legacy, stopped-resident, and powered-off
+projection through the actual doctor script using isolated fixtures.
+`session-observation.m` tests the pure observer parser without touching a
+desktop. `unlock-grants.m` is a root-only disposable-guest fixture: it uses a
+separate fixed state directory and refuses a preexisting one. It validates
+malformed/stale grants and concurrent one-use consumption while OS state stays
+locked. `unlock-broker-client.m` exercises actual IPC denial and, only after
+explicit privileged fixture setup, disconnect/timeout revocation. These native
+fixtures do not authorize use of the controller desktop. See
+[Tactical 034](../../docs/tactical/034-macos-session-state-and-unlock.md) and the
+[runbook](../../platforms/macos/docs/session-unlock.md) for scope and evidence.

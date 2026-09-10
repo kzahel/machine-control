@@ -92,6 +92,100 @@ protected-data enforcement cannot be measured, and Tart exposes no virtual
 camera or microphone. The corpus will not reinterpret those facts as successful
 application effects.
 
+## Screen-lock investigation
+
+**Current (2026-09-10), `live-tested`, native macOS provider in Tart:**
+Guest administration and the resident survived lock. Fixture AX controls
+became unavailable, a pre-lock AX action failed without a counter effect, and
+global input addressed to the fixture instead reached loginwindow. Full-display
+capture showed the lock screen while exact-window capture retained readable
+fixture pixels. A separate no-active-display state prevented display capture
+and coordinate input until a bounded guest wake assertion restored the display.
+One normal dummy-credential unlock restored AX and keyboard fixture effects
+without a resident restart. Local and outside calls shared the observed limits.
+
+The resident and doctor falsely reported unlocked/ready throughout lock.
+The [authoritative investigation record](../../platforms/macos/docs/lock-screen-investigation.md)
+owns method, operation results, contract gaps, cleanup, and the documented
+Codex locked-use comparison. Cua was unavailable and was not tested in this
+run. SIP was disabled and FileVault off; physical-Mac and protected-profile
+claims remain open. This evidence does not promote login control to adopted
+or conformance-tested status.
+
+## Owned resident unlock implementation
+
+**Current (2026-09-10), `conformance-tested`, explicitly opted-in Tart appliance:**
+[Tactical 034](../../docs/tactical/034-macos-session-state-and-unlock.md) promotes
+the original MIT prototype into the owned resident, native session probe,
+authenticated root broker, and conflict-aware installer. It fixes the earlier
+false unlocked reports and guards ordinary input during known lock/unknown
+state. Local and remote native unlock, independent application effects,
+restarts/reboot, grant rejection/revocation, policy drift, and password fallback
+were exercised with SIP, authenticated-root protection, and Gatekeeper enabled.
+The [implementation](../../platforms/macos/guests/macos/unlock/README.md) owns the
+trust boundary and the tactical owns the precise validation/omission matrix.
+
+The installed provider still advertises `experimental`: the callback consumes
+session-wide authority rather than an agent-authenticated token, and the policy
+composition and OS observer are version-sensitive. Locally ad-hoc-signed VM
+acceptance is separate from physical hardware and notarized distribution.
+No proprietary Computer Use implementation or AsyncVNC code is a dependency.
+
+## Owned authorization unlock prototype
+
+**Current (2026-09-10), `built` and `live-tested`:** An original Apple
+authorization plug-in unlocked an already logged-in Tart session without
+reading or typing the account password. A root-owned, short-lived grant was
+bound to the locked console user's session UUID and boot epoch and consumed
+once. An experimental authorization branch preceded the preserved stock
+password branch. An empty guest-native Return caused loginwindow to evaluate
+the grant and unlock; independent OS observation and AppKit fixture effects
+proved two successful cycles through outside and local resident calls.
+
+Missing, expired, wrong-session, and consumed grants were denied by the
+mechanism. Unarmed and expired attempts left the desktop locked, with normal
+password fallback working. Restoring the original policy and removing the
+plug-in preserved normal password unlock. A successful direct evaluation of
+the experimental right alone did not unlock the desktop.
+
+The [prototype source](../../platforms/macos/experiments/authorization-unlock/README.md)
+is original repository MIT code using Apple SDK interfaces; no proprietary
+Computer Use implementation was copied. The
+[execution record](../../docs/tactical/032-macos-authorization-unlock-investigation.md)
+owns the initial method, test matrix, and restoration evidence. That image
+had SIP disabled; the enabled-SIP follow-up below resolves that loading gap.
+Caller authentication beyond root arming and
+integration with the common resident remain unproved. Screen covering and
+local-input protection were explicitly deferred; the desktop stays exposed
+and unlocked after successful authorization.
+
+**Current (2026-09-10), source-reviewed:** The SIP-disabled environment is not
+a demonstrated Tart restriction. Cirrus explicitly disables SIP in its base
+image build; its published vanilla template is a candidate for an enabled-SIP
+guest, but also disables Gatekeeper. The platform
+[image-security notes](../../platforms/macos/docs/bootstrap.md#image-security-posture)
+own those upstream sources and bootstrap distinctions. The
+[SIP-enabled guest procedure](../../platforms/macos/experiments/authorization-unlock/README.md#sip-enabled-guest-test)
+records protection state separately from image labels.
+
+**Current (2026-09-10), `built` and `live-tested`, SIP-enabled follow-up:**
+The unchanged ad-hoc-signed plug-in loaded and unlocked twice on macOS 26.6.2
+with SIP, authenticated-root protection, and Gatekeeper enabled. Missing,
+expired, wrong-session, and consumed grants were denied. Native AX actions
+after each password-free unlock advanced an independent fixture counter.
+Normal password fallback and stock behavior after complete removal passed;
+the guest was then discarded. The
+[execution record](../../docs/tactical/033-macos-sip-authorization-unlock.md)
+owns the full matrix and cleanup. No Developer ID signature or SIP change was
+needed for that locally built artifact. Notarized/downloaded distribution,
+physical hardware, and protected-provider conformance remain untested.
+
+The same run also proved a useful bootstrap route: a headless
+[AsyncVNC client](../providers/asyncvnc.md) reached the guest's existing native
+Screen Sharing service to grant normal resident consent without host desktop
+interaction. The client was disconnected before the integrated unlock tests;
+native capture, AX, and input then used the ordinary resident over SSH.
+
 ## Current direction
 
 **Decision:** Preserve Cua as a replaceable common-plane adapter and Peekaboo as
@@ -101,6 +195,7 @@ conformance demonstrates a better effect. Commonality must not erase a
 materially better macOS route.
 
 **Open:** Extend evidence to occlusion/minimization, off-Space behavior,
-multiple displays, localization, lock/loginwindow, FileVault/preboot, bounded
+multiple displays, localization, fresh login and broader loginwindow control,
+FileVault/preboot, bounded
 non-UI administration, a SIP-enabled protected-data image, private-API
 fragility, and longer background-interference soak runs.

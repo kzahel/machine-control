@@ -52,8 +52,8 @@ its `Topic:` trailers.
   GNOME Wayland logged-in appliance and remaining compositor, portal,
   protected-plane, and physical-hardware profiles.
 - [`macos-resident-control.md`](macos-resident-control.md): current macOS
-  resident implementation and the active full logged-in Aqua Tart
-  software-testing milestone with outer UI prohibited.
+  resident implementation, accepted logged-in Aqua Tart software testing,
+  and accepted SIP-enabled appliance lock state/unlock with outer UI prohibited.
 - [`platform-notes.md`](platform-notes.md): current decisions across desktop,
   mobile, headset, VM, and physical targets.
 - [`provider-landscape.md`](provider-landscape.md): cross-provider decisions,

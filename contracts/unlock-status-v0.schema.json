@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machine-control.invalid/contracts/unlock-status-v0.schema.json",
+  "title": "Existing-session unlock status",
+  "type": "object",
+  "required": [
+    "support",
+    "installation",
+    "policy",
+    "callerEligibility",
+    "readiness",
+    "reasons"
+  ],
+  "properties": {
+    "support": {
+      "enum": [
+        "experimental",
+        "native",
+        "unsupported"
+      ]
+    },
+    "installation": {
+      "enum": [
+        "missing",
+        "healthy",
+        "inconsistent",
+        "unknown"
+      ]
+    },
+    "policy": {
+      "enum": [
+        "enabled",
+        "disabled",
+        "unknown"
+      ]
+    },
+    "callerEligibility": {
+      "enum": [
+        "allowed",
+        "denied",
+        "unknown"
+      ]
+    },
+    "readiness": {
+      "enum": [
+        "ready",
+        "not_needed",
+        "unavailable",
+        "unknown"
+      ]
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 128
+      }
+    },
+    "helperGeneration": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "helperDesktopGeneration": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    }
+  },
+  "additionalProperties": true
+}

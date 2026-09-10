@@ -5,6 +5,12 @@ import Darwin
 import Foundation
 import SystemConfiguration
 
+// Public libSystem notify.h functions are not exposed by Swift's Darwin module.
+@_silgen_name("notify_register_check")
+func mcNotifyRegister(_ name: UnsafePointer<CChar>, _ token: UnsafeMutablePointer<Int32>) -> UInt32
+@_silgen_name("notify_check")
+func mcNotifyCheck(_ token: Int32, _ changed: UnsafeMutablePointer<Int32>) -> UInt32
+
 enum MacUIError: Error, CustomStringConvertible {
     case usage(String)
     case permission(String)
@@ -414,7 +420,213 @@ struct AuthorizationLease {
     var used: Bool
 }
 
+// Shared native observer also used by the privileged mechanism and doctor.
+func nativeSessionObservation() -> [String: Any] {
+    let probe = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
+        .deletingLastPathComponent().appendingPathComponent("Resources/mc-session-probe")
+    let process = Process(); process.executableURL = probe
+    let pipe = Pipe(); process.standardOutput = pipe; process.standardError = FileHandle.nullDevice
+    do {
+        try process.run()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile(); process.waitUntilExit()
+        if process.terminationStatus == 0, let result = try JSONSerialization.jsonObject(with: data) as? [String: Any] { return result }
+    } catch {}
+    return ["desktopState": "unknown"]
+}
+
 final class ResidentService {
+    private var lockNotificationTokens: [Int32] = {
+        ["com.apple.screenIsLocked", "com.apple.screenIsUnlocked"].compactMap { name in
+            var token: Int32 = 0
+            guard name.withCString({ mcNotifyRegister($0, &token) }) == 0 else { return nil }
+            var changed: Int32 = 0; _ = mcNotifyCheck(token, &changed)
+            return token
+        }
+    }()
+    private var desktopGeneration = UUID().uuidString.lowercased()
+    private var observedSession: [String: Any] = [:]
+    private var usedUnlockRequests = Set<String>()
+
+    func refreshSession() {
+        let next = nativeSessionObservation()
+        var notified = false
+        for token in lockNotificationTokens {
+            var changed: Int32 = 0
+            if mcNotifyCheck(token, &changed) == 0 && changed != 0 { notified = true }
+        }
+        if notified || !NSDictionary(dictionary: next).isEqual(to: observedSession) ||
+            next["desktopState"] as? String == "unknown" {
+            desktopGeneration = UUID().uuidString.lowercased()
+            references.removeAll(); cuaReferences.removeAll()
+            referenceOrder.removeAll(); authorizationLeases.removeAll()
+            observedSession = next
+        }
+    }
+
+    private func connectUnlockBroker() throws -> Int32 {
+        let path = "/var/run/machine-control-unlock/control.sock"
+        var info = stat()
+        guard lstat(path, &info) == 0, info.st_uid == 0,
+              info.st_mode & S_IFMT == S_IFSOCK else {
+            throw MacUIError.permission("unlock_not_installed")
+        }
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd >= 0 else { throw MacUIError.action("unlock_helper_unreachable") }
+        var (address, length) = try unixAddress(path)
+        guard withSockAddr(&address, length: length, { Darwin.connect(fd, $0, $1) }) == 0 else {
+            Darwin.close(fd); throw MacUIError.action("unlock_helper_unreachable")
+        }
+        var uid: uid_t = 1; var gid: gid_t = 1
+        guard getpeereid(fd, &uid, &gid) == 0, uid == 0 else {
+            Darwin.close(fd); throw MacUIError.permission("unlock_helper_identity_invalid")
+        }
+        var timeout = timeval(tv_sec: 12, tv_usec: 0)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout.size(ofValue: timeout)))
+        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout.size(ofValue: timeout)))
+        return fd
+    }
+
+    private func brokerReply(_ fd: Int32) throws -> [String: Any] {
+        guard let value = try JSONSerialization.jsonObject(with: readSocket(fd, limit: 4096)) as? [String: Any] else {
+            throw MacUIError.action("unlock_helper_invalid_response")
+        }
+        return value
+    }
+
+    private func unlockStatus() -> [String: Any] {
+        var status: [String: Any] = [
+            "support": "experimental", "scope": "existing_console_session",
+            "installation": "unknown", "policy": "unknown",
+            "callerEligibility": "unknown", "readiness": "unavailable",
+            "actualRoute": "guest.broker/macos.authorization-plugin",
+            "desktopExposedAfterUnlock": true, "automaticRelock": false,
+            "authorizationScope": "opted_in_appliance_session",
+            "hostInterference": "none",
+        ]
+        var issue = ""
+        do {
+            let fd = try connectUnlockBroker(); defer { Darwin.close(fd) }
+            try writeSocket(fd, data: encodeJSONLine(["operation": "status"]))
+            let reply = try brokerReply(fd)
+            for key in ["installation", "policy", "callerEligibility", "helperGeneration", "helperDesktopGeneration"] {
+                if let value = reply[key] { status[key] = value }
+            }
+            issue = reply["errorCode"] as? String ?? "unlock_helper_invalid_response"
+        } catch {
+            let path = "/Library/Preferences/org.machine-control.unlock.plist"
+            var info = stat()
+            let trusted = lstat(path, &info) == 0 && info.st_uid == 0 && info.st_mode & 0o022 == 0 && info.st_mode & S_IFMT == S_IFREG
+            let config = trusted ? NSDictionary(contentsOfFile: path) : nil
+            let exists = FileManager.default.fileExists(atPath: "/Library/LaunchDaemons/org.machine-control.unlock.plist")
+            status["installation"] = exists ? "unknown" : "missing"
+            if config?["enabled"] as? Bool == false {
+                status["policy"] = "disabled"; issue = "unlock_disabled"
+            } else {
+                issue = exists ? "unlock_helper_unreachable" : "unlock_not_installed"
+            }
+        }
+        let screen = observedSession["desktopState"] as? String ?? "unknown"
+        if screen == "unlocked" {
+            status["readiness"] = "not_needed"
+        } else if screen == "unknown" {
+            issue = "session_state_unknown"; status["readiness"] = "unknown"
+        } else if screen == "no_session" {
+            issue = "no_interactive_session"
+        } else if issue.isEmpty {
+            if (observedSession["uid"] as? NSNumber)?.uint32Value != getuid() {
+                issue = "unlock_session_unavailable"
+            } else if !AXIsProcessTrusted() || !CGPreflightPostEventAccess() {
+                issue = "unlock_input_unavailable"
+            } else if activeDisplayJSON().isEmpty {
+                issue = "unlock_display_unavailable"
+            } else {
+                status["readiness"] = "ready"
+            }
+        }
+        status["reasons"] = issue.isEmpty ? [] : [issue]
+        return status
+    }
+
+    private func unlockSession(_ request: [String: Any]) -> [String: Any] {
+        let route = "guest.broker/macos.authorization-plugin"
+        let allowedKeys: Set<String> = ["schema", "operation", "requestId", "provider", "expectedDesktopGeneration", "expectedHelperGeneration"]
+        guard Set(request.keys).isSubset(of: allowedKeys) else {
+            return refused(request, code: "invalid_request", message: "Unlock accepts only session generations and request identity", route: route)
+        }
+        if let provider = requestString(request, "provider"), provider != "macos-unlock" {
+            return refused(request, code: "provider_unsupported", message: "Unlock requires the explicitly installed macOS provider", route: route)
+        }
+        guard requestString(request, "expectedDesktopGeneration") == desktopGeneration else {
+            return refused(request, code: "stale_generation", message: "Observe current desktop status before unlocking", route: route)
+        }
+        guard let identifier = requestString(request, "requestId"), identifier.count <= 128 else {
+            return refused(request, code: "invalid_request", message: "A bounded requestId is required", route: route)
+        }
+        guard !usedUnlockRequests.contains(identifier), usedUnlockRequests.count < 4096 else {
+            return refused(request, code: "unlock_request_replayed_or_limit", message: "Observe before any new attempt", route: route)
+        }
+        usedUnlockRequests.insert(identifier)
+        if observedSession["desktopState"] as? String == "unlocked" {
+            var result = base(request, route: route)
+            result["delivery"] = "not_applicable"; result["effect"] = "no_effect"
+            result["data"] = ["alreadyUnlocked": true, "desktopGeneration": desktopGeneration]
+            return result
+        }
+        let status = unlockStatus()
+        guard status["readiness"] as? String == "ready" else {
+            return refused(request, code: (status["reasons"] as? [String])?.first ?? "unlock_unavailable", message: "Unlock prerequisites are unavailable", route: route)
+        }
+        guard let helper = status["helperGeneration"] as? String,
+              requestString(request, "expectedHelperGeneration") == helper else {
+            return refused(request, code: "stale_generation", message: "Helper generation changed; observe again", route: route)
+        }
+        let initial = observedSession
+        var armed = false
+        do {
+            // Loginwindow is an explicitly selected OS process, never a generic
+            // app-target override. The current console/lock observation binds it.
+            guard let login = runningApplications().first(where: { $0.bundleIdentifier == "com.apple.loginwindow" }),
+                  !login.isTerminated else { throw MacUIError.action("loginwindow_unavailable") }
+            let fd = try connectUnlockBroker(); defer { Darwin.close(fd) }
+            try writeSocket(fd, data: encodeJSONLine([
+                "operation": "unlock", "requestId": identifier,
+                "helperGeneration": helper,
+                "helperDesktopGeneration": status["helperDesktopGeneration"] ?? "",
+            ]))
+            let acceptance = try brokerReply(fd)
+            guard acceptance["armed"] as? Bool == true else {
+                return refused(request, code: acceptance["errorCode"] as? String ?? "unlock_refused", message: "Protected helper refused arming", route: route)
+            }
+            armed = true
+            guard NSDictionary(dictionary: nativeSessionObservation()).isEqual(to: initial), !login.isTerminated else {
+                throw MacUIError.action("session_changed")
+            }
+            // Proven native trigger; the helper owns authorization, not CGEvent.
+            try sendKey("enter")
+            let outcome = try brokerReply(fd)
+            refreshSession()
+            let unlocked = observedSession["desktopState"] as? String == "unlocked"
+                && (observedSession["uuid"] as? String) == (initial["uuid"] as? String)
+            var result = base(request, route: route)
+            result["delivery"] = "confirmed"
+            result["effect"] = unlocked ? "confirmed" : "unknown"
+            result["uncertainty"] = unlocked ? "none" : "unlock_not_observed"
+            result["retrySafety"] = "observe_before_retry"
+            result["data"] = ["desktopState": observedSession["desktopState"] ?? "unknown",
+                "desktopGeneration": desktopGeneration, "helperObservedUnlock": outcome["unlockedObserved"] ?? false,
+                "desktopExposed": unlocked, "automaticRelock": false]
+            result["evidence"] = [["kind": "session_state", "summary": unlocked ? "OS reports matching console session unlocked" : "Matching session unlock not confirmed"]]
+            return result
+        } catch {
+            if !armed { return refused(request, code: "unlock_trigger_unavailable", message: String(describing: error), route: route) }
+            refreshSession()
+            var result = base(request, route: route)
+            result["delivery"] = "unknown"; result["effect"] = "unknown"
+            result["uncertainty"] = "unlock_outcome_unknown"; result["retrySafety"] = "observe_before_retry"
+            return result
+        }
+    }
+
     let generation = UUID().uuidString.lowercased()
     private var snapshotNumber = 0
     private var references: [String: AXUIElement] = [:]
@@ -587,6 +799,7 @@ final class ResidentService {
             "actualRoute": route,
             "desktop": "Aqua",
             "generation": generation,
+            "elapsedMs": 0,
             "hostInterference": "none",
             "uncertainty": "none",
             "retrySafety": "not_applicable",
@@ -740,7 +953,7 @@ final class ResidentService {
         var full: [[String: Any]] = []
         var compact: [[String: Any]] = []
         for item in records {
-            let reference = "\(generation):\(snapshot):\(item.reference)"
+            let reference = "\(generation):\(desktopGeneration):\(snapshot):\(item.reference)"
             references[reference] = item.element
             referenceOrder.append(reference)
             full.append(elementJSON(item, reference: reference, compact: false))
@@ -781,8 +994,12 @@ final class ResidentService {
     private func activateTarget(_ query: String?) throws -> NSRunningApplication? {
         guard let query else { return nil }
         let app = try resolveApplication(query)
-        _ = app.activate(options: [.activateIgnoringOtherApps])
+        guard app.activate(options: [.activateIgnoringOtherApps]) else { throw MacUIError.action("target_activation_failed") }
         usleep(120_000)
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier,
+              nativeSessionObservation()["desktopState"] as? String == "unlocked" else {
+            throw MacUIError.action("target_activation_unverified")
+        }
         return app
     }
 
@@ -927,6 +1144,12 @@ final class ResidentService {
         }
         for url in ordered.dropLast(15) { try? FileManager.default.removeItem(at: url) }
         return root.appendingPathComponent("capture-\(UUID().uuidString.lowercased()).png")
+    }
+
+    private func displayState() -> String {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success else { return "unknown" }
+        return count > 0 ? "active" : "inactive"
     }
 
     private func activeDisplayJSON() -> [[String: Any]] {
@@ -1205,10 +1428,22 @@ final class ResidentService {
         }
     }
 
+    func credentialPreflight(_ request: [String: Any]) -> [String: Any]? {
+        refreshSession()
+        guard observedSession["desktopState"] as? String == "unlocked" else {
+            return refused(request, code: "desktop_not_unlocked", message: "Credential channel requires an observed unlocked desktop")
+        }
+        return authorizationLeaseForUse(request).1
+    }
+
     func handleCredential(_ request: [String: Any], credential: Data)
         -> [String: Any] {
         let started = DispatchTime.now().uptimeNanoseconds
         var result: [String: Any]
+        refreshSession()
+        guard observedSession["desktopState"] as? String == "unlocked" else {
+            return refused(request, code: "desktop_not_unlocked", message: "Authorization sheet is no longer on an unlocked desktop")
+        }
         let (candidate, refusal) = authorizationLeaseForUse(request)
         if let refusal {
             result = refusal
@@ -1288,12 +1523,20 @@ final class ResidentService {
     }
 
     func handle(_ request: [String: Any]) -> [String: Any] {
+        refreshSession()
         let started = DispatchTime.now().uptimeNanoseconds
         let operation = requestString(request, "operation") ?? ""
+        if operation.hasPrefix("input.") || ["action", "authorization.begin", "authorization.cancel", "application.activate", "window.close"].contains(operation) {
+            guard observedSession["desktopState"] as? String == "unlocked" else {
+                return refused(request, code: "desktop_not_unlocked", message: "Ordinary UI mutation requires an observed unlocked desktop")
+            }
+        }
         var result = refused(request, code: "internal_error",
                              message: "Operation did not produce a result")
         do {
             switch operation {
+            case "session.unlock":
+                result = unlockSession(request)
             case "capabilities":
                 let cua = cuaPermissions()
                 let defaultSemanticProvider = AXIsProcessTrusted() ? "macos.ax" :
@@ -1305,6 +1548,9 @@ final class ResidentService {
                 result["effect"] = "not_applicable"
                 result["data"] = [
                     "providers": [
+                        ["id": "macos-unlock", "state": "experimental",
+                         "routeClass": "guest.broker", "placement": "target_resident",
+                         "operations": ["session.unlock"]],
                         ["id": "macos-native", "state": AXIsProcessTrusted() ? "ready" : "degraded",
                          "routeClass": "guest.user", "placement": "target_resident",
                          "operations": ["applications", "windows", "snapshot", "action",
@@ -1343,6 +1589,9 @@ final class ResidentService {
                          "provider": AXIsProcessTrusted() ? "macos.authorization" :
                             "unavailable"],
                     ],
+                    "unlock": unlockStatus(),
+                    "desktopState": observedSession["desktopState"] ?? "unknown",
+                    "desktopGeneration": desktopGeneration,
                     "screenCaptureAuthorized": CGPreflightScreenCaptureAccess(),
                     "accessibilityAuthorized": AXIsProcessTrusted(),
                     "displays": activeDisplayJSON(),
@@ -1360,11 +1609,18 @@ final class ResidentService {
                     "user": NSUserName(),
                     "consoleUser": (SCDynamicStoreCopyConsoleUser(nil, nil, nil)
                         as String?).map { $0 as Any } ?? NSNull(),
-                    "desktopState": "unlocked",
-                    "semanticState": AXIsProcessTrusted() || cuaAccessibility ?
+                    "desktopState": observedSession["desktopState"] ?? "unknown",
+                    "desktopGeneration": desktopGeneration,
+                    "observationSource": "iokit.console-session",
+                    "observedAt": ISO8601DateFormatter().string(from: Date()),
+                    "displayState": displayState(),
+                    "unlock": unlockStatus(),
+                    "inputState": observedSession["desktopState"] as? String == "unlocked" &&
+                        (CGPreflightPostEventAccess() || cuaAccessibility) ? "ready" : "unavailable",
+                    "semanticState": observedSession["desktopState"] as? String == "unlocked" && (AXIsProcessTrusted() || cuaAccessibility) ?
                         "ready" : "unavailable",
                     "nativeSemanticState": AXIsProcessTrusted() ? "ready" : "unavailable",
-                    "captureState": CGPreflightScreenCaptureAccess() || cuaCapture ?
+                    "captureState": !activeDisplayJSON().isEmpty && (CGPreflightScreenCaptureAccess() || cuaCapture) ?
                         "ready" : "unavailable",
                     "nativeCaptureState": CGPreflightScreenCaptureAccess() ?
                         "ready" : "unavailable",
@@ -1530,7 +1786,7 @@ final class ResidentService {
                     var projected: [[String: Any]] = []
                     for element in output["elements"] as? [[String: Any]] ?? [] {
                         guard let token = element["element_token"] as? String else { continue }
-                        let reference = "\(generation):cua:\(pid):\(windowID):\(token)"
+                        let reference = "\(generation):\(desktopGeneration):cua:\(pid):\(windowID):\(token)"
                         cuaReferences[reference] = CuaReference(
                             pid: pid, windowID: windowID,
                             snapshotID: snapshotID, token: token)
@@ -1576,7 +1832,7 @@ final class ResidentService {
                 ]
             case "action":
                 if let reference = requestString(request, "reference"),
-                   !reference.hasPrefix(generation + ":") {
+                   !reference.hasPrefix(generation + ":" + desktopGeneration + ":") {
                     result = refused(request, code: "stale_reference",
                                      message: "Reference belongs to another resident generation",
                                      stale: true)
@@ -1815,6 +2071,10 @@ final class ResidentService {
                 result["effect"] = after.count < windows.count ? "confirmed" : "unknown"
             case "input.key", "input.text", "input.click", "input.move",
                  "input.drag", "input.scroll":
+                _ = try activateTarget(requestString(request, "target"))
+                guard nativeSessionObservation()["desktopState"] as? String == "unlocked" else {
+                    result = refused(request, code: "desktop_not_unlocked", message: "Desktop changed before input dispatch"); break
+                }
                 let providerWasExplicit = requestString(request, "provider") != nil
                 let preferCuaText = operation == "input.text" &&
                     !providerWasExplicit && cuaPermissions() != nil
@@ -2233,6 +2493,9 @@ func runResidentServer(socketPath: String) throws -> Never {
     }
     let service = ResidentService()
     while true {
+        service.refreshSession()
+        var pending = pollfd(fd: descriptor, events: Int16(POLLIN), revents: 0)
+        if poll(&pending, 1, 250) <= 0 { continue }
         let client = accept(descriptor, nil, nil)
         if client < 0 {
             if errno == EINTR { continue }
@@ -2248,6 +2511,10 @@ func runResidentServer(socketPath: String) throws -> Never {
                 }
                 let response: [String: Any]
                 if request["operation"] as? String == "authorization.submit" {
+                    if let refusal = service.credentialPreflight(request) {
+                        try writeSocket(client, data: encodeJSONLine(refusal))
+                        return
+                    }
                     try writeSocket(client, data: Data([0x06]))
                     var credential = try readSocket(client, limit: 257)
                     defer {
@@ -2397,6 +2664,12 @@ do {
     switch command {
     case "help", "-h", "--help":
         print(usage())
+    case "session-state":
+        let state = nativeSessionObservation()
+        print(String(decoding: try JSONSerialization.data(withJSONObject: [
+            "desktopState": state["desktopState"] ?? "unknown",
+            "observationSource": "iokit.console-session"
+        ]), as: UTF8.self))
     case "health":
         let frontmost = NSWorkspace.shared.frontmostApplication
         let payload: [String: Any] = [

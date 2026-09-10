@@ -113,7 +113,7 @@ platform has the same implementation.
 | Platform | Current control surface | Maturity |
 | --- | --- | --- |
 | Windows | Common desktop facade, administration, UIA/Cua semantics, capture/input, application and session control, UAC/lock/login, lifecycle, workspaces, and appliance maintenance | First complete vertical slice; live ARM64 VM and physical x64 evidence |
-| macOS | Common desktop facade using Accessibility, Workspace, Quartz/CoreGraphics, and selected Cua routes; application UI, system surfaces, administrator sheets, capture/input, lifecycle, workspaces, and maintenance | Accepted logged-in Aqua/Tart appliance; lock, preboot, and physical-Mac profiles remain |
+| macOS | Common desktop facade using Accessibility, Workspace, Quartz/CoreGraphics, and selected Cua routes; application UI, system surfaces, administrator sheets, capture/input, lifecycle, workspaces, and maintenance | Accepted Aqua/Tart appliance and explicit existing-session unlock on a SIP-enabled VM; fresh login, preboot, and physical-Mac profiles remain |
 | Linux | Common desktop facade using AT-SPI, GNOME capture, target-local input, application lifecycle, workspaces, and maintenance | Accepted Ubuntu 24.04 GNOME 46 Wayland appliance; GDM, lock, other compositors, and physical hardware remain |
 | ChromeOS | Target-native administration, desktop accessibility, per-page CDP, capture/input, readiness, and guarded runtime maintenance | Working physical reference implementation; broader common desktop projection remains |
 | iOS | CoreDevice lifecycle, deployment, container exchange, and crash reports; semantic XCTest; bounded application/system logs; screenshots, input, leases, and recovery | Working physical-device route with explicit protected-authentication limits |
