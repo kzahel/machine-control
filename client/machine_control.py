@@ -698,6 +698,8 @@ def validate_doctor(value: Any) -> dict[str, Any]:
     unlock = value["extensions"].get("unlock")
     if unlock is not None:
         validate_unlock_status(unlock)
+    if "lockScreen" in value["extensions"]:
+        validate_lock_screen_status(value["extensions"]["lockScreen"])
     lifecycle = value["extensions"].get("lifecycle")
     if lifecycle is not None:
         suspend = lifecycle.get("suspend") if isinstance(lifecycle, dict) else None
@@ -2052,6 +2054,21 @@ def parse_options(
         ) from error
 
 
+def validate_lock_screen_status(value: Any) -> None:
+    enums = {
+        "captureState": {"ready", "unavailable", "unknown", "not_applicable"},
+        "accessibilityState": {"unverified", "unavailable", "unknown", "not_applicable"},
+        "nativeKeyboardPermission": {"granted", "denied", "unknown"},
+        "ordinaryInputPolicy": {"blocked_while_locked"},
+        "credentialEntry": {"not_implemented"},
+    }
+    if not isinstance(value, dict) or any(
+        not isinstance(value.get(key), str) or value[key] not in choices
+        for key, choices in enums.items()
+    ) or value.get("observationRequiresUnlockHelper") is not False:
+        raise ClientError("invalid_lock_screen_status", "Lock-screen capability projection is invalid", 1)
+
+
 def validate_unlock_status(value: Any) -> None:
     enums = {
         "support": {"experimental", "native", "unsupported"},
@@ -2068,6 +2085,12 @@ def validate_unlock_status(value: Any) -> None:
         for reason in value.get("reasons", [])
     ):
         raise ClientError("invalid_unlock_status", "Unlock readiness is invalid", 1)
+    if "armingMode" in value and value["armingMode"] != "per_request":
+        raise ClientError("invalid_unlock_status", "Unlock arming mode is invalid", 1)
+    if "grantLifetimeSeconds" in value and (
+        type(value["grantLifetimeSeconds"]) is not int or value["grantLifetimeSeconds"] != 10
+    ):
+        raise ClientError("invalid_unlock_status", "Unlock grant lifetime is invalid", 1)
     for key in ("helperGeneration", "helperDesktopGeneration"):
         if key in value and (
             not isinstance(value[key], str) or not 1 <= len(value[key]) <= 128
@@ -2332,6 +2355,8 @@ def add_client_projection(
 ) -> dict[str, Any]:
     if isinstance(value.get("data"), dict) and "unlock" in value["data"]:
         validate_unlock_status(value["data"]["unlock"])
+    if isinstance(value.get("data"), dict) and "lockScreen" in value["data"]:
+        validate_lock_screen_status(value["data"]["lockScreen"])
     value["client"] = {
         "version": CLIENT_VERSION,
         "logicalTarget": alias,

@@ -67,6 +67,16 @@ Read-only checks never arm, wake, install, or display consent UI. An enabled
 helper has its own startup readiness; ordinary desktop readiness does not
 promise that the helper has finished starting.
 
+**Current:** Discovery also exposes `lockScreen` independently of ordinary app
+readiness and helper health: full-display capture preflight, limited loginwindow
+AX eligibility (contents unverified), native event-posting permission, blocked
+ordinary input, and the missing dedicated credential-entry API. Capture and
+AX observation do not need the root unlock helper. Its explicit installation
+enables policy persistently; arming happens only per unlock transaction, for a
+one-use ten-second grant. Status reports this mode rather than inventing a
+live armed-state observation. The follow-up projection passed native pure
+fixtures and doctor/client checks; it did not repeat the earlier live VM tests.
+
 **Decision:** This is explicit appliance authority. The callback authorizes the
 next matching mechanism evaluation in a short session-wide window and cannot
 authenticate the initiating agent. It is not containment against the same user

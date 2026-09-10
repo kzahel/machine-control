@@ -34,6 +34,22 @@ class UnlockStatusTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(mc.ClientError):
                 mc.validate_unlock_status(value)
 
+    def test_lock_screen_permission_does_not_claim_credential_input(self):
+        value = dict(captureState="ready", accessibilityState="unverified",
+            nativeKeyboardPermission="granted", ordinaryInputPolicy="blocked_while_locked",
+            credentialEntry="not_implemented", observationRequiresUnlockHelper=False)
+        mc.validate_lock_screen_status(value)
+        for key, bad in [("accessibilityState", "ready"), ("credentialEntry", "ready"),
+                         ("nativeKeyboardPermission", True), ("observationRequiresUnlockHelper", True)]:
+            with self.subTest(key=key), self.assertRaises(mc.ClientError):
+                mc.validate_lock_screen_status(dict(value, **{key: bad}))
+
+    def test_arming_mode_is_not_an_armed_state(self):
+        mc.validate_unlock_status(dict(self.ready(), armingMode="per_request", grantLifetimeSeconds=10))
+        for fields in [dict(armingMode="always"), dict(grantLifetimeSeconds=60), dict(grantLifetimeSeconds=True)]:
+            with self.subTest(fields=fields), self.assertRaises(mc.ClientError):
+                mc.validate_unlock_status(dict(self.ready(), **fields))
+
     def test_unlock_command_requires_observation_and_request_identity(self):
         request, local = mc.desktop_request(["session", "unlock",
             "--expected-desktop-generation", "desktop-epoch",

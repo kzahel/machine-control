@@ -105,6 +105,8 @@ a provider or enter credentials. The caller owns claim and appliance cleanup.
 
 `doctor-state.py` verifies current/legacy, stopped-resident, and powered-off
 projection through the actual doctor script using isolated fixtures.
+`lock-screen-projection.py` compiles the resident's pure projection and checks
+consent, inactive display, unknown session, and ordinary-input separation.
 `session-observation.m` tests the pure observer parser without touching a
 desktop. `unlock-grants.m` is a root-only disposable-guest fixture: it uses a
 separate fixed state directory and refuses a preexisting one. It validates

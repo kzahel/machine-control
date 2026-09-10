@@ -27,9 +27,12 @@ macvm_resident_request() {
 ''')
     unlock = dict(support="experimental", installation="missing", policy="unknown",
                   callerEligibility="unknown", readiness="unavailable", reasons=["unlock_not_installed"])
+    lock_screen = dict(captureState="ready", accessibilityState="unverified",
+        nativeKeyboardPermission="granted", ordinaryInputPolicy="blocked_while_locked",
+        credentialEntry="not_implemented", observationRequiresUnlockHelper=False)
     current = dict(schema="machine-control/v0", accepted=True, generation="resident",
         data=dict(desktopState="locked", desktopGeneration="desktop", observationSource="iokit.console-session",
-                  inputState="unavailable", semanticState="unavailable", captureState="ready", unlock=unlock))
+                  inputState="unavailable", semanticState="unavailable", captureState="ready", unlock=unlock, lockScreen=lock_screen))
     legacy = dict(schema="machine-control/v0", accepted=True, generation="legacy",
                   data=dict(desktopState="unlocked", semanticState="ready", captureState="ready"))
     cases = [
@@ -49,4 +52,13 @@ macvm_resident_request() {
         assert value["states"]["resident"] == reachable, (name, value)
         assert value["extensions"]["unlock"]["installation"] == installation, (name, value)
         assert value["ready"] is False, (name, value)
+        projection = value["extensions"]["lockScreen"]
+        if name == "current_locked":
+            assert projection == lock_screen, value
+            assert value["states"]["input"] == "unavailable", value
+            assert any(check["id"] == "lock_screen" and "granted" in check["summary"]
+                       for check in value["checks"]), value
+        else:
+            assert projection["captureState"] == "unknown", value
+            assert projection["nativeKeyboardPermission"] == "unknown", value
         print(name + ": passed")

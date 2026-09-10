@@ -434,6 +434,32 @@ func nativeSessionObservation() -> [String: Any] {
     return ["desktopState": "unknown"]
 }
 
+// Pure projection: permission/preflight evidence is not an observed UI effect.
+func lockScreenProjection(screen: String, displayActive: Bool,
+                          captureAuthorized: Bool, accessibilityAuthorized: Bool,
+                          keyboardAuthorized: Bool) -> [String: Any] {
+    let absent = ["unlocked", "no_session"].contains(screen)
+    let capture = screen == "locked" ?
+        (displayActive && captureAuthorized ? "ready" : "unavailable") :
+        (absent ? "not_applicable" : "unknown")
+    let accessibility = screen == "locked" ?
+        (accessibilityAuthorized ? "unverified" : "unavailable") :
+        (absent ? "not_applicable" : "unknown")
+    return [
+        "captureState": capture,
+        "captureOperation": "capture", "captureScope": "display",
+        "accessibilityState": accessibility,
+        "accessibilityOperation": "snapshot", "accessibilityTarget": "loginwindow",
+        "accessibilityFidelity": "limited_loginwindow_metadata",
+        "nativeKeyboardPermission": keyboardAuthorized ? "granted" : "denied",
+        "ordinaryInputPolicy": "blocked_while_locked",
+        "credentialEntry": "not_implemented",
+        "unlockTriggerOperation": "session.unlock",
+        "observationRequiresUnlockHelper": false,
+        "actualRoute": "guest.user/macos-native",
+    ]
+}
+
 final class ResidentService {
     private var lockNotificationTokens: [Int32] = {
         ["com.apple.screenIsLocked", "com.apple.screenIsUnlocked"].compactMap { name in
@@ -493,6 +519,14 @@ final class ResidentService {
         return value
     }
 
+    private func lockScreenStatus() -> [String: Any] {
+        lockScreenProjection(screen: observedSession["desktopState"] as? String ?? "unknown",
+            displayActive: !activeDisplayJSON().isEmpty,
+            captureAuthorized: CGPreflightScreenCaptureAccess(),
+            accessibilityAuthorized: AXIsProcessTrusted(),
+            keyboardAuthorized: CGPreflightPostEventAccess())
+    }
+
     private func unlockStatus() -> [String: Any] {
         var status: [String: Any] = [
             "support": "experimental", "scope": "existing_console_session",
@@ -501,6 +535,7 @@ final class ResidentService {
             "actualRoute": "guest.broker/macos.authorization-plugin",
             "desktopExposedAfterUnlock": true, "automaticRelock": false,
             "authorizationScope": "opted_in_appliance_session",
+            "armingMode": "per_request", "grantLifetimeSeconds": 10,
             "hostInterference": "none",
         ]
         var issue = ""
@@ -1590,6 +1625,7 @@ final class ResidentService {
                             "unavailable"],
                     ],
                     "unlock": unlockStatus(),
+                    "lockScreen": lockScreenStatus(),
                     "desktopState": observedSession["desktopState"] ?? "unknown",
                     "desktopGeneration": desktopGeneration,
                     "screenCaptureAuthorized": CGPreflightScreenCaptureAccess(),
@@ -1615,6 +1651,7 @@ final class ResidentService {
                     "observedAt": ISO8601DateFormatter().string(from: Date()),
                     "displayState": displayState(),
                     "unlock": unlockStatus(),
+                    "lockScreen": lockScreenStatus(),
                     "inputState": observedSession["desktopState"] as? String == "unlocked" &&
                         (CGPreflightPostEventAccess() || cuaAccessibility) ? "ready" : "unavailable",
                     "semanticState": observedSession["desktopState"] as? String == "unlocked" && (AXIsProcessTrusted() || cuaAccessibility) ?

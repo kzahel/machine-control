@@ -33,6 +33,44 @@ and `reasons`. Installation alone is insufficient. An unlocked session reports
 `not_needed` while preserving installation/permission blockers for future use.
 Status and doctor never arm a grant, wake the display, or prompt for consent.
 
+## Lock-screen observation and keyboard permission
+
+Doctor's `extensions.lockScreen` and resident status/capabilities `data.lockScreen`
+report native lock-screen prerequisites separately from ordinary app readiness
+and the optional root helper. The [schema](../../../contracts/lock-screen-status-v0.schema.json)
+distinguishes:
+
+- `captureState`: full-display capture preflight while locked, requiring normal
+  Screen Recording consent and an active display. Use `capture` with display
+  scope and the native provider. Window pixels under the lock screen are a
+  different observation and do not prove an interactive app.
+- `accessibilityState`: `unverified` when Accessibility consent permits a
+  native `snapshot` targeted at `loginwindow`; status does not traverse its AX
+  tree. Earlier VM tests exposed limited window/user/field metadata. Permission
+  is not proof that a useful tree is presently available, and it does not
+  expose the password or authorize credential entry.
+- `nativeKeyboardPermission`: the native event-posting consent preflight,
+  independent of helper installation. `granted` is not a guarantee of event
+  delivery, display readiness, or a callable lock-screen typing API.
+- `ordinaryInputPolicy: blocked_while_locked` and
+  `credentialEntry: not_implemented`: ordinary app input remains blocked; a
+  dedicated password-entry API has not been added. The existing narrow
+  `session.unlock` trigger requires the installed, enabled helper.
+
+These read-only observations do not require the unlock helper. They preserve
+ordinary `inputState`/`semanticState` as unavailable while locked, so an agent
+cannot mistake native permission for permission to send app input into the
+password field. An unreachable/older resident reports unknown prerequisites.
+The projection is native-only; it makes no new Cua locked-session claim.
+
+Installation is an explicit persistent opt-in, never part of ordinary resident
+deployment. An enabled idle helper has **no standing unlock grant**.
+`unlock.armingMode: per_request` and `grantLifetimeSeconds: 10` describe its
+transaction policy, not a live assertion that a grant is currently armed.
+Only an accepted `session.unlock` transaction arms a one-use grant. Consumption,
+disconnect, timeout, restart, or revocation ends remaining authority. Doctor,
+status, and capabilities never arm it. No automatic relock is implemented.
+
 ## Explicit appliance installation
 
 Prepare the ordinary resident and normal Accessibility consent first. Screen

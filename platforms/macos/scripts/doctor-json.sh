@@ -60,6 +60,7 @@ if [[ "$administration" == ready ]]; then
     [[ "$desktop" =~ ^(unlocked|locked|no_session|unknown)$ ]] || desktop=unknown
 fi
 unlock_json='{"support":"experimental","installation":"unknown","policy":"unknown","callerEligibility":"unknown","readiness":"unknown","reasons":["resident_unreachable"]}'
+lock_screen_json='{"captureState":"unknown","accessibilityState":"unknown","nativeKeyboardPermission":"unknown","ordinaryInputPolicy":"blocked_while_locked","credentialEntry":"not_implemented","observationRequiresUnlockHelper":false}'
 display_state=unknown
 
 control_status=""
@@ -91,6 +92,8 @@ if [[ "$administration" == ready ]] &&
     unlock_json="$(jq -c '.data.unlock // {support:"experimental",
         installation:"unknown",policy:"unknown",callerEligibility:"unknown",
         readiness:"unknown",reasons:["resident_upgrade_required"]}' <<<"$control_status")"
+    lock_screen_json="$(jq -c --argjson fallback "$lock_screen_json" \
+        '.data.lockScreen // $fallback' <<<"$control_status")"
     display_state="$(jq -r '.data.displayState // "unknown"' <<<"$control_status")"
     resident_json="$(jq -c \
         '{contract:.schema,generation:.generation}' <<<"$control_status")"
@@ -105,6 +108,8 @@ else
     add_check desktop fail "Desktop state: $desktop"
 fi
 add_check unlock skip "Unlock readiness: $(jq -r '.readiness // "unknown"' <<<"$unlock_json"); $(jq -r '(.reasons // []) | join(", ")' <<<"$unlock_json")"
+
+add_check lock_screen skip "$(jq -r '"Lock-screen capture: \(.captureState); AX: \(.accessibilityState); native keyboard permission: \(.nativeKeyboardPermission); ordinary input blocked while locked; credential entry: \(.credentialEntry)"' <<<"$lock_screen_json")"
 
 if [[ "$semantic" == ready ]]; then
     add_check semantic pass 'Accessibility semantics are ready'
@@ -150,6 +155,7 @@ jq -cn \
     --argjson resident "$resident_json" \
     --argjson checks "$checks" \
     --argjson unlock "$unlock_json" \
+    --argjson lock_screen "$lock_screen_json" \
     --arg display_state "$display_state" \
     '{
         schema:"machine-control-doctor/v0",
@@ -178,6 +184,7 @@ jq -cn \
             desktopSession:"aqua",
             privacyAuthority:"tcc",
             unlock:$unlock,
+            lockScreen:$lock_screen,
             displayState:$display_state
         }
     }'

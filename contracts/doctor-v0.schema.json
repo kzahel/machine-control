@@ -70,6 +70,7 @@
       "type": "object",
       "properties": {
         "unlock": { "$ref": "unlock-status-v0.schema.json" },
+        "lockScreen": { "$ref": "lock-screen-status-v0.schema.json" },
         "lifecycle": {
           "type": "object",
           "required": ["suspend", "defaultDownAction"],

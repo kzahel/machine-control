@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machine-control.invalid/contracts/lock-screen-status-v0.schema.json",
+  "title": "macOS lock-screen observation and input prerequisites",
+  "description": "Permission and capture preflight are separate from callable credential input and freshly observed accessibility contents.",
+  "type": "object",
+  "required": [
+    "captureState",
+    "accessibilityState",
+    "nativeKeyboardPermission",
+    "ordinaryInputPolicy",
+    "credentialEntry",
+    "observationRequiresUnlockHelper"
+  ],
+  "properties": {
+    "captureState": {
+      "enum": [
+        "ready",
+        "unavailable",
+        "unknown",
+        "not_applicable"
+      ]
+    },
+    "accessibilityState": {
+      "enum": [
+        "unverified",
+        "unavailable",
+        "unknown",
+        "not_applicable"
+      ]
+    },
+    "nativeKeyboardPermission": {
+      "enum": [
+        "granted",
+        "denied",
+        "unknown"
+      ]
+    },
+    "ordinaryInputPolicy": {
+      "const": "blocked_while_locked"
+    },
+    "credentialEntry": {
+      "const": "not_implemented"
+    },
+    "observationRequiresUnlockHelper": {
+      "const": false
+    }
+  },
+  "additionalProperties": true
+}

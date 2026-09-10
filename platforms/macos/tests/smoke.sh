@@ -341,6 +341,7 @@ fi
 "$temporary/session-observation"
 
 python3 "$REPO_DIR/../../tests/macos/doctor-state.py"
+python3 "$REPO_DIR/../../tests/macos/lock-screen-projection.py"
 
 if [[ "$mode" == "--static" ]]; then
     printf 'macOS native static checks passed\n'
