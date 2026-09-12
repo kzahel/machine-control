@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory=$true)][string]$ApplianceExecutable,
     [Parameter(Mandatory=$true)][string]$Package,
     [Parameter(Mandatory=$true)][string]$ExpectedPublisher,
-    [Parameter(Mandatory=$true)][ValidateSet('CancelInstall','Install','CancelArm','Arm','Revoke','Uninstall')][string]$Stage,
+    [Parameter(Mandatory=$true)][ValidateSet('CancelInstall','RejectUnsigned','Install','CancelArm','Arm','Revoke','Uninstall')][string]$Stage,
     [ValidatePattern('^[a-z0-9][a-z0-9-]{0,47}$')][string]$Instance = 'unlock-conformance',
     [string]$Proposal,
     [string]$EvidencePath = (Join-Path $env:TEMP 'unlock-setup-conformance.json')
@@ -66,6 +66,7 @@ try {
     $before = if (Test-Path $grantPath) { (Get-FileHash $grantPath).Hash } else { $null }
     $action = switch ($Stage) {
         'CancelInstall' {'Install'}
+        'RejectUnsigned' {'Install'}
         'CancelArm' {'Arm'}
         default {$Stage}
     }
@@ -73,6 +74,7 @@ try {
         throw 'Conformance instance already exists'
     }
     $arguments = "$action $Instance"
+    if ($Stage -eq 'RejectUnsigned') { $arguments += ' - --allow-unsigned' }
     if ($action -eq 'Arm') {
         if (-not $Proposal -or -not (Test-Path -LiteralPath $Proposal)) { throw 'Public approval proposal required' }
         $arguments += ' "' + $Proposal + '"'
@@ -91,7 +93,7 @@ try {
         $summary.elevatedGrantDialogObserved = $true
     }
     if (-not $setupProcess.WaitForExit(90000)) { throw 'Setup did not finish' }
-    $expectedExit = if ($Stage -in @('CancelInstall','CancelArm')) {1223} else {0}
+    $expectedExit = if ($Stage -in @('CancelInstall','CancelArm')) {1223} elseif ($Stage -eq 'RejectUnsigned') {1} else {0}
     if ($setupProcess.ExitCode -ne $expectedExit) { throw "Unexpected setup exit: $($setupProcess.ExitCode)" }
     $summary.exitCode = $setupProcess.ExitCode
     $deadline = [DateTime]::UtcNow.AddSeconds(90)
@@ -101,6 +103,7 @@ try {
         $grant = Test-Path -LiteralPath $grantPath
         switch ($Stage) {
             'CancelInstall' { $observed = -not $service -and -not (Test-Path $root) }
+            'RejectUnsigned' { $observed = -not $service -and -not (Test-Path $root) }
             'Install' { $observed = $service -and $service.Status -eq 'Running' -and -not $grant }
             'CancelArm' {
                 $after = if ($grant) { (Get-FileHash $grantPath).Hash } else { $null }

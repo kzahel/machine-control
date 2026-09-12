@@ -8,7 +8,9 @@ try {
     $instance = $env:MC_UNLOCK_INSTANCE
     $proposal = $env:MC_UNLOCK_PROPOSAL
     $self = $env:MC_UNLOCK_SELF
-    $development = $env:MC_UNLOCK_DEVELOPMENT -ceq '--allow-unsigned'
+    $requestedDevelopment = $env:MC_UNLOCK_DEVELOPMENT -ceq '--allow-unsigned'
+    if ($expectedPublisher -and $requestedDevelopment) { throw 'Signed release setup cannot disable package verification' }
+    $development = -not $expectedPublisher -and $requestedDevelopment
     if ($action -cnotin @('Install', 'Arm', 'Revoke', 'Uninstall') -or $instance -cnotmatch '^[a-z0-9][a-z0-9-]{0,47}$') {
         throw 'Invalid setup action or instance'
     }

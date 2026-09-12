@@ -36,8 +36,9 @@ Install and Uninstall use the original distribution's setup entry. Payloads
 live under `%ProgramFiles%\MachineControlUnlock\INSTANCE`, and grants under
 `%ProgramData%\MachineControlUnlock\INSTANCE`, with administrator/SYSTEM write
 access. No Windows password or PIN is stored there. The installed bootstrap may
-also run Arm or Revoke. Explicit development invocation appends a proposal (or
-`-`) and `--allow-unsigned`; release use must omit this development override.
+also run Arm or Revoke. An unsigned development bootstrap built without a release
+publisher accepts a proposal (or `-`) and `--allow-unsigned`. Signed release
+bootstraps reject this flag and always require publisher/catalog verification.
 
 ## Controller preparation
 
