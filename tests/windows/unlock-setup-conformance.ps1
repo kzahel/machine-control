@@ -18,7 +18,7 @@ $grantPath = Join-Path $state 'grant.json'
 $summary = [ordered]@{ schema='machine-control-unlock-setup-conformance/v0'; stage=$Stage; passed=$false }
 function Control([hashtable]$Request) {
     $result = ($Request | ConvertTo-Json -Depth 12 -Compress | & $ApplianceExecutable call) | ConvertFrom-Json
-    if ($LASTEXITCODE -ne 0 -or -not $result.accepted) { throw "Appliance harness refused $($Request.operation)" }
+    if ($LASTEXITCODE -ne 0 -or -not $result.accepted) { throw "Appliance harness refused $($Request.operation): $($result.errorCode)" }
     return $result
 }
 function Wait-Desktop([string]$Name) {
@@ -43,7 +43,11 @@ function Button([string]$Name, [string]$WindowQuery) {
         $snapshot = Control $request
         $buttons = @($snapshot.data.elements | Where-Object { $_.controlType -eq 'Button' -and $_.name -eq $Name -and -not $_.offscreen })
         if ($buttons.Count -eq 1) {
-            Control @{operation='invoke'; scope='system'; reference=$buttons[0].reference; expectedGeneration=$snapshot.generation; allowVisualFallback=$true} | Out-Null
+            # Protected desktop workers are disposable; resolve the observed
+            # unique button again by name within its observed window/generation.
+            $invoke=@{operation='invoke'; scope='system'; query=$Name; allowVisualFallback=$true}
+            if ($request.ContainsKey('hwnd')) { $invoke.hwnd=$request.hwnd }
+            Control $invoke | Out-Null
             return
         }
         Start-Sleep -Milliseconds 200

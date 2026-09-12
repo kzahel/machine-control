@@ -9,6 +9,7 @@ import argparse
 import base64
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -40,10 +41,12 @@ def generate(key, public):
 
 
 def proposal(args):
+    if args.hours is not None and (not math.isfinite(args.hours) or args.hours <= 0):
+        raise ValueError('Grant hours must be positive and finite')
     value = dict(schema='machine-control-unlock-grant/v0', revision=uuid.uuid4().hex,
                  targetUserSid=args.target_sid, transportUserSid=args.transport_sid,
                  controllerPublicKey=args.public.read_text().strip())
-    if args.hours:
+    if args.hours is not None:
         value['expiresAt'] = (datetime.now(timezone.utc) + timedelta(hours=args.hours)).isoformat()
     with args.output.open('x') as output:
         os.chmod(args.output, 0o600)

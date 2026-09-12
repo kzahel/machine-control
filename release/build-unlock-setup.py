@@ -30,7 +30,8 @@ def build(runtime, output):
             '\n'.join('L"' + script[i:i+1000] + '"' for i in range(0, len(script), 1000)) + ';\n')
         compiler = ['cl', '/nologo', '/W4', '/WX', '/O2', '/MT', '/guard:cf', '/D_CRT_SECURE_NO_WARNINGS',
                     '/I' + str(work), str(ROOT / 'release/unlock-setup.c'), '/Fe' + str(output),
-                    '/link', 'advapi32.lib', 'shell32.lib', '/DYNAMICBASE', '/NXCOMPAT']
+                    '/link', 'advapi32.lib', 'shell32.lib', '/DYNAMICBASE', '/NXCOMPAT',
+                    '/MANIFEST:EMBED', "/MANIFESTUAC:level='asInvoker' uiAccess='false'"]
         # cmd.exe is required only for MSVC's environment script. Paths are local
         # build paths; no secret or proposal is interpolated into this command.
         architecture = 'x64_arm64' if runtime == 'win-arm64' else 'x64'

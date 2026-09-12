@@ -5,6 +5,7 @@ from pathlib import Path
 import base64
 import hashlib
 import uuid
+from types import SimpleNamespace
 
 spec = importlib.util.spec_from_file_location('unlock_controller', Path(__file__).resolve().parents[2] / 'release/unlock-controller.py')
 controller = importlib.util.module_from_spec(spec)
@@ -43,3 +44,8 @@ class UnlockChallengeTests(unittest.TestCase):
             self.validate({**self.challenge, 'serviceGeneration': 'label'})
         with self.assertRaises(ValueError):
             self.validate({**self.challenge, 'nonce': '00'})
+
+    def test_invalid_expiry_cannot_become_an_indefinite_grant(self):
+        for hours in (0, -1, float('nan'), float('inf')):
+            with self.subTest(hours=hours), self.assertRaises(ValueError):
+                controller.proposal(SimpleNamespace(hours=hours))
