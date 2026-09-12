@@ -83,7 +83,7 @@ lane proves revocation and helper recreation instead.
 
 `workstation-conformance.ps1` addresses an explicit installed user instance and
 interactive session. It proves Medium integrity, protected refusals, stale
-generation fencing, Cua/native semantics and capture, and an independent
+generation fencing, direct Cua semantics and capture, and an independent
 fixture-owned counter effect. Pass the fixture separately from the product
 payload. `workstation-lifecycle.ps1` runs inside the ordinary interactive
 session against two different packages and exercises upgrade refusal while
@@ -91,3 +91,17 @@ running, stop/start, rollback, stale requests, two-instance isolation, and
 removal. Both scripts retain their evidence outside the product package.
 See [Tactical 036](../../docs/tactical/036-windows-workstation-distribution.md)
 for the appliance and signed-artifact acceptance gates.
+
+`workstation-package-trust.ps1` requires a signed package and trusted publisher.
+It tampers with a payload file and forges the unsigned hash inventory, then
+requires catalog verification to refuse installation before activation.
+
+Run workstation conformance with `-ExerciseProviderFailure` only on a distinct
+candidate instance: it terminates that instance's provider and briefly withholds
+its binary, restoring the file in cleanup. It checks stale provider references,
+one restart, disclosed fallback, and disconnected/malformed IPC resilience.
+For the idle-session regression, launch the candidate with the upstream test
+setting `CUA_DRIVER_RS_SESSION_IDLE_TTL_SECS=5` and pass `-IdleSeconds 35`.
+The test requires expiry to occur, refuses an old action, obtains a fresh
+observation, and independently verifies exactly one subsequent action. Restore
+the launch environment afterward; normal product launches retain upstream TTLs.

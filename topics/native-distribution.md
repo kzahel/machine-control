@@ -49,12 +49,14 @@ are separate required gates before migration of existing deployments.
 `call --profile user` client selection alongside unchanged appliance defaults.
 The Medium-only host shares ordinary providers, isolates user artifacts, and
 refuses protected operations. Its first local ARM64 VM conformance passed Cua
-semantics/capture and an independent fixture effect. The versioned workstation
-package/lifecycle entry point and signed-preview workflow are under acceptance
-in Tactical 036; this is not yet a fully accepted product release.
+semantics/capture and an independent fixture effect. Exact signed ARM64/x64
+previews now pass ordinary desktop acceptance; ARM64
+signed upgrade/rollback and x64 isolated appliance regression also pass.
+Tactical 036 tracks final acceptance of an idle-provider-session fix before
+this preview is considered complete. No public release has been published.
 
-**Open:** Complete Windows lifecycle, appliance-regression, native x64, and
-final signed-artifact acceptance; make macOS providers bundle-relative and prove consent across signed upgrades;
+**Open:** Complete final signed acceptance of the Windows idle-session fix;
+make macOS providers bundle-relative and prove consent across signed upgrades;
 package Linux dependencies and validate a workstation portal/input profile.
 Keep actual routes and unsupported capabilities visible.
 

@@ -127,7 +127,30 @@ An activation lock now covers direct-runtime start versus package mutation.
 The native Windows source build/format/PowerShell syntax checks passed. Both
 architectures cross-publish; portable/client and release-signature tests pass.
 
-Still required: appliance regression
-against the changed service build in isolation, service-absent/runtime-only
-acceptance, native x64 execution, and exact signed CI artifact acceptance. Do
-not present the initial proof or a signed CI run as completion of these gates.
+Signed previews from source `ae0cb020e33b63cbc8cb7676e5b7f9d1e57a0c1e`
+passed both hosted architecture jobs and manifest authentication in runs
+[34682769672](https://github.com/kzahel/machine-control/actions/runs/34682769672)
+and
+[34683383789](https://github.com/kzahel/machine-control/actions/runs/34683383789).
+Exact ARM64 bytes passed publisher/catalog installation, desktop conformance,
+common-client artifact retrieval, signed-to-signed upgrade/rollback, independent
+instances and removal. A forged payload plus forged JSON inventory was rejected
+by the signed catalog before activation. Provider crash/restart/absence and
+malformed/disconnected IPC checks passed on the signed user host.
+
+Exact signed x64 bytes passed Cua semantics/capture, independent fixture effect,
+protected refusals and local/outside generation parity with the appliance
+service stopped and the global .NET installation withheld. The same runtime
+then replaced the appliance service only inside a disposable workspace. Existing
+ordinary shell/application conformance, UAC approve/cancel with independent
+elevated effects, provider timeout/crash/absence, stale references and broker
+revoke/recreation all passed. UAC and secure-desktop policy remained enabled.
+
+The longer ARM64 run exposed upstream idle-session expiry while its daemon
+remained alive. The adapter now refreshes its own window capture session only
+for a fresh observation, invalidates references on revival, and refuses expired
+actions without replay. The shortened-TTL ARM64 regression passed: expired
+actions refused, fresh Cua observation recovered, pre-expiry references stayed
+invalid, and a new reference produced exactly one independent counter effect.
+Final acceptance remains open until both architectures receive a fresh signed
+artifact acceptance run containing this fix.

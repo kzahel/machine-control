@@ -48,6 +48,16 @@ delivery, and window/desktop scope. Independent fixture, focus, z-order,
 cursor, leaked-input, accessibility, and pixel oracles are a particularly
 strong match for this project's conformance direction.
 
+**Current — Windows workstation endurance finding:** The private Cua daemon
+can remain healthy after its capture session expires from inactivity. Ordinary
+traffic then refuses the ended session. The Windows adapter now explicitly
+refreshes that host-owned window capture session before a fresh observation and
+changes its provider generation when Cua reports revival. Expired actions are
+refused, never replayed; old references cannot cross revival. This does not
+change daemon authorization or the appliance's revoke boundary. The pinned
+[source session lifecycle](https://github.com/trycua/cua/blob/d21e3447f9b08c761c090946648d5aca5e6c9cf1/libs/cua-driver/rust/crates/cua-driver-core/src/session_tools.rs)
+reports revival explicitly; live acceptance is tracked in Tactical 036.
+
 ## Adjacent Cua sandbox scope
 
 **Current — source-reviewed:** Windows workstation preview packaging verifies

@@ -683,6 +683,11 @@ internal sealed class CuaDriverHost
         await _callGate.WaitAsync(cancellationToken);
         try
         {
+            // A fresh observation may reopen this host-owned capture session
+            // after upstream idle cleanup. Never revive it for an action, and
+            // invalidate every cached reference if its session was recreated.
+            if (tool == "get_window_state")
+                await StartSessionAsync(cancellationToken);
             var invocation = await RunCliAsync(
                 ["call", tool, "--socket", _endpoint!],
                 Contract.Serialize(arguments),
@@ -840,20 +845,7 @@ internal sealed class CuaDriverHost
                     : "host_medium; provider_self_query_unavailable";
             }
 
-            var session = await RunCliAsync(
-                ["call", "start_session", "--socket", _endpoint],
-                Contract.Serialize(new
-                {
-                    session = SessionId,
-                    capture_scope = "window",
-                }),
-                screenshotOutFile: null,
-                TimeSpan.FromSeconds(10),
-                cancellationToken);
-            if (session.ExitCode != 0)
-            {
-                throw ClassifyFailure(session, "start_session");
-            }
+            await StartSessionAsync(cancellationToken);
             _lastError = null;
         }
         catch (CuaProviderException ex)
@@ -877,6 +869,24 @@ internal sealed class CuaDriverHost
         {
             _startGate.Release();
         }
+    }
+
+    private async Task StartSessionAsync(CancellationToken cancellationToken)
+    {
+        var session = await RunCliAsync(
+            ["call", "start_session", "--socket", _endpoint!],
+            Contract.Serialize(new { session = SessionId, capture_scope = "window" }),
+            screenshotOutFile: null,
+            TimeSpan.FromSeconds(10),
+            cancellationToken);
+        if (session.ExitCode != 0) throw ClassifyFailure(session, "start_session");
+        using var response = JsonDocument.Parse(session.StandardOutput);
+        if (!response.RootElement.TryGetProperty("revived", out var revived) ||
+            revived.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            throw new CuaProviderException("provider_invalid_response",
+                "Cua start_session did not report whether references expired",
+                "refused", "refused", session.ElapsedMs);
+        if (revived.GetBoolean()) _providerGeneration = Guid.NewGuid().ToString("n");
     }
 
     private async Task<CuaProcessResult> RunCliAsync(
@@ -1033,7 +1043,8 @@ internal sealed class CuaDriverHost
             : result.StandardError);
         var lowered = detail.ToLowerInvariant();
         var code = lowered.Contains("stale_element_token", StringComparison.Ordinal) ||
-            lowered.Contains("stale", StringComparison.Ordinal)
+            lowered.Contains("stale", StringComparison.Ordinal) ||
+            lowered.Contains("has ended; tool call", StringComparison.Ordinal)
                 ? "stale_or_unknown_reference"
                 : lowered.Contains("outside", StringComparison.Ordinal) ||
                   lowered.Contains("authorization", StringComparison.Ordinal) ||
