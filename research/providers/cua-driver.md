@@ -7,7 +7,7 @@ for the repository. Upstream documents MIT-0 terms for skill copies published
 through ClawHub; treat that as a narrower distribution boundary, not as a
 change to the repository license.
 
-Last corpus review: 2026-08-25.
+Last corpus review: 2026-09-12.
 
 ## Evidence by platform
 
@@ -56,7 +56,8 @@ changes its provider generation when Cua reports revival. Expired actions are
 refused, never replayed; old references cannot cross revival. This does not
 change daemon authorization or the appliance's revoke boundary. The pinned
 [source session lifecycle](https://github.com/trycua/cua/blob/d21e3447f9b08c761c090946648d5aca5e6c9cf1/libs/cua-driver/rust/crates/cua-driver-core/src/session_tools.rs)
-reports revival explicitly; live acceptance is tracked in Tactical 036.
+reports revival explicitly. Shortened-TTL regression passed on the final signed
+ARM64 and x64 workstation payloads; acceptance is tracked in Tactical 036.
 
 ## Adjacent Cua sandbox scope
 

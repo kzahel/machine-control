@@ -1,6 +1,6 @@
 # Windows workstation distribution and appliance compatibility
 
-Status: in progress.
+Status: complete — signed Windows workstation preview accepted.
 
 Owning topics: [native distribution](../../topics/native-distribution.md),
 [Windows resident control](../../topics/windows-resident-control.md), and
@@ -112,7 +112,7 @@ unexecuted architecture or signed-artifact acceptance cell.
 
 ## Final result
 
-In progress. The user host, explicit client/adapter selection, isolated artifact
+The user host, explicit client/adapter selection, isolated artifact
 storage, capability projection, package builder, lifecycle manager, full-file
 catalog signing, and preview manifest workflow are implemented.
 
@@ -152,5 +152,41 @@ for a fresh observation, invalidates references on revival, and refuses expired
 actions without replay. The shortened-TTL ARM64 regression passed: expired
 actions refused, fresh Cua observation recovered, pre-expiry references stayed
 invalid, and a new reference produced exactly one independent counter effect.
-Final acceptance remains open until both architectures receive a fresh signed
-artifact acceptance run containing this fix.
+Final signed acceptance passed for source
+`0130bdc127715fcd876b1920dc2cf5590c7425a2`, workflow attempt
+[`34684745899.1`](https://github.com/kzahel/machine-control/actions/runs/34684745899).
+The downloaded manifest signature, build identity, and both archive hashes were
+verified before final acceptance. Both exact signed packages passed ordinary
+Cua semantics/capture, independent effects, protected refusals, idle revival,
+stale references, provider crash/restart/absence, and interrupted IPC. The final
+x64 package again ran without the appliance service or global .NET, with
+local/outside generation parity; its verified user start took 3.5 seconds in
+that warmed test environment.
+
+The final x64 bytes also passed the existing appliance shell/application,
+provider-composition and UAC suites. One shell run missed the Start-menu effect
+while the user harness was still completing teardown. After requiring the
+harness to finish and resetting the menu state, the complete suites passed.
+Serialize headed harness teardown before reusing foreground-dependent tests;
+the fixed-delay shell assertions remain timing-sensitive.
+
+| Acceptance surface | Evidence |
+| --- | --- |
+| Signed payload, catalog and manifest | ARM64 and x64; final workflow above |
+| User desktop, expiry, crash and IPC behavior | Both native architectures, final signed bytes |
+| Service-free, runtime-only execution | Native x64 disposable workspace; global .NET withheld |
+| Local/outside parity | Explicit user endpoints; x64 generation and ARM64 common-client capture |
+| Signed upgrade/rollback and instance isolation | ARM64, two authenticated CI builds; final package upgrade also passed |
+| Forged payload and forged hash inventory | Signed catalog refused activation |
+| Existing ordinary/protected appliance behavior | Final signed x64 runtime in isolated workspace |
+
+Candidate payloads and test tasks were removed. The ARM64 target returned to
+its original off state and its claim was released. The disposable x64 workspace
+was discarded and its claim released; the initial cleanup timeout required a
+target-native shutdown that closed the test applications before release.
+
+The preview is an installable archive, not an MSI or public update feed. CI
+artifacts expire after 14 days. YepAnywhere's download/enable UI and supervision,
+release publication/version selection, macOS consent and bundle packaging, and
+Linux profile packaging remain subsequent work. Existing installations are not
+automatically migrated.

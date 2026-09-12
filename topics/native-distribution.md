@@ -2,7 +2,8 @@
 
 Topic: `native-distribution`
 
-Status: active distribution work; first native signing CI milestone accepted.
+Status: signed Windows workstation preview accepted; consumer and other
+platform work remains.
 
 ## Direction
 
@@ -48,14 +49,17 @@ are separate required gates before migration of existing deployments.
 **Current:** Windows has an explicit `user --instance NAME` host and
 `call --profile user` client selection alongside unchanged appliance defaults.
 The Medium-only host shares ordinary providers, isolates user artifacts, and
-refuses protected operations. Its first local ARM64 VM conformance passed Cua
-semantics/capture and an independent fixture effect. Exact signed ARM64/x64
-previews now pass ordinary desktop acceptance; ARM64
-signed upgrade/rollback and x64 isolated appliance regression also pass.
-Tactical 036 tracks final acceptance of an idle-provider-session fix before
-this preview is considered complete. No public release has been published.
+refuses protected operations. Exact signed ARM64/x64 previews pass ordinary
+desktop acceptance with independent fixture effects. Signed ARM64 upgrade/
+rollback and isolated x64 appliance regression also pass.
+Both final signed architectures also passed idle-session recovery, stale
+references, provider failure and IPC resilience. Fresh observations can reopen
+the owned capture session; expired actions are refused without replay.
+Tactical 036 records the accepted source and CI artifacts. No public release
+has been published.
 
-**Open:** Complete final signed acceptance of the Windows idle-session fix;
+**Open:** Add YepAnywhere download/enable/supervision and release version
+selection;
 make macOS providers bundle-relative and prove consent across signed upgrades;
 package Linux dependencies and validate a workstation portal/input profile.
 Keep actual routes and unsupported capabilities visible.
