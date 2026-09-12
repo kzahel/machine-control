@@ -104,11 +104,14 @@ def run(args):
     command = args.carrier[1:] if args.carrier[:1] == ['--'] else args.carrier
     if not command:
         raise ValueError('An authenticated carrier command is required after --')
-    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0)
     frames = Frames(process.stdout)
     def send(value):
         process.stdin.write((json.dumps(value, separators=(',', ':')) + '\n').encode())
         process.stdin.flush()
+    phase = 'challenge'
+    credential_read = False
+    submission_attempted = False
     try:
         send(dict(operation='unlock', credentialKind=args.kind))
         frame = frames.next()
@@ -116,7 +119,9 @@ def run(args):
             print(json.dumps(frame))
             return 1
         challenge_text = frame['challenge']
+        phase = 'challenge_validation'
         validate_challenge(json.loads(challenge_text), grant, args.instance, args.kind)
+        phase = 'controller_proof'
         signature = openssl(['dgst', '-sha256', '-sign', str(args.key)], challenge_text.encode('utf-8'))
         send(dict(signature=base64.b64encode(signature).decode()))
         frame = frames.next()
@@ -127,8 +132,10 @@ def run(args):
             raise ValueError('Unexpected credential transport')
         # Do not even open the credential source until controller authorization
         # and native credential-field discovery have both succeeded.
+        phase = 'credential_source'
         if args.secret_file:
             with args.secret_file.open('rb') as source:
+                credential_read = True
                 secret = bytearray(source.read(258))
             if secret.endswith(b'\n'):
                 del secret[-1:]
@@ -137,18 +144,30 @@ def run(args):
         else:
             if sys.stdin.isatty():
                 raise ValueError('Use a non-echoing redirected credential source or --secret-file')
+            credential_read = True
             secret = bytearray(sys.stdin.buffer.read(257))
         try:
             if not 1 <= len(secret) <= 256 or any(value in secret for value in (0, 10, 13)):
                 raise ValueError('Credential must contain 1-256 UTF-8 bytes without line breaks')
+            phase = 'credential_submission'
+            submission_attempted = True
             process.stdin.write(len(secret).to_bytes(2, 'little'))
             process.stdin.write(secret)
             process.stdin.flush()
         finally:
             secret[:] = b'\0' * len(secret)
+        phase = 'result'
         frame = frames.next()
         print(json.dumps(frame))
         return 0 if frame.get('result', {}).get('effect') == 'confirmed' else 1
+    except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:
+        # Report custody/delivery without echoing server input, keys, credential
+        # contents or credential-file paths. A failed write may be partial.
+        print(json.dumps(dict(stage='client_error', phase=phase,
+            errorType=type(error).__name__, credentialRead=credential_read,
+            delivery='unknown' if submission_attempted else 'not_sent',
+            retrySafety='never_automatically')))
+        return 1
     finally:
         process.stdin.close()
         try:

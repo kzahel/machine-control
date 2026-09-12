@@ -5,6 +5,10 @@ from pathlib import Path
 import base64
 import hashlib
 import uuid
+import io
+import json
+from contextlib import redirect_stdout
+from unittest.mock import Mock, patch
 from types import SimpleNamespace
 
 spec = importlib.util.spec_from_file_location('unlock_controller', Path(__file__).resolve().parents[2] / 'release/unlock-controller.py')
@@ -49,3 +53,35 @@ class UnlockChallengeTests(unittest.TestCase):
         for hours in (0, -1, float('nan'), float('inf')):
             with self.subTest(hours=hours), self.assertRaises(ValueError):
                 controller.proposal(SimpleNamespace(hours=hours))
+
+    def run_failure(self, challenge, replies):
+        source = Mock()
+        source.open.return_value = io.BytesIO(b'fixture-credential')
+        process = Mock(stdin=io.BytesIO(), stdout=io.BytesIO())
+        frames = Mock()
+        frames.next.side_effect = [dict(stage='challenge', challenge=json.dumps(challenge)), *replies]
+        args = SimpleNamespace(grant=Mock(read_text=lambda: json.dumps(self.grant)), key=Path('fixture-key'),
+            carrier=['fixture-carrier'], instance='example', kind='password', secret_file=source)
+        output = io.StringIO()
+        with patch.object(controller.subprocess, 'Popen', return_value=process), \
+                patch.object(controller, 'Frames', return_value=frames), \
+                patch.object(controller, 'openssl', return_value=b'public-key-fixture'), redirect_stdout(output):
+            self.assertEqual(controller.run(args), 1)
+        return json.loads(output.getvalue()), source
+
+    def test_rejected_challenge_never_opens_credential(self):
+        result, source = self.run_failure({**self.challenge,
+            'deadline': (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()}, [])
+        source.open.assert_not_called()
+        self.assertEqual(result['phase'], 'challenge_validation')
+        self.assertFalse(result['credentialRead'])
+        self.assertEqual(result['delivery'], 'not_sent')
+
+    def test_disconnect_after_submission_reports_unknown_delivery(self):
+        result, source = self.run_failure(self.challenge, [dict(stage='ready',
+            credentialTransport='uint16le-length+utf8', maximumBytes=256), ValueError('Disconnected')])
+        source.open.assert_called_once_with('rb')
+        self.assertEqual(result['phase'], 'result')
+        self.assertTrue(result['credentialRead'])
+        self.assertEqual(result['delivery'], 'unknown')
+        self.assertEqual(result['retrySafety'], 'never_automatically')

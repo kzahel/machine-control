@@ -1,7 +1,7 @@
 # Optional Windows unattended unlock
 
-Status: implementation preview; native acceptance pending. Do not describe a
-successful signature check or administrator approval as proof of an unlock.
+Status: preview distribution. Architecture-specific native acceptance is recorded
+in [tactical 037](https://github.com/kzahel/machine-control/blob/main/docs/tactical/037-windows-unlock-arming.md).
 
 The workstation package can install a separate LocalSystem service that unlocks
 an existing, locked console account. It exposes only status and a guarded unlock
@@ -108,6 +108,11 @@ Fresh challenges prevent proof replay. Session events, changed grants, expiry
 and revocation invalidate pending authority. The secret is forwarded once through
 a SYSTEM-only pipe and buffers are cleared on a best-effort basis. The service
 stores no credential. Grant approval is not the Windows credential itself.
+
+Keep the controller and Windows clocks synchronized. Challenge deadlines are
+checked before signing or reading a credential. Client errors report their
+phase, whether a credential was read, and whether submission was attempted;
+an unknown delivery must never be automatically retried.
 
 Initial coverage is deliberately limited to existing local console accounts
 with a unique local account/display-name mapping and the observed stock Windows

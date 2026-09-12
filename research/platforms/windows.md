@@ -273,8 +273,12 @@ and cloud account binding remain unproved; UIA labels are not general identity
 authority.
 
 The new authorization/transport contracts execute natively on Windows; x64 and
-ARM64 runtime publishes pass. This does not yet establish elevated setup or
-unlock conformance. [Tactical 037](../../docs/tactical/037-windows-unlock-arming.md)
+ARM64 runtime publishes pass. Native x64 and ARM64 setup, consent cancellation,
+arming, ordinary ACL denial, wrong-caller/key rejection and replay rejection have
+passed. Existing-session credential preflight exposed the stock LockApp curtain
+on Default while WTS reports locked; a Winlogon-only worker cannot handle that
+transition. The bounded UIAccess preparation route is under validation, and real
+credential delivery remains unproved. [Tactical 037](../../docs/tactical/037-windows-unlock-arming.md)
 owns the native acceptance record.
 
 Microsoft documents the native building blocks:

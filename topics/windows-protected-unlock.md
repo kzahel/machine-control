@@ -36,7 +36,10 @@ with a uniquely resolved local display name and stock credential fields. Domain
 and cloud account binding, ambiguous names and account switching need separate
 evidence. The default proposal remains armed until revoked; explicit expiry is
 supported. [The distribution guide](../release/windows-unlock.md) describes the
-proposed setup and protocol. Native acceptance is still pending.
+setup and protocol. Both architectures have passed native setup/arming,
+ordinary access denial and caller/key/replay refusal. Full unlock acceptance is
+pending the LockApp-to-Winlogon transition. Only the authorized unlock helpers
+receive the proposed UIAccess token; ordinary host privileges remain unchanged.
 
 [Tactical 037](../docs/tactical/037-windows-unlock-arming.md) owns implementation
 and acceptance of the new grant, installation and existing-session unlock flow.

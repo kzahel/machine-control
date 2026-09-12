@@ -102,7 +102,8 @@ this execution record with observed results and remaining integration work.
 ## Execution record
 
 Planning and implementation started after approval of the UAC-based arming flow.
-No unlock service or arming feature is accepted yet.
+The implementation has native setup, authorization and password-unlock evidence;
+final distribution acceptance and cleanup are in progress.
 
 Initial implementation adds a separate service, P-256 challenge proof,
 SCM-authenticated local carrier, controller-side signing helper, and a native
@@ -127,8 +128,15 @@ Native testing found and corrected the bootstrap's elevation manifest, required
 Windows environment values, and missing-grant status handling. Both disposable
 architectures have passed UAC cancellation, signed installation and cancellation
 of the elevated grant dialog. The x64 unarmed protocol refusal and ordinary
-workstation conformance also passed. Real unlock and remaining negative cases
-are still pending.
+workstation conformance also passed. Both architectures subsequently passed
+arming, ordinary DACL/write/service-stop denial, wrong transport identity,
+wrong controller key and proof replay rejection without credential reads.
+
+Credential-free readiness probes then exposed the existing-session LockApp
+curtain on Default with WTS locked. The first Winlogon-only worker refused
+before asking for a credential. A separate, bounded preparation worker and
+unlock-only UIAccess token are being validated. No password has been submitted
+through the new component yet; real unlock, expiry and revocation remain pending.
 
 The consent fixture is independent test-appliance administration: it observes
 the exact elevated dialog and uses a temporary, bounded elevated Win32 task to
@@ -136,3 +144,17 @@ activate its observed button. It verifies dialog closure and the resulting grant
 or absence. This fixture is never shipped as part of the unlock authority API.
 An earlier ARM64 fixture left a dialog open during removal; the interrupted
 preview installation was cleaned up before reinstalling the verified package.
+
+Signed build 932c565 (CI run 34693197736) passed native credential-free
+readiness and one real password unlock on both ARM64 and x64. Each result
+confirmed delivery, return to Default, and the same WTS account/logon session.
+The x64 controller initially rejected a two-hour guest clock skew before
+signing or opening the credential source; a credential-free probe reproduced
+that exact validation failure. Correcting only the disposable guest clock and
+renewing the service generation restored valid challenge deadlines. The first
+actual x64 password submission then succeeded.
+
+The locked workspaces received an explicit administrator development replacement
+with the verified signed package and their previously approved public grants.
+Final installer acceptance will repeat the normal uninstall/install/re-arm flow.
+ARM64 ordinary workstation conformance and revoke/refusal passed after unlock.
