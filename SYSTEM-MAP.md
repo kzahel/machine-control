@@ -61,9 +61,14 @@ not flatten their platform semantics into one generic implementation.
 **Current:** The optional Windows workstation host is another deployment of
 Machine Control's shared ordinary providers. It runs under the interactive user;
 the existing appliance broker remains a separate privileged deployment profile.
-YepAnywhere may supervise the workstation package without owning its providers
-or becoming a prerequisite for the common CLI. Migration acceptance is tracked
-in [Tactical 036](docs/tactical/036-windows-workstation-distribution.md).
+YepAnywhere's Windows Node/Codex preview supervises a separate user instance
+with signed local installation, session grants, deferred tools and direct IPC.
+YA owns the private process job and result presentation; Machine Control still
+owns the providers and native contract. YA is not a prerequisite for the common
+CLI or appliance service. Consumer acceptance and remaining release scope live
+in [YA's topic](../yepanywhere/topics/optional-computer-control.md); native
+migration acceptance remains in
+[Tactical 036](docs/tactical/036-windows-workstation-distribution.md).
 
 **Current:** Optional workstation unlock has an independent privileged service,
 administrator-owned grants and an elevated consent flow. Machine Control owns

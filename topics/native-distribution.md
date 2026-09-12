@@ -2,8 +2,8 @@
 
 Topic: `native-distribution`
 
-Status: signed Windows workstation preview accepted; consumer and other
-platform work remains.
+Status: signed Windows workstation preview and direct YA Node/Codex consumer
+accepted; public release delivery and other platform work remain.
 
 ## Direction
 
@@ -64,8 +64,8 @@ UAC plus explicit account/controller/lifetime approval. The
 [protected unlock topic](windows-protected-unlock.md) owns its contract and
 [tactical 037](../docs/tactical/037-windows-unlock-arming.md) its native acceptance.
 
-**Open:** Add YepAnywhere download/enable/supervision and release version
-selection;
+**Open:** Add public download/update feeds, release version selection and
+packaged YepAnywhere acceptance;
 make macOS providers bundle-relative and prove consent across signed upgrades;
 package Linux dependencies and validate a workstation portal/input profile.
 Keep actual routes and unsupported capabilities visible.
@@ -82,9 +82,20 @@ own exact versions, route evidence, latency and remaining acceptance gaps.
 YA's requested product path uses direct local IPC and on-demand, session-scoped
 activation; MCP is a proven optional adapter, not a required server registered
 in every session. YA's [computer-control topic](../../yepanywhere/topics/optional-computer-control.md)
-owns consumer mechanics and the Codex/Sky reference. Product adoption still
-needs per-session grants, supervision, provider eligibility, install controls
-and client image-presentation acceptance; unlock remains a separate native flow.
+owns consumer mechanics and the Codex/Sky reference. Unlock remains a separate
+native flow.
+
+**Current:** YA's Windows Node/Codex preview now installs an authenticated local
+package, exposes default-off settings and explicit session selection, and
+registers a deferred namespaced dynamic tool over the existing provider
+connection. First use launches an ordinary user resident over direct local
+IPC. Native screenshot results reach the model and live/reloaded YA browser
+views. A private YA-owned Windows Job Object reclaims resident/provider
+descendants on consumer failure; the appliance service, common CLI, SSH and
+independent supervisor remain available. No native runtime change was required.
+The YA topic owns [direct consumer acceptance and its limits](../../yepanywhere/topics/optional-computer-control.md#direct-windows-acceptance-2026-09-12).
+This evidence covers the signed ARM64 preview with source-run Node YA and
+Codex, not public release-feed delivery or other consumer platforms.
 
 The [common desktop](unified-desktop-client.md),
 [Windows](windows-resident-control.md), [macOS](macos-resident-control.md), and
