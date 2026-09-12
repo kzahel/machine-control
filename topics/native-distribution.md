@@ -70,6 +70,22 @@ make macOS providers bundle-relative and prove consent across signed upgrades;
 package Linux dependencies and validate a workstation portal/input profile.
 Keep actual routes and unsupported capabilities visible.
 
+**Current:** An isolated YepAnywhere experiment exercised a small authenticated
+MCP adapter against the signed Windows user resident. Real Codex and Claude
+sessions discovered the tools lazily, performed one semantic action each, and
+read native screenshot results; independent fixture state confirmed both
+effects. No YA provider or resident implementation changes were required.
+The [spike findings](../../machine-control-spike/docs/ya-computer-mcp-findings.md)
+own exact versions, route evidence, latency and remaining acceptance gaps.
+
+**Decision:** Keep agent adapters over the existing typed resident contract.
+YA's requested product path uses direct local IPC and on-demand, session-scoped
+activation; MCP is a proven optional adapter, not a required server registered
+in every session. YA's [computer-control topic](../../yepanywhere/topics/optional-computer-control.md)
+owns consumer mechanics and the Codex/Sky reference. Product adoption still
+needs per-session grants, supervision, provider eligibility, install controls
+and client image-presentation acceptance; unlock remains a separate native flow.
+
 The [common desktop](unified-desktop-client.md),
 [Windows](windows-resident-control.md), [macOS](macos-resident-control.md), and
 [Linux](linux-resident-control.md) topics own runtime behavior. The
