@@ -17,7 +17,8 @@ try {
     Setup 'Install'
     if ((Get-Service $service).Status -ne 'Running' -or (Test-Path (Join-Path $state 'grant.json'))) {throw 'Installation must start unarmed'}
     $status=& (Join-Path $root 'machine-control-windows.exe') unlock --status --instance $instance | ConvertFrom-Json
-    if ($LASTEXITCODE -ne 0 -or $status.state -ne 'unarmed_or_invalid') {throw 'Unarmed service status failed'}
+    if ($LASTEXITCODE -ne 0 -or $status.stage -ne 'status') {throw 'Unarmed service status was refused'}
+    if ($status.state -ne 'unarmed_or_invalid') {throw 'Unarmed service status failed'}
 } finally {
     if (Test-Path $root) { Setup 'Uninstall' }
 }

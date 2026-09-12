@@ -85,7 +85,7 @@ internal sealed class UnlockService(string instance)
         {
             string state;
             try { _ = UnlockPolicy.Read(instance); state = "armed"; }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or CryptographicException)
+            catch (Exception)
             { state = "unarmed_or_invalid"; }
             await UnlockWire.WriteAsync(pipe, new { stage = "status", protocol = Protocol, state, generation = _generation }, stop);
             return;

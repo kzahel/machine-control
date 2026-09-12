@@ -30,7 +30,10 @@ internal static class UnlockClient
         var text = await UnlockWire.ReadLineAsync(pipe, stop.Token);
         using var frame = JsonDocument.Parse(text);
         if (frame.RootElement.GetProperty("stage").GetString() != "challenge")
-        { await WriteLineAsync(output, text, stop.Token); return status ? 0 : 1; }
+        {
+            await WriteLineAsync(output, text, stop.Token);
+            return status && frame.RootElement.GetProperty("stage").GetString() == "status" ? 0 : 1;
+        }
         var challengeText = frame.RootElement.GetProperty("challenge").GetString()!;
         if (relay)
         {

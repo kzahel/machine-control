@@ -223,6 +223,7 @@ internal static class Program
         Console.Error.WriteLine(
             "usage: machine-control-windows " +
             "service|service-console|session|desktop-worker|user [--instance NAME]|" +
-            "call [JSON] [--profile appliance|user] [--instance NAME] [--session-id ID]|login|schema");
+            "call [JSON] [--profile appliance|user] [--instance NAME] [--session-id ID]|login|" +
+            "unlock [--status|--relay] [--instance NAME] [--grant FILE --key FILE] [--kind password|pin]|schema");
     }
 }
