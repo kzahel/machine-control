@@ -65,7 +65,7 @@ YepAnywhere may supervise the workstation package without owning its providers
 or becoming a prerequisite for the common CLI. Migration acceptance is tracked
 in [Tactical 036](docs/tactical/036-windows-workstation-distribution.md).
 
-**Decision:** Optional workstation unlock has an independent privileged service,
+**Current:** Optional workstation unlock has an independent privileged service,
 administrator-owned grants and an elevated consent flow. Machine Control owns
 that installation and enforcement; YepAnywhere owns controller key/credential
 custody and product integration. The appliance broker is not its authorization

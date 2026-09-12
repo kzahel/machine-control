@@ -188,6 +188,11 @@ console session at Medium integrity; RDP, elevated applications and protected
 sessions are explicit omissions. Distribution and migration acceptance live in
 [Tactical 036](../docs/tactical/036-windows-workstation-distribution.md).
 
+The optional [protected unlock component](windows-protected-unlock.md) owns a
+separate grant-bound service and signed administrator setup. It supports an
+already logged-in local console account through explicit controller approval;
+it does not add protected authority to the ordinary host.
+
 The smallest repeatable Windows target appliance needs to provide:
 
 - a stable installed service identity and authenticated local/remote sessions;

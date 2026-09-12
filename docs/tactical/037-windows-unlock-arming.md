@@ -1,6 +1,6 @@
 # Windows unattended unlock with explicit administrator arming
 
-Status: in progress.
+Status: complete.
 
 Owning topics: [Windows protected unlock](../../topics/windows-protected-unlock.md),
 [native distribution](../../topics/native-distribution.md), and
@@ -29,10 +29,12 @@ Machine Control owns the grant enforcement, installation, protocol, and Windows
 provider. Windows credentials use a dedicated one-shot transport and are not
 persisted in the target service, command arguments, JSON, logs, or captures.
 
-This slice covers stock password/PIN providers for an already logged-in, locked
-local console account with a unique local display-name mapping. Domain/cloud
-account binding needs separate evidence. Cold login, account switching, biometric credentials, general
-UAC approval delegation, and disabling Windows security policy are excluded.
+The accepted slice covers stock password unlock for an already logged-in,
+locked local console account with a unique local display-name mapping. The
+protocol includes PIN selection; native PIN acceptance and domain/cloud account
+binding need separate evidence. Cold login, account switching, biometric
+credentials, general UAC approval delegation, and disabling Windows security
+policy are excluded.
 
 ## Ordered implementation
 
@@ -101,71 +103,94 @@ this execution record with observed results and remaining integration work.
 
 ## Execution record
 
-Planning and implementation started after approval of the UAC-based arming flow.
-The implementation has native setup, authorization and password-unlock evidence;
-final distribution acceptance and cleanup are in progress.
+The implementation adds a separate service, P-256 challenge proof,
+SCM-authenticated carrier, controller-side signing helper, and signed native
+setup with an embedded installation script. Payload verification happens in
+administrator-owned storage before managed execution. Installation starts
+unarmed; elevated consent approves the exact public grant.
 
-Initial implementation adds a separate service, P-256 challenge proof,
-SCM-authenticated local carrier, controller-side signing helper, and a native
-bootstrap with an embedded setup script. Package copying occurs into protected
-storage before catalog verification or managed execution. Explicit elevated
-consent writes the exact displayed public grant; install remains unarmed.
+Native inspection found that the credential provider exposes an account display
+name rather than a SID. The accepted scope is therefore a unique local SAM
+mapping, with field/process/focus checks and the same WTS SID and authentication
+LUID verified around delivery. Credential replacement and submission use one
+native input batch. Revocation cannot undo a batch already submitted to Windows.
 
-The first read-only native inspection found a display-name account label. The
-initial scope is therefore local accounts with a unique SAM mapping, with
-field/process/focus and WTS SID/logon-session checks before credential delivery.
-Credential replacement and submission use one native input batch; authority is
-checked before that delivery boundary. Revocation does not undo an input batch
-already submitted to Windows.
+Native testing corrected the bootstrap elevation manifest, required Windows
+environment values, missing-grant status, and retryable removal. The independent
+appliance consent fixture observes UAC and the elevated grant dialog, activates
+its exact button, verifies the resulting grant or absence, and removes its
+bounded scheduled task. That fixture is never part of the product authority API.
 
-Validation so far: portable checks, x64/ARM64 runtime publishes, formatting,
-Windows-native authorization/transport contracts and signed CI packaging passed.
-[CI run 34691709993](https://github.com/kzahel/machine-control/actions/runs/34691709993)
-also exercised signed x64 install, unarmed service status and uninstall. Its
-packages and signed build identity were verified before VM execution.
+Two stock lock-screen states needed explicit preparation: a foreground LockApp
+curtain on Default, and an idle locked Default desktop with no foreground window.
+An unlock-only UIAccess worker dismisses the verified stock curtain. The idle
+case first receives one zero-delta mouse activity event, without a click,
+keystroke or pointer movement. A fresh Winlogon worker then discovers the
+credential field. Empty discovery refuses without the appliance's legacy Enter
+fallback. Ordinary host and appliance privilege defaults are unchanged.
 
-Native testing found and corrected the bootstrap's elevation manifest, required
-Windows environment values, and missing-grant status handling. Both disposable
-architectures have passed UAC cancellation, signed installation and cancellation
-of the elevated grant dialog. The x64 unarmed protocol refusal and ordinary
-workstation conformance also passed. Both architectures subsequently passed
-arming, ordinary DACL/write/service-stop denial, wrong transport identity,
-wrong controller key and proof replay rejection without credential reads.
+Credential-free probes reproduced preparation refusals; an isolated x64
+diagnostic build located them before any credential read or forwarding. The
+signed wake fix subsequently passed fresh lock/unlock after normal installation
+on both architectures. One ARM64 field-focus refusal also occurred before the
+credential request; fresh discovery succeeded. These are fail-closed preflight
+outcomes, not permission to replay a failed or uncertain authentication.
 
-Credential-free readiness probes then exposed the existing-session LockApp
-curtain on Default with WTS locked. The first Winlogon-only worker refused
-before asking for a credential. A separate, bounded preparation worker and
-unlock-only UIAccess token resolved that first preflight gap; subsequent password
-submission and remaining acceptance are recorded below.
+An x64 challenge initially failed because the disposable guest clock was two
+hours ahead. The controller refused before signing or opening the credential
+source; a credential-free probe reproduced the deadline mismatch. Correcting
+the guest clock restored valid challenges. Controller errors and service faults
+now report bounded phases and credential custody without exception messages,
+credential contents or deployment paths.
 
-The consent fixture is independent test-appliance administration: it observes
-the exact elevated dialog and uses a temporary, bounded elevated Win32 task to
-activate its observed button. It verifies dialog closure and the resulting grant
-or absence. This fixture is never shipped as part of the unlock authority API.
-An earlier ARM64 fixture left a dialog open during removal; the interrupted
-preview installation was cleaned up before reinstalling the verified package.
+## Acceptance
 
-Signed build 932c565 (CI run 34693197736) passed native credential-free
-readiness and one real password unlock on both ARM64 and x64. Each result
-confirmed delivery, return to Default, and the same WTS account/logon session.
-The x64 controller initially rejected a two-hour guest clock skew before
-signing or opening the credential source; a credential-free probe reproduced
-that exact validation failure. Correcting only the disposable guest clock and
-renewing the service generation restored valid challenge deadlines. The first
-actual x64 password submission then succeeded.
+Final signed source
+`046a79804676f6d4dfa8441106f9911a96756a0a`, workflow attempt
+[`34696329747.1`](https://github.com/kzahel/machine-control/actions/runs/34696329747),
+passed the normal revoke/uninstall/install/re-arm flow, ordinary workstation
+conformance, and a fresh password unlock on native ARM64 and x64. Every accepted
+unlock confirmed delivery, return to Default and the same WTS account/logon
+session. Outside controllers used the authenticated target carrier; private
+controller keys remained outside Windows.
 
-The locked workspaces received an explicit administrator development replacement
-with the verified signed package and their previously approved public grants.
-Final installer acceptance will repeat the normal uninstall/install/re-arm flow.
-ARM64 ordinary workstation conformance and revoke/refusal passed after unlock.
+| Surface | Evidence |
+| --- | --- |
+| UAC cancellation, unarmed install, elevated consent cancellation and approval | Native ARM64 and x64 |
+| Ordinary DACL changes, payload/grant writes and service stop | Denied on both native architectures |
+| Wrong transport SID, wrong controller key and proof replay | Refused before credential reads on both native architectures |
+| Expiry and revocation | Expiry refused on ARM64; revoke/refusal passed on both |
+| Challenge binding and one-shot framing | Native Windows contracts, including stale deadlines, revisions, account/provider/instance mismatch and no read-ahead |
+| Forged payload plus forged plain hash inventory | Both signed native installers refused and removed partial state |
+| Ordinary user desktop alongside armed unlock | Both native architectures, final signed bytes |
+| Existing appliance shell, providers and protected UAC | Native x64, signed 0640c46 |
 
-The normal production revoke/uninstall/install/re-arm flow and ordinary desktop
-regression passed on both final 151a06d packages. Fresh locks then exposed a
-second preparation state: WTS locked, Default desktop, and no foreground window.
-Both controllers received a conservative unknown refusal; neither password was
-resubmitted. Credential-free diagnostic builds reproduced the failure in desktop
-preparation before any credential read or forwarding. One zero-delta mouse
-activity event made the stock curtain/Winlogon transition observable on x64.
-The change never clicks, types or moves the pointer; password discovery remains
-in a separate verified Winlogon worker. Final signed acceptance is being repeated.
-ARM64 expiry and both-architecture revocation refused before credential use.
+The appliance shell test first missed the Start-menu effect; after resetting
+that menu state, the complete shell, provider and UAC suites passed. As in
+tactical 036, fixed-delay shell assertions remain timing-sensitive.
+
+Native Windows contracts, formatting, both architecture
+publishes and portable checks passed. The manifest signature, exact source/run
+identity and both archive hashes were verified before execution. One earlier
+dispatch selected the preceding branch head; exact build-identity verification
+rejected those archives before VM use.
+
+Both final installers passed UAC revoke and removal, with instance services,
+grants and test tasks absent. ARM64 returned to its original off state and its
+workspace/claim were released. The x64 guest needed its restored appliance
+service stopped and a fresh target-native immediate shutdown after a stalled
+pending shutdown; the guest then reported off. Both disposable workspaces were discarded, both source targets were verified
+off, and both claims were available again. Temporary controller keys and
+inventory copies were removed; declared credential sources were retained.
+
+No release has been published; CI artifacts remain temporary preview packages
+rather than a consumer update feed.
+
+## Remaining product work
+
+YepAnywhere's download/enable UI, supervision and controller key/credential
+custody remain a consumer integration slice. Native password acceptance covers
+the tested Windows local-console profiles. PIN submission, domain/cloud account
+binding, other Windows builds, physical hardware and broader session-transition
+stress need separate evidence. Cold login, account switching, biometric login
+and general UAC delegation are outside this component's contract.

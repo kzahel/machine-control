@@ -278,7 +278,10 @@ arming, ordinary ACL denial, wrong-caller/key rejection and replay rejection hav
 passed. Existing-session credential preflight exposed the stock LockApp curtain
 on Default while WTS reports locked; a Winlogon-only worker cannot handle that
 transition. A bounded UIAccess preparation worker now dismisses that exact stock
-curtain before a fresh Winlogon credential worker. Both architectures completed
+curtain before a fresh Winlogon credential worker. An idle locked Default desktop
+with no foreground window also needed one zero-delta mouse activity event;
+SetThreadExecutionState alone did not expose the curtain in that native test.
+Both architectures completed
 a real password unlock with delivery and same-account/logon-session effect
 confirmed. Revocation passed on both, and expiry refused before credential use
 on ARM64. PIN submission, domain/cloud accounts and other Windows builds remain

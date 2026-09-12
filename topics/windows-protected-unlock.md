@@ -2,8 +2,8 @@
 
 Topic: `windows-protected-unlock`
 
-Status: signed Windows preview has native ARM64/x64 password-unlock evidence;
-final installation acceptance is in progress.
+Status: signed Windows ARM64/x64 preview accepted on disposable local-console
+VMs; consumer integration remains.
 
 ## Decision
 

@@ -58,6 +58,12 @@ the owned capture session; expired actions are refused without replay.
 Tactical 036 records the accepted source and CI artifacts. No public release
 has been published.
 
+**Current:** The Windows package also carries an optional signed unlock setup
+entry. It installs a separate privileged service, starts unarmed, and requires
+UAC plus explicit account/controller/lifetime approval. The
+[protected unlock topic](windows-protected-unlock.md) owns its contract and
+[tactical 037](../docs/tactical/037-windows-unlock-arming.md) its native acceptance.
+
 **Open:** Add YepAnywhere download/enable/supervision and release version
 selection;
 make macOS providers bundle-relative and prove consent across signed upgrades;
