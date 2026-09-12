@@ -2,8 +2,7 @@
 
 Topic: `native-distribution`
 
-Status: active; first signing infrastructure implemented, hosted validation
-pending.
+Status: active distribution work; first native signing CI milestone accepted.
 
 ## Direction
 
@@ -28,9 +27,10 @@ its authority or silently installing it on personal machines.
 
 **Current:** [Native signing smoke](../release/README.md) defines manual,
 main-only Windows x64, macOS ARM64, and Linux x64 builds, publisher signing and
-notarization, and a minisign-authenticated three-package manifest. CI artifacts
-are temporary evidence; the workflow does not publish releases or install
-residents. Hosted acceptance is tracked in
+notarization, and a minisign-authenticated three-package manifest. The complete
+hosted run passed, and its downloaded manifest, package hashes, and Mac bundle
+were independently verified. CI artifacts are temporary evidence; the workflow
+does not publish releases or install residents. Accepted evidence is tracked in
 [Tactical 035](../docs/tactical/035-native-signing-smoke.md).
 
 The smoke manifest is not the future product update contract. The eventual

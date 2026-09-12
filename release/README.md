@@ -7,6 +7,11 @@ permission requests, or UI. It packages no resident or third-party provider.
 See [native distribution](../topics/native-distribution.md) and
 [Tactical 035](../docs/tactical/035-native-signing-smoke.md).
 
+**Current:** The [complete hosted smoke run](https://github.com/kzahel/machine-control/actions/runs/34679710890)
+passed Windows signing, Mac signing/notarization, Linux packaging, and manifest
+verification. Its downloaded artifact was independently verified. Tactical 035
+records the exact source and evidence boundaries.
+
 ## Run and retrieve
 
 The manual [workflow](../.github/workflows/signing-smoke.yml) only runs from

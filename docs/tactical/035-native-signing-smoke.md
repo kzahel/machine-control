@@ -1,6 +1,6 @@
 # Native signing smoke
 
-Status: active.
+Status: complete.
 
 Owning topic: [native-distribution](../../topics/native-distribution.md).
 
@@ -47,14 +47,34 @@ artifact. Source tests alone do not prove signing or notarization.
 
 ## Result
 
-Implementation is ready for hosted execution. Local workflow lint and shell
-syntax checks pass, all seven real-signature rejection tests pass, and the
-macOS ARM64 fixture builds, executes with the expected source identity, and
-packages successfully. The complete portable repository checks also pass.
+Accepted on 2026-09-12. The
+[complete signing run](https://github.com/kzahel/machine-control/actions/runs/34679710890)
+passed all four jobs for source
+`edf0bd4a5d3259dd3ffcb539798f46627dfe0b91`:
 
-The [initial hosted run](https://github.com/kzahel/machine-control/actions/runs/34678819614)
-built and packaged Linux successfully and built/executed the Mac fixture.
-Signing configuration preflight refused incomplete credentials, and the
-complete-manifest job was skipped. No public release was created. Windows
-native execution, publisher signing, notarization, and complete-artifact
-acceptance remain pending; this tactical is not complete.
+- Windows x64 built and executed natively, received an Authenticode signature,
+  and passed publisher, timestamp, and signed-execution checks.
+- macOS ARM64 built its application and nested helper, signed both with
+  Developer ID and hardened runtime, received accepted notarization, and
+  passed stapling, Gatekeeper, strict signatures, and signed execution.
+- Linux x64 built, executed, and packaged its fixture.
+- Finalization passed seven real-signature rejection tests and authenticated
+  the complete three-package manifest with the pinned public key.
+
+The downloaded `verified-signing-smoke` artifact independently passed manifest
+signature, exact source/run identity, and all three package hash/length checks.
+The extracted Mac bundle passed strict signature verification, stapler
+validation, and Gatekeeper on a separate Mac. Both downloaded executables ran
+and returned the expected source identity. All six
+[ordinary CI jobs](https://github.com/kzahel/machine-control/actions/runs/34679702594)
+also passed for that source. Local workflow lint, shell syntax, and portable
+checks passed during implementation.
+
+The initial run proved missing-credential refusal. Subsequent hosted execution
+exposed two integration fixes: select the temporary keychain in the runner's
+search list/default and restore both during cleanup; prefix an inline
+codesign requirement with `=`. Neither required new publisher credentials.
+
+No public release or resident installation was performed. Runtime packaging,
+workstation permissions, installed upgrades, and additional architectures
+remain in the owning distribution topic.
