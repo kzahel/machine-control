@@ -56,7 +56,7 @@ codesign --force --timestamp --options runtime --keychain "$keychain" \
     --sign "$MACOS_SIGNING_IDENTITY" "$app"
 codesign --verify --deep --strict "$app"
 codesign --verify --strict \
-    -R "anchor apple generic and certificate leaf[subject.OU] = \"$APPLE_TEAM_ID\"" "$app"
+    -R "=anchor apple generic and certificate leaf[subject.OU] = \"$APPLE_TEAM_ID\"" "$app"
 
 ditto -c -k --sequesterRsrc --keepParent "$app" "$signing_temp/notarize.zip"
 xcrun notarytool submit "$signing_temp/notarize.zip" \
