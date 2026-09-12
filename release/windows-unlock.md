@@ -8,6 +8,12 @@ an existing, locked console account. It exposes only status and a guarded unlock
 transaction. Installation alone leaves it unarmed. The ordinary workstation host
 and the dedicated-appliance broker keep their existing contracts.
 
+The authorized workers use LocalSystem plus UIAccess for the Windows lock-screen
+curtain and credential provider. A separate preparation worker wakes the display
+and checks the stock LockApp image before dismissing its curtain; credential
+discovery happens in a fresh worker on Winlogon. Uncertain transitions refuse
+before requesting a credential.
+
 ## Administrator setup
 
 Run these from the verified, extracted distribution in an interactive Windows

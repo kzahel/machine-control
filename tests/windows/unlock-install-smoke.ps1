@@ -23,4 +23,5 @@ try {
     if (Test-Path $root) { Setup 'Uninstall' }
 }
 if ((Get-Service $service -ErrorAction SilentlyContinue) -or (Test-Path $root) -or (Test-Path $state)) {throw 'Uninstall left instance state'}
+Setup 'Uninstall' # Retrying a completed/interrupted removal must be safe.
 Write-Output 'Signed native install, unarmed service and uninstall passed'

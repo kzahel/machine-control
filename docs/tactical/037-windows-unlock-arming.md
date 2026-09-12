@@ -118,6 +118,21 @@ checked before that delivery boundary. Revocation does not undo an input batch
 already submitted to Windows.
 
 Validation so far: portable checks, x64/ARM64 runtime publishes, formatting,
-Windows-native authorization/transport contracts, and native PowerShell parser
-checks passed. Signed native bootstrap compilation, setup consent, real unlock,
-negative integration cases and regression acceptance remain pending.
+Windows-native authorization/transport contracts and signed CI packaging passed.
+[CI run 34691709993](https://github.com/kzahel/machine-control/actions/runs/34691709993)
+also exercised signed x64 install, unarmed service status and uninstall. Its
+packages and signed build identity were verified before VM execution.
+
+Native testing found and corrected the bootstrap's elevation manifest, required
+Windows environment values, and missing-grant status handling. Both disposable
+architectures have passed UAC cancellation, signed installation and cancellation
+of the elevated grant dialog. The x64 unarmed protocol refusal and ordinary
+workstation conformance also passed. Real unlock and remaining negative cases
+are still pending.
+
+The consent fixture is independent test-appliance administration: it observes
+the exact elevated dialog and uses a temporary, bounded elevated Win32 task to
+activate its observed button. It verifies dialog closure and the resulting grant
+or absence. This fixture is never shipped as part of the unlock authority API.
+An earlier ARM64 fixture left a dialog open during removal; the interrupted
+preview installation was cleaned up before reinstalling the verified package.

@@ -43,8 +43,12 @@ function Button([string]$Name, [string]$WindowQuery) {
         $snapshot = Control $request
         $buttons = @($snapshot.data.elements | Where-Object { $_.controlType -eq 'Button' -and $_.name -eq $Name -and -not $_.offscreen })
         if ($buttons.Count -eq 1) {
+            if ($WindowQuery) {
+                & (Join-Path $PSScriptRoot 'unlock-consent-button.ps1') -WindowHandle $request.hwnd -ExpectedProcessId $windows[0].processId -Button $Name
+                return
+            }
             # Protected desktop workers are disposable; resolve the observed
-            # unique button again by name within its observed window/generation.
+            # unique button again by name.
             $invoke=@{operation='invoke'; scope='system'; query=$Name; allowVisualFallback=$true}
             if ($request.ContainsKey('hwnd')) { $invoke.hwnd=$request.hwnd }
             Control $invoke | Out-Null

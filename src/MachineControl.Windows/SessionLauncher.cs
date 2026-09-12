@@ -17,7 +17,8 @@ internal static class SessionLauncher
         uint sessionId,
         string pipeName,
         string generation,
-        string? unlockInstance = null)
+        string? unlockInstance = null,
+        bool prepareUnlock = false)
     {
         EnablePrivilege("SeAssignPrimaryTokenPrivilege");
         EnablePrivilege("SeIncreaseQuotaPrivilege");
@@ -54,12 +55,22 @@ internal static class SessionLauncher
             throw new Win32Exception(Marshal.GetLastWin32Error());
         }
 
+        if (unlockInstance is not null)
+        {
+            // LockApp's protected UI also requires UIAccess. Only the narrowly
+            // authorized unlock workers receive it; ordinary/appliance launches
+            // retain their existing tokens. Setting this flag requires SeTcb.
+            uint uiAccess = 1;
+            if (!NativeMethods.SetTokenInformation(sessionToken, 26, ref uiAccess, sizeof(uint)))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Unlock UIAccess token unavailable");
+        }
+
         return LaunchWithToken(
             sessionToken,
             sessionId,
             pipeName,
             generation,
-            "LocalSystem", unlockInstance);
+            "LocalSystem", unlockInstance, prepareUnlock);
     }
 
     public static SessionProcess LaunchUser(
@@ -89,7 +100,8 @@ internal static class SessionLauncher
         string pipeName,
         string generation,
         string authority,
-        string? unlockInstance = null)
+        string? unlockInstance = null,
+        bool prepareUnlock = false)
     {
         var executable = Environment.ProcessPath
             ?? throw new InvalidOperationException("Executable path is unavailable");
@@ -101,7 +113,7 @@ internal static class SessionLauncher
         var startup = new NativeMethods.STARTUPINFO
         {
             cb = Marshal.SizeOf<NativeMethods.STARTUPINFO>(),
-            lpDesktop = unlockInstance is null ? "winsta0\\default" : "winsta0\\Winlogon",
+            lpDesktop = unlockInstance is null || prepareUnlock ? "winsta0\\default" : "winsta0\\Winlogon",
         };
 
         if (!NativeMethods.CreateEnvironmentBlock(

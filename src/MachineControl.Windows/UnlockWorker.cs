@@ -9,7 +9,7 @@ namespace MachineControl.Windows;
 
 internal sealed class UnlockAttempt(UnlockWorkerStart start, NamedPipeClientStream service, CancellationToken stop)
 {
-    public void Check(AutomationElement? field = null)
+    public void CheckAuthority()
     {
         stop.ThrowIfCancellationRequested();
         UnlockNative.RequireServicePeer(service, start.Instance);
@@ -17,6 +17,11 @@ internal sealed class UnlockAttempt(UnlockWorkerStart start, NamedPipeClientStre
         using var reply = JsonDocument.Parse(UnlockWire.ReadLineAsync(service, stop).GetAwaiter().GetResult());
         if (!reply.RootElement.GetProperty("allowed").GetBoolean()) throw new UnauthorizedAccessException();
         UnlockNative.RequireLockedAccount(start.SessionId, start.TargetUserSid);
+    }
+
+    public void Check(AutomationElement? field = null)
+    {
+        CheckAuthority();
         if (!string.Equals(DesktopController.GetInputDesktopName(), "Winlogon", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("winlogon_changed");
         if (field is null) return;
@@ -81,12 +86,19 @@ internal static class UnlockWorker
             ?? throw new InvalidDataException();
         if (start.Instance != instance || Process.GetCurrentProcess().SessionId != start.SessionId)
             throw new InvalidDataException();
+        var attempt = new UnlockAttempt(start, pipe, stop.Token);
+        if (start.PrepareDesktop)
+        {
+            UnlockPreparation.Run(start.SessionId, attempt);
+            await UnlockWire.WriteAsync(pipe, new UnlockWorkerMessage("prepared"), stop.Token);
+            return 0;
+        }
         var result = await DesktopController.ExecuteAsync(new Request
         {
             RequestId = Guid.NewGuid().ToString("n"),
             Operation = "session.login",
             CredentialKind = start.CredentialKind,
-            UnlockAttempt = new UnlockAttempt(start, pipe, stop.Token),
+            UnlockAttempt = attempt,
         }, start.Generation, stop.Token);
         await UnlockWire.WriteAsync(pipe, new UnlockWorkerMessage("result", result with
         { Operation = "session.unlock", RetrySafety = "never_automatically" }), stop.Token);

@@ -36,7 +36,7 @@ internal sealed record UnlockChallenge(string Protocol, string Instance, string 
 internal sealed record UnlockHello(string Operation, string? CredentialKind);
 internal sealed record UnlockProof(string Signature);
 internal sealed record UnlockWorkerStart(string Instance, string Revision, uint SessionId,
-    string SessionLogonId, string TargetUserSid, string CredentialKind, string Generation);
+    string SessionLogonId, string TargetUserSid, string CredentialKind, string Generation, bool PrepareDesktop = false);
 internal sealed record UnlockWorkerMessage(string Stage, Result? Result = null);
 
 internal sealed class UnlockService(string instance)
@@ -135,25 +135,28 @@ internal sealed class UnlockService(string instance)
             UnlockNative.RequireLockedAccount(session, grant.TargetUserSid);
         }
         Check();
+        await ExecuteAsync(pipe, grant, challenge, Check, stop, prepareDesktop: true);
+        Check();
         await ExecuteAsync(pipe, grant, challenge, Check, stop);
     }
 
     private async Task ExecuteAsync(NamedPipeServerStream client, UnlockGrant grant, UnlockChallenge challenge,
-        Action check, CancellationToken stop)
+        Action check, CancellationToken stop, bool prepareDesktop = false)
     {
         var privatePipe = "machine-control-unlock-worker-" + Guid.NewGuid().ToString("n");
         await using var worker = PipeTransport.CreateSystemOnlyServer(privatePipe);
-        var child = SessionLauncher.LaunchSystem(challenge.SessionId, privatePipe, _generation, instance);
+        var child = SessionLauncher.LaunchSystem(challenge.SessionId, privatePipe, _generation, instance, prepareDesktop);
         var secretRequested = false;
         try
         {
             await worker.WaitForConnectionAsync(stop);
             await UnlockWire.WriteAsync(worker, new UnlockWorkerStart(instance, grant.Revision,
-                challenge.SessionId, challenge.SessionLogonId, grant.TargetUserSid, challenge.CredentialKind, _generation), stop);
+                challenge.SessionId, challenge.SessionLogonId, grant.TargetUserSid, challenge.CredentialKind, _generation, prepareDesktop), stop);
             while (true)
             {
                 var message = JsonSerializer.Deserialize<UnlockWorkerMessage>(await UnlockWire.ReadLineAsync(worker, stop), Contract.Json)
                     ?? throw new InvalidDataException();
+                if (prepareDesktop && message.Stage == "prepared") { check(); return; }
                 if (message.Stage == "result")
                 {
                     await UnlockWire.WriteAsync(client, new { stage = "result", result = message.Result }, stop);
@@ -162,7 +165,7 @@ internal sealed class UnlockService(string instance)
                 check();
                 if (message.Stage == "check")
                     await UnlockWire.WriteAsync(worker, new { allowed = true }, stop);
-                else if (message.Stage == "ready" && !secretRequested)
+                else if (message.Stage == "ready" && !prepareDesktop && !secretRequested)
                 {
                     secretRequested = true;
                     await UnlockWire.WriteAsync(client, new { stage = "ready", credentialTransport = "uint16le-length+utf8", maximumBytes = 256 }, stop);

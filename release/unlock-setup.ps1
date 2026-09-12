@@ -122,7 +122,10 @@ try {
             }
         }
     } else {
-        foreach ($path in @($parent, $root, $stateParent, $state)) { Assert-Protected $path }
+        foreach ($path in @($parent, $root, $stateParent, $state)) {
+            if ($action -eq 'Uninstall' -and -not (Test-Path -LiteralPath $path)) { continue }
+            Assert-Protected $path
+        }
         if ($action -eq 'Uninstall' -and $self.StartsWith($root + '\', [StringComparison]::OrdinalIgnoreCase)) {
             throw 'Run Uninstall from the original distribution directory'
         }
@@ -135,15 +138,26 @@ try {
         }
         # Stop before revocation so pending workers lose their trusted service
         # connection. Removing a grant never falls back to appliance authority.
-        Stop-Service -Name $serviceName
+        $service = Get-CimInstance Win32_Service -Filter "Name='$serviceName'"
+        if ($service) {
+            $process = if ($service.ProcessId) { Get-Process -Id $service.ProcessId -ErrorAction SilentlyContinue } else { $null }
+            Stop-Service -Name $serviceName
+            if ($process -and -not $process.WaitForExit(10000)) { throw 'Stopped service process has not exited' }
+        } elseif ($action -ne 'Uninstall') { throw 'Unlock service is not installed' }
         Remove-Item -LiteralPath (Join-Path $state 'grant.json') -Force -ErrorAction SilentlyContinue
         if (Test-Path -LiteralPath (Join-Path $state 'grant.json')) { throw 'Grant removal failed; service remains stopped' }
         if ($action -eq 'Revoke') { Start-Service -Name $serviceName; Write-Output 'Unlock approval revoked' }
         if ($action -eq 'Uninstall') {
-            & "$system\sc.exe" delete $serviceName | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw 'Service removal failed' }
-            Remove-Item -LiteralPath $root -Recurse -Force
-            Remove-Item -LiteralPath $state -Recurse -Force
+            if (Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($root + '\', [StringComparison]::OrdinalIgnoreCase) }) {
+                throw 'Close the pending unlock setup dialog before retrying Uninstall; service remains stopped'
+            }
+            if ($service) {
+                & "$system\sc.exe" delete $serviceName | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw 'Service removal failed' }
+            }
+            foreach ($path in @($root, $state)) {
+                if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force }
+            }
             Write-Output 'Unlock component removed'
         }
     }
