@@ -1,6 +1,11 @@
-name: Windows workstation preview
+name: Windows workstation package
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Stable release version (e.g. 0.1.0); empty builds a CI preview only'
+        required: false
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -17,6 +22,12 @@ jobs:
       matrix:
         runtime: [win-arm64, win-x64]
     steps:
+      - name: Validate release version
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          if ($env:RELEASE_VERSION -and $env:RELEASE_VERSION -cnotmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') { throw 'Expected a stable semantic version' }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
@@ -151,3 +162,63 @@ jobs:
           path: artifacts/packages/*
           if-no-files-found: error
           retention-days: 14
+      - name: Authenticate consumer release
+        if: inputs.version != ''
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          WINDOWS_SIGNER_NAME: ${{ vars.WINDOWS_SIGNER_NAME }}
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+          BUILD_RUN: ${{ github.run_id }}.${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          python release/workstation-release.py create artifacts/packages --revision "$GITHUB_SHA" --run "$BUILD_RUN" --version "$RELEASE_VERSION" --publisher "$WINDOWS_SIGNER_NAME"
+          umask 077
+          key_file="$(mktemp "$RUNNER_TEMP/release-key.XXXXXX")"
+          trap 'rm -f "$key_file"' EXIT
+          printf '%s' "$RELEASE_SIGNING_KEY" > "$key_file"
+          minisign -S -s "$key_file" -m artifacts/packages/release.json
+          python release/workstation-release.py verify artifacts/packages --revision "$GITHUB_SHA" --run "$BUILD_RUN" --version "$RELEASE_VERSION" --publisher "$WINDOWS_SIGNER_NAME"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: inputs.version != ''
+        with:
+          name: workstation-release
+          path: artifacts/packages/*
+          if-no-files-found: error
+          retention-days: 14
+  publish:
+    if: inputs.version != ''
+    needs: manifest
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: workstation-release
+          path: packages
+      - name: Publish immutable versioned assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          tag="workstation-v$RELEASE_VERSION"
+          gh api "repos/$GH_REPO/releases?per_page=100" > previous-releases.json
+          python3 - <<'PY'
+          import json, os, re
+          requested = tuple(map(int, os.environ['RELEASE_VERSION'].split('.')))
+          for release in json.load(open('previous-releases.json')):
+              match = re.fullmatch(r'workstation-v(\d+)\.(\d+)\.(\d+)', release['tag_name'])
+              if match and not release['draft'] and not release['prerelease']:
+                  if tuple(map(int, match.groups())) >= requested:
+                      raise SystemExit('Release version must be newer than every published stable package')
+          PY
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo 'Release already exists; use a new version, never replace signed assets.' >&2
+            exit 1
+          fi
+          printf 'Signed Windows x64 and ARM64 Computer Control packages.\n\nInstall through Yep Anywhere Computer Control settings. Ordinary installation runs as the logged-in user; protected unlock is a separate explicit setup.\n\nSource: %s\n' "$GITHUB_SHA" > notes.md
+          gh release create "$tag" packages/* --target "$GITHUB_SHA" --title "Machine Control $RELEASE_VERSION" --notes-file notes.md --draft
+          gh release edit "$tag" --draft=false --latest

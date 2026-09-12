@@ -7,8 +7,20 @@ Its manual [workflow](../.github/workflows/windows-workstation.yml) builds
 ARM64/x64 self-contained residents, signs the provider before binding its final
 digest into the host, signs the host/lifecycle script and full file catalog,
 then authenticates the final archives with a dedicated preview manifest.
-It produces temporary CI artifacts, not a public release or automatic update
-feed. Native interactive acceptance remains a separate gate.
+Without a version it produces temporary CI artifacts. With a stable version
+input it also publishes a signed consumer release after all packaging gates.
+Native interactive acceptance remains a separate gate.
+
+```bash
+gh workflow run windows-workstation.yml --ref main -f version=0.1.0
+```
+
+Use a new semantic version for every publication. Never replace published bytes.
+The ZIPs, `release.json`, and `release.json.minisig` are published together on
+`kzahel/machine-control`. The [distribution contract](../topics/native-distribution.md#public-windows-release-contract)
+owns compatibility and trust. YA downloads and verifies these artifacts;
+the end user needs no GitHub credentials, minisign or publisher input.
+First public publication/consumer acceptance is pending.
 
 ```bash
 gh workflow run windows-workstation.yml --ref main

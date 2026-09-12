@@ -3,7 +3,8 @@
 Topic: `native-distribution`
 
 Status: signed Windows workstation preview and direct YA Node/Codex consumer
-accepted; public release delivery and other platform work remain.
+accepted. Public release publication and YA download/update code are implemented;
+first published-release acceptance remains pending.
 
 ## Direction
 
@@ -64,8 +65,7 @@ UAC plus explicit account/controller/lifetime approval. The
 [protected unlock topic](windows-protected-unlock.md) owns its contract and
 [tactical 037](../docs/tactical/037-windows-unlock-arming.md) its native acceptance.
 
-**Open:** Add public download/update feeds, release version selection and
-packaged YepAnywhere acceptance;
+**Open:** Complete first public release and packaged YepAnywhere acceptance;
 make macOS providers bundle-relative and prove consent across signed upgrades;
 package Linux dependencies and validate a workstation portal/input profile.
 Keep actual routes and unsupported capabilities visible.
@@ -103,3 +103,27 @@ The [common desktop](unified-desktop-client.md),
 [Cua dossier](../research/providers/cua-driver.md) owns provider facts and
 distribution caveats. Exact dependency/license audits and signed-provider
 digest handling remain prerequisites to shipping those providers.
+
+## Public Windows release contract
+
+The Windows workstation workflow accepts an optional stable `version` input.
+Empty input retains CI-only preview behavior. A version produces both
+architectures and `release.json` with its minisign detached signature.
+Publication runs only after both builds and manifest verification succeed,
+in the main-only release environment. It creates `workstation-v<version>` as
+a draft with all assets before publishing. Existing releases are never
+overwritten by the workflow.
+
+`machine-control-workstation-release/v1` binds the version/tag, native protocol
+`machine-control/v0`, consumer protocol 1, exact source/workflow identity,
+Windows publisher and both archive names, SHA-256 hashes and sizes. The existing
+Machine Control package key authenticates this metadata. The publisher in this
+authenticated manifest is trusted consumer configuration; native signature and
+catalog checks still apply to the package before executing its installer.
+
+YA pins the public package key in its shipped code and owns version selection,
+bounded downloads/staging, per-user installation, health checks, session-aware
+update timing and recovery to the prior package. A release does not update
+appliances or install/arm protected unlock. Incompatible or unverifiable
+releases leave the installed version usable. Component publication does not
+deploy a new YA server or hosted client.
