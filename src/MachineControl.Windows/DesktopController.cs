@@ -1278,7 +1278,7 @@ internal static class DesktopController
         }
         var credentialKind = request.CredentialKind?.ToLowerInvariant();
         if (credentialKind is not ("pin" or "password") ||
-            string.IsNullOrWhiteSpace(request.SecretPipe))
+            (string.IsNullOrWhiteSpace(request.SecretPipe) && request.UnlockAttempt is null))
         {
             return Failure(
                 request,
@@ -1289,6 +1289,7 @@ internal static class DesktopController
                 "Credential kind and protected secret pipe are required");
         }
 
+        request.UnlockAttempt?.Check();
         var fieldNames = credentialKind == "pin"
             ? new[] { "PIN", "Enter your PIN" }
             : new[] { "Password", "Enter your password" };
@@ -1446,8 +1447,9 @@ internal static class DesktopController
         char[]? characters = null;
         try
         {
-            secret = PipeTransport.ReceiveSecretOnceAsync(
-                    request.SecretPipe,
+            secret = request.UnlockAttempt is not null ? request.UnlockAttempt.ReadSecret(field) :
+                PipeTransport.ReceiveSecretOnceAsync(
+                    request.SecretPipe!,
                     TimeSpan.FromSeconds(20),
                     CancellationToken.None)
                 .GetAwaiter()
@@ -1470,7 +1472,9 @@ internal static class DesktopController
                     "invalid_credential_encoding",
                     "The credential contains an unsupported control character");
             }
-            SendSecretText(characters, count);
+            request.UnlockAttempt?.Check(field);
+            if (request.UnlockAttempt is not null) SendUnlockCredential(characters, count);
+            else SendSecretText(characters, count);
         }
         catch (DecoderFallbackException)
         {
@@ -1494,7 +1498,7 @@ internal static class DesktopController
             }
         }
 
-        SendKey("enter");
+        if (request.UnlockAttempt is null) SendKey("enter");
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(25);
         var activeSession = NativeMethods.WTSGetActiveConsoleSessionId();
         var interactiveUserPresent = activeSession != uint.MaxValue &&
@@ -1516,6 +1520,7 @@ internal static class DesktopController
                 "Default",
                 StringComparison.OrdinalIgnoreCase);
         }
+        if (request.UnlockAttempt is not null) loggedIn = loggedIn && request.UnlockAttempt.IsUnlocked();
         return Success(
             request,
             generation,
@@ -2121,6 +2126,32 @@ internal static class DesktopController
             // the target message queue time to consume each UTF-16 pair.
             Thread.Sleep(5);
         }
+    }
+
+    private static void SendUnlockCredential(char[] value, int count)
+    {
+        // One native batch selects/replaces the field and submits. Windows does
+        // not intersperse another keyboard/mouse input batch within this one.
+        // Authority is checked immediately before this delivery boundary;
+        // revocation cannot roll back an already submitted OS input batch.
+        var inputs = new NativeMethods.INPUT[4 + count * 2 + 2];
+        try
+        {
+            inputs[0] = KeyboardInput(0x11, 0);
+            inputs[1] = KeyboardInput(0x41, 0);
+            inputs[2] = KeyboardInput(0x41, NativeMethods.KEYEVENTF_KEYUP);
+            inputs[3] = KeyboardInput(0x11, NativeMethods.KEYEVENTF_KEYUP);
+            for (var i = 0; i < count; i++)
+            {
+                inputs[4 + i * 2] = UnicodeInput(value[i], 0);
+                inputs[5 + i * 2] = UnicodeInput(value[i], NativeMethods.KEYEVENTF_KEYUP);
+            }
+            inputs[^2] = KeyboardInput(0x0D, 0);
+            inputs[^1] = KeyboardInput(0x0D, NativeMethods.KEYEVENTF_KEYUP);
+            if (NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<NativeMethods.INPUT>()) != inputs.Length)
+                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        }
+        finally { Array.Clear(inputs); }
     }
 
     private static void SendSecretText(char[] value, int count)

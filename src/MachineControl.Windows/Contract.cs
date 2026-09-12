@@ -41,6 +41,9 @@ internal static class Contract
 
 internal sealed record Request
 {
+    // Trusted in-process context only. Never deserialized from any facade.
+    [JsonIgnore]
+    public UnlockAttempt? UnlockAttempt { get; init; }
     public string? RequestId { get; init; }
     public required string Operation { get; init; }
     public string? Scope { get; init; }

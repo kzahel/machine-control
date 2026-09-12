@@ -82,8 +82,12 @@ def build(directory, rid, revision, provider_digest=None):
     # Default build keeps the exact pinned provider bytes. Signing builds replace
     # this directory with the separately verified/signed copy before finalizing.
     fetch_provider(directory, rid)
+    subprocess.run(['python', str(ROOT / 'release/build-unlock-setup.py'),
+                    '--runtime', rid, '--output', str(directory / 'unlock-setup.exe')], check=True)
     shutil.copyfile(ROOT / 'release/workstation.ps1', directory / 'workstation.ps1')
     shutil.copyfile(ROOT / 'release/windows-workstation.md', directory / 'README.md')
+    shutil.copyfile(ROOT / 'release/windows-unlock.md', directory / 'unlock.md')
+    shutil.copyfile(ROOT / 'release/unlock-controller.py', directory / 'unlock-controller.py')
     shutil.copyfile(ROOT / 'LICENSE', directory / 'LICENSE')
     assets = json.loads((ROOT / 'src/MachineControl.Windows/obj/project.assets.json').read_text())
     dependencies = {name: item['path'] for name, item in assets['libraries'].items()

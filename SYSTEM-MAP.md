@@ -65,6 +65,13 @@ YepAnywhere may supervise the workstation package without owning its providers
 or becoming a prerequisite for the common CLI. Migration acceptance is tracked
 in [Tactical 036](docs/tactical/036-windows-workstation-distribution.md).
 
+**Decision:** Optional workstation unlock has an independent privileged service,
+administrator-owned grants and an elevated consent flow. Machine Control owns
+that installation and enforcement; YepAnywhere owns controller key/credential
+custody and product integration. The appliance broker is not its authorization
+fallback. See [Windows protected unlock](topics/windows-protected-unlock.md)
+and [Tactical 037](docs/tactical/037-windows-unlock-arming.md).
+
 | Repository | Administration/inner control | Outer control |
 | --- | --- | --- |
 | [`platforms/windows`](platforms/windows/README.md) | Authoritative UTM/macOS and libvirt/Linux lifecycle/workspace policy, minimized doctor, PowerShell/SSH administration, and bounded access to the Windows resident | UTM or headless QEMU screenshot and input remain explicit recovery routes |

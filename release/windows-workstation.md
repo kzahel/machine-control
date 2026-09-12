@@ -49,3 +49,11 @@ user's LocalApplicationData/MachineControl/workstation/INSTANCE/session-ID.
 Appliance ProgramData storage is unchanged. Two instances have separate pipes,
 state and provider processes, but still share the user's physical desktop;
 callers must coordinate conflicting input.
+
+## Optional unattended unlock
+
+The preview also contains `unlock-setup.exe`, a separate elevated installation
+entry. Ordinary installation does not install or arm it. See [unlock.md](unlock.md)
+for account/controller approval, the dedicated credential transport, revocation,
+and the current local-account limitations. This component is pending native
+acceptance in the initial implementation revision.

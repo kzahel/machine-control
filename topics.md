@@ -45,3 +45,5 @@ commits with no expected follow-up do not need a trailer or registry entry.
   posture, limitations, and next integration direction.
 - `native-distribution` — optional native packages, publisher signing,
   independent package authenticity, release CI, and consumer integration.
+- `windows-protected-unlock` — optional Windows unlock service, elevated
+  administrator arming, controller authorization and credential transport.

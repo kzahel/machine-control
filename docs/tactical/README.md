@@ -76,3 +76,4 @@ the commits' `Topic:` trailers and register that exact string in
 | [`034-macos-session-state-and-unlock.md`](034-macos-session-state-and-unlock.md) | complete | Truthful lock and unlock readiness in doctor/status, explicit installer and authenticated helper, guarded native unlock, and SIP-enabled appliance conformance |
 | [`035-native-signing-smoke.md`](035-native-signing-smoke.md) | complete | Main-only native CI fixtures, publisher signing/notarization, and a verified three-platform manifest without release publication |
 | [`036-windows-workstation-distribution.md`](036-windows-workstation-distribution.md) | complete | Ordinary-user Windows package with explicit privilege boundaries and appliance/CLI compatibility |
+| [`037-windows-unlock-arming.md`](037-windows-unlock-arming.md) | in progress | Optional privileged unlock service with UAC consent, controller-bound arming and native Windows acceptance |

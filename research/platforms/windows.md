@@ -260,3 +260,29 @@ evidence shows that Cua/WinApp cannot be layered or upstreamed coherently.
 5. Repeat the accepted factory lane on another Windows build or x64 appliance
    when that coverage is needed; include the corrected OpenSSH ACL bootstrap
    in the initial seed rather than as an acceptance-run repair.
+
+### Optional workstation unlock investigation
+
+**Current — live-tested discovery; built authorization prototype:** Tactical 037
+inspected the stock credential surface through the appliance's protected native
+UIA route in a disposable Windows x64 workspace. The field exposes password
+semantics, but its enclosing account label is a display name, not a SID. The
+initial optional service therefore limits acceptance to a uniquely mapped local
+SAM account and rechecks the selected field, focus and console identity. Domain
+and cloud account binding remain unproved; UIA labels are not general identity
+authority.
+
+The new authorization/transport contracts execute natively on Windows; x64 and
+ARM64 runtime publishes pass. This does not yet establish elevated setup or
+unlock conformance. [Tactical 037](../../docs/tactical/037-windows-unlock-arming.md)
+owns the native acceptance record.
+
+Microsoft documents the native building blocks:
+[WTSQueryUserToken](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsqueryusertoken)
+provides the logged-on session token to a suitably privileged LocalSystem
+service; [QueryServiceStatusEx](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-queryservicestatusex)
+provides the running SCM service PID used to authenticate the pipe peer.
+[SendInput](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput)
+serializes an input batch without interspersing other keyboard/mouse events,
+but is not proof of credential acceptance or a general UI transaction. The
+prototype separately observes WTS account/lock state and the input desktop.

@@ -53,6 +53,19 @@ internal static class Program
                     return await RunClientAsync(args);
                 case "login":
                     return await RunLoginClientAsync(args);
+                case "unlock-service":
+                    ServiceBase.Run(new UnlockWindowsService(GetOption(args, "--instance") ?? "default"));
+                    return 0;
+                case "unlock-worker":
+                    return await UnlockWorker.RunAsync(GetOption(args, "--instance") ?? "default",
+                        GetOption(args, "--pipe") ?? throw new ArgumentException("--pipe required"));
+                case "unlock-arm":
+                    return UnlockAdmin.Arm(GetOption(args, "--instance") ?? "default",
+                        GetOption(args, "--proposal") ?? throw new ArgumentException("--proposal required"));
+                case "unlock":
+                    return await UnlockClient.RunAsync(GetOption(args, "--instance") ?? "default",
+                        GetOption(args, "--grant"), GetOption(args, "--key"),
+                        GetOption(args, "--kind") ?? "password", args.Contains("--relay"), args.Contains("--status"));
                 case "schema":
                     Console.WriteLine(Contract.Serialize(new
                     {

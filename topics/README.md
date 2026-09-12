@@ -76,6 +76,8 @@ its `Topic:` trailers.
 - [`vm-workspaces-and-storage-policy.md`](vm-workspaces-and-storage-policy.md):
   portable VM workspace intent, provider-selected disposable or clone
   mechanisms, storage policy, and receipt-bound cleanup.
+- [`windows-protected-unlock.md`](windows-protected-unlock.md): optional privileged
+  unlock installation, administrator consent, controller grants and revocation.
 - [`windows-resident-control.md`](windows-resident-control.md): current Windows
   proving-ground decisions, unresolved boundaries, and next implementation
   direction.

@@ -29,7 +29,8 @@ if ($parseFailures.Count -gt 0) {
 $projects = @(
     'src\MachineControl.Windows\MachineControl.Windows.csproj',
     'src\MachineControl.Fixture\MachineControl.Fixture.csproj',
-    'src\MachineControl.ElevatedFixture\MachineControl.ElevatedFixture.csproj'
+    'src\MachineControl.ElevatedFixture\MachineControl.ElevatedFixture.csproj',
+    'tests\WindowsUnlock.Contracts\WindowsUnlock.Contracts.csproj'
 )
 foreach ($project in $projects) {
     & dotnet build (Join-Path $Repository $project) `
@@ -43,5 +44,8 @@ foreach ($project in $projects) {
         throw "dotnet format verification failed for $project"
     }
 }
+
+& dotnet run --project (Join-Path $Repository 'tests\WindowsUnlock.Contracts') --configuration Release --no-build
+if ($LASTEXITCODE -ne 0) { throw 'Unlock authorization contracts failed' }
 
 Write-Output 'Windows native static, build, and format checks passed'
