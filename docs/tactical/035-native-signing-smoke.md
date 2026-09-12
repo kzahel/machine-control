@@ -50,4 +50,11 @@ artifact. Source tests alone do not prove signing or notarization.
 Implementation is ready for hosted execution. Local workflow lint and shell
 syntax checks pass, all seven real-signature rejection tests pass, and the
 macOS ARM64 fixture builds, executes with the expected source identity, and
-packages successfully. Signing and notarization acceptance are pending.
+packages successfully. The complete portable repository checks also pass.
+
+The [initial hosted run](https://github.com/kzahel/machine-control/actions/runs/34678819614)
+built and packaged Linux successfully and built/executed the Mac fixture.
+Signing configuration preflight refused incomplete credentials, and the
+complete-manifest job was skipped. No public release was created. Windows
+native execution, publisher signing, notarization, and complete-artifact
+acceptance remain pending; this tactical is not complete.
