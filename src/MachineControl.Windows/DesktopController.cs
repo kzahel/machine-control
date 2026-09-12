@@ -1333,6 +1333,10 @@ internal static class DesktopController
         if (field is null && provider is null && options is null &&
             anyCredentialField is null)
         {
+            if (request.UnlockAttempt is not null)
+                return Failure(request, generation, desktopName, timer,
+                    "credential_surface_unavailable",
+                    "Unlock requires a discovered credential surface before further input");
             // Reveal the credential surface only when accessibility confirms
             // that Winlogon is still showing a non-credential lock screen.
             // Pressing Enter against an already focused credential field could

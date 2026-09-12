@@ -13,7 +13,8 @@ curtain and credential provider. A separate preparation worker wakes the display
 and checks the stock LockApp image before dismissing its curtain. When a locked
 Default desktop has no foreground window, it sends one zero-delta mouse activity
 event without clicking, typing or moving the pointer. Credential discovery happens in a fresh worker on Winlogon. Uncertain transitions refuse
-before requesting a credential.
+before requesting a credential. Empty credential discovery refuses without
+sending Enter to reveal an unidentified surface.
 
 ## Administrator setup
 
