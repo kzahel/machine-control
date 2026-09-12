@@ -1,0 +1,200 @@
+name: Native signing smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-signing-smoke
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-2025
+    environment: release
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - name: Check signing configuration
+        shell: pwsh
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_CERTIFICATE_PROFILE: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          WINDOWS_SIGNER_NAME: ${{ vars.WINDOWS_SIGNER_NAME }}
+        run: |
+          $required = @('AZURE_CLIENT_ID', 'AZURE_TENANT_ID', 'AZURE_CLIENT_SECRET',
+            'AZURE_SIGNING_ENDPOINT', 'AZURE_SIGNING_ACCOUNT',
+            'AZURE_CERTIFICATE_PROFILE', 'WINDOWS_SIGNER_NAME')
+          foreach ($name in $required) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              throw "Missing release environment configuration: $name"
+            }
+          }
+      - name: Build and execute native fixture
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VS_INSTALL=%%i"
+          call "%VS_INSTALL%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
+          if errorlevel 1 exit /b 1
+          python release/smoke.py build windows-x64 artifacts/signing-smoke
+      - name: Authenticode sign fixture
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          files-folder: ${{ github.workspace }}\artifacts\signing-smoke
+          files-folder-filter: exe
+          exclude-azure-cli-credential: true
+          cache-dependencies: false
+      - name: Verify publisher, timestamp, and signed execution
+        shell: pwsh
+        env:
+          WINDOWS_SIGNER_NAME: ${{ vars.WINDOWS_SIGNER_NAME }}
+        run: |
+          $binary = 'artifacts/signing-smoke/machine-control-smoke.exe'
+          $signature = Get-AuthenticodeSignature -FilePath $binary
+          if ($signature.Status -ne 'Valid') { throw 'Invalid Authenticode signature' }
+          $publisher = $signature.SignerCertificate.GetNameInfo(
+            [System.Security.Cryptography.X509Certificates.X509NameType]::SimpleName, $false)
+          if ($publisher -cne $env:WINDOWS_SIGNER_NAME) {
+            throw 'Unexpected Authenticode publisher'
+          }
+          if ($null -eq $signature.TimeStamperCertificate) { throw 'Missing timestamp' }
+          $identity = & $binary | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $identity.sourceRevision -ne $env:GITHUB_SHA -or
+              $identity.platform -ne 'windows-x64') { throw 'Signed fixture identity mismatch' }
+          python release/smoke.py package windows-x64 artifacts/signing-smoke
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: signing-smoke-windows-x64
+          path: artifacts/signing-smoke/packages/*
+          if-no-files-found: error
+          retention-days: 14
+
+  macos:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-26
+    environment: release
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - name: Build and execute native fixture
+        run: python release/smoke.py build macos-arm64 artifacts/signing-smoke
+      - name: Sign nested code, notarize, staple, and verify
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ vars.MACOS_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: bash release/sign-macos-smoke.sh 'artifacts/signing-smoke/Machine Control Signing Smoke.app'
+      - name: Package stapled bundle
+        run: python release/smoke.py package macos-arm64 artifacts/signing-smoke
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: signing-smoke-macos-arm64
+          path: artifacts/signing-smoke/packages/*
+          if-no-files-found: error
+          retention-days: 14
+
+  linux:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - name: Build, execute, and package native fixture
+        run: |
+          python release/smoke.py build linux-x64 artifacts/signing-smoke
+          python release/smoke.py package linux-x64 artifacts/signing-smoke
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: signing-smoke-linux-x64
+          path: artifacts/signing-smoke/packages/*
+          if-no-files-found: error
+          retention-days: 14
+
+  manifest:
+    needs: [windows, macos, linux]
+    runs-on: ubuntu-24.04
+    environment: release
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - name: Install signature verifier
+        run: sudo apt-get update -qq && sudo apt-get install -y minisign
+      - name: Test signature and artifact rejection
+        run: python -m unittest discover -s tests/release -v
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: signing-smoke-*
+          merge-multiple: true
+          path: artifacts/signing-smoke/packages
+      - name: Sign and verify complete manifest
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+          BUILD_RUN: ${{ github.run_id }}.${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          : "${RELEASE_SIGNING_KEY:?Missing release signing key}"
+          package_dir=artifacts/signing-smoke/packages
+          python release/manifest.py create "$package_dir" --revision "$GITHUB_SHA" --run "$BUILD_RUN"
+          umask 077
+          signing_key="$(mktemp "$RUNNER_TEMP/mc-release-key.XXXXXX")"
+          trap 'rm -f "$signing_key"' EXIT
+          printf '%s' "$RELEASE_SIGNING_KEY" > "$signing_key"
+          minisign -S -s "$signing_key" -m "$package_dir/manifest.json" \
+            -t "Machine Control signing smoke $GITHUB_SHA $BUILD_RUN"
+          python release/manifest.py verify "$package_dir" --revision "$GITHUB_SHA" --run "$BUILD_RUN"
+          cp release/machine-control.pub "$package_dir/"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: verified-signing-smoke
+          path: artifacts/signing-smoke/packages/*
+          if-no-files-found: error
+          retention-days: 14
+      - name: Record bounded result
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
+          Native signing smoke passed:
+          - Windows x64: Authenticode publisher, timestamp, and execution verified.
+          - macOS ARM64: nested code signing, notarization, stapling, and Gatekeeper verified.
+          - Linux x64: native execution verified; package covered by the signed manifest.
+          - All three final package hashes and build identity verified with the pinned public key.
+
+          CI artifacts only. These inert fixtures provide no desktop control and are not a product release.
+          SUMMARY
