@@ -4,6 +4,7 @@
 #define _UNICODE
 #include <windows.h>
 #include <shellapi.h>
+#include <shlobj.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
@@ -93,21 +94,28 @@ int wmain(int argc, wchar_t **argv) {
     wchar_t *command = calloc(32768, sizeof(wchar_t));
     if (!env || !command) return 2;
     wchar_t powershell[32768], modules[32768], temp[32768];
+    PWSTR programFiles = NULL, programData = NULL;
+    if (FAILED(SHGetKnownFolderPath(&FOLDERID_ProgramFiles, KF_FLAG_DEFAULT_PATH, NULL, &programFiles)) ||
+        FAILED(SHGetKnownFolderPath(&FOLDERID_ProgramData, KF_FLAG_DEFAULT_PATH, NULL, &programData))) return 2;
     swprintf_s(powershell, 32768, L"%s\\WindowsPowerShell\\v1.0\\powershell.exe", system);
     swprintf_s(modules, 32768, L"%s\\WindowsPowerShell\\v1.0\\Modules", system);
     swprintf_s(temp, 32768, L"%s\\Temp", windows);
     size_t used = 0;
+    environment(env, &used, L"ALLUSERSPROFILE", programData);
     environment(env, &used, L"MC_UNLOCK_ACTION", argv[1]);
     environment(env, &used, L"MC_UNLOCK_DEVELOPMENT", argc == 5 ? argv[4] : L"");
     environment(env, &used, L"MC_UNLOCK_INSTANCE", argc >= 3 ? argv[2] : L"default");
     environment(env, &used, L"MC_UNLOCK_PROPOSAL", argc >= 4 ? argv[3] : L"");
     environment(env, &used, L"MC_UNLOCK_SELF", self);
     environment(env, &used, L"PATH", system);
+    environment(env, &used, L"ProgramData", programData);
+    environment(env, &used, L"ProgramFiles", programFiles);
     environment(env, &used, L"PSModulePath", modules);
     environment(env, &used, L"SystemRoot", windows);
     environment(env, &used, L"TEMP", temp);
     environment(env, &used, L"TMP", temp);
     environment(env, &used, L"windir", windows);
+    CoTaskMemFree(programFiles); CoTaskMemFree(programData);
     argument(command, 32768, powershell);
     wcscat_s(command, 32768, L" -NoLogo -NoProfile -NonInteractive -EncodedCommand ");
     wcscat_s(command, 32768, MC_UNLOCK_SCRIPT);
