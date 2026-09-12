@@ -50,6 +50,15 @@ strong match for this project's conformance direction.
 
 ## Adjacent Cua sandbox scope
 
+**Current — source-reviewed:** Windows workstation preview packaging verifies
+the same pinned upstream executable before optional publisher signing. Because
+Authenticode changes its bytes, the release build embeds the final provider hash
+in the owned host assembly; runtime validation does not accept a replacement
+hash from writable provider metadata. This transforms the accepted artifact,
+but does not add source-build provenance to the upstream release. Final signed
+execution acceptance is tracked in
+[Tactical 036](../../docs/tactical/036-windows-workstation-distribution.md).
+
 **Current — upstream-claimed, not adopted here:** The wider Cua product now
 documents local and hosted full-computer sandboxes alongside Cua Driver. A
 sandbox combines shell and GUI access in one isolated machine; current docs

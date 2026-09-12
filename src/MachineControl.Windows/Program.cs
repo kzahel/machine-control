@@ -39,6 +39,14 @@ internal static class Program
                     return 0;
                 case "session":
                     return await RunSessionAsync(args);
+                case "user":
+                    using (var cancellation = new CancellationTokenSource())
+                    {
+                        Console.CancelKeyPress += (_, e) => { e.Cancel = true; cancellation.Cancel(); };
+                        await new UserHost(GetOption(args, "--instance") ?? "default")
+                            .RunAsync(cancellation.Token);
+                    }
+                    return 0;
                 case "desktop-worker":
                     return await RunDesktopWorkerAsync(args);
                 case "call":
@@ -99,8 +107,18 @@ internal static class Program
 
     private static async Task<int> RunClientAsync(string[] args)
     {
+        var profile = GetOption(args, "--profile") ?? "appliance";
+        if (profile is not ("user" or "appliance"))
+            throw new ArgumentException("--profile must be user or appliance");
+        if (profile == "appliance" &&
+            (GetOption(args, "--instance") is not null || GetOption(args, "--session-id") is not null))
+            throw new ArgumentException("User endpoint selectors require --profile user");
+        var pipe = profile == "user"
+            ? RuntimeProfile.UserPipe(GetOption(args, "--instance") ?? "default",
+                int.Parse(GetOption(args, "--session-id") ?? RuntimeProfile.SessionId.ToString()))
+            : BrokerHost.ServicePipe;
         string requestText;
-        if (args.Length > 1)
+        if (args.Length > 1 && !args[1].StartsWith("--", StringComparison.Ordinal))
         {
             requestText = args[1];
         }
@@ -109,10 +127,13 @@ internal static class Program
             requestText = await Console.In.ReadToEndAsync();
         }
         var request = Contract.ParseRequest(requestText);
+        var timeoutMs = int.Parse(GetOption(args, "--timeout-ms") ?? "30000");
+        if (timeoutMs is < 100 or > 120000)
+            throw new ArgumentException("--timeout-ms must be 100-120000");
         var response = await PipeTransport.CallAsync(
-            BrokerHost.ServicePipe,
+            pipe,
             Contract.Serialize(request),
-            TimeSpan.FromSeconds(30),
+            TimeSpan.FromMilliseconds(timeoutMs),
             CancellationToken.None);
         Console.WriteLine(response);
         return 0;
@@ -188,6 +209,7 @@ internal static class Program
     {
         Console.Error.WriteLine(
             "usage: machine-control-windows " +
-            "service|service-console|session|desktop-worker|call|login|schema");
+            "service|service-console|session|desktop-worker|user [--instance NAME]|" +
+            "call [JSON] [--profile appliance|user] [--instance NAME] [--session-id ID]|login|schema");
     }
 }

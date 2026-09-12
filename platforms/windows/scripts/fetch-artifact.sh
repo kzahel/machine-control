@@ -5,6 +5,8 @@ set -euo pipefail
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
+source "$SCRIPT_DIR/resident-profile.sh"
+resident_configuration="$(resident_profile_powershell)"
 
 if [[ $# -lt 1 || $# -gt 2 || ! "$1" =~ ^[0-9a-fA-F]{32}$ ]]; then
     printf 'Usage: winvm artifact ARTIFACT_ID [OUTPUT.png]\n' >&2
@@ -25,8 +27,8 @@ fi
 read -r -d '' powershell_script <<POWERSHELL || true
 \$ErrorActionPreference = 'Stop'
 \$ProgressPreference = 'SilentlyContinue'
-\$root = Join-Path \$env:ProgramData 'MachineControl\artifacts'
-\$path = Join-Path \$root '$artifact_id.png'
+$resident_configuration
+\$path = Join-Path \$artifactRoot '$artifact_id.png'
 if (-not (Test-Path -LiteralPath \$path -PathType Leaf)) {
     throw 'Resident artifact is unavailable'
 }

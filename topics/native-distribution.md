@@ -39,8 +39,22 @@ rollback, and clean disable/removal.
 
 ## Remaining product work
 
-**Open:** Separate ordinary Windows startup from the appliance service;
-make macOS providers bundle-relative and prove consent across signed upgrades;
+**Decision:** [Tactical 036](../docs/tactical/036-windows-workstation-distribution.md)
+implements Windows distribution additively: retain appliance defaults, share
+ordinary providers, select user endpoints explicitly, and keep privileged
+control in the authorized appliance profile. Candidate and appliance acceptance
+are separate required gates before migration of existing deployments.
+
+**Current:** Windows has an explicit `user --instance NAME` host and
+`call --profile user` client selection alongside unchanged appliance defaults.
+The Medium-only host shares ordinary providers, isolates user artifacts, and
+refuses protected operations. Its first local ARM64 VM conformance passed Cua
+semantics/capture and an independent fixture effect. The versioned workstation
+package/lifecycle entry point and signed-preview workflow are under acceptance
+in Tactical 036; this is not yet a fully accepted product release.
+
+**Open:** Complete Windows lifecycle, appliance-regression, native x64, and
+final signed-artifact acceptance; make macOS providers bundle-relative and prove consent across signed upgrades;
 package Linux dependencies and validate a workstation portal/input profile.
 Keep actual routes and unsupported capabilities visible.
 

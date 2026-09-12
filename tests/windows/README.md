@@ -78,3 +78,16 @@ wrong-credential case. A discovery refusal must end the case without retrying.
 `service.revoke`: a local caller is a child of the helper generation, and
 successful revocation is expected to terminate that process tree. The remote
 lane proves revocation and helper recreation instead.
+
+## Workstation distribution acceptance
+
+`workstation-conformance.ps1` addresses an explicit installed user instance and
+interactive session. It proves Medium integrity, protected refusals, stale
+generation fencing, Cua/native semantics and capture, and an independent
+fixture-owned counter effect. Pass the fixture separately from the product
+payload. `workstation-lifecycle.ps1` runs inside the ordinary interactive
+session against two different packages and exercises upgrade refusal while
+running, stop/start, rollback, stale requests, two-instance isolation, and
+removal. Both scripts retain their evidence outside the product package.
+See [Tactical 036](../../docs/tactical/036-windows-workstation-distribution.md)
+for the appliance and signed-artifact acceptance gates.

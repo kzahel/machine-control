@@ -179,6 +179,15 @@ Its completed shell-acceptance slice lives in
 
 ## Resident component boundary
 
+**Current:** An additive ordinary-user host now reuses the existing provider
+router without depending on the service. It has a user/session/instance-scoped
+pipe, per-user artifact storage, a workstation operation allowlist, and no
+protected-worker route. Appliance commands and broker-managed sessions keep
+their defaults. This first workstation profile covers the active unlocked
+console session at Medium integrity; RDP, elevated applications and protected
+sessions are explicit omissions. Distribution and migration acceptance live in
+[Tactical 036](../docs/tactical/036-windows-workstation-distribution.md).
+
 The smallest repeatable Windows target appliance needs to provide:
 
 - a stable installed service identity and authenticated local/remote sessions;

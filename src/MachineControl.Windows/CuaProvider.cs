@@ -12,6 +12,7 @@ namespace MachineControl.Windows;
 
 internal sealed class CuaProvider : IControlProvider
 {
+    public void Stop() => _host.Stop();
     private readonly CuaDriverHost _host = new();
     private readonly ConcurrentDictionary<string, CuaElementReference>
         _references = new();
@@ -220,11 +221,7 @@ internal sealed class CuaProvider : IControlProvider
         CancellationToken cancellationToken)
     {
         var target = ResolveWindow(request);
-        var artifactRoot = Path.Combine(
-            Environment.GetFolderPath(
-                Environment.SpecialFolder.CommonApplicationData),
-            "MachineControl",
-            "artifacts");
+        var artifactRoot = RuntimeProfile.ArtifactRoot;
         Directory.CreateDirectory(artifactRoot);
         var artifactId = Guid.NewGuid().ToString("n");
         var path = Path.Combine(artifactRoot, $"{artifactId}.png");
@@ -1005,8 +1002,19 @@ internal sealed class CuaDriverHost
             "Pinned release artifact digest verified");
     }
 
-    public static string ExpectedExecutableSha256() =>
-        RuntimeInformation.ProcessArchitecture switch
+    public static string ExpectedExecutableSha256()
+    {
+        // Authenticode transforms the pinned upstream bytes. Release builds
+        // embed the verified final digest in this signed host, never read a
+        // replacement digest from writable provider metadata at runtime.
+        var signedDigest = typeof(CuaDriverHost).Assembly
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyMetadataAttribute), false)
+            .Cast<System.Reflection.AssemblyMetadataAttribute>()
+            .SingleOrDefault(attribute => attribute.Key == "CuaExecutableSha256")?.Value;
+        if (signedDigest is not null)
+            return System.Text.RegularExpressions.Regex.IsMatch(signedDigest, "\\A[0-9a-f]{64}\\z")
+                ? signedDigest : string.Empty;
+        return RuntimeInformation.ProcessArchitecture switch
         {
             Architecture.X64 =>
                 "635efe92eb0c3f9737db7e8aca0198f12ccf97e3269a9a75d28388690113db27",
@@ -1014,6 +1022,7 @@ internal sealed class CuaDriverHost
                 "fef346fc57fb57f5721ee77cf479c607cd5015580447cdca71a71ef43175afaa",
             _ => string.Empty,
         };
+    }
 
     private static CuaProviderException ClassifyFailure(
         CuaProcessResult result,
@@ -1046,6 +1055,8 @@ internal sealed class CuaDriverHost
             "refused",
             result.ElapsedMs);
     }
+
+    public void Stop() => StopDaemon();
 
     private void StopDaemon()
     {

@@ -1,5 +1,30 @@
 # Native signing smoke
 
+The real Windows workstation preview is implemented separately in
+[windows-workstation.md](windows-workstation.md) and
+[Tactical 036](../docs/tactical/036-windows-workstation-distribution.md).
+Its manual [workflow](../.github/workflows/windows-workstation.yml) builds
+ARM64/x64 self-contained residents, signs the provider before binding its final
+digest into the host, signs the host/lifecycle script and full file catalog,
+then authenticates the final archives with a dedicated preview manifest.
+It produces temporary CI artifacts, not a public release or automatic update
+feed. Native interactive acceptance remains a separate gate.
+
+```bash
+gh workflow run windows-workstation.yml --ref main
+gh run download RUN_ID --name verified-windows-workstation --dir artifacts/workstation-download
+python3 release/workstation-manifest.py verify artifacts/workstation-download \
+  --revision FULL_SOURCE_SHA --run RUN_ID.ATTEMPT
+```
+
+For an unsigned local development payload, run `release/windows-package.py
+build OUTPUT --runtime win-arm64 --revision FULL_SOURCE_SHA`, then its
+`archive OUTPUT --output ARCHIVE_DIRECTORY` command. Select `win-x64` for the
+other architecture. Local modified builds disclose `sourceDirty` in build.json.
+The package carries the pinned Cua license/provenance and the exact restored
+.NET dependency licenses/notices; this does not establish new upstream binary
+source provenance.
+
 This directory owns the first release-engineering proof for an optional
 Machine Control component. The native fixture prints its platform and exact
 source revision, then exits. It has no control API, service registration,

@@ -5,6 +5,12 @@ set -uo pipefail
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
+source "$SCRIPT_DIR/resident-profile.sh"
+resident_configuration="$(resident_profile_powershell)" || exit $?
+protected_authority=dedicated_test_appliance
+if [[ "${WINVM_RESIDENT_PROFILE:-appliance}" == user ]]; then
+    protected_authority=unavailable_in_workstation_profile
+fi
 readonly PROVIDER="$(winvm_provider_path)"
 
 checks='[]'
@@ -99,18 +105,17 @@ if [[ "$power" == running ]]; then
     export WINVM_SSH_ALLOW_START=false
     read -r -d '' probe_script <<'POWERSHELL' || true
 $ErrorActionPreference = 'Stop'
-$runtime = Join-Path $env:ProgramData `
-    'MachineControl\runtime\machine-control-windows.exe'
+$runtime = $executable
 
 function Invoke-ControlProbe {
     param([Parameter(Mandatory = $true)][string]$Operation)
-    if (-not (Test-Path -LiteralPath $runtime -PathType Leaf)) {
+    if (-not $runtime -or -not (Test-Path -LiteralPath $runtime -PathType Leaf)) {
         return $null
     }
     try {
         $request = [ordered]@{ operation = $Operation } |
             ConvertTo-Json -Compress
-        $output = @($request | & $runtime call 2>$null)
+        $output = @($request | & $runtime @callArguments 2>$null)
         $exitCode = $LASTEXITCODE
         if ($exitCode -ne 0) { return $null }
         return ($output -join "`n") | ConvertFrom-Json
@@ -132,6 +137,7 @@ $capabilities = Invoke-ControlProbe -Operation 'capabilities'
             sessionLocked = $status.sessionLocked
             desktop = $status.desktop
             generation = $status.generation
+            desktopReady = $status.data.ready
         }
     }
     else {
@@ -144,6 +150,11 @@ $capabilities = Invoke-ControlProbe -Operation 'capabilities'
             }).Count -gt 0)
 } | ConvertTo-Json -Depth 6 -Compress
 POWERSHELL
+    probe_script="\$ErrorActionPreference = 'Stop'
+try {
+$resident_configuration
+} catch { \$executable = \$null; \$callArguments = @() }
+$probe_script"
     guest_probe="$(winvm_powershell_bounded \
         "$WINVM_DOCTOR_GUEST_TIMEOUT" "$probe_script" 2>/dev/null)"
     guest_probe_exit=$?
@@ -187,7 +198,7 @@ else
     add_check resident fail 'Target-native resident is unavailable'
 fi
 
-if [[ "$resident" == ready ]] && jq -e '.nativeProvider == true' \
+if [[ "$resident" == ready ]] && jq -e '.nativeProvider == true and .status.desktopReady != false' \
         <<<"$guest_probe" >/dev/null 2>&1; then
     semantic=ready
     capture=ready
@@ -236,6 +247,7 @@ jq -cn \
     --arg input "$input" \
     --arg outer "$outer" \
     --arg identity "$identity" \
+    --arg protected_authority "$protected_authority" \
     --argjson resident "$resident_json" \
     --argjson checks "$checks" \
     --argjson lifecycle_operations "$lifecycle_operations" \
@@ -264,7 +276,7 @@ jq -cn \
             targetIdentity:$identity,
             administrationRoute:"key_only_ssh_powershell",
             desktopSession:"windows_interactive_console",
-            protectedAuthority:"dedicated_test_appliance",
+            protectedAuthority:$protected_authority,
             lifecycle:$lifecycle
         }
     }'

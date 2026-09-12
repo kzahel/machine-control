@@ -58,6 +58,13 @@ not flatten their platform semantics into one generic implementation.
 
 ## Desktop VM testbeds
 
+**Current:** The optional Windows workstation host is another deployment of
+Machine Control's shared ordinary providers. It runs under the interactive user;
+the existing appliance broker remains a separate privileged deployment profile.
+YepAnywhere may supervise the workstation package without owning its providers
+or becoming a prerequisite for the common CLI. Migration acceptance is tracked
+in [Tactical 036](docs/tactical/036-windows-workstation-distribution.md).
+
 | Repository | Administration/inner control | Outer control |
 | --- | --- | --- |
 | [`platforms/windows`](platforms/windows/README.md) | Authoritative UTM/macOS and libvirt/Linux lifecycle/workspace policy, minimized doctor, PowerShell/SSH administration, and bounded access to the Windows resident | UTM or headless QEMU screenshot and input remain explicit recovery routes |

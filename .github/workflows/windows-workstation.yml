@@ -1,0 +1,153 @@
+name: Windows workstation preview
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-workstation-preview
+  cancel-in-progress: false
+jobs:
+  package:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-2025
+    environment: release
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime: [win-arm64, win-x64]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: '8.0.x'
+      - name: Check portable contracts and native build
+        run: |
+          python bin/check --portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable checks failed' }
+          ./tests/windows/static.ps1
+      - name: Fetch exact pinned provider
+        shell: bash
+        run: bash scripts/fetch-cua-windows.sh '${{ matrix.runtime }}' artifacts/provider
+      - name: Sign verified provider bytes
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          files-folder: ${{ github.workspace }}\artifacts\provider\providers\cua
+          files-folder-filter: exe
+          exclude-azure-cli-credential: true
+          cache-dependencies: false
+      - name: Publish host bound to signed provider digest
+        env:
+          WINDOWS_SIGNER_NAME: ${{ vars.WINDOWS_SIGNER_NAME }}
+        run: |
+          ./release/verify-windows-signatures.ps1 -Directory artifacts/provider -ExpectedPublisher $env:WINDOWS_SIGNER_NAME
+          $digest = (Get-FileHash artifacts/provider/providers/cua/cua-driver.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          python release/windows-package.py build artifacts/payload --runtime '${{ matrix.runtime }}' --revision $env:GITHUB_SHA --provider-digest $digest
+          if ($LASTEXITCODE -ne 0) { throw 'Publish failed' }
+          $build = Get-Content artifacts/payload/build.json -Raw | ConvertFrom-Json
+          if ($build.sourceDirty -or $build.sourceRevision -ne $env:GITHUB_SHA) { throw 'Unclean source build' }
+          Copy-Item artifacts/provider/providers/cua/cua-driver.exe artifacts/payload/providers/cua/cua-driver.exe -Force
+      - name: Sign runtime and lifecycle script
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          files-folder: ${{ github.workspace }}\artifacts\payload
+          files-folder-filter: exe,ps1
+          files-folder-recurse: false
+          exclude-azure-cli-credential: true
+          cache-dependencies: false
+      - name: Finalize payload and create file catalog
+        run: |
+          python release/windows-package.py finalize artifacts/payload
+          if ($LASTEXITCODE -ne 0) { throw 'Package validation failed' }
+          New-Item -ItemType Directory -Path artifacts/catalog | Out-Null
+          New-FileCatalog -Path artifacts/payload -CatalogFilePath artifacts/catalog/package.cat -CatalogVersion 2.0
+      - name: Sign complete payload catalog
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          files-folder: ${{ github.workspace }}\artifacts\catalog
+          files-folder-filter: cat
+          exclude-azure-cli-credential: true
+          cache-dependencies: false
+      - name: Verify and archive final payload
+        env:
+          WINDOWS_SIGNER_NAME: ${{ vars.WINDOWS_SIGNER_NAME }}
+        run: |
+          Copy-Item artifacts/catalog/package.cat artifacts/payload/package.cat
+          ./release/verify-windows-signatures.ps1 -Directory artifacts/payload -ExpectedPublisher $env:WINDOWS_SIGNER_NAME
+          if ((Test-FileCatalog -Path artifacts/payload -CatalogFilePath artifacts/payload/package.cat -FilesToSkip 'package.cat') -ne 'Valid') {
+            throw 'Final catalog validation failed'
+          }
+          if ('${{ matrix.runtime }}' -eq 'win-x64') {
+            $schema = & ./artifacts/payload/machine-control-windows.exe schema | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0 -or $schema.schema -ne 'machine-control/v0') { throw 'Signed executable failed' }
+          }
+          python release/windows-package.py archive artifacts/payload --output artifacts/packages
+          if ($LASTEXITCODE -ne 0) { throw 'Package validation failed' }
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: workstation-${{ matrix.runtime }}
+          path: artifacts/packages/*
+          if-no-files-found: error
+          retention-days: 14
+  manifest:
+    needs: package
+    runs-on: ubuntu-24.04
+    environment: release
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y minisign
+      - run: python -m unittest discover -s tests/release -v
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: workstation-win-*
+          merge-multiple: true
+          path: artifacts/packages
+      - name: Authenticate exact preview build
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+          BUILD_RUN: ${{ github.run_id }}.${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          : "${RELEASE_SIGNING_KEY:?Missing signing key}"
+          python release/workstation-manifest.py create artifacts/packages --revision "$GITHUB_SHA" --run "$BUILD_RUN"
+          umask 077
+          key_file="$(mktemp "$RUNNER_TEMP/workstation-key.XXXXXX")"
+          trap 'rm -f "$key_file"' EXIT
+          printf '%s' "$RELEASE_SIGNING_KEY" > "$key_file"
+          minisign -S -s "$key_file" -m artifacts/packages/manifest.json
+          python release/workstation-manifest.py verify artifacts/packages --revision "$GITHUB_SHA" --run "$BUILD_RUN"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: verified-windows-workstation
+          path: artifacts/packages/*
+          if-no-files-found: error
+          retention-days: 14

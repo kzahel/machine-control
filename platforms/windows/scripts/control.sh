@@ -5,6 +5,8 @@ set -euo pipefail
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
+source "$SCRIPT_DIR/resident-profile.sh"
+resident_configuration="$(resident_profile_powershell)"
 
 if [[ $# -ne 1 ]]; then
     printf 'Usage: winvm control JSON\n' >&2
@@ -21,13 +23,13 @@ request_base64="$(printf '%s' "$request" | base64 | tr -d '\n')"
 read -r -d '' powershell_script <<POWERSHELL || true
 \$ErrorActionPreference = 'Stop'
 \$ProgressPreference = 'SilentlyContinue'
-\$executable = Join-Path \$env:ProgramData 'MachineControl\runtime\machine-control-windows.exe'
+$resident_configuration
 if (-not (Test-Path -LiteralPath \$executable -PathType Leaf)) {
     throw 'MachineControl resident client is not installed'
 }
 \$json = [Text.Encoding]::UTF8.GetString(
     [Convert]::FromBase64String('$request_base64'))
-\$json | & \$executable call
+\$json | & \$executable @callArguments
 if (\$LASTEXITCODE -ne 0) { exit \$LASTEXITCODE }
 POWERSHELL
 

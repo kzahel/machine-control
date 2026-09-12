@@ -136,6 +136,15 @@ the deeper Windows corpus already covers Unicode input. See the
 
 ## Remaining direction
 
+**Current:** Windows adapters accept explicit private configuration
+`WINVM_RESIDENT_PROFILE=user`, `WINVM_USER_INSTANCE`, and
+`WINVM_USER_SESSION_ID` to select an installed workstation runtime. The same
+selection governs control, local-control parity, and artifact retrieval.
+Default selection remains the existing appliance. There is no fallback between
+profiles when an endpoint is absent. See
+[Tactical 036](../docs/tactical/036-windows-workstation-distribution.md) for
+acceptance status.
+
 - Add an authenticated remote carrier, SDK, or MCP projection only after the
   local contract stays stable under real application campaigns.
 - Expand friendly normalization when repeated workflows demonstrate a common

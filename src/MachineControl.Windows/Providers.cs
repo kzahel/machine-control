@@ -119,6 +119,22 @@ internal sealed class WindowsNativeProvider : IControlProvider
 
 internal static class ProviderRouter
 {
+    public static void Stop() => Cua.Stop();
+
+    public static ProviderDescriptor[] DescribeUser() =>
+    [
+        Native.Describe() with
+        {
+            RouteClass = "guest.user", ProcessPlacement = "ordinary-user resident",
+            Privilege = "Medium", SessionRequirement = "active unlocked console Default desktop",
+            Operations = Native.Describe().Operations
+                .Where(operation => UserHost.Operations.Contains(operation.Operation))
+                .Select(operation => operation with { Desktops = ["Default"] }).ToArray(),
+            KnownOmissions = ["protected desktops", "elevated applications", "other user sessions"],
+        },
+        Cua.Describe(),
+    ];
+
     private static readonly IControlProvider Native =
         new WindowsNativeProvider();
     private static readonly CuaProvider Cua = new();

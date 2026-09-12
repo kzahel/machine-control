@@ -39,7 +39,7 @@ internal static class DesktopController
                     RequestId = request.RequestId!,
                     Operation = request.Operation,
                     Accepted = false,
-                    ActualRoute = "windows.protected_session",
+                    ActualRoute = RuntimeProfile.IsUser ? "windows.user_session" : "windows.protected_session",
                     SessionId = NativeMethods.WTSGetActiveConsoleSessionId(),
                     Generation = generation,
                     Delivery = "unknown",
@@ -105,6 +105,12 @@ internal static class DesktopController
                 NativeMethods.GetCurrentThreadId());
             var currentDesktopName = GetDesktopName(currentDesktop);
             var inputDesktopName = GetDesktopName(desktop);
+            if (RuntimeProfile.IsUser &&
+                (!string.Equals(currentDesktopName, "Default", StringComparison.OrdinalIgnoreCase) ||
+                 !string.Equals(inputDesktopName, "Default", StringComparison.OrdinalIgnoreCase) ||
+                 NativeMethods.WTSGetActiveConsoleSessionId() != (uint)RuntimeProfile.SessionId))
+                return Failure(request, generation, currentDesktopName, timer,
+                    "desktop_unavailable", "Workstation mode cannot switch desktops or sessions");
             if (!string.Equals(
                     currentDesktopName,
                     inputDesktopName,
@@ -738,11 +744,7 @@ internal static class DesktopController
                 CopyPixelOperation.SourceCopy);
         }
 
-        var artifactRoot = Path.Combine(
-            Environment.GetFolderPath(
-                Environment.SpecialFolder.CommonApplicationData),
-            "MachineControl",
-            "artifacts");
+        var artifactRoot = RuntimeProfile.ArtifactRoot;
         Directory.CreateDirectory(artifactRoot);
         var artifactId = Guid.NewGuid().ToString("n");
         var path = Path.Combine(artifactRoot, $"{artifactId}.png");
@@ -2263,7 +2265,7 @@ internal static class DesktopController
             double.IsFinite(bounds.Width) ? bounds.Width : 0,
             double.IsFinite(bounds.Height) ? bounds.Height : 0);
 
-    private static int GetIntegrityRid()
+    internal static int GetIntegrityRid()
     {
         if (!NativeMethods.OpenProcessToken(
                 NativeMethods.GetCurrentProcess(),
@@ -2345,7 +2347,7 @@ internal static class DesktopController
             RequestId = request.RequestId!,
             Operation = request.Operation,
             Accepted = false,
-            ActualRoute = "windows.protected_session",
+            ActualRoute = RuntimeProfile.IsUser ? "windows.user_session" : "windows.protected_session",
             SessionId = NativeMethods.WTSGetActiveConsoleSessionId(),
             Desktop = desktopName,
             Generation = generation,
