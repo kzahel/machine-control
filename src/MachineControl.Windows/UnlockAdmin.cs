@@ -68,7 +68,18 @@ internal static class UnlockAdmin
         var temporary = Path.Combine(root, Guid.NewGuid().ToString("n") + ".tmp");
         try
         {
-            File.WriteAllText(temporary, Contract.Serialize(grant));
+            var acl = new FileSecurity();
+            acl.SetAccessRuleProtection(true, false);
+            var administrators = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+            acl.SetOwner(administrators);
+            foreach (var sid in new[] { administrators, new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null) })
+                acl.AddAccessRule(new FileSystemAccessRule(sid, FileSystemRights.FullControl, AccessControlType.Allow));
+            acl.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
+                FileSystemRights.Read, AccessControlType.Allow));
+            using (var stream = new FileInfo(temporary).Create(FileMode.CreateNew, FileSystemRights.FullControl,
+                FileShare.None, 4096, FileOptions.None, acl))
+            using (var writer = new StreamWriter(stream))
+                writer.Write(Contract.Serialize(grant));
             File.Move(temporary, UnlockPolicy.GrantPath(instance), overwrite: true);
         }
         finally { File.Delete(temporary); }

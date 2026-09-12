@@ -32,6 +32,7 @@ try {
         }
     }
     function New-Protected([string]$Path) {
+        if (Test-Path -LiteralPath $Path) { Assert-Protected $Path; return }
         $acl = [Security.AccessControl.DirectorySecurity]::new()
         $acl.SetAccessRuleProtection($true, $false)
         $acl.SetOwner($admin)
@@ -78,12 +79,17 @@ try {
                 if ($total -gt 2GB) { throw 'Package exceeds size bound' }
                 $outputPath = Join-Path $root $member
                 [IO.Directory]::CreateDirectory((Split-Path -Parent $outputPath)) | Out-Null
-                [IO.File]::Copy($inputPath, $outputPath, $false)
+                $input = [IO.File]::OpenRead($inputPath)
+                try {
+                    $output = [IO.File]::Open($outputPath, 'CreateNew', 'Write', 'None')
+                    try { $input.CopyTo($output) } finally { $output.Dispose() }
+                } finally { $input.Dispose() }
             }
             # Verify the protected copy before granting ordinary read access or
             # executing any managed/native payload. Source races cannot activate
             # different bytes from those verified here.
             foreach ($file in $manifest.files.PSObject.Properties) {
+                Assert-Protected (Join-Path $root $file.Name)
                 if ((Get-FileHash -LiteralPath (Join-Path $root $file.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -cne $file.Value) { throw 'Copied package hash mismatch' }
             }
             foreach ($name in @('machine-control-windows.exe', 'unlock-setup.exe', 'workstation.ps1', 'providers/cua/cua-driver.exe')) {

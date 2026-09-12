@@ -36,7 +36,7 @@ internal sealed record UnlockChallenge(string Protocol, string Instance, string 
 internal sealed record UnlockHello(string Operation, string? CredentialKind);
 internal sealed record UnlockProof(string Signature);
 internal sealed record UnlockWorkerStart(string Instance, string Revision, uint SessionId,
-    string TargetUserSid, string CredentialKind, string Generation);
+    string SessionLogonId, string TargetUserSid, string CredentialKind, string Generation);
 internal sealed record UnlockWorkerMessage(string Stage, Result? Result = null);
 
 internal sealed class UnlockService(string instance)
@@ -149,7 +149,7 @@ internal sealed class UnlockService(string instance)
         {
             await worker.WaitForConnectionAsync(stop);
             await UnlockWire.WriteAsync(worker, new UnlockWorkerStart(instance, grant.Revision,
-                challenge.SessionId, grant.TargetUserSid, challenge.CredentialKind, _generation), stop);
+                challenge.SessionId, challenge.SessionLogonId, grant.TargetUserSid, challenge.CredentialKind, _generation), stop);
             while (true)
             {
                 var message = JsonSerializer.Deserialize<UnlockWorkerMessage>(await UnlockWire.ReadLineAsync(worker, stop), Contract.Json)

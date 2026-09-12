@@ -34,9 +34,16 @@ def build(runtime, output):
         # cmd.exe is required only for MSVC's environment script. Paths are local
         # build paths; no secret or proposal is interpolated into this command.
         architecture = 'x64_arm64' if runtime == 'win-arm64' else 'x64'
-        command = 'call "' + str(Path(installation) / 'VC/Auxiliary/Build/vcvarsall.bat') + '" ' + architecture
-        command += ' && ' + subprocess.list2cmdline(compiler)
-        subprocess.run(['cmd.exe', '/d', '/s', '/c', command], cwd=work, check=True)
+        vcvars = str(Path(installation) / 'VC/Auxiliary/Build/vcvarsall.bat')
+        if any(character in value for value in [vcvars, *compiler] for character in '%!^&|<>\r\n'):
+            raise ValueError('Unsupported cmd.exe metacharacter in build path')
+        # A batch file keeps cmd syntax separate from Python/CRT argument
+        # escaping: embedded quotes passed as one argv would become literal \".
+        batch = '@echo off\ncall "' + vcvars + '" ' + architecture + '\n'
+        batch += 'if errorlevel 1 exit /b %errorlevel%\n' + subprocess.list2cmdline(compiler) + '\n'
+        batch += 'exit /b %errorlevel%\n'
+        (work / 'build.cmd').write_text(batch)
+        subprocess.run(['cmd.exe', '/d', '/c', 'build.cmd'], cwd=work, check=True)
 
 
 if __name__ == '__main__':

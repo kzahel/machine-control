@@ -21,6 +21,23 @@ static int administrator(void) {
     return member != FALSE;
 }
 
+static int protect_default_owner(void) {
+    SID_IDENTIFIER_AUTHORITY authority = SECURITY_NT_AUTHORITY;
+    PSID sid = NULL;
+    HANDLE token = NULL;
+    BOOL changed = FALSE;
+    if (AllocateAndInitializeSid(&authority, 2, SECURITY_BUILTIN_DOMAIN_RID,
+        DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &sid)) {
+        if (OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_DEFAULT | TOKEN_QUERY, &token)) {
+            TOKEN_OWNER owner = {sid};
+            changed = SetTokenInformation(token, TokenOwner, &owner, sizeof(owner));
+            CloseHandle(token);
+        }
+        FreeSid(sid);
+    }
+    return changed != FALSE;
+}
+
 // Quote one argv value according to CommandLineToArgvW backslash rules.
 static void argument(wchar_t *out, size_t size, const wchar_t *value) {
     wcscat_s(out, size, out[0] ? L" \"" : L"\"");
@@ -67,6 +84,9 @@ int wmain(int argc, wchar_t **argv) {
         DWORD code = 1; GetExitCodeProcess(info.hProcess, &code); CloseHandle(info.hProcess);
         return (int)code;
     }
+    // Ordinary same-user code must never own staging files, even briefly:
+    // object owners can change DACLs despite restrictive inherited permissions.
+    if (!protect_default_owner()) return ERROR_ACCESS_DENIED;
     // Do not carry caller-controlled CLR startup hooks, PowerShell module paths,
     // PATH entries or profile settings across the elevation boundary.
     wchar_t *env = calloc(65536, sizeof(wchar_t));

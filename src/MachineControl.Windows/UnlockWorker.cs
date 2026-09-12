@@ -63,6 +63,7 @@ internal sealed class UnlockAttempt(UnlockWorkerStart start, NamedPipeClientStre
 
     public bool IsUnlocked() => NativeMethods.WTSGetActiveConsoleSessionId() == start.SessionId &&
         UnlockNative.ConsoleUserSid(start.SessionId) == start.TargetUserSid &&
+        UnlockNative.ConsoleLogonId(start.SessionId) == start.SessionLogonId &&
         SessionStateInspector.IsLocked(start.SessionId) == false;
 }
 
