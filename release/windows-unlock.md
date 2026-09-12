@@ -10,8 +10,9 @@ and the dedicated-appliance broker keep their existing contracts.
 
 The authorized workers use LocalSystem plus UIAccess for the Windows lock-screen
 curtain and credential provider. A separate preparation worker wakes the display
-and checks the stock LockApp image before dismissing its curtain; credential
-discovery happens in a fresh worker on Winlogon. Uncertain transitions refuse
+and checks the stock LockApp image before dismissing its curtain. When a locked
+Default desktop has no foreground window, it sends one zero-delta mouse activity
+event without clicking, typing or moving the pointer. Credential discovery happens in a fresh worker on Winlogon. Uncertain transitions refuse
 before requesting a credential.
 
 ## Administrator setup
@@ -111,12 +112,15 @@ stores no credential. Grant approval is not the Windows credential itself.
 
 Keep the controller and Windows clocks synchronized. Challenge deadlines are
 checked before signing or reading a credential. Client errors report their
-phase, whether a credential was read, and whether submission was attempted;
+phase, whether a credential was read, and whether submission was attempted.
+Service failures distinguish preparation and credential stages with bounded
+failure codes;
 an unknown delivery must never be automatically retried.
 
 Initial coverage is deliberately limited to existing local console accounts
 with a unique local account/display-name mapping and the observed stock Windows
-credential UI. Domain/cloud accounts, ambiguous display names, account switching,
+credential UI. Password unlock has native ARM64/x64 evidence; PIN submission
+still needs native acceptance. Domain/cloud accounts, ambiguous display names, account switching,
 no-user login, preboot, biometric credentials and general UAC delegation are not
 supported by this component. Provider discovery or focus uncertainty refuses
 before reading the credential. Concurrent physical input can still disturb an

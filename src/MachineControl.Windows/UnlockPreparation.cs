@@ -17,6 +17,7 @@ internal static class UnlockPreparation
         {
             var timer = Stopwatch.StartNew();
             var dismissed = false;
+            var wakeSent = false;
             var expectedImage = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),
                 "SystemApps", "Microsoft.LockApp_cw5n1h2txyewy", "LockApp.exe");
             while (timer.Elapsed < TimeSpan.FromSeconds(8))
@@ -27,6 +28,23 @@ internal static class UnlockPreparation
                 if (desktop != "Default") throw new InvalidDataException("unlock_desktop_unsupported");
                 var window = NativeMethods.GetForegroundWindow();
                 NativeMethods.GetWindowThreadProcessId(window, out var processId);
+                if (!wakeSent && window == IntPtr.Zero)
+                {
+                    // The locked display can be idle with no foreground window.
+                    // A zero-delta relative mouse event reports activity without
+                    // clicking, typing or changing the pointer coordinates.
+                    attempt.CheckAuthority();
+                    UnlockNative.RequireReleasedModifiers();
+                    var wake = new NativeMethods.INPUT
+                    {
+                        type = 0,
+                        union = new NativeMethods.INPUTUNION
+                        { mouse = new NativeMethods.MOUSEINPUT { dwFlags = NativeMethods.MOUSEEVENTF_MOVE } },
+                    };
+                    if (NativeMethods.SendInput(1, [wake], Marshal.SizeOf<NativeMethods.INPUT>()) != 1)
+                        throw new InvalidDataException("lock_display_wake_refused");
+                    wakeSent = true;
+                }
                 if (!dismissed && processId != 0)
                 {
                     using var process = Process.GetProcessById((int)processId);
@@ -47,7 +65,7 @@ internal static class UnlockPreparation
                 }
                 Thread.Sleep(100);
             }
-            throw new InvalidDataException("protected_credential_desktop_unavailable");
+            throw new InvalidDataException(dismissed ? "lock_curtain_dismissal_not_observed" : "lock_curtain_not_foreground");
         }
         finally { SetThreadExecutionState(previous | 0x80000000); }
     }

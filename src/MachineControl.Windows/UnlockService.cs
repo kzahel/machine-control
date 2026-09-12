@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
@@ -37,7 +38,16 @@ internal sealed record UnlockHello(string Operation, string? CredentialKind);
 internal sealed record UnlockProof(string Signature);
 internal sealed record UnlockWorkerStart(string Instance, string Revision, uint SessionId,
     string SessionLogonId, string TargetUserSid, string CredentialKind, string Generation, bool PrepareDesktop = false);
-internal sealed record UnlockWorkerMessage(string Stage, Result? Result = null);
+internal sealed record UnlockWorkerMessage(string Stage, Result? Result = null, string? Failure = null, int? NativeError = null);
+
+internal sealed class UnlockProgress
+{
+    public string Phase { get; set; } = "hello";
+    public bool CredentialRead { get; set; }
+    public bool ForwardAttempted { get; set; }
+    public string? WorkerFailure { get; set; }
+    public int? NativeError { get; set; }
+}
 
 internal sealed class UnlockService(string instance)
 {
@@ -55,8 +65,9 @@ internal sealed class UnlockService(string instance)
             await pipe.WaitForConnectionAsync(stop);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(stop);
             timeout.CancelAfter(TimeSpan.FromSeconds(70));
-            try { await HandleAsync(pipe, timeout.Token); }
-            catch (Exception)
+            var progress = new UnlockProgress();
+            try { await HandleAsync(pipe, progress, timeout.Token); }
+            catch (Exception error)
             {
                 // Input errors and disconnects do not terminate the service.
                 // Do not echo attacker-controlled input or provider exceptions.
@@ -66,7 +77,12 @@ internal sealed class UnlockService(string instance)
                     {
                         stage = "refused",
                         errorCode = "unlock_refused",
-                        delivery = "unknown",
+                        phase = progress.Phase,
+                        errorType = error.GetType().Name,
+                        workerFailure = progress.WorkerFailure,
+                        nativeError = progress.NativeError ?? (error as Win32Exception)?.NativeErrorCode,
+                        credentialRead = progress.CredentialRead,
+                        delivery = progress.ForwardAttempted ? "unknown" : "not_sent",
                         retrySafety = "never_automatically"
                     }, timeout.Token);
                 }
@@ -75,7 +91,7 @@ internal sealed class UnlockService(string instance)
         }
     }
 
-    private async Task HandleAsync(NamedPipeServerStream pipe, CancellationToken stop)
+    private async Task HandleAsync(NamedPipeServerStream pipe, UnlockProgress progress, CancellationToken stop)
     {
         using var first = CancellationTokenSource.CreateLinkedTokenSource(stop);
         first.CancelAfter(TimeSpan.FromSeconds(5));
@@ -120,6 +136,7 @@ internal sealed class UnlockService(string instance)
         var challengeText = Contract.Serialize(challenge);
         var timer = Stopwatch.StartNew();
         await UnlockWire.WriteAsync(pipe, new { stage = "challenge", challenge = challengeText }, stop);
+        progress.Phase = "controller_proof";
         var proof = JsonSerializer.Deserialize<UnlockProof>(await UnlockWire.ReadLineAsync(pipe, first.Token), Contract.Json);
         if (proof is null || !UnlockPolicy.Verify(grant, challengeText, proof.Signature))
         {
@@ -134,28 +151,38 @@ internal sealed class UnlockService(string instance)
                 throw new InvalidDataException("unlock_authority_changed");
             UnlockNative.RequireLockedAccount(session, grant.TargetUserSid);
         }
+        progress.Phase = "authority_check";
         Check();
-        await ExecuteAsync(pipe, grant, challenge, Check, stop, prepareDesktop: true);
+        await ExecuteAsync(pipe, grant, challenge, Check, progress, stop, prepareDesktop: true);
         Check();
-        await ExecuteAsync(pipe, grant, challenge, Check, stop);
+        await ExecuteAsync(pipe, grant, challenge, Check, progress, stop);
     }
 
     private async Task ExecuteAsync(NamedPipeServerStream client, UnlockGrant grant, UnlockChallenge challenge,
-        Action check, CancellationToken stop, bool prepareDesktop = false)
+        Action check, UnlockProgress progress, CancellationToken stop, bool prepareDesktop = false)
     {
+        progress.Phase = prepareDesktop ? "preparation_launch" : "credential_worker_launch";
         var privatePipe = "machine-control-unlock-worker-" + Guid.NewGuid().ToString("n");
         await using var worker = PipeTransport.CreateSystemOnlyServer(privatePipe);
         var child = SessionLauncher.LaunchSystem(challenge.SessionId, privatePipe, _generation, instance, prepareDesktop);
         var secretRequested = false;
         try
         {
+            progress.Phase = prepareDesktop ? "preparation_connect" : "credential_worker_connect";
             await worker.WaitForConnectionAsync(stop);
+            progress.Phase = prepareDesktop ? "desktop_preparation" : "credential_discovery";
             await UnlockWire.WriteAsync(worker, new UnlockWorkerStart(instance, grant.Revision,
                 challenge.SessionId, challenge.SessionLogonId, grant.TargetUserSid, challenge.CredentialKind, _generation, prepareDesktop), stop);
             while (true)
             {
                 var message = JsonSerializer.Deserialize<UnlockWorkerMessage>(await UnlockWire.ReadLineAsync(worker, stop), Contract.Json)
                     ?? throw new InvalidDataException();
+                if (message.Stage == "fault")
+                {
+                    progress.WorkerFailure = message.Failure;
+                    progress.NativeError = message.NativeError;
+                    throw new InvalidOperationException("Unlock worker refused");
+                }
                 if (prepareDesktop && message.Stage == "prepared") { check(); return; }
                 if (message.Stage == "result")
                 {
@@ -172,9 +199,13 @@ internal sealed class UnlockService(string instance)
                     byte[]? secret = null;
                     try
                     {
+                        progress.Phase = "credential_transport";
+                        progress.CredentialRead = true;
                         secret = await UnlockWire.ReadSecretAsync(client, stop);
                         check();
+                        progress.ForwardAttempted = true;
                         await UnlockWire.WriteSecretAsync(worker, secret, stop);
+                        progress.Phase = "credential_result";
                     }
                     finally { if (secret is not null) CryptographicOperations.ZeroMemory(secret); }
                 }

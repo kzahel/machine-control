@@ -261,9 +261,9 @@ evidence shows that Cua/WinApp cannot be layered or upstreamed coherently.
    when that coverage is needed; include the corrected OpenSSH ACL bootstrap
    in the initial seed rather than as an acceptance-run repair.
 
-### Optional workstation unlock investigation
+### Optional workstation unlock
 
-**Current — live-tested discovery; built authorization prototype:** Tactical 037
+**Current — live-tested password unlock and authorization:** Tactical 037
 inspected the stock credential surface through the appliance's protected native
 UIA route in a disposable Windows x64 workspace. The field exposes password
 semantics, but its enclosing account label is a display name, not a SID. The
@@ -277,8 +277,12 @@ ARM64 runtime publishes pass. Native x64 and ARM64 setup, consent cancellation,
 arming, ordinary ACL denial, wrong-caller/key rejection and replay rejection have
 passed. Existing-session credential preflight exposed the stock LockApp curtain
 on Default while WTS reports locked; a Winlogon-only worker cannot handle that
-transition. The bounded UIAccess preparation route is under validation, and real
-credential delivery remains unproved. [Tactical 037](../../docs/tactical/037-windows-unlock-arming.md)
+transition. A bounded UIAccess preparation worker now dismisses that exact stock
+curtain before a fresh Winlogon credential worker. Both architectures completed
+a real password unlock with delivery and same-account/logon-session effect
+confirmed. Revocation passed on both, and expiry refused before credential use
+on ARM64. PIN submission, domain/cloud accounts and other Windows builds remain
+unproved. [Tactical 037](../../docs/tactical/037-windows-unlock-arming.md)
 owns the native acceptance record.
 
 Microsoft documents the native building blocks:
@@ -289,4 +293,4 @@ provides the running SCM service PID used to authenticate the pipe peer.
 [SendInput](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput)
 serializes an input batch without interspersing other keyboard/mouse events,
 but is not proof of credential acceptance or a general UI transaction. The
-prototype separately observes WTS account/lock state and the input desktop.
+implementation separately observes WTS account/lock state and the input desktop.

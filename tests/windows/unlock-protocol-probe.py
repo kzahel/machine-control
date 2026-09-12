@@ -60,7 +60,7 @@ def main():
             send(process, dict(signature=base64.b64encode(proof).decode()))
             refusal = frames.next()
             if args.mode == 'ready':
-                assert refusal.get('stage') == 'ready', (refusal.get('stage'), refusal.get('errorCode'), refusal.get('result', {}).get('errorCode'), refusal.get('result', {}).get('message'))
+                assert refusal.get('stage') == 'ready', {key: refusal.get(key) for key in ('stage', 'errorCode', 'phase', 'errorType', 'workerFailure', 'nativeError', 'credentialRead', 'delivery')}
                 assert refusal.get('credentialTransport') == 'uint16le-length+utf8'
             else:
                 assert refusal.get('stage') == 'refused' and refusal.get('errorCode') == 'controller_signature_denied', refusal.get('stage')

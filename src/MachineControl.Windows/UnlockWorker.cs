@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
@@ -87,21 +88,36 @@ internal static class UnlockWorker
         if (start.Instance != instance || Process.GetCurrentProcess().SessionId != start.SessionId)
             throw new InvalidDataException();
         var attempt = new UnlockAttempt(start, pipe, stop.Token);
-        if (start.PrepareDesktop)
+        try
         {
-            UnlockPreparation.Run(start.SessionId, attempt);
-            await UnlockWire.WriteAsync(pipe, new UnlockWorkerMessage("prepared"), stop.Token);
-            return 0;
+            if (start.PrepareDesktop)
+            {
+                UnlockPreparation.Run(start.SessionId, attempt);
+                await UnlockWire.WriteAsync(pipe, new UnlockWorkerMessage("prepared"), stop.Token);
+                return 0;
+            }
+            var result = await DesktopController.ExecuteAsync(new Request
+            {
+                RequestId = Guid.NewGuid().ToString("n"),
+                Operation = "session.login",
+                CredentialKind = start.CredentialKind,
+                UnlockAttempt = attempt,
+            }, start.Generation, stop.Token);
+            await UnlockWire.WriteAsync(pipe, new UnlockWorkerMessage("result", result with
+            { Operation = "session.unlock", RetrySafety = "never_automatically" }), stop.Token);
+            return result.Accepted ? 0 : 1;
         }
-        var result = await DesktopController.ExecuteAsync(new Request
+        catch (Exception error)
         {
-            RequestId = Guid.NewGuid().ToString("n"),
-            Operation = "session.login",
-            CredentialKind = start.CredentialKind,
-            UnlockAttempt = attempt,
-        }, start.Generation, stop.Token);
-        await UnlockWire.WriteAsync(pipe, new UnlockWorkerMessage("result", result with
-        { Operation = "session.unlock", RetrySafety = "never_automatically" }), stop.Token);
-        return result.Accepted ? 0 : 1;
+            // Only implementation-owned failure types/codes cross this pipe.
+            // Never serialize exception messages or credential/provider values.
+            await UnlockWire.WriteAsync(pipe, new UnlockWorkerMessage("fault",
+                Failure: error.Message is "unlock_desktop_unsupported" or "lock_curtain_changed" or
+                    "lock_curtain_input_refused" or "protected_credential_desktop_unavailable" or
+                    "lock_display_wake_refused" or "lock_curtain_dismissal_not_observed" or "lock_curtain_not_foreground" or
+                    "keyboard_modifier_held" or "locked_account_changed" or "unlock_service_identity_mismatch"
+                    ? error.Message : error.GetType().Name, NativeError: (error as Win32Exception)?.NativeErrorCode), stop.Token);
+            return 1;
+        }
     }
 }

@@ -135,8 +135,8 @@ wrong controller key and proof replay rejection without credential reads.
 Credential-free readiness probes then exposed the existing-session LockApp
 curtain on Default with WTS locked. The first Winlogon-only worker refused
 before asking for a credential. A separate, bounded preparation worker and
-unlock-only UIAccess token are being validated. No password has been submitted
-through the new component yet; real unlock, expiry and revocation remain pending.
+unlock-only UIAccess token resolved that first preflight gap; subsequent password
+submission and remaining acceptance are recorded below.
 
 The consent fixture is independent test-appliance administration: it observes
 the exact elevated dialog and uses a temporary, bounded elevated Win32 task to
@@ -158,3 +158,14 @@ The locked workspaces received an explicit administrator development replacement
 with the verified signed package and their previously approved public grants.
 Final installer acceptance will repeat the normal uninstall/install/re-arm flow.
 ARM64 ordinary workstation conformance and revoke/refusal passed after unlock.
+
+The normal production revoke/uninstall/install/re-arm flow and ordinary desktop
+regression passed on both final 151a06d packages. Fresh locks then exposed a
+second preparation state: WTS locked, Default desktop, and no foreground window.
+Both controllers received a conservative unknown refusal; neither password was
+resubmitted. Credential-free diagnostic builds reproduced the failure in desktop
+preparation before any credential read or forwarding. One zero-delta mouse
+activity event made the stock curtain/Winlogon transition observable on x64.
+The change never clicks, types or moves the pointer; password discovery remains
+in a separate verified Winlogon worker. Final signed acceptance is being repeated.
+ARM64 expiry and both-architecture revocation refused before credential use.

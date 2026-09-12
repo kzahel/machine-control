@@ -2,7 +2,8 @@
 
 Topic: `windows-protected-unlock`
 
-Status: implementation in progress; no personal-workstation arming flow accepted.
+Status: signed Windows preview has native ARM64/x64 password-unlock evidence;
+final installation acceptance is in progress.
 
 ## Decision
 
@@ -37,9 +38,12 @@ and cloud account binding, ambiguous names and account switching need separate
 evidence. The default proposal remains armed until revoked; explicit expiry is
 supported. [The distribution guide](../release/windows-unlock.md) describes the
 setup and protocol. Both architectures have passed native setup/arming,
-ordinary access denial and caller/key/replay refusal. Full unlock acceptance is
-pending the LockApp-to-Winlogon transition. Only the authorized unlock helpers
-receive the proposed UIAccess token; ordinary host privileges remain unchanged.
+ordinary access denial, caller/key/replay refusal, revocation and a real password
+unlock with the same WTS account/logon session independently confirmed. Grant
+expiry has also refused before credential use on ARM64. The authorized unlock
+helpers use UIAccess to prepare the stock LockApp curtain and reach Winlogon;
+ordinary host privileges remain unchanged. PIN submission has not been accepted
+on a native target.
 
 [Tactical 037](../docs/tactical/037-windows-unlock-arming.md) owns implementation
 and acceptance of the new grant, installation and existing-session unlock flow.
