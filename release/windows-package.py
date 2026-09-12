@@ -7,9 +7,48 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import tempfile
+import urllib.request
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def fetch_provider(directory, rid):
+    metadata = json.loads((ROOT / 'providers/cua/provider.json').read_text())
+    pin = metadata['windows'][rid]
+    cache = ROOT / '.cache/providers/cua' / metadata['version']
+    cache.mkdir(parents=True, exist_ok=True)
+
+    def download(url, name, expected):
+        target = cache / name
+        if target.is_file() and digest(target) == expected:
+            return target
+        with tempfile.NamedTemporaryFile(dir=cache, delete=False) as temporary:
+            staging = Path(temporary.name)
+        try:
+            with urllib.request.urlopen(url, timeout=60) as response, staging.open('wb') as output:
+                shutil.copyfileobj(response, output)
+            if digest(staging) != expected:
+                raise ValueError('Pinned provider download digest mismatch: ' + name)
+            staging.replace(target)
+        finally:
+            staging.unlink(missing_ok=True)
+        return target
+
+    archive_path = download(metadata['upstream'] + '/releases/download/' + metadata['releaseTag'] + '/' + pin['archive'],
+                            pin['archive'], pin['archiveSha256'])
+    provider = directory / 'providers/cua'
+    provider.mkdir(parents=True, exist_ok=True)
+    binary = provider / 'cua-driver.exe'
+    with zipfile.ZipFile(archive_path) as archive_file:
+        with archive_file.open('cua-driver.exe') as source, binary.open('wb') as output:
+            shutil.copyfileobj(source, output)
+    if digest(binary) != pin['executableSha256']:
+        raise ValueError('Pinned provider executable digest mismatch')
+    license_file = download(metadata['license']['url'], 'LICENSE.md', metadata['license']['sha256'])
+    shutil.copyfile(license_file, provider / 'LICENSE.md')
+    shutil.copyfile(ROOT / 'providers/cua/provider.json', provider / 'provider.json')
 
 
 def digest(path):
@@ -42,7 +81,7 @@ def build(directory, rid, revision, provider_digest=None):
     subprocess.run(command, check=True)
     # Default build keeps the exact pinned provider bytes. Signing builds replace
     # this directory with the separately verified/signed copy before finalizing.
-    subprocess.run(['bash', str(ROOT / 'scripts/fetch-cua-windows.sh'), rid, str(directory)], check=True)
+    fetch_provider(directory, rid)
     shutil.copyfile(ROOT / 'release/workstation.ps1', directory / 'workstation.ps1')
     shutil.copyfile(ROOT / 'release/windows-workstation.md', directory / 'README.md')
     shutil.copyfile(ROOT / 'LICENSE', directory / 'LICENSE')
@@ -115,7 +154,7 @@ def archive(directory, output):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['build', 'finalize', 'archive'])
+    parser.add_argument('command', choices=['build', 'fetch-provider', 'finalize', 'archive'])
     parser.add_argument('directory', type=Path)
     parser.add_argument('--runtime', choices=['win-arm64', 'win-x64'])
     parser.add_argument('--revision')
@@ -126,6 +165,10 @@ if __name__ == '__main__':
         if not args.runtime or not args.revision:
             parser.error('build requires --runtime and --revision')
         build(args.directory.resolve(), args.runtime, args.revision, args.provider_digest)
+    elif args.command == 'fetch-provider':
+        if not args.runtime:
+            parser.error('fetch-provider requires --runtime')
+        fetch_provider(args.directory, args.runtime)
     elif args.command == 'finalize':
         print(json.dumps(finalize(args.directory)))
     else:
