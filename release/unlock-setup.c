@@ -93,7 +93,10 @@ int wmain(int argc, wchar_t **argv) {
     wchar_t *env = calloc(65536, sizeof(wchar_t));
     wchar_t *command = calloc(32768, sizeof(wchar_t));
     if (!env || !command) return 2;
-    wchar_t powershell[32768], modules[32768], temp[32768];
+    wchar_t powershell[32768], modules[32768], temp[32768], volume[32768];
+    if (!GetVolumePathNameW(windows, volume, 32768)) return 2;
+    size_t volumeLength = wcslen(volume);
+    if (volumeLength && volume[volumeLength - 1] == L'\\') volume[volumeLength - 1] = 0;
     PWSTR programFiles = NULL, programData = NULL;
     if (FAILED(SHGetKnownFolderPath(&FOLDERID_ProgramFiles, KF_FLAG_DEFAULT_PATH, NULL, &programFiles)) ||
         FAILED(SHGetKnownFolderPath(&FOLDERID_ProgramData, KF_FLAG_DEFAULT_PATH, NULL, &programData))) return 2;
@@ -108,9 +111,11 @@ int wmain(int argc, wchar_t **argv) {
     environment(env, &used, L"MC_UNLOCK_PROPOSAL", argc >= 4 ? argv[3] : L"");
     environment(env, &used, L"MC_UNLOCK_SELF", self);
     environment(env, &used, L"PATH", system);
+    environment(env, &used, L"PATHEXT", L".COM;.EXE;.BAT;.CMD");
     environment(env, &used, L"ProgramData", programData);
     environment(env, &used, L"ProgramFiles", programFiles);
     environment(env, &used, L"PSModulePath", modules);
+    environment(env, &used, L"SystemDrive", volume);
     environment(env, &used, L"SystemRoot", windows);
     environment(env, &used, L"TEMP", temp);
     environment(env, &used, L"TMP", temp);

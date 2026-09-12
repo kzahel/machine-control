@@ -102,6 +102,7 @@ jobs:
           if ('${{ matrix.runtime }}' -eq 'win-x64') {
             $schema = & ./artifacts/payload/machine-control-windows.exe schema | ConvertFrom-Json
             if ($LASTEXITCODE -ne 0 -or $schema.schema -ne 'machine-control/v0') { throw 'Signed executable failed' }
+            ./tests/windows/unlock-install-smoke.ps1 -Package artifacts/payload
           }
           python release/windows-package.py archive artifacts/payload --output artifacts/packages
           if ($LASTEXITCODE -ne 0) { throw 'Package validation failed' }
