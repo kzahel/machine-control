@@ -29,8 +29,9 @@ machine-control --target <logical-target> testbed -- <platform-command>
 
 Concrete machine selectors, endpoints, controller availability, local paths,
 and signing values do not belong in tracked public configuration. Supply them
-through ignored platform configuration, an ignored local target registry, or
-an explicitly selected private inventory provider.
+through ignored platform configuration, an ignored local target registry, the
+per-user controller configuration, or an explicitly selected private inventory
+provider.
 
 Former standalone `*-testbed` repositories are legacy after their cutover.
 They may later be regenerated as focused, discoverable distributions, but

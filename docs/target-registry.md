@@ -94,6 +94,47 @@ A command path in a registry file may be absolute, a command available on
 `PATH`, or a relative path. Relative paths are resolved from the directory
 containing that registry file.
 
+`targets.local.json` belongs to one checkout, so worktrees and fresh clones do
+not see it. When the registry describes the controller rather than one
+checkout, put it in the controller configuration below instead.
+
+### Controller configuration
+
+A controller can declare its registry and inventory provider once, outside any
+checkout, in a per-user file the client reads without any environment
+variable:
+
+| Controller OS | Path |
+| --- | --- |
+| macOS, Linux | `$XDG_CONFIG_HOME/machine-control/config.json`, normally `~/.config/machine-control/config.json` |
+| Windows | `%APPDATA%\machine-control\config.json` |
+
+```json
+{
+  "schema": "machine-control-controller/v0",
+  "targets": "targets.json",
+  "inventoryProvider": null
+}
+```
+
+The document uses the
+[`machine-control-controller/v0`](../contracts/controller-config-v0.schema.json)
+schema. Both fields are optional:
+
+- `targets` names a `machine-control-targets/v0` registry file. A relative
+  path is resolved from the configuration directory, and relative adapter
+  commands inside that registry are resolved from the registry's directory.
+  Omit it to keep using the checkout's `targets.local.json` or a provider.
+- `inventoryProvider` names the provider used by `inventory` and by target
+  resolution when no registry file applies. Omitted or `null` means this
+  controller has no provider.
+
+The file's presence is an explicit controller choice. It disables the
+compatibility provider discovery described below, so a controller whose
+checkout happens to sit beside another controller's private inventory does not
+silently adopt it. An unreadable or invalid file is refused with
+`invalid_controller_config` rather than ignored.
+
 ### 3. Shared or multi-controller private inventory
 
 Use an inventory provider when private configuration should detect the current
@@ -126,10 +167,17 @@ available source in this order:
 
 1. `--registry PATH`;
 2. `MACHINE_CONTROL_TARGETS_FILE`;
-3. `targets.local.json` in the repository root;
-4. an inventory provider selected by `--inventory-provider`,
-   `MACHINE_CONTROL_INVENTORY_PROVIDER`, or the compatibility discovery below;
-5. the built-in generic targets.
+3. the controller configuration's `targets` registry;
+4. `targets.local.json` in the repository root;
+5. an inventory provider selected by `--inventory-provider`,
+   `MACHINE_CONTROL_INVENTORY_PROVIDER`, the controller configuration's
+   `inventoryProvider`, or, only when no controller configuration exists, the
+   compatibility discovery below;
+6. the built-in generic targets.
+
+`targets` reports which kind of source was selected as `registrySource`:
+`argument`, `environment`, `controller-config`, `checkout`,
+`inventory-provider`, or `defaults`. It does not print the source path.
 
 Global options must appear before the command. For example, use
 `machine-control --registry PATH targets`, not
@@ -141,8 +189,9 @@ an existing `targets.local.json` is selected before even an explicit
 command itself always delegates to the selected provider and does not read a
 registry file.
 
-For compatibility with the project's original controller layout, the client
-also discovers this provider when it exists:
+For compatibility with the project's original controller layout, a controller
+without a controller configuration also discovers this provider when it
+exists:
 
 ```text
 <checkout-parent>/dotfiles/testbeds/testbeds.py
@@ -150,7 +199,7 @@ also discovers this provider when it exists:
 
 That sibling layout is a convenience used by one deployment, not a required
 part of Machine Control. Other deployments should normally select their
-provider explicitly.
+provider explicitly, preferably in the controller configuration.
 
 ## Registry document
 
@@ -308,6 +357,8 @@ Interpret common failures as configuration boundaries:
 
 - `inventory_provider_unavailable`: no provider is configured; this is
   expected for registry-file-only setups unless `inventory` was required;
+- `invalid_controller_config`: the per-user controller configuration exists
+  but cannot be read or violates its schema;
 - `target_not_found`: the selected registry source does not expose that alias;
 - `controller_platform_unsupported`: the target exists, but this concrete
   route is not eligible on the current controller OS;

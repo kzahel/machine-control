@@ -175,8 +175,11 @@ role update. A `--workspace` handle is rejected for promotion preparation.
 [`bin/machine-control`](../bin/machine-control) selects a logical target from
 portable in-repository platform defaults, an ignored
 [`machine-control-targets/v0`](../contracts/targets-v0.schema.json) registry,
-or an optional private inventory provider. The provider may carry concrete
-commands and environment internally; `targets` omits both from its output.
+or an optional private inventory provider. A per-user controller
+configuration can select the registry and provider outside any checkout; see
+the [target-registry guide](../docs/target-registry.md). The provider may
+carry concrete commands and environment internally; `targets` omits both from
+its output.
 It delegates every lifecycle operation to the selected authoritative testbed,
 returns a `machine-control-target/v0` projection with both normalized and raw
 adapter state, and validates each testbed's

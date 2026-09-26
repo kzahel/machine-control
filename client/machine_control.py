@@ -19,6 +19,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_SCHEMA = "machine-control-targets/v0"
+CONTROLLER_CONFIG_SCHEMA = "machine-control-controller/v0"
 DOCTOR_SCHEMA = "machine-control-doctor/v0"
 RESULT_SCHEMA = "machine-control/v0"
 TARGET_RESULT_SCHEMA = "machine-control-target/v0"
@@ -335,10 +336,71 @@ def refusal(
     return value
 
 
+def controller_config_directory() -> Path:
+    if os.name == "nt":
+        base = os.environ.get("APPDATA")
+        return (
+            Path(base) if base else Path.home() / "AppData" / "Roaming"
+        ) / "machine-control"
+    base = os.environ.get("XDG_CONFIG_HOME")
+    return (Path(base) if base else Path.home() / ".config") / "machine-control"
+
+
+def controller_config() -> tuple[Path, dict[str, Any]] | None:
+    """Read the per-user controller configuration, if this controller has one.
+
+    Its presence is an explicit controller choice: it replaces the checkout's
+    sibling-inventory discovery even when it names no inventory provider.
+    """
+    path = controller_config_directory() / "config.json"
+    if not path.exists():
+        return None
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ClientError(
+            "invalid_controller_config",
+            f"Controller configuration could not be read: {error}",
+        ) from error
+    if (
+        not isinstance(document, dict)
+        or document.get("schema") != CONTROLLER_CONFIG_SCHEMA
+    ):
+        raise ClientError(
+            "invalid_controller_config",
+            f"Controller configuration must use {CONTROLLER_CONFIG_SCHEMA}",
+        )
+    unknown = set(document) - {"schema", "targets", "inventoryProvider"}
+    if unknown:
+        raise ClientError(
+            "invalid_controller_config",
+            "Controller configuration has unsupported fields: "
+            + ", ".join(sorted(unknown)),
+        )
+    for field in ("targets", "inventoryProvider"):
+        value = document.get(field)
+        if value is not None and (not isinstance(value, str) or not value):
+            raise ClientError(
+                "invalid_controller_config",
+                f"Controller configuration {field} must be a nonempty path or null",
+            )
+    return path, document
+
+
+def controller_config_path(config: tuple[Path, dict[str, Any]], field: str) -> Path:
+    path, document = config
+    return (path.parent / Path(document[field]).expanduser()).resolve()
+
+
 def provider_path(path_text: str | None = None) -> Path | None:
     value = path_text or os.environ.get("MACHINE_CONTROL_INVENTORY_PROVIDER")
     if value:
         return Path(value).expanduser().resolve()
+    config = controller_config()
+    if config is not None:
+        if config[1].get("inventoryProvider") is None:
+            return None
+        return controller_config_path(config, "inventoryProvider")
     candidate = ROOT.parent / "dotfiles" / "testbeds" / "testbeds.py"
     return candidate if candidate.is_file() else None
 
@@ -389,25 +451,36 @@ def provider_registry(path: Path) -> dict[str, Any]:
 
 def load_registry(
     path_text: str | None, provider_text: str | None = None
-) -> dict[str, dict[str, Any]]:
+) -> tuple[dict[str, dict[str, Any]], str]:
+    """Resolve logical targets and name the kind of source that supplied them."""
     path: Path | None = None
     document: dict[str, Any] | None = None
+    source = "defaults"
     if path_text:
         path = Path(path_text).expanduser().resolve()
+        source = "argument"
     elif os.environ.get("MACHINE_CONTROL_TARGETS_FILE"):
         path = Path(
             os.environ["MACHINE_CONTROL_TARGETS_FILE"]
         ).expanduser().resolve()
-    elif (ROOT / "targets.local.json").exists():
-        path = ROOT / "targets.local.json"
+        source = "environment"
     else:
-        inventory_provider = provider_path(provider_text)
-        if inventory_provider is not None:
-            document = provider_registry(inventory_provider)
+        config = controller_config()
+        if config is not None and config[1].get("targets") is not None:
+            path = controller_config_path(config, "targets")
+            source = "controller-config"
+        elif (ROOT / "targets.local.json").exists():
+            path = ROOT / "targets.local.json"
+            source = "checkout"
+        else:
+            inventory_provider = provider_path(provider_text)
+            if inventory_provider is not None:
+                document = provider_registry(inventory_provider)
+                source = "inventory-provider"
 
     targets = {key: dict(value) for key, value in DEFAULT_TARGETS.items()}
     if path is None and document is None:
-        return targets
+        return targets, source
     if path is not None:
         try:
             document = json.loads(path.read_text(encoding="utf-8"))
@@ -531,7 +604,7 @@ def load_registry(
         }
         if workspace_default_intent is not None:
             targets[alias]["workspaceDefaultIntent"] = workspace_default_intent
-    return targets
+    return targets, source
 
 
 def target_view(alias: str, target: dict[str, Any]) -> dict[str, Any]:
@@ -3328,13 +3401,16 @@ def main(argv: list[str] | None = None) -> int:
         operation = remainder[0]
         if operation == "inventory":
             return run_inventory(known.inventory_provider, remainder[1:])
-        targets = load_registry(known.registry, known.inventory_provider)
+        targets, registry_source = load_registry(
+            known.registry, known.inventory_provider
+        )
         if operation == "targets":
             if len(remainder) != 1:
                 raise ClientError("usage", "targets accepts no arguments")
             emit(
                 {
                     "schema": TARGET_SCHEMA,
+                    "registrySource": registry_source,
                     "targets": [
                         {
                             **target_view(alias, target),

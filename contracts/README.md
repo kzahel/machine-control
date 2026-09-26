@@ -19,6 +19,10 @@ than a frozen cross-device wire protocol.
   target selection. It contains adapter commands, never bearer authority. See
   the [target-registry guide](../docs/target-registry.md) for setup modes,
   source precedence, and the optional inventory-provider contract.
+- [`controller-config-v0.schema.json`](controller-config-v0.schema.json)
+  describes the per-user controller configuration that selects a registry file
+  and inventory provider outside any checkout and disables sibling-inventory
+  discovery.
 - [`claim-capabilities-v0.schema.json`](claim-capabilities-v0.schema.json)
   describes exclusive exact-resource claim policy, ordinary/disruptive use
   classes, duration bounds, claimant attribution limits, and queueing behavior.

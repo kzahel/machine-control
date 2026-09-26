@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machine-control.invalid/contracts/controller-config-v0.schema.json",
+  "title": "Machine Control Per-User Controller Configuration v0",
+  "type": "object",
+  "required": ["schema"],
+  "properties": {
+    "schema": { "const": "machine-control-controller/v0" },
+    "targets": {
+      "description": "machine-control-targets/v0 registry path, relative to the configuration directory unless absolute",
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "inventoryProvider": {
+      "description": "Inventory provider path, relative to the configuration directory unless absolute; null or omitted means none",
+      "type": ["string", "null"],
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false
+}

@@ -280,8 +280,8 @@ Local target registries use the
 [`machine-control-targets/v0`](contracts/targets-v0.schema.json) schema. Logical
 target names are selectors, not credentials or bearer authority. The
 [target-registry guide](docs/target-registry.md) documents standalone
-`config.local`, ignored registry files, provider setup, resolution precedence,
-and the provider command contract.
+`config.local`, ignored registry files, the per-user controller configuration,
+provider setup, resolution precedence, and the provider command contract.
 
 ## Common workflows
 

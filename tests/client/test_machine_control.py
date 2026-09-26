@@ -1274,5 +1274,173 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(command, ["fixture-command", "argument"])
 
 
+class RegistryResolutionTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.directory = Path(self.temporary.name)
+        self.config_home = self.directory / "config"
+        self.config_directory = self.config_home / "machine-control"
+        self.config_directory.mkdir(parents=True)
+        self.checkout = self.directory / "workspace" / "machine-control"
+        self.checkout.mkdir(parents=True)
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key
+            not in {
+                "MACHINE_CONTROL_TARGETS_FILE",
+                "MACHINE_CONTROL_INVENTORY_PROVIDER",
+            }
+        }
+        environment.update(
+            {
+                "XDG_CONFIG_HOME": str(self.config_home),
+                "APPDATA": str(self.config_home),
+            }
+        )
+        self.environment = environment
+        patches = [
+            mock.patch.dict(os.environ, environment, clear=True),
+            mock.patch("machine_control.ROOT", self.checkout),
+        ]
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def write_targets(self, path, alias):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({
+            "schema": "machine-control-targets/v0",
+            "targets": {
+                alias: {
+                    "platform": "linux",
+                    "profile": "fixture",
+                    "controllerPlatforms": [machine_control.controller_platform()],
+                    "command": [sys.executable],
+                }
+            }
+        }), encoding="utf-8")
+
+    def write_config(self, **fields):
+        (self.config_directory / "config.json").write_text(
+            json.dumps({"schema": "machine-control-controller/v0", **fields}),
+            encoding="utf-8",
+        )
+
+    def write_sibling_provider(self):
+        provider = self.checkout.parent / "dotfiles" / "testbeds" / "testbeds.py"
+        provider.parent.mkdir(parents=True)
+        provider.write_text("", encoding="utf-8")
+        return provider
+
+    def test_controller_config_targets_precede_checkout_registry(self):
+        self.write_targets(self.checkout / "targets.local.json", "checkout-target")
+        self.write_targets(self.config_directory / "targets.json", "config-target")
+        self.write_config(targets="targets.json")
+        targets, source = machine_control.load_registry(None)
+        self.assertEqual(list(targets), ["config-target"])
+        self.assertEqual(source, "controller-config")
+
+    def test_environment_registry_precedes_controller_config(self):
+        self.write_targets(self.config_directory / "targets.json", "config-target")
+        self.write_config(targets="targets.json")
+        environment_registry = self.directory / "environment-targets.json"
+        self.write_targets(environment_registry, "environment-target")
+        with mock.patch.dict(
+            os.environ,
+            {"MACHINE_CONTROL_TARGETS_FILE": str(environment_registry)},
+        ):
+            targets, source = machine_control.load_registry(None)
+        self.assertEqual(list(targets), ["environment-target"])
+        self.assertEqual(source, "environment")
+
+    def test_controller_config_without_targets_uses_checkout_registry(self):
+        self.write_targets(self.checkout / "targets.local.json", "checkout-target")
+        self.write_config(inventoryProvider=None)
+        targets, source = machine_control.load_registry(None)
+        self.assertEqual(list(targets), ["checkout-target"])
+        self.assertEqual(source, "checkout")
+
+    def test_sibling_provider_is_discovered_without_controller_config(self):
+        provider = self.write_sibling_provider()
+        self.assertEqual(machine_control.provider_path(), provider)
+
+    def test_controller_config_disables_sibling_provider_discovery(self):
+        self.write_sibling_provider()
+        self.write_config(inventoryProvider=None)
+        self.assertIsNone(machine_control.provider_path())
+        targets, source = machine_control.load_registry(None)
+        self.assertEqual(source, "defaults")
+        self.assertIn("linux", targets)
+
+    def test_controller_config_selects_relative_inventory_provider(self):
+        self.write_sibling_provider()
+        self.write_config(inventoryProvider="providers/inventory.py")
+        self.assertEqual(
+            machine_control.provider_path(),
+            (self.config_directory / "providers" / "inventory.py").resolve(),
+        )
+
+    def test_explicit_provider_precedes_controller_config(self):
+        self.write_config(inventoryProvider=None)
+        explicit = self.directory / "explicit.py"
+        self.assertEqual(
+            machine_control.provider_path(str(explicit)), explicit.resolve()
+        )
+
+    def test_invalid_controller_config_fails_closed(self):
+        self.write_sibling_provider()
+        for document in (
+            "{",
+            json.dumps({"schema": "unexpected"}),
+            json.dumps({
+                "schema": "machine-control-controller/v0",
+                "targets": "",
+            }),
+            json.dumps({
+                "schema": "machine-control-controller/v0",
+                "inventory": None,
+            }),
+        ):
+            with self.subTest(document=document):
+                (self.config_directory / "config.json").write_text(
+                    document, encoding="utf-8"
+                )
+                with self.assertRaises(machine_control.ClientError) as caught:
+                    machine_control.provider_path()
+                self.assertEqual(caught.exception.code, "invalid_controller_config")
+
+    def test_cli_reports_source_kind_without_private_path(self):
+        self.write_targets(self.config_directory / "targets.json", "config-target")
+        self.write_config(targets="targets.json")
+        result = subprocess.run(
+            [sys.executable, str(CLI), "targets"],
+            text=True,
+            capture_output=True,
+            check=False,
+            env=self.environment,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        value = json.loads(result.stdout)
+        self.assertEqual(value["registrySource"], "controller-config")
+        self.assertEqual(value["targets"][0]["logicalTarget"], "config-target")
+        self.assertNotIn(str(self.directory), result.stdout)
+
+    def test_cli_inventory_refuses_when_controller_config_disables_provider(self):
+        self.write_config(inventoryProvider=None)
+        result = subprocess.run(
+            [sys.executable, str(CLI), "inventory", "status"],
+            text=True,
+            capture_output=True,
+            check=False,
+            env=self.environment,
+        )
+        value = json.loads(result.stdout)
+        self.assertEqual(value["errorCode"], "inventory_provider_unavailable")
+
+
 if __name__ == "__main__":
     unittest.main()
