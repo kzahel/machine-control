@@ -125,6 +125,7 @@ def portable_checks() -> None:
             ROOT,
             ROOT / "providers" / "libvirt-linux" / "tests",
         ),
+        ("Windows factory stages", ROOT, ROOT / "platforms" / "windows" / "tests"),
         (
             "Android dependency-free",
             ROOT / "platforms" / "android",

@@ -7,10 +7,48 @@ This factory has three related paths:
    Linux; and
 3. generalize and export a configured candidate as a stopped appliance.
 
-The first path removes the undocumented manual-OOBE dependency. The second
-path proves that a configured appliance can cross the Windows generalization
+The first two paths remove the undocumented manual-OOBE dependency. The third
+proves that a configured appliance can cross the Windows generalization
 boundary. They do not make installation media, activation rights, credentials,
 or controller authorization portable.
+
+## Staged Linux bring-up
+
+On Linux, use the claimed stage inspector after creating and pinning a fresh
+candidate. It reports observed evidence and one next adapter command for each
+stage. The agent chooses and runs each mutation explicitly; the inspector does
+not start, stop, detach, re-credential, or bootstrap a VM.
+
+```bash
+bin/machine-control --target windows target doctor
+# Acquire an exclusive candidate claim through the common CLI, then carry it:
+bin/machine-control --target windows --claim CLAIM_ID testbed -- \
+  factory-stages --json
+```
+
+The stages cover exact candidate identity, first-logon completion, key-only
+SSH, removable media, stored and guest-verified password, and resident doctor
+readiness. `nextCommand` is an adapter command to run under the same claim;
+placeholders such as `PRIVATE_SECRET_FILE` need private caller input. A stage
+can be `complete`, `action_required`, `waiting`, `unverified`, or `blocked`.
+Only `complete` means that stage's stated evidence was observed.
+
+When the guest first reports completed bootstrap, record its exact-UUID
+attestation before shutting it down:
+
+```bash
+bin/machine-control --target windows --claim CLAIM_ID testbed -- \
+  factory-stages attest-first-logon
+```
+
+This writes a mode-0600, nonsecret receipt under the controller's local state
+directory. A later stage inspection can identify a stopped candidate whose
+first-logon completion was observed within four hours. An older receipt
+requires a new boot and live attestation. If the live guest later reports
+incomplete bootstrap, that fresh observation takes precedence. The agent then
+follows the reported stopped-VM detach sequence and rechecks stages. The
+current stage inspector supports the Linux libvirt route; the UTM recipe below
+remains the Mac path.
 
 ## Safety boundary
 

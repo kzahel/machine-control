@@ -153,6 +153,14 @@ If an adapter reports start failure, the client still performs the final
 read-only doctor and keeps reported delivery separate from the independently
 observed ready or unready effect.
 
+**Current:** Windows' Linux libvirt image factory exposes a separate claimed
+`factory-stages --json` adapter check for a pinned candidate. It observes
+first-logon, transport, media, password, and resident readiness and names the
+next bounded platform command; the agent decides when to run that command.
+Its exact-candidate first-logon receipt survives a planned shutdown for media
+detachment. This factory-specific progression does not turn common
+`ensure-ready` into an installer or recovery loop.
+
 **Current:** Platform-owned post-update commands now complement, rather than
 weaken, that common read-only contract. Windows, macOS, and Linux each expose a
 minimized audit, exact-candidate bounded repair, explicit reboot observation,

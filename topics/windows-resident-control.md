@@ -62,6 +62,18 @@ capture; the one-shot secret route then reached full ordinary readiness. An
 isolated QCOW2 workspace produced an independent fixture effect and exact
 window capture before receipt-bound discard.
 
+**Current:**
+[`Tactical 038`](../docs/tactical/038-windows-factory-stage-diagnostics.md)
+adds an agent-driven Linux factory stage view over the existing guarded
+commands. It reports exact candidate identity, first-logon completion,
+key-only SSH, removable media, password-store and guest verification, and
+resident readiness without mutating the VM. An explicit claimed attestation
+records live first-logon completion in mode-0600 local state so a stopped
+candidate can continue through the guarded installer-then-seed detach order.
+The agent still chooses each action; the remaining direction is to move more
+rendering, creation, and bootstrap recovery checks from the runbook into
+bounded stage commands, then give UTM the same projection.
+
 **Current:** [`Tactical 018`](../docs/tactical/018-appliance-readiness-and-promotion.md)
 reused one retained stateful candidate rather than creating another large VM.
 It restored key-only SSH, automatic guest-agent/SSH services, and the complete

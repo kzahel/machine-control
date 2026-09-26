@@ -1,4 +1,5 @@
 import importlib.util
+from dataclasses import replace
 import os
 from pathlib import Path
 import sys
@@ -94,6 +95,42 @@ class FactoryPolicyTests(unittest.TestCase):
         """
         with self.assertRaisesRegex(PROVIDER.ProviderError, "shape"):
             MODULE.cdrom_targets(xml)
+
+    def test_media_stage_reports_exact_detach_sequence_without_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for name in ("fixture-domain.installer.iso", "fixture-domain.seed.iso"):
+                (Path(directory) / name).touch()
+
+            class Provider:
+                def __init__(self, names):
+                    self.names = names
+
+                def text(self, operation, *arguments):
+                    if operation == "domstate":
+                        return "shut off"
+                    if operation == "dumpxml":
+                        disks = "".join(
+                            f'<disk device="cdrom"><source file="{directory}/{name}"/>'
+                            f'<target dev="sd{chr(97 + index)}"/></disk>'
+                            for index, name in enumerate(self.names)
+                        )
+                        return f"<domain><devices>{disks}</devices></domain>"
+                    raise AssertionError(operation)
+
+            config = replace(configuration(), expected_uuid="fixture-uuid")
+            with mock.patch.object(MODULE, "inspect_domain"), \
+                 mock.patch.object(MODULE, "require_local_pool_path", return_value=Path(directory)):
+                cases = (
+                    (["fixture-domain.installer.iso", "fixture-domain.seed.iso"], "installer_and_seed"),
+                    (["fixture-domain.seed.iso"], "seed_only"),
+                    ([], "detached"),
+                )
+                for names, expected in cases:
+                    report = MODULE.media_stage(config, Provider(names))
+                    self.assertEqual(report["stage"], expected)
+                    self.assertNotIn(directory, str(report))
+                with self.assertRaisesRegex(PROVIDER.ProviderError, "shape"):
+                    MODULE.media_stage(config, Provider(["fixture-domain.installer.iso"]))
 
     def test_local_pool_path_requires_exact_writable_directory(self):
         class Provider:

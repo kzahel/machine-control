@@ -497,6 +497,42 @@ def cdrom_targets(xml_text: str) -> list[str]:
     return [target for target, _source in cdrom_media(xml_text)]
 
 
+def media_stage(configuration: Configuration, provider: Libvirt) -> dict[str, object]:
+    """Describe only the exact candidate's removable-media transition."""
+    inspect_domain(configuration, provider)
+    power = provider.text("domstate", configuration.expected_uuid).lower()
+    media = cdrom_media(
+        provider.text("dumpxml", "--inactive", configuration.expected_uuid)
+    )
+    installer = f"{configuration.domain_name}.installer.iso"
+    seed = f"{configuration.domain_name}.seed.iso"
+    names = {Path(source).name for _target, source in media}
+    if len(media) == 2 and names == {installer, seed}:
+        stage = "installer_and_seed"
+    elif len(media) == 1 and names == {seed}:
+        stage = "seed_only"
+    elif not media:
+        stage = "detached"
+    else:
+        raise ProviderError(
+            "factory_media_shape_invalid", "The factory removable-media shape is invalid"
+        )
+    if media:
+        pool_path = require_local_pool_path(provider, configuration.pool)
+        for _target, source in media:
+            expected = pool_path / Path(source).name
+            if Path(source).resolve(strict=True) != expected.resolve(strict=True):
+                raise ProviderError(
+                    "factory_media_shape_invalid",
+                    "Factory media is outside the exact dedicated pool",
+                )
+    return {
+        "schema": "winvm-factory-media-status/v0",
+        "stage": stage,
+        "power": "off" if power == "shut off" else "running" if power == "running" else "unknown",
+    }
+
+
 def detach_media(
     configuration: Configuration,
     provider: Libvirt,
@@ -584,6 +620,7 @@ def parse_arguments() -> argparse.Namespace:
     linux.add_argument("seed_iso")
     subparsers.add_parser("detach-installer")
     subparsers.add_parser("detach-media")
+    subparsers.add_parser("media-status")
     return parser.parse_args()
 
 
@@ -612,6 +649,8 @@ def main() -> int:
             detach_media(configuration, provider, installer_only=True)
         elif arguments.command == "detach-media":
             detach_media(configuration, provider, installer_only=False)
+        elif arguments.command == "media-status":
+            print(json.dumps(media_stage(configuration, provider), sort_keys=True))
         return 0
     except ProviderError as error:
         print(f"{error.code}: {error.message}", file=sys.stderr)

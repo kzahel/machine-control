@@ -41,6 +41,9 @@ Setup:
   credential status|store FILE|rotate|verify
                          Keep the login password stored and recoverable
   login                  Sign in with the stored login password
+  factory-stages --json   Observe Linux factory stages and next commands
+  factory-stages attest-first-logon
+                         Record live completion before stopping a candidate
 
 UTM/macOS recovery:
   A claim acquired with --disruptive is required for these commands.
@@ -67,6 +70,7 @@ Image factory:
   factory-status --json  Read minimized first-logon factory progress via QGA
   factory-create NAME WINDOWS_ISO SEED_ISO [BOOT_IMAGE]
                          Create a stopped QEMU VM from explicit local media
+  factory-media-status  Inspect exact libvirt installer/seed attachments
   factory-detach-installer
                          Remove only the installer from a stopped candidate
   factory-detach-media   Remove all removable drives from a stopped candidate
@@ -144,7 +148,8 @@ command="${1:-help}"
 shift || true
 
 case "$command" in
-    help|-h|--help|host-doctor|doctor|status|capabilities|target-id|pin-target|factory-create|claim-*|ui|workspace-capabilities|workspace-inventory|workspace-gc) ;;
+    help|-h|--help|host-doctor|doctor|status|capabilities|target-id|pin-target|factory-create|factory-media-status|claim-*|ui|workspace-capabilities|workspace-inventory|workspace-gc) ;;
+    factory-stages) require_target_claim ;;
     workspace-acquire|workspace-release) ;;
     screenshot|type|click|key|scan) require_disruptive_target_claim ;;
     *) require_target_claim ;;
@@ -179,6 +184,7 @@ case "$command" in
     ssh-config) print_ssh_config "$@" ;;
     credential) exec "$REPO_DIR/scripts/credential.sh" "$@" ;;
     login) exec "$REPO_DIR/scripts/credential.sh" login "$@" ;;
+    factory-stages) exec "$REPO_DIR/scripts/factory-stages.py" "$@" ;;
     ui) exec "$REPO_DIR/bin/winui" "$@" ;;
     ssh|ps) provider ssh-exec "$@" ;;
     wsl) provider ssh-exec wsl.exe "$@" ;;
@@ -187,7 +193,7 @@ case "$command" in
     workspace-capabilities|workspace-acquire|workspace-inventory|workspace-release|workspace-gc)
         exec "$REPO_DIR/providers/$WINVM_PROVIDER/workspace.sh" "$command" "$@"
         ;;
-    status|capabilities|target-id|pin-target|assert-target|repair-registration|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop|seal|disposable-up|export-image|factory-status|factory-create|factory-detach-installer|factory-detach-media|trust-ssh-host-key|delete)
+    status|capabilities|target-id|pin-target|assert-target|repair-registration|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop|seal|disposable-up|export-image|factory-status|factory-create|factory-media-status|factory-detach-installer|factory-detach-media|trust-ssh-host-key|delete)
         provider "$command" "$@"
         ;;
     *)

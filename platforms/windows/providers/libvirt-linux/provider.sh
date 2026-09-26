@@ -472,6 +472,10 @@ case "$command" in
         assert_target factory-detach-media >/dev/null
         factory detach-media
         ;;
+    factory-media-status)
+        assert_target inspect >/dev/null
+        factory media-status
+        ;;
     down|shutdown) assert_target shutdown >/dev/null; core shutdown ;;
     force-stop) assert_target force-stop >/dev/null; core force-stop ;;
     screenshot) require_outer_ui_allowed; recovery_screenshot "$@" ;;
