@@ -20,6 +20,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_SCHEMA = "machine-control-targets/v0"
 CONTROLLER_CONFIG_SCHEMA = "machine-control-controller/v0"
+HOST_ATTENDANCE = {"attended", "unattended"}
 DOCTOR_SCHEMA = "machine-control-doctor/v0"
 RESULT_SCHEMA = "machine-control/v0"
 TARGET_RESULT_SCHEMA = "machine-control-target/v0"
@@ -370,7 +371,9 @@ def controller_config() -> tuple[Path, dict[str, Any]] | None:
             "invalid_controller_config",
             f"Controller configuration must use {CONTROLLER_CONFIG_SCHEMA}",
         )
-    unknown = set(document) - {"schema", "targets", "inventoryProvider"}
+    unknown = set(document) - {
+        "schema", "targets", "inventoryProvider", "hostAttendance"
+    }
     if unknown:
         raise ClientError(
             "invalid_controller_config",
@@ -384,7 +387,19 @@ def controller_config() -> tuple[Path, dict[str, Any]] | None:
                 "invalid_controller_config",
                 f"Controller configuration {field} must be a nonempty path or null",
             )
+    if document.get("hostAttendance") not in {None, *HOST_ATTENDANCE}:
+        raise ClientError(
+            "invalid_controller_config",
+            "Controller configuration hostAttendance must be "
+            + " or ".join(sorted(HOST_ATTENDANCE)),
+        )
     return path, document
+
+
+def controller_host_attendance() -> str | None:
+    """Return whether someone may be using this controller, if declared."""
+    config = controller_config()
+    return config[1].get("hostAttendance") if config is not None else None
 
 
 def controller_config_path(config: tuple[Path, dict[str, Any]], field: str) -> Path:
@@ -3438,6 +3453,9 @@ def main(argv: list[str] | None = None) -> int:
                 ),
             },
         }
+        attendance = controller_host_attendance()
+        if attendance and not os.environ.get("MACHINE_CONTROL_HOST_ATTENDANCE"):
+            target["environment"]["MACHINE_CONTROL_HOST_ATTENDANCE"] = attendance
         if known.workspace is not None:
             if not _valid_workspace_handle(known.workspace):
                 raise ClientError(

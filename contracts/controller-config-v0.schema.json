@@ -15,6 +15,10 @@
       "description": "Inventory provider path, relative to the configuration directory unless absolute; null or omitted means none",
       "type": ["string", "null"],
       "minLength": 1
+    },
+    "hostAttendance": {
+      "description": "Whether someone may be using this controller host; attended prohibits host-visible outer control and unattended disables unrestorable suspends",
+      "enum": ["attended", "unattended"]
     }
   },
   "additionalProperties": false

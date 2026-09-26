@@ -240,7 +240,7 @@ host_control() {
 }
 
 input_click() {
-    macvm_assert_outer_ui_allowed
+    macvm_assert_outer_input_allowed
     if [[ $# -lt 2 || $# -gt 3 ]]; then
         printf 'Usage: macvm click X Y [left|right|middle]\n' >&2
         return 2
@@ -252,7 +252,7 @@ input_click() {
 }
 
 input_type() {
-    macvm_assert_outer_ui_allowed
+    macvm_assert_outer_input_allowed
     if [[ $# -ne 1 ]]; then
         printf 'Usage: macvm type TEXT\n' >&2
         return 2
@@ -261,7 +261,7 @@ input_type() {
 }
 
 input_drag() {
-    macvm_assert_outer_ui_allowed
+    macvm_assert_outer_input_allowed
     if [[ $# -ne 4 ]]; then
         printf 'Usage: macvm drag X1 Y1 X2 Y2\n' >&2
         return 2
@@ -272,7 +272,7 @@ input_drag() {
 }
 
 input_key() {
-    macvm_assert_outer_ui_allowed
+    macvm_assert_outer_input_allowed
     if [[ $# -ne 1 ]]; then
         printf 'Usage: macvm key CHORD\n' >&2
         return 2

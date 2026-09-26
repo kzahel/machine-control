@@ -70,6 +70,18 @@ with `--disruptive`; an ordinary holder receives
 `MACVM_FORBID_OUTER_UI=true` remains an absolute prohibition even with a
 disruptive claim.
 
+The controller's `hostAttendance` (see the
+[target-registry guide](../../docs/target-registry.md#controller-configuration))
+adds a host-level policy. `attended` prohibits Tart-window screenshot and input
+because someone may be using the host. `unattended` permits them to a
+disruptive claim but disables suspend, because nobody will unlock the host to
+restore a snapshot. Regardless of attendance, host input is refused while the
+host session is not unlocked: it is posted to the global HID stream and would
+reach the host lock screen instead of the VM. Doctor reports attendance and
+host session in `extensions.hostSession` and the resulting `states.outer`.
+A VM started by an agent outside the host's Aqua session may still have no
+Tart window at all; see [problems](docs/problems.md).
+
 ## Daily Use
 
 ```bash

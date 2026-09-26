@@ -33,6 +33,21 @@ immediately with the diagnosis, and offers `discard-suspended-state`.
 Controllers that may be locked when a VM is next started should disable
 suspend and park with shutdown.
 
+### Outer control is unusable while the host is locked
+
+Status: **guarded 2026-09-26; interactive lock/unlock test pending.** With the
+controller locked, `loginwindow` was frontmost and no Tart window existed for
+a VM started by an agent outside the host's Aqua session, even though Screen
+Recording and event posting were granted. Host input is posted to the global
+HID stream, so while locked it would reach the host lock screen rather than
+the VM. Host input now refuses unless the host session is unlocked, and the
+controller's `hostAttendance` gates outer UI and suspend.
+
+Still to verify interactively, by locking and unlocking the controller:
+screenshot and input on an unlocked `unattended` host with a Tart window,
+refusal when `attended`, refusal right after a lock, and whether a restore
+from an unlocked session succeeds.
+
 ## Observed 2026-09-03 during first bring-up from a non-GUI controller session
 
 ### The launchd runner starts a windowless VM, disabling the whole outer path

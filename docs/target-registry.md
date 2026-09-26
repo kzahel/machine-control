@@ -113,7 +113,8 @@ variable:
 {
   "schema": "machine-control-controller/v0",
   "targets": "targets.json",
-  "inventoryProvider": null
+  "inventoryProvider": null,
+  "hostAttendance": "unattended"
 }
 ```
 
@@ -128,6 +129,11 @@ schema. Both fields are optional:
 - `inventoryProvider` names the provider used by `inventory` and by target
   resolution when no registry file applies. Omitted or `null` means this
   controller has no provider.
+- `hostAttendance` declares whether someone may be using this controller:
+  `attended` or `unattended`. The client passes it to adapters as
+  `MACHINE_CONTROL_HOST_ATTENDANCE`; omitting it keeps each adapter's own
+  policy. Change it when that changes, for example when you return to the
+  machine. See the macOS guide for its current effect.
 
 The file's presence is an explicit controller choice. It disables the
 compatibility provider discovery described below, so a controller whose

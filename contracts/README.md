@@ -21,8 +21,8 @@ than a frozen cross-device wire protocol.
   source precedence, and the optional inventory-provider contract.
 - [`controller-config-v0.schema.json`](controller-config-v0.schema.json)
   describes the per-user controller configuration that selects a registry file
-  and inventory provider outside any checkout and disables sibling-inventory
-  discovery.
+  and inventory provider outside any checkout, disables sibling-inventory
+  discovery, and declares whether the host is attended.
 - [`claim-capabilities-v0.schema.json`](claim-capabilities-v0.schema.json)
   describes exclusive exact-resource claim policy, ordinary/disruptive use
   classes, duration bounds, claimant attribution limits, and queueing behavior.

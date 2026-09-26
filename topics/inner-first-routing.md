@@ -146,6 +146,20 @@ outer-UI-policy checks.
 
 This is a cooperative safety interlock against accidental route selection, not
 strong authorization against a same-user process with an unrestricted shell.
+
+**Current:** A controller may declare `hostAttendance` (`attended` or
+`unattended`) in its per-user controller configuration. The macOS Tart
+adapter prohibits outer screenshot and input when the host is attended,
+refuses host input whenever the controller's console session is not unlocked,
+and disables suspend when the host is unattended. Doctor reports the
+attendance, host session, and resulting outer state.
+
+**Open:** This policy is fixture-tested and was observed live only on a locked
+host, where outer input was refused and no Tart window existed for an agent
+outside the host's Aqua session. It still needs an interactive test that
+locks and unlocks the controller: outer screenshot and input on an unlocked
+unattended host, refusal on an attended host, and refusal immediately after a
+lock. Attendance is declared, not detected.
 The claim result and status should disclose the disruptive class, reason,
 holder, and expiry. Keep the existing claim `mode` as `exclusive`; represent
 ordinary versus disruptive as a separate use class rather than overloading

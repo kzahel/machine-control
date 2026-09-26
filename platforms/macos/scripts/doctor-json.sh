@@ -48,6 +48,7 @@ esac
 # A saved state restores only while the host user's console session is
 # unlocked, so report the host session beside suspend availability.
 host_session="$(macvm_host_session_state)"
+host_attendance="$(macvm_host_attendance)"
 suspend_reasons="$(macvm_suspend_blockers | jq -Rsc 'split("\n") | map(select(length > 0))')"
 if [[ "$suspend_reasons" == '[]' ]]; then
     suspend_availability=available
@@ -55,6 +56,12 @@ if [[ "$suspend_reasons" == '[]' ]]; then
 elif jq -e 'index("disabled_by_configuration")' <<<"$suspend_reasons" >/dev/null; then
     suspend_availability=unavailable
     add_check suspend skip 'Suspend is disabled by configuration (MACVM_SUSPENDABLE=false); use shutdown'
+elif jq -e 'index("host_unattended")' <<<"$suspend_reasons" >/dev/null; then
+    suspend_availability=unavailable
+    add_check suspend skip 'Suspend is disabled because the host is declared unattended; use shutdown'
+elif jq -e 'index("host_attendance_invalid")' <<<"$suspend_reasons" >/dev/null; then
+    suspend_availability=unavailable
+    add_check suspend fail 'Suspend is refused because host attendance is invalid'
 else
     suspend_availability=unavailable
     add_check suspend warn "Suspend is unavailable while the host session is $host_session: a saved state could not be restored until the host is unlocked"
@@ -158,6 +165,15 @@ fi
 if [[ "$MACVM_FORBID_OUTER_UI" == true ]]; then
     outer=prohibited
     add_check outer pass 'Outer UI is prohibited by policy'
+elif [[ "$host_attendance" == attended ]]; then
+    outer=prohibited
+    add_check outer pass 'Outer UI is prohibited while the host is declared attended'
+elif [[ "$host_attendance" == invalid ]]; then
+    outer=prohibited
+    add_check outer fail 'Outer UI is prohibited because host attendance is invalid'
+elif [[ "$host_session" != unlocked ]]; then
+    outer=unavailable
+    add_check outer skip "Outer input is unavailable while the host session is $host_session"
 else
     outer=unknown
     add_check outer skip 'Outer recovery was not evaluated'
@@ -189,6 +205,7 @@ jq -cn \
     --arg suspend_availability "$suspend_availability" \
     --argjson suspend_reasons "$suspend_reasons" \
     --arg host_session "$host_session" \
+    --arg host_attendance "$host_attendance" \
     '{
         schema:"machine-control-doctor/v0",
         ready:$ready,
@@ -218,6 +235,7 @@ jq -cn \
             displayState:$display_state,
             hostSession:{
                 state:$host_session,
+                attendance:$host_attendance,
                 source:"ioreg.IOConsoleUsers",
                 restoreRequiresUnlocked:true
             },

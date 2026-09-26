@@ -72,6 +72,10 @@ class ClientTests(unittest.TestCase):
         environment["MACHINE_CONTROL_MOCK_PLATFORM"] = (
             document["targets"]["fixture"]["platform"]
         )
+        # Keep this controller's real per-user configuration out of fixtures.
+        environment["XDG_CONFIG_HOME"] = str(self.directory / "config")
+        environment["APPDATA"] = str(self.directory / "config")
+        environment.pop("MACHINE_CONTROL_HOST_ATTENDANCE", None)
         environment.update(extra_env or {})
         result = subprocess.run(
             [sys.executable, str(CLI), "--registry", str(self.registry), *arguments],
@@ -1295,6 +1299,7 @@ class RegistryResolutionTests(unittest.TestCase):
             not in {
                 "MACHINE_CONTROL_TARGETS_FILE",
                 "MACHINE_CONTROL_INVENTORY_PROVIDER",
+                "MACHINE_CONTROL_HOST_ATTENDANCE",
             }
         }
         environment.update(
@@ -1433,6 +1438,57 @@ class RegistryResolutionTests(unittest.TestCase):
         self.assertEqual(value["registrySource"], "controller-config")
         self.assertEqual(value["targets"][0]["logicalTarget"], "config-target")
         self.assertNotIn(str(self.directory), result.stdout)
+
+    def test_controller_config_validates_host_attendance(self):
+        for attendance in ("attended", "unattended"):
+            with self.subTest(attendance=attendance):
+                self.write_config(hostAttendance=attendance)
+                self.assertEqual(
+                    machine_control.controller_host_attendance(), attendance
+                )
+        self.write_config(hostAttendance="sometimes")
+        with self.assertRaises(machine_control.ClientError) as caught:
+            machine_control.controller_host_attendance()
+        self.assertEqual(caught.exception.code, "invalid_controller_config")
+        (self.config_directory / "config.json").unlink()
+        self.assertIsNone(machine_control.controller_host_attendance())
+
+    def test_cli_passes_host_attendance_to_adapter(self):
+        adapter = self.directory / "adapter.py"
+        adapter.write_text(
+            "import os\n"
+            "print(os.environ.get('MACHINE_CONTROL_HOST_ATTENDANCE', 'absent'))\n",
+            encoding="utf-8",
+        )
+        registry = self.config_directory / "targets.json"
+        registry.write_text(json.dumps({
+            "schema": "machine-control-targets/v0",
+            "targets": {
+                "fixture": {
+                    "platform": "linux",
+                    "profile": "fixture",
+                    "controllerPlatforms": [machine_control.controller_platform()],
+                    "claimPolicy": "optional",
+                    "command": [sys.executable, str(adapter)],
+                }
+            }
+        }), encoding="utf-8")
+        for fields, expected in (
+            ({"hostAttendance": "unattended"}, "unattended"),
+            ({}, "absent"),
+        ):
+            with self.subTest(fields=fields):
+                self.write_config(targets="targets.json", **fields)
+                result = subprocess.run(
+                    [sys.executable, str(CLI), "--target", "fixture",
+                     "testbed", "--", "status"],
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                    env=self.environment,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(result.stdout.strip(), expected)
 
     def test_cli_inventory_refuses_when_controller_config_disables_provider(self):
         self.write_config(inventoryProvider=None)

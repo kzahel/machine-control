@@ -207,13 +207,33 @@ macvm_host_session_state() {
           else "unlocked" end' <<<"$sessions" 2>/dev/null || printf 'unknown\n'
 }
 
+# Print whether someone may be using this host: attended, unattended, or
+# unspecified. The common client passes the controller configuration's
+# hostAttendance; direct use reads the same per-user file.
+macvm_host_attendance() {
+    local value="${MACHINE_CONTROL_HOST_ATTENDANCE:-}"
+    local config="${XDG_CONFIG_HOME:-$HOME/.config}/machine-control/config.json"
+    if [[ -z "$value" && -f "$config" ]]; then
+        value="$(jq -r '.hostAttendance // empty' "$config" 2>/dev/null)" ||
+            value=invalid
+    fi
+    case "${value:-unspecified}" in
+        attended|unattended|unspecified) printf '%s\n' "${value:-unspecified}" ;;
+        *) printf 'invalid\n' ;;
+    esac
+}
+
 # Print one reason per line why a new suspend should not be taken. A suspend
-# taken while the host is locked, or on a controller configured not to
-# suspend, may be impossible to resume unattended.
+# taken while the host is locked, on an unattended host, or on a controller
+# configured not to suspend, may be impossible to resume.
 macvm_suspend_blockers() {
     if [[ "$MACVM_SUSPENDABLE" != "true" ]]; then
         printf 'disabled_by_configuration\n'
     fi
+    case "$(macvm_host_attendance)" in
+        unattended) printf 'host_unattended\n' ;;
+        invalid) printf 'host_attendance_invalid\n' ;;
+    esac
     local host
     host="$(macvm_host_session_state)"
     if [[ "$host" != "unlocked" ]]; then
@@ -397,6 +417,33 @@ macvm_assert_outer_ui_allowed() {
         printf '%s\n' \
             'Refusing host-side Tart screenshot/input: outer UI is forbidden' \
             >&2
+        return 1
+    fi
+    case "$(macvm_host_attendance)" in
+        attended)
+            printf '%s\n' \
+                'Refusing host-side Tart screenshot/input: the host is declared attended' \
+                >&2
+            return 1
+            ;;
+        invalid)
+            printf '%s\n' \
+                'Refusing host-side Tart screenshot/input: host attendance is invalid' \
+                >&2
+            return 1
+            ;;
+    esac
+}
+
+# Host input is posted to the global HID event stream. While the host session
+# is locked it would reach the host lock screen instead of the VM.
+macvm_assert_outer_input_allowed() {
+    macvm_assert_outer_ui_allowed || return
+    local host
+    host="$(macvm_host_session_state)"
+    if [[ "$host" != "unlocked" ]]; then
+        printf 'Refusing host-side Tart input: the host session is %s\n' \
+            "$host" >&2
         return 1
     fi
 }

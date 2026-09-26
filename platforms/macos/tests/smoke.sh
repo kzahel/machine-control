@@ -199,6 +199,42 @@ for host_case in locked:locked unlocked:unlocked background:not_on_console \
             _ "$REPO_DIR/scripts/common.sh")"
     [[ "$host_state" == "${host_case#*:}" ]]
 done
+attendance_home="$temporary/attendance-config"
+mkdir -p "$attendance_home/machine-control"
+for attendance_case in env:unattended:unattended file:attended:attended \
+        file:sometimes:invalid none::unspecified; do
+    IFS=: read -r attendance_source attendance_value attendance_expected \
+        <<<"$attendance_case"
+    rm -f "$attendance_home/machine-control/config.json"
+    attendance_env=()
+    case "$attendance_source" in
+        env) attendance_env=(MACHINE_CONTROL_HOST_ATTENDANCE="$attendance_value") ;;
+        file)
+            printf '{"schema":"machine-control-controller/v0","hostAttendance":"%s"}\n' \
+                "$attendance_value" >"$attendance_home/machine-control/config.json"
+            ;;
+    esac
+    attendance="$(env -u MACHINE_CONTROL_HOST_ATTENDANCE \
+        MACVM_CONFIG_FILE=/dev/null XDG_CONFIG_HOME="$attendance_home" \
+        ${attendance_env[@]+"${attendance_env[@]}"} \
+        bash -c 'source "$1"; macvm_host_attendance' \
+            _ "$REPO_DIR/scripts/common.sh")"
+    [[ "$attendance" == "$attendance_expected" ]]
+done
+for input_case in unattended:locked:'host session is locked' \
+        attended:unlocked:'declared attended'; do
+    IFS=: read -r attendance host_session reason <<<"$input_case"
+    set +e
+    refusal="$(env MACVM_CONFIG_FILE=/dev/null MACVM_FORBID_OUTER_UI=false \
+        MACVM_IOREG="$REPO_DIR/tests/fixtures/ioreg" \
+        MACVM_TART="$REPO_DIR/tests/fixtures/tart" \
+        MACHINE_CONTROL_HOST_ATTENDANCE="$attendance" \
+        MACHINE_CONTROL_HOST_SESSION="$host_session" \
+        providers/tart-macos/provider.sh click 10 10 2>&1)"
+    refusal_status=$?
+    set -e
+    [[ "$refusal_status" -ne 0 && "$refusal" == *"$reason"* ]]
+done
 lifecycle_env=(
     env
     MACVM_CONFIG_FILE=/dev/null
@@ -209,12 +245,14 @@ lifecycle_env=(
     MACVM_TARGET_ROLE=disposable
     MACHINE_CONTROL_TART_MUTATION_MARKER="$mutation_marker"
 )
-for suspend_case in false:unlocked:disabled_by_configuration \
-        true:locked:host_session_locked; do
-    IFS=: read -r suspendable host_session reason <<<"$suspend_case"
+for suspend_case in false:unlocked:unspecified:disabled_by_configuration \
+        true:locked:unspecified:host_session_locked \
+        true:unlocked:unattended:host_unattended; do
+    IFS=: read -r suspendable host_session attendance reason <<<"$suspend_case"
     set +e
     refusal="$("${lifecycle_env[@]}" MACVM_SUSPENDABLE="$suspendable" \
         MACHINE_CONTROL_HOST_SESSION="$host_session" \
+        MACHINE_CONTROL_HOST_ATTENDANCE="$attendance" \
         MACHINE_CONTROL_TART_STATE=running \
         providers/tart-macos/provider.sh suspend 2>&1)"
     refusal_status=$?

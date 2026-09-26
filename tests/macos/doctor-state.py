@@ -24,10 +24,11 @@ with tempfile.TemporaryDirectory(prefix="mc-doctor-state-") as directory:
     shutil.copy(ROOT / "platforms/macos/scripts/doctor-json.sh", work / "doctor-json.sh")
     (work / "common.sh").write_text('''
 MACVM_REPO_DIR=/unused
-MACVM_FORBID_OUTER_UI=true
+MACVM_FORBID_OUTER_UI="${FIXTURE_FORBID_OUTER_UI:-true}"
 MACVM_SUSPENDABLE="${FIXTURE_SUSPENDABLE:-true}"
 macvm_state() { printf '%s' "$FIXTURE_POWER"; }
 macvm_host_session_state() { printf '%s\\n' "${FIXTURE_HOST_SESSION:-unlocked}"; }
+macvm_host_attendance() { printf '%s\\n' "${FIXTURE_ATTENDANCE:-unspecified}"; }
 ''' + suspend_blockers + '''
 macvm_remote_ui_binary() { printf /fixture/macui; }
 macvm_exec() {
@@ -108,4 +109,30 @@ macvm_resident_request() {
         checks = {check["id"]: check["status"] for check in value["checks"]}
         assert checks["suspend"] == suspend_check, (name, value)
         assert checks.get("resume") == resume_check, (name, value)
+        print(name + ": passed")
+
+    attendance_cases = [
+        # attendance, forbid outer, host session, suspend reasons, outer state
+        ("unattended", "false", "unlocked", ["host_unattended"], "unknown"),
+        ("unattended", "false", "locked",
+         ["host_unattended", "host_session_locked"], "unavailable"),
+        ("attended", "false", "unlocked", [], "prohibited"),
+        ("attended", "false", "locked", ["host_session_locked"], "prohibited"),
+        ("unattended", "true", "unlocked", ["host_unattended"], "prohibited"),
+        ("invalid", "false", "unlocked", ["host_attendance_invalid"], "prohibited"),
+        ("unspecified", "false", "unlocked", [], "unknown"),
+    ]
+    for attendance, forbid, host, reasons, outer in attendance_cases:
+        name = f"attendance_{attendance}_forbid_{forbid}_{host}"
+        env = dict(os.environ, FIXTURE_POWER="running", FIXTURE_SUSPENDABLE="true",
+            FIXTURE_HOST_SESSION=host, FIXTURE_ATTENDANCE=attendance,
+            FIXTURE_FORBID_OUTER_UI=forbid,
+            FIXTURE_OBSERVATION=json.dumps(dict(desktopState="unlocked")),
+            FIXTURE_RESIDENT=json.dumps(current))
+        result = subprocess.run(["bash", str(work / "doctor-json.sh")], env=env,
+                                capture_output=True, text=True, check=False)
+        value = machine_control.validate_doctor(json.loads(result.stdout))
+        assert value["extensions"]["lifecycle"]["suspend"]["reasons"] == reasons, (name, value)
+        assert value["states"]["outer"] == outer, (name, value)
+        assert value["extensions"]["hostSession"]["attendance"] == attendance, (name, value)
         print(name + ": passed")
