@@ -167,7 +167,10 @@ copies as owned volumes in the exact dedicated pool before defining the
 domain. QEMU therefore does not need access to the source download or
 checkout. The stopped-candidate detach commands verify the expected pool
 paths and names, update the domain configuration, and delete the staged
-installer and seed volumes after use.
+installer and seed volumes after use. Once first-logon bootstrap is complete,
+shut down the candidate and run `factory-detach-installer` before
+`factory-detach-media`: the latter requires the seed to be the only remaining
+removable drive.
 
 The Linux-hosted native x86_64 route does not need the UTM firmware-shell
 image:
@@ -223,10 +226,12 @@ three removable drives, removes only the first factory-created installer, and
 independently requires both seed drives to remain. It will not guess when the
 drive shape differs.
 
-After Windows first-logon bootstrap completes, verify key-only SSH, remove the
-one-use answer media and Windows ISO with `bin/winvm factory-detach-media`
-while the candidate is stopped, rotate and store the setup credential with
-`bin/winvm credential rotate`, sign in from the stored password with
+After Windows first-logon bootstrap completes, verify key-only SSH and stop
+the candidate. On Linux, run `bin/winvm factory-detach-installer` followed by
+`bin/winvm factory-detach-media`; on Mac, run `bin/winvm factory-detach-media`.
+Start the candidate again, rotate and store the setup credential with
+`bin/winvm credential rotate`,
+sign in from the stored password with
 `bin/winvm login` after any cold boot, and install the development appliance
 through its UUID-bound bootstrap. The bootstrap's in-session helper needs a
 signed-in desktop, and it builds the runtime with the .NET 8 SDK on the
