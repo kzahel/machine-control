@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+# Fake `ioreg -n Root -d1 -a` exposing one console session for this user.
+set -euo pipefail
+
+case "${MACHINE_CONTROL_HOST_SESSION:-unlocked}" in
+    none) printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' \
+        '<plist version="1.0"><dict><key>IOConsoleUsers</key><array/></dict></plist>'
+        exit 0 ;;
+    locked) console=true; locked=true ;;
+    unlocked) console=true; locked=false ;;
+    background) console=false; locked=false ;;
+    *) exit 1 ;;
+esac
+cat <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict><key>IOConsoleUsers</key><array><dict>
+<key>kCGSSessionUserIDKey</key><integer>$(id -u)</integer>
+<key>kCGSSessionOnConsoleKey</key><$console/>
+<key>CGSSessionScreenIsLocked</key><$locked/>
+</dict></array></dict></plist>
+PLIST

@@ -88,6 +88,9 @@ bin/macvm suspend
 launchd GUI domain. The VM therefore remains running after the invoking shell
 or non-interactive command runner exits. Routine suspend, shutdown, and stop
 leave no launchd-owned Tart process; the next `up` replaces any inactive job.
+A suspend state restores only while the host session is unlocked; see
+[bootstrap](docs/bootstrap.md#routine-restart-and-suspend) before relying on
+suspend from a controller that may lock.
 
 Discover and operate semantic macOS controls:
 

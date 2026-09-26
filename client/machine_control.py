@@ -686,6 +686,9 @@ def run_adapter(
     if completed.returncode != 0 and not (
         accept_json_failure and parsed is not None
     ):
+        # Keep the adapter's operator diagnosis visible without copying its
+        # possibly private detail into the minimized JSON refusal.
+        sys.stderr.write(completed.stderr)
         raise ClientError(
             "adapter_failed",
             f"Testbed adapter command failed with exit code {completed.returncode}",
@@ -2085,10 +2088,14 @@ def handle_target(
         value, _ = doctor(alias, target)
         preflight_elapsed_ms = value["adapter"]["elapsedMs"]
         if operation not in value["lifecycleOperations"]:
+            lifecycle = value["extensions"].get("lifecycle")
+            reasons = lifecycle["suspend"]["reasons"] if lifecycle else []
             raise ClientError(
                 "unsupported_target_operation",
                 f"Target '{alias}' does not support lifecycle operation "
-                f"'{operation}'",
+                f"'{operation}'"
+                + (f": {', '.join(reasons)}" if reasons else ""),
+                data={"lifecycle": lifecycle} if lifecycle else None,
             )
     completed, _, elapsed_ms = run_adapter(target, [operation])
     elapsed_ms += preflight_elapsed_ms

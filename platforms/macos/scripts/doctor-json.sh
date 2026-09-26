@@ -45,6 +45,34 @@ case "$state" in
         ;;
 esac
 
+# A saved state restores only while the host user's console session is
+# unlocked, so report the host session beside suspend availability.
+host_session="$(macvm_host_session_state)"
+suspend_reasons="$(macvm_suspend_blockers | jq -Rsc 'split("\n") | map(select(length > 0))')"
+if [[ "$suspend_reasons" == '[]' ]]; then
+    suspend_availability=available
+    add_check suspend pass 'Suspend is available; resuming later requires the host session to be unlocked'
+elif jq -e 'index("disabled_by_configuration")' <<<"$suspend_reasons" >/dev/null; then
+    suspend_availability=unavailable
+    add_check suspend skip 'Suspend is disabled by configuration (MACVM_SUSPENDABLE=false); use shutdown'
+else
+    suspend_availability=unavailable
+    add_check suspend warn "Suspend is unavailable while the host session is $host_session: a saved state could not be restored until the host is unlocked"
+fi
+if [[ "$power" == suspended ]]; then
+    if [[ "$MACVM_SUSPENDABLE" != true ]]; then
+        add_check resume fail 'Saved state cannot resume while MACVM_SUSPENDABLE=false; discard it to cold boot'
+    elif [[ "$host_session" != unlocked ]]; then
+        add_check resume fail "Saved state cannot resume while the host session is $host_session; unlock the host or discard it to cold boot"
+    else
+        add_check resume pass 'Host session is unlocked for resume'
+    fi
+fi
+lifecycle_operations='["status","up","suspend","shutdown","force-stop"]'
+if [[ "$suspend_availability" != available ]]; then
+    lifecycle_operations='["status","up","shutdown","force-stop"]'
+fi
+
 if [[ "$power" == running ]] &&
         macvm_exec /usr/bin/true >/dev/null 2>&1; then
     administration=ready
@@ -157,6 +185,10 @@ jq -cn \
     --argjson unlock "$unlock_json" \
     --argjson lock_screen "$lock_screen_json" \
     --arg display_state "$display_state" \
+    --argjson lifecycle_operations "$lifecycle_operations" \
+    --arg suspend_availability "$suspend_availability" \
+    --argjson suspend_reasons "$suspend_reasons" \
+    --arg host_session "$host_session" \
     '{
         schema:"machine-control-doctor/v0",
         ready:$ready,
@@ -176,16 +208,27 @@ jq -cn \
         },
         resident:$resident,
         checks:$checks,
-        lifecycleOperations:[
-            "status","up","suspend","shutdown","force-stop"
-        ],
+        lifecycleOperations:$lifecycle_operations,
         extensions:{
             administrationRoute:"selected_guest_transport",
             desktopSession:"aqua",
             privacyAuthority:"tcc",
             unlock:$unlock,
             lockScreen:$lock_screen,
-            displayState:$display_state
+            displayState:$display_state,
+            hostSession:{
+                state:$host_session,
+                source:"ioreg.IOConsoleUsers",
+                restoreRequiresUnlocked:true
+            },
+            lifecycle:{
+                suspend:{
+                    availability:$suspend_availability,
+                    source:"macvm-configuration-and-host-session",
+                    reasons:$suspend_reasons
+                },
+                defaultDownAction:"guest-shutdown"
+            }
         }
     }'
 

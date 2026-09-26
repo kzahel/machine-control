@@ -141,7 +141,13 @@ stage. See [bootstrap](bootstrap.md) for the operational contract.
 
 - `shutdown` asks guest macOS to halt normally.
 - `stop` asks Tart to terminate gracefully and uses Tart's bounded fallback.
-- `suspend` works only when the VM was launched with `--suspendable`.
+- `suspend` works only when the VM was launched with `--suspendable`, and is
+  refused when `MACVM_SUSPENDABLE=false` or the host user's console session is
+  not unlocked. It returns after Tart has finished writing the snapshot.
+- restoring a suspend state requires the host session to be unlocked, because
+  Virtualization.framework protects saved state with the host keychain. A
+  failed restore is reported immediately; `discard-suspended-state` drops the
+  saved memory so the next `up` cold boots from disk;
 - `force-stop` sets Tart's graceful timeout to zero and requires explicit
   recovery intent.
 - starting through `macvm up` enables suspendability and a read-only repository

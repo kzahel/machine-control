@@ -79,6 +79,17 @@ that state. Its native `down` escape hatch chooses guest shutdown unless
 suspend is positively available; it never treats suspend or force-stop as a
 failed-shutdown fallback.
 
+**Current:** The macOS Tart adapter reports the same projection plus
+`extensions.hostSession`. Virtualization.framework protects saved VM state
+with the host user's keychain, and live tests on a locked controller failed
+every restore with `permission denied` while cold boot succeeded. The adapter
+therefore declares suspend unavailable when `MACVM_SUSPENDABLE=false` or the
+host console session is not unlocked, waits for the snapshot to finish before
+`suspend` returns, fails a restore immediately with that diagnosis, and offers
+an explicit `discard-suspended-state` escape hatch. Its default down action is
+guest shutdown. See the
+[macOS problem record](../platforms/macos/docs/problems.md).
+
 Normalize observations to the applicable state dimensions without discarding
 the raw adapter value. Desktop targets use:
 

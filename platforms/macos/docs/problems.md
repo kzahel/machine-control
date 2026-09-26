@@ -4,6 +4,35 @@ This is a living record of concrete gaps encountered while using MacVM
 Testbed. Keep observed behavior, effect, workaround, and a likely improvement
 direction together so later work can reproduce the problem.
 
+## Observed 2026-09-26 on a locked controller
+
+### Suspend states cannot be restored while the host is locked
+
+Status: **mitigated 2026-09-26.** Every restore attempted from an agent while
+the controller user's screen was locked failed within a second:
+`VZErrorDomain Code=12 ... failed to restore with error "permission denied"`.
+It failed for a snapshot taken seconds earlier with identical run flags, both
+through the launchd runner and from a direct `tart run`. A cold boot of the
+same disk succeeded in about 20 seconds. Apple's Virtualization engineers
+state that saved state is protected by the keychain and needs the Mac
+unlocked; an earlier snapshot also predated a host major-version upgrade.
+Restoring from an unlocked session has not yet been re-tested here.
+
+Additional adapter defects made the failure look intermittent:
+
+- `suspend` returned while Tart was still writing the snapshot and reported
+  `running`, so a prompt `up` could replace the runner mid-write;
+- `up` polled for the full boot timeout after Tart had already exited and
+  reported only a generic adapter failure; and
+- nothing reported the host lock state or the keychain requirement.
+
+The adapter now reports `extensions.hostSession` and a lifecycle projection,
+refuses `suspend` while the host is not unlocked or when
+`MACVM_SUSPENDABLE=false`, waits for the saved state, fails a restore
+immediately with the diagnosis, and offers `discard-suspended-state`.
+Controllers that may be locked when a VM is next started should disable
+suspend and park with shutdown.
+
 ## Observed 2026-09-03 during first bring-up from a non-GUI controller session
 
 ### The launchd runner starts a windowless VM, disabling the whole outer path

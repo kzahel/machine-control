@@ -651,6 +651,11 @@ class ClientTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2)
         self.assertEqual(value["errorCode"], "unsupported_target_operation")
+        self.assertIn("configured-disabled", value["message"])
+        self.assertEqual(
+            value["data"]["lifecycle"]["suspend"]["reasons"],
+            ["configured-disabled"],
+        )
         self.assertEqual(
             json.loads(log.read_text(encoding="utf-8")), ["doctor", "--json"]
         )

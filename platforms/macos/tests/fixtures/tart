@@ -4,7 +4,8 @@ set -euo pipefail
 
 case "${1:-}" in
     get)
-        printf '%s\n' '{"State":"stopped","Display":"1280x800"}'
+        printf '{"State":"%s","Display":"1280x800"}\n' \
+            "${MACHINE_CONTROL_TART_STATE:-stopped}"
         ;;
     run|stop|suspend|delete|clone)
         : >"${MACHINE_CONTROL_TART_MUTATION_MARKER:?}"

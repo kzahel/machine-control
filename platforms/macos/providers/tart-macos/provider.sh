@@ -72,6 +72,35 @@ unload_launchd_runner() {
         >/dev/null 2>&1 || true
 }
 
+launchd_runner_running() {
+    /bin/launchctl print "$(launchd_domain)/$(launchd_label)" 2>/dev/null |
+        /usr/bin/grep -Eq '^[[:space:]]*state = running'
+}
+
+# True once launchd has run the job and it is no longer running.
+launchd_runner_exited() {
+    local description
+    description="$(/bin/launchctl print "$(launchd_domain)/$(launchd_label)" \
+        2>/dev/null)" || return 1
+    /usr/bin/grep -Eq '^[[:space:]]*runs = [1-9]' <<<"$description" &&
+        ! /usr/bin/grep -Eq '^[[:space:]]*state = running' <<<"$description"
+}
+
+report_runner_exit() {
+    local log_path="$1"
+    printf 'Tart exited before VM %s started; see %s\n' \
+        "$MACVM_NAME" "$log_path" >&2
+    /usr/bin/tail -n 3 "$log_path" >&2 || true
+    if /usr/bin/grep -q 'failed to restore' "$log_path" 2>/dev/null; then
+        printf '%s\n' \
+            "Restoring the saved suspend state failed. Virtualization.framework" \
+            "protects saved state with the host keychain, so a restore needs the" \
+            "host user's console session unlocked (host session is now:" \
+            "$(macvm_host_session_state)). Resume from an unlocked host, or run" \
+            "'macvm discard-suspended-state' to cold boot from disk instead." >&2
+    fi
+}
+
 start_launchd_runner() {
     local -a arguments=("$MACVM_TART" run "$@" "$MACVM_NAME")
     local runtime_dir label plist_path log_path
@@ -100,6 +129,14 @@ ensure_running() {
         return 1
     fi
     macvm_assert_mutation_target
+    if [[ "$state" == "suspended" && "$MACVM_SUSPENDABLE" != "true" ]]; then
+        printf '%s\n' \
+            "VM $MACVM_NAME holds a suspend state saved from a suspendable run," \
+            "which cannot be restored while MACVM_SUSPENDABLE=false. Set it to" \
+            "true on an unlocked host to resume, or run" \
+            "'macvm discard-suspended-state' to cold boot from disk." >&2
+        return 3
+    fi
 
     local -a run_args=()
     if [[ "$MACVM_SUSPENDABLE" == "true" ]]; then
@@ -122,12 +159,65 @@ ensure_running() {
         if [[ "$state" == "running" ]]; then
             return 0
         fi
+        if launchd_runner_exited; then
+            report_runner_exit "$log_path"
+            return 1
+        fi
         sleep 1
     done
 
     printf 'Timed out waiting for Tart VM %s to start; see %s\n' \
         "$MACVM_NAME" "$log_path" >&2
     return 1
+}
+
+suspend_vm() {
+    macvm_assert_mutation_target
+    local blockers
+    blockers="$(macvm_suspend_blockers)"
+    if [[ -n "$blockers" ]]; then
+        printf 'Refusing to suspend %s: %s\n' "$MACVM_NAME" \
+            "$(/usr/bin/paste -sd, - <<<"$blockers")" >&2
+        printf '%s\n' \
+            "A saved state can be restored only while the host session is" \
+            "unlocked. Use shutdown to park the VM instead." >&2
+        return 3
+    fi
+    "$MACVM_TART" suspend "$MACVM_NAME"
+    # `tart suspend` returns while the runner is still writing the snapshot.
+    # Wait until Tart reports the saved state so a following `up` cannot
+    # replace the runner mid-write.
+    local deadline=$((SECONDS + MACVM_BOOT_TIMEOUT))
+    while (( SECONDS < deadline )); do
+        if [[ "$(macvm_state || true)" == "suspended" ]] &&
+                ! launchd_runner_running; then
+            return 0
+        fi
+        sleep 1
+    done
+    printf 'Tart did not finish suspending %s within %s seconds\n' \
+        "$MACVM_NAME" "$MACVM_BOOT_TIMEOUT" >&2
+    return 1
+}
+
+discard_suspended_state() {
+    macvm_assert_mutation_target
+    local state saved_state
+    state="$(macvm_state || true)"
+    if [[ "$state" != "suspended" ]] || launchd_runner_running; then
+        printf 'VM %s is not suspended (state: %s)\n' "$MACVM_NAME" "$state" >&2
+        return 3
+    fi
+    saved_state="$(macvm_saved_state_path)"
+    if [[ ! -f "$saved_state" ]]; then
+        printf 'No saved suspend state found for %s\n' "$MACVM_NAME" >&2
+        return 1
+    fi
+    # The guest loses its suspended memory, as after a power loss; its disk
+    # is kept and the next `up` cold boots.
+    /bin/rm -f "$saved_state"
+    unload_launchd_runner
+    macvm_state
 }
 
 guest_ip() {
@@ -227,10 +317,8 @@ case "$command" in
     drag) input_drag "$@" ;;
     type) input_type "$@" ;;
     key) input_key "$@" ;;
-    suspend)
-        macvm_assert_mutation_target
-        "$MACVM_TART" suspend "$MACVM_NAME"
-        ;;
+    suspend) suspend_vm ;;
+    discard-suspended-state) discard_suspended_state ;;
     shutdown) guest_shutdown ;;
     stop)
         macvm_assert_mutation_target

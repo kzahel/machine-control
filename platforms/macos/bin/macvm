@@ -73,6 +73,8 @@ Out-of-band recovery:
 
 Lifecycle and discovery:
   status | get | host-state | ip | suspend | shutdown | stop | force-stop
+  discard-suspended-state
+                         Drop a saved suspend state so the next up cold boots
   candidate-status --json
   workspace-capabilities | workspace-acquire | workspace-inventory
   workspace-release | workspace-gc
@@ -185,7 +187,7 @@ case "$command" in
         ;;
     exec) macvm_exec "$@" ;;
     shell) macvm_shell ;;
-    status|get|host-state|up|ip|screenshot|click|drag|type|key|suspend|shutdown|stop|force-stop)
+    status|get|host-state|up|ip|screenshot|click|drag|type|key|suspend|discard-suspended-state|shutdown|stop|force-stop)
         provider "$command" "$@"
         ;;
     *)

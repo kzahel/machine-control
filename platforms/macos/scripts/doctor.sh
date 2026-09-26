@@ -8,4 +8,5 @@ if ! jq -e '.schema == "machine-control-doctor/v0"' <<<"$result" >/dev/null; the
 fi
 jq -r '.checks[] | "[\(.status)] \(.id): \(.summary)"' <<<"$result"
 jq -r '"Desktop: \(.states.desktop); unlock: \(.extensions.unlock.readiness // "unknown")"' <<<"$result"
+jq -r '"Host session: \(.extensions.hostSession.state // "unknown"); suspend: \(.extensions.lifecycle.suspend.availability // "unknown")"' <<<"$result"
 exit "$status"

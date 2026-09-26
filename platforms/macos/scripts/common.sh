@@ -183,6 +183,44 @@ macvm_state() {
     macvm_get_json 2>/dev/null | jq -r '.State // "unknown"'
 }
 
+macvm_saved_state_path() {
+    printf '%s/vms/%s/state.vzvmsave\n' "${TART_HOME:-$HOME/.tart}" "$MACVM_NAME"
+}
+
+# Virtualization.framework protects a saved VM state with the host user's
+# keychain, so a restore fails with "permission denied" unless the controller
+# user's console session is unlocked. Print that host session state:
+# unlocked, locked, not_on_console, no_session, or unknown.
+macvm_host_session_state() {
+    local sessions
+    if ! sessions="$("${MACVM_IOREG:-/usr/sbin/ioreg}" -n Root -d1 -a 2>/dev/null |
+            /usr/bin/plutil -extract IOConsoleUsers json -o - - 2>/dev/null)"; then
+        printf 'unknown\n'
+        return 0
+    fi
+    jq -r --argjson uid "$(/usr/bin/id -u)" '
+        [.[] | select(.kCGSSessionUserIDKey == $uid)] as $mine
+        | [$mine[] | select(.kCGSSessionOnConsoleKey == true)] as $console
+        | if ($mine | length) == 0 then "no_session"
+          elif ($console | length) == 0 then "not_on_console"
+          elif $console[0].CGSSessionScreenIsLocked == true then "locked"
+          else "unlocked" end' <<<"$sessions" 2>/dev/null || printf 'unknown\n'
+}
+
+# Print one reason per line why a new suspend should not be taken. A suspend
+# taken while the host is locked, or on a controller configured not to
+# suspend, may be impossible to resume unattended.
+macvm_suspend_blockers() {
+    if [[ "$MACVM_SUSPENDABLE" != "true" ]]; then
+        printf 'disabled_by_configuration\n'
+    fi
+    local host
+    host="$(macvm_host_session_state)"
+    if [[ "$host" != "unlocked" ]]; then
+        printf 'host_session_%s\n' "$host"
+    fi
+}
+
 macvm_display_size() {
     macvm_get_json | jq -r '.Display'
 }

@@ -190,6 +190,53 @@ for command in click drag type key; do
     fi
 done
 
+for host_case in locked:locked unlocked:unlocked background:not_on_console \
+        none:no_session broken:unknown; do
+    host_state="$(env MACVM_CONFIG_FILE=/dev/null \
+        MACVM_IOREG="$REPO_DIR/tests/fixtures/ioreg" \
+        MACHINE_CONTROL_HOST_SESSION="${host_case%%:*}" \
+        bash -c 'source "$1"; macvm_host_session_state' \
+            _ "$REPO_DIR/scripts/common.sh")"
+    [[ "$host_state" == "${host_case#*:}" ]]
+done
+lifecycle_env=(
+    env
+    MACVM_CONFIG_FILE=/dev/null
+    MACVM_TART="$REPO_DIR/tests/fixtures/tart"
+    MACVM_IOREG="$REPO_DIR/tests/fixtures/ioreg"
+    MACVM_NAME=fixture-lifecycle
+    MACVM_EXPECTED_NAME=fixture-lifecycle
+    MACVM_TARGET_ROLE=disposable
+    MACHINE_CONTROL_TART_MUTATION_MARKER="$mutation_marker"
+)
+for suspend_case in false:unlocked:disabled_by_configuration \
+        true:locked:host_session_locked; do
+    IFS=: read -r suspendable host_session reason <<<"$suspend_case"
+    set +e
+    refusal="$("${lifecycle_env[@]}" MACVM_SUSPENDABLE="$suspendable" \
+        MACHINE_CONTROL_HOST_SESSION="$host_session" \
+        MACHINE_CONTROL_TART_STATE=running \
+        providers/tart-macos/provider.sh suspend 2>&1)"
+    refusal_status=$?
+    set -e
+    [[ "$refusal_status" -eq 3 && "$refusal" == *"$reason"* ]]
+    test ! -e "$mutation_marker"
+done
+set +e
+refusal="$("${lifecycle_env[@]}" MACVM_SUSPENDABLE=false \
+    MACHINE_CONTROL_TART_STATE=suspended \
+    providers/tart-macos/provider.sh up 2>&1)"
+refusal_status=$?
+set -e
+[[ "$refusal_status" -eq 3 && "$refusal" == *discard-suspended-state* ]]
+test ! -e "$mutation_marker"
+set +e
+refusal="$("${lifecycle_env[@]}" MACHINE_CONTROL_TART_STATE=stopped \
+    providers/tart-macos/provider.sh discard-suspended-state 2>&1)"
+refusal_status=$?
+set -e
+[[ "$refusal_status" -eq 3 && "$refusal" == *'not suspended'* ]]
+
 guest_home="$temporary/guest-home"
 mkdir -p "$guest_home"
 set +e

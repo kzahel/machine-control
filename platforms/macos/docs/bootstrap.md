@@ -272,6 +272,17 @@ bin/macvm up
 A Tart suspend snapshot is local to the physical host. It is not a backup,
 portable image, or authority for provider-session ownership.
 
+A snapshot can be restored only while the host user's console session is
+unlocked. On a controller that may be locked when the VM is next started, set
+`MACVM_SUSPENDABLE=false` and park the VM with `shutdown`; doctor then omits
+`suspend` and reports why. To cold boot a VM whose snapshot cannot be
+restored, accepting the loss of its suspended memory:
+
+```bash
+bin/macvm discard-suspended-state
+bin/macvm up
+```
+
 ## Lost Password
 
 Do not guess indefinitely or place candidates in commands.
