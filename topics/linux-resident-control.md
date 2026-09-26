@@ -54,6 +54,16 @@ maintenance, exact-source certification, and local/outside contracts passed
 without ordinary host-console access. A receipt-bound QCOW2 workspace proved
 discard semantics, and the accepted base was left stopped and claim-free.
 
+**Current:** The ARM64 UTM factory now runs unattended through UTM scripting
+alone, without reading UTM's sandbox container, and was proved end to end on a
+macOS controller whose own screen was locked: create, NoCloud first boot,
+cloud-init, resident bootstrap, seed detachment, restart, doctor, and two
+common conformance passes. The seed is a bundle-contained VirtIO disk; the EFI
+variable store is normalized by export and re-import; the seed disables idle
+lock and first-login setup. Doctor now reports a locked GNOME session, and
+clipboard text waits for selection ownership instead of racing the paste. See
+the [Linux problem record](../platforms/linux/docs/problems.md).
+
 ## Current goal
 
 **Decision:** Keep this accepted GNOME Wayland profile stable while extending

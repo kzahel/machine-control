@@ -771,4 +771,17 @@ SWIFT
     [[ "$fixed_size" == 14x9 ]]
 fi
 
+utm_bundle="$temporary/utm-documents/fixture-library.utm"
+mkdir -p "$utm_bundle"
+utm_library_state() {
+    env WINVM_CONFIG_FILE=/dev/null WINVM_COMMON_LOADED= \
+        WINVM_PROVIDER=utm-macos WINVM_UTM_NAME=fixture-library \
+        WINVM_EXPECTED_UTM_ID= WINVM_UTM_BUNDLE="$1" WINVM_UTMCTL="$2" \
+        bash -c 'source "$1"; winvm_utm_library_unloaded && echo unloaded || echo loaded' \
+            _ "$REPO_DIR/scripts/common.sh"
+}
+[[ "$(utm_library_state "$utm_bundle" /usr/bin/false)" == unloaded ]]
+[[ "$(utm_library_state "$utm_bundle" /usr/bin/true)" == loaded ]]
+[[ "$(utm_library_state "$temporary/utm-documents/absent.utm" /usr/bin/false)" == loaded ]]
+
 printf 'Smoke tests passed.\n'

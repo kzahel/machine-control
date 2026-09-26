@@ -31,6 +31,7 @@ vm_status() {
 
 ensure_running() {
     local status
+    linuxvm_load_utm_library || return 1
     status="$(vm_status || true)"
     if [[ "$status" != "started" ]]; then
         linuxvm_assert_mutation_target
@@ -338,12 +339,15 @@ vm_is_registered() {
 # Create a stopped ARM64 UTM appliance from an official Ubuntu arm64 QCOW2
 # cloud image plus NoCloud seed media. The source image is never mutated: it is
 # copied into ignored factory storage and expanded there before UTM imports it.
+# Every step goes through UTM scripting, so the factory never reads or writes
+# UTM's sandbox container, which macOS denies to agent and SSH sessions.
 factory_create() {
     if [[ $# -ne 3 || -z "$1" || -z "$2" || -z "$3" ]]; then
         printf 'Usage: linuxvm factory-create NAME CLOUD_IMAGE SEED_ISO\n' >&2
         return 2
     fi
-    local destination="$1" cloud_image="$2" seed_iso="$3" status
+    local destination="$1" cloud_image="$2" seed_iso="$3" status created_id
+    linuxvm_load_utm_library || return 1
     for media in "$cloud_image" "$seed_iso"; do
         if [[ ! -f "$media" || ! -r "$media" ]]; then
             printf 'Factory media is absent or unreadable.\n' >&2
@@ -362,8 +366,9 @@ factory_create() {
     mkdir -p "$factory_root"
     chmod 700 "$factory_root"
     local system_image="$factory_root/$destination-system.qcow2"
-    if [[ -e "$system_image" ]]; then
-        printf 'Factory system image already exists; remove it explicitly.\n' >&2
+    local bundle="$factory_root/export/$destination.utm"
+    if [[ -e "$system_image" || -e "$bundle" ]]; then
+        printf 'Factory staging for this destination already exists; remove it explicitly.\n' >&2
         return 1
     fi
     if [[ "$(qemu-img info --output json "$cloud_image" | jq -r '.format')" != qcow2 ]]; then
@@ -373,60 +378,96 @@ factory_create() {
     cp "$cloud_image" "$system_image"
     qemu-img resize "$system_image" 128G >/dev/null
 
-    /usr/bin/osascript - "$destination" "$system_image" "$seed_iso" \
-        >/dev/null <<'APPLESCRIPT'
+    # The seed is an ordinary VirtIO disk rather than removable media: UTM
+    # copies it into the bundle, NoCloud finds it by its CIDATA label, and it
+    # survives the export/import below, which drops removable-media bookmarks.
+    created_id="$(/usr/bin/osascript - "$destination" "$system_image" "$seed_iso" <<'APPLESCRIPT'
 on run argv
     set vmName to item 1 of argv
     set systemImage to POSIX file (item 2 of argv)
     set seedIso to POSIX file (item 3 of argv)
     tell application "UTM"
-        make new virtual machine with properties {backend:qemu, configuration:{name:vmName, architecture:"aarch64", memory:4096, cpu cores:4, hypervisor:true, uefi:true, drives:{{interface:VirtIO, source:systemImage}, {removable:true, source:seedIso}}, displays:{{hardware:"virtio-ramfb-gl", dynamic resolution:true}}, network interfaces:{{mode:shared}}}}
+        set newVM to make new virtual machine with properties {backend:qemu, configuration:{name:vmName, architecture:"aarch64", memory:4096, cpu cores:4, hypervisor:true, uefi:true, drives:{{interface:VirtIO, source:systemImage}, {interface:VirtIO, source:seedIso}}, displays:{{hardware:"virtio-ramfb-gl", dynamic resolution:true}}, network interfaces:{{mode:shared}}}}
+        return id of newVM
     end tell
 end run
 APPLESCRIPT
+)" || created_id=""
     status="$("$LINUXVM_UTMCTL" status "$destination" 2>/dev/null || true)"
-    if [[ "$status" != "stopped" ]]; then
+    if [[ -z "$created_id" || "$status" != "stopped" ]]; then
         printf 'UTM did not create a stopped factory target.\n' >&2
         return 1
     fi
-    factory_repair_efi_varstore "$destination" || return 1
+    # UTM copied both images into the new bundle.
+    rm -f "$system_image"
+    factory_normalize_efi_varstore "$created_id" "$bundle" || return 1
     printf 'factory target created\n'
 }
 
 # QEMU's aarch64 `virt` machine maps two 64-MiB pflash banks, and UTM ships no
 # aarch64 variable-store template. A VM created through the scripting interface
-# can therefore receive an undersized efi_vars.fd, which leaves edk2 spinning
-# before any boot device is examined: no guest packets, no disk writes, and no
-# serial output. Normalize the bank to the size of the code image UTM pairs it
-# with, keeping any correctly sized store the application already produced.
-factory_repair_efi_varstore() {
-    local destination="$1"
-    local documents="${LINUXVM_FACTORY_UTM_DIRECTORY:-$HOME/Library/Containers/com.utmapp.UTM/Data/Documents}"
-    # Factory destinations are independent of the currently configured target.
-    local bundle="$documents/$destination.utm"
-    local varstore="$bundle/Data/efi_vars.fd"
-    local code="$HOME/Library/Containers/com.utmapp.UTM/Data/Library/Caches/qemu/edk2-aarch64-code.fd"
-    if [[ ! -f "$varstore" ]]; then
-        printf 'UTM did not create an EFI variable store for the new target.\n' >&2
-        return 1
-    fi
-    local expected=67108864 actual
+# receives an undersized efi_vars.fd (observed with UTM 4.7.5), which leaves
+# edk2 spinning before any boot device is examined: no guest packets, no disk
+# writes, and no serial output. Export the new VM to factory storage, size the
+# bank to the code image UTM pairs it with, and replace the VM with that
+# bundle. Import preserves the VM identity.
+factory_normalize_efi_varstore() {
+    local created_id="$1" bundle="$2" expected=67108864 actual imported_id
+    local code
+    code="$(dirname "$LINUXVM_UTMCTL")/../Resources/qemu/edk2-aarch64-code.fd"
     if [[ -f "$code" ]]; then
         expected="$(stat -f %z "$code")"
     fi
-    actual="$(stat -f %z "$varstore")"
+    mkdir -p "$(dirname "$bundle")"
+    chmod 700 "$(dirname "$bundle")"
+    if ! /usr/bin/osascript - "$created_id" "$bundle" >/dev/null <<'APPLESCRIPT'
+on run argv
+    tell application "UTM"
+        export (first virtual machine whose id is (item 1 of argv)) to (POSIX file (item 2 of argv))
+    end tell
+end run
+APPLESCRIPT
+    then
+        printf 'UTM could not export the new target for EFI normalization.\n' >&2
+        return 1
+    fi
+    if [[ ! -f "$bundle/Data/efi_vars.fd" ]]; then
+        printf 'UTM did not create an EFI variable store for the new target.\n' >&2
+        return 1
+    fi
+    actual="$(stat -f %z "$bundle/Data/efi_vars.fd")"
     if [[ "$actual" == "$expected" ]]; then
+        rm -rf "$bundle"
+        rmdir "$(dirname "$bundle")" 2>/dev/null || true
         return 0
     fi
-    if ! dd if=/dev/zero of="$varstore" bs=1m count=$((expected / 1048576)) \
-            >/dev/null 2>&1; then
+    if ! dd if=/dev/zero of="$bundle/Data/efi_vars.fd" bs=1m \
+            count=$((expected / 1048576)) >/dev/null 2>&1; then
         printf 'Could not normalize the EFI variable store.\n' >&2
         return 1
     fi
+    imported_id="$(/usr/bin/osascript - "$created_id" "$bundle" <<'APPLESCRIPT'
+on run argv
+    tell application "UTM"
+        delete (first virtual machine whose id is (item 1 of argv))
+        set importedVM to import new virtual machine from (POSIX file (item 2 of argv))
+        return id of importedVM
+    end tell
+end run
+APPLESCRIPT
+)" || imported_id=""
+    if [[ "$imported_id" != "$created_id" ]]; then
+        printf 'UTM did not re-import the normalized target; its bundle remains in factory storage.\n' >&2
+        return 1
+    fi
+    rm -rf "$bundle"
+    rmdir "$(dirname "$bundle")" 2>/dev/null || true
     printf 'normalized EFI variable store: %s -> %s bytes\n' "$actual" "$expected" >&2
 }
 
 # Remove the stopped candidate's NoCloud seed once cloud-init has completed.
+# Current factories attach it as the small secondary VirtIO disk; earlier ones
+# used removable media. The system disk is always the first drive.
 factory_detach_media() {
     local status result removed remaining
     linuxvm_assert_mutation_target || return 1
@@ -443,8 +484,10 @@ on run argv
         set vmConfig to configuration of targetVM
         set retainedDrives to {}
         set removedCount to 0
+        set driveIndex to 0
         repeat with driveConfig in drives of vmConfig
-            if removable of driveConfig then
+            set driveIndex to driveIndex + 1
+            if my isSeedDrive(contents of driveConfig, driveIndex) then
                 set removedCount to removedCount + 1
             else
                 set end of retainedDrives to contents of driveConfig
@@ -456,19 +499,28 @@ on run argv
         end if
         set updatedConfig to configuration of targetVM
         set remainingCount to 0
+        set driveIndex to 0
         repeat with driveConfig in drives of updatedConfig
-            if removable of driveConfig then
+            set driveIndex to driveIndex + 1
+            if my isSeedDrive(contents of driveConfig, driveIndex) then
                 set remainingCount to remainingCount + 1
             end if
         end repeat
         return (removedCount as text) & tab & (remainingCount as text)
     end tell
 end run
+
+on isSeedDrive(driveConfig, driveIndex)
+    tell application "UTM"
+        if removable of driveConfig then return true
+        return driveIndex > 1 and (host size of driveConfig) < 16
+    end tell
+end isSeedDrive
 APPLESCRIPT
 )"
     IFS=$'\t' read -r removed remaining <<< "$result"
     if [[ ! "$removed" =~ ^[0-9]+$ || "$remaining" != "0" ]]; then
-        printf 'UTM did not confirm complete removable-media detachment.\n' >&2
+        printf 'UTM did not confirm complete seed-media detachment.\n' >&2
         return 1
     fi
     printf 'factory media detached: removed=%s remaining=0\n' "$removed"

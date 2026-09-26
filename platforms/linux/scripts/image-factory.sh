@@ -134,6 +134,17 @@ render_seed() {
               "python3-pyqt5 wl-clipboard jq git build-essential " +
               "python3-venv; " +
               "snap install chromium; " +
+              "runuser -u " + $username + " -- dbus-run-session -- " +
+              "gsettings set org.gnome.desktop.session idle-delay 0; " +
+              "runuser -u " + $username + " -- dbus-run-session -- " +
+              "gsettings set org.gnome.desktop.screensaver lock-enabled false; " +
+              "install -d -o " + $username + " -g " + $username +
+              " /home/" + $username + "/.config; " +
+              "install -o " + $username + " -g " + $username +
+              " -m 0644 /dev/null /home/" + $username +
+              "/.config/gnome-initial-setup-done; " +
+              "printf \"yes\\n\" > /home/" + $username +
+              "/.config/gnome-initial-setup-done; " +
               "rm -f /etc/netplan/50-cloud-init.yaml; " +
               "netplan generate; " +
               "systemctl disable systemd-networkd-wait-online.service; " +

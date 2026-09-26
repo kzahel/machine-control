@@ -250,7 +250,8 @@ bin/linuxvm target-id
 The seed contains no password or private key. It creates a locked, key-only
 dedicated-appliance user with passwordless sudo, starts QEMU guest-agent,
 installs the Ubuntu desktop and development package profile, enables GNOME
-Wayland auto-login, and reboots after cloud-init completes. Exact UUID pinning,
+Wayland auto-login, disables idle blanking and locking for that user (step 4
+above), marks GNOME initial setup done, and reboots after cloud-init completes. Exact UUID pinning,
 common doctor, and a target-use claim are required before operating the new
 domain. After cloud-init and the normal resident bootstrap pass, stop the
 candidate and use `factory-detach-media` under the same claim to remove its
@@ -279,23 +280,33 @@ bin/linuxvm target-id
 
 `factory-create` never mutates the source download. It copies the cloud image
 into ignored factory storage, expands that copy to 128 GiB, and refuses both an
-already-registered destination and an existing system image. UTM then imports
+already-registered destination and existing factory staging. UTM then imports
 the copy as a VirtIO system disk. The recipe creates a stopped aarch64 QEMU VM
 with UEFI, hardware acceleration, 4 GiB RAM, four cores, shared networking, and
 a `virtio-ramfb-gl` dynamic-resolution display.
 
-Removable seed media stays an external absolute-path reference rather than a
-copy inside the VM bundle, so the rendered ISO must remain readable until
-`factory-detach-media` removes it. A UTM bundle whose configuration lists a CD
-with no image name is therefore normal for this route; confirm the attachment
-from the running QEMU command line rather than from `config.plist`.
+The NoCloud seed is attached as a second, ordinary VirtIO disk rather than
+removable media. UTM copies it into the VM bundle, cloud-init finds it by its
+`CIDATA` label (`DataSourceNoCloud [seed=/dev/vdb]`), and it needs no
+removable-media bookmark outside `config.plist`.
+
+UTM's scripting interface gives a new aarch64 VM an undersized EFI variable
+store (observed with UTM 4.7.5), which leaves the firmware spinning before any
+boot device is examined. The factory corrects it entirely through UTM
+scripting: it exports the new VM to ignored factory storage, sizes the store to
+UTM's paired EDK2 code image, deletes the unnormalized VM, and imports the
+corrected bundle, which keeps the VM's UUID. It never reads or writes UTM's
+sandbox container, which macOS denies to agent and SSH sessions even when they
+may `stat` files inside it. If import fails after the delete, the corrected
+bundle remains in `.factory.local/export/` for manual import.
 
 Write the returned exact UUID into `LINUXVM_EXPECTED_UUID` in private
 configuration before any accepted target operation. Rerun common doctor,
 acquire a target-use claim, and carry that claim through cloud-init, the normal
 resident bootstrap, media detachment, and shutdown. After cloud-init and
 bootstrap pass, stop the candidate and use `factory-detach-media` under the same
-claim to remove its NoCloud seed.
+claim to remove its NoCloud seed disk. Detachment also removes seed media left
+as a removable drive by earlier factories.
 
 The seed contains no password or private key. Do not bake personal credentials,
 SSH private keys, or machine-specific IDs into the image.
@@ -306,4 +317,15 @@ UTM's scripting interface answers reads while its main thread is blocked, so a
 wedged long-running UTM process reports VM status normally but fails every
 mutation with `AppleEvent timed out. (-1712)`. Lifecycle and configuration
 commands then time out even though `utmctl list` looks healthy. Quit and
-relaunch UTM before treating this as a factory or configuration defect.
+relaunch UTM before treating this as a factory or configuration defect. A UTM
+launched hidden (`open -j`) showed the same wedge on every VM start.
+
+UTM can also run without having loaded its virtual-machine library: `utmctl
+list` is empty and commands fail with `UTM is not ready to accept commands`.
+Doctor reports this when the configured bundle exists but is not listed, and
+`up` and `factory-create` first reopen UTM in the background (`open -g -a
+UTM`). If that does not load it, run `open -a UTM` once.
+
+The complete factory route has been exercised unattended while the controller
+was locked: create, NoCloud first boot, cloud-init, resident bootstrap, seed
+detachment, restart, doctor, and two common conformance passes.

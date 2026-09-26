@@ -48,6 +48,9 @@ identity_exit=$?
 if [[ "$identity_exit" -eq 0 ]]; then
     identity=verified
     add_check identity pass 'Exact private target identity is verified'
+elif winvm_utm_library_unloaded; then
+    add_check identity fail \
+        'UTM has not loaded its virtual machine library; open UTM (open -a UTM) and rerun doctor'
 elif [[ "$identity_detail" == *'could not resolve the configured target identity'* ]]; then
     add_check identity fail \
         'Pinned target is not registered in UTM; run winvm repair-registration before re-pinning'

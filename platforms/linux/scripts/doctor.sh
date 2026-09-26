@@ -85,6 +85,13 @@ for _ in {1..60}; do
 done
 [[ -n "$user" ]] && ok "active desktop user: $user" || bad "active desktop user"
 [[ "$session_type" == "wayland" ]] && ok "GNOME Wayland session" || bad "Wayland session: $session_type"
+if [[ -n "$user" ]]; then
+    locked_hint="$($PROVIDER exec /usr/bin/bash -lc \
+        "session=\$(loginctl show-user '$user' -p Display --value) && loginctl show-session \"\$session\" -p LockedHint --value" \
+        2>/dev/null || true)"
+    [[ "$locked_hint" == no ]] && ok "desktop session unlocked" ||
+        bad "desktop session lock state: ${locked_hint:-unknown}"
+fi
 
 if $PROVIDER exec /usr/bin/systemctl is-active --quiet qemu-guest-agent; then
     ok "qemu-guest-agent service"

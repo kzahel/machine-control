@@ -75,6 +75,7 @@ unset linuxvm_environment_value linuxvm_environment_values
 LINUXVM_PROVIDER="${LINUXVM_PROVIDER:-utm-macos}"
 LINUXVM_UTM_NAME="${LINUXVM_UTM_NAME:-Linux}"
 LINUXVM_UTMCTL="${LINUXVM_UTMCTL:-/Applications/UTM.app/Contents/MacOS/utmctl}"
+LINUXVM_UTM_BUNDLE="${LINUXVM_UTM_BUNDLE:-$HOME/Library/Containers/com.utmapp.UTM/Data/Documents/$LINUXVM_UTM_NAME.utm}"
 LINUXVM_LIBVIRT_URI="${LINUXVM_LIBVIRT_URI:-qemu:///system}"
 LINUXVM_LIBVIRT_DOMAIN_NAME="${LINUXVM_LIBVIRT_DOMAIN_NAME:-$LINUXVM_UTM_NAME}"
 LINUXVM_LIBVIRT_VIRSH="${LINUXVM_LIBVIRT_VIRSH:-virsh}"
@@ -235,4 +236,29 @@ linuxvm_assert_outer_ui_allowed() {
         printf 'Outer UTM capture/input is prohibited for this operation\n' >&2
         return 1
     fi
+}
+
+# UTM loads its virtual-machine library with its main window. A UTM process
+# whose library was never loaded lists no VMs and refuses commands with "UTM is
+# not ready to accept commands", which otherwise looks like a missing VM. The
+# configured bundle is still observable with stat, which macOS permits inside
+# UTM's container even where listing and reading are denied.
+linuxvm_utm_library_unloaded() {
+    [[ "$LINUXVM_PROVIDER" == utm-macos && -e "$LINUXVM_UTM_BUNDLE" ]] || return 1
+    ! "$LINUXVM_UTMCTL" status "$LINUXVM_UTM_NAME" >/dev/null 2>&1
+}
+
+# Ask LaunchServices to reopen UTM in the background, which creates its main
+# window and loads the library, then wait for the configured VM to appear.
+linuxvm_load_utm_library() {
+    linuxvm_utm_library_unloaded || return 0
+    /usr/bin/open -g -a UTM >/dev/null 2>&1 || true
+    local attempt
+    for attempt in {1..20}; do
+        sleep 1
+        linuxvm_utm_library_unloaded || return 0
+    done
+    printf '%s\n' \
+        'UTM has not loaded its virtual machine library; open UTM once (open -a UTM) and retry' >&2
+    return 1
 }

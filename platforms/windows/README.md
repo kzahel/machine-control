@@ -206,6 +206,10 @@ resident, semantic, capture, input, and outer states without publishing the
 configured machine identity, desktop user, or network address. It is read-only
 and exits nonzero when the accepted resident surface is not ready.
 
+If doctor instead reports that UTM has not loaded its virtual machine
+library, the VM is registered but UTM is listing none; open UTM once
+(`open -a UTM`) and rerun doctor rather than repairing registration.
+
 If the identity check says the pinned target is not registered in UTM, run
 `bin/winvm repair-registration`. That explicit host-side repair first requires
 a classified role and UUID pin, reads the on-disk bundle metadata, and opens

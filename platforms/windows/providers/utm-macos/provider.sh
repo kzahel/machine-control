@@ -789,6 +789,7 @@ vm_down() {
 
 ensure_running() {
     local status
+    winvm_load_utm_library || return 1
     status="$(vm_status || true)"
     if [[ "$status" != "started" ]]; then
         "$WINVM_UTMCTL" start --hide "$(utm_target_identifier)" >/dev/null 2>&1 || true

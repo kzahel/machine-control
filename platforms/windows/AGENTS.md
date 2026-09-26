@@ -54,6 +54,10 @@ command surface and read `skills/drive-winvm/SKILL.md` for the operating
 workflow. Invoke `bin/winvm` directly only when ignored configuration or the
 documented `WINVM_*` inventory environment is already present.
 
+If doctor instead reports that UTM has not loaded its virtual machine
+library, the VM is registered but UTM is listing none; open UTM once
+(`open -a UTM`) and rerun doctor rather than repairing registration.
+
 If doctor reports that the exact pinned target is not registered in UTM, use
 the existing UUID pin to acquire a claim, then run the native
 `repair-registration` command through that claim. The operation verifies the

@@ -4,6 +4,43 @@ This is a living record of concrete gaps encountered while using LinuxVM
 Testbed. Keep observed behavior, effect, workaround, and a likely improvement
 direction together so later work can reproduce the problem.
 
+## Observed 2026-09-26 during unattended factory bring-up on a locked host
+
+### UTM can report an empty library or wedge every start
+
+Status: **detected and mitigated.** A UTM process that had run since login
+listed no VMs and refused `make` with `UTM is not ready to accept commands
+(-2700)`, which made the Windows doctor misreport its pinned VM as
+unregistered. Opening UTM through LaunchServices loaded the library. Separately,
+a UTM relaunched hidden with `open -j` answered reads but timed out every VM
+start with `-1712` until it was quit and relaunched normally.
+
+The configured bundle remains observable with `stat` inside UTM's container
+even where listing is denied, so the Linux and Windows adapters now detect
+"bundle exists but UTM does not list it", report it in doctor, and have `up`
+and the factory reopen UTM in the background (`open -g`, never `-j`) before
+failing with the same advice. The login-time trigger was not reproduced.
+
+### Clipboard text could paste stale contents
+
+Status: **resolved.** On a freshly built appliance the resident pasted the
+previous clipboard contents or nothing: Ctrl+V arrived 0.1 s after starting
+`wl-copy --paste-once`, before it owned the selection or while its focus
+surface held the keyboard, and another reader consumed the one-shot offer. The
+resident now waits for `wl-copy` to own the selection, confirms the exact text,
+and settles focus first; 20 repeated and unique deliveries and two full
+conformance runs passed on the factory appliance.
+
+### Doctor reported a locked guest session as unlocked
+
+Status: **resolved.** GNOME's default five-minute idle lock locked the factory
+appliance while doctor still reported `desktop: unlocked`, because it only
+checked for a logged-in Wayland user. Doctor now reads logind `LockedHint`, and
+the factory seed disables idle blanking and locking and marks GNOME initial
+setup done so the first-login window does not take focus. Running
+`loginctl unlock-session` against the locked GNOME Wayland session ended the
+session and returned to GDM instead of unlocking it; reboot to recover.
+
 ## Resolved 2026-08-10 during resident reboot acceptance
 
 ### Enabled resident services were not boot-ready

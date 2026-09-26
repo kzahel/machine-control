@@ -141,9 +141,13 @@ commands, paths, or arbitrary device events. The route is still powerful: it
 can drive the whole logged-in desktop and is honestly reported as privileged
 dedicated-appliance control, not same-user isolation.
 
-Unicode text uses `wl-copy --paste-once` in the active Wayland session and a
-virtual Ctrl+V. This avoids keyboard-layout assumptions and reports the
-clipboard side effect. A deterministic GTK fixture writes each semantic,
+Unicode text uses `wl-copy` in the active Wayland session and a virtual
+Ctrl+V. This avoids keyboard-layout assumptions and reports the clipboard side
+effect. GNOME has no data-control protocol, so `wl-copy` and `wl-paste` each
+take keyboard focus briefly; the resident waits for `wl-copy` to return owning
+the selection, confirms the clipboard serves the exact text, and lets focus
+settle before pasting. A delivery that cannot establish ownership is refused
+as `text_delivery_failed` rather than pasting stale contents. A deterministic GTK fixture writes each semantic,
 pointer, drag, scroll, key, and text effect to a separate JSON oracle.
 
 Framework acceptance adds a PyQt5/XWayland fixture with the Qt accessibility

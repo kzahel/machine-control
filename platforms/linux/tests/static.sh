@@ -257,4 +257,16 @@ if ${maintenance_env[@]} \
     printf 'Linux certification accepted an invalid timeout\n' >&2
     exit 1
 fi
+utm_bundle="$temporary/utm-documents/fixture-library.utm"
+mkdir -p "$utm_bundle"
+library_state() {
+    env LINUXVM_CONFIG_FILE=/dev/null LINUXVM_PROVIDER=utm-macos \
+        LINUXVM_UTM_NAME=fixture-library LINUXVM_UTM_BUNDLE="$1" \
+        LINUXVM_UTMCTL="$2" \
+        bash -c 'source "$1"; linuxvm_utm_library_unloaded && echo unloaded || echo loaded' \
+            _ "$REPO_DIR/scripts/common.sh"
+}
+[[ "$(library_state "$utm_bundle" /usr/bin/false)" == unloaded ]]
+[[ "$(library_state "$utm_bundle" /usr/bin/true)" == loaded ]]
+[[ "$(library_state "$temporary/utm-documents/absent.utm" /usr/bin/false)" == loaded ]]
 printf 'Linux native static checks passed\n'

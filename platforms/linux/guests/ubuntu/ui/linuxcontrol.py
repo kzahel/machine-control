@@ -14,6 +14,7 @@ import socket
 import struct
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from collections import OrderedDict
@@ -35,6 +36,28 @@ ARTIFACT_DIRECTORY = Path.home() / ".cache/linuxvm-testbed/artifacts"
 INPUT_SOCKET = Path("/run/linuxvm-testbed/input.sock")
 INPUT_ROUTE = "guest.system/linux.uinput"
 APPLICATION_ROUTE = "guest.user/linux.systemd-atspi"
+CLIPBOARD_TYPE = "text/plain;charset=utf-8"
+CLIPBOARD_OWNERSHIP_TIMEOUT_SECONDS = 3.0
+CLIPBOARD_FOCUS_SETTLE_SECONDS = 0.3
+
+
+def clipboard_serves(expected: bytes) -> bool:
+    """Wait until the clipboard serves exactly the expected text."""
+    deadline = time.monotonic() + CLIPBOARD_OWNERSHIP_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        try:
+            current = subprocess.run(
+                ["/usr/bin/wl-paste", "--no-newline", "--type", CLIPBOARD_TYPE],
+                capture_output=True,
+                timeout=1,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            current = None
+        if current is not None and current.returncode == 0 and current.stdout == expected:
+            return True
+        time.sleep(0.05)
+    return False
 
 
 def role_name(native: str) -> str:
@@ -505,36 +528,41 @@ class Resident:
         clipboard_side_effect = False
         if action == "text":
             text = str(request.get("text") or "")
-            provider = subprocess.Popen(
-                [
-                    "/usr/bin/wl-copy",
-                    "--foreground",
-                    "--paste-once",
-                    "--type",
-                    "text/plain;charset=utf-8",
-                ],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-            )
-            assert provider.stdin is not None
-            provider.stdin.write(text.encode("utf-8"))
-            provider.stdin.close()
-            time.sleep(0.1)
-            self.call_input({"operation": "key", "key": "ctrl+v"})
-            try:
-                provider.wait(timeout=3)
-            except subprocess.TimeoutExpired as error:
-                provider.terminate()
-                provider.wait(timeout=2)
+            # GNOME offers no data-control protocol, so wl-copy and wl-paste
+            # each take keyboard focus briefly. In its default mode wl-copy
+            # returns only once it owns the selection and leaves a child to
+            # serve it; pasting earlier inserts the previous contents, and
+            # pasting before focus returns loses the keystroke.
+            # The serving child inherits these descriptors, so use a file
+            # rather than a pipe that would stay open until it exits.
+            with tempfile.TemporaryFile() as errors:
+                try:
+                    copied = subprocess.run(
+                        ["/usr/bin/wl-copy", "--type", CLIPBOARD_TYPE],
+                        input=text.encode("utf-8"),
+                        stdout=subprocess.DEVNULL,
+                        stderr=errors,
+                        timeout=CLIPBOARD_OWNERSHIP_TIMEOUT_SECONDS,
+                        check=False,
+                    )
+                except subprocess.TimeoutExpired as error:
+                    raise ControlFailure(
+                        "text_delivery_failed",
+                        "Clipboard ownership was not established",
+                    ) from error
+                if copied.returncode != 0:
+                    errors.seek(0)
+                    raise ControlFailure(
+                        "text_delivery_failed",
+                        errors.read().decode("utf-8", errors="replace").strip()
+                        or "Clipboard ownership was not established",
+                    )
+            if not clipboard_serves(text.encode("utf-8")):
                 raise ControlFailure(
-                    "text_delivery_failed", "Clipboard paste was not consumed"
-                ) from error
-            if provider.returncode != 0:
-                detail = (provider.stderr.read() if provider.stderr else b"").decode(
-                    "utf-8", errors="replace"
+                    "text_delivery_failed", "Clipboard did not serve the requested text"
                 )
-                raise ControlFailure("text_delivery_failed", detail.strip())
+            time.sleep(CLIPBOARD_FOCUS_SETTLE_SECONDS)
+            self.call_input({"operation": "key", "key": "ctrl+v"})
             clipboard_side_effect = True
         else:
             self.call_input(broker_request)

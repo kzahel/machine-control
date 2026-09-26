@@ -46,7 +46,12 @@ case "$status" in
         add_check power fail 'Target is suspended'
         ;;
     *)
-        add_check power fail 'Target power state is unknown'
+        if linuxvm_utm_library_unloaded; then
+            add_check power fail \
+                'UTM has not loaded its virtual machine library; open UTM (open -a UTM) and rerun doctor'
+        else
+            add_check power fail 'Target power state is unknown'
+        fi
         ;;
 esac
 
@@ -73,8 +78,25 @@ if [[ "$administration" == ready ]]; then
     done
 fi
 if [[ -n "$desktop_user" && "$session_type" == wayland ]]; then
-    desktop=unlocked
-    add_check desktop pass 'Logged-in GNOME Wayland session is ready'
+    # A logged-in session is not proof of an unlocked one: GNOME's idle lock
+    # keeps the session while blocking input focus and the clipboard.
+    locked_hint="$($PROVIDER exec /usr/bin/bash -lc \
+        "session=\$(loginctl show-user '$desktop_user' -p Display --value) && loginctl show-session \"\$session\" -p LockedHint --value" \
+        2>/dev/null || true)"
+    case "$locked_hint" in
+        no)
+            desktop=unlocked
+            add_check desktop pass 'Logged-in GNOME Wayland session is ready'
+            ;;
+        yes)
+            desktop=locked
+            add_check desktop fail 'GNOME Wayland session is locked'
+            ;;
+        *)
+            desktop=unknown
+            add_check desktop fail 'GNOME Wayland session lock state is unknown'
+            ;;
+    esac
 else
     add_check desktop fail 'Logged-in GNOME Wayland session is unavailable'
 fi
