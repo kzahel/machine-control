@@ -25,8 +25,8 @@ USAGE
 
 secret_file_ready() {
     [[ -f "$WINVM_LOGIN_SECRET_FILE" && -s "$WINVM_LOGIN_SECRET_FILE" &&
-       "$(stat -f %Lp "$WINVM_LOGIN_SECRET_FILE" 2>/dev/null ||
-          stat -c %a "$WINVM_LOGIN_SECRET_FILE")" == 600 ]]
+       "$(stat -c %a "$WINVM_LOGIN_SECRET_FILE" 2>/dev/null ||
+          stat -f %Lp "$WINVM_LOGIN_SECRET_FILE")" == 600 ]]
 }
 
 require_pinned() {

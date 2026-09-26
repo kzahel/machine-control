@@ -362,12 +362,16 @@ APPLESCRIPT
 # writes, no serial output. Export the new VM to factory storage, size the
 # bank to the code image UTM pairs it with, and replace the VM with that
 # bundle. Import preserves the VM identity.
+factory_file_size() {
+    stat -c %s "$1" 2>/dev/null || stat -f %z "$1"
+}
+
 factory_normalize_efi_varstore() {
     local created_id="$1" bundle="$2" expected=67108864 actual imported_id
     local code
     code="$(dirname "$WINVM_UTMCTL")/../Resources/qemu/edk2-aarch64-code.fd"
     if [[ -f "$code" ]]; then
-        expected="$(stat -f %z "$code")"
+        expected="$(factory_file_size "$code")"
     fi
     mkdir -p "$(dirname "$bundle")"
     chmod 700 "$(dirname "$bundle")"
@@ -387,13 +391,13 @@ APPLESCRIPT
         printf 'UTM did not create an EFI variable store for the new target.\n' >&2
         return 1
     fi
-    actual="$(stat -f %z "$bundle/Data/efi_vars.fd")"
+    actual="$(factory_file_size "$bundle/Data/efi_vars.fd")"
     if [[ "$actual" == "$expected" ]]; then
         rm -rf "$bundle"
         rmdir "$(dirname "$bundle")" 2>/dev/null || true
         return 0
     fi
-    if ! dd if=/dev/zero of="$bundle/Data/efi_vars.fd" bs=1m \
+    if ! dd if=/dev/zero of="$bundle/Data/efi_vars.fd" bs=1048576 \
             count=$((expected / 1048576)) >/dev/null 2>&1; then
         printf 'Could not normalize the EFI variable store.\n' >&2
         return 1

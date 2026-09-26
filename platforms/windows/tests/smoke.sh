@@ -798,8 +798,8 @@ printf 'fixture-password\n' >"$temporary/fixture-password"
 "${credential_env[@]}" "$REPO_DIR/scripts/credential.sh" store \
     "$temporary/fixture-password" >/dev/null
 [[ "$(<"$temporary/secrets/fixture/login-password.secret")" == fixture-password ]]
-[[ "$(stat -f %Lp "$temporary/secrets/fixture/login-password.secret" 2>/dev/null ||
-    stat -c %a "$temporary/secrets/fixture/login-password.secret")" == 600 ]]
+[[ "$(stat -c %a "$temporary/secrets/fixture/login-password.secret" 2>/dev/null ||
+    stat -f %Lp "$temporary/secrets/fixture/login-password.secret")" == 600 ]]
 [[ "$("${credential_env[@]}" "$REPO_DIR/scripts/credential.sh" status --json |
     jq -r .loginPassword)" == stored ]]
 if env WINVM_CONFIG_FILE=/dev/null WINVM_TARGET_FILE=/dev/null WINVM_COMMON_LOADED= \
