@@ -29,9 +29,18 @@ a mode-0600 file, never an argument or environment variable. Detach and
 securely discard the ISO after first-logon bootstrap. The factory keeps the
 controller's public SSH key, but never its private key.
 
-For a retained test appliance, use the credential file declared by the private
-inventory as `PRIVATE_SECRET_FILE`. If the setup password is rotated, replace
-that same file atomically with the current password before ending the task.
+Every appliance's current login password must be stored before the task
+ends. The adapter keeps it in `WINVM_LOGIN_SECRET_FILE`, which defaults to a
+mode-0600 file under
+`~/.local/share/machine-control/secrets/windows/<UTM UUID>/login-password.secret`
+(set the variable to use a private inventory locator instead). After pinning
+the new target, record the setup password with `bin/winvm credential store
+PRIVATE_SECRET_FILE`, then use `bin/winvm credential rotate`: it writes the new
+random password to a pending file before changing Windows, verifies it in the
+guest, and only then replaces the stored file, so no outcome leaves a password
+that is not stored. `bin/winvm credential verify` proves the stored value, and
+doctor warns when none is stored. A VM whose password is unknown is deleted and
+rebuilt, not recovered by guessing.
 Run `bin/machine-control inventory credentials winvm` from the repository root
 to discover and validate the file. A random temporary path that is later
 deleted is appropriate only when the VM itself is also discarded.
@@ -144,8 +153,14 @@ bin/winvm factory-create PRIVATE_NAME \
   .factory.local/winvm-seed.iso \
   .factory.local/winvm-boot.img
 bin/winvm pin-target candidate PRIVATE_NAME
+bin/winvm credential store PRIVATE_SECRET_FILE
 bin/winvm up
+bin/winvm factory-status --json
+bin/winvm trust-ssh-host-key
 ```
+
+`factory-status` reads first-logon progress and `trust-ssh-host-key` trusts
+the guest's host key through the UTM guest agent, matching the libvirt route.
 
 On a Linux controller, the libvirt factory stages private installer and seed
 copies as owned volumes in the exact dedicated pool before defining the
@@ -173,6 +188,16 @@ disk, shared networking, and removable installer, data-seed, and boot-seed
 media. Media compatibility, Windows edition/index, driver availability, and
 activation are caller-owned inputs and must be proven on the exact ISO.
 
+Every step goes through UTM scripting; the factory never reads or writes UTM's
+sandbox container, which macOS denies to agent and SSH sessions. UTM gives a
+scripted aarch64 VM the 32-bit Arm EFI variable template (329,216 bytes in UTM
+4.7.5) instead of a 64-MiB store, so the factory creates the VM with only its
+system disk, exports it to `.factory.local/export/`, sizes the store to UTM's
+paired EDK2 code image, deletes the unnormalized VM, and imports the corrected
+bundle, which keeps its UUID. Export and import drop removable-media
+attachments, so the installer, data seed, and boot seed are attached afterward;
+UTM then lists the system disk first.
+
 The libvirt recipe defines but does not start a persistent native x86_64 KVM
 domain. It uses CPU host passthrough, Q35, enrolled-key Secure Boot firmware,
 an emulated TPM 2.0 CRB device, VirtIO QCOW2 storage and networking, a QEMU
@@ -181,7 +206,15 @@ bootstrap/recovery. Creation refuses an existing name or volume and rolls back
 only its exact newly owned domain and volume after a failed definition.
 
 Windows Setup restarts after laying down the system disk, while first logon
-still needs the seed. If UEFI remains at `Start boot option`, stop the candidate
+still needs the seed. With the system disk listed first, the 2026-09-26 run
+booted the installed disk after that restart and completed specialization,
+OOBE, first logon, and the SSH bootstrap in about 15 minutes without any
+intervention. An idle disk and an absent guest agent are not evidence of the
+firmware boundary: that run's earlier attempt was force-stopped on that
+inference during specialization and Windows then refused to continue with
+"The computer restarted unexpectedly". Force-stop only after observing the
+firmware screen through the recovery screenshot. If UEFI does remain at
+`Start boot option`, stop the candidate
 through `bin/winvm down`, run `bin/winvm factory-detach-installer`, and start it
 again. At this pre-guest firmware boundary there may be no running OS capable
 of shutdown; after explicit operator authorization, `bin/winvm force-stop` is
@@ -192,9 +225,12 @@ drive shape differs.
 
 After Windows first-logon bootstrap completes, verify key-only SSH, remove the
 one-use answer media and Windows ISO with `bin/winvm factory-detach-media`
-while the candidate is stopped, rotate the setup credential, update and verify
-the private inventory's declared credential file, and install the development
-appliance through its UUID-bound bootstrap:
+while the candidate is stopped, rotate and store the setup credential with
+`bin/winvm credential rotate`, sign in from the stored password with
+`bin/winvm login` after any cold boot, and install the development appliance
+through its UUID-bound bootstrap. The bootstrap's in-session helper needs a
+signed-in desktop, and it builds the runtime with the .NET 8 SDK on the
+controller:
 
 ```bash
 ../../scripts/bootstrap-windows.sh --testbed . \

@@ -315,11 +315,13 @@ nor boots or clones a seal.
   not automatic fallbacks.
 - A stopped UTM VM can be cloned into a provider-owned seal. A seal can be
   started in disposable mode for verification without saving guest changes.
-- A cold boot normally requires one manual Windows login. A dedicated test
-  appliance may use explicitly authorized guest-local auto-logon, but its
-  credential must never be stored in this repository or command output. A
-  private inventory may locate a controller-local password file so creation,
-  rotation, and recovery survive an agent handoff.
+- A cold boot stops at the Windows sign-in screen. `bin/winvm login` signs in
+  through the protected broker from the appliance's stored password
+  (`WINVM_LOGIN_SECRET_FILE`, a per-UUID mode-0600 file in the controller's
+  secret store by default). Store every password an appliance is given with
+  `bin/winvm credential store` and change it only with `bin/winvm credential
+  rotate`, which stores and verifies the new value; doctor warns when none is
+  stored. Credentials never belong in this repository or command output.
 - Windows update/recovery and post-boot service initialization can take several
   minutes. Ordinary start waits up to ten minutes by default. A `started` UTM
   state with guest-agent, SSH, or resident readiness still unavailable is not

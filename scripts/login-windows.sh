@@ -21,7 +21,8 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 printf 'Enter Windows %s: ' "$credential_kind" >&2
-if ! IFS= read -r -s secret; then
+# A redirected secret file may end without a newline.
+if ! IFS= read -r -s secret && [[ -z "$secret" ]]; then
   printf '\nUnable to read credential\n' >&2
   exit 1
 fi

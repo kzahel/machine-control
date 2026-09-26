@@ -45,6 +45,9 @@ WINVM_UTM_NAME="${WINVM_UTM_NAME:-Windows}"
 WINVM_EXPECTED_UTM_ID="${WINVM_EXPECTED_UTM_ID:-}"
 WINVM_TARGET_ROLE="${WINVM_TARGET_ROLE:-unclassified}"
 WINVM_UTM_BUNDLE="${WINVM_UTM_BUNDLE:-$HOME/Library/Containers/com.utmapp.UTM/Data/Documents/$WINVM_UTM_NAME.utm}"
+# Every appliance's current login password lives in a controller-local mode-0600
+# file keyed by the exact provider identity, so a cold boot can always sign in.
+WINVM_LOGIN_SECRET_FILE="${WINVM_LOGIN_SECRET_FILE:-${XDG_DATA_HOME:-$HOME/.local/share}/machine-control/secrets/windows/${WINVM_EXPECTED_UTM_ID:-unpinned}/login-password.secret}"
 WINVM_ALLOW_SOURCE_MUTATION="${WINVM_ALLOW_SOURCE_MUTATION:-0}"
 WINVM_ALLOW_PERSISTENT_SEAL_BOOT="${WINVM_ALLOW_PERSISTENT_SEAL_BOOT:-0}"
 WINVM_UTMCTL="${WINVM_UTMCTL:-/Applications/UTM.app/Contents/MacOS/utmctl}"

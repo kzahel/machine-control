@@ -243,6 +243,7 @@ direct_control="$(env "${direct_environment[@]}" \
 
 set +e
 doctor_json="$(
+    WINVM_CONFIG_FILE=/dev/null WINVM_TARGET_FILE=/dev/null \
     WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-always-stopped" \
     WINVM_FORBID_OUTER_UI=true \
     "$REPO_DIR/scripts/doctor-json.sh"
@@ -450,6 +451,7 @@ touch "$temporary/factory-media/windows.iso" \
     factory_output="$(WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-factory-create" \
     WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-factory-create" \
     WINVM_FACTORY_UTM_DIRECTORY="$temporary/factory-targets" \
+    WINVM_FACTORY_LOCAL_ROOT="$temporary/factory-local" \
     WINVM_UTM_BUNDLE="$temporary/unrelated-target.utm" \
     WINVM_TEST_FACTORY_UTMCTL_MARKER="$temporary/factory-created" \
     "$provider" factory-create fixture \
@@ -457,6 +459,7 @@ touch "$temporary/factory-media/windows.iso" \
         factory-media/boot.img)"
     [[ "$factory_output" == 'factory target created' ]]
     [[ "$(wc -c <"$temporary/factory-targets/fixture.utm/Data/efi_vars.fd" | tr -d ' ')" == 67108864 ]]
+    [[ ! -e "$temporary/factory-local/export" ]]
     [[ ! -e "$temporary/unrelated-target.utm" ]]
 )
 
@@ -783,5 +786,29 @@ utm_library_state() {
 [[ "$(utm_library_state "$utm_bundle" /usr/bin/false)" == unloaded ]]
 [[ "$(utm_library_state "$utm_bundle" /usr/bin/true)" == loaded ]]
 [[ "$(utm_library_state "$temporary/utm-documents/absent.utm" /usr/bin/false)" == loaded ]]
+
+credential_env=(
+    env WINVM_CONFIG_FILE=/dev/null WINVM_TARGET_FILE=/dev/null WINVM_COMMON_LOADED=
+    WINVM_EXPECTED_UTM_ID=fixture-credential-target
+    WINVM_LOGIN_SECRET_FILE="$temporary/secrets/fixture/login-password.secret"
+)
+printf 'fixture-password\n' >"$temporary/fixture-password"
+[[ "$("${credential_env[@]}" "$REPO_DIR/scripts/credential.sh" status --json |
+    jq -r .loginPassword)" == missing ]]
+"${credential_env[@]}" "$REPO_DIR/scripts/credential.sh" store \
+    "$temporary/fixture-password" >/dev/null
+[[ "$(<"$temporary/secrets/fixture/login-password.secret")" == fixture-password ]]
+[[ "$(stat -f %Lp "$temporary/secrets/fixture/login-password.secret" 2>/dev/null ||
+    stat -c %a "$temporary/secrets/fixture/login-password.secret")" == 600 ]]
+[[ "$("${credential_env[@]}" "$REPO_DIR/scripts/credential.sh" status --json |
+    jq -r .loginPassword)" == stored ]]
+if env WINVM_CONFIG_FILE=/dev/null WINVM_TARGET_FILE=/dev/null WINVM_COMMON_LOADED= \
+        WINVM_EXPECTED_UTM_ID= \
+        WINVM_LOGIN_SECRET_FILE="$temporary/secrets/unpinned.secret" \
+        "$REPO_DIR/scripts/credential.sh" store "$temporary/fixture-password" \
+        >/dev/null 2>&1; then
+    printf 'Credential store accepted an unpinned appliance\n' >&2
+    exit 1
+fi
 
 printf 'Smoke tests passed.\n'

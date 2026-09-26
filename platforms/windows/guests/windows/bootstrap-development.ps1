@@ -41,6 +41,28 @@ function Test-DotNet8Sdk {
         @($sdks | Where-Object { $_ -match '^8\.' }).Count -gt 0
 }
 
+# APPINSTALLER_CLI_ERROR_SOURCE_DATA_MISSING (0x8A15000F).
+$WinGetSourceDataMissing = -1978335217
+
+# The winget community source is a per-user MSIX package that App Installer
+# normally deploys in an interactive session. A fresh appliance reached only
+# over SSH has none, so install Microsoft's signed source package directly;
+# Add-AppxPackage enforces its signature.
+function Initialize-WinGetSource {
+    $previousProgress = $ProgressPreference
+    $ProgressPreference = 'SilentlyContinue'
+    $sourcePackage = Join-Path $env:TEMP 'winget-source.msix'
+    try {
+        Invoke-WebRequest -UseBasicParsing `
+            -Uri 'https://cdn.winget.microsoft.com/cache/source.msix' `
+            -OutFile $sourcePackage
+        Add-AppxPackage -Path $sourcePackage -ErrorAction Stop
+    } finally {
+        Remove-Item -LiteralPath $sourcePackage -Force -ErrorAction SilentlyContinue
+        $ProgressPreference = $previousProgress
+    }
+}
+
 function Install-WinGetPackage {
     param([Parameter(Mandatory = $true)][string]$Identifier)
 
@@ -48,13 +70,19 @@ function Install-WinGetPackage {
     if (-not $winget) {
         throw 'winget.exe is required for the development profile'
     }
-    $wingetOutput = @(& $winget.Source install --id $Identifier --exact --silent `
-        --disable-interactivity --accept-source-agreements `
-        --accept-package-agreements 2>&1)
-    $wingetExitCode = $LASTEXITCODE
-    if ($wingetExitCode -ne 0) {
-        throw "winget package installation failed with $wingetExitCode"
+    foreach ($attempt in 1..2) {
+        $wingetOutput = @(& $winget.Source install --id $Identifier --exact --silent `
+            --disable-interactivity --accept-source-agreements `
+            --accept-package-agreements 2>&1)
+        $wingetExitCode = $LASTEXITCODE
+        if ($wingetExitCode -eq 0) { return }
+        if ($attempt -eq 1 -and $wingetExitCode -eq $WinGetSourceDataMissing) {
+            Initialize-WinGetSource
+            continue
+        }
+        break
     }
+    throw "winget package installation failed with $wingetExitCode"
 }
 
 $pythonBefore = Test-Python3

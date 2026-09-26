@@ -232,6 +232,15 @@ else
     add_check outer skip 'Outer recovery was not evaluated'
 fi
 
+# Every appliance's current login password must be stored so a cold boot can
+# sign in without a person. This reads only the file's presence.
+if [[ -f "$WINVM_LOGIN_SECRET_FILE" && -s "$WINVM_LOGIN_SECRET_FILE" ]]; then
+    add_check credential pass 'Login password is stored for this appliance'
+else
+    add_check credential warn \
+        'No stored login password; a cold boot cannot sign in unattended (winvm credential store or rotate)'
+fi
+
 ready=false
 if [[ "$identity" == verified && "$power" == running &&
       "$administration" == ready &&

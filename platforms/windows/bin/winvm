@@ -38,6 +38,9 @@ Setup:
   trust-ssh-host-key     Trust the exact guest's SSH host key via QGA
   deploy-ui              Install WinApp and deploy/restart the session-1 relay
   ssh-config USER        Print the recommended OpenSSH client entry
+  credential status|store FILE|rotate|verify
+                         Keep the login password stored and recoverable
+  login                  Sign in with the stored login password
 
 UTM/macOS recovery:
   A claim acquired with --disruptive is required for these commands.
@@ -174,6 +177,8 @@ case "$command" in
     deploy-ui) assert_target deploy-ui; exec "$REPO_DIR/scripts/deploy-ui.sh" "$@" ;;
     stage-bootstrap) provider stage-bootstrap "$@" ;;
     ssh-config) print_ssh_config "$@" ;;
+    credential) exec "$REPO_DIR/scripts/credential.sh" "$@" ;;
+    login) exec "$REPO_DIR/scripts/credential.sh" login "$@" ;;
     ui) exec "$REPO_DIR/bin/winui" "$@" ;;
     ssh|ps) provider ssh-exec "$@" ;;
     wsl) provider ssh-exec wsl.exe "$@" ;;

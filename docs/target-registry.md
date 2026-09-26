@@ -330,8 +330,13 @@ but it must not contain credential values.
 
 When an adapter needs a controller-held credential:
 
-1. Store the value in an appropriate untracked local secret store.
-2. Put only a typed file locator in private inventory.
+1. Store the value in an appropriate untracked local secret store. Record every
+   password an appliance is given, including one-use setup passwords, when it
+   is set; replace the same file atomically on rotation; and verify it before
+   the task ends. A target whose login credential is unknown is destroyed and
+   rebuilt rather than kept.
+2. Put only a typed file locator in private inventory, or rely on the
+   adapter's documented default locator.
 3. Pass only that path through the adapter's documented environment variable.
 4. Let the platform's dedicated one-shot secret transport read and deliver the
    value without adding it to ordinary arguments, JSON, logs, captures, or

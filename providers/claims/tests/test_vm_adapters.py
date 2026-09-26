@@ -200,6 +200,7 @@ class VmClaimAdapterTests(unittest.TestCase):
         executable = ROOT / "platforms" / "windows" / "bin" / "winvm"
         environment = {
             "WINVM_CONFIG_FILE": "/dev/null",
+            "WINVM_TARGET_FILE": "/dev/null",
             "WINVM_CLAIM_STATE_DIR": str(self.directory / "unresolved"),
         }
         result = self.run_adapter(

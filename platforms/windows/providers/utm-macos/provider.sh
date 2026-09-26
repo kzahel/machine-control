@@ -193,7 +193,7 @@ persistent_seal_boot_authorized() {
 role_allows_operation() {
     local role="$1" operation="$2"
     case "$operation" in
-        inspect|status|capabilities|target-id|screenshot|down|shutdown|suspend)
+        inspect|status|capabilities|target-id|factory-status|trust-host-key|screenshot|down|shutdown|suspend)
             return 0
             ;;
         seal)
@@ -271,12 +271,16 @@ assert_target() {
     fi
 }
 
+# Create a stopped ARM64 UTM Windows factory target. Every step goes through
+# UTM scripting, so the factory never reads or writes UTM's sandbox container,
+# which macOS denies to agent and SSH sessions.
 factory_create() {
     if [[ $# -ne 4 || -z "$1" || -z "$2" || -z "$3" || -z "$4" ]]; then
         printf 'Usage: winvm factory-create NAME WINDOWS_ISO SEED_ISO BOOT_IMAGE\n' >&2
         return 2
     fi
-    local destination="$1" windows_iso="$2" seed_iso="$3" boot_image="$4" status
+    local destination="$1" windows_iso="$2" seed_iso="$3" boot_image="$4"
+    local status created_id attached
     for media in "$windows_iso" "$seed_iso" "$boot_image"; do
         if [[ ! -f "$media" || ! -r "$media" ]]; then
             printf 'Factory media is absent or unreadable.\n' >&2
@@ -286,64 +290,263 @@ factory_create() {
     windows_iso="$(cd "$(dirname "$windows_iso")" && pwd -P)/$(basename "$windows_iso")"
     seed_iso="$(cd "$(dirname "$seed_iso")" && pwd -P)/$(basename "$seed_iso")"
     boot_image="$(cd "$(dirname "$boot_image")" && pwd -P)/$(basename "$boot_image")"
+    winvm_load_utm_library || return 1
     if vm_is_registered "$destination"; then
         printf 'Factory destination is already registered.\n' >&2
         return 1
     fi
-    "$WINVM_OSASCRIPT" - "$destination" "$windows_iso" "$seed_iso" \
-        "$boot_image" \
-        >/dev/null <<'APPLESCRIPT'
+    local factory_root="${WINVM_FACTORY_LOCAL_ROOT:-$WINVM_REPO_DIR/.factory.local}"
+    local bundle="$factory_root/export/$destination.utm"
+    if [[ -e "$bundle" ]]; then
+        printf 'Factory staging for this destination already exists; remove it explicitly.\n' >&2
+        return 1
+    fi
+    # Create only the system disk first. Export and re-import below drop
+    # removable-media attachments, so the installer and seeds are attached
+    # after the EFI store is normalized.
+    created_id="$("$WINVM_OSASCRIPT" - "$destination" <<'APPLESCRIPT'
 on run argv
     set vmName to item 1 of argv
+    tell application "UTM"
+        set newVM to make new virtual machine with properties {backend:qemu, configuration:{name:vmName, architecture:"aarch64", memory:8192, cpu cores:4, hypervisor:true, uefi:true, drives:{{interface:NVMe, guest size:131072}}, displays:{{hardware:"virtio-ramfb-gl", dynamic resolution:true}}, network interfaces:{{mode:shared}}}}
+        return id of newVM
+    end tell
+end run
+APPLESCRIPT
+)" || created_id=""
+    status="$("$WINVM_UTMCTL" status "$destination" 2>/dev/null || true)"
+    if [[ -z "$created_id" || "$status" != "stopped" ]]; then
+        printf 'UTM did not create a stopped factory target.\n' >&2
+        return 1
+    fi
+    factory_normalize_efi_varstore "$created_id" "$bundle" || return 1
+    # Coerce paths outside the UTM tell block; UTM cannot resolve POSIX file
+    # references itself. The order matches the firmware-shell boot recipe
+    # and the installer-first detach contract.
+    attached="$("$WINVM_OSASCRIPT" - "$created_id" "$windows_iso" "$seed_iso" \
+        "$boot_image" <<'APPLESCRIPT'
+on run argv
     set windowsIso to POSIX file (item 2 of argv)
     set seedIso to POSIX file (item 3 of argv)
     set bootImage to POSIX file (item 4 of argv)
     tell application "UTM"
-        make new virtual machine with properties {backend:qemu, configuration:{name:vmName, architecture:"aarch64", memory:8192, cpu cores:4, hypervisor:true, uefi:true, drives:{{removable:true, source:windowsIso}, {removable:true, source:seedIso}, {removable:true, interface:USB, source:bootImage}, {interface:NVMe, guest size:131072}}, displays:{{hardware:"virtio-ramfb-gl", dynamic resolution:true}}, network interfaces:{{mode:shared}}}}
+        set targetVM to first virtual machine whose id is (item 1 of argv)
+        set vmConfig to configuration of targetVM
+        set newDrives to {{removable:true, source:windowsIso}, {removable:true, source:seedIso}, {removable:true, interface:USB, source:bootImage}}
+        repeat with driveConfig in drives of vmConfig
+            set end of newDrives to contents of driveConfig
+        end repeat
+        set drives of vmConfig to newDrives
+        update configuration targetVM with vmConfig
+        set updatedConfig to configuration of targetVM
+        set removableCount to 0
+        repeat with driveConfig in drives of updatedConfig
+            if removable of driveConfig then set removableCount to removableCount + 1
+        end repeat
+        return removableCount as text
     end tell
 end run
 APPLESCRIPT
-    status="$("$WINVM_UTMCTL" status "$destination" 2>/dev/null || true)"
-    if [[ "$status" != "stopped" ]]; then
-        printf 'UTM did not create a stopped factory target.\n' >&2
+)" || attached=""
+    if [[ "$attached" != 3 ]]; then
+        printf 'UTM did not attach the factory installer and seed media.\n' >&2
         return 1
     fi
-    factory_repair_efi_varstore "$destination" || return 1
     printf 'factory target created\n'
 }
 
-# UTM's scripting interface pairs an aarch64 VM with the 32-bit Arm variable
-# store, so a scripted target can receive an efi_vars.fd far smaller than the
-# 64-MiB pflash bank QEMU's `virt` machine maps. edk2 then spins before it
-# examines any boot device: no guest packets, no disk writes, no serial output,
-# and a target that merely looks slow to start. Normalize the bank to the size
-# of the code image UTM pairs it with, keeping a correctly sized store as is.
-factory_repair_efi_varstore() {
-    local destination="$1"
-    local documents="${WINVM_FACTORY_UTM_DIRECTORY:-$HOME/Library/Containers/com.utmapp.UTM/Data/Documents}"
-    # Factory destinations are independent of the currently configured target.
-    local bundle="$documents/$destination.utm"
-    local varstore="$bundle/Data/efi_vars.fd"
-    local code="$HOME/Library/Containers/com.utmapp.UTM/Data/Library/Caches/qemu/edk2-aarch64-code.fd"
-    if [[ ! -f "$varstore" ]]; then
-        printf 'UTM did not create an EFI variable store for the new target.\n' >&2
-        return 1
-    fi
-    local expected=67108864 actual
+# UTM ships no aarch64 variable-store template and pairs a scripted aarch64
+# VM with the 32-bit Arm store (edk2-arm-vars.fd, 329216 bytes in UTM 4.7.5),
+# far smaller than the 64-MiB pflash bank QEMU's `virt` machine maps. edk2
+# then spins before it examines any boot device: no guest packets, no disk
+# writes, no serial output. Export the new VM to factory storage, size the
+# bank to the code image UTM pairs it with, and replace the VM with that
+# bundle. Import preserves the VM identity.
+factory_normalize_efi_varstore() {
+    local created_id="$1" bundle="$2" expected=67108864 actual imported_id
+    local code
+    code="$(dirname "$WINVM_UTMCTL")/../Resources/qemu/edk2-aarch64-code.fd"
     if [[ -f "$code" ]]; then
         expected="$(stat -f %z "$code")"
     fi
-    actual="$(stat -f %z "$varstore")"
+    mkdir -p "$(dirname "$bundle")"
+    chmod 700 "$(dirname "$bundle")"
+    if ! "$WINVM_OSASCRIPT" - "$created_id" "$bundle" >/dev/null <<'APPLESCRIPT'
+on run argv
+    set exportFile to POSIX file (item 2 of argv)
+    tell application "UTM"
+        export (first virtual machine whose id is (item 1 of argv)) to exportFile
+    end tell
+end run
+APPLESCRIPT
+    then
+        printf 'UTM could not export the new target for EFI normalization.\n' >&2
+        return 1
+    fi
+    if [[ ! -f "$bundle/Data/efi_vars.fd" ]]; then
+        printf 'UTM did not create an EFI variable store for the new target.\n' >&2
+        return 1
+    fi
+    actual="$(stat -f %z "$bundle/Data/efi_vars.fd")"
     if [[ "$actual" == "$expected" ]]; then
+        rm -rf "$bundle"
+        rmdir "$(dirname "$bundle")" 2>/dev/null || true
         return 0
     fi
-    if ! dd if=/dev/zero of="$varstore" bs=1m count=$((expected / 1048576)) \
-            >/dev/null 2>&1; then
+    if ! dd if=/dev/zero of="$bundle/Data/efi_vars.fd" bs=1m \
+            count=$((expected / 1048576)) >/dev/null 2>&1; then
         printf 'Could not normalize the EFI variable store.\n' >&2
         return 1
     fi
+    imported_id="$("$WINVM_OSASCRIPT" - "$created_id" "$bundle" <<'APPLESCRIPT'
+on run argv
+    set importFile to POSIX file (item 2 of argv)
+    tell application "UTM"
+        delete (first virtual machine whose id is (item 1 of argv))
+        set importedVM to import new virtual machine from importFile
+        return id of importedVM
+    end tell
+end run
+APPLESCRIPT
+)" || imported_id=""
+    if [[ "$imported_id" != "$created_id" ]]; then
+        printf 'UTM did not re-import the normalized target; its bundle remains in factory storage.\n' >&2
+        return 1
+    fi
+    rm -rf "$bundle"
+    rmdir "$(dirname "$bundle")" 2>/dev/null || true
     printf 'normalized EFI variable store: %s -> %s bytes\n' "$actual" "$expected" >&2
 }
+
+# Trust the exact guest's SSH host key read through the authenticated UTM
+# guest agent, matching the libvirt provider.
+trust_ssh_host_key() (
+    if (( $# != 0 )); then
+        printf 'Usage: winvm trust-ssh-host-key\n' >&2
+        return 2
+    fi
+    assert_target trust-host-key >/dev/null
+    winvm_require_command ssh-keygen
+    if [[ ! "$WINVM_SSH_HOST" =~ ^[A-Za-z0-9@._-]+$ ]]; then
+        printf 'The stable SSH alias is invalid for known_hosts.\n' >&2
+        return 1
+    fi
+
+    local temporary_root public_key key_type key_data extra fingerprint
+    local host_key_alias
+    local ssh_directory known_hosts updated_known_hosts
+    host_key_alias="$(winvm_ssh_host_key_alias)"
+    if [[ ! "$host_key_alias" =~ ^[A-Za-z0-9._-]+$ ]]; then
+        printf 'The stable SSH host-key alias is invalid.\n' >&2
+        return 1
+    fi
+    temporary_root="$(mktemp -d "${TMPDIR:-/tmp}/winvm-host-key.XXXXXX")"
+    chmod 700 "$temporary_root"
+    trap 'rm -rf -- "$temporary_root"' EXIT
+    public_key="$temporary_root/ssh_host_ed25519_key.pub"
+    "$WINVM_UTMCTL" file pull "$(utm_target_identifier)" \
+        'C:\ProgramData\ssh\ssh_host_ed25519_key.pub' >"$public_key"
+    if (( "$(wc -l <"$public_key")" != 1 )); then
+        printf 'Guest SSH host key is not a single public-key record.\n' >&2
+        return 1
+    fi
+    read -r key_type key_data extra <"$public_key"
+    if [[ "$key_type" != ssh-ed25519 ||
+          ! "$key_data" =~ ^[A-Za-z0-9+/]+={0,3}$ ]]; then
+        printf 'Guest SSH host key is invalid.\n' >&2
+        return 1
+    fi
+    fingerprint="$(ssh-keygen -l -E sha256 -f "$public_key" | awk '{print $2}')"
+    if [[ ! "$fingerprint" =~ ^SHA256:[A-Za-z0-9+/]+$ ]]; then
+        printf 'Guest SSH host-key fingerprint is invalid.\n' >&2
+        return 1
+    fi
+
+    ssh_directory="$HOME/.ssh"
+    known_hosts="$ssh_directory/known_hosts"
+    mkdir -p "$ssh_directory"
+    chmod 700 "$ssh_directory"
+    touch "$known_hosts"
+    chmod 600 "$known_hosts"
+    updated_known_hosts="$(mktemp "$ssh_directory/known_hosts.machine-control.XXXXXX")"
+    cp -- "$known_hosts" "$updated_known_hosts"
+    ssh-keygen -R "$host_key_alias" -f "$updated_known_hosts" \
+        >/dev/null 2>&1 || true
+    if [[ "$host_key_alias" != "$WINVM_SSH_HOST" ]]; then
+        ssh-keygen -R "$WINVM_SSH_HOST" -f "$updated_known_hosts" \
+            >/dev/null 2>&1 || true
+    fi
+    rm -f -- "$updated_known_hosts.old"
+    printf '%s %s %s\n' "$host_key_alias" "$key_type" "$key_data" \
+        >>"$updated_known_hosts"
+    chmod 600 "$updated_known_hosts"
+    mv -- "$updated_known_hosts" "$known_hosts"
+    jq -n --arg fingerprint "$fingerprint" \
+        '{schema:"machine-control-ssh-host-trust/v0",updated:true,
+          key_type:"ssh-ed25519",fingerprint:$fingerprint,
+          source:"authenticated_guest_agent"}'
+)
+
+# Report minimized first-logon factory progress through the UTM guest agent,
+# matching the libvirt provider's attestations and output.
+factory_status() (
+    if (( $# != 1 )) || [[ "$1" != --json ]]; then
+        printf 'Usage: winvm factory-status --json\n' >&2
+        return 2
+    fi
+    assert_target factory-status >/dev/null
+
+    local state_file report_file target
+    target="$(utm_target_identifier)"
+    state_file="$(mktemp "${TMPDIR:-/tmp}/winvm-factory-state.XXXXXX")"
+    report_file="$(mktemp "${TMPDIR:-/tmp}/winvm-factory-report.XXXXXX")"
+    trap 'rm -f -- "$state_file" "$report_file"' EXIT
+
+    if ! "$WINVM_UTMCTL" ip-address "$target" >/dev/null 2>&1; then
+        jq -n '{schema:"winvm-image-factory-status/v0",state:"pending",
+            completed:false,guest_agent:"unavailable",
+            ssh_bootstrap:"pending_or_unavailable",seed_removal_required:true}'
+        return
+    fi
+    if "$WINVM_UTMCTL" file pull "$target" \
+            'C:\ProgramData\WinVM-Factory\state.json' >"$state_file" 2>/dev/null &&
+            [[ -s "$state_file" ]]; then
+        if ! jq -e '
+            .schema == "winvm-image-factory-first-logon/v0" and
+            .completed == true and
+            .guest_agent_state == "Running" and
+            .seed_removal_required == true
+        ' "$state_file" >/dev/null; then
+            printf 'Factory completion attestation is invalid.\n' >&2
+            return 1
+        fi
+        jq -n '{schema:"winvm-image-factory-status/v0",state:"complete",
+            completed:true,guest_agent:"running",ssh_bootstrap:"complete",
+            seed_removal_required:true}'
+        return
+    fi
+    if "$WINVM_UTMCTL" file pull "$target" \
+            'C:\ProgramData\WinVM-Factory\first-logon-report.json' \
+            >"$report_file" 2>/dev/null && [[ -s "$report_file" ]]; then
+        if ! jq -e '
+            .administrator == true and
+            .password_authentication == "disabled" and
+            .keyboard_interactive_authentication == "disabled" and
+            .sshd_status == "Running" and
+            .localhost_port_22 == true
+        ' "$report_file" >/dev/null; then
+            printf 'Factory OpenSSH attestation is invalid.\n' >&2
+            return 1
+        fi
+        jq -n '{schema:"winvm-image-factory-status/v0",state:"finalizing",
+            completed:false,guest_agent:"running",ssh_bootstrap:"complete",
+            seed_removal_required:true}'
+        return
+    fi
+    jq -n '{schema:"winvm-image-factory-status/v0",state:"pending",
+        completed:false,guest_agent:"running",
+        ssh_bootstrap:"pending_or_unavailable",seed_removal_required:true}'
+)
 
 factory_detach_media() {
     local status result removed remaining
@@ -1085,6 +1288,8 @@ case "$command" in
     disposable-up) assert_target disposable-up >/dev/null; vm_disposable_up "$@" ;;
     export-image) assert_target export-image >/dev/null; vm_export_image "$@" ;;
     factory-create) factory_create "$@" ;;
+    factory-status) factory_status "$@" ;;
+    trust-ssh-host-key) trust_ssh_host_key "$@" ;;
     factory-detach-installer) assert_target factory-detach-installer >/dev/null; factory_detach_installer ;;
     factory-detach-media) assert_target factory-detach-media >/dev/null; factory_detach_media ;;
     delete) assert_target delete >/dev/null; vm_delete "$@" ;;

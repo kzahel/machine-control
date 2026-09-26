@@ -4,6 +4,37 @@ This is a living record of concrete gaps encountered while using WinVM
 Testbed. Keep observed behavior, effect, workaround, and a likely improvement
 direction together so later work can reproduce the problem.
 
+## Observed 2026-09-26 during an agent-driven factory rebuild
+
+### A retained appliance had no stored password
+
+Status: **resolved by policy and tooling.** The retained UTM appliance booted
+to the Windows sign-in screen, but this controller held no credential for it;
+the factory setup password had been rotated and the new value was not stored.
+One sign-in attempt with the stale setup password was rejected and the VM was
+destroyed and rebuilt. The adapter now keeps the current password in
+`WINVM_LOGIN_SECRET_FILE` (a per-UUID default under the controller's secret
+store), `winvm credential rotate` never changes Windows without first writing
+the new value, `winvm login` signs in from it after a cold boot, and doctor
+warns when none is stored.
+
+The broker reported that rejected sign-in as `delivery: confirmed, effect:
+no_effect` while Windows displayed "The password is incorrect". A typed
+credential-rejected result remains open.
+
+### Factory steps failed from an agent session
+
+Status: **resolved.** The UTM factory's in-place EFI repair wrote inside UTM's
+container, which macOS denies to agent sessions; it now normalizes through
+export and import. The UTM provider lacked the advertised `factory-status` and
+`trust-ssh-host-key` commands; both now use the UTM guest agent. On a fresh
+appliance reached only over SSH, winget had no community source
+(`0x8A15000F`); the development bootstrap now installs Microsoft's signed
+source package and retries once. The bootstrap's in-session helper needs a
+signed-in desktop, so sign in with `winvm login` before bootstrapping after a
+cold boot. The first semantic snapshot after installation timed out once and
+then passed on repeated conformance runs.
+
 ## UTM can start with an empty runtime registry
 
 Status: **mitigated 2026-08-23.** A cold UTM 4.7.5 process reported zero

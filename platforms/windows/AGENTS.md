@@ -54,6 +54,13 @@ command surface and read `skills/drive-winvm/SKILL.md` for the operating
 workflow. Invoke `bin/winvm` directly only when ignored configuration or the
 documented `WINVM_*` inventory environment is already present.
 
+Every Windows appliance's current login password must be stored in
+`WINVM_LOGIN_SECRET_FILE` before a task ends: record setup passwords with
+`winvm credential store FILE`, change passwords only with `winvm credential
+rotate`, and sign in after a cold boot with `winvm login`. If doctor warns that
+no password is stored and none can be proven, delete and rebuild the appliance
+rather than guessing.
+
 If doctor instead reports that UTM has not loaded its virtual machine
 library, the VM is registered but UTM is listing none; open UTM once
 (`open -a UTM`) and rerun doctor rather than repairing registration.

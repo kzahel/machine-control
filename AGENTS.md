@@ -96,6 +96,16 @@ point for provider/platform options and evidence, then read `GLOSSARY.md`,
 before changing ownership boundaries among YepAnywhere, dotfiles, a testbed, a
 guest-resident provider, or an outer provider.
 
+Every VM or appliance an agent creates, provisions, or re-credentials must
+leave the task with its current login credentials recorded in the controller's
+untracked local secret store (mode `0600`). This includes throwaway values such
+as a one-use setup password: store it when it is set, replace the same file
+atomically when it is rotated, and verify the stored value before ending the
+task. Never finish with a password that exists only in a guest, an answer
+file, or a chat transcript. A VM whose login credential is unknown is not
+recovered by guessing; destroy and rebuild it after confirming it holds nothing
+irreplaceable.
+
 Before meaningful use of an accepted VM target, run its read-only doctor and
 acquire an exclusive target-use claim through the common Machine Control CLI.
 Supply a truthful caller-chosen authority, claimant ID, reason, and any useful

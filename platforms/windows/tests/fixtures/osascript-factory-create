@@ -1,14 +1,40 @@
 #!/usr/bin/env bash
 
+# Fake UTM scripting for factory-create: create, export, delete and re-import,
+# then attach removable media. Imported bundles land in
+# WINVM_FACTORY_UTM_DIRECTORY/<name>.utm.
 set -euo pipefail
 
-if [[ $# -ne 5 || "$1" != "-" || "$3" != /* || "$4" != /* || "$5" != /* ]]; then
-    printf 'Factory AppleScript did not receive absolute media paths.\n' >&2
-    exit 1
-fi
-
 script="$(</dev/stdin)"
-[[ "$script" == *'make new virtual machine'* ]]
-mkdir -p "$WINVM_FACTORY_UTM_DIRECTORY/$2.utm/Data"
-printf 'undersized store\n' >"$WINVM_FACTORY_UTM_DIRECTORY/$2.utm/Data/efi_vars.fd"
-printf 'provider-private-object-identity\n'
+[[ "$1" == "-" ]]
+shift
+case "$script" in
+    *'make new virtual machine'*)
+        [[ $# -eq 1 && "$script" != *'removable:true'* ]]
+        printf '%s\n' "$1" >"$WINVM_FACTORY_UTM_DIRECTORY.name"
+        printf 'fixture-target-id\n'
+        ;;
+    *'export ('*)
+        [[ $# -eq 2 && "$1" == fixture-target-id && "$2" == /* ]]
+        mkdir -p "$2/Data"
+        printf 'undersized store\n' >"$2/Data/efi_vars.fd"
+        ;;
+    *'import new virtual machine'*)
+        [[ $# -eq 2 && "$1" == fixture-target-id && "$script" == *'delete ('* ]]
+        mkdir -p "$WINVM_FACTORY_UTM_DIRECTORY"
+        cp -R "$2" "$WINVM_FACTORY_UTM_DIRECTORY/$(<"$WINVM_FACTORY_UTM_DIRECTORY.name").utm"
+        printf 'fixture-target-id\n'
+        ;;
+    *'update configuration'*)
+        if [[ $# -ne 4 || "$1" != fixture-target-id || "$2" != /* ||
+              "$3" != /* || "$4" != /* ]]; then
+            printf 'Factory AppleScript did not receive absolute media paths.\n' >&2
+            exit 1
+        fi
+        printf '3\n'
+        ;;
+    *)
+        printf 'Unexpected factory AppleScript\n' >&2
+        exit 1
+        ;;
+esac
