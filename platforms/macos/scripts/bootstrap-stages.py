@@ -198,6 +198,21 @@ def inspect(kind: str) -> dict:
                         "install_guest_command_line_tools" if agent and
                         not tools_ready else None))
 
+    if kind == "vanilla" and not agent and running:
+        stages.append(stage("administrator-authorization", "human_required",
+                            "setup_assistant_administrator_required",
+                            "complete_setup_assistant_as_human"))
+    elif agent and not tools_ready:
+        stages.append(stage("administrator-authorization", "human_required",
+                            "command_line_tools_authorization_required",
+                            "authorize_guest_tools_install_as_human"))
+    elif not agent:
+        stages.append(stage("administrator-authorization", "waiting",
+                            "guest_administration_required"))
+    else:
+        stages.append(stage("administrator-authorization", "complete",
+                            "no_administrator_handoff_pending"))
+
     resident = states.get("resident") == "ready"
     stages.append(stage("resident", "complete" if resident else
                         "action_required" if tools_ready else "blocked",

@@ -33,7 +33,8 @@ Private VM names, paths, and credentials remain outside Git.
 
 ## Result
 
-Steps 1–3 are implemented. The live precreation report saw a registered VM
+Steps 1–3 are implemented, including typed administrator handoffs for Setup
+Assistant and Command Line Tools. The live precreation report saw a registered VM
 and granted host permissions. A claimed candidate report found a running VM,
 guest administration, credential, tools, resident, and Accessibility, while
 correctly leaving an unknown Aqua state unverified. A direct guest probe then

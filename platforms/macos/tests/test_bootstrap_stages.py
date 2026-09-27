@@ -126,9 +126,29 @@ class BootstrapStagesTests(unittest.TestCase):
                  "screenCapture": False, "postEvent": False}):
             report = stages(MODULE.inspect("vanilla"))
         self.assertEqual(report["guest-agent"]["state"], "human_required")
+        self.assertEqual(report["administrator-authorization"]["state"],
+                         "human_required")
         self.assertEqual(report["credential"]["state"], "human_required")
         self.assertEqual(report["outer-bootstrap"]["state"], "human_required")
         self.assertIsNone(report["resident"]["nextCommand"])
+
+    def test_missing_guest_tools_names_admin_handoff(self):
+        doctor = {**READY, "ready": False,
+                  "states": {**READY["states"], "resident": "unavailable"}}
+        def observed(*args, **_kwargs):
+            if "candidate-status" in args:
+                return IDENTITY
+            if "doctor" in args:
+                return doctor
+            return None
+        with mock.patch.object(MODULE, "document", side_effect=observed), \
+             mock.patch.object(MODULE, "command", return_value=(False, "")), \
+             mock.patch.object(MODULE, "stored_credential", return_value=True), \
+             mock.patch.object(MODULE, "host_permissions", return_value=None):
+            report = stages(MODULE.inspect("prepared"))
+        self.assertEqual(report["guest-tools"]["state"], "human_required")
+        self.assertEqual(report["administrator-authorization"]["nextActionId"],
+                         "authorize_guest_tools_install_as_human")
 
 
 if __name__ == "__main__":
