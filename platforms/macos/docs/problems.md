@@ -6,7 +6,7 @@ direction together so later work can reproduce the problem.
 
 ## Observed 2026-09-27 during a signed menu bar app test
 
-### A stale resident and an unverified guest password looked like a dead VM
+### A stale resident and a rejected authorization submission looked like a dead VM
 
 The target was initially suspended, so doctor correctly reported unavailable
 administration and resident control. After `target up` through the common
@@ -19,14 +19,26 @@ after which `target doctor` reported a ready unlocked desktop with semantic,
 capture, and input control.
 
 Later, `inventory credentials macvm` reported the declared guest password file
-as `ready`, but the normal System Settings authorization sheet rejected a
-one-shot submission. Guest `authd`/`opendirectoryd` logs reported invalid
-credentials. The inventory check verifies file presence and permissions, not
-whether the bytes authenticate the current guest. Stop attempts after an
-authentication failure; reconcile the guest credential or use the documented
-lost-password recovery path with user supervision. A useful future diagnostic
-would distinguish this credential-state problem from transport or resident
-readiness without testing a password during a read-only doctor.
+as `ready`, but the normal System Settings authorization sheet rejected two
+one-shot automated submissions. Guest `authd`/`opendirectoryd` logs reported
+invalid credentials. The user then entered that same prepared-image default
+password directly in the Tart window, and macOS accepted it. The saved
+credential was valid; the secure authorization-sheet input route was not.
+Stop automated retries after an authentication failure and offer direct user
+entry. A `ready` inventory result verifies the credential file's presence and
+permissions, not successful submission through a particular UI route.
+
+After a later suspend and resume, `target up` reported that it could not
+resolve the VM IP, although `target status` and guest administration showed
+the VM running. `target doctor` reported `desktopState: unknown` and disabled
+resident semantic/input operations. The outer screenshot showed an unlocked
+desktop, and `testbed -- ui health` and `testbed -- ui tree` still worked with
+Accessibility trust. This is a separate post-resume resident state-detection
+failure; the app test used the direct testbed UI. `maintenance audit --profile
+development` confirmed the Aqua session was unlocked while semantic and
+target-native readiness were unavailable. `maintenance repair --profile
+development` restarted only the resident LaunchAgent and restored unlocked
+desktop, semantic, capture, and input readiness without a reboot.
 
 ## Observed 2026-09-26 on a locked controller
 
