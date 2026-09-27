@@ -33,4 +33,5 @@ if [[ -z "$secret" ]]; then
 fi
 
 remote_command="C:\\ProgramData\\MachineControl\\runtime\\machine-control-windows.exe login --kind $credential_kind"
-printf '%s' "$secret" | ssh -T -- "$ssh_target" "$remote_command"
+ssh_bin="${MACHINE_CONTROL_SSH_BIN:-ssh}"
+printf '%s' "$secret" | "$ssh_bin" -T -- "$ssh_target" "$remote_command"

@@ -58,7 +58,10 @@ KVM candidate was created, pinned, and claimed; its initial running stage
 correctly reported waiting for guest-agent/first-logon evidence. A subsequent
 guest report proved completed first logon. The claimed attestation survived
 clean shutdown; the guarded installer-then-seed sequence removed the media.
-Key-only SSH, stored and guest-verified password, development bootstrap,
-healthy post-update audit, all seven claimed stages, and full common doctor
-then passed after a cold start. All generated media, inventory, claim, and
-password material are ignored or in the local secret store.
+Key-only SSH, stored and guest-verified password, development bootstrap, and
+full common doctor then passed after a cold start. The first post-update audit
+identified a pending development-package reboot; explicit repair/reboot and
+the one-shot stored-password login observed a changed boot and restored full
+doctor and audit readiness. All eight claimed stages then passed. All
+generated media, inventory, claim, and password material are ignored or in
+the local secret store.

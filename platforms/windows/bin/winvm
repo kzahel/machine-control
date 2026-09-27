@@ -221,7 +221,13 @@ case "$command" in
         ;;
     ssh-config) print_ssh_config "$@" ;;
     credential) exec "$REPO_DIR/scripts/credential.sh" "$@" ;;
-    login) exec "$REPO_DIR/scripts/credential.sh" login "$@" ;;
+    login)
+        if [[ "$WINVM_PROVIDER" == libvirt-linux ]]; then
+            export WINVM_DIRECT_SSH_BIN="$WINVM_SSH_BIN"
+            export MACHINE_CONTROL_SSH_BIN="$REPO_DIR/scripts/libvirt-direct-ssh.sh"
+        fi
+        exec "$REPO_DIR/scripts/credential.sh" login "$@"
+        ;;
     factory-stages) exec "$REPO_DIR/scripts/factory-stages.py" "$@" ;;
     ui) exec "$REPO_DIR/bin/winui" "$@" ;;
     ssh|ps) provider ssh-exec "$@" ;;

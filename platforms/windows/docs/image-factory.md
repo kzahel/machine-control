@@ -34,10 +34,11 @@ temporary ignored storage, identifies one exact Windows 11 Pro index, reports
 that index without a local path, and removes the temporary WIM. It does not
 prove the download's publisher or license. Run each reported media preparation
 command explicitly, then rerun preflight. `create` is offered only when every
-precreation check has observed its stated condition. The preflight result
-reports only presence of the prepared and seed artifacts; the renderer and
-creation commands retain their own media validation and exact-destination
-guards.
+precreation check has observed its stated condition. The prepared ISO check
+requires byte identity with the source outside the EFI boot image and the
+exact no-prompt loader inside it. The private seed check requires mode 0600,
+the expected volume label, and its essential files. The renderer and creation
+commands retain their own media and exact-destination guards.
 
 After creation, pin the exact candidate, run common read-only doctor, acquire
 a claim, and use the claimed stage inspector. It reports observed evidence and
@@ -54,8 +55,8 @@ bin/machine-control --target windows --claim CLAIM_ID testbed -- \
 
 The claimed stages cover exact candidate identity, first-logon completion,
 key-only SSH, removable media, stored and guest-verified password, installed
-bootstrap support, and resident doctor readiness. `nextCommand` is an adapter
-command to run under the same claim;
+bootstrap support, resident doctor readiness, and post-update health.
+`nextCommand` is an adapter command to run under the same claim;
 placeholders such as `PRIVATE_SECRET_FILE` need private caller input. A stage
 can be `complete`, `action_required`, `waiting`, `unverified`, or `blocked`.
 Only `complete` means that stage's stated evidence was observed. Before the
@@ -65,6 +66,14 @@ guest is reachable but resident support is absent, `bin/winvm bootstrap
 --profile development` runs the UUID-attested candidate bootstrap; installed
 support instead leads to bounded post-update repair. Uncertain support state
 blocks either recommendation.
+
+After development bootstrap, the maintenance stage may report
+`pending_reboot` even while doctor is ready. Run the reported explicit
+`post-update repair --reboot --json` under the claim. A cold reboot may return
+to Winlogon; use the stored credential through `bin/winvm login` while the
+reboot proof waits for full doctor readiness. The libvirt route's bootstrap,
+post-update, certification, and login commands use a claim-checked SSH/SCP
+route bound to the selected candidate instead of a stale public SSH alias.
 
 When the guest first reports completed bootstrap, record its exact-UUID
 attestation before shutting it down:

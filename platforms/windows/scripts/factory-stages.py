@@ -347,6 +347,7 @@ def inspect(repo: Path, provider: Path, identifier: str) -> dict:
     if power != "started" or not ssh_ready:
         stages.append(stage("bootstrap", "blocked", "guest_administration_unavailable"))
         stages.append(stage("resident", "blocked", "guest_administration_unavailable"))
+        stages.append(stage("maintenance", "unverified", "running_guest_required"))
     else:
         doctor = json_command(str(repo / "bin/winvm"), "doctor", "--json",
                               timeout=100, allow_failure_json=True)
@@ -393,6 +394,24 @@ def inspect(repo: Path, provider: Path, identifier: str) -> dict:
         else:
             stages.append(stage("resident", "action_required", "resident_not_ready",
                                 "bin/winvm", "post-update", "audit", "--json"))
+        if not resident_ready:
+            stages.append(stage("maintenance", "blocked", "resident_readiness_required"))
+        else:
+            audit = json_command(str(repo / "bin/winvm"), "post-update", "audit",
+                                 "--json", timeout=100, allow_failure_json=True)
+            if not audit or audit.get("schema") != "machine-control-windows-post-update-orchestration/v0":
+                stages.append(stage("maintenance", "blocked", "post_update_audit_unavailable"))
+            elif audit.get("healthy") is True:
+                stages.append(stage("maintenance", "complete", "healthy_post_update_audit"))
+            elif any(item.get("id") == "pending_reboot" and item.get("healthy") is False
+                     for item in (audit.get("post_update") or {}).get("checks", [])
+                     if isinstance(item, dict)):
+                stages.append(stage("maintenance", "action_required", "pending_reboot",
+                                    "bin/winvm", "post-update", "repair", "--reboot", "--json"))
+            else:
+                stages.append(stage("maintenance", "action_required",
+                                    "installed_maintenance_unhealthy", "bin/winvm",
+                                    "post-update", "repair", "--json"))
     return {"schema": STAGE_SCHEMA, "provider": "libvirt-linux", "stages": stages}
 
 
