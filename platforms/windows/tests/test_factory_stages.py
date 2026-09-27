@@ -29,6 +29,7 @@ def by_name(report):
 
 
 class FactoryStagesTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "posix", "Linux factory file modes require POSIX")
     def test_attestation_is_exact_and_private(self):
         identifier = "00000000-0000-0000-0000-000000000000"
         with tempfile.TemporaryDirectory() as directory, \
