@@ -8,6 +8,9 @@ direction together so later work can reproduce the problem.
 
 ### A stale resident and a rejected authorization submission looked like a dead VM
 
+Status: **System Settings password entry fixed and live-verified
+2026-09-27.** The separate resume issue below remains open.
+
 The target was initially suspended, so doctor correctly reported unavailable
 administration and resident control. After `target up` through the common
 `machine-control` client, guest administration and the resident worked. A
@@ -27,6 +30,16 @@ credential was valid; the secure authorization-sheet input route was not.
 Stop automated retries after an authentication failure and offer direct user
 entry. A `ready` inventory result verifies the credential file's presence and
 permissions, not successful submission through a particular UI route.
+
+A later controlled reproduction used the same strict System Settings sheet
+while adding an app to Accessibility. Process-targeted key events again left
+the sheet open. The resident now checks that System Settings and its secure
+field have foreground focus, then posts physical keys to the guest session
+event stream for this profile. One submission through the same private
+credential handoff dismissed the sheet and opened the app chooser, the next
+step of the requested settings change. The SecurityAgent fixture still uses
+its proven process-targeted route. Other macOS authorization sheet variants
+were not exercised in this reproduction.
 
 After a later suspend and resume, `target up` reported that it could not
 resolve the VM IP, although `target status` and guest administration showed

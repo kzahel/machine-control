@@ -404,6 +404,7 @@ struct AuthorizationSheet {
     let processID: pid_t
     let windowID: Int
     let requester: String
+    let usesSessionKeyboard: Bool
     let secureField: AXUIElement
     let cancelButton: AXUIElement
     let confirmButton: AXUIElement
@@ -1359,6 +1360,7 @@ final class ResidentService {
             processID: app.processIdentifier,
             windowID: number.intValue,
             requester: expectedRequester,
+            usesSessionKeyboard: bundleID == "com.apple.systempreferences",
             secureField: secureFields[0].element,
             cancelButton: cancelButtons[0].element,
             confirmButton: confirmButtons[0].element)
@@ -1445,7 +1447,7 @@ final class ResidentService {
         return (code, entry.1 ? .maskShift : [])
     }
 
-    private func sendCredential(_ credential: Data, processID: pid_t) throws {
+    private func sendCredential(_ credential: Data, sheet: AuthorizationSheet) throws {
         for byte in credential {
             guard let (code, flags) = physicalKey(for: byte),
                   let down = CGEvent(keyboardEventSource: nil,
@@ -1457,8 +1459,13 @@ final class ResidentService {
             }
             down.flags = flags
             up.flags = flags
-            down.postToPid(processID)
-            up.postToPid(processID)
+            if sheet.usesSessionKeyboard {
+                down.post(tap: .cghidEventTap)
+                up.post(tap: .cghidEventTap)
+            } else {
+                down.postToPid(sheet.processID)
+                up.postToPid(sheet.processID)
+            }
             usleep(18_000)
         }
     }
@@ -1492,8 +1499,9 @@ final class ResidentService {
                         expectedRequester: lease.requester),
                       sheet.processID == lease.processID,
                       sheet.windowID == lease.windowID {
-                _ = NSRunningApplication(processIdentifier: sheet.processID)?
-                    .activate()
+                let activated = NSRunningApplication(
+                    processIdentifier: sheet.processID)?
+                    .activate() == true
                 usleep(120_000)
                 let focused = AXUIElementSetAttributeValue(
                     sheet.secureField, kAXFocusedAttribute as CFString,
@@ -1502,11 +1510,30 @@ final class ResidentService {
                     result = refused(request, code: "secure_field_unavailable",
                         message: "Secure credential field could not be focused",
                         route: "guest.user/macos.authorization")
+                } else if sheet.usesSessionKeyboard &&
+                    (!activated ||
+                     NSWorkspace.shared.frontmostApplication?.processIdentifier !=
+                        sheet.processID ||
+                     boolAttribute(sheet.secureField,
+                        kAXFocusedAttribute as CFString) != true) {
+                    result = refused(request, code: "secure_field_not_foreground",
+                        message: "Authorization field is not the verified foreground focus",
+                        route: "guest.user/macos.authorization")
                 } else {
                     do {
-                        try sendKey("cmd-a", processID: sheet.processID)
-                        try sendKey("delete", processID: sheet.processID)
-                        try sendCredential(credential, processID: sheet.processID)
+                        let targetPID = sheet.usesSessionKeyboard ? nil :
+                            sheet.processID
+                        try sendKey("cmd-a", processID: targetPID)
+                        try sendKey("delete", processID: targetPID)
+                        if sheet.usesSessionKeyboard &&
+                            (NSWorkspace.shared.frontmostApplication?.processIdentifier !=
+                                sheet.processID ||
+                             boolAttribute(sheet.secureField,
+                                kAXFocusedAttribute as CFString) != true) {
+                            throw MacUIError.action(
+                                "Authorization field lost foreground focus")
+                        }
+                        try sendCredential(credential, sheet: sheet)
                         usleep(120_000)
                         let pressed = AXUIElementPerformAction(
                             sheet.confirmButton, kAXPressAction as CFString)
@@ -1534,6 +1561,8 @@ final class ResidentService {
                             "contextId": lease.contextID,
                             "sheetDismissed": dismissed,
                             "attemptConsumed": true,
+                            "keyboardDelivery": sheet.usesSessionKeyboard ?
+                                "guest_session" : "owner_process",
                         ]
                     } catch {
                         result = refused(request,

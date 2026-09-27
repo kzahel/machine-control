@@ -32,6 +32,11 @@ interactive helper reads one credential without echo and streams it over the
 resident's mode-`0600` socket without placing the secret in JSON, arguments,
 environment, files, captures, logs, or results. The calling workflow remains
 responsible for independently proving its intended privileged effect.
+The System Settings inline sheet uses the guest-session keyboard stream after
+foreground and secure-field focus checks. Process-targeted keys failed on that
+sheet in a live Accessibility Add flow; the session route passed the same
+authorization and opened the subsequent app chooser. Other accepted sheet
+profiles retain process-targeted delivery.
 
 The dedicated Tart appliance also deliberately gives its test administrator
 passwordless `sudo` through the guest command channel and enabled SSH service.

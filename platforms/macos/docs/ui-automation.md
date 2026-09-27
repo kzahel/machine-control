@@ -246,6 +246,11 @@ variant strictly matches one active System Settings owner, exact requester and
 prompt text, one secure field, unique Cancel and Modify Settings buttons, and
 one untitled on-screen authorization window. It does not turn arbitrary
 System Settings UI into a credential target.
+For this variant, the resident verifies foreground application and secure-field
+focus before posting physical keys to the guest session. The SecurityAgent
+fixture keeps process-targeted delivery. A live Accessibility Add flow verified
+that the System Settings sheet dismissed and opened its app chooser after the
+guest-session route submitted the saved appliance credential.
 
 ## Privacy consent fixture
 

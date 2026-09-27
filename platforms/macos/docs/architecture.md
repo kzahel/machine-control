@@ -105,8 +105,11 @@ generation-bound, single-use lease. A guest-local helper reads one credential
 without echo and streams it through a staged exchange on the same mode-`0600`
 socket. The secret is never part of the JSON facade or a process argument,
 environment variable, file, log, capture, or result. Target-local physical key
-events are posted to the verified owner process; the calling workflow's
-independent oracle remains authoritative for the privileged effect.
+events are posted to the verified owner process for SecurityAgent and the
+other accepted profiles. System Settings' inline sheet uses guest-session
+keyboard events after the resident verifies foreground application and secure
+field focus; process-targeted events failed on that live sheet. The calling
+workflow's independent oracle remains authoritative for the privileged effect.
 
 The helper is compiled and ad-hoc signed with an explicit stable designated
 requirement as `MacVM UI.app`. The selected host command transport asks
