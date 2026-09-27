@@ -452,6 +452,7 @@ case "$command" in
     ssh-exec) ssh_exec "$@" ;;
     stage-bootstrap) assert_target stage-bootstrap >/dev/null; stage_bootstrap "$@" ;;
     factory-status) factory_status "$@" ;;
+    factory-agent-ready) assert_target inspect >/dev/null; core agent-ready ;;
     trust-ssh-host-key) trust_ssh_host_key "$@" ;;
     post-update-guest-agent)
         assert_target post-update-repair >/dev/null
@@ -463,6 +464,10 @@ case "$command" in
             exit 2
         fi
         factory create-windows "$@"
+        ;;
+    factory-preflight)
+        (( $# == 1 )) || { printf 'Usage: winvm factory-preflight NAME\n' >&2; exit 2; }
+        factory preflight windows "$1"
         ;;
     factory-detach-installer)
         assert_target factory-detach-installer >/dev/null

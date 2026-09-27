@@ -14,10 +14,36 @@ or controller authorization portable.
 
 ## Staged Linux bring-up
 
-On Linux, use the claimed stage inspector after creating and pinning a fresh
-candidate. It reports observed evidence and one next adapter command for each
-stage. The agent chooses and runs each mutation explicitly; the inspector does
-not start, stop, detach, re-credential, or bootstrap a VM.
+On Linux, first inspect the host, exact Windows 11 Pro image catalog, local
+seed inputs, generated media, and unused libvirt destination. This precreation
+inspection needs no target claim because no candidate exists yet:
+
+```bash
+bin/winvm factory-stages preflight --json \
+  --source-iso PRIVATE_WINDOWS_ISO \
+  --guest-tools-iso PRIVATE_VIRTIO_WIN_ISO \
+  --secret-file PRIVATE_SETUP_SECRET_FILE \
+  --public-key CONTROLLER_PUBLIC_KEY \
+  --user APPLIANCE_USER
+```
+
+Supply the intended domain name in private `WINVM_LIBVIRT_DOMAIN_NAME`.
+Optional `--name PRIVATE_NAME` must match that private binding. The catalog
+probe reads `sources/install.wim` into
+temporary ignored storage, identifies one exact Windows 11 Pro index, reports
+that index without a local path, and removes the temporary WIM. It does not
+prove the download's publisher or license. Run each reported media preparation
+command explicitly, then rerun preflight. `create` is offered only when every
+precreation check has observed its stated condition. The preflight result
+reports only presence of the prepared and seed artifacts; the renderer and
+creation commands retain their own media validation and exact-destination
+guards.
+
+After creation, pin the exact candidate, run common read-only doctor, acquire
+a claim, and use the claimed stage inspector. It reports observed evidence and
+one next adapter command for each stage. The agent chooses and runs each
+mutation explicitly; the inspector does not start, stop, detach,
+re-credential, or bootstrap a VM.
 
 ```bash
 bin/machine-control --target windows target doctor
@@ -26,12 +52,19 @@ bin/machine-control --target windows --claim CLAIM_ID testbed -- \
   factory-stages --json
 ```
 
-The stages cover exact candidate identity, first-logon completion, key-only
-SSH, removable media, stored and guest-verified password, and resident doctor
-readiness. `nextCommand` is an adapter command to run under the same claim;
+The claimed stages cover exact candidate identity, first-logon completion,
+key-only SSH, removable media, stored and guest-verified password, installed
+bootstrap support, and resident doctor readiness. `nextCommand` is an adapter
+command to run under the same claim;
 placeholders such as `PRIVATE_SECRET_FILE` need private caller input. A stage
 can be `complete`, `action_required`, `waiting`, `unverified`, or `blocked`.
-Only `complete` means that stage's stated evidence was observed.
+Only `complete` means that stage's stated evidence was observed. Before the
+guest agent appears on first boot, first-logon status remains `waiting`; the
+inspector does not infer a failed installation from a missing agent. When the
+guest is reachable but resident support is absent, `bin/winvm bootstrap
+--profile development` runs the UUID-attested candidate bootstrap; installed
+support instead leads to bounded post-update repair. Uncertain support state
+blocks either recommendation.
 
 When the guest first reports completed bootstrap, record its exact-UUID
 attestation before shutting it down:

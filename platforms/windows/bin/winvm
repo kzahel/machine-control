@@ -35,13 +35,17 @@ Start here:
 
 Setup:
   stage-bootstrap [KEY]  Stage OpenSSH bootstrap files through the provider
+  bootstrap [--profile development|runtime]
+                         Install the exact candidate's resident appliance
   trust-ssh-host-key     Trust the exact guest's SSH host key via QGA
   deploy-ui              Install WinApp and deploy/restart the session-1 relay
   ssh-config USER        Print the recommended OpenSSH client entry
   credential status|store FILE|rotate|verify
                          Keep the login password stored and recoverable
   login                  Sign in with the stored login password
-  factory-stages --json   Observe Linux factory stages and next commands
+  factory-stages preflight --json [OPTIONS]
+                         Inspect media and destination before VM creation
+  factory-stages --json   Observe claimed Linux candidate stages
   factory-stages attest-first-logon
                          Record live completion before stopping a candidate
 
@@ -70,6 +74,7 @@ Image factory:
   factory-status --json  Read minimized first-logon factory progress via QGA
   factory-create NAME WINDOWS_ISO SEED_ISO [BOOT_IMAGE]
                          Create a stopped QEMU VM from explicit local media
+  factory-preflight NAME Check KVM, exact pool, and unused destination
   factory-media-status  Inspect exact libvirt installer/seed attachments
   factory-detach-installer
                          Remove only the installer from a stopped candidate
@@ -144,12 +149,23 @@ Host $WINVM_SSH_HOST
 EOF
 }
 
+configure_libvirt_direct_transport() {
+    if [[ "$WINVM_PROVIDER" == libvirt-linux ]]; then
+        export WINVM_DIRECT_SSH_BIN="$WINVM_SSH_BIN"
+        export WINVM_DIRECT_SCP_BIN="$WINVM_SCP_BIN"
+        export WINVM_SSH_BIN="$REPO_DIR/scripts/libvirt-direct-ssh.sh"
+        export WINVM_SCP_BIN="$REPO_DIR/scripts/libvirt-direct-scp.sh"
+    fi
+}
+
 command="${1:-help}"
 shift || true
 
 case "$command" in
-    help|-h|--help|host-doctor|doctor|status|capabilities|target-id|pin-target|factory-create|factory-media-status|claim-*|ui|workspace-capabilities|workspace-inventory|workspace-gc) ;;
-    factory-stages) require_target_claim ;;
+    help|-h|--help|host-doctor|doctor|status|capabilities|target-id|pin-target|factory-create|factory-preflight|factory-media-status|claim-*|ui|workspace-capabilities|workspace-inventory|workspace-gc) ;;
+    factory-stages)
+        if [[ "${1:-}" != preflight ]]; then require_target_claim; fi
+        ;;
     workspace-acquire|workspace-release) ;;
     screenshot|type|click|key|scan) require_disruptive_target_claim ;;
     *) require_target_claim ;;
@@ -177,10 +193,32 @@ case "$command" in
     artifact)
         exec "$REPO_DIR/scripts/fetch-artifact.sh" "$@"
         ;;
-    post-update) exec "$REPO_DIR/scripts/post-update.sh" "$@" ;;
-    appliance-certify) exec "$REPO_DIR/scripts/certify-appliance.sh" "$@" ;;
+    post-update)
+        configure_libvirt_direct_transport
+        exec "$REPO_DIR/scripts/post-update.sh" "$@"
+        ;;
+    appliance-certify)
+        configure_libvirt_direct_transport
+        exec "$REPO_DIR/scripts/certify-appliance.sh" "$@"
+        ;;
     deploy-ui) assert_target deploy-ui; exec "$REPO_DIR/scripts/deploy-ui.sh" "$@" ;;
     stage-bootstrap) provider stage-bootstrap "$@" ;;
+    bootstrap)
+        if [[ $# -gt 2 || ( $# -gt 0 && "$1" != --profile ) ||
+              ( $# -eq 1 ) ||
+              ( $# -eq 2 && "$2" != development && "$2" != runtime ) ]]; then
+            printf 'Usage: winvm bootstrap [--profile development|runtime]\n' >&2
+            exit 2
+        fi
+        if [[ "$WINVM_PROVIDER" == libvirt-linux ]]; then
+            export WINVM_DIRECT_SSH_BIN="$WINVM_SSH_BIN"
+            export WINVM_DIRECT_SCP_BIN="$WINVM_SCP_BIN"
+            export MACHINE_CONTROL_SSH_BIN="$REPO_DIR/scripts/libvirt-direct-ssh.sh"
+            export MACHINE_CONTROL_SCP_BIN="$REPO_DIR/scripts/libvirt-direct-scp.sh"
+        fi
+        exec "$REPO_DIR/../../scripts/bootstrap-windows.sh" \
+            --testbed "$REPO_DIR" "$@" "$WINVM_SSH_HOST"
+        ;;
     ssh-config) print_ssh_config "$@" ;;
     credential) exec "$REPO_DIR/scripts/credential.sh" "$@" ;;
     login) exec "$REPO_DIR/scripts/credential.sh" login "$@" ;;
@@ -193,7 +231,7 @@ case "$command" in
     workspace-capabilities|workspace-acquire|workspace-inventory|workspace-release|workspace-gc)
         exec "$REPO_DIR/providers/$WINVM_PROVIDER/workspace.sh" "$command" "$@"
         ;;
-    status|capabilities|target-id|pin-target|assert-target|repair-registration|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop|seal|disposable-up|export-image|factory-status|factory-create|factory-media-status|factory-detach-installer|factory-detach-media|trust-ssh-host-key|delete)
+    status|capabilities|target-id|pin-target|assert-target|repair-registration|up|ip|screenshot|type|click|key|scan|down|suspend|shutdown|force-stop|seal|disposable-up|export-image|factory-status|factory-create|factory-preflight|factory-media-status|factory-detach-installer|factory-detach-media|trust-ssh-host-key|delete)
         provider "$command" "$@"
         ;;
     *)

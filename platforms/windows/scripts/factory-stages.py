@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 import tempfile
@@ -50,6 +52,145 @@ def stage(name: str, state: str, evidence: str, *next_command: str) -> dict:
         "evidence": evidence,
         "nextCommand": list(next_command) if next_command else None,
     }
+
+
+def readable_file(value: str, *, minimum: int = 1) -> bool:
+    if not value:
+        return False
+    try:
+        path = Path(value)
+        return (path.is_file() and os.access(path, os.R_OK)
+                and path.stat().st_size >= minimum)
+    except OSError:
+        return False
+
+
+def private_file(value: str) -> bool:
+    if not readable_file(value):
+        return False
+    try:
+        return stat.S_IMODE(Path(value).stat().st_mode) == 0o600
+    except OSError:
+        return False
+
+
+def seed_media_ready(value: str) -> bool:
+    if not private_file(value):
+        return False
+    volume_ok, volume = command("isoinfo", "-d", "-i", value, timeout=20)
+    files_ok, files = command("isoinfo", "-f", "-i", value, timeout=20)
+    listed = set(files.upper().splitlines()) if files_ok else set()
+    return (volume_ok and "Volume id: WINVM_SEED" in volume and
+            {"/AUTOUNATTEND.XML;1", "/BOOTSTRAP_FIRST_LOGON.PS1;1",
+             "/BOOTSTRAP_OPENSSH.PS1;1", "/CONTROLLER.PUB;1",
+             "/VIRTIO_WIN_GUEST_TOOLS.EXE;1"}.issubset(listed))
+
+
+def preflight(repo: Path, provider: Path, options: argparse.Namespace) -> dict:
+    """Inspect only host media and the unused libvirt destination."""
+    stages: list[dict] = []
+    factory_root = Path(os.environ.get(
+        "WINVM_FACTORY_LOCAL_ROOT", str(repo / ".factory.local"),
+    ))
+    source = options.source_iso or ""
+    if readable_file(source, minimum=1024 * 1024 * 1024):
+        valid, _ = command(str(repo / "scripts/image-factory.sh"),
+                           "validate-media", source, timeout=20)
+        stages.append(stage("source-media", "complete" if valid else "blocked",
+                            "source_iso_plausible" if valid else "source_iso_invalid"))
+    else:
+        stages.append(stage("source-media", "action_required",
+                            "source_iso_missing_or_unreadable"))
+
+    image_index = None
+    if stages[0]["state"] == "complete":
+        catalog = json_command(str(repo / "scripts/image-catalog.py"), source,
+                               timeout=240)
+        images = catalog.get("images") if catalog and catalog.get("schema") == "winvm-image-catalog/v0" else None
+        pro = [item.get("index") for item in images or []
+               if isinstance(item, dict) and item.get("name") == "Windows 11 Pro"
+               and item.get("flags") == "Professional"
+               and isinstance(item.get("index"), int)]
+        if len(pro) == 1:
+            image_index = pro[0]
+            item = stage("image-index", "complete", "unique_windows_11_pro_catalog_entry")
+            item["imageIndex"] = image_index
+            stages.append(item)
+        else:
+            stages.append(stage("image-index", "blocked",
+                                "windows_11_pro_catalog_unverified"))
+    else:
+        stages.append(stage("image-index", "blocked", "source_iso_required"))
+
+    prepared = factory_root / "windows-install-noprompt.iso"
+    if prepared.exists():
+        verification = (json_command(str(repo / "scripts/verify-prepared-media.py"),
+                                     source, str(prepared), timeout=120)
+                        if stages[0]["state"] == "complete" else None)
+        if verification and verification.get("schema") == "winvm-prepared-media-verification/v0" and verification.get("ready") is True:
+            stages.append(stage("prepared-media", "complete",
+                                "source_identical_outside_efi_and_no_prompt_loader_exact"))
+        else:
+            reason = verification.get("reason", "prepared_media_unverified") if verification else "prepared_media_unverified"
+            stages.append(stage("prepared-media", "blocked", reason))
+    elif stages[0]["state"] == "complete":
+        stages.append(stage("prepared-media", "action_required",
+                            "prepared_iso_missing", "scripts/image-factory.sh",
+                            "prepare-install-media", "PRIVATE_WINDOWS_ISO"))
+    else:
+        stages.append(stage("prepared-media", "blocked", "source_iso_required"))
+
+    public_key = options.public_key or ""
+    tools = options.guest_tools_iso or ""
+    secret = options.secret_file or ""
+    user = options.user or ""
+    inputs_valid = (readable_file(public_key) and
+                    readable_file(tools, minimum=1024 * 1024) and
+                    private_file(secret) and
+                    re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]{0,31}", user) and
+                    image_index is not None)
+    stages.append(stage("seed-inputs", "complete" if inputs_valid else "action_required",
+                        "seed_inputs_present" if inputs_valid else
+                        "seed_inputs_missing_or_invalid"))
+
+    seed = factory_root / "winvm-seed.iso"
+    if seed.exists():
+        if seed_media_ready(str(seed)):
+            stages.append(stage("seed-media", "complete", "private_seed_shape_verified"))
+        else:
+            stages.append(stage("seed-media", "blocked", "seed_media_invalid"))
+    elif inputs_valid:
+        stages.append(stage("seed-media", "action_required", "seed_iso_missing",
+                            "scripts/image-factory.sh", "render-seed", "amd64",
+                            "APPLIANCE_USER", str(image_index), "windows-11-pro",
+                            "PRIVATE_SECRET_FILE", "CONTROLLER_PUBLIC_KEY",
+                            "PRIVATE_VIRTIO_WIN_ISO"))
+    else:
+        stages.append(stage("seed-media", "blocked", "seed_inputs_required"))
+
+    name = options.name or os.environ.get("WINVM_LIBVIRT_DOMAIN_NAME", "")
+    if not name:
+        stages.append(stage("destination", "action_required", "candidate_name_missing"))
+    else:
+        result = json_command(str(provider), "factory-preflight", name, timeout=30)
+        if result and result.get("schema") == "machine-control-libvirt-factory-preflight/v0" and result.get("ready") is True:
+            stages.append(stage("destination", "complete",
+                                "kvm_pool_and_destination_verified"))
+        else:
+            reason = result.get("reason", "unavailable") if result else "unavailable"
+            if not isinstance(reason, str) or not re.fullmatch(r"[a-z_]+", reason):
+                reason = "unavailable"
+            stages.append(stage("destination", "blocked", reason))
+
+    if all(item["state"] == "complete" for item in stages):
+        stages.append(stage("create", "action_required", "media_and_destination_ready",
+                            "bin/winvm", "factory-create", "PRIVATE_NAME",
+                            ".factory.local/windows-install-noprompt.iso",
+                            ".factory.local/winvm-seed.iso"))
+    else:
+        stages.append(stage("create", "blocked", "preflight_incomplete"))
+    return {"schema": STAGE_SCHEMA, "provider": "libvirt-linux",
+            "phase": "precreation", "stages": stages}
 
 
 def attestation_path(identifier: str) -> Path:
@@ -131,7 +272,10 @@ def inspect(repo: Path, provider: Path, identifier: str) -> dict:
     media = json_command(str(provider), "factory-media-status")
     media_stage = media.get("stage") if media and media.get("schema") == "winvm-factory-media-status/v0" else None
     live_install = None
-    if power == "started":
+    agent_ready = power == "started" and command(
+        str(provider), "factory-agent-ready", timeout=10,
+    )[0]
+    if agent_ready:
         live_install = json_command(str(provider), "factory-status", "--json")
     installed = (live_install is not None and
                  live_install.get("schema") == "winvm-image-factory-status/v0" and
@@ -148,6 +292,10 @@ def inspect(repo: Path, provider: Path, identifier: str) -> dict:
                             "bin/winvm", "factory-status", "--json"))
     elif historical and power != "started":
         stages.append(stage("first-logon", "complete", "prior_exact_candidate_attestation"))
+    elif power == "started" and live_install is None:
+        stages.append(stage("first-logon", "waiting",
+                            "guest_agent_or_first_logon_not_yet_observed",
+                            "bin/winvm", "factory-status", "--json"))
     else:
         stages.append(stage("first-logon", "blocked", "completion_not_observed",
                             "bin/winvm", "up" if power != "started" else "factory-status",
@@ -197,6 +345,7 @@ def inspect(repo: Path, provider: Path, identifier: str) -> dict:
                             "stored_password_guest_verified" if valid else "credential_verification_failed"))
 
     if power != "started" or not ssh_ready:
+        stages.append(stage("bootstrap", "blocked", "guest_administration_unavailable"))
         stages.append(stage("resident", "blocked", "guest_administration_unavailable"))
     else:
         doctor = json_command(str(repo / "bin/winvm"), "doctor", "--json",
@@ -205,6 +354,34 @@ def inspect(repo: Path, provider: Path, identifier: str) -> dict:
         states = doctor.get("states", {}) if doctor_valid else {}
         resident_ready = all(states.get(name) == "ready" for name in
                              ("administration", "resident", "semantic", "capture", "input"))
+        if resident_ready:
+            stages.append(stage("bootstrap", "complete", "resident_components_ready"))
+        elif media_stage != "detached":
+            stages.append(stage("bootstrap", "blocked", "factory_media_detachment_required"))
+        elif stages[-1]["name"] == "credential" and stages[-1]["state"] != "complete":
+            stages.append(stage("bootstrap", "blocked", "credential_verification_required"))
+        elif not doctor_valid:
+            stages.append(stage("bootstrap", "blocked", "doctor_result_unavailable"))
+        else:
+            support_ok, support_text = command(
+                str(provider), "ssh-exec", "if (Test-Path -LiteralPath "
+                "'C:\\ProgramData\\MachineControl\\runtime\\support\\post-update.ps1') "
+                "{ 'present' } else { 'absent' }", timeout=30,
+            )
+            support_state = ([support_text.strip().splitlines()[-1].strip()]
+                             if support_ok and support_text.strip() else [])
+            if support_state == ["present"]:
+                stages.append(stage("bootstrap", "action_required",
+                                    "installed_components_need_repair",
+                                    "bin/winvm", "post-update", "repair", "--json"))
+            elif support_state == ["absent"]:
+                stages.append(stage("bootstrap", "action_required",
+                                    "resident_installation_required",
+                                    "bin/winvm", "bootstrap", "--profile",
+                                    "development"))
+            else:
+                stages.append(stage("bootstrap", "blocked",
+                                    "installed_support_state_unverified"))
         if not doctor_valid:
             stages.append(stage("resident", "blocked", "resident_doctor_unavailable",
                                 "bin/winvm", "doctor", "--json"))
@@ -220,17 +397,30 @@ def inspect(repo: Path, provider: Path, identifier: str) -> dict:
 
 
 def main() -> int:
-    if len(sys.argv) != 2 or sys.argv[1] not in ("--json", "attest-first-logon"):
-        print("Usage: winvm factory-stages --json|attest-first-logon", file=sys.stderr)
-        return 2
     if os.environ.get("WINVM_PROVIDER") != "libvirt-linux":
         print("Factory stages currently require the Linux libvirt provider", file=sys.stderr)
         return 1
+    repo = Path(os.environ["WINVM_REPO_DIR"])
+    provider = repo / "providers/libvirt-linux/provider.sh"
+    if len(sys.argv) >= 2 and sys.argv[1] == "preflight":
+        parser = argparse.ArgumentParser(prog="winvm factory-stages preflight")
+        parser.add_argument("--json", action="store_true", required=True)
+        parser.add_argument("--source-iso")
+        parser.add_argument("--guest-tools-iso")
+        parser.add_argument("--secret-file")
+        parser.add_argument("--public-key")
+        parser.add_argument("--user")
+        parser.add_argument("--name")
+        options = parser.parse_args(sys.argv[2:])
+        print(json.dumps(preflight(repo, provider, options), sort_keys=True))
+        return 0
+    if len(sys.argv) != 2 or sys.argv[1] not in ("--json", "attest-first-logon"):
+        print("Usage: winvm factory-stages preflight --json [OPTIONS] | --json | attest-first-logon", file=sys.stderr)
+        return 2
     identifier = os.environ.get("WINVM_EXPECTED_UTM_ID", "")
     if not UUID.fullmatch(identifier):
         print("Exact candidate identity is not pinned", file=sys.stderr)
         return 1
-    repo = Path(os.environ["WINVM_REPO_DIR"])
     claim_id = os.environ.get("MACHINE_CONTROL_CLAIM_ID", "")
     if not claim_id or not command(
         str(repo / "bin/winvm"), "claim-check", "--claim-id", claim_id,
@@ -238,7 +428,6 @@ def main() -> int:
     )[0]:
         print("An exclusive exact-candidate claim is required", file=sys.stderr)
         return 1
-    provider = repo / "providers/libvirt-linux/provider.sh"
     if sys.argv[1] == "attest-first-logon":
         return attest_first_logon(provider, identifier)
     print(json.dumps(inspect(repo, provider, identifier), sort_keys=True))

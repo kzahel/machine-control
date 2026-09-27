@@ -71,6 +71,28 @@ def absent_volume(provider: Libvirt, pool: str, volume: str) -> None:
         )
 
 
+def preflight_destination(
+    configuration: Configuration, provider: Libvirt, name_value: str,
+    kind: str,
+) -> dict[str, object]:
+    """Read-only creation guard using the same host, pool, and name checks."""
+    name = require_name(configuration, name_value)
+    require_factory_host(configuration)
+    require_local_pool_path(provider, configuration.pool)
+    absent_domain(provider, name)
+    volumes = [f"{name}.qcow2", f"{name}.seed.iso"]
+    if kind == "windows":
+        volumes.append(f"{name}.installer.iso")
+    for volume in volumes:
+        absent_volume(provider, configuration.pool, volume)
+    return {
+        "schema": "machine-control-libvirt-factory-preflight/v0",
+        "kind": kind,
+        "ready": True,
+        "evidence": "kvm_pool_and_destination_verified",
+    }
+
+
 def create_volume(
     provider: Libvirt,
     pool: str,
@@ -618,6 +640,9 @@ def parse_arguments() -> argparse.Namespace:
     linux.add_argument("name")
     linux.add_argument("cloud_image")
     linux.add_argument("seed_iso")
+    preflight = subparsers.add_parser("preflight")
+    preflight.add_argument("kind", choices=("windows", "linux"))
+    preflight.add_argument("name")
     subparsers.add_parser("detach-installer")
     subparsers.add_parser("detach-media")
     subparsers.add_parser("media-status")
@@ -629,7 +654,20 @@ def main() -> int:
         arguments = parse_arguments()
         configuration = Configuration.from_environment()
         provider = Libvirt(configuration)
-        if arguments.command == "create-windows":
+        if arguments.command == "preflight":
+            try:
+                report = preflight_destination(
+                    configuration, provider, arguments.name, arguments.kind,
+                )
+            except ProviderError as error:
+                report = {
+                    "schema": "machine-control-libvirt-factory-preflight/v0",
+                    "kind": arguments.kind,
+                    "ready": False,
+                    "reason": error.code,
+                }
+            print(json.dumps(report, sort_keys=True))
+        elif arguments.command == "create-windows":
             create_windows(
                 configuration,
                 provider,

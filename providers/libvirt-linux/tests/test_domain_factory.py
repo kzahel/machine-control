@@ -52,6 +52,32 @@ class FactoryPolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(PROVIDER.ProviderError, "private inventory"):
             MODULE.require_name(configuration(), "different-domain")
 
+    def test_preflight_checks_exact_unused_destination_without_mutation(self):
+        class Provider:
+            def __init__(self, occupied=False):
+                self.calls = []
+                self.occupied = occupied
+
+            def command(self, *arguments, **_kwargs):
+                self.calls.append(arguments)
+                found = self.occupied and arguments[0] == "domuuid"
+                return type("Result", (), {"returncode": 0 if found else 1})()
+
+        with mock.patch.object(MODULE, "require_factory_host"), \
+             mock.patch.object(MODULE, "require_local_pool_path"):
+            provider = Provider()
+            report = MODULE.preflight_destination(
+                configuration(), provider, "fixture-domain", "windows",
+            )
+            self.assertTrue(report["ready"])
+            self.assertEqual([call[0] for call in provider.calls],
+                             ["domuuid", "vol-info", "vol-info", "vol-info"])
+            with self.assertRaisesRegex(PROVIDER.ProviderError, "already exists"):
+                MODULE.preflight_destination(
+                    configuration(), Provider(occupied=True),
+                    "fixture-domain", "windows",
+                )
+
     def test_common_domain_is_native_host_passthrough_q35(self):
         arguments = MODULE.common_domain_arguments(
             configuration(),

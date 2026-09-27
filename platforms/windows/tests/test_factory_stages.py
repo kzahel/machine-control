@@ -1,4 +1,5 @@
 import importlib.util
+import argparse
 import json
 import os
 from pathlib import Path
@@ -60,13 +61,15 @@ class FactoryStagesTests(unittest.TestCase):
                              document)
 
     def inspect(self, power, media, first_logon, *, attested=False, ssh=False,
-                password_valid=False, doctor=None):
+                password_valid=False, doctor=None, support=None):
         def json_command(path, operation, *arguments, **_kwargs):
             if operation == "assert-target":
                 return IDENTITY
             if operation == "factory-media-status":
                 return {"schema": MEDIA, "stage": media}
             if operation == "factory-status":
+                if first_logon is None:
+                    return None
                 return {"schema": FACTORY, "state": first_logon}
             if operation == "status":
                 return CREDENTIAL
@@ -77,7 +80,11 @@ class FactoryStagesTests(unittest.TestCase):
         def command(path, operation, *arguments, **_kwargs):
             if operation == "status":
                 return True, power
+            if operation == "factory-agent-ready":
+                return first_logon is not None, ""
             if operation == "ssh-exec":
+                if arguments and arguments[0].startswith("if (Test-Path"):
+                    return support is not None, support or ""
                 return ssh, ""
             if operation == "credential":
                 return password_valid, ""
@@ -94,6 +101,11 @@ class FactoryStagesTests(unittest.TestCase):
         self.assertEqual(stages["first-logon"]["state"], "waiting")
         self.assertEqual(stages["media"]["state"], "blocked")
         self.assertIsNone(stages["media"]["nextCommand"])
+
+    def test_running_guest_without_agent_is_waiting(self):
+        stages = self.inspect("started", "installer_and_seed", None)
+        self.assertEqual(stages["first-logon"]["state"], "waiting")
+        self.assertEqual(stages["media"]["state"], "blocked")
 
     def test_attested_stopped_candidate_advises_exact_detach_order(self):
         stages = self.inspect("stopped", "installer_and_seed", "complete",
@@ -128,6 +140,84 @@ class FactoryStagesTests(unittest.TestCase):
         self.assertEqual(stages["resident"]["state"], "blocked")
         self.assertEqual(stages["resident"]["nextCommand"],
                          ["bin/winvm", "doctor", "--json"])
+
+    def test_bootstrap_repair_requires_observed_support_state(self):
+        doctor = {"schema": "machine-control-doctor/v0",
+                  "states": {"administration": "ready", "resident": "unavailable"}}
+        stages = self.inspect("started", "detached", "complete", ssh=True,
+                              password_valid=True, doctor=doctor, support="absent\n")
+        self.assertEqual(stages["bootstrap"]["nextCommand"],
+                         ["bin/winvm", "bootstrap", "--profile", "development"])
+        stages = self.inspect("started", "detached", "complete", ssh=True,
+                              password_valid=True, doctor=doctor, support="present\n")
+        self.assertEqual(stages["bootstrap"]["nextCommand"],
+                         ["bin/winvm", "post-update", "repair", "--json"])
+        stages = self.inspect("started", "detached", "complete", ssh=True,
+                              password_valid=True, doctor=doctor)
+        self.assertEqual(stages["bootstrap"]["state"], "blocked")
+        stages = self.inspect("started", "installer_and_seed", "complete",
+                              attested=True, ssh=True, password_valid=True,
+                              doctor=doctor, support="absent\n")
+        self.assertEqual(stages["bootstrap"]["evidence"],
+                         "factory_media_detachment_required")
+
+    def test_preflight_does_not_publish_private_paths(self):
+        options = argparse.Namespace(source_iso="/private/source.iso",
+            guest_tools_iso="/private/tools.iso", secret_file="/private/setup.secret",
+            public_key="/private/controller.pub", user="Appliance", image_index="6",
+            name="candidate")
+        def readable(path, **_kwargs):
+            return path.startswith("/private/")
+        def private(path):
+            return path == "/private/setup.secret"
+        def json_command(path, *_arguments, **_kwargs):
+            if path.endswith("image-catalog.py"):
+                return {"schema": "winvm-image-catalog/v0", "images": [
+                    {"index": 6, "name": "Windows 11 Pro", "flags": "Professional"}]}
+            if path.endswith("verify-prepared-media.py"):
+                return {"schema": "winvm-prepared-media-verification/v0",
+                        "ready": True}
+            return {"schema": "machine-control-libvirt-factory-preflight/v0",
+                    "ready": True}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "windows-install-noprompt.iso").touch()
+            (root / "winvm-seed.iso").touch()
+            with mock.patch.dict(os.environ, {"WINVM_FACTORY_LOCAL_ROOT": directory}), \
+                 mock.patch.object(MODULE, "readable_file", side_effect=readable), \
+                 mock.patch.object(MODULE, "private_file", side_effect=private), \
+                 mock.patch.object(MODULE, "seed_media_ready", return_value=True), \
+                 mock.patch.object(MODULE, "command", return_value=(True, "")), \
+                 mock.patch.object(MODULE, "json_command", side_effect=json_command):
+                report = MODULE.preflight(Path("/fixture"), Path("/provider"), options)
+        stages = by_name(report)
+        self.assertEqual(stages["create"]["state"], "action_required")
+        self.assertEqual(stages["image-index"]["imageIndex"], 6)
+        self.assertNotIn("/private/", json.dumps(report))
+
+    def test_preflight_destination_refusal_is_typed(self):
+        options = argparse.Namespace(source_iso=None, guest_tools_iso=None,
+            secret_file=None, public_key=None, user=None, name="candidate")
+        with mock.patch.object(MODULE, "json_command", return_value={
+            "schema": "machine-control-libvirt-factory-preflight/v0",
+            "ready": False, "reason": "factory_destination_exists",
+        }):
+            stages = by_name(MODULE.preflight(Path("/fixture"), Path("/provider"),
+                                              options))
+        self.assertEqual(stages["destination"]["state"], "blocked")
+        self.assertEqual(stages["destination"]["evidence"],
+                         "factory_destination_exists")
+
+    def test_preflight_never_recommends_creation_without_inputs(self):
+        options = argparse.Namespace(source_iso=None, guest_tools_iso=None,
+            secret_file=None, public_key=None, user=None, image_index=None,
+            name=None)
+        with mock.patch.object(MODULE, "json_command") as provider:
+            stages = by_name(MODULE.preflight(Path("/fixture"), Path("/provider"),
+                                              options))
+        self.assertEqual(stages["create"]["state"], "blocked")
+        self.assertIsNone(stages["create"]["nextCommand"])
+        provider.assert_not_called()
 
 
 if __name__ == "__main__":

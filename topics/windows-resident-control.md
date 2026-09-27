@@ -74,6 +74,17 @@ The agent still chooses each action; the remaining direction is to move more
 rendering, creation, and bootstrap recovery checks from the runbook into
 bounded stage commands, then give UTM the same projection.
 
+**Current — Linux route in progress:**
+[`Tactical 039`](../docs/tactical/039-linux-windows-factory-stages.md)
+adds read-only precreation stages for the exact Pro image index, verified
+no-prompt installer copy, private seed shape, and unused KVM destination. A
+fresh libvirt candidate passed first logon, attested media removal, stored
+password verification, key-only SSH, development bootstrap, and full common
+doctor. A claim-checked direct SSH/SCP route lets the platform bootstrap and
+post-update scripts reach this selected candidate without depending on an old
+public SSH alias route. Exact-source certification and clean stop remain to be
+completed; the UTM projection remains separate Mac work.
+
 **Current:** [`Tactical 018`](../docs/tactical/018-appliance-readiness-and-promotion.md)
 reused one retained stateful candidate rather than creating another large VM.
 It restored key-only SSH, automatic guest-agent/SSH services, and the complete
