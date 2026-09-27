@@ -138,6 +138,8 @@ def candidate() -> dict:
     agent, _ = call(str(PROVIDER), "factory-agent-ready", timeout=10) if power == "running" else (False, "")
     stages.append(stage("guest-agent", "complete" if agent else "waiting",
                         "qga_responsive" if agent else "qga_not_yet_responsive"))
+    media = document(str(PROVIDER), "factory-media-status")
+    shape = media.get("stage") if media.get("schema") == "linuxvm-factory-media-status/v0" else None
     cloud = {}
     boot_id = ""
     if agent:
@@ -145,10 +147,19 @@ def candidate() -> dict:
         ok, boot_id = call(str(CLI), "exec", "--", "cat", "/proc/sys/kernel/random/boot_id")
         if not ok or not re.fullmatch(r"[0-9a-f-]{36}", boot_id.strip()):
             boot_id = ""
-    cloud_done = cloud.get("status") == "done" and bool(boot_id)
+    prior_complete = False
+    if agent and cloud.get("status") == "disabled" and shape == "detached":
+        ok, instance_id = call(str(CLI), "exec", "--", "cat",
+                               "/var/lib/cloud/data/instance-id")
+        finished, _ = call(str(CLI), "exec", "--", "test", "-f",
+                           "/var/lib/cloud/instance/boot-finished")
+        prior_complete = (ok and finished and instance_id.strip().startswith(
+            "machine-control-linux-"))
+    cloud_done = bool(boot_id) and (cloud.get("status") == "done" or prior_complete)
     cloud_error = cloud.get("status") == "error"
     stages.append(stage("cloud-init", "complete" if cloud_done else
                         "blocked" if cloud_error else "waiting",
+                        "prior_nocloud_completion_on_disk" if prior_complete else
                         "completed_in_observed_boot" if cloud_done else
                         "cloud_init_error" if cloud_error else "cloud_init_pending"))
     if boot_id:
@@ -161,8 +172,6 @@ def candidate() -> dict:
                         "bootstrap_required" if cloud_done else "cloud_init_required",
                         *("bin/linuxvm", "bootstrap", "--profile", "development")
                         if cloud_done and not resident else ()))
-    media = document(str(PROVIDER), "factory-media-status")
-    shape = media.get("stage") if media.get("schema") == "linuxvm-factory-media-status/v0" else None
     if shape == "detached":
         stages.append(stage("media", "complete", "exact_seed_detached"))
     elif shape == "seed_only":

@@ -263,8 +263,10 @@ NoCloud seed.
 For the native KVM route, rerun `bin/linuxvm factory-stages --json` after
 pinning the exact candidate, read-only doctor, and claim acquisition. Its
 states distinguish guest-agent and cloud-init waits, a bootstrap action,
-seed attachment, and the final clean-stop handoff. `bootId` binds completed
-cloud-init to the observed running boot. Stage inspection does not run the
+seed attachment, and the final clean-stop handoff. `bootId` identifies the
+observed running boot. After seed removal, cloud-init may report `disabled`;
+the inspector then checks the guest's persisted NoCloud completion files
+before marking the earlier first boot complete. Stage inspection does not run the
 suggested command. A stopped VM cannot provide a live resident doctor, so
 retain the preceding ready-doctor and certification evidence when reviewing
 the final stopped stage. The preflight checks QCOW2 shape, seed content, and
