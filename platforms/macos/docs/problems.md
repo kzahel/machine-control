@@ -4,6 +4,30 @@ This is a living record of concrete gaps encountered while using MacVM
 Testbed. Keep observed behavior, effect, workaround, and a likely improvement
 direction together so later work can reproduce the problem.
 
+## Observed 2026-09-27 during a signed menu bar app test
+
+### A stale resident and an unverified guest password looked like a dead VM
+
+The target was initially suspended, so doctor correctly reported unavailable
+administration and resident control. After `target up` through the common
+`machine-control` client, guest administration and the resident worked. A
+direct `bin/macvm exec` without the private target binding failed exact
+identity resolution; `machine-control --target macos os -- ...` supplied that
+binding and succeeded. The deployed resident was older than the controller's
+lock-state contract. `maintenance repair --profile development` refreshed it,
+after which `target doctor` reported a ready unlocked desktop with semantic,
+capture, and input control.
+
+Later, `inventory credentials macvm` reported the declared guest password file
+as `ready`, but the normal System Settings authorization sheet rejected a
+one-shot submission. Guest `authd`/`opendirectoryd` logs reported invalid
+credentials. The inventory check verifies file presence and permissions, not
+whether the bytes authenticate the current guest. Stop attempts after an
+authentication failure; reconcile the guest credential or use the documented
+lost-password recovery path with user supervision. A useful future diagnostic
+would distinguish this credential-state problem from transport or resident
+readiness without testing a password during a read-only doctor.
+
 ## Observed 2026-09-26 on a locked controller
 
 ### Suspend states cannot be restored while the host is locked
