@@ -157,6 +157,15 @@ class FactoryPolicyTests(unittest.TestCase):
                     self.assertNotIn(directory, str(report))
                 with self.assertRaisesRegex(PROVIDER.ProviderError, "shape"):
                     MODULE.media_stage(config, Provider(["fixture-domain.installer.iso"]))
+                linux = MODULE.media_stage(
+                    config, Provider(["fixture-domain.seed.iso"]), kind="linux",
+                )
+                self.assertEqual(linux["schema"], "linuxvm-factory-media-status/v0")
+                self.assertEqual(linux["stage"], "seed_only")
+                with self.assertRaisesRegex(PROVIDER.ProviderError, "shape"):
+                    MODULE.media_stage(
+                        config, Provider(["fixture-domain.installer.iso"]), kind="linux",
+                    )
 
     def test_local_pool_path_requires_exact_writable_directory(self):
         class Provider:

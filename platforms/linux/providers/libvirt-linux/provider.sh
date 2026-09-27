@@ -198,6 +198,15 @@ case "$command" in
         fi
         factory create-linux "$@"
         ;;
+    factory-preflight)
+        (( $# == 1 )) || { printf 'Usage: linuxvm factory-preflight NAME\n' >&2; exit 2; }
+        factory preflight linux "$1"
+        ;;
+    factory-agent-ready) assert_target inspect >/dev/null; core agent-ready ;;
+    factory-media-status)
+        assert_target inspect >/dev/null
+        factory linux-media-status
+        ;;
     factory-detach-media)
         assert_target factory-detach-media
         factory detach-media

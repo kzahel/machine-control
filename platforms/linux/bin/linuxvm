@@ -54,6 +54,10 @@ Bootstrap:
                                  Create a stopped appliance from a cloud image:
                                  native x86_64 KVM on a Linux controller, or
                                  ARM64 UTM on a macOS controller
+  factory-stages preflight --json --cloud-image IMAGE --public-key KEY
+                 --user USER --name NAME
+                                 Read-only native KVM creation gates
+  factory-stages --json          Read-only claimed candidate stages
   factory-detach-media           Remove the stopped candidate's NoCloud seed
   target-id                      Resolve the configured target's exact UUID
 EOF
@@ -210,6 +214,9 @@ if (( $# > 0 )); then shift; fi
 
 case "$command" in
     help|-h|--help|host-doctor|doctor|status|target-id|factory-create|claim-*|workspace-capabilities|workspace-inventory|workspace-gc) ;;
+    factory-stages)
+        [[ "${1:-}" == preflight ]] || require_target_claim
+        ;;
     workspace-acquire|workspace-release) ;;
     screenshot|click|drag|type|key|scan) require_disruptive_target_claim ;;
     *) require_target_claim ;;
@@ -244,6 +251,13 @@ case "$command" in
         exec "$LINUXVM_REPO_DIR/scripts/doctor.sh"
         ;;
     candidate-status) exec "$LINUXVM_REPO_DIR/scripts/candidate-status.sh" "$@" ;;
+    factory-stages)
+        if [[ "${1:-}" == preflight ]]; then
+            exec "$LINUXVM_REPO_DIR/scripts/factory-stages.py" "$@"
+        fi
+        [[ "${1:-}" == --json ]] || { printf 'Usage: linuxvm factory-stages --json\n' >&2; exit 2; }
+        exec "$LINUXVM_REPO_DIR/scripts/factory-stages.py" inspect "$@"
+        ;;
     claim-capabilities|claim-status|claim-acquire|claim-check|claim-renew|claim-release)
         claim_command "$@"
         ;;

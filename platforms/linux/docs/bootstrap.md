@@ -242,6 +242,9 @@ Render the ignored NoCloud seed from a controller public key:
 ```bash
 scripts/image-factory.sh validate-cloud-image PRIVATE_UBUNTU_CLOUD_IMAGE
 scripts/image-factory.sh render-seed APPLIANCE_USER CONTROLLER_PUBLIC_KEY
+bin/linuxvm factory-stages preflight --json \
+  --cloud-image PRIVATE_UBUNTU_CLOUD_IMAGE \
+  --public-key CONTROLLER_PUBLIC_KEY --user APPLIANCE_USER --name PRIVATE_NAME
 bin/linuxvm factory-create PRIVATE_NAME PRIVATE_UBUNTU_CLOUD_IMAGE \
   .factory.local/linuxvm-seed.iso
 bin/linuxvm target-id
@@ -256,6 +259,17 @@ common doctor, and a target-use claim are required before operating the new
 domain. After cloud-init and the normal resident bootstrap pass, stop the
 candidate and use `factory-detach-media` under the same claim to remove its
 NoCloud seed.
+
+For the native KVM route, rerun `bin/linuxvm factory-stages --json` after
+pinning the exact candidate, read-only doctor, and claim acquisition. Its
+states distinguish guest-agent and cloud-init waits, a bootstrap action,
+seed attachment, and the final clean-stop handoff. `bootId` binds completed
+cloud-init to the observed running boot. Stage inspection does not run the
+suggested command. A stopped VM cannot provide a live resident doctor, so
+retain the preceding ready-doctor and certification evidence when reviewing
+the final stopped stage. The preflight checks QCOW2 shape, seed content, and
+destination guards; boot and guest checks establish the actual architecture
+and installation effect.
 
 ## ARM64 UTM image factory
 

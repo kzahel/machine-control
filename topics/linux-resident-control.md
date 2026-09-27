@@ -64,6 +64,12 @@ lock and first-login setup. Doctor now reports a locked GNOME session, and
 clipboard text waits for selection ownership instead of racing the paste. See
 the [Linux problem record](../platforms/linux/docs/problems.md).
 
+**Current:** The native x86_64 KVM factory now has read-only precreation and
+claimed candidate stages for QCOW2/NoCloud inputs, exact destination,
+guest-agent and cloud-init readiness, resident bootstrap, seed removal, and
+clean stop. Tactical 040 is validating the fresh candidate; these stages do
+not yet establish UTM parity or final live acceptance.
+
 ## Current goal
 
 **Decision:** Keep this accepted GNOME Wayland profile stable while extending
