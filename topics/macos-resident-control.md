@@ -127,10 +127,12 @@ remain owned here.
 
 **Current:** [`Tactical 044`](../docs/tactical/044-macos-tart-bootstrap-stages.md)
 adds a read-only Tart prepared/vanilla bootstrap stage report. A live retained
-candidate had guest administration and resident control but an unknown Aqua
-state, which the report kept unverified. The host maintenance command now
-bounds a guest report call so restarting Tart transport cannot hang its caller.
-Fresh prepared and IPSW stage-driven acceptance remains open.
+candidate had an unknown Aqua state in resident status while a direct guest
+probe observed it unlocked. A guarded resident restart restored full doctor
+readiness, and the report now suggests that action for this exact mismatch.
+The host maintenance command bounds guest report calls so restarting Tart
+transport cannot hang its caller. Fresh prepared and IPSW stage-driven
+acceptance remains open.
 
 ## Current Tart goal
 

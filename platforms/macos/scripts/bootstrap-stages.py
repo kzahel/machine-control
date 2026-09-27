@@ -220,15 +220,26 @@ def inspect(kind: str) -> dict:
                           if trusted is False else ())))
 
     desktop = states.get("desktop", "unknown")
+    direct = document(str(CLI), "ui", "session-state", timeout=30) if agent else None
+    direct_desktop = (direct.get("desktopState") if isinstance(direct, dict) and
+                      direct.get("observationSource") == "iokit.console-session"
+                      else None)
+    stale_resident = (desktop == "unknown" and direct_desktop == "unlocked" and
+                      resident)
     stages.append(stage("desktop", "complete" if desktop == "unlocked" else
+                        "action_required" if stale_resident else
                         "human_required" if desktop == "locked" else
                         "unverified",
                         "aqua_unlocked" if desktop == "unlocked" else
+                        "resident_session_observation_stale" if stale_resident else
                         "aqua_login_required" if desktop == "locked" else
                         "aqua_state_unverified",
+                        "restart_resident" if stale_resident else
                         "sign_in_to_guest" if desktop == "locked" else
                         "inspect_guest_session" if desktop == "unknown" else None,
-                        *(("bin/macvm", "post-update", "audit", "--profile",
+                        *(("bin/macvm", "ui", "resident-restart")
+                          if stale_resident else
+                          ("bin/macvm", "post-update", "audit", "--profile",
                            "development", "--json")
                           if desktop == "unknown" and agent else ())))
     ready = valid_doctor and doctor.get("ready") is True

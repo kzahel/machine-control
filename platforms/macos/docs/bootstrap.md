@@ -53,6 +53,9 @@ It uses stable stage names and evidence codes. Run each suggested command
 explicitly and recheck; the inspector does not create or change a VM. `kind`
 describes the path chosen by the operator, not a fact inferred from the VM.
 Setup Assistant, administrator authorization, and TCC remain human handoffs.
+If a direct guest probe sees an unlocked Aqua session while the running
+resident reports `unknown`, the report suggests a guarded resident restart.
+It still treats the desktop as unverified until doctor observes the result.
 
 The first screenshot and input operation may cause host macOS to request:
 

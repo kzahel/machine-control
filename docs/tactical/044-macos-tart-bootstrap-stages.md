@@ -3,7 +3,7 @@
 Topics: [operational-workflow-automation](../../topics/operational-workflow-automation.md),
 [macos-resident-control](../../topics/macos-resident-control.md)
 
-Status: partial; stage inspection and existing-candidate live checks are
+Status: partial; stage inspection and existing-candidate live recovery are
 implemented, while fresh prepared and IPSW acceptance remain open.
 
 ## Objective and completion conditions
@@ -36,7 +36,10 @@ Private VM names, paths, and credentials remain outside Git.
 Steps 1–3 are implemented. The live precreation report saw a registered VM
 and granted host permissions. A claimed candidate report found a running VM,
 guest administration, credential, tools, resident, and Accessibility, while
-correctly leaving an unknown Aqua state unverified. A repair attempt exposed
+correctly leaving an unknown Aqua state unverified. A direct guest probe then
+observed an unlocked session while the resident still reported unknown. A
+guarded resident restart gave doctor a fully ready result; the stage inspector
+now suggests that action for the same observed mismatch. A repair attempt exposed
 that restarting Tart's own guest transport can interrupt its repair report;
 the host now bounds that call and returns an explicit unavailable result.
 The existing VM was left running. Step 4 remains open.

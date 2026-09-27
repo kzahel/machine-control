@@ -74,6 +74,8 @@ class BootstrapStagesTests(unittest.TestCase):
                 return doctor
             if "health" in args:
                 return {"accessibilityTrusted": True}
+            if "session-state" in args:
+                return None
             raise AssertionError(args)
         with tempfile.TemporaryDirectory() as directory:
             secret = Path(directory) / "secret"
@@ -89,6 +91,28 @@ class BootstrapStagesTests(unittest.TestCase):
         self.assertEqual(report["accessibility"]["state"], "complete")
         self.assertEqual(report["desktop"]["state"], "unverified")
         self.assertEqual(report["desktop"]["nextActionId"], "inspect_guest_session")
+
+    def test_direct_unlocked_probe_suggests_guarded_resident_restart(self):
+        doctor = {**READY, "ready": False,
+                  "states": {**READY["states"], "desktop": "unknown"}}
+        def observed(*args, **_kwargs):
+            if "candidate-status" in args:
+                return IDENTITY
+            if "doctor" in args:
+                return doctor
+            if "health" in args:
+                return {"accessibilityTrusted": True}
+            if "session-state" in args:
+                return {"desktopState": "unlocked",
+                        "observationSource": "iokit.console-session"}
+            raise AssertionError(args)
+        with mock.patch.object(MODULE, "document", side_effect=observed), \
+             mock.patch.object(MODULE, "command", return_value=(True, "")), \
+             mock.patch.object(MODULE, "host_permissions", return_value=None):
+            report = stages(MODULE.inspect("prepared"))
+        self.assertEqual(report["desktop"]["state"], "action_required")
+        self.assertEqual(report["desktop"]["nextCommand"],
+                         ["bin/macvm", "ui", "resident-restart"])
 
     def test_vanilla_guest_without_agent_requires_human_setup(self):
         doctor = {**READY, "ready": False,
