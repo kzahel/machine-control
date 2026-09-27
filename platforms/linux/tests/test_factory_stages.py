@@ -1,10 +1,13 @@
 import argparse
+import contextlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import os
 import platform
 import subprocess
+import stat
 import sys
 import tempfile
 import unittest
@@ -23,6 +26,17 @@ def stages(report):
 
 
 class FactoryStagesTests(unittest.TestCase):
+    def test_stage_probe_timeout_returns_uncertainty(self):
+        success, output = MODULE.call("/bin/sh", "-c", "sleep 3", timeout=1)
+        self.assertFalse(success)
+        self.assertEqual(output, "")
+
+    def test_failed_doctor_json_remains_observable(self):
+        with mock.patch.object(MODULE, "call", return_value=(False,
+             '{"schema":"machine-control-doctor/v0","ready":false}')):
+            self.assertEqual(MODULE.document("doctor"), {})
+            self.assertFalse(MODULE.document("doctor", allow_failure_json=True)["ready"])
+
     def test_preflight_never_recommends_creation_with_mismatched_seed(self):
         args = argparse.Namespace(cloud_image="/private/cloud.qcow2",
                                   public_key="/private/key.pub", user="appliance",
@@ -120,6 +134,112 @@ class FactoryStagesTests(unittest.TestCase):
                                                 "ssh-ed25519 AAAA test", "utm-macos"))
             self.assertFalse(MODULE.private_seed(seed, "other",
                                                  "ssh-ed25519 AAAA test", "utm-macos"))
+
+    def test_utm_running_candidate_waits_without_guest_agent(self):
+        identity = {"schema": "machine-control-candidate-assertion/v0",
+                    "identityPin": "verified", "role": "candidate",
+                    "powerState": "running"}
+
+        def report(*args, **_kwargs):
+            if "candidate-status" in args:
+                return identity
+            if "factory-media-status" in args:
+                return {"schema": "linuxvm-factory-media-status/v0",
+                        "stage": "seed_only"}
+            return {}
+
+        with mock.patch.object(MODULE, "document", side_effect=report), \
+             mock.patch.object(MODULE, "call", return_value=(False, "")), \
+             mock.patch.object(MODULE, "attested", return_value=False), \
+             mock.patch.object(MODULE, "cloud_observation") as cloud:
+            current = stages(MODULE.utm_candidate("00000000-0000-0000-0000-000000000000"))
+        cloud.assert_not_called()
+        self.assertEqual(current["guest-agent"]["state"], "waiting")
+        self.assertEqual(current["cloud-init"]["state"], "waiting")
+        self.assertEqual(current["media"]["state"], "blocked")
+
+    def test_utm_seed_detach_needs_recorded_cloud_completion(self):
+        identity = {"schema": "machine-control-candidate-assertion/v0",
+                    "identityPin": "verified", "role": "candidate",
+                    "powerState": "off"}
+
+        def report(*args, **_kwargs):
+            if "candidate-status" in args:
+                return identity
+            if "factory-media-status" in args:
+                return {"schema": "linuxvm-factory-media-status/v0",
+                        "stage": "seed_only"}
+            return {}
+
+        with mock.patch.object(MODULE, "document", side_effect=report), \
+             mock.patch.object(MODULE, "attested", return_value=False):
+            blocked = stages(MODULE.utm_candidate("00000000-0000-0000-0000-000000000000"))
+        with mock.patch.object(MODULE, "document", side_effect=report), \
+             mock.patch.object(MODULE, "attested", return_value=True):
+            recorded = stages(MODULE.utm_candidate("00000000-0000-0000-0000-000000000000"))
+        self.assertEqual(blocked["media"]["state"], "blocked")
+        self.assertEqual(recorded["media"]["nextCommand"],
+                         ["bin/linuxvm", "factory-detach-media"])
+
+    def test_utm_attestation_refuses_unfinished_cloud_init(self):
+        identity = {"schema": "machine-control-candidate-assertion/v0",
+                    "identityPin": "verified", "role": "candidate",
+                    "powerState": "running"}
+        with mock.patch.object(MODULE, "document", side_effect=[
+                 identity, {"schema": "linuxvm-factory-media-status/v0",
+                            "stage": "seed_only"}]), \
+             mock.patch.object(MODULE, "call", return_value=(True, "")), \
+             mock.patch.object(MODULE, "cloud_observation",
+                               return_value=("running", "00000000-0000-0000-0000-000000000000", True)):
+            with self.assertRaisesRegex(ValueError, "completion_required"):
+                MODULE.attest_cloud_init("00000000-0000-0000-0000-000000000000")
+
+    def test_utm_completion_receipt_is_private_and_exact(self):
+        identifier = "00000000-0000-0000-0000-000000000000"
+        identity = {"schema": "machine-control-candidate-assertion/v0",
+                    "identityPin": "verified", "role": "candidate",
+                    "powerState": "running"}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "receipts" / f"{identifier}.json"
+            with mock.patch.object(MODULE, "document", side_effect=[
+                     identity, {"schema": "linuxvm-factory-media-status/v0",
+                                "stage": "seed_only"}]), \
+                 mock.patch.object(MODULE, "call", return_value=(True, "")), \
+                 mock.patch.object(MODULE, "cloud_observation",
+                                   return_value=("done", identifier, True)), \
+                 mock.patch.object(MODULE, "attestation_path", return_value=path), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                MODULE.attest_cloud_init(identifier)
+            with mock.patch.object(MODULE, "attestation_path", return_value=path):
+                self.assertTrue(MODULE.attested(identifier))
+                self.assertFalse(MODULE.attested("11111111-1111-1111-1111-111111111111"))
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+
+    def test_utm_locked_desktop_does_not_suggest_bootstrap(self):
+        identity = {"schema": "machine-control-candidate-assertion/v0",
+                    "identityPin": "verified", "role": "candidate",
+                    "powerState": "running"}
+
+        def report(*args, **_kwargs):
+            if "candidate-status" in args:
+                return identity
+            if "factory-media-status" in args:
+                return {"schema": "linuxvm-factory-media-status/v0",
+                        "stage": "seed_only"}
+            if "doctor" in args:
+                return {"schema": "machine-control-doctor/v0", "ready": False,
+                        "states": {"desktop": "locked"}}
+            return {}
+
+        with mock.patch.object(MODULE, "document", side_effect=report), \
+             mock.patch.object(MODULE, "call", return_value=(True, "")), \
+             mock.patch.object(MODULE, "attested", return_value=False), \
+             mock.patch.object(MODULE, "utm_exec", return_value=(True, "")), \
+             mock.patch.object(MODULE, "cloud_observation", return_value=(
+                 "done", "00000000-0000-0000-0000-000000000000", True)):
+            current = stages(MODULE.utm_candidate("00000000-0000-0000-0000-000000000000"))
+        self.assertEqual(current["resident"]["state"], "human_required")
+        self.assertIsNone(current["resident"]["nextCommand"])
 
     def test_running_candidate_waits_for_agent_without_bootstrap(self):
         identity = {"schema": "machine-control-candidate-assertion/v0",

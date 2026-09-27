@@ -304,7 +304,7 @@ staging path. The `create`
 stage appears only when these checks pass. A blank UTM list is treated as
 unverified because UTM may have failed to load its library. The report does
 not prove source provenance or guest architecture, and it does not create or
-start the candidate. Claimed UTM guest stages remain guide-driven.
+start the candidate.
 
 `factory-create` never mutates the source download. It copies the cloud image
 into ignored factory storage, expands that copy to 128 GiB, and refuses both an
@@ -335,6 +335,21 @@ resident bootstrap, media detachment, and shutdown. After cloud-init and
 bootstrap pass, stop the candidate and use `factory-detach-media` under the same
 claim to remove its NoCloud seed disk. Detachment also removes seed media left
 as a removable drive by earlier factories.
+
+On the claimed exact candidate, rerun `bin/linuxvm factory-stages --json`
+after each action. The UTM stages distinguish power, guest-agent and
+cloud-init waits, a matching NoCloud completion in the observed boot,
+resident readiness, seed-drive shape, and the final stop. Once cloud-init is
+complete, explicitly run `bin/linuxvm factory-stages attest-cloud-init` and
+recheck the report. This writes a UUID-bound mode-0600 local completion
+receipt, valid for 24 hours, so the stopped report can safely offer seed
+detachment. Inspection itself never writes the receipt or changes the VM.
+The drive probe verifies the expected factory shape, not copied ISO bytes;
+an unfamiliar shape remains blocked. After detachment and restart, the guest's
+persisted NoCloud files let the inspector recognize its earlier completion
+even if cloud-init now says `disabled`. Keep the prior running-doctor and
+certification evidence when reviewing a stopped target, whose live resident
+can no longer be probed.
 
 The seed contains no password or private key. Do not bake personal credentials,
 SSH private keys, or machine-specific IDs into the image.

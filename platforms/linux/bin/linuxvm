@@ -56,8 +56,10 @@ Bootstrap:
                                  ARM64 UTM on a macOS controller
   factory-stages preflight --json --cloud-image IMAGE --public-key KEY
                  --user USER --name NAME
-                                 Read-only native KVM creation gates
+                                 Read-only creation gates for the selected host
   factory-stages --json          Read-only claimed candidate stages
+  factory-stages attest-cloud-init
+                                 Record observed UTM NoCloud completion
   factory-detach-media           Remove the stopped candidate's NoCloud seed
   target-id                      Resolve the configured target's exact UUID
 EOF
@@ -252,7 +254,7 @@ case "$command" in
         ;;
     candidate-status) exec "$LINUXVM_REPO_DIR/scripts/candidate-status.sh" "$@" ;;
     factory-stages)
-        if [[ "${1:-}" == preflight ]]; then
+        if [[ "${1:-}" == preflight || "${1:-}" == attest-cloud-init ]]; then
             exec "$LINUXVM_REPO_DIR/scripts/factory-stages.py" "$@"
         fi
         [[ "${1:-}" == --json ]] || { printf 'Usage: linuxvm factory-stages --json\n' >&2; exit 2; }

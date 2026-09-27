@@ -526,6 +526,46 @@ APPLESCRIPT
     printf 'factory media detached: removed=%s remaining=0\n' "$removed"
 }
 
+# Project only the drive shape of the exact candidate. UTM owns the copied
+# media inside its sandbox; this probe does not read or modify that bundle.
+factory_media_status() {
+    linuxvm_assert_candidate_target || return 1
+    local shape
+    shape="$(/usr/bin/osascript - "$LINUXVM_EXPECTED_UUID" <<'APPLESCRIPT'
+on run argv
+    tell application "UTM"
+        set targetVM to first virtual machine whose id is (item 1 of argv)
+        set vmConfig to configuration of targetVM
+        set vmDrives to drives of vmConfig
+        if (count of vmDrives) is 1 then
+            if (not (removable of item 1 of vmDrives)) and (host size of item 1 of vmDrives) > 16 then return "detached"
+        else if (count of vmDrives) is 2 then
+            set systemDrive to item 1 of vmDrives
+            set seedDrive to item 2 of vmDrives
+            if (not (removable of systemDrive)) and (host size of systemDrive) > 16 and ((removable of seedDrive) or (host size of seedDrive) < 16) then
+                return "seed_only"
+            end if
+        end if
+        return "unverified"
+    end tell
+end run
+APPLESCRIPT
+)" || return 1
+    case "$shape" in
+        seed_only|detached|unverified) ;;
+        *) return 1 ;;
+    esac
+    jq -cn --arg stage "$shape" \
+        '{schema:"linuxvm-factory-media-status/v0",stage:$stage}'
+}
+
+factory_agent_ready() {
+    linuxvm_assert_candidate_target || return 1
+    [[ "$(vm_status || true)" == started ]] || return 1
+    "$LINUXVM_UTMCTL" exec "$LINUXVM_UTM_NAME" --cmd /usr/bin/true \
+        >/dev/null 2>&1
+}
+
 guard_status() {
     local mutation_verified=false
     if [[ "$LINUXVM_REQUIRE_MUTATION_GUARD" == true ]] &&
@@ -582,6 +622,8 @@ case "$command" in
     status) vm_status ;;
     target-id) target_id "$@" ;;
     factory-create) factory_create "$@" ;;
+    factory-media-status) factory_media_status ;;
+    factory-agent-ready) factory_agent_ready ;;
     factory-detach-media) factory_detach_media ;;
     guard-status) guard_status ;;
     up)

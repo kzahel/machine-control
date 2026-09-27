@@ -81,3 +81,4 @@ the commits' `Topic:` trailers and register that exact string in
 | [`039-linux-windows-factory-stages.md`](039-linux-windows-factory-stages.md) | complete (Linux route) | Linux libvirt Windows precreation stages, unique Pro catalog, bootstrap recovery, and fresh-candidate acceptance |
 | [`040-linux-kvm-ubuntu-factory-stages.md`](040-linux-kvm-ubuntu-factory-stages.md) | complete (Linux route) | Native x86_64 Ubuntu precreation and claimed factory stages with fresh-candidate acceptance |
 | [`041-macos-utm-ubuntu-precreation-stages.md`](041-macos-utm-ubuntu-precreation-stages.md) | active | Read-only Mac UTM Ubuntu media and unused-destination report before candidate creation |
+| [`042-macos-utm-ubuntu-candidate-stages.md`](042-macos-utm-ubuntu-candidate-stages.md) | active | Claimed UTM Ubuntu cloud-init, resident, seed-removal, and stopped-candidate stage reports |

@@ -66,8 +66,10 @@ the [Linux problem record](../platforms/linux/docs/problems.md).
 
 **Current:** The Mac UTM factory now has a read-only precreation report for
 cloud-image shape, exact key-only NoCloud seed content, host tools, responsive
-UTM scripting, and unused destination. Claimed UTM guest stages still need their
-own read-only probes and fresh-candidate acceptance.
+UTM scripting, and unused destination. The claimed UTM candidate report now
+observes guest-agent and NoCloud completion, requires explicit completion
+attestation before stopped seed removal, and checks resident readiness and
+final stop. A fresh UTM candidate still needs stage-driven acceptance.
 
 **Current:** The native x86_64 KVM factory now has read-only precreation and
 claimed candidate stages for QCOW2/NoCloud inputs, exact destination,
