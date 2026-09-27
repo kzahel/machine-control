@@ -2,11 +2,13 @@
 
 set -uo pipefail
 
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
 readonly LINUXVM="$LINUXVM_REPO_DIR/bin/linuxvm"
-readonly PROVIDER="$(linuxvm_provider_path)"
+PROVIDER="$(linuxvm_provider_path)"
+readonly PROVIDER
 
 failures=0
 
@@ -100,8 +102,9 @@ else
 fi
 if $PROVIDER exec /usr/bin/pgrep -x spice-vdagent >/dev/null 2>&1; then
     ok "interactive SPICE agent"
-elif [[ "$LINUXVM_PROVIDER" == libvirt-linux ]]; then
-    ok "interactive SPICE agent is optional on headless libvirt"
+elif [[ "$LINUXVM_PROVIDER" == libvirt-linux ||
+        "$LINUXVM_FORBID_OUTER_UI" == true ]]; then
+    ok "interactive SPICE agent is optional for headless control"
 else
     bad "interactive SPICE agent"
 fi

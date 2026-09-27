@@ -158,6 +158,34 @@ class FactoryStagesTests(unittest.TestCase):
         self.assertEqual(current["cloud-init"]["state"], "waiting")
         self.assertEqual(current["media"]["state"], "blocked")
 
+    def test_utm_cloud_completion_uses_recorded_runtime_when_cli_is_silent(self):
+        phases = {name: {"finished": 3.0, "errors": []} for name in
+                  ("init-local", "init", "modules-config", "modules-final")}
+
+        def report(*args, **_kwargs):
+            if "/run/cloud-init/status.json" in args:
+                return {"v1": phases}
+            if "/run/cloud-init/result.json" in args:
+                return {"v1": {"datasource": "DataSourceNoCloud [seed=/dev/vdb]",
+                               "errors": []}}
+            return {}
+
+        identifier = "00000000-0000-0000-0000-000000000000"
+        with mock.patch.object(MODULE, "document", side_effect=report), \
+             mock.patch.object(MODULE, "utm_exec", side_effect=[
+                 (True, identifier), (True, "machine-control-linux-appliance"),
+                 (True, "")]):
+            status, boot_id, matching = MODULE.cloud_observation()
+        self.assertEqual((status, boot_id, matching), ("done", identifier, True))
+
+        phases["modules-final"].pop("finished")
+        with mock.patch.object(MODULE, "document", side_effect=report), \
+             mock.patch.object(MODULE, "utm_exec", side_effect=[
+                 (True, identifier), (True, "machine-control-linux-appliance"),
+                 (True, "")]):
+            status, _, _ = MODULE.cloud_observation()
+        self.assertEqual(status, "")
+
     def test_utm_seed_detach_needs_recorded_cloud_completion(self):
         identity = {"schema": "machine-control-candidate-assertion/v0",
                     "identityPin": "verified", "role": "candidate",

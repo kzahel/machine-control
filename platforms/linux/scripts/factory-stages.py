@@ -293,6 +293,28 @@ def cloud_observation() -> tuple[str, str, bool]:
                      "status", "--format=json", timeout=20,
                      allow_failure_json=True)
     status = cloud.get("status", "")
+    if not status:
+        # UTM can return before cloud-init's Python process emits stdout.
+        # Its completed state is also recorded in read-only runtime files.
+        runtime = document(utmctl, "exec", name, "--cmd", "/usr/bin/cat",
+                           "/run/cloud-init/status.json", timeout=20).get("v1", {})
+        result = document(utmctl, "exec", name, "--cmd", "/usr/bin/cat",
+                          "/run/cloud-init/result.json", timeout=20).get("v1", {})
+        if not isinstance(runtime, dict):
+            runtime = {}
+        if not isinstance(result, dict):
+            result = {}
+        phases = ("init-local", "init", "modules-config", "modules-final")
+        records = [runtime.get(phase) for phase in phases]
+        if result.get("errors") or any(isinstance(record, dict) and
+                                       record.get("errors") for record in records):
+            status = "error"
+        elif (isinstance(result.get("datasource"), str)
+              and "DataSourceNoCloud" in result["datasource"]
+              and result.get("errors") == []
+              and all(isinstance(record, dict) and isinstance(
+                  record.get("finished"), (int, float)) for record in records)):
+            status = "done"
     ok, boot_id = utm_exec("/usr/bin/cat", "/proc/sys/kernel/random/boot_id")
     if not ok or not re.fullmatch(r"[0-9a-f-]{36}", boot_id.strip()):
         boot_id = ""
