@@ -1,6 +1,6 @@
 # Tactical 039: Linux Windows Factory Stages
 
-Status: in progress.
+Status: complete for the native Linux/libvirt route.
 
 Topics: [`windows-resident-control`](../../topics/windows-resident-control.md)
 and [`operational-workflow-automation`](../../topics/operational-workflow-automation.md).
@@ -52,7 +52,8 @@ boundary accurately.
 
 ## Result
 
-Pending exact-source certification and final clean stop. The precreation stage
+The native route completed exact-source certification and final clean stop.
+The precreation stage
 projection and exact Pro catalog probe passed against local media. A separate
 KVM candidate was created, pinned, and claimed; its initial running stage
 correctly reported waiting for guest-agent/first-logon evidence. A subsequent
@@ -63,5 +64,12 @@ full common doctor then passed after a cold start. The first post-update audit
 identified a pending development-package reboot; explicit repair/reboot and
 the one-shot stored-password login observed a changed boot and restored full
 doctor and audit readiness. All eight claimed stages then passed. All
-generated media, inventory, claim, and password material are ignored or in
-the local secret store.
+generated media, inventory, claim, and password material were ignored or in
+the local secret store. Certification observed a changed boot epoch, matching
+source digest, passing portable and Windows-native checks, removed staging,
+and `final_power: off`. The stored current login secret remained mode `0600`;
+the exclusive claim was released and the setup seed/password copy removed.
+The first portable certification attempt exposed a POSIX file-mode test that
+could not run meaningfully on NTFS. After scoping that assertion to POSIX,
+the same fresh candidate passed the full certification. UTM remains an open
+Mac-host path in W1.

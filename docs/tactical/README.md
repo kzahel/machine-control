@@ -78,5 +78,5 @@ the commits' `Topic:` trailers and register that exact string in
 | [`036-windows-workstation-distribution.md`](036-windows-workstation-distribution.md) | complete | Ordinary-user Windows package with explicit privilege boundaries and appliance/CLI compatibility |
 | [`037-windows-unlock-arming.md`](037-windows-unlock-arming.md) | complete | Optional privileged unlock service with UAC consent, controller-bound arming and native Windows acceptance |
 | [`038-windows-factory-stage-diagnostics.md`](038-windows-factory-stage-diagnostics.md) | complete | Claimed Linux factory stage checks, exact media-state projection, and resumable first-logon attestation |
-| [`039-linux-windows-factory-stages.md`](039-linux-windows-factory-stages.md) | in progress | Linux libvirt Windows precreation stages, unique Pro catalog, bootstrap recovery, and fresh-candidate acceptance |
+| [`039-linux-windows-factory-stages.md`](039-linux-windows-factory-stages.md) | complete (Linux route) | Linux libvirt Windows precreation stages, unique Pro catalog, bootstrap recovery, and fresh-candidate acceptance |
 | [`040-linux-kvm-ubuntu-factory-stages.md`](040-linux-kvm-ubuntu-factory-stages.md) | in progress | Native x86_64 Ubuntu precreation and claimed factory stages with fresh-candidate acceptance |
