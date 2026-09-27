@@ -1,7 +1,6 @@
 # Tactical 042: Mac UTM Ubuntu Candidate Stages
 
-Status: active; implementation and focused checks complete, fresh candidate
-acceptance pending.
+Status: complete; fresh Mac candidate certified and stopped.
 
 Topics: [`linux-resident-control`](../../topics/linux-resident-control.md)
 and [`operational-workflow-automation`](../../topics/operational-workflow-automation.md).
@@ -48,15 +47,27 @@ Run focused refusal tests, the platform smoke suite, and a fresh ARM64 image
 through create, pin, doctor, claim, cloud-init, bootstrap, seed removal,
 certification, and clean stop. Keep private media and receipts out of Git.
 
-## Result to date
+## Final result
 
 Focused tests cover absent guest agent, missing cloud-init attestation,
-unfinished cloud-init, a private UUID-bound completion receipt, and a locked
-desktop. The stopped-stage report ran
-under a claim on a retained candidate and correctly reported its older drive
-shape as unverified. UTM AppleScript syntax and exact-candidate refusal were
-checked. A subsequent claimed running check could not begin because this
-retained VM failed to report an IP address within its startup timeout; it was
-returned to the stopped state and the claim was released. The platform smoke
-gate from tactical 041 still has an unresolved host-pointer comparison.
-Fresh factory media and end-to-end candidate evidence remain open.
+unfinished cloud-init, a private UUID-bound completion receipt, a locked
+desktop, and UTM's silent cloud-init command. An older retained candidate's
+unfamiliar drive order remained unverified. It was replaced with a fresh UTM
+candidate from a signed and checksum-verified official Ubuntu 24.04 ARM64
+release image. The key-only seed, unused destination, stopped creation,
+exact pin, doctor, and exclusive claim all passed.
+
+The claimed stage report observed first-boot NoCloud completion, a changed
+boot ID, the explicit completion receipt, resident readiness, one-time media
+removal, and the later boot with cloud-init disabled. UTM returned no stdout
+for `cloud-init status --format=json`; the report now reads the completed
+runtime records and, after media removal, the disabled marker. Both routes
+still require the matching persisted NoCloud instance files. Bootstrap and
+the common doctor were healthy. Two full platform smoke runs passed, one on
+each side of media removal. A controller login key stored outside Git was
+verified over SSH against the guest host key, including noninteractive sudo.
+
+Exact committed source at `5dbca39` passed development-profile certification:
+healthy audits before and after a boot-ID-changing reboot, portable and
+Linux-native guest checks, staging cleanup, and clean shutdown. The final
+stage report marked the stopped source complete, and the claim was released.

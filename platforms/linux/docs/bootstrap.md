@@ -344,6 +344,10 @@ complete, explicitly run `bin/linuxvm factory-stages attest-cloud-init` and
 recheck the report. This writes a UUID-bound mode-0600 local completion
 receipt, valid for 24 hours, so the stopped report can safely offer seed
 detachment. Inspection itself never writes the receipt or changes the VM.
+When UTM returns no stdout for the cloud-init status command, inspection
+reads cloud-init's runtime status and result files. After seed removal, it
+checks the disabled marker and the guest's persisted matching NoCloud
+completion files.
 The drive probe verifies the expected factory shape, not copied ISO bytes;
 an unfamiliar shape remains blocked. After detachment and restart, the guest's
 persisted NoCloud files let the inspector recognize its earlier completion

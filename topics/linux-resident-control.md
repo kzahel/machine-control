@@ -69,7 +69,13 @@ cloud-image shape, exact key-only NoCloud seed content, host tools, responsive
 UTM scripting, and unused destination. The claimed UTM candidate report now
 observes guest-agent and NoCloud completion, requires explicit completion
 attestation before stopped seed removal, and checks resident readiness and
-final stop. A fresh UTM candidate still needs stage-driven acceptance.
+final stop. A fresh official ARM64 candidate passed stage-driven creation,
+bootstrap, two platform smoke runs around seed removal, and exact-source
+development-profile certification after a changed-boot-ID reboot. The final
+report marked it complete and stopped; the claim was released. UTM's silent
+cloud-init command is handled through read-only runtime records, including the
+disabled marker on later boots. See
+[tactical 042](../docs/tactical/042-macos-utm-ubuntu-candidate-stages.md).
 
 **Current:** The native x86_64 KVM factory now has read-only precreation and
 claimed candidate stages for QCOW2/NoCloud inputs, exact destination,

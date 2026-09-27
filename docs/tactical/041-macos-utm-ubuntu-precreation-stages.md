@@ -1,6 +1,6 @@
 # Tactical 041: Mac UTM Ubuntu Precreation Stages
 
-Status: active; precreation inspector implemented, live smoke gate unresolved.
+Status: complete; fresh Mac precreation and platform smoke passed.
 
 Topics: [`linux-resident-control`](../../topics/linux-resident-control.md)
 and [`operational-workflow-automation`](../../topics/operational-workflow-automation.md).
@@ -17,7 +17,7 @@ private media, and the platform smoke gate.
 ## Boundaries
 
 - This slice ends before candidate creation. Claimed guest stages and fresh
-  candidate acceptance will be a separate slice; L1 remains partial.
+  candidate acceptance belong to [tactical 042](042-macos-utm-ubuntu-candidate-stages.md).
 - The QCOW2 check proves image shape, not Ubuntu publisher or architecture.
   Boot and guest checks must establish those later facts.
 - The precreation report has no target claim because the candidate has no UUID.
@@ -38,7 +38,7 @@ UTM inventory as a blocker.
 Test missing inputs, duplicate destinations, unloaded UTM, and real Mac seed
 content. Run the platform smoke gate and inspect one report with local media.
 
-## Result to date
+## Final result
 
 The Mac report passed focused refusal tests and a local dry run using a
 shape-only QCOW2 and a generated key-only CIDATA seed. All precreation stages
@@ -47,10 +47,10 @@ no private path. A registered UTM name was blocked. The Mac check also probes
 UTM Apple Events because its inventory can remain readable while scripting
 is unresponsive.
 
-The platform smoke suite reached a ready resident and semantic guest input,
-then failed its independent host-pointer comparison after a guest click: the
-host cursor changed between the two observations. The cause was not
-established. A focused repeat did not reach its fixture after a quick boot.
-Both attempts left the appliance stopped and released their claims. No fresh
-official ARM64 cloud image was available in the checked local media locations,
-so fresh-candidate acceptance and the smoke gate remain open.
+The initial retained-VM smoke attempt failed its independent host-pointer
+comparison after a guest click. Fresh-candidate work then used a signed and
+checksum-verified official Ubuntu 24.04 ARM64 release image and a new key-only
+seed. Every precreation stage passed before creation. The full platform smoke
+suite passed on that candidate before and after seed detachment; see
+[tactical 042](042-macos-utm-ubuntu-candidate-stages.md) for the claimed
+candidate and certification result.

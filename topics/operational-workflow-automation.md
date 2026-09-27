@@ -37,14 +37,15 @@ single cross-platform bootstrap script is not.
 `Now` is the next implementation queue, `Next` follows its dependencies, and
 `Later` is worthwhile after repeated use shows the remaining friction. `Hold`
 means the current command or human boundary already carries most of the work.
-All rows are **proposed** and open until their exit check is met. Change a
-row's state to `done` only with the linked implementation and exit evidence.
+`Done` marks a completed exit check. Rows begin as proposals and stay open
+until their exit check is met. Change a row's state to `done` only with the
+linked implementation and exit evidence.
 
 | ID | Queue | State | Workflow and evidence | Suggested path | Exit check |
 | --- | --- | --- | --- | --- | --- |
 | W1 | Now | partial | [Windows factory](../platforms/windows/docs/image-factory.md) now has precreation through maintenance stages and [fresh-candidate certification](../docs/tactical/039-linux-windows-factory-stages.md) on native Linux/KVM. UTM remains guide-driven. | Add provider-specific UTM probes and the same stage meanings on a Mac host. | A fresh candidate on each host can be advanced from media preflight through certification and clean stop using stage output plus named commands, with blocked and secret cases represented truthfully. |
 | C1 | Now | open | [Common claim/workspace examples](../README.md#common-workflows) require callers to parse IDs, renew, and arrange cleanup around every task. | Add a scoped common-client runner or SDK helper for doctor, acquire, renewal, command execution, and `finally` release. | Success, command failure, signal, and renewal failure all leave an auditable release or explicit unresolved claim; workspace cleanup uses its returned handle and claim. |
-| L1 | Next | partial | [Linux factory](../platforms/linux/docs/bootstrap.md#native-x86_64-libvirt-image-factory) projects native KVM stages and passed [fresh-candidate certification](../docs/tactical/040-linux-kvm-ubuntu-factory-stages.md). Mac UTM now has [precreation](../docs/tactical/041-macos-utm-ubuntu-precreation-stages.md) and [claimed candidate](../docs/tactical/042-macos-utm-ubuntu-candidate-stages.md) reports; its fresh-candidate acceptance remains open. | Prove the UTM reports from official ARM64 media through certification and clean stop. | Both host routes report the same stage meanings and prove cloud-init/boot generation, exact pin, detached seed, resident readiness, and stopped source without treating command delivery as effect. |
+| L1 | Done | done | [Linux factory](../platforms/linux/docs/bootstrap.md#native-x86_64-libvirt-image-factory) has native KVM [fresh-candidate acceptance](../docs/tactical/040-linux-kvm-ubuntu-factory-stages.md) and Mac UTM [precreation](../docs/tactical/041-macos-utm-ubuntu-precreation-stages.md) plus [claimed-candidate acceptance](../docs/tactical/042-macos-utm-ubuntu-candidate-stages.md). Both routes reached exact-source certification and clean stop from stage reports. | Keep stage inspection read-only and choose each guarded action explicitly. | Both host routes report the same stage meanings and prove cloud-init/boot generation, exact pin, detached seed, resident readiness, and stopped source without treating command delivery as effect. |
 | M1 | Next | open | [macOS bootstrap](../platforms/macos/docs/bootstrap.md) still sequences Tart clone/create, agent transport, UI deployment, and Accessibility consent in prose. | Add a Tart-owned prepared/vanilla bootstrap inspector; use typed human handoffs for Setup Assistant, administrator authorization, and TCC. | Each prepared or fresh path reports its next safe action and rechecks the actual guest and host permission state; no command modifies TCC or submits a human password. |
 | I1 | Next | open | [Target registry setup](../docs/target-registry.md) distributes validation across `targets`, `inventory status`, credential inspection, doctor, and private file editing. | Add a read-only `inventory preflight` report joining schema, resolution, exact pin, credential locator/permissions, and doctor eligibility without copying private values into common output. | A misconfigured controller gets stable blocker codes and the owning private/config action; a valid controller can proceed to claim without interpreting a checklist. |
 | P1 | Later | open | [Candidate promotion](target-lifecycle-and-readiness.md#explicit-readiness-and-candidate-handoff) has `validate-candidate` and `prepare-promotion`, but private role update and final ready-base evidence are manual. | Emit a promotion handoff receipt or report binding source, validation, clean stop, and required private-inventory update; verify the selected target again after that update. | A role change cannot be mistaken for validated promotion; exact stopped-source and final selected-role evidence are machine-readable while private inventory remains private-owned. |
@@ -56,12 +57,10 @@ row's state to `done` only with the linked implementation and exit evidence.
 
 ## Suggested implementation path
 
-1. **Finish W1 on the already accepted Linux path.** Add read-only media and
-   host preflight before `factory-create`, then typed bootstrap and recovery
-   branches after it. Preserve the current exact-candidate first-logon receipt,
-   installer-before-seed detach order, password store/verify/rotate boundary,
-   and claimed inspector. Make UTM report the same stages only after its
-   provider-specific probes are independently established. Keep the
+1. **Finish W1 on Mac UTM.** The Linux/KVM path is accepted. Add UTM-specific
+   probes and the same stage meanings, preserving the exact-candidate
+   first-logon receipt, installer-before-seed detach order, password
+   store/verify/rotate boundary, and claimed inspector. Keep the
    [factory guide](../platforms/windows/docs/image-factory.md) for media
    provenance, security posture, and human decisions; make stage output the
    agent's operational index.
@@ -73,10 +72,10 @@ row's state to `done` only with the linked implementation and exit evidence.
    claim. Doctor may report an ordinary powered-off target as unready; an
    unresolved exact identity or invalid doctor result must stop acquisition.
    Do not make this a long-lived generic agent session or hide outer routes.
-3. **Use that scoped invocation to exercise W1 and L1.** Linux's factory owns
-   its cloud-init and NoCloud evidence. Its stages should share result fields
-   with Windows, but no Windows-specific repair assumption. Run focused
-   simulated states first, then one fresh candidate per available host route.
+3. **Use that scoped invocation on future factory runs.** L1's two host
+   routes have fresh-candidate acceptance through exact-source certification.
+   Use the helper for W1 and subsequent L1 checks, while retaining each
+   platform's own evidence and repair rules.
 4. **Add M1 and I1 as inspectors.** Tart's setup and TCC boundaries need
    `human_required` states; private inventory needs read-only diagnostics.
    Neither inspector should mutate consent, edit private inventory, or reveal
