@@ -552,6 +552,42 @@ factory_status() (
         ssh_bootstrap:"pending_or_unavailable",seed_removal_required:true}'
 )
 
+factory_agent_ready() {
+    assert_target inspect >/dev/null
+    "$WINVM_UTMCTL" ip-address "$(utm_target_identifier)" >/dev/null 2>&1
+}
+
+factory_media_status() {
+    assert_target inspect >/dev/null
+    local shape stage
+    shape="$("$WINVM_OSASCRIPT" - "$WINVM_EXPECTED_UTM_ID" <<'APPLESCRIPT'
+on run argv
+    tell application "UTM"
+        set targetVM to first virtual machine whose id is (item 1 of argv)
+        set vmConfig to configuration of targetVM
+        set driveShape to ""
+        repeat with driveConfig in drives of vmConfig
+            if removable of driveConfig then
+                set driveShape to driveShape & "R"
+            else
+                set driveShape to driveShape & "F"
+            end if
+        end repeat
+        return driveShape
+    end tell
+end run
+APPLESCRIPT
+)" 2>/dev/null || shape=""
+    case "$shape" in
+        RRRF) stage=installer_and_seed ;;
+        RRF) stage=seed_only ;;
+        F) stage=detached ;;
+        *) stage=unverified ;;
+    esac
+    jq -n --arg stage "$stage" \
+        '{schema:"winvm-factory-media-status/v0",stage:$stage}'
+}
+
 factory_detach_media() {
     local status result removed remaining
     status="$(vm_status || true)"
@@ -1293,6 +1329,8 @@ case "$command" in
     export-image) assert_target export-image >/dev/null; vm_export_image "$@" ;;
     factory-create) factory_create "$@" ;;
     factory-status) factory_status "$@" ;;
+    factory-agent-ready) factory_agent_ready ;;
+    factory-media-status) factory_media_status ;;
     trust-ssh-host-key) trust_ssh_host_key "$@" ;;
     factory-detach-installer) assert_target factory-detach-installer >/dev/null; factory_detach_installer ;;
     factory-detach-media) assert_target factory-detach-media >/dev/null; factory_detach_media ;;

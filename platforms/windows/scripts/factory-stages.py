@@ -7,7 +7,9 @@ import argparse
 import json
 import os
 from pathlib import Path
+import platform
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -86,8 +88,124 @@ def seed_media_ready(value: str) -> bool:
              "/VIRTIO_WIN_GUEST_TOOLS.EXE;1"}.issubset(listed))
 
 
-def preflight(repo: Path, provider: Path, options: argparse.Namespace) -> dict:
-    """Inspect only host media and the unused libvirt destination."""
+def mac_seed_media_ready(value: str) -> bool:
+    if not private_file(value):
+        return False
+    try:
+        with open(value, "rb") as media:
+            media.seek(16 * 2048)
+            descriptor = media.read(2048)
+        if (len(descriptor) != 2048 or descriptor[1:6] != b"CD001" or
+                descriptor[40:72].decode("ascii").rstrip("\x00 ") != "WINVM_SEED"):
+            return False
+    except (OSError, UnicodeDecodeError):
+        return False
+    listed, names = command("bsdtar", "-tf", value, timeout=30)
+    normalized = {name.lstrip("./").upper().split(";")[0]
+                  for name in names.splitlines()} if listed else set()
+    essential = {"AUTOUNATTEND.XML", "BOOTSTRAP-FIRST-LOGON.PS1",
+                 "BOOTSTRAP-OPENSSH.PS1", "CONTROLLER.PUB", "STARTUP.NSH"}
+    installer = any(name == "VIRTIO-WIN-GUEST-TOOLS.EXE" or
+                    re.fullmatch(r"UTM-GUEST-TOOLS-[A-Z0-9._-]+\.EXE", name)
+                    for name in normalized)
+    return essential.issubset(normalized) and installer
+
+
+def mac_boot_media_ready(value: str, expected_script: Path) -> bool:
+    if not private_file(value):
+        return False
+    try:
+        media = Path(value).read_bytes()
+        expected = expected_script.read_bytes()
+        if (len(media) < 1024 * 1024 or media[510:512] != b"\x55\xaa" or
+                media[54:62] != b"FAT12   "):
+            return False
+        sector = int.from_bytes(media[11:13], "little")
+        cluster_sectors = media[13]
+        reserved = int.from_bytes(media[14:16], "little")
+        fats = media[16]
+        root_entries = int.from_bytes(media[17:19], "little")
+        fat_sectors = int.from_bytes(media[22:24], "little")
+        if (sector != 512 or not cluster_sectors or not reserved or
+                fats != 2 or not root_entries or not fat_sectors):
+            return False
+        fat = media[reserved * sector:(reserved + fat_sectors) * sector]
+        root_start = (reserved + fats * fat_sectors) * sector
+        root_sectors = (root_entries * 32 + sector - 1) // sector
+        data_start = root_start + root_sectors * sector
+        root = media[root_start:root_start + root_entries * 32]
+        if len(root) != root_entries * 32:
+            return False
+        label = False
+        script = None
+        for index in range(0, len(root), 32):
+            entry = root[index:index + 32]
+            if entry[0] in (0, 0xe5):
+                continue
+            if entry[11] & 0x08 and entry[:11].rstrip() == b"WINVM_BOOT":
+                label = True
+            if entry[:11] == b"STARTUP NSH" and entry[11] == 0x20:
+                script = entry
+        if not label or script is None:
+            return False
+        size = int.from_bytes(script[28:32], "little")
+        if size != len(expected) or not size:
+            return False
+        cluster = int.from_bytes(script[26:28], "little")
+        content = bytearray()
+        seen: set[int] = set()
+        while len(content) < size:
+            if cluster < 2 or cluster in seen or cluster >= 0xff8:
+                return False
+            seen.add(cluster)
+            offset = data_start + (cluster - 2) * cluster_sectors * sector
+            content.extend(media[offset:offset + cluster_sectors * sector])
+            fat_offset = cluster + cluster // 2
+            if fat_offset + 1 >= len(fat):
+                return False
+            pair = fat[fat_offset] | (fat[fat_offset + 1] << 8)
+            cluster = (pair >> 4) & 0xfff if cluster & 1 else pair & 0xfff
+        return content[:size] == expected and cluster >= 0xff8
+    except OSError:
+        return False
+
+
+def utm_destination(name: str, factory_root: Path) -> tuple[bool, str]:
+    if not name:
+        return False, "candidate_name_missing"
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}", name):
+        return False, "candidate_name_invalid"
+    if platform.system() != "Darwin" or platform.machine() != "arm64":
+        return False, "mac_arm64_host_required"
+    if any(not shutil.which(tool) for tool in
+           ("jq", "bsdtar", "hdiutil", "osascript", "wimlib-imagex")):
+        return False, "utm_factory_tool_missing"
+    utmctl = os.environ.get("WINVM_UTMCTL", "/Applications/UTM.app/Contents/MacOS/utmctl")
+    if not os.access(utmctl, os.X_OK):
+        return False, "utm_cli_unavailable"
+    listed, inventory = command(utmctl, "list", timeout=15)
+    lines = inventory.splitlines()
+    if not listed or not lines or not lines[0].startswith("UUID "):
+        return False, "utm_library_unverified"
+    scripted, count = command("osascript", "-e",
+                              'tell application "UTM" to count virtual machines',
+                              timeout=15)
+    if not scripted or count.strip() != str(len(lines) - 1):
+        return False, "utm_scripting_unavailable"
+    for line in lines[1:]:
+        match = re.fullmatch(r"[0-9A-Fa-f-]{36}\s+\S+\s+(.+)", line)
+        if not match:
+            return False, "utm_inventory_unverified"
+        if match.group(1) == name:
+            return False, "candidate_already_registered"
+    if (factory_root / "export" / f"{name}.utm").exists():
+        return False, "factory_staging_exists"
+    return True, "utm_host_and_destination_verified"
+
+
+def preflight(repo: Path, provider: Path, options: argparse.Namespace,
+              provider_name: str = "libvirt-linux") -> dict:
+    """Inspect only host media and the unused provider destination."""
     stages: list[dict] = []
     factory_root = Path(os.environ.get(
         "WINVM_FACTORY_LOCAL_ROOT", str(repo / ".factory.local"),
@@ -155,21 +273,50 @@ def preflight(repo: Path, provider: Path, options: argparse.Namespace) -> dict:
 
     seed = factory_root / "winvm-seed.iso"
     if seed.exists():
-        if seed_media_ready(str(seed)):
+        ready = (mac_seed_media_ready(str(seed)) if provider_name == "utm-macos"
+                 else seed_media_ready(str(seed)))
+        if ready:
             stages.append(stage("seed-media", "complete", "private_seed_shape_verified"))
         else:
             stages.append(stage("seed-media", "blocked", "seed_media_invalid"))
     elif inputs_valid:
         stages.append(stage("seed-media", "action_required", "seed_iso_missing",
-                            "scripts/image-factory.sh", "render-seed", "amd64",
+                            "scripts/image-factory.sh", "render-seed",
+                            "arm64" if provider_name == "utm-macos" else "amd64",
                             "APPLIANCE_USER", str(image_index), "windows-11-pro",
                             "PRIVATE_SECRET_FILE", "CONTROLLER_PUBLIC_KEY",
+                            "PRIVATE_UTM_GUEST_TOOLS_ISO" if
+                            provider_name == "utm-macos" else
                             "PRIVATE_VIRTIO_WIN_ISO"))
     else:
         stages.append(stage("seed-media", "blocked", "seed_inputs_required"))
 
-    name = options.name or os.environ.get("WINVM_LIBVIRT_DOMAIN_NAME", "")
-    if not name:
+    if provider_name == "utm-macos":
+        boot = factory_root / "winvm-boot.img"
+        if boot.exists():
+            ready = mac_boot_media_ready(
+                str(boot), repo / "guests/windows/image-factory/startup.nsh")
+            stages.append(stage("boot-media", "complete" if ready else "blocked",
+                                "private_fat_startup_verified" if ready else
+                                "boot_image_invalid"))
+        elif inputs_valid:
+            stages.append(stage("boot-media", "action_required",
+                                "boot_image_missing", "scripts/image-factory.sh",
+                                "render-seed", "arm64", "APPLIANCE_USER",
+                                str(image_index), "windows-11-pro",
+                                "PRIVATE_SECRET_FILE", "CONTROLLER_PUBLIC_KEY",
+                                "PRIVATE_UTM_GUEST_TOOLS_ISO"))
+        else:
+            stages.append(stage("boot-media", "blocked", "seed_inputs_required"))
+
+    name = options.name or (os.environ.get("WINVM_LIBVIRT_DOMAIN_NAME", "")
+                            if provider_name == "libvirt-linux" else "")
+    if provider_name == "utm-macos":
+        ready, reason = utm_destination(name, factory_root)
+        stages.append(stage("destination", "complete" if ready else
+                            "action_required" if reason == "candidate_name_missing"
+                            else "blocked", reason))
+    elif not name:
         stages.append(stage("destination", "action_required", "candidate_name_missing"))
     else:
         result = json_command(str(provider), "factory-preflight", name, timeout=30)
@@ -186,10 +333,12 @@ def preflight(repo: Path, provider: Path, options: argparse.Namespace) -> dict:
         stages.append(stage("create", "action_required", "media_and_destination_ready",
                             "bin/winvm", "factory-create", "PRIVATE_NAME",
                             ".factory.local/windows-install-noprompt.iso",
-                            ".factory.local/winvm-seed.iso"))
+                            ".factory.local/winvm-seed.iso",
+                            *([".factory.local/winvm-boot.img"]
+                              if provider_name == "utm-macos" else [])))
     else:
         stages.append(stage("create", "blocked", "preflight_incomplete"))
-    return {"schema": STAGE_SCHEMA, "provider": "libvirt-linux",
+    return {"schema": STAGE_SCHEMA, "provider": provider_name,
             "phase": "precreation", "stages": stages}
 
 
@@ -258,13 +407,14 @@ def attest_first_logon(provider: Path, identifier: str) -> int:
     return 0
 
 
-def inspect(repo: Path, provider: Path, identifier: str) -> dict:
+def inspect(repo: Path, provider: Path, identifier: str,
+            provider_name: str = "libvirt-linux") -> dict:
     stages: list[dict] = []
     identity = json_command(str(provider), "assert-target", "inspect", "--json")
     if not identity or identity.get("identity_pin") != "verified" or identity.get("role") != "candidate":
         stages.append(stage("identity", "blocked", "candidate_identity_unverified",
                             "bin/winvm", "pin-target", "candidate", "PRIVATE_NAME"))
-        return {"schema": STAGE_SCHEMA, "provider": "libvirt-linux", "stages": stages}
+        return {"schema": STAGE_SCHEMA, "provider": provider_name, "stages": stages}
     stages.append(stage("identity", "complete", "exact_candidate_pin_verified"))
 
     power_ok, power_text = command(str(provider), "status", timeout=10)
@@ -412,15 +562,16 @@ def inspect(repo: Path, provider: Path, identifier: str) -> dict:
                 stages.append(stage("maintenance", "action_required",
                                     "installed_maintenance_unhealthy", "bin/winvm",
                                     "post-update", "repair", "--json"))
-    return {"schema": STAGE_SCHEMA, "provider": "libvirt-linux", "stages": stages}
+    return {"schema": STAGE_SCHEMA, "provider": provider_name, "stages": stages}
 
 
 def main() -> int:
-    if os.environ.get("WINVM_PROVIDER") != "libvirt-linux":
-        print("Factory stages currently require the Linux libvirt provider", file=sys.stderr)
+    provider_name = os.environ.get("WINVM_PROVIDER")
+    if provider_name not in ("libvirt-linux", "utm-macos"):
+        print("Factory stages require Linux libvirt or Mac UTM", file=sys.stderr)
         return 1
     repo = Path(os.environ["WINVM_REPO_DIR"])
-    provider = repo / "providers/libvirt-linux/provider.sh"
+    provider = repo / f"providers/{provider_name}/provider.sh"
     if len(sys.argv) >= 2 and sys.argv[1] == "preflight":
         parser = argparse.ArgumentParser(prog="winvm factory-stages preflight")
         parser.add_argument("--json", action="store_true", required=True)
@@ -431,7 +582,8 @@ def main() -> int:
         parser.add_argument("--user")
         parser.add_argument("--name")
         options = parser.parse_args(sys.argv[2:])
-        print(json.dumps(preflight(repo, provider, options), sort_keys=True))
+        print(json.dumps(preflight(repo, provider, options, provider_name),
+                         sort_keys=True))
         return 0
     if len(sys.argv) != 2 or sys.argv[1] not in ("--json", "attest-first-logon"):
         print("Usage: winvm factory-stages preflight --json [OPTIONS] | --json | attest-first-logon", file=sys.stderr)
@@ -449,7 +601,8 @@ def main() -> int:
         return 1
     if sys.argv[1] == "attest-first-logon":
         return attest_first_logon(provider, identifier)
-    print(json.dumps(inspect(repo, provider, identifier), sort_keys=True))
+    print(json.dumps(inspect(repo, provider, identifier, provider_name),
+                     sort_keys=True))
     return 0
 
 

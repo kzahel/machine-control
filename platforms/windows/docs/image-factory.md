@@ -12,9 +12,9 @@ proves that a configured appliance can cross the Windows generalization
 boundary. They do not make installation media, activation rights, credentials,
 or controller authorization portable.
 
-## Staged Linux bring-up
+## Staged factory bring-up
 
-On Linux, first inspect the host, exact Windows 11 Pro image catalog, local
+On either host, first inspect the host, exact Windows 11 Pro image catalog, local
 seed inputs, generated media, and unused libvirt destination. This precreation
 inspection needs no target claim because no candidate exists yet:
 
@@ -28,7 +28,11 @@ bin/winvm factory-stages preflight --json \
 ```
 
 Supply the intended domain name in private `WINVM_LIBVIRT_DOMAIN_NAME`.
-Optional `--name PRIVATE_NAME` must match that private binding. The catalog
+Optional `--name PRIVATE_NAME` must match that private binding. On Mac UTM,
+set `WINVM_PROVIDER=utm-macos` and supply `--name PRIVATE_NAME` explicitly.
+Use the UTM guest-tools ISO for `--guest-tools-iso`; preflight additionally
+checks the Mac tools, UTM inventory, separate FAT boot image, and unused UTM
+destination. The catalog
 probe reads `sources/install.wim` into
 temporary ignored storage, identifies one exact Windows 11 Pro index, reports
 that index without a local path, and removes the temporary WIM. It does not
@@ -59,7 +63,10 @@ bootstrap support, resident doctor readiness, and post-update health.
 `nextCommand` is an adapter command to run under the same claim;
 placeholders such as `PRIVATE_SECRET_FILE` need private caller input. A stage
 can be `complete`, `action_required`, `waiting`, `unverified`, or `blocked`.
-Only `complete` means that stage's stated evidence was observed. Before the
+Only `complete` means that stage's stated evidence was observed. UTM checks
+the actual removable-drive shape through UTM scripting. An unfamiliar shape
+blocks detachment; it never assumes that the first drive is the installer.
+Before the
 guest agent appears on first boot, first-logon status remains `waiting`; the
 inspector does not infer a failed installation from a missing agent. When the
 guest is reachable but resident support is absent, `bin/winvm bootstrap
@@ -89,8 +96,10 @@ first-logon completion was observed within four hours. An older receipt
 requires a new boot and live attestation. If the live guest later reports
 incomplete bootstrap, that fresh observation takes precedence. The agent then
 follows the reported stopped-VM detach sequence and rechecks stages. The
-current stage inspector supports the Linux libvirt route; the UTM recipe below
-remains the Mac path.
+same stage inspector supports the Linux libvirt and Mac UTM routes. The UTM
+recipe below remains the media and security reference. The Mac stage route has
+host and existing-candidate checks; a fresh UTM candidate has not yet been
+advanced through certification using these stage reports.
 
 ## Safety boundary
 

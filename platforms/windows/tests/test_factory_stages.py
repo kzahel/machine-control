@@ -3,6 +3,8 @@ import argparse
 import json
 import os
 from pathlib import Path
+import struct
+import subprocess
 import sys
 import tempfile
 import time
@@ -239,6 +241,114 @@ class FactoryStagesTests(unittest.TestCase):
         self.assertEqual(stages["create"]["state"], "blocked")
         self.assertIsNone(stages["create"]["nextCommand"])
         provider.assert_not_called()
+
+    def test_utm_destination_rejects_unloaded_or_duplicate_inventory(self):
+        def observed(*args, **_kwargs):
+            if args[1] == "list":
+                return True, "UUID Status Name\n" + (
+                    "00000000-0000-0000-0000-000000000000 stopped existing\n")
+            return True, "1\n"
+        with tempfile.TemporaryDirectory() as directory, \
+             mock.patch.object(MODULE.platform, "system", return_value="Darwin"), \
+             mock.patch.object(MODULE.platform, "machine", return_value="arm64"), \
+             mock.patch.object(MODULE.shutil, "which", return_value="/bin/tool"), \
+             mock.patch.object(MODULE.os, "access", return_value=True), \
+             mock.patch.object(MODULE, "command", side_effect=observed):
+            self.assertEqual(MODULE.utm_destination("existing", Path(directory)),
+                             (False, "candidate_already_registered"))
+            self.assertEqual(MODULE.utm_destination("new", Path(directory)),
+                             (True, "utm_host_and_destination_verified"))
+            def empty(*args, **_kwargs):
+                return (True, "UUID Status Name\n") if args[1] == "list" else (True, "0\n")
+            with mock.patch.object(MODULE, "command", side_effect=empty):
+                self.assertEqual(MODULE.utm_destination("new", Path(directory)),
+                                 (True, "utm_host_and_destination_verified"))
+            with mock.patch.object(MODULE, "command", return_value=(True, "")):
+                self.assertEqual(MODULE.utm_destination("new", Path(directory)),
+                                 (False, "utm_library_unverified"))
+
+    def test_utm_preflight_requires_both_seed_and_boot_media(self):
+        options = argparse.Namespace(source_iso="/private/source.iso",
+            guest_tools_iso="/private/tools.iso", secret_file="/private/setup.secret",
+            public_key="/private/controller.pub", user="Appliance", name="new")
+        def json_command(path, *_arguments, **_kwargs):
+            if path.endswith("image-catalog.py"):
+                return {"schema": "winvm-image-catalog/v0", "images": [
+                    {"index": 6, "name": "Windows 11 Pro", "flags": "Professional"}]}
+            return {"schema": "winvm-prepared-media-verification/v0", "ready": True}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("windows-install-noprompt.iso", "winvm-seed.iso",
+                         "winvm-boot.img"):
+                (root / name).touch()
+            with mock.patch.dict(os.environ, {"WINVM_FACTORY_LOCAL_ROOT": directory}), \
+                 mock.patch.object(MODULE, "readable_file", return_value=True), \
+                 mock.patch.object(MODULE, "private_file", return_value=True), \
+                 mock.patch.object(MODULE, "mac_seed_media_ready", return_value=True), \
+                 mock.patch.object(MODULE, "mac_boot_media_ready", return_value=True), \
+                 mock.patch.object(MODULE, "utm_destination", return_value=(True, "utm_host_and_destination_verified")), \
+                 mock.patch.object(MODULE, "command", return_value=(True, "")), \
+                 mock.patch.object(MODULE, "json_command", side_effect=json_command):
+                report = MODULE.preflight(Path("/fixture"), Path("/provider"),
+                                          options, "utm-macos")
+                self.assertEqual(by_name(report)["create"]["nextCommand"][-1],
+                                 ".factory.local/winvm-boot.img")
+                (root / "winvm-boot.img").unlink()
+                report = MODULE.preflight(Path("/fixture"), Path("/provider"),
+                                          options, "utm-macos")
+                self.assertEqual(by_name(report)["create"]["state"], "blocked")
+                self.assertEqual(by_name(report)["boot-media"]["state"],
+                                 "action_required")
+        self.assertNotIn("/private/", json.dumps(report))
+
+    def test_utm_boot_image_reads_exact_startup_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            script = root / "startup.nsh"
+            script.write_bytes(b"echo -off\n")
+            boot = root / "winvm-boot.img"
+            media = bytearray(2 * 1024 * 1024)
+            media[11:13] = struct.pack("<H", 512)
+            media[13] = 1
+            media[14:16] = struct.pack("<H", 1)
+            media[16] = 2
+            media[17:19] = struct.pack("<H", 16)
+            media[22:24] = struct.pack("<H", 9)
+            media[54:62] = b"FAT12   "
+            media[510:512] = b"\x55\xaa"
+            media[512 + 3:512 + 5] = b"\xff\x0f"
+            root_offset = (1 + 2 * 9) * 512
+            media[root_offset:root_offset + 11] = b"WINVM_BOOT "
+            media[root_offset + 11] = 0x28
+            entry = root_offset + 32
+            media[entry:entry + 11] = b"STARTUP NSH"
+            media[entry + 11] = 0x20
+            media[entry + 26:entry + 28] = struct.pack("<H", 2)
+            media[entry + 28:entry + 32] = struct.pack("<I", len(script.read_bytes()))
+            data_offset = (1 + 2 * 9 + 1) * 512
+            media[data_offset:data_offset + len(script.read_bytes())] = script.read_bytes()
+            boot.write_bytes(media)
+            boot.chmod(0o600)
+            self.assertTrue(MODULE.mac_boot_media_ready(str(boot), script))
+            script.write_bytes(b"different\n")
+            self.assertFalse(MODULE.mac_boot_media_ready(str(boot), script))
+
+    @unittest.skipUnless(sys.platform == "darwin", "macOS hdiutil format")
+    def test_utm_seed_image_reads_real_hdiutil_format(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            staging = root / "staging"
+            staging.mkdir()
+            for name in ("Autounattend.xml", "bootstrap-first-logon.ps1",
+                         "bootstrap-openssh.ps1", "controller.pub",
+                         "startup.nsh", "utm-guest-tools-1.0.exe"):
+                (staging / name).write_text("fixture")
+            seed = root / "winvm-seed.iso"
+            subprocess.run(["hdiutil", "makehybrid", "-quiet", "-iso", "-joliet",
+                            "-default-volume-name", "WINVM_SEED", "-o",
+                            str(seed), str(staging)], check=True)
+            seed.chmod(0o600)
+            self.assertTrue(MODULE.mac_seed_media_ready(str(seed)))
 
 
 if __name__ == "__main__":

@@ -45,7 +45,7 @@ Setup:
   login                  Sign in with the stored login password
   factory-stages preflight --json [OPTIONS]
                          Inspect media and destination before VM creation
-  factory-stages --json   Observe claimed Linux candidate stages
+  factory-stages --json   Observe claimed Linux or Mac candidate stages
   factory-stages attest-first-logon
                          Record live completion before stopping a candidate
 
@@ -75,7 +75,7 @@ Image factory:
   factory-create NAME WINDOWS_ISO SEED_ISO [BOOT_IMAGE]
                          Create a stopped QEMU VM from explicit local media
   factory-preflight NAME Check KVM, exact pool, and unused destination
-  factory-media-status  Inspect exact libvirt installer/seed attachments
+  factory-media-status  Inspect exact factory media attachments
   factory-detach-installer
                          Remove only the installer from a stopped candidate
   factory-detach-media   Remove all removable drives from a stopped candidate

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script="$(</dev/stdin)"
+if [[ "$script" == *'return id of targetVM'* ]]; then
+    printf '11111111-2222-3333-4444-555555555555\n'
+elif [[ "$script" == *'return driveShape'* ]]; then
+    printf '%s\n' "${MACHINE_CONTROL_FACTORY_MEDIA_SHAPE:-RFR}"
+else
+    printf 'Unexpected factory-media-status AppleScript.\n' >&2
+    exit 1
+fi

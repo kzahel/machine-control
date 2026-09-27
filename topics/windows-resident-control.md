@@ -84,7 +84,10 @@ doctor. A claim-checked direct SSH/SCP route lets the platform bootstrap and
 post-update scripts reach this selected candidate without depending on an old
 public SSH alias route. A changed-boot exact-source certification passed
 portable and Windows-native checks, removed its staging, and left the VM
-cleanly stopped and claim-free. The UTM projection remains separate Mac work.
+cleanly stopped and claim-free. The Mac UTM stage projection is recorded in
+[`Tactical 043`](../docs/tactical/043-macos-utm-windows-factory-stages.md):
+precreation and existing-candidate checks are live, while a stage-driven
+fresh-candidate run remains open.
 
 **Current:** [`Tactical 018`](../docs/tactical/018-appliance-readiness-and-promotion.md)
 reused one retained stateful candidate rather than creating another large VM.

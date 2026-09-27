@@ -576,6 +576,21 @@ detach_installer_output="$(env \
 [[ "$detach_installer_output" == \
     'factory installer detached: removed=1 seed_media_remaining=2' ]]
 
+for media_case in RRRF:installer_and_seed RRF:seed_only F:detached \
+        RFR:unverified; do
+    IFS=: read -r shape expected_stage <<<"$media_case"
+    media_report="$(env \
+        WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-always-stopped" \
+        WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-factory-media-status" \
+        WINVM_EXPECTED_UTM_ID=11111111-2222-3333-4444-555555555555 \
+        WINVM_TARGET_ROLE=candidate \
+        MACHINE_CONTROL_FACTORY_MEDIA_SHAPE="$shape" \
+        "$provider" factory-media-status)"
+    jq -e --arg stage "$expected_stage" \
+        '.schema == "winvm-factory-media-status/v0" and .stage == $stage' \
+        <<<"$media_report" >/dev/null
+done
+
 detach_output="$(env \
     WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-always-stopped" \
     WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-factory-detach" \
