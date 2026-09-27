@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only native KVM Ubuntu factory stage projection."""
+"""Read-only Ubuntu factory stage projection for libvirt and UTM."""
 
 from __future__ import annotations
 
@@ -7,7 +7,9 @@ import argparse
 import json
 import os
 from pathlib import Path
+import platform
 import re
+import shutil
 import stat
 import subprocess
 
@@ -43,20 +45,46 @@ def stage(name: str, state: str, evidence: str, *next_command: str) -> dict:
             "nextCommand": list(next_command) if next_command else None}
 
 
-def private_seed(path: Path, user: str, public_key: str) -> bool:
+def private_seed(path: Path, user: str, public_key: str, provider: str) -> bool:
     try:
         if not path.is_file() or stat.S_IMODE(path.stat().st_mode) != 0o600:
             return False
     except OSError:
         return False
-    ok, info = call("isoinfo", "-d", "-i", str(path))
-    if not ok or "volume id: cidata" not in info.lower():
-        return False
-    ok, listing = call("isoinfo", "-f", "-i", str(path))
-    if not ok or not {"/USER_DAT.;1", "/META_DAT.;1"}.issubset(
-            set(listing.upper().splitlines())):
-        return False
-    ok, content = call("isoinfo", "-x", "/USER_DAT.;1", "-i", str(path))
+    if provider == "utm-macos":
+        try:
+            with path.open("rb") as image:
+                image.seek(16 * 2048)
+                descriptor = image.read(2048)
+            if (descriptor[1:6] != b"CD001" or
+                    descriptor[40:72].rstrip(b" \x00").upper() != b"CIDATA"):
+                return False
+        except OSError:
+            return False
+        ok, listing = call("bsdtar", "-tf", str(path))
+        files = {line.removeprefix("./") for line in listing.splitlines()}
+        files.discard(".")
+        if not ok or {"user-data", "meta-data"} != files:
+            return False
+        ok, content = call("bsdtar", "-xOf", str(path), "user-data")
+        meta_ok, metadata = call("bsdtar", "-xOf", str(path), "meta-data")
+        if not meta_ok:
+            return False
+        try:
+            meta = json.loads(metadata)
+        except json.JSONDecodeError:
+            return False
+        if meta.get("instance-id") != "machine-control-linux-" + user:
+            return False
+    else:
+        ok, info = call("isoinfo", "-d", "-i", str(path))
+        if not ok or "volume id: cidata" not in info.lower():
+            return False
+        ok, listing = call("isoinfo", "-f", "-i", str(path))
+        if not ok or not {"/USER_DAT.;1", "/META_DAT.;1"}.issubset(
+                set(listing.upper().splitlines())):
+            return False
+        ok, content = call("isoinfo", "-x", "/USER_DAT.;1", "-i", str(path))
     if not ok or not content.startswith("#cloud-config\n"):
         return False
     try:
@@ -65,13 +93,48 @@ def private_seed(path: Path, user: str, public_key: str) -> bool:
         return False
     users = seed.get("users")
     return (isinstance(users, list) and len(users) == 1
+            and isinstance(users[0], dict)
             and users[0].get("name") == user
             and users[0].get("lock_passwd") is True
             and users[0].get("ssh_authorized_keys") == [public_key]
             and seed.get("ssh_pwauth") is False)
 
 
-def preflight(args: argparse.Namespace) -> dict:
+def utm_destination(name: str, factory_root: Path) -> tuple[bool, str]:
+    if not name:
+        return False, "candidate_name_missing"
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}", name):
+        return False, "candidate_name_invalid"
+    required = ("qemu-img", "jq", "bsdtar", "hdiutil", "osascript")
+    if platform.system() != "Darwin" or platform.machine() != "arm64":
+        return False, "mac_arm64_host_required"
+    if any(not shutil.which(tool) for tool in required):
+        return False, "utm_factory_tool_missing"
+    utmctl = os.environ.get("LINUXVM_UTMCTL", "/Applications/UTM.app/Contents/MacOS/utmctl")
+    if not os.access(utmctl, os.X_OK):
+        return False, "utm_cli_unavailable"
+    ok, listing = call(utmctl, "list", timeout=15)
+    lines = listing.splitlines()
+    if not ok or not lines or not lines[0].startswith("UUID ") or len(lines) == 1:
+        return False, "utm_library_unverified"
+    script_ok, count = call("osascript", "-e",
+                            'tell application "UTM" to count virtual machines',
+                            timeout=15)
+    if not script_ok or count.strip() != str(len(lines) - 1):
+        return False, "utm_scripting_unavailable"
+    for line in lines[1:]:
+        match = re.fullmatch(r"[0-9A-Fa-f-]{36}\s+\S+\s+(.+)", line)
+        if not match:
+            return False, "utm_inventory_unverified"
+        if match.group(1) == name:
+            return False, "candidate_already_registered"
+    if ((factory_root / f"{name}-system.qcow2").exists()
+            or (factory_root / "export" / f"{name}.utm").exists()):
+        return False, "factory_staging_exists"
+    return True, "utm_host_and_destination_verified"
+
+
+def preflight(args: argparse.Namespace, provider: str) -> dict:
     stages = []
     image = args.cloud_image or ""
     ok, _ = call(str(ROOT / "scripts/image-factory.sh"),
@@ -91,29 +154,39 @@ def preflight(args: argparse.Namespace) -> dict:
     factory_root = Path(os.environ.get("LINUXVM_FACTORY_LOCAL_ROOT",
                                        str(ROOT / ".factory.local")))
     seed = factory_root / "linuxvm-seed.iso"
-    if inputs and private_seed(seed, user, key_value):
-        stages.append(stage("seed-media", "complete", "private_cidata_shape_verified"))
+    if seed.exists():
+        valid_seed = inputs and private_seed(seed, user, key_value, provider)
+        stages.append(stage("seed-media", "complete" if valid_seed else "blocked",
+                            "private_cidata_shape_verified" if valid_seed else
+                            "private_cidata_seed_invalid"))
+    elif inputs:
+        stages.append(stage("seed-media", "action_required", "private_cidata_seed_missing",
+                            "scripts/image-factory.sh", "render-seed",
+                            "APPLIANCE_USER", "CONTROLLER_PUBLIC_KEY"))
     else:
-        stages.append(stage("seed-media", "action_required" if inputs else "blocked",
-                            "private_cidata_seed_missing_or_invalid",
-                            *("scripts/image-factory.sh", "render-seed",
-                              "APPLIANCE_USER", "CONTROLLER_PUBLIC_KEY") if inputs else ()))
-    name = args.name or os.environ.get("LINUXVM_LIBVIRT_DOMAIN_NAME", "")
-    destination = document(str(PROVIDER), "factory-preflight", name) if name else {}
-    ready = (destination.get("schema") == "machine-control-libvirt-factory-preflight/v0"
-             and destination.get("kind") == "linux" and destination.get("ready") is True)
-    reason = destination.get("reason") if destination else "candidate_name_missing"
-    if not isinstance(reason, str) or not re.fullmatch(r"[a-z_]+", reason):
-        reason = "destination_unavailable"
-    stages.append(stage("destination", "complete" if ready else "blocked",
-                        "kvm_pool_and_destination_verified" if ready else reason))
+        stages.append(stage("seed-media", "blocked", "seed_inputs_required"))
+    if provider == "utm-macos":
+        ready, reason = utm_destination(args.name or "", factory_root)
+    else:
+        name = args.name or os.environ.get("LINUXVM_LIBVIRT_DOMAIN_NAME", "")
+        destination = document(str(PROVIDER), "factory-preflight", name) if name else {}
+        ready = (destination.get("schema") == "machine-control-libvirt-factory-preflight/v0"
+                 and destination.get("kind") == "linux" and destination.get("ready") is True)
+        reason = destination.get("reason") if destination else "candidate_name_missing"
+        if not isinstance(reason, str) or not re.fullmatch(r"[a-z_]+", reason):
+            reason = "destination_unavailable"
+        if ready:
+            reason = "kvm_pool_and_destination_verified"
+    stages.append(stage("destination", "complete" if ready else
+                        "action_required" if reason == "candidate_name_missing" else "blocked",
+                        reason))
     prepared = all(item["state"] == "complete" for item in stages)
     stages.append(stage("create", "action_required" if prepared else "blocked",
                         "factory_inputs_ready" if prepared else "preflight_incomplete",
                         *("bin/linuxvm", "factory-create", "PRIVATE_NAME",
                           "PRIVATE_CLOUD_IMAGE", ".factory.local/linuxvm-seed.iso")
                         if prepared else ()))
-    return {"schema": SCHEMA, "provider": "libvirt-linux", "phase": "precreation",
+    return {"schema": SCHEMA, "provider": provider, "phase": "precreation",
             "stages": stages}
 
 
@@ -201,9 +274,12 @@ def main() -> int:
     current = sub.add_parser("inspect")
     current.add_argument("--json", action="store_true")
     args = parser.parse_args()
-    if os.environ.get("LINUXVM_PROVIDER") != "libvirt-linux":
-        parser.error("native Linux factory stages require libvirt-linux")
-    report = preflight(args) if args.command == "preflight" else candidate()
+    provider = os.environ.get("LINUXVM_PROVIDER")
+    if provider not in ("libvirt-linux", "utm-macos"):
+        parser.error("factory stages require libvirt-linux or utm-macos")
+    if args.command != "preflight" and provider != "libvirt-linux":
+        parser.error("claimed UTM candidate stages are not available yet")
+    report = preflight(args, provider) if args.command == "preflight" else candidate()
     print(json.dumps(report, sort_keys=True))
     return 0
 

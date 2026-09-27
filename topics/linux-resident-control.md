@@ -64,12 +64,17 @@ lock and first-login setup. Doctor now reports a locked GNOME session, and
 clipboard text waits for selection ownership instead of racing the paste. See
 the [Linux problem record](../platforms/linux/docs/problems.md).
 
+**Current:** The Mac UTM factory now has a read-only precreation report for
+cloud-image shape, exact key-only NoCloud seed content, host tools, responsive
+UTM scripting, and unused destination. Claimed UTM guest stages still need their
+own read-only probes and fresh-candidate acceptance.
+
 **Current:** The native x86_64 KVM factory now has read-only precreation and
 claimed candidate stages for QCOW2/NoCloud inputs, exact destination,
 guest-agent and cloud-init readiness, resident bootstrap, seed removal, and
 clean stop. A fresh candidate passed the Linux smoke suite and changed-boot
 exact-source certification with portable and native checks, then stopped
-cleanly and released its claim. The UTM stage projection remains Mac work.
+cleanly and released its claim.
 
 ## Current goal
 

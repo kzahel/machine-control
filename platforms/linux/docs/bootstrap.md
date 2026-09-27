@@ -289,10 +289,22 @@ and `meta-data`:
 ```bash
 scripts/image-factory.sh validate-cloud-image PRIVATE_UBUNTU_ARM64_CLOUD_IMAGE
 scripts/image-factory.sh render-seed APPLIANCE_USER CONTROLLER_PUBLIC_KEY
+bin/linuxvm factory-stages preflight --json \
+  --cloud-image PRIVATE_UBUNTU_ARM64_CLOUD_IMAGE \
+  --public-key CONTROLLER_PUBLIC_KEY --user APPLIANCE_USER --name PRIVATE_NAME
 bin/linuxvm factory-create PRIVATE_NAME PRIVATE_UBUNTU_ARM64_CLOUD_IMAGE \
   .factory.local/linuxvm-seed.iso
 bin/linuxvm target-id
 ```
+
+Rerun the read-only precreation report after each media preparation step. It
+checks the QCOW2 shape, exact key-only seed content, Mac factory tools, loaded
+UTM inventory, responsive UTM scripting, and an unused destination name and
+staging path. The `create`
+stage appears only when these checks pass. A blank UTM list is treated as
+unverified because UTM may have failed to load its library. The report does
+not prove source provenance or guest architecture, and it does not create or
+start the candidate. Claimed UTM guest stages remain guide-driven.
 
 `factory-create` never mutates the source download. It copies the cloud image
 into ignored factory storage, expands that copy to 128 GiB, and refuses both an
