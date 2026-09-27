@@ -1,6 +1,6 @@
 # Tactical 040: Linux KVM Ubuntu Factory Stages
 
-Status: in progress.
+Status: complete for the native Linux/libvirt route.
 
 Topics: [`linux-resident-control`](../../topics/linux-resident-control.md)
 and [`operational-workflow-automation`](../../topics/operational-workflow-automation.md).
@@ -49,7 +49,18 @@ renewed claim. Record observed results and any remaining boundary.
 
 ## Result
 
-Pending fresh-candidate completion. Native preflight passed using local
-private media, the candidate was created and claimed, and its stage report
-observed guest-agent readiness followed by completed NoCloud cloud-init in
-the current boot. Resident bootstrap is in progress.
+Native preflight passed using local private media, and a separate candidate
+was created, pinned, doctored, and claimed. Stages observed guest-agent
+readiness, completed NoCloud cloud-init, development bootstrap, and full
+resident doctor. The platform smoke suite passed with outer UI prohibited.
+After clean shutdown, the claimed command detached only the exact seed and
+removed its pool volume. On restart, cloud-init reported `disabled`; the
+inspector verified the prior guest NoCloud completion record and current
+resident readiness instead of repeating the first-boot wait.
+
+Exact-source certification observed a changed boot ID, matched the source
+digest, passed portable and Linux-native checks, cleaned guest staging, and
+stopped the candidate. The final stopped stage reported exact identity,
+detached seed, and stopped source. The controller login key was verified
+against its public key in mode-0600 private storage; the exclusive claim was
+released and the local seed removed. UTM remains an open Mac-host path in L1.

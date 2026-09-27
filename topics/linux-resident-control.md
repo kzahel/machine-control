@@ -67,8 +67,9 @@ the [Linux problem record](../platforms/linux/docs/problems.md).
 **Current:** The native x86_64 KVM factory now has read-only precreation and
 claimed candidate stages for QCOW2/NoCloud inputs, exact destination,
 guest-agent and cloud-init readiness, resident bootstrap, seed removal, and
-clean stop. Tactical 040 is validating the fresh candidate; these stages do
-not yet establish UTM parity or final live acceptance.
+clean stop. A fresh candidate passed the Linux smoke suite and changed-boot
+exact-source certification with portable and native checks, then stopped
+cleanly and released its claim. The UTM stage projection remains Mac work.
 
 ## Current goal
 
