@@ -181,10 +181,21 @@ class FactoryStagesTests(unittest.TestCase):
         phases["modules-final"].pop("finished")
         with mock.patch.object(MODULE, "document", side_effect=report), \
              mock.patch.object(MODULE, "utm_exec", side_effect=[
+                 (False, ""),
                  (True, identifier), (True, "machine-control-linux-appliance"),
                  (True, "")]):
             status, _, _ = MODULE.cloud_observation()
         self.assertEqual(status, "")
+
+    def test_utm_detached_boot_recognizes_cloud_init_disabled_marker(self):
+        identifier = "00000000-0000-0000-0000-000000000000"
+        with mock.patch.object(MODULE, "document", return_value={}), \
+             mock.patch.object(MODULE, "utm_exec", side_effect=[
+                 (True, ""), (True, identifier),
+                 (True, "machine-control-linux-appliance"), (True, "")]):
+            status, boot_id, matching = MODULE.cloud_observation()
+        self.assertEqual((status, boot_id, matching),
+                         ("disabled", identifier, True))
 
     def test_utm_seed_detach_needs_recorded_cloud_completion(self):
         identity = {"schema": "machine-control-candidate-assertion/v0",

@@ -315,6 +315,8 @@ def cloud_observation() -> tuple[str, str, bool]:
               and all(isinstance(record, dict) and isinstance(
                   record.get("finished"), (int, float)) for record in records)):
             status = "done"
+        elif utm_exec("/usr/bin/test", "-f", "/run/cloud-init/disabled")[0]:
+            status = "disabled"
     ok, boot_id = utm_exec("/usr/bin/cat", "/proc/sys/kernel/random/boot_id")
     if not ok or not re.fullmatch(r"[0-9a-f-]{36}", boot_id.strip()):
         boot_id = ""
