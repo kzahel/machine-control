@@ -151,8 +151,8 @@ EOF
 
 configure_libvirt_direct_transport() {
     if [[ "$WINVM_PROVIDER" == libvirt-linux ]]; then
-        export WINVM_DIRECT_SSH_BIN="$WINVM_SSH_BIN"
-        export WINVM_DIRECT_SCP_BIN="$WINVM_SCP_BIN"
+        export WINVM_DIRECT_SSH_BIN="${WINVM_DIRECT_SSH_BIN:-$WINVM_SSH_BIN}"
+        export WINVM_DIRECT_SCP_BIN="${WINVM_DIRECT_SCP_BIN:-$WINVM_SCP_BIN}"
         export WINVM_SSH_BIN="$REPO_DIR/scripts/libvirt-direct-ssh.sh"
         export WINVM_SCP_BIN="$REPO_DIR/scripts/libvirt-direct-scp.sh"
     fi
