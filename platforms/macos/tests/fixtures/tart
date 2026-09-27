@@ -11,6 +11,9 @@ case "${1:-}" in
         : >"${MACHINE_CONTROL_TART_MUTATION_MARKER:?}"
         ;;
     ip)
+        if [[ "${MACHINE_CONTROL_TART_IP_UNAVAILABLE:-false}" == true ]]; then
+            exit 1
+        fi
         printf '%s\n' '192.0.2.1'
         ;;
     *)

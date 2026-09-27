@@ -19,7 +19,7 @@ Start here:
   claim-capabilities | claim-status | claim-acquire | claim-check
   claim-renew | claim-release
                          Coordinate exclusive use of the exact pinned target
-  up                     Start/resume the VM and print its current IPv4 address
+  up                     Start/resume the VM and report its power state
   exec COMMAND [ARG...]  Run a command through the Tart guest agent
   shell                  Open an interactive zsh through the Tart guest agent
   ui COMMAND [ARG...]    Inspect and control the macOS accessibility tree
@@ -62,6 +62,9 @@ Setup:
   authorize-ui           Request the guest Accessibility permission
   bootstrap [--profile development|runtime]
                          Deploy resident/support and verify the tool profile
+  bootstrap-stages preflight --kind prepared|vanilla --json
+  bootstrap-stages --kind prepared|vanilla --json
+                         Inspect the next guarded Mac VM setup stage
 
 Out-of-band recovery:
   A claim acquired with --disruptive is required for these commands.
@@ -113,6 +116,9 @@ shift || true
 
 case "$command" in
     help|-h|--help|doctor|status|claim-*|workspace-capabilities|workspace-inventory|workspace-gc) ;;
+    bootstrap-stages)
+        if [[ "${1:-}" != preflight ]]; then require_target_claim; fi
+        ;;
     workspace-acquire|workspace-release) ;;
     screenshot|click|drag|type|key) require_disruptive_target_claim ;;
     *) require_target_claim ;;
@@ -139,6 +145,7 @@ case "$command" in
     framework-runtime-status) exec "$REPO_DIR/scripts/framework-runtime-status.sh" "$@" ;;
     post-update) exec "$REPO_DIR/scripts/post-update.sh" "$@" ;;
     bootstrap) exec "$REPO_DIR/scripts/bootstrap-appliance.sh" "$@" ;;
+    bootstrap-stages) exec "$REPO_DIR/scripts/bootstrap-stages.py" "$@" ;;
     appliance-certify) exec "$REPO_DIR/scripts/certify-appliance.sh" "$@" ;;
     candidate-status) exec "$REPO_DIR/scripts/candidate-status.sh" "$@" ;;
     claim-capabilities|claim-status|claim-acquire|claim-check|claim-renew|claim-release)

@@ -268,6 +268,18 @@ refusal_status=$?
 set -e
 [[ "$refusal_status" -eq 3 && "$refusal" == *discard-suspended-state* ]]
 test ! -e "$mutation_marker"
+running_without_ip="$("${lifecycle_env[@]}" \
+    MACHINE_CONTROL_TART_STATE=running \
+    MACHINE_CONTROL_TART_IP_UNAVAILABLE=true \
+    providers/tart-macos/provider.sh up)"
+[[ "$running_without_ip" == running ]]
+set +e
+"${lifecycle_env[@]}" MACHINE_CONTROL_TART_STATE=running \
+    MACHINE_CONTROL_TART_IP_UNAVAILABLE=true \
+    providers/tart-macos/provider.sh ip >/dev/null 2>&1
+ip_status=$?
+set -e
+[[ "$ip_status" -ne 0 ]]
 set +e
 refusal="$("${lifecycle_env[@]}" MACHINE_CONTROL_TART_STATE=stopped \
     providers/tart-macos/provider.sh discard-suspended-state 2>&1)"
@@ -291,6 +303,11 @@ jq -e '.schema == "machine-control-macos-post-update/v0" and
 
 maintenance="$REPO_DIR/tests/fixtures/macvm-maintenance"
 doctor_ready="$REPO_DIR/tests/fixtures/doctor-ready"
+set +e
+"$REPO_DIR/scripts/bounded-command.py" --seconds 1 -- /bin/sleep 5
+bounded_status=$?
+set -e
+[[ "$bounded_status" -eq 124 ]]
 maintenance_log="$temporary/maintenance.log"
 maintenance_state="$temporary/maintenance.state"
 maintenance_env=(

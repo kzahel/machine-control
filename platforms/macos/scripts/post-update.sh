@@ -10,6 +10,8 @@ readonly DOCTOR="${MACVM_POST_UPDATE_DOCTOR:-$MACVM_REPO_DIR/scripts/doctor-json
 readonly DEPLOY_UI="${MACVM_POST_UPDATE_DEPLOY_UI:-$MACVM_REPO_DIR/scripts/deploy-ui.sh}"
 readonly DEPLOY_MAINTENANCE="${MACVM_POST_UPDATE_DEPLOY_MAINTENANCE:-$MACVM_REPO_DIR/scripts/deploy-maintenance.sh}"
 readonly GUEST_SCRIPT="$(macvm_remote_post_update_script)"
+readonly BOUNDED="$SCRIPT_DIR/bounded-command.py"
+readonly GUEST_REPORT_TIMEOUT="${MACVM_POST_UPDATE_GUEST_TIMEOUT:-45}"
 
 usage() {
     cat <<'EOF'
@@ -72,7 +74,8 @@ validate_guest_report() {
 run_guest() {
     local mode="$1" output status
     set +e
-    output="$($MACVM exec "$GUEST_SCRIPT" --mode "$mode" \
+    output="$($BOUNDED --seconds "$GUEST_REPORT_TIMEOUT" -- \
+        "$MACVM" exec "$GUEST_SCRIPT" --mode "$mode" \
         --profile "$profile" --nonce "$nonce" 2>/dev/null)"
     status=$?
     set -e
@@ -88,7 +91,7 @@ run_guest() {
 run_doctor() {
     local output
     set +e
-    output="$($DOCTOR 2>/dev/null)"
+    output="$($BOUNDED --seconds 30 -- "$DOCTOR" 2>/dev/null)"
     set -e
     if ! jq -e '.schema == "machine-control-doctor/v0"' \
             <<<"$output" >/dev/null 2>&1; then
@@ -185,7 +188,11 @@ if [[ "$reboot" == true ]]; then
     fi
 fi
 
-doctor="$(wait_for_ready_doctor || true)"
+if [[ "$(jq -r '.healthy' <<<"$guest")" == true ]]; then
+    doctor="$(wait_for_ready_doctor || true)"
+else
+    doctor="$(run_doctor || true)"
+fi
 doctor_ready=false
 if jq -e '.ready == true' <<<"$doctor" >/dev/null 2>&1; then
     doctor_ready=true

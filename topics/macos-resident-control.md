@@ -125,6 +125,13 @@ staging, and left the candidate off. The common entry point is
 `machine-control --target TARGET maintenance ...`; launchd and TCC policy
 remain owned here.
 
+**Current:** [`Tactical 044`](../docs/tactical/044-macos-tart-bootstrap-stages.md)
+adds a read-only Tart prepared/vanilla bootstrap stage report. A live retained
+candidate had guest administration and resident control but an unknown Aqua
+state, which the report kept unverified. The host maintenance command now
+bounds a guest report call so restarting Tart transport cannot hang its caller.
+Fresh prepared and IPSW stage-driven acceptance remains open.
+
 ## Current Tart goal
 
 **Decision:** Until physical Mac testing becomes an active workstream, focus

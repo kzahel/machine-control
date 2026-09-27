@@ -37,6 +37,23 @@ set `MACVM_TARGET_ROLE=candidate`. The mutation guard is on by default, so an
 unconfigured public example cannot start or stop a VM. Do not put a password
 in that file.
 
+Before creating or changing a candidate, inspect the current path:
+
+```bash
+bin/macvm bootstrap-stages preflight --kind prepared --json
+# Or use --kind vanilla for an IPSW guest.
+```
+
+For an existing exact candidate, run common doctor and acquire its exclusive
+claim, then inspect again with `bin/macvm bootstrap-stages --kind prepared
+--json` under that claim. The report reads Tart inventory, host capture/input
+permission, guest administration, the private credential file's presence and
+mode, build tools, resident readiness, Accessibility, and Aqua session state.
+It uses stable stage names and evidence codes. Run each suggested command
+explicitly and recheck; the inspector does not create or change a VM. `kind`
+describes the path chosen by the operator, not a fact inferred from the VM.
+Setup Assistant, administrator authorization, and TCC remain human handoffs.
+
 The first screenshot and input operation may cause host macOS to request:
 
 - Screen Recording for the invoking terminal or agent host; and
@@ -115,15 +132,16 @@ MACVM_NAME=macos-clean MACVM_EXPECTED_NAME=macos-clean \
     MACVM_TARGET_ROLE=candidate bin/macvm up
 ```
 
-`macvm up` launches the graphical VM with:
+`macvm up` launches the graphical VM and reports its power state. It does not
+require guest-agent IP discovery to succeed. Check `macvm ip` or doctor
+separately when guest administration is needed. The launch uses:
 
 - suspend support;
 - guest system-key capture; and
 - this repository mounted read-only as `macvm-testbed`.
 
-It may eventually report that agent-based IP discovery failed. That is
-expected before the guest agent exists; the VM remains running. Use only the
-outer path during this phase:
+Agent-based IP discovery will fail before the guest agent exists, even while
+the VM is running. Use only the outer path during this phase:
 
 ```bash
 MACVM_NAME=macos-clean bin/macvm screenshot

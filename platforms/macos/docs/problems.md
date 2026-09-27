@@ -9,7 +9,7 @@ direction together so later work can reproduce the problem.
 ### A stale resident and a rejected authorization submission looked like a dead VM
 
 Status: **System Settings password entry fixed and live-verified
-2026-09-27.** The separate resume issue below remains open.
+2026-09-27.** Resume reporting was corrected separately below.
 
 The target was initially suspended, so doctor correctly reported unavailable
 administration and resident control. After `target up` through the common
@@ -52,6 +52,11 @@ development` confirmed the Aqua session was unlocked while semantic and
 target-native readiness were unavailable. `maintenance repair --profile
 development` restarted only the resident LaunchAgent and restored unlocked
 desktop, semantic, capture, and input readiness without a reboot.
+
+The start command now reports observed VM power without requiring an address.
+`ip` remains the separate strict address probe. Static tests cover a running
+VM whose guest address is unavailable; a live resume still needs to verify
+the startup result independently of the resident's desktop-state issue.
 
 ## Observed 2026-09-26 on a locked controller
 
