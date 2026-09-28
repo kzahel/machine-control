@@ -301,10 +301,17 @@ input_key() {
 guest_shutdown() {
     macvm_assert_mutation_target
     ensure_running
+    if ! macvm_exec /usr/bin/sudo -n -v >/dev/null 2>&1; then
+        printf '%s\n' \
+            'Guest shutdown needs administrator authorization. Use an' \
+            'explicit macvm stop for a bounded Tart stop, or authorize' \
+            'guest shutdown inside macOS.' >&2
+        return 3
+    fi
     # A successful halt closes the guest-agent transport before `tart exec`
     # can receive a normal exit status. Treat that disconnect as expected and
     # use the observed VM state below as the authoritative result.
-    macvm_exec /usr/bin/sudo /sbin/shutdown -h now \
+    macvm_exec /usr/bin/sudo -n /sbin/shutdown -h now \
         >/dev/null 2>&1 || true
     local deadline=$((SECONDS + MACVM_BOOT_TIMEOUT))
     while (( SECONDS < deadline )); do

@@ -155,6 +155,11 @@ its running macOS release. The deployment commands select the SDK matching
 the guest's macOS major version when it is installed; this avoided a linker
 failure in the fresh acceptance run.
 
+A fresh account may require a password for administrator commands. In that
+case `macvm shutdown` reports the authorization blocker before waiting for a
+halt. Use the explicitly guarded `macvm stop` for a bounded Tart stop when
+parking a disposable guest.
+
 `macvm up` launches the graphical VM and reports its power state. It does not
 require guest-agent IP discovery to succeed. Check `macvm ip` or doctor
 separately when guest administration is needed. It enables suspend support

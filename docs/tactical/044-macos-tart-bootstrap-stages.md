@@ -106,3 +106,8 @@ events still failed to reach this fresh guest; the account was made with a
 lowercase-and-digit credential, and the owner-only stored value was verified
 through the guest's `sudo` authentication path before acceptance. No password
 or private target identifier was recorded in Git.
+
+During cleanup, guest shutdown could not authenticate this fresh account and
+waited for a halt that never began. A bounded Tart stop removed the disposable
+VM. The guest shutdown path now checks noninteractive administrator authority
+first and reports an actionable blocker when it is absent.
