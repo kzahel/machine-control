@@ -72,6 +72,7 @@ Out-of-band recovery:
   click X Y [BUTTON]     Click guest-display coordinates
   drag X1 Y1 X2 Y2       Drag between guest-display coordinates
   type TEXT              Type US-keyboard ASCII through the Tart window
+  type-secret             Type the stored guest password through the Tart window
   key CHORD              Send a key or chord through the Tart window
 
 Lifecycle and discovery:
@@ -120,7 +121,7 @@ case "$command" in
         if [[ "${1:-}" != preflight ]]; then require_target_claim; fi
         ;;
     workspace-acquire|workspace-release) ;;
-    screenshot|click|drag|type|key) require_disruptive_target_claim ;;
+    screenshot|click|drag|type|type-secret|key) require_disruptive_target_claim ;;
     *) require_target_claim ;;
 esac
 
@@ -194,7 +195,7 @@ case "$command" in
         ;;
     exec) macvm_exec "$@" ;;
     shell) macvm_shell ;;
-    status|get|host-state|up|ip|screenshot|click|drag|type|key|suspend|discard-suspended-state|shutdown|stop|force-stop)
+    status|get|host-state|up|ip|screenshot|click|drag|type|type-secret|key|suspend|discard-suspended-state|shutdown|stop|force-stop)
         provider "$command" "$@"
         ;;
     *)

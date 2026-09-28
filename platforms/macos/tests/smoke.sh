@@ -105,6 +105,13 @@ default_guard="$(env MACVM_CONFIG_FILE=/dev/null bash -c \
     'source "$1"; printf "%s|%s|%s" "$MACVM_REQUIRE_MUTATION_GUARD" "$MACVM_TARGET_ROLE" "$MACVM_EXPECTED_NAME"' \
     _ "$REPO_DIR/scripts/common.sh")"
 [[ "$default_guard" == 'true|unspecified|' ]]
+printf 'MACVM_ADMIN_SECRET_FILE=%q\n' "$temporary/config-secret" \
+    >"$temporary/override.conf"
+secret_override="$(env MACVM_CONFIG_FILE="$temporary/override.conf" \
+    MACVM_ADMIN_SECRET_FILE="$temporary/environment-secret" \
+    bash -c 'source "$1"; printf "%s" "$MACVM_ADMIN_SECRET_FILE"' \
+    _ "$REPO_DIR/scripts/common.sh")"
+[[ "$secret_override" == "$temporary/environment-secret" ]]
 mutation_marker="$temporary/tart-mutated"
 if env MACVM_CONFIG_FILE=/dev/null \
         MACVM_TART="$REPO_DIR/tests/fixtures/tart" \
@@ -189,6 +196,30 @@ for command in click drag type key; do
         exit 1
     fi
 done
+
+secret_probe="$temporary/secret-probe"
+secret_env=(
+    env MACVM_CONFIG_FILE=/dev/null
+    MACVM_NAME=fixture-candidate MACVM_EXPECTED_NAME=fixture-candidate
+    MACVM_TARGET_ROLE=candidate MACVM_REQUIRE_MUTATION_GUARD=true
+    MACVM_IOREG="$REPO_DIR/tests/fixtures/ioreg"
+    MACHINE_CONTROL_HOST_SESSION=unlocked
+    MACHINE_CONTROL_HOST_ATTENDANCE=unattended
+)
+if "${secret_env[@]}" MACVM_ADMIN_SECRET_FILE="$temporary/missing" \
+        providers/tart-macos/provider.sh type-secret >"$secret_probe" 2>&1; then
+    printf 'Missing guest secret reached outer input\n' >&2
+    exit 1
+fi
+grep -q 'owner-only guest credential file' "$secret_probe"
+printf 'fixture-only\n' >"$temporary/insecure-secret"
+chmod 0644 "$temporary/insecure-secret"
+if "${secret_env[@]}" MACVM_ADMIN_SECRET_FILE="$temporary/insecure-secret" \
+        providers/tart-macos/provider.sh type-secret >"$secret_probe" 2>&1; then
+    printf 'Insecure guest secret reached outer input\n' >&2
+    exit 1
+fi
+grep -q 'owner-only guest credential file' "$secret_probe"
 
 for host_case in locked:locked unlocked:unlocked background:not_on_console \
         none:no_session broken:unknown; do

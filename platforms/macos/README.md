@@ -226,6 +226,12 @@ bin/macvm type 'hello from the host'
 bin/macvm key cmd-space
 ```
 
+For the prepared image's first macOS consent sheet, the documented initial
+`admin` credential belongs in the private file declared by inventory.
+`bin/macvm type-secret` reads that file and sends physical keys to the exact
+Tart window under a disruptive claim; recheck the consent effect afterward.
+See the [bootstrap guide](docs/bootstrap.md#grant-guest-accessibility).
+
 Screenshots are normalized to the configured Tart guest display. A screenshot
 pixel `(x, y)` is therefore the coordinate accepted by `macvm click x y`,
 independent of Retina scale and the host Tart title bar.

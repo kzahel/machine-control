@@ -283,6 +283,7 @@ func textStroke(_ character: Character) throws -> (CGKeyCode, Bool) {
 
     if character == "\n" || character == "\r" { return (36, false) }
     if character == "\t" { return (48, false) }
+    if character == " " { return (49, false) }
     if let code = keyCodes[string] { return (code, false) }
 
     let shiftedBase: [Character: String] = [
@@ -312,8 +313,7 @@ func postKeyboard(code: CGKeyCode, keyDown: Bool, flags: CGEventFlags) {
     usleep(25_000)
 }
 
-func typeText(window: TartWindow, text: String) throws {
-    activate(window)
+func postText(_ text: String) throws {
     for character in text {
         let (code, shifted) = try textStroke(character)
         if shifted {
@@ -327,6 +327,42 @@ func typeText(window: TartWindow, text: String) throws {
             postKeyboard(code: 56, keyDown: false, flags: [])
         }
     }
+}
+
+func typeText(window: TartWindow, text: String) throws {
+    activate(window)
+    try postText(text)
+}
+
+func typeSecret(window: TartWindow) throws {
+    activate(window)
+    guard NSWorkspace.shared.frontmostApplication?.processIdentifier == window.pid,
+          let windows = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
+          ) as? [[String: Any]],
+          let foremostTart = windows.first(where: {
+            ($0[kCGWindowOwnerName as String] as? String) == "Tart" &&
+            ($0[kCGWindowLayer as String] as? NSNumber)?.intValue == 0
+          }),
+          (foremostTart[kCGWindowNumber as String] as? NSNumber)?.intValue == window.id
+    else {
+        throw HostControlError.invalidText(
+            "Selected Tart window is not foreground; secret was not read"
+        )
+    }
+    let data = FileHandle.standardInput.readDataToEndOfFile()
+    guard data.count > 0, data.count <= 4096,
+          var secret = String(data: data, encoding: .utf8) else {
+        throw HostControlError.invalidText("Guest secret input is invalid")
+    }
+    if secret.hasSuffix("\n") { secret.removeLast() }
+    guard !secret.isEmpty, !secret.contains("\n"), !secret.contains("\r"),
+          secret.allSatisfy({ (try? textStroke($0)) != nil }) else {
+        throw HostControlError.invalidText(
+            "Guest secret contains unsupported keyboard characters"
+        )
+    }
+    try postText(secret)
 }
 
 func printPermissions() throws {
@@ -406,6 +442,11 @@ do {
             throw HostControlError.usage("Usage: host-control.swift type VM TEXT")
         }
         try typeText(window: findWindow(named: arguments[1]), text: arguments[2])
+    case "type-secret":
+        guard arguments.count == 2 else {
+            throw HostControlError.usage("Usage: host-control.swift type-secret VM")
+        }
+        try typeSecret(window: findWindow(named: arguments[1]))
     default:
         throw HostControlError.usage("Unknown host-control command: \(command)")
     }

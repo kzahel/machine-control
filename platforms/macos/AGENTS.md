@@ -45,9 +45,15 @@ requests it or the documented normal recovery paths have failed.
 
 MacVM Testbed never edits the guest TCC database. Host Screen Recording and
 Accessibility access, and guest Accessibility access for the deployed MacVM
-UI app, are explicit macOS consent decisions. An agent may navigate to and
-explain the initial consent surface; the user enters any password directly in
-the VM while MacVM UI is not yet trusted. After Accessibility is granted, a
+UI app, are explicit macOS consent decisions. The prepared Cirrus base image
+starts with the documented `admin` account and `admin` password. Record and
+verify that value in the declared owner-only credential file before using it.
+For an observed initial consent sheet on an exact claimed candidate, use
+`macvm type-secret` to read that file and post physical keys through the Tart
+window, then independently verify the requested grant. Do not ask the user to
+provide a known, recorded bootstrap credential. If the credential is unknown
+or the secure input route fails, hand that step to the user without retrying.
+After Accessibility is granted, a
 matching normal Aqua administrator sheet uses `authorization.begin` and the
 interactive, non-echoing `authorization-submit` helper. A dedicated test VM's
 password may be retained in the controller's declared host-local credential

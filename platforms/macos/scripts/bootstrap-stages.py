@@ -181,38 +181,46 @@ def inspect(kind: str) -> dict:
     permissions = host_permissions()
     health = document(str(CLI), "ui", "health", timeout=45) if agent else None
     trusted = health.get("accessibilityTrusted") if isinstance(health, dict) else None
+    host_policy = states.get("outer")
+    host_permissions_ready = bool(permissions and permissions["screenCapture"]
+                                  and permissions["postEvent"])
+    claim_class = None
+    if host_policy not in ("prohibited", "unavailable") and host_permissions_ready:
+        claim_status = document(str(CLI), "claim-status", "--json", timeout=10)
+        held = (claim_status.get("data", {}).get("claim")
+                if isinstance(claim_status, dict) else None)
+        if isinstance(held, dict) and held.get("claimId") == os.environ.get(
+                "MACHINE_CONTROL_CLAIM_ID") and held.get("useClass") in (
+                "ordinary", "disruptive"):
+            claim_class = held["useClass"]
+    outer_host_ready = host_permissions_ready and claim_class == "disruptive"
     if agent and trusted is True:
         stages.append(stage("outer-bootstrap", "complete",
                             "guest_inner_route_ready"))
-    elif states.get("outer") == "prohibited":
+    elif host_policy == "prohibited":
         stages.append(stage("outer-bootstrap", "blocked",
                             "host_outer_bootstrap_prohibited"))
-    elif states.get("outer") == "unavailable":
+    elif host_policy == "unavailable":
         stages.append(stage("outer-bootstrap", "human_required",
                             "host_session_required_for_outer_bootstrap",
                             "unlock_host_session"))
     elif permissions is None:
         stages.append(stage("outer-bootstrap", "unverified",
                             "host_permissions_unavailable"))
-    elif not permissions["screenCapture"] or not permissions["postEvent"]:
+    elif not host_permissions_ready:
         stages.append(stage("outer-bootstrap", "human_required",
                             "host_outer_bootstrap_permission_missing",
                             "grant_host_screen_and_input_consent"))
+    elif claim_class is None:
+        stages.append(stage("outer-bootstrap", "unverified",
+                            "claim_use_class_unverified"))
+    elif claim_class != "disruptive":
+        stages.append(stage("outer-bootstrap", "action_required",
+                            "disruptive_claim_required",
+                            "reacquire_disruptive_claim"))
     else:
-        claim_status = document(str(CLI), "claim-status", "--json", timeout=10)
-        held = (claim_status.get("data", {}).get("claim")
-                if isinstance(claim_status, dict) else None)
-        if not isinstance(held, dict) or held.get("claimId") != os.environ.get(
-                "MACHINE_CONTROL_CLAIM_ID"):
-            stages.append(stage("outer-bootstrap", "unverified",
-                                "claim_use_class_unverified"))
-        elif held.get("useClass") != "disruptive":
-            stages.append(stage("outer-bootstrap", "action_required",
-                                "disruptive_claim_required",
-                                "reacquire_disruptive_claim"))
-        else:
-            stages.append(stage("outer-bootstrap", "complete",
-                                "host_outer_bootstrap_ready"))
+        stages.append(stage("outer-bootstrap", "complete",
+                            "host_outer_bootstrap_ready"))
 
     tools_ready = agent and command(str(CLI), "exec", "/bin/bash", "-c",
                                     "/usr/bin/xcrun --find swiftc >/dev/null && "
@@ -251,6 +259,8 @@ def inspect(kind: str) -> dict:
                           if tools_ready and not resident else ())))
 
     stages.append(stage("accessibility", "complete" if trusted is True else
+                        "action_required" if trusted is False and
+                        kind == "prepared" and credentials and outer_host_ready else
                         "human_required" if trusted is False else "unverified",
                         "guest_accessibility_granted" if trusted is True else
                         "guest_accessibility_consent_required" if trusted is False else
@@ -258,6 +268,23 @@ def inspect(kind: str) -> dict:
                         "grant_guest_accessibility" if trusted is False else None,
                         *(("bin/macvm", "authorize-ui")
                           if trusted is False else ())))
+
+    capture = states.get("capture")
+    display = doctor.get("extensions", {}).get("displayState") if valid_doctor else None
+    if capture == "ready":
+        capture_stage = stage("capture", "complete", "guest_capture_ready")
+    elif not resident:
+        capture_stage = stage("capture", "waiting", "resident_required_for_capture")
+    elif states.get("desktop") == "unlocked" and display == "active":
+        capture_stage = stage("capture", "action_required" if outer_host_ready else
+                              "human_required",
+                              "guest_screen_recording_consent_required",
+                              "grant_guest_screen_recording", "bin/macvm",
+                              "control", '{"operation":"capture","scope":"display"}')
+    else:
+        capture_stage = stage("capture", "unverified",
+                              "guest_capture_prerequisites_unverified")
+    stages.append(capture_stage)
 
     desktop = states.get("desktop", "unknown")
     direct = document(str(CLI), "ui", "session-state", timeout=30) if agent else None

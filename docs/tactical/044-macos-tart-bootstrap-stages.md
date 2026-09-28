@@ -3,21 +3,23 @@
 Topics: [operational-workflow-automation](../../topics/operational-workflow-automation.md),
 [macos-resident-control](../../topics/macos-resident-control.md)
 
-Status: partial; fresh prepared and IPSW paths were inspected, but their
-human consent and setup handoffs have not yet reached ready doctor.
+Status: partial; fresh prepared Tart reached ready doctor, while the Apple IPSW
+path still needs Setup Assistant, guest-agent, and consent acceptance.
 
 ## Objective and completion conditions
 
 Expose read-only precreation and claimed-candidate stages for prepared and
 vanilla Tart guests. An agent should choose each suggested action, recheck
-actual host and guest state, and hand Setup Assistant, administrator
-authorization, and TCC consent to a human. Completion requires both fresh
+actual host and guest state, and preserve Setup Assistant, administrator
+authorization, and TCC consent boundaries. Completion requires both fresh
 paths reaching a ready doctor through their stage reports.
 
 ## Boundaries
 
 The inspector does not clone/create, submit a password, change TCC, or use
-outer input. Exact candidate identity and a claim guard candidate inspection.
+outer input. A separately chosen one-shot action may submit the recorded
+prepared-image credential through physical Tart input after observing the
+macOS sheet. Exact candidate identity and a claim guard candidate inspection.
 The caller declares the image kind; the report does not claim to prove it.
 Private VM names, paths, and credentials remain outside Git.
 
@@ -26,7 +28,8 @@ Private VM names, paths, and credentials remain outside Git.
 1. Expose host screen/input permission and make `up` report power separately
    from guest-agent IP discovery.
 2. Add precreation and candidate reports for host, guest transport, private
-   credential file, tools, resident, Accessibility, and Aqua state.
+credential file, tools, resident, Accessibility, Screen Recording, and Aqua
+state.
 3. Test missing/unknown/consent paths, then inspect an existing claimed VM.
 4. Advance fresh prepared and IPSW candidates by stage output through ready
    doctor state.
@@ -72,4 +75,17 @@ actually trusted and checks the host policy and disruptive claim before
 calling that route ready. A fresh Apple IPSW candidate reached Setup Assistant's
 opening screen. Its stopped stage report now waits for account setup before
 asking to record a login credential, and its running report correctly calls
-for the human setup handoff. Both handoffs remain pending.
+for the human setup handoff.
+
+The prepared-image password was already documented as `admin` and recorded in
+the controller's owner-only credential file; a password-only guest login
+verified that stored value. The initial agent response nevertheless asked the
+user to enter it. After the user corrected that mistake, a new `type-secret`
+route read the declared file through standard input only after checking the
+foreground Tart window and posted physical keyboard events without placing
+the password in arguments, output, or a capture. The visible Accessibility
+sheet accepted one submission, and guest health independently reported the
+grant. A display-capture request then exposed a separate Screen Recording
+grant. Enabling MacVM UI in the visible macOS settings and restarting the
+resident made capture ready. All prepared stages and doctor passed, as did the
+full Mac smoke suite. The Apple IPSW path remains at Setup Assistant.

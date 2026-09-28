@@ -260,6 +260,24 @@ input_type() {
     host_control type "$MACVM_NAME" "$1"
 }
 
+input_secret() {
+    macvm_assert_outer_input_allowed
+    macvm_assert_candidate_target
+    [[ $# -eq 0 ]] || {
+        printf 'Usage: macvm type-secret\n' >&2
+        return 2
+    }
+    local secret_file="${MACVM_ADMIN_SECRET_FILE:-}"
+    if [[ -z "$secret_file" || ! -f "$secret_file" || -L "$secret_file" ||
+          "$(/usr/bin/stat -f %Lp "$secret_file" 2>/dev/null)" != 600 ||
+          "$(/usr/bin/stat -f %u "$secret_file" 2>/dev/null)" != "$(/usr/bin/id -u)" ||
+          "$(/usr/bin/stat -f %z "$secret_file" 2>/dev/null)" == 0 ]]; then
+        printf 'A nonempty owner-only guest credential file is required\n' >&2
+        return 1
+    fi
+    host_control type-secret "$MACVM_NAME" < "$secret_file"
+}
+
 input_drag() {
     macvm_assert_outer_input_allowed
     if [[ $# -ne 4 ]]; then
@@ -317,6 +335,7 @@ case "$command" in
     click) input_click "$@" ;;
     drag) input_drag "$@" ;;
     type) input_type "$@" ;;
+    type-secret) input_secret "$@" ;;
     key) input_key "$@" ;;
     suspend) suspend_vm ;;
     discard-suspended-state) discard_suspended_state ;;

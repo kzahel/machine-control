@@ -15,7 +15,8 @@ A complete guest has:
 - working `tart exec` and agent-based IP discovery;
 - Xcode Command Line Tools;
 - the deployed and ad-hoc signed MacVM UI app;
-- explicit Accessibility permission for that app identity; and
+- explicit Accessibility permission for that app identity;
+- explicit Screen Recording permission for that app identity; and
 - a warning-free `bin/macvm doctor` result.
 
 The public CLI never stores the guest password. A controller's private
@@ -52,9 +53,10 @@ mode, build tools, resident readiness, Accessibility, and Aqua session state.
 It uses stable stage names and evidence codes. Run each suggested command
 explicitly and recheck; the inspector does not create or change a VM. `kind`
 describes the path chosen by the operator, not a fact inferred from the VM.
-Setup Assistant, administrator authorization, and TCC remain human handoffs.
-The `administrator-authorization` stage names the setup or Command Line Tools
-gate without accepting a password in the report.
+Setup Assistant and TCC remain visible consent surfaces. The report names
+their gates without acting on them; an agent may choose each authorized action
+and recheck it. The `administrator-authorization` stage names the setup or
+Command Line Tools gate without accepting a password in the report.
 If a direct guest probe sees an unlocked Aqua session while the running
 resident reports `unknown`, the report suggests a guarded resident restart.
 It still treats the desktop as unverified until doctor observes the result.
@@ -88,10 +90,12 @@ bin/macvm authorize-ui
 Cirrus's prepared-image convention uses a short account name of `admin` and
 an initial password of `admin`; the full name may appear as “Managed via
 Tart.” Treat that as a public bootstrap credential, not a durable secret.
-For a retained VM, write the current value to the credential file reported by
+For a retained VM, write that initial value to the credential file reported by
 `bin/machine-control inventory credentials macvm`; if it is changed, replace
-that file in the same task. Never place the value in a shell argument,
-repository file, log, or ordinary request.
+that file in the same task. Verify the stored value against the guest login
+before using it for authorization. Do not ask the user for this documented
+default when the file is present and verified. Never place the value in a shell
+argument, repository file, log, or ordinary request.
 
 Continue at [Grant guest Accessibility](#grant-guest-accessibility).
 
@@ -161,10 +165,14 @@ MACVM_NAME=macos-clean bin/macvm key enter
 ### Complete Setup Assistant
 
 Use a screenshot before every coordinate action. Create a local administrator
-account and record its credential in the user's approved password manager or
-the host-local file declared by private inventory, not in this repository.
-Run `bin/machine-control inventory credentials macvm` before ending setup and
-do not leave the declared file missing.
+account and record its credential in a distinct owner-only host-local file
+before entering it into Setup Assistant. Set `MACVM_ADMIN_SECRET_FILE` to that
+file and use `bin/macvm type-secret` for both password fields after observing
+each field's focus. It does not print the password or take it as an argument.
+Set `MACVM_GUEST_USER` to the new short account name. A retained VM must have
+this credential path registered in the controller's private inventory; check
+it with `bin/machine-control inventory credentials macvm` before ending setup.
+Do not put the password in this repository.
 
 After the desktop appears, open Terminal through Spotlight:
 
@@ -174,8 +182,10 @@ MACVM_NAME=macos-clean bin/macvm type Terminal
 MACVM_NAME=macos-clean bin/macvm key enter
 ```
 
-The user may need to enter the new password directly for administrator
-actions. Agents must not ask for it in chat or pass it as a CLI argument.
+For an observed initial administrator sheet, the recorded password can use the
+same one-shot outer path while its exact VM window is foreground. If macOS
+rejects that physical input, stop and request direct user entry. Do not ask
+for the password in chat or pass it as a CLI argument.
 
 ### Install The Guest Agent
 
@@ -235,22 +245,38 @@ In Privacy & Security → Accessibility:
 
 1. Find the automatically registered **MacVM UI** row.
 2. Enable its switch.
-3. If macOS asks to modify settings, enter the guest administrator password
-   and submit the authorization directly in the Tart window.
+3. If macOS asks to modify settings on the prepared base, inspect the password
+   sheet and focused field, then use `bin/macvm type-secret` under the exact
+   disruptive claim. The command reads the declared owner-only credential file
+   after checking the selected Tart window is foreground, and posts physical
+   keyboard events without putting the password in arguments or output. Submit
+   with `bin/macvm key enter`, then recheck `bin/macvm ui health` for
+   `accessibilityTrusted: true`. Do not capture a filled password field or
+   retry a failed submission automatically.
 4. If the row is absent, click `+` and choose
    `/Users/ADMIN_SHORT_NAME/Applications/MacVM UI.app`, substituting the guest
    short account name configured as `MACVM_GUEST_USER`.
 5. Rerun `bin/macvm authorize-ui` and `bin/macvm doctor`.
 
-An authorization sheet may reject synthesized mouse and keyboard events even
-when ordinary guest UI accepts them. That is a secure-input boundary, not an
-outer-control failure. The user performs any password submission directly;
-the agent resumes with the remaining non-secret UI.
-
-This direct-user requirement applies here because MacVM UI does not yet have
-Accessibility permission. Once the stable resident is trusted, matching normal
-Aqua administrator sheets use the bounded one-shot path documented in
+The physical-keyboard route passed the fresh prepared image's initial
+Accessibility sheet. If a later sheet rejects that route, stop and request
+direct user entry; do not weaken TCC or guess another password. Once the stable
+resident is trusted, matching normal Aqua administrator sheets use the bounded
+one-shot path documented in
 [macOS UI automation](ui-automation.md#administrator-authorization-sheets).
+
+After Accessibility, run `bin/macvm doctor`. If capture is unavailable, the
+stage report suggests a display capture request; invoke it deliberately to
+open macOS's Screen Recording prompt:
+
+```bash
+bin/macvm control '{"operation":"capture","scope":"display"}'
+```
+
+In **Privacy & Security → Screen & System Audio Recording**, enable **MacVM
+UI**. Restart the resident with `bin/macvm ui resident-restart`, then recheck
+doctor. The fresh prepared run needed this process restart before the new
+capture grant became visible to its resident.
 
 System-key shortcuts require the VM to have been started through `macvm up`
 or another `tart run --capture-system-keys` invocation. If Command-Shift-G is

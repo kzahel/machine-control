@@ -107,6 +107,15 @@ bin/macvm key cmd-shift-g
 bin/macvm key ctrl-option-delete
 ```
 
+For the prepared Tart guest's observed initial administrator sheet,
+`bin/macvm type-secret` reads the declared owner-only guest credential file
+through standard input and posts physical keyboard events to the selected
+foreground Tart window. It requires an exact disruptive claim and a currently
+unlocked host session. It reports delivery through its exit status; inspect
+the guest's permission state afterward to establish the effect. Do not use
+`type TEXT` for a password, capture the filled field, or retry a rejected
+credential automatically.
+
 Target-resident keyboard input does not require Tart system-key capture. Keep
 `MACVM_CAPTURE_SYSTEM_KEYS=false` for ordinary use and all acceptance runs.
 Set it to `true` only for an attended outer recovery that specifically needs a

@@ -85,7 +85,7 @@ class BootstrapStagesTests(unittest.TestCase):
                  mock.patch.object(MODULE, "document", side_effect=observed), \
                  mock.patch.object(MODULE, "command", return_value=(True, "")), \
                  mock.patch.object(MODULE, "host_permissions", return_value={
-                     "screenCapture": True, "postEvent": True}):
+                     "screenCapture": False, "postEvent": False}):
                 report = stages(MODULE.inspect("prepared"))
         self.assertEqual(report["guest-agent"]["state"], "complete")
         self.assertEqual(report["accessibility"]["state"], "complete")
@@ -170,9 +170,39 @@ class BootstrapStagesTests(unittest.TestCase):
         self.assertEqual(report["outer-bootstrap"]["evidence"],
                          "host_outer_bootstrap_permission_missing")
 
+    def test_screen_recording_gate_suggests_trigger_after_desktop_is_ready(self):
+        doctor = {**READY, "ready": False,
+                  "states": {**READY["states"], "capture": "unavailable"},
+                  "extensions": {"displayState": "active"}}
+        def observed(*args, **_kwargs):
+            if "candidate-status" in args:
+                return IDENTITY
+            if "doctor" in args:
+                return doctor
+            if "health" in args:
+                return {"accessibilityTrusted": True}
+            if "claim-status" in args:
+                return {"data": {"claim": {"claimId": "fixture-claim",
+                                           "useClass": "disruptive"}}}
+            return None
+        with mock.patch.dict(os.environ, {"MACHINE_CONTROL_CLAIM_ID":
+                                       "fixture-claim"}), \
+             mock.patch.object(MODULE, "document", side_effect=observed), \
+             mock.patch.object(MODULE, "command", return_value=(True, "")), \
+             mock.patch.object(MODULE, "stored_credential", return_value=True), \
+             mock.patch.object(MODULE, "host_permissions", return_value={
+                 "screenCapture": True, "postEvent": True}):
+            report = stages(MODULE.inspect("prepared"))
+        self.assertEqual(report["capture"]["state"], "action_required")
+        self.assertEqual(report["capture"]["nextActionId"],
+                         "grant_guest_screen_recording")
+        self.assertEqual(report["capture"]["nextCommand"][:2],
+                         ["bin/macvm", "control"])
+
     def test_outer_bootstrap_respects_host_policy_and_claim_class(self):
         doctor = {**READY, "ready": False,
                   "states": {**READY["states"], "outer": "prohibited"}}
+        claim = {"claimId": "fixture-claim", "useClass": "ordinary"}
         def observed(*args, **_kwargs):
             if "candidate-status" in args:
                 return IDENTITY
@@ -181,8 +211,7 @@ class BootstrapStagesTests(unittest.TestCase):
             if "health" in args:
                 return {"accessibilityTrusted": False}
             if "claim-status" in args:
-                return {"data": {"claim": {"claimId": "fixture-claim",
-                                           "useClass": "ordinary"}}}
+                return {"data": {"claim": claim}}
             return None
         with mock.patch.dict(os.environ, {"MACHINE_CONTROL_CLAIM_ID":
                                        "fixture-claim"}), \
@@ -194,6 +223,8 @@ class BootstrapStagesTests(unittest.TestCase):
             prohibited = stages(MODULE.inspect("prepared"))
             doctor["states"]["outer"] = "unknown"
             ordinary = stages(MODULE.inspect("prepared"))
+            claim["useClass"] = "disruptive"
+            allowed = stages(MODULE.inspect("prepared"))
         self.assertEqual(prohibited["outer-bootstrap"]["state"], "blocked")
         self.assertEqual(prohibited["outer-bootstrap"]["evidence"],
                          "host_outer_bootstrap_prohibited")
@@ -201,6 +232,8 @@ class BootstrapStagesTests(unittest.TestCase):
                          "action_required")
         self.assertEqual(ordinary["outer-bootstrap"]["nextActionId"],
                          "reacquire_disruptive_claim")
+        self.assertEqual(allowed["outer-bootstrap"]["state"], "complete")
+        self.assertEqual(allowed["accessibility"]["state"], "action_required")
 
     def test_missing_guest_tools_names_admin_handoff(self):
         doctor = {**READY, "ready": False,
