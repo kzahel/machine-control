@@ -213,7 +213,7 @@ jq -cn \
         resident:$resident,
         checks:$checks,
         lifecycleOperations:[
-            "status","up","suspend","shutdown","force-stop"
+            "status","up","suspend","reboot","shutdown","force-stop"
         ],
         extensions:{
             administrationRoute:"qemu_guest_agent",
