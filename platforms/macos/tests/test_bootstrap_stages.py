@@ -132,6 +132,76 @@ class BootstrapStagesTests(unittest.TestCase):
         self.assertEqual(report["outer-bootstrap"]["state"], "human_required")
         self.assertIsNone(report["resident"]["nextCommand"])
 
+    def test_vanilla_stopped_waits_for_account_before_credential(self):
+        doctor = {**READY, "ready": False,
+                  "states": {"power": "off", "administration": "unavailable",
+                             "resident": "unavailable", "desktop": "unknown"}}
+        def observed(*args, **_kwargs):
+            return IDENTITY if "candidate-status" in args else doctor
+        with mock.patch.object(MODULE, "document", side_effect=observed), \
+             mock.patch.object(MODULE, "stored_credential", return_value=False), \
+             mock.patch.object(MODULE, "host_permissions", return_value={
+                 "screenCapture": True, "postEvent": True}):
+            report = stages(MODULE.inspect("vanilla"))
+        self.assertEqual(report["credential"]["state"], "waiting")
+        self.assertEqual(report["credential"]["evidence"],
+                         "guest_account_setup_required")
+        self.assertIsNone(report["credential"]["nextActionId"])
+
+    def test_prepared_agent_still_needs_outer_consent_route(self):
+        doctor = {**READY, "ready": False}
+        def observed(*args, **_kwargs):
+            if "candidate-status" in args:
+                return IDENTITY
+            if "doctor" in args:
+                return doctor
+            if "health" in args:
+                return {"accessibilityTrusted": False}
+            return None
+        with mock.patch.object(MODULE, "document", side_effect=observed), \
+             mock.patch.object(MODULE, "command", return_value=(True, "")), \
+             mock.patch.object(MODULE, "stored_credential", return_value=True), \
+             mock.patch.object(MODULE, "host_permissions", return_value={
+                 "screenCapture": False, "postEvent": False}):
+            report = stages(MODULE.inspect("prepared"))
+        self.assertEqual(report["guest-agent"]["state"], "complete")
+        self.assertEqual(report["accessibility"]["state"], "human_required")
+        self.assertEqual(report["outer-bootstrap"]["state"], "human_required")
+        self.assertEqual(report["outer-bootstrap"]["evidence"],
+                         "host_outer_bootstrap_permission_missing")
+
+    def test_outer_bootstrap_respects_host_policy_and_claim_class(self):
+        doctor = {**READY, "ready": False,
+                  "states": {**READY["states"], "outer": "prohibited"}}
+        def observed(*args, **_kwargs):
+            if "candidate-status" in args:
+                return IDENTITY
+            if "doctor" in args:
+                return doctor
+            if "health" in args:
+                return {"accessibilityTrusted": False}
+            if "claim-status" in args:
+                return {"data": {"claim": {"claimId": "fixture-claim",
+                                           "useClass": "ordinary"}}}
+            return None
+        with mock.patch.dict(os.environ, {"MACHINE_CONTROL_CLAIM_ID":
+                                       "fixture-claim"}), \
+             mock.patch.object(MODULE, "document", side_effect=observed), \
+             mock.patch.object(MODULE, "command", return_value=(True, "")), \
+             mock.patch.object(MODULE, "stored_credential", return_value=True), \
+             mock.patch.object(MODULE, "host_permissions", return_value={
+                 "screenCapture": True, "postEvent": True}):
+            prohibited = stages(MODULE.inspect("prepared"))
+            doctor["states"]["outer"] = "unknown"
+            ordinary = stages(MODULE.inspect("prepared"))
+        self.assertEqual(prohibited["outer-bootstrap"]["state"], "blocked")
+        self.assertEqual(prohibited["outer-bootstrap"]["evidence"],
+                         "host_outer_bootstrap_prohibited")
+        self.assertEqual(ordinary["outer-bootstrap"]["state"],
+                         "action_required")
+        self.assertEqual(ordinary["outer-bootstrap"]["nextActionId"],
+                         "reacquire_disruptive_claim")
+
     def test_missing_guest_tools_names_admin_handoff(self):
         doctor = {**READY, "ready": False,
                   "states": {**READY["states"], "resident": "unavailable"}}

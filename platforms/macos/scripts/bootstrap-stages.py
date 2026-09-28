@@ -165,27 +165,54 @@ def inspect(kind: str) -> dict:
     stages.append(agent_stage)
 
     credentials = stored_credential()
-    stages.append(stage("credential", "complete" if credentials else
-                        "human_required" if kind == "vanilla" else
-                        "action_required",
-                        "private_login_secret_file_present" if credentials else
-                        "guest_login_secret_missing",
-                        None if credentials else "record_guest_login_secret"))
+    if credentials:
+        credential_stage = stage("credential", "complete",
+                                 "private_login_secret_file_present")
+    elif kind == "vanilla" and not running:
+        credential_stage = stage("credential", "waiting",
+                                 "guest_account_setup_required")
+    else:
+        credential_state = "human_required" if kind == "vanilla" else "action_required"
+        credential_stage = stage("credential", credential_state,
+                                 "guest_login_secret_missing",
+                                 "record_guest_login_secret")
+    stages.append(credential_stage)
 
     permissions = host_permissions()
-    if agent:
+    health = document(str(CLI), "ui", "health", timeout=45) if agent else None
+    trusted = health.get("accessibilityTrusted") if isinstance(health, dict) else None
+    if agent and trusted is True:
         stages.append(stage("outer-bootstrap", "complete",
                             "guest_inner_route_ready"))
+    elif states.get("outer") == "prohibited":
+        stages.append(stage("outer-bootstrap", "blocked",
+                            "host_outer_bootstrap_prohibited"))
+    elif states.get("outer") == "unavailable":
+        stages.append(stage("outer-bootstrap", "human_required",
+                            "host_session_required_for_outer_bootstrap",
+                            "unlock_host_session"))
     elif permissions is None:
         stages.append(stage("outer-bootstrap", "unverified",
                             "host_permissions_unavailable"))
-    elif permissions["screenCapture"] and permissions["postEvent"]:
-        stages.append(stage("outer-bootstrap", "complete",
-                            "host_outer_bootstrap_permissions_granted"))
-    else:
+    elif not permissions["screenCapture"] or not permissions["postEvent"]:
         stages.append(stage("outer-bootstrap", "human_required",
                             "host_outer_bootstrap_permission_missing",
                             "grant_host_screen_and_input_consent"))
+    else:
+        claim_status = document(str(CLI), "claim-status", "--json", timeout=10)
+        held = (claim_status.get("data", {}).get("claim")
+                if isinstance(claim_status, dict) else None)
+        if not isinstance(held, dict) or held.get("claimId") != os.environ.get(
+                "MACHINE_CONTROL_CLAIM_ID"):
+            stages.append(stage("outer-bootstrap", "unverified",
+                                "claim_use_class_unverified"))
+        elif held.get("useClass") != "disruptive":
+            stages.append(stage("outer-bootstrap", "action_required",
+                                "disruptive_claim_required",
+                                "reacquire_disruptive_claim"))
+        else:
+            stages.append(stage("outer-bootstrap", "complete",
+                                "host_outer_bootstrap_ready"))
 
     tools_ready = agent and command(str(CLI), "exec", "/bin/bash", "-c",
                                     "/usr/bin/xcrun --find swiftc >/dev/null && "
@@ -223,8 +250,6 @@ def inspect(kind: str) -> dict:
                         *(("bin/macvm", "bootstrap", "--profile", "development")
                           if tools_ready and not resident else ())))
 
-    health = document(str(CLI), "ui", "health", timeout=45) if agent else None
-    trusted = health.get("accessibilityTrusted") if isinstance(health, dict) else None
     stages.append(stage("accessibility", "complete" if trusted is True else
                         "human_required" if trusted is False else "unverified",
                         "guest_accessibility_granted" if trusted is True else

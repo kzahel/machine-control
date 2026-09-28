@@ -61,3 +61,15 @@ their caches were deleted after the checks; the IPSW guest needed an explicit
 recovery stop when its agentless Setup Assistant did not shut down normally.
 Step 4 remains open until both fresh paths pass their human handoffs and reach
 ready doctor.
+
+A later fresh prepared run again reached an unlocked desktop, ready guest
+administration, and a ready resident before stopping at the normal
+Accessibility authorization sheet. Its default 1024×768 display clipped the
+System Settings list; resizing the running Tart display to 1280×900 exposed
+the MacVM UI switch and password sheet without changing TCC directly. The
+inspector now keeps the outer bootstrap route in view until Accessibility is
+actually trusted and checks the host policy and disruptive claim before
+calling that route ready. A fresh Apple IPSW candidate reached Setup Assistant's
+opening screen. Its stopped stage report now waits for account setup before
+asking to record a login credential, and its running report correctly calls
+for the human setup handoff. Both handoffs remain pending.

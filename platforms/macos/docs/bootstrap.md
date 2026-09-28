@@ -139,11 +139,13 @@ MACVM_NAME=macos-clean MACVM_EXPECTED_NAME=macos-clean \
 
 `macvm up` launches the graphical VM and reports its power state. It does not
 require guest-agent IP discovery to succeed. Check `macvm ip` or doctor
-separately when guest administration is needed. The launch uses:
+separately when guest administration is needed. It enables suspend support
+and mounts this repository read-only as `macvm-testbed`.
 
-- suspend support;
-- guest system-key capture; and
-- this repository mounted read-only as `macvm-testbed`.
+Guest system-key capture is enabled only when
+`MACVM_CAPTURE_SYSTEM_KEYS=true` is set for `macvm up`. Set it before starting
+the VM when Setup Assistant or the consent flow needs guest Command-key
+shortcuts.
 
 Agent-based IP discovery will fail before the guest agent exists, even while
 the VM is running. Use only the outer path during this phase:
@@ -224,6 +226,11 @@ bin/macvm authorize-ui
 `deploy-ui` compiles and ad-hoc signs
 `~/Applications/MacVM UI.app`. The helper triggers macOS's normal
 Accessibility prompt. Use the outer path to click **Open System Settings**.
+If the prepared image's 1024×768 display clips the Accessibility list, check
+the exact candidate with `tart get VM_NAME --format json`, then, while holding
+its disruptive claim, run
+`tart set VM_NAME --display 1280x900 --no-display-refit`. Tart can resize the
+running guest. Capture a new screenshot before clicking the now-visible row.
 In Privacy & Security → Accessibility:
 
 1. Find the automatically registered **MacVM UI** row.
