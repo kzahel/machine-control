@@ -576,8 +576,8 @@ detach_installer_output="$(env \
 [[ "$detach_installer_output" == \
     'factory installer detached: removed=1 seed_media_remaining=2' ]]
 
-for media_case in RRRF:installer_and_seed RRF:seed_only F:detached \
-        RFR:unverified; do
+for media_case in RRRF:installer_and_seed FRRR:installer_and_seed \
+        RRF:seed_only FRR:seed_only F:detached RFR:unverified; do
     IFS=: read -r shape expected_stage <<<"$media_case"
     media_report="$(env \
         WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-always-stopped" \

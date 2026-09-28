@@ -579,8 +579,8 @@ end run
 APPLESCRIPT
 )" 2>/dev/null || shape=""
     case "$shape" in
-        RRRF) stage=installer_and_seed ;;
-        RRF) stage=seed_only ;;
+        RRRF|FRRR) stage=installer_and_seed ;;
+        RRF|FRR) stage=seed_only ;;
         F) stage=detached ;;
         *) stage=unverified ;;
     esac
