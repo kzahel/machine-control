@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import CoreGraphics
 import Foundation
 
@@ -233,8 +234,18 @@ func parseChord(_ chord: String) throws -> (CGKeyCode, [(CGKeyCode, CGEventFlags
     return (code, modifiers)
 }
 
+let allowUnverifiedModifiers =
+    ProcessInfo.processInfo.environment["MACVM_ALLOW_UNVERIFIED_MODIFIERS"] == "true"
+
 func sendKey(window: TartWindow, chord: String) throws {
     let (code, modifiers) = try parseChord(chord)
+    guard modifiers.isEmpty || allowUnverifiedModifiers else {
+        throw HostControlError.invalidKey(
+            "Tart outer modifier delivery is unverified; no key was sent. " +
+            "Set MACVM_ALLOW_UNVERIFIED_MODIFIERS=true only for a " +
+            "guest-observed diagnostic."
+        )
+    }
     activate(window)
 
     var flags: CGEventFlags = []
@@ -322,9 +333,24 @@ func postKeyboard(code: CGKeyCode, keyDown: Bool, flags: CGEventFlags) {
     usleep(25_000)
 }
 
-func postText(_ text: String) throws {
-    for character in text {
-        let (code, shifted) = try textStroke(character)
+func textStrokes(_ text: String, allowShifted: Bool,
+                 secret: Bool = false) throws -> [(CGKeyCode, Bool)] {
+    let strokes = try text.map(textStroke)
+    guard allowShifted || !strokes.contains(where: { $0.1 }) else {
+        throw HostControlError.invalidText(
+            secret
+                ? "Stored secret requires unverified Tart outer Shift; " +
+                  "no text was sent. Use an unshifted initial credential."
+                : "Tart outer Shift delivery is unverified; no text was sent. " +
+                  "Set MACVM_ALLOW_UNVERIFIED_MODIFIERS=true only for a " +
+                  "guest-observed diagnostic."
+        )
+    }
+    return strokes
+}
+
+func postText(_ strokes: [(CGKeyCode, Bool)]) {
+    for (code, shifted) in strokes {
         if shifted {
             postKeyboard(code: 56, keyDown: true, flags: .maskShift)
         }
@@ -339,24 +365,40 @@ func postText(_ text: String) throws {
 }
 
 func typeText(window: TartWindow, text: String) throws {
+    // Validate all characters before activating the VM or sending a prefix.
+    let strokes = try textStrokes(text, allowShifted: allowUnverifiedModifiers)
     activate(window)
-    try postText(text)
+    postText(strokes)
 }
 
-func typeSecret(window: TartWindow) throws {
+func typeSecret(window: TartWindow, expectedName: String) throws {
     activate(window)
     guard NSWorkspace.shared.frontmostApplication?.processIdentifier == window.pid,
-          let windows = CGWindowListCopyWindowInfo(
-            [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
-          ) as? [[String: Any]],
-          let foremostTart = windows.first(where: {
-            ($0[kCGWindowOwnerName as String] as? String) == "Tart" &&
-            ($0[kCGWindowLayer as String] as? NSNumber)?.intValue == 0
-          }),
-          (foremostTart[kCGWindowNumber as String] as? NSNumber)?.intValue == window.id
+          AXIsProcessTrusted()
     else {
         throw HostControlError.invalidText(
             "Selected Tart window is not foreground; secret was not read"
+        )
+    }
+    let app = AXUIElementCreateApplication(window.pid)
+    var focusedWindow: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(
+            app, kAXFocusedWindowAttribute as CFString, &focusedWindow
+          ) == .success,
+          let focusedWindow,
+          CFGetTypeID(focusedWindow) == AXUIElementGetTypeID() else {
+        throw HostControlError.invalidText(
+            "Tart keyboard focus is unverified; secret was not read"
+        )
+    }
+    var focusedTitle: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(
+            focusedWindow as! AXUIElement,
+            kAXTitleAttribute as CFString, &focusedTitle
+          ) == .success,
+          (focusedTitle as? String) == expectedName else {
+        throw HostControlError.invalidText(
+            "Selected Tart VM window lacks keyboard focus; secret was not read"
         )
     }
     let data = FileHandle.standardInput.readDataToEndOfFile()
@@ -371,7 +413,9 @@ func typeSecret(window: TartWindow) throws {
             "Guest secret contains unsupported keyboard characters"
         )
     }
-    try postText(secret)
+    // A secret must never opt into an input route known to alter bytes.
+    let strokes = try textStrokes(secret, allowShifted: false, secret: true)
+    postText(strokes)
 }
 
 func printPermissions() throws {
@@ -455,7 +499,8 @@ do {
         guard arguments.count == 2 else {
             throw HostControlError.usage("Usage: host-control.swift type-secret VM")
         }
-        try typeSecret(window: findWindow(named: arguments[1]))
+        try typeSecret(window: findWindow(named: arguments[1]),
+                       expectedName: arguments[1])
     default:
         throw HostControlError.usage("Unknown host-control command: \(command)")
     }

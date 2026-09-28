@@ -71,9 +71,9 @@ Out-of-band recovery:
   screenshot [PATH]      Capture the Tart guest display to a PNG
   click X Y [BUTTON]     Click guest-display coordinates (double opens items)
   drag X1 Y1 X2 Y2       Drag between guest-display coordinates
-  type TEXT              Type US-keyboard ASCII through the Tart window
-  type-secret             Type the stored guest password through the Tart window
-  key CHORD              Send a key or chord through the Tart window
+  type TEXT              Type unshifted US-keyboard ASCII through Tart
+  type-secret             Type an unshifted stored password through Tart
+  key CHORD              Send an unmodified key through Tart
 
 Lifecycle and discovery:
   status | get | host-state | ip | suspend | shutdown | stop | force-stop
@@ -84,7 +84,7 @@ Lifecycle and discovery:
   workspace-release | workspace-gc
 
 Key examples:
-  enter escape tab cmd-space cmd-tab cmd-shift-g ctrl-option-delete
+  enter escape tab (modifier chords require an explicit diagnostic override)
 
 Configuration:
   Copy config.example to config.local, or set MACVM_* environment variables.

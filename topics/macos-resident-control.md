@@ -144,6 +144,15 @@ newer SDK selected by the installed tools, scaled-window coordinate error, and
 unreliable synthetic modifier keys. The [bootstrap guide](../platforms/macos/docs/bootstrap.md)
 records the supported recovery and current keyboard limits.
 
+**Current:** [`Tactical 045`](../docs/tactical/045-macos-tart-outer-keyboard.md)
+confirmed that the host posted Shift flags while the Tart guest received base
+characters. Multiple event routes failed the guest-file oracle, so the outer
+bootstrap CLI now refuses shifted text and modifier chords by default. The
+one-shot secret route refuses shifted values even under the diagnostic
+override and checks the actual focused Tart VM window before reading a secret.
+Unshifted setup input still works. The exact synthetic modifier translation
+failure remains open; ordinary modified input uses the target-resident route.
+
 ## Current Tart goal
 
 **Decision:** Until physical Mac testing becomes an active workstream, focus

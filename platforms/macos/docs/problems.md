@@ -281,19 +281,25 @@ remain diagnostic compatibility commands.
 
 ### Host keyboard modifier chords can degrade into literal input
 
-Status: **unresolved.** During Chrome automation, `macvm key cmd-l` entered a
-literal `l` instead of focusing the address field. Another modified shortcut
-also produced printable input rather than the requested chord. The VM had been
-started with Tart system-key capture enabled, so this was not explained by the
-documented launch prerequisite.
+Status: **effect confirmed; ordinary outer commands now fail closed.** During
+Chrome automation, `macvm key cmd-l` entered a literal `l` instead of focusing
+the address field. A later guest-file oracle received `abc12z` from outer
+`type 'AbC!@Z'`. Host event monitoring saw Shift flags, but alternate Quartz
+post locations, source state, modifier event type, and process-targeted events
+all still delivered lowercase `a` to the guest. Tart system-key capture did
+not change the result. The exact translation boundary remains unproved.
 
-Effect: shortcut-driven navigation can corrupt text or URLs and invalidate a
-test step while still appearing to complete successfully.
+Effect: shortcut-driven navigation or password entry could corrupt text while
+appearing to complete successfully. `type` and `key` now refuse modified input
+before delivery unless a caller explicitly opts into a guest-observed
+diagnostic; `type-secret` never takes that override.
 
-Possible direction: add end-to-end chord tests against a simple guest-native
-target, inspect how CoreGraphics flags and modifier key transitions reach
-Tart, and prefer a guest-local keyboard action for normal post-bootstrap
-automation.
+Direction: keep ordinary post-bootstrap input target-resident. A future outer
+modifier route needs an independently observed guest effect before it can be
+advertised as reliable. Apple documents Tart's underlying
+[`VZVirtualMachineView`](https://developer.apple.com/documentation/virtualization/vzvirtualmachineview)
+as the keyboard-forwarding view; the observed host flags alone do not prove
+its guest effect.
 
 ### Outer input disrupts concurrent work on the host
 

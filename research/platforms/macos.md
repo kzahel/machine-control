@@ -206,6 +206,15 @@ keyboard guarantee. The [bootstrap record](../../docs/tactical/044-macos-tart-bo
 and [guide](../../platforms/macos/docs/bootstrap.md) own the setup and
 recovery details.
 
+A follow-up guest-file oracle received `abc12z` when the host posted
+`AbC!@Z`. A host event tap independently saw Shift flags, while several
+Quartz posting variants and an independent computer input route still failed
+to produce the requested guest text. The outer CLI now refuses shifted text
+and modifier chords by default, and rejects shifted secrets even under its
+diagnostic override. The exact failure inside the Tart/Virtualization input
+boundary remains open; this is not a limitation of the target-resident
+keyboard provider.
+
 ## Current direction
 
 **Decision:** Preserve Cua as a replaceable common-plane adapter and Peekaboo as

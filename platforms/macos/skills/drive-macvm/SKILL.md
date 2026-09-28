@@ -69,8 +69,15 @@ shot="$(bin/macvm screenshot)"
 bin/macvm click 512 384
 bin/macvm drag 300 240 700 240
 bin/macvm type 'text'
-bin/macvm key cmd-shift-g
+bin/macvm key enter
 ```
+
+The outer route refuses shifted text and modifier chords by default because
+live Tart guest effects did not match the posted keys. `type-secret` also
+refuses shifted values and requires the exact VM window to hold focus. Use
+lowercase letters and digits for a fresh initial password; use target-resident
+input after bootstrap for ordinary modified keys. The diagnostic override in
+`docs/ui-automation.md` is never a password-entry route.
 
 Coordinate input foregrounds the Tart window and moves the host pointer. Avoid
 it while the user is operating another host application.

@@ -223,8 +223,14 @@ bin/macvm screenshot
 bin/macvm click 512 384
 bin/macvm drag 300 240 700 240
 bin/macvm type 'hello from the host'
-bin/macvm key cmd-space
+bin/macvm key enter
 ```
+
+The outer keyboard route refuses shifted text and modifier chords by default.
+The tested Tart guest received different characters even though the host
+posted the modifier flags. Use target-resident input after bootstrap; the
+[UI guide](docs/ui-automation.md#keyboard-input) explains the diagnostic
+override and secret boundary.
 
 For the prepared image's first macOS consent sheet, the documented initial
 `admin` credential belongs in the private file declared by inventory.

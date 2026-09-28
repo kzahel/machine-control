@@ -167,9 +167,11 @@ and mounts this repository read-only as `macvm-testbed`.
 
 Guest system-key capture is enabled only when
 `MACVM_CAPTURE_SYSTEM_KEYS=true` is set for `macvm up`. Set it before starting
-the VM when Setup Assistant or the consent flow needs guest Command-key
-shortcuts. This flag does not itself prove that a synthesized modifier reached
-the guest.
+the VM for an attended shortcut diagnostic. It did not make synthesized
+modifiers reach the tested guest. Outer `macvm type` and `macvm key` now refuse
+shifted text and modifier chords unless the caller explicitly sets
+`MACVM_ALLOW_UNVERIFIED_MODIFIERS=true` for a guest-observed diagnostic.
+`macvm type-secret` always refuses shifted characters before sending text.
 
 Agent-based IP discovery will fail before the guest agent exists, even while
 the VM is running. Use only the outer path during this phase:
@@ -194,9 +196,10 @@ this credential path registered in the controller's private inventory; check
 it with `bin/machine-control inventory credentials macvm` before ending setup.
 Do not put the password in this repository.
 
-Until the Tart-window synthetic-key route proves shifted characters on the
-current host, use a generated initial password made of lowercase ASCII letters
-and digits. This avoids an unobserved case change during account creation.
+Use a generated initial password made of lowercase ASCII letters and digits.
+The tested Tart-window synthetic-key route silently dropped Shift during
+account creation, and `type-secret` now refuses shifted bytes. This avoids an
+unobserved case change during account creation.
 Verify the stored credential with a subsequent guest login and administrator
 authorization. Keep the file owner-only and replace it atomically on rotation.
 
@@ -204,8 +207,8 @@ After the desktop appears, open Terminal through Finder's Applications →
 Utilities folder or Finder search, then double-click Terminal. `macvm click X
 Y double` can open the observed Finder item. In the fresh Tahoe run, outer
 `cmd-space`, `cmd-n`, Shift, and shifted punctuation arrived without their
-modifiers, even with Tart system-key capture enabled. Use a screenshot to
-verify each action rather than assuming that a modifier took effect.
+modifiers, even with Tart system-key capture enabled. Those commands now
+refuse modifier input by default. Use a screenshot to verify each action.
 
 For the default case-insensitive fresh macOS volume, the bootstrap command can
 be entered using only unshifted characters:
@@ -311,10 +314,10 @@ UI**. Restart the resident with `bin/macvm ui resident-restart`, then recheck
 doctor. The fresh prepared run needed this process restart before the new
 capture grant became visible to its resident.
 
-System-key shortcuts require the VM to have been started through `macvm up`
-or another `tart run --capture-system-keys` invocation. If Command-Shift-G is
-consumed by the host, shut the guest down normally and restart it through the
-CLI before repeating the consent flow.
+If a consent flow requires a modifier shortcut, use target-resident input once
+it is ready, or navigate the visible guest UI with unmodified outer keys and
+clicks during bootstrap. `--capture-system-keys` only controls which system
+shortcuts the host reserves; it does not make synthesized modifiers reliable.
 
 Never use `sqlite3`, filesystem replacement, recovery-mode copying, or any
 other technique to modify the TCC database. The visible consent is part of the
