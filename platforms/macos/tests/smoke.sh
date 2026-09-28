@@ -203,6 +203,7 @@ secret_env=(
     env MACVM_CONFIG_FILE=/dev/null
     MACVM_NAME=fixture-candidate MACVM_EXPECTED_NAME=fixture-candidate
     MACVM_TARGET_ROLE=candidate MACVM_REQUIRE_MUTATION_GUARD=true
+    MACVM_TART="$REPO_DIR/tests/fixtures/tart"
     MACVM_IOREG="$REPO_DIR/tests/fixtures/ioreg"
     MACHINE_CONTROL_HOST_SESSION=unlocked
     MACHINE_CONTROL_HOST_ATTENDANCE=unattended
