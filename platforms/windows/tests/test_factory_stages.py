@@ -329,9 +329,10 @@ class FactoryStagesTests(unittest.TestCase):
             media[data_offset:data_offset + len(script.read_bytes())] = script.read_bytes()
             boot.write_bytes(media)
             boot.chmod(0o600)
-            self.assertTrue(MODULE.mac_boot_media_ready(str(boot), script))
-            script.write_bytes(b"different\n")
-            self.assertFalse(MODULE.mac_boot_media_ready(str(boot), script))
+            with mock.patch.object(MODULE, "private_file", return_value=True):
+                self.assertTrue(MODULE.mac_boot_media_ready(str(boot), script))
+                script.write_bytes(b"different\n")
+                self.assertFalse(MODULE.mac_boot_media_ready(str(boot), script))
 
     @unittest.skipUnless(sys.platform == "darwin", "macOS hdiutil format")
     def test_utm_seed_image_reads_real_hdiutil_format(self):
