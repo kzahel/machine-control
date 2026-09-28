@@ -28,6 +28,23 @@ READY = {"schema": "machine-control-doctor/v0", "ready": True,
 
 
 class BootstrapStagesTests(unittest.TestCase):
+    def test_credential_stage_accepts_only_owner_only_regular_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            secret = Path(directory) / "secret"
+            link = Path(directory) / "link"
+            secret.write_text("fixture-only")
+            secret.chmod(0o600)
+            link.symlink_to(secret)
+            with mock.patch.dict(os.environ, {"MACVM_ADMIN_SECRET_FILE":
+                                       str(secret)}):
+                self.assertTrue(MODULE.stored_credential())
+                secret.chmod(0o644)
+                self.assertFalse(MODULE.stored_credential())
+                secret.chmod(0o600)
+            with mock.patch.dict(os.environ, {"MACVM_ADMIN_SECRET_FILE":
+                                       str(link)}):
+                self.assertFalse(MODULE.stored_credential())
+
     def test_preflight_suggests_kind_specific_creation_only_for_unused_name(self):
         environment = {"MACVM_NAME": "new-candidate",
                        "MACVM_EXPECTED_NAME": "new-candidate",

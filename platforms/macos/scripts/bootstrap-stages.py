@@ -65,8 +65,10 @@ def stored_credential() -> bool:
     if not path:
         return False
     try:
-        info = Path(path).stat()
+        secret = Path(path)
+        info = secret.lstat()
         return (stat.S_ISREG(info.st_mode) and
+                info.st_uid == os.getuid() and
                 stat.S_IMODE(info.st_mode) == 0o600 and info.st_size > 0)
     except OSError:
         return False
