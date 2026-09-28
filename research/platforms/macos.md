@@ -186,6 +186,26 @@ Screen Sharing service to grant normal resident consent without host desktop
 interaction. The client was disconnected before the integrated unlock tests;
 native capture, AX, and input then used the ordinary resident over SSH.
 
+## Fresh Tart bootstrap route
+
+**Current (2026-09-28), `live-tested`, host outer bootstrap and native guest
+control:** A fresh Apple IPSW guest completed Setup Assistant, guest-agent and
+resident installation, visible TCC consent, and a ready doctor. Its claimed
+stage report marked every bootstrap stage complete; the development audit and
+Mac smoke suite passed. This confirms the first-boot path separately from the
+prepared-image route; it does not add a new claim about login or protected
+desktop control.
+
+On the tested host, Tart's resizable window scaled the guest display. A fixed
+title-bar crop and scaled click coordinates restored observed menu and consent
+targets. Synthetic Shift and Command events reached the guest without their
+modifiers even with system-key capture enabled. The outer route therefore used
+unshifted setup input and a separately verified lowercase-and-digit initial
+credential. This is a measured host/guest combination, not a general Tart
+keyboard guarantee. The [bootstrap record](../../docs/tactical/044-macos-tart-bootstrap-stages.md)
+and [guide](../../platforms/macos/docs/bootstrap.md) own the setup and
+recovery details.
+
 ## Current direction
 
 **Decision:** Preserve Cua as a replaceable common-plane adapter and Peekaboo as
