@@ -131,8 +131,11 @@ candidate had an unknown Aqua state in resident status while a direct guest
 probe observed it unlocked. A guarded resident restart restored full doctor
 readiness, and the report now suggests that action for this exact mismatch.
 The host maintenance command bounds guest report calls so restarting Tart
-transport cannot hang its caller. Fresh prepared and IPSW stage-driven
-acceptance remains open.
+transport cannot hang its caller. A fresh prepared guest reached resident and
+unlocked Aqua readiness but needed human Accessibility consent. A fresh IPSW
+guest reached Setup Assistant and reported the human account and guest-agent
+handoff. Both fresh paths still need ready-doctor acceptance after those
+handoffs.
 
 ## Current Tart goal
 

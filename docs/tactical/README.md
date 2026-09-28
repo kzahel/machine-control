@@ -82,5 +82,5 @@ the commits' `Topic:` trailers and register that exact string in
 | [`040-linux-kvm-ubuntu-factory-stages.md`](040-linux-kvm-ubuntu-factory-stages.md) | complete (Linux route) | Native x86_64 Ubuntu precreation and claimed factory stages with fresh-candidate acceptance |
 | [`041-macos-utm-ubuntu-precreation-stages.md`](041-macos-utm-ubuntu-precreation-stages.md) | complete | Read-only Mac UTM Ubuntu precreation report and fresh-candidate smoke |
 | [`042-macos-utm-ubuntu-candidate-stages.md`](042-macos-utm-ubuntu-candidate-stages.md) | complete | Claimed UTM Ubuntu stages with fresh-candidate certification and clean stop |
-| [`043-macos-utm-windows-factory-stages.md`](043-macos-utm-windows-factory-stages.md) | partial | Read-only Mac UTM Windows stages; fresh candidate acceptance remains open |
-| [`044-macos-tart-bootstrap-stages.md`](044-macos-tart-bootstrap-stages.md) | partial | Tart prepared/vanilla bootstrap stages; fresh path acceptance remains open |
+| [`043-macos-utm-windows-factory-stages.md`](043-macos-utm-windows-factory-stages.md) | complete | Read-only Mac UTM Windows stages and fresh exact-source certification |
+| [`044-macos-tart-bootstrap-stages.md`](044-macos-tart-bootstrap-stages.md) | partial | Fresh prepared and IPSW paths reached their human consent and setup handoffs |

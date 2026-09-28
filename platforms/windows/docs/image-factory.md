@@ -32,8 +32,8 @@ Optional `--name PRIVATE_NAME` must match that private binding. On Mac UTM,
 set `WINVM_PROVIDER=utm-macos` and supply `--name PRIVATE_NAME` explicitly.
 Use the UTM guest-tools ISO for `--guest-tools-iso`; preflight additionally
 checks the Mac tools, UTM inventory, separate FAT boot image, and unused UTM
-destination. The catalog
-probe reads `sources/install.wim` into
+destination. The Mac media tools include `7z` (from `p7zip`) and `mcopy` and
+`mdir` (from `mtools`). The catalog probe reads `sources/install.wim` into
 temporary ignored storage, identifies one exact Windows 11 Pro index, reports
 that index without a local path, and removes the temporary WIM. It does not
 prove the download's publisher or license. Run each reported media preparation
@@ -97,9 +97,9 @@ requires a new boot and live attestation. If the live guest later reports
 incomplete bootstrap, that fresh observation takes precedence. The agent then
 follows the reported stopped-VM detach sequence and rechecks stages. The
 same stage inspector supports the Linux libvirt and Mac UTM routes. The UTM
-recipe below remains the media and security reference. The Mac stage route has
-host and existing-candidate checks; a fresh UTM candidate has not yet been
-advanced through certification using these stage reports.
+recipe below remains the media and security reference. A fresh Mac UTM
+candidate reached [stage-driven certification](../../../docs/tactical/043-macos-utm-windows-factory-stages.md)
+and clean stop after an independently observed firmware recovery.
 
 ## Safety boundary
 
@@ -331,6 +331,13 @@ controller:
   --profile development winvm
 bin/winvm post-update audit --json
 ```
+
+After any post-update reboot, a missing guest address alone does not identify
+the failure. Let the bounded boot wait finish, then use the explicitly claimed
+outer screenshot for recovery diagnosis. A fresh Mac UTM run needed a temporary
+nonsecret FAT boot helper after an observed firmware stop; it was removed
+before a successful disk-only cold boot and certification. Do not count a
+helper-assisted boot as proof of the final removable-media state.
 
 The unattended first-logon script makes the installed QEMU guest-agent service
 automatic and establishes hardened key-only SSH. Authenticated controller

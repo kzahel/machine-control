@@ -3,8 +3,8 @@
 Topics: [operational-workflow-automation](../../topics/operational-workflow-automation.md),
 [macos-resident-control](../../topics/macos-resident-control.md)
 
-Status: partial; stage inspection and existing-candidate live recovery are
-implemented, while fresh prepared and IPSW acceptance remain open.
+Status: partial; fresh prepared and IPSW paths were inspected, but their
+human consent and setup handoffs have not yet reached ready doctor.
 
 ## Objective and completion conditions
 
@@ -43,4 +43,21 @@ guarded resident restart gave doctor a fully ready result; the stage inspector
 now suggests that action for the same observed mismatch. A repair attempt exposed
 that restarting Tart's own guest transport can interrupt its repair report;
 the host now bounds that call and returns an explicit unavailable result.
-The existing VM was left running. Step 4 remains open.
+The existing VM was left running after that earlier run.
+
+On 2026-09-28, a fresh prepared image passed precreation, exact candidate,
+host permission, guest transport, credential-file, build-tool, resident, and
+unlocked Aqua stages. Its doctor was not ready because the new guest lacked
+Accessibility consent for MacVM UI. `authorize-ui` surfaced the expected
+human-required handoff; no TCC setting or password was submitted by the agent.
+
+A separate fresh Apple IPSW candidate passed precreation and exact candidate
+checks. `up` reported a running VM without requiring a guest agent, and an
+outer recovery screenshot independently confirmed Setup Assistant's language
+screen. The stage report identified Setup Assistant, administrator account,
+credential recording, and guest-agent installation as human-required or
+blocked dependencies. No login account was created. Both temporary VMs and
+their caches were deleted after the checks; the IPSW guest needed an explicit
+recovery stop when its agentless Setup Assistant did not shut down normally.
+Step 4 remains open until both fresh paths pass their human handoffs and reach
+ready doctor.

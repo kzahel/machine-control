@@ -57,8 +57,8 @@ its `Topic:` trailers.
 - [`native-distribution.md`](native-distribution.md): optional native packages,
   publisher signing, package authenticity, CI evidence, and workstation scope.
 - [`operational-workflow-automation.md`](operational-workflow-automation.md):
-  source-reviewed triage and proposed stages for workflows whose safe next
-  action still depends on reading operational prose.
+  living tracker for staged workflow reports, accepted factory paths, and
+  remaining setup and consent handoffs.
 - [`platform-notes.md`](platform-notes.md): current decisions across desktop,
   mobile, headset, VM, and physical targets.
 - [`provider-landscape.md`](provider-landscape.md): cross-provider decisions,

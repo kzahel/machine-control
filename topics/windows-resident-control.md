@@ -70,9 +70,9 @@ key-only SSH, removable media, password-store and guest verification, and
 resident readiness without mutating the VM. An explicit claimed attestation
 records live first-logon completion in mode-0600 local state so a stopped
 candidate can continue through the guarded installer-then-seed detach order.
-The agent still chooses each action; the remaining direction is to move more
-rendering, creation, and bootstrap recovery checks from the runbook into
-bounded stage commands, then give UTM the same projection.
+The agent still chooses each action. Linux and Mac factory projections now
+share these stage meanings; observed outer recovery remains a separate,
+explicit branch.
 
 **Current — Linux route complete:**
 [`Tactical 039`](../docs/tactical/039-linux-windows-factory-stages.md)
@@ -86,8 +86,10 @@ public SSH alias route. A changed-boot exact-source certification passed
 portable and Windows-native checks, removed its staging, and left the VM
 cleanly stopped and claim-free. The Mac UTM stage projection is recorded in
 [`Tactical 043`](../docs/tactical/043-macos-utm-windows-factory-stages.md):
-precreation and existing-candidate checks are live, while a stage-driven
-fresh-candidate run remains open.
+fresh precreation, first logon, guarded media removal, resident readiness,
+healthy maintenance, and exact-source certification passed. A firmware stop
+during the first post-update reboot required explicit outer recovery; a later
+disk-only boot and certification succeeded without the recovery media.
 
 **Current:** [`Tactical 018`](../docs/tactical/018-appliance-readiness-and-promotion.md)
 reused one retained stateful candidate rather than creating another large VM.
