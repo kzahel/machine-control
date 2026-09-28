@@ -435,6 +435,28 @@ next bootstrap or post-update repair also restores the required policy.
 These commands implement the procedure in the official
 [ChromeOS Power Management FAQ](https://chromium.googlesource.com/chromiumos/platform2/+/main/power_manager/docs/faq.md).
 
+### Keeping the closed panel dim
+
+The availability policy makes ChromeOS treat the lid as open. Setting brightness
+to zero does not guarantee darkness during remote work: input, display-mode
+changes, and the screenshot wake path can restore nonzero brightness.
+
+For a dedicated appliance whose user wants a dimmer minimum, powerd supports
+the stateful override `/var/lib/power_manager/min_visible_backlight_level`.
+A value of `1` selects one hardware step; restart powerd to load it, then set
+the normal brightness control to its lowest nonzero setting. Verify actual
+brightness, capture, input, and doctor on that panel. This changes the bottom
+of the normal brightness scale, not its maximum, and does not implement
+automatic dimming/restoration when the physical lid closes/opens. Remove only
+that override and restart powerd to restore the device's default minimum;
+keep the idle/lid availability policy intact.
+
+The tested panel retained its lowest hardware level through keyboard wake and
+EGL capture, including capture after explicitly setting brightness to zero.
+This is not a guarantee of zero emitted light or support on every panel. See
+the [platform evidence](../../research/platforms/chromeos.md#closed-lid-backlight-behavior)
+for the distinction between backlight brightness and display power.
+
 ## Using as a Claude Code skill
 
 Other projects can reference the skill for ChromeOS device management. Add to your project's `CLAUDE.md`:

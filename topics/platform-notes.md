@@ -60,6 +60,11 @@ cannot join automation gestures. Stock sleep behavior is not a cleanup state.
 ARCVM remains a distinct Android target reached through a Chromebook-local ADB
 proxy.
 
+**Current:** Closed-lid availability does not imply a dark panel. A lower
+native brightness floor can reduce wake brightness without disabling capture;
+automatic physical-lid backlight-off control remains open. See the
+[backlight evidence and limits](../research/platforms/chromeos.md#closed-lid-backlight-behavior).
+
 **Decision:** Wrap and preserve the adopted stack before considering a rewrite
 or common-provider backend. Do not classify ChromeOS as generic Linux.
 

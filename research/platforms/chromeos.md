@@ -49,6 +49,29 @@ reachability, while explicit setup provisions Python and verifies desktop
 accessibility. The UI smoke test distinguishes a newly opened Quick Settings
 gear from a preexisting pinned Settings button using baseline observations.
 
+## Closed-lid backlight behavior
+
+**Current — live-tested:** Always-awake policy forces the reported lid open;
+it does not keep the panel dark. Power-manager logs showed a user-requested
+zero brightness followed by a return to the configured minimum. On the tested
+panel, a stateful `min_visible_backlight_level` override of one hardware step
+reduced that wake brightness while preserving EGL capture and injected input.
+This is a lower brightness floor, not a maximum, a backlight-off guarantee, or
+automatic restoration on physical lid opening. Physical light output and
+other panel drivers require separate validation.
+
+**Current — source-reviewed:** Chromium's
+[internal backlight controller](https://chromium.googlesource.com/chromiumos/platform2/+/main/power_manager/powerd/policy/internal_backlight_controller.cc)
+restores nonzero brightness for selected activity and display transitions.
+Its forced-off mode also powers displays off, so that API alone does not
+provide a dark panel with an active DRM framebuffer. A live `bl_power` write
+did not lower the tested panel's reported actual brightness and is not adopted
+as an alternative.
+
+**Open:** A physical-lid-aware backlight-off policy that preserves target-native
+capture and restores brightness on opening remains unimplemented. Do not undo
+the availability overrides to obtain ordinary laptop lid behavior.
+
 ## Provider relationship
 
 No surveyed common desktop provider currently supplies a first-class ChromeOS
