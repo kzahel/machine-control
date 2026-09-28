@@ -226,11 +226,12 @@ bin/macvm type 'hello from the host'
 bin/macvm key enter
 ```
 
-The outer keyboard route refuses shifted text and modifier chords by default.
-The tested Tart guest received different characters even though the host
-posted the modifier flags. Use target-resident input after bootstrap; the
-[UI guide](docs/ui-automation.md#keyboard-input) explains the diagnostic
-override and secret boundary.
+The outer keyboard route supports US-keyboard ASCII and verified Shift/Command
+chords. It supplies both general and left-side device modifier flags; guest
+text and menu effects proved the correction. Control, Option, and Fn remain
+guarded. Use target-resident input after bootstrap; the
+[UI guide](docs/ui-automation.md#keyboard-input) explains the tested scope,
+diagnostic override, and secret boundary.
 
 For the prepared image's first macOS consent sheet, the documented initial
 `admin` credential belongs in the private file declared by inventory.

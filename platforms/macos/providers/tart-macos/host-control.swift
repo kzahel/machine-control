@@ -2,6 +2,7 @@ import AppKit
 import ApplicationServices
 import CoreGraphics
 import Foundation
+import IOKit.hidsystem
 
 struct TartWindow: Codable {
     let id: Int
@@ -239,9 +240,11 @@ let allowUnverifiedModifiers =
 
 func sendKey(window: TartWindow, chord: String) throws {
     let (code, modifiers) = try parseChord(chord)
-    guard modifiers.isEmpty || allowUnverifiedModifiers else {
+    // Only Shift and Command have independent guest-effect acceptance.
+    guard modifiers.allSatisfy({ [55, 56].contains($0.0) }) ||
+            allowUnverifiedModifiers else {
         throw HostControlError.invalidKey(
-            "Tart outer modifier delivery is unverified; no key was sent. " +
+            "Tart outer Control, Option, and Fn delivery is unverified; no key was sent. " +
             "Set MACVM_ALLOW_UNVERIFIED_MODIFIERS=true only for a " +
             "guest-observed diagnostic."
         )
@@ -251,34 +254,16 @@ func sendKey(window: TartWindow, chord: String) throws {
     var flags: CGEventFlags = []
     for (modifierCode, modifierFlag) in modifiers {
         flags.insert(modifierFlag)
-        guard let event = CGEvent(keyboardEventSource: nil,
-                                  virtualKey: modifierCode, keyDown: true) else {
-            continue
-        }
-        event.flags = flags
-        event.post(tap: .cghidEventTap)
-        usleep(40_000)
+        postKeyboard(code: modifierCode, keyDown: true, flags: flags,
+                     delay: 40_000)
     }
-
     for isDown in [true, false] {
-        guard let event = CGEvent(keyboardEventSource: nil,
-                                  virtualKey: code, keyDown: isDown) else {
-            continue
-        }
-        event.flags = flags
-        event.post(tap: .cghidEventTap)
-        usleep(60_000)
+        postKeyboard(code: code, keyDown: isDown, flags: flags, delay: 60_000)
     }
-
     for (modifierCode, modifierFlag) in modifiers.reversed() {
         flags.remove(modifierFlag)
-        guard let event = CGEvent(keyboardEventSource: nil,
-                                  virtualKey: modifierCode, keyDown: false) else {
-            continue
-        }
-        event.flags = flags
-        event.post(tap: .cghidEventTap)
-        usleep(40_000)
+        postKeyboard(code: modifierCode, keyDown: false, flags: flags,
+                     delay: 40_000)
     }
 }
 
@@ -323,30 +308,29 @@ func textStroke(_ character: Character) throws -> (CGKeyCode, Bool) {
     )
 }
 
-func postKeyboard(code: CGKeyCode, keyDown: Bool, flags: CGEventFlags) {
+// CGEventFlags.maskShift/maskCommand are device-independent. The Tart guest
+// oracle lost these modifiers without their matching left-side device flags.
+// Our physical modifier keycodes are all left-side keys. Keep both masks on
+// every transition and base-key event; release removes both together.
+func deviceFlags(_ flags: CGEventFlags) -> CGEventFlags {
+    var raw = flags.rawValue
+    if flags.contains(.maskShift) { raw |= UInt64(NX_DEVICELSHIFTKEYMASK) }
+    if flags.contains(.maskCommand) { raw |= UInt64(NX_DEVICELCMDKEYMASK) }
+    if flags.contains(.maskControl) { raw |= UInt64(NX_DEVICELCTLKEYMASK) }
+    if flags.contains(.maskAlternate) { raw |= UInt64(NX_DEVICELALTKEYMASK) }
+    return CGEventFlags(rawValue: raw)
+}
+
+func postKeyboard(code: CGKeyCode, keyDown: Bool, flags: CGEventFlags,
+                  delay: useconds_t = 25_000) {
     guard let event = CGEvent(keyboardEventSource: nil,
                               virtualKey: code, keyDown: keyDown) else {
         return
     }
-    event.flags = flags
+    event.flags = deviceFlags(flags)
+    if [55, 56, 58, 59, 63].contains(code) { event.type = .flagsChanged }
     event.post(tap: .cghidEventTap)
-    usleep(25_000)
-}
-
-func textStrokes(_ text: String, allowShifted: Bool,
-                 secret: Bool = false) throws -> [(CGKeyCode, Bool)] {
-    let strokes = try text.map(textStroke)
-    guard allowShifted || !strokes.contains(where: { $0.1 }) else {
-        throw HostControlError.invalidText(
-            secret
-                ? "Stored secret requires unverified Tart outer Shift; " +
-                  "no text was sent. Use an unshifted initial credential."
-                : "Tart outer Shift delivery is unverified; no text was sent. " +
-                  "Set MACVM_ALLOW_UNVERIFIED_MODIFIERS=true only for a " +
-                  "guest-observed diagnostic."
-        )
-    }
-    return strokes
+    usleep(delay)
 }
 
 func postText(_ strokes: [(CGKeyCode, Bool)]) {
@@ -366,7 +350,7 @@ func postText(_ strokes: [(CGKeyCode, Bool)]) {
 
 func typeText(window: TartWindow, text: String) throws {
     // Validate all characters before activating the VM or sending a prefix.
-    let strokes = try textStrokes(text, allowShifted: allowUnverifiedModifiers)
+    let strokes = try text.map(textStroke)
     activate(window)
     postText(strokes)
 }
@@ -413,8 +397,8 @@ func typeSecret(window: TartWindow, expectedName: String) throws {
             "Guest secret contains unsupported keyboard characters"
         )
     }
-    // A secret must never opt into an input route known to alter bytes.
-    let strokes = try textStrokes(secret, allowShifted: false, secret: true)
+    // Uses the same guest-effect-verified Shift sequence as non-secret text.
+    let strokes = try secret.map(textStroke)
     postText(strokes)
 }
 

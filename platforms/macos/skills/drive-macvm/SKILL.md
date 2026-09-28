@@ -72,12 +72,13 @@ bin/macvm type 'text'
 bin/macvm key enter
 ```
 
-The outer route refuses shifted text and modifier chords by default because
-live Tart guest effects did not match the posted keys. `type-secret` also
-refuses shifted values and requires the exact VM window to hold focus. Use
-lowercase letters and digits for a fresh initial password; use target-resident
-input after bootstrap for ordinary modified keys. The diagnostic override in
-`docs/ui-automation.md` is never a password-entry route.
+The outer route supports US-keyboard ASCII, Shift, Command, and combined
+Shift–Command chords after independent guest-effect verification. Control,
+Option, and Fn remain refused unless explicitly selected for a non-secret
+diagnostic. `type-secret` uses the verified Shift sequence and requires the
+exact VM window to hold focus before reading its owner-only credential file.
+The diagnostic override in `docs/ui-automation.md` is never a password-entry
+route. Use target-resident input after bootstrap for ordinary work.
 
 Coordinate input foregrounds the Tart window and moves the host pointer. Avoid
 it while the user is operating another host application.

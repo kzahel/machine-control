@@ -95,42 +95,51 @@ window. They are recovery operations and fail closed when
 
 ## Keyboard Input
 
-`type` sends unshifted printable US-keyboard ASCII, tab, and newline as
-physical events. This remains available before the guest agent exists. `key`
-sends unmodified physical keys:
+`type` sends printable US-keyboard ASCII, tab, and newline as physical events.
+`key` supports plain keys, Shift, Command, and combined Shift–Command chords.
+This outer input path does not depend on a guest agent:
 
 ```bash
-bin/macvm type 'hello'
-bin/macvm key enter
+bin/macvm type 'AbC!@Z'
+bin/macvm key shift-a
+bin/macvm key cmd-n
+bin/macvm key cmd-shift-n
 ```
 
-The tested Tart guest received lowercase letters and base punctuation from
-shifted outer input, and a Command shortcut became a literal key. Host event
-monitoring showed Shift flags on the synthesized events, but did not establish
-their delivery inside the guest. `type` validates its whole string before
-posting and refuses shifted characters; `key` refuses modifier chords. A
-caller may set `MACVM_ALLOW_UNVERIFIED_MODIFIERS=true` for a deliberate
-guest-observed diagnostic only. That override never applies to `type-secret`.
-Do not use a diagnostic result as proof of password or application effect.
+The original sender supplied only general modifier flags, and the guest
+received base characters or literal shortcut keys. The corrected sender also
+supplies the matching left-side device flags and explicit `flagsChanged`
+transitions. Repeated guest text and menu-action oracles verified the result;
+[the experiment](../experiments/outer-keyboard/README.md) records the controlled
+comparison and reusable live acceptance runner. This proves a sufficient
+sender correction, not the exact private VM-view translation mechanism.
 
-For the prepared Tart guest's observed initial administrator sheet,
-`bin/macvm type-secret` reads the declared owner-only guest credential file
-through standard input and posts physical keyboard events to the selected
-focused Tart VM window. It refuses a value requiring Shift before sending any
-text. It requires an exact disruptive claim and a currently unlocked host
+`type` validates the entire string before posting. Unsupported text still
+refuses without sending a prefix. Control, Option, and Fn chords remain
+unverified and refuse by default. `MACVM_ALLOW_UNVERIFIED_MODIFIERS=true`
+allows only deliberate non-secret diagnostics of those remaining modifiers;
+it does not change `type-secret` validation. Always establish the guest effect
+separately from the input command's exit status.
+
+For an observed initial administrator sheet, `bin/macvm type-secret` reads the
+declared owner-only guest credential file through standard input and posts
+physical keyboard events to the selected focused Tart VM window. Printable
+ASCII, including shifted characters, uses the same verified sequence. A dummy
+secure-field oracle tests this transport without reading the real credential.
+The command requires an exact disruptive claim and a currently unlocked host
 session. It reports delivery through its exit status; inspect the guest's
-permission state afterward to establish the effect. Do not use
-`type TEXT` for a password, capture the filled field, or retry a rejected
-credential automatically.
+permission state afterward to establish the effect. Do not use `type TEXT`
+for a password, capture the filled field, or retry a rejected credential
+automatically.
 
 Target-resident keyboard input does not require Tart system-key capture. Keep
 `MACVM_CAPTURE_SYSTEM_KEYS=false` for ordinary use and all acceptance runs.
 Set it to `true` only for an attended outer diagnostic of a host-reserved
-shortcut, then suspend the VM afterward. This flag does not make synthetic
-modifier delivery reliable. A Tart system-key grab can outlive the expected
-window focus and temporarily prevent typing into other host applications.
-Acceptance mode suppresses `--capture-system-keys` even if an ignored local
-configuration asks for it.
+shortcut, then suspend the VM afterward. This setting controls host-reserved
+shortcuts separately from the modifier fix. A Tart system-key grab can outlive
+the expected window focus and temporarily prevent typing into other host
+applications. Acceptance mode suppresses `--capture-system-keys` even if an
+ignored local configuration asks for it.
 
 ## TCC And Integrity
 

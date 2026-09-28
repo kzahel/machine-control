@@ -84,4 +84,4 @@ the commits' `Topic:` trailers and register that exact string in
 | [`042-macos-utm-ubuntu-candidate-stages.md`](042-macos-utm-ubuntu-candidate-stages.md) | complete | Claimed UTM Ubuntu stages with fresh-candidate certification and clean stop |
 | [`043-macos-utm-windows-factory-stages.md`](043-macos-utm-windows-factory-stages.md) | complete | Read-only Mac UTM Windows stages and fresh exact-source certification |
 | [`044-macos-tart-bootstrap-stages.md`](044-macos-tart-bootstrap-stages.md) | complete | Fresh prepared and Apple IPSW paths reached all stages complete and ready doctor |
-| [`045-macos-tart-outer-keyboard.md`](045-macos-tart-outer-keyboard.md) | complete (guarded route) | Guest-oracle modifier diagnosis and fail-closed Tart bootstrap input; reliable synthetic modifiers remain open |
+| [`045-macos-tart-outer-keyboard.md`](045-macos-tart-outer-keyboard.md) | complete | Guest-oracle diagnosis and correction of Tart Shift/Command delivery; untested modifiers remain guarded |

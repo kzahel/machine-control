@@ -71,6 +71,7 @@ done
     >/dev/null
 
 /usr/bin/swiftc -typecheck providers/tart-macos/host-control.swift
+/usr/bin/swiftc -typecheck tests/fixtures/outer-keyboard.swift
 /usr/bin/swiftc -typecheck providers/tart-macos/normalize-screenshot.swift
 /usr/bin/swiftc -typecheck -framework SystemConfiguration \
     guests/macos/ui/macui.swift
@@ -482,6 +483,9 @@ if [[ "$mode" == "--static" ]]; then
     printf 'macOS native static checks passed\n'
     exit 0
 fi
+# Everything above is isolated fixture work. The live tail must use the exact
+# inventory-selected target and a disruptive claim supplied by its caller.
+export MACHINE_CONTROL_CLAIM_POLICY=required
 MACVM_FORBID_OUTER_UI=true bin/macvm status >/dev/null
 bin/macvm doctor
 bin/macvm doctor --json | /usr/bin/jq -e \

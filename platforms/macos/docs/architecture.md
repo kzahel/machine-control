@@ -38,12 +38,13 @@ The visible Tart window is the out-of-band control surface:
   host window chrome and Retina scale;
 - pointer positions map from those guest-display coordinates back into the
   Tart content view; and
-- keyboard events are posted to Tart. On the tested host, synthetic modifier
-  flags did not produce the requested guest effect, so outer modified input
-  fails closed by default. `--capture-system-keys` only changes which system
-  shortcuts the host reserves; and
+- keyboard events are posted to Tart with both general and matching left-side
+  device flags. Shift/Command have independent guest-effect acceptance;
+  Control/Option/Fn remain guarded. `--capture-system-keys` separately changes
+  which system shortcuts the host reserves; and
 - `type-secret` checks Tart's actual focused VM window through host
-  Accessibility before reading a credential, and refuses shifted characters.
+  Accessibility before reading a credential, then uses the verified ASCII
+  keyboard sequence, including Shift.
 
 This path depends on host Screen Recording and input-posting consent, but it
 does not depend on guest networking, guest Accessibility, or a healthy guest

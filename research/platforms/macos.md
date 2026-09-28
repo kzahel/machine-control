@@ -198,7 +198,7 @@ desktop control.
 
 On the tested host, Tart's resizable window scaled the guest display. A fixed
 title-bar crop and scaled click coordinates restored observed menu and consent
-targets. Synthetic Shift and Command events reached the guest without their
+targets. The original synthetic Shift and Command events reached the guest without their
 modifiers even with system-key capture enabled. The outer route therefore used
 unshifted setup input and a separately verified lowercase-and-digit initial
 credential. This is a measured host/guest combination, not a general Tart
@@ -206,14 +206,19 @@ keyboard guarantee. The [bootstrap record](../../docs/tactical/044-macos-tart-bo
 and [guide](../../platforms/macos/docs/bootstrap.md) own the setup and
 recovery details.
 
-A follow-up guest-file oracle received `abc12z` when the host posted
-`AbC!@Z`. A host event tap independently saw Shift flags, while several
-Quartz posting variants and an independent computer input route still failed
-to produce the requested guest text. The outer CLI now refuses shifted text
-and modifier chords by default, and rejects shifted secrets even under its
-diagnostic override. The exact failure inside the Tart/Virtualization input
-boundary remains open; this is not a limitation of the target-resident
-keyboard provider.
+**Current (2026-09-28), `live-tested`, corrected Tart outer Shift/Command:**
+The original guest-file oracle received `abc12z` for `AbC!@Z`, despite general
+Shift flags in the host stream. A controlled follow-up isolated a sufficient
+sender correction: include the matching left-side device modifier flags.
+Changing only the event type still failed; adding device flags restored exact
+text and actual Command/Shift–Command menu actions. The adopted sender also
+uses explicit `flagsChanged` transitions. Repetition, release, refusal, and a
+dummy secure-field oracle are covered by the
+[platform experiment and acceptance runner](../../platforms/macos/experiments/outer-keyboard/README.md).
+Control, Option, and Fn remain guarded. This evidence is from a prepared guest,
+not a new Setup Assistant/account run, and does not prove the exact private
+Tart/Virtualization.framework mechanism. The input path needs no guest agent;
+the test uses one only for setup and independent observation.
 
 ## Current direction
 

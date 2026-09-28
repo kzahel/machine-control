@@ -281,25 +281,20 @@ remain diagnostic compatibility commands.
 
 ### Host keyboard modifier chords can degrade into literal input
 
-Status: **effect confirmed; ordinary outer commands now fail closed.** During
-Chrome automation, `macvm key cmd-l` entered a literal `l` instead of focusing
-the address field. A later guest-file oracle received `abc12z` from outer
-`type 'AbC!@Z'`. Host event monitoring saw Shift flags, but alternate Quartz
-post locations, source state, modifier event type, and process-targeted events
-all still delivered lowercase `a` to the guest. Tart system-key capture did
-not change the result. The exact translation boundary remains unproved.
+Status: **corrected for Shift and Command; other modifiers remain guarded.**
+The original sender turned `AbC!@Z` into `abc12z` and Command shortcuts into
+literal keys even though host event monitoring saw the general flags. The
+[controlled comparison](../experiments/outer-keyboard/README.md) found that
+supplying matching left-side device flags restored guest text and real menu
+actions. Explicit `flagsChanged` events alone did not fix the effect.
 
-Effect: shortcut-driven navigation or password entry could corrupt text while
-appearing to complete successfully. `type` and `key` now refuse modified input
-before delivery unless a caller explicitly opts into a guest-observed
-diagnostic; `type-secret` never takes that override.
-
-Direction: keep ordinary post-bootstrap input target-resident. A future outer
-modifier route needs an independently observed guest effect before it can be
-advertised as reliable. Apple documents Tart's underlying
-[`VZVirtualMachineView`](https://developer.apple.com/documentation/virtualization/vzvirtualmachineview)
-as the keyboard-forwarding view; the observed host flags alone do not prove
-its guest effect.
+The implementation now sends both flag forms and explicit modifier transitions.
+Control, Option, and Fn remain behind the non-secret diagnostic override.
+Unsupported text still refuses before any prefix; the owner-only secret route
+retains its exact-focused-window check and uses the verified Shift sequence.
+This is a sufficient sender correction, not proof of the exact private
+Tart/Virtualization.framework mechanism. Ordinary post-bootstrap input remains
+target-resident.
 
 ### Outer input disrupts concurrent work on the host
 

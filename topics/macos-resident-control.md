@@ -145,13 +145,15 @@ unreliable synthetic modifier keys. The [bootstrap guide](../platforms/macos/doc
 records the supported recovery and current keyboard limits.
 
 **Current:** [`Tactical 045`](../docs/tactical/045-macos-tart-outer-keyboard.md)
-confirmed that the host posted Shift flags while the Tart guest received base
-characters. Multiple event routes failed the guest-file oracle, so the outer
-bootstrap CLI now refuses shifted text and modifier chords by default. The
-one-shot secret route refuses shifted values even under the diagnostic
-override and checks the actual focused Tart VM window before reading a secret.
-Unshifted setup input still works. The exact synthetic modifier translation
-failure remains open; ordinary modified input uses the target-resident route.
+first established modifier loss and added fail-closed safeguards. Its
+[follow-up comparison](../platforms/macos/experiments/outer-keyboard/README.md)
+proved that matching left-side device flags restore shifted text and Command
+menu effects. The outer CLI now enables verified Shift/Command sequences,
+including ASCII secret entry, while retaining the exact-focused-window check
+and guards for untested Control/Option/Fn. The input path requires no guest
+agent; acceptance used the prepared guest for independent oracles. Ordinary
+post-bootstrap input stays target-resident, and the exact private VM-view
+translation mechanism remains unproved.
 
 ## Current Tart goal
 

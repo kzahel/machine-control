@@ -167,11 +167,12 @@ and mounts this repository read-only as `macvm-testbed`.
 
 Guest system-key capture is enabled only when
 `MACVM_CAPTURE_SYSTEM_KEYS=true` is set for `macvm up`. Set it before starting
-the VM for an attended shortcut diagnostic. It did not make synthesized
-modifiers reach the tested guest. Outer `macvm type` and `macvm key` now refuse
-shifted text and modifier chords unless the caller explicitly sets
-`MACVM_ALLOW_UNVERIFIED_MODIFIERS=true` for a guest-observed diagnostic.
-`macvm type-secret` always refuses shifted characters before sending text.
+the VM for an attended diagnostic of a host-reserved shortcut. The corrected
+outer sender supports shifted ASCII and Shift/Command chords by supplying
+matching device flags; system-key capture is a separate concern. Control,
+Option, and Fn still require `MACVM_ALLOW_UNVERIFIED_MODIFIERS=true` for a
+non-secret guest-observed diagnostic. See [keyboard input](ui-automation.md#keyboard-input)
+for the measured scope and dummy secure-field acceptance.
 
 Agent-based IP discovery will fail before the guest agent exists, even while
 the VM is running. Use only the outer path during this phase:
@@ -196,19 +197,22 @@ this credential path registered in the controller's private inventory; check
 it with `bin/machine-control inventory credentials macvm` before ending setup.
 Do not put the password in this repository.
 
-Use a generated initial password made of lowercase ASCII letters and digits.
-The tested Tart-window synthetic-key route silently dropped Shift during
-account creation, and `type-secret` now refuses shifted bytes. This avoids an
-unobserved case change during account creation.
-Verify the stored credential with a subsequent guest login and administrator
-authorization. Keep the file owner-only and replace it atomically on rotation.
+Use a generated initial password supported by the US-keyboard ASCII mapping.
+The original sender dropped Shift during account creation; the corrected
+sender has independent shifted-text and dummy secure-field evidence on the
+prepared guest. The correction has not repeated Setup Assistant with a new
+account, so verify the stored credential with a subsequent guest login and
+administrator authorization. Keep the file owner-only and replace it
+atomically on rotation.
 
 After the desktop appears, open Terminal through Finder's Applications →
 Utilities folder or Finder search, then double-click Terminal. `macvm click X
 Y double` can open the observed Finder item. In the fresh Tahoe run, outer
 `cmd-space`, `cmd-n`, Shift, and shifted punctuation arrived without their
-modifiers, even with Tart system-key capture enabled. Those commands now
-refuse modifier input by default. Use a screenshot to verify each action.
+modifiers, even with Tart system-key capture enabled. That original sender
+has been corrected and guest-effect tested for Shift/Command; host-reserved
+shortcuts still depend on capture policy. Use a screenshot to verify each
+action.
 
 For the default case-insensitive fresh macOS volume, the bootstrap command can
 be entered using only unshifted characters:
@@ -316,8 +320,9 @@ capture grant became visible to its resident.
 
 If a consent flow requires a modifier shortcut, use target-resident input once
 it is ready, or navigate the visible guest UI with unmodified outer keys and
-clicks during bootstrap. `--capture-system-keys` only controls which system
-shortcuts the host reserves; it does not make synthesized modifiers reliable.
+clicks during bootstrap. The verified outer Shift/Command route is also
+available. `--capture-system-keys` separately controls which system shortcuts
+the host reserves.
 
 Never use `sqlite3`, filesystem replacement, recovery-mode copying, or any
 other technique to modify the TCC database. The visible consent is part of the
