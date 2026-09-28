@@ -137,9 +137,23 @@ Use this path when the guest must be built from Apple installation media:
 
 ```bash
 tart create --from-ipsw=latest macos-clean
+tart set macos-clean --disk-size 80
 MACVM_NAME=macos-clean MACVM_EXPECTED_NAME=macos-clean \
     MACVM_TARGET_ROLE=candidate bin/macvm up
 ```
+
+Set the disk size before the first boot. In the fresh Tahoe acceptance run,
+Tart's 50 GB default left only 18.55 GB free after Setup Assistant, while
+Apple's Command Line Tools installer required 24.27 GB. An 80 GB virtual disk
+left about 61 GB free after the macOS volume was expanded. Increasing an
+already installed macOS VM's Tart disk size alone does not expand its APFS
+container; follow [Tart's recovery resize procedure](https://tart.run/faq/#disk-resizing)
+and verify the guest volume size before retrying installation.
+
+The fresh guest's Command Line Tools installation included an SDK newer than
+its running macOS release. The deployment commands select the SDK matching
+the guest's macOS major version when it is installed; this avoided a linker
+failure in the fresh acceptance run.
 
 `macvm up` launches the graphical VM and reports its power state. It does not
 require guest-agent IP discovery to succeed. Check `macvm ip` or doctor
@@ -149,7 +163,8 @@ and mounts this repository read-only as `macvm-testbed`.
 Guest system-key capture is enabled only when
 `MACVM_CAPTURE_SYSTEM_KEYS=true` is set for `macvm up`. Set it before starting
 the VM when Setup Assistant or the consent flow needs guest Command-key
-shortcuts.
+shortcuts. This flag does not itself prove that a synthesized modifier reached
+the guest.
 
 Agent-based IP discovery will fail before the guest agent exists, even while
 the VM is running. Use only the outer path during this phase:
@@ -174,11 +189,24 @@ this credential path registered in the controller's private inventory; check
 it with `bin/machine-control inventory credentials macvm` before ending setup.
 Do not put the password in this repository.
 
-After the desktop appears, open Terminal through Spotlight:
+Until the Tart-window synthetic-key route proves shifted characters on the
+current host, use a generated initial password made of lowercase ASCII letters
+and digits. This avoids an unobserved case change during account creation.
+Verify the stored credential with a subsequent guest login and administrator
+authorization. Keep the file owner-only and replace it atomically on rotation.
+
+After the desktop appears, open Terminal through Finder's Applications →
+Utilities folder or Finder search, then double-click Terminal. `macvm click X
+Y double` can open the observed Finder item. In the fresh Tahoe run, outer
+`cmd-space`, `cmd-n`, Shift, and shifted punctuation arrived without their
+modifiers, even with Tart system-key capture enabled. Use a screenshot to
+verify each action rather than assuming that a modifier took effect.
+
+For the default case-insensitive fresh macOS volume, the bootstrap command can
+be entered using only unshifted characters:
 
 ```bash
-MACVM_NAME=macos-clean bin/macvm key cmd-space
-MACVM_NAME=macos-clean bin/macvm type Terminal
+MACVM_NAME=macos-clean bin/macvm type "/bin/bash /volumes/'my shared files'/macvm-testbed/guests/macos/bootstrap/bootstrap-guest.sh --install-homebrew"
 MACVM_NAME=macos-clean bin/macvm key enter
 ```
 

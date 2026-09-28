@@ -69,7 +69,7 @@ Setup:
 Out-of-band recovery:
   A claim acquired with --disruptive is required for these commands.
   screenshot [PATH]      Capture the Tart guest display to a PNG
-  click X Y [BUTTON]     Click guest-display coordinates
+  click X Y [BUTTON]     Click guest-display coordinates (double opens items)
   drag X1 Y1 X2 Y2       Drag between guest-display coordinates
   type TEXT              Type US-keyboard ASCII through the Tart window
   type-secret             Type the stored guest password through the Tart window

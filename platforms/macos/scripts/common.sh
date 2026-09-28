@@ -324,6 +324,19 @@ macvm_exec() {
     esac
 }
 
+macvm_guest_xcrun() {
+    local guest_major guest_sdk
+    guest_major="$(macvm_exec /usr/bin/sw_vers -productVersion)"
+    guest_major="${guest_major%%.*}"
+    guest_sdk="/Library/Developer/CommandLineTools/SDKs/MacOSX${guest_major}.sdk"
+    if [[ "$guest_major" =~ ^[0-9]+$ ]] &&
+            macvm_exec /bin/test -d "$guest_sdk"; then
+        macvm_exec /usr/bin/env "SDKROOT=$guest_sdk" /usr/bin/xcrun "$@"
+    else
+        macvm_exec /usr/bin/xcrun "$@"
+    fi
+}
+
 macvm_shell() {
     case "$MACVM_GUEST_TRANSPORT" in
         tart) "$MACVM_TART" exec -it "$MACVM_NAME" /bin/zsh -l ;;

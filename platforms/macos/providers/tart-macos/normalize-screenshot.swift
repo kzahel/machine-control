@@ -36,7 +36,7 @@ guard args.count == 6,
       let windowWidth = Double(args[4]),
       let windowHeight = Double(args[5]),
       displayWidth > 0, displayHeight > 0,
-      windowWidth > 0, windowHeight >= Double(displayHeight) else {
+      windowWidth > 0, windowHeight > 28 else {
     fail(NormalizeError.usage)
 }
 
@@ -54,7 +54,9 @@ do {
         throw NormalizeError.invalidGeometry
     }
 
-    let titlePixels = Int(round((windowHeight - Double(displayHeight)) * scaleY))
+    // Tart scales the guest into a resizable window. The difference between
+    // window and guest heights includes scale, not just the title bar.
+    let titlePixels = Int(round(28 * scaleY))
     let guestPixelsHigh = image.height - titlePixels
     guard titlePixels >= 0, guestPixelsHigh > 0 else {
         throw NormalizeError.invalidGeometry

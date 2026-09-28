@@ -21,7 +21,7 @@ macvm_exec /bin/mkdir -p \
 macvm_exec -i /usr/bin/tee "$remote_source" < "$source_file" >/dev/null
 macvm_exec -i /usr/bin/tee "$remote_contents/Info.plist" \
     < "$info_file" >/dev/null
-macvm_exec /usr/bin/xcrun swiftc -O -parse-as-library \
+macvm_guest_xcrun swiftc -O -parse-as-library \
     -framework SwiftUI -o "$remote_binary" "$remote_source"
 macvm_exec /bin/chmod 755 "$remote_binary"
 macvm_exec /usr/bin/codesign --force --deep --sign - \

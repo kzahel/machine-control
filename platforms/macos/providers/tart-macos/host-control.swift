@@ -86,11 +86,13 @@ func activate(_ window: TartWindow) {
     usleep(200_000)
 }
 
-func postMouse(type: CGEventType, point: CGPoint, button: CGMouseButton) {
+func postMouse(type: CGEventType, point: CGPoint, button: CGMouseButton,
+               clickCount: Int64 = 1) {
     guard let event = CGEvent(mouseEventSource: nil, mouseType: type,
                               mouseCursorPosition: point, mouseButton: button) else {
         return
     }
+    event.setIntegerValueField(.mouseEventClickState, value: clickCount)
     event.post(tap: .cghidEventTap)
 }
 
@@ -104,7 +106,9 @@ func guestPoint(window: TartWindow, displayWidth: Double, displayHeight: Double,
         )
     }
 
-    let titleHeight = max(0, window.height - displayHeight)
+    // Tart scales the guest into a resizable window. The difference between
+    // window and guest heights includes scale, not just the title bar.
+    let titleHeight = 28.0
     let contentHeight = window.height - titleHeight
     return CGPoint(
         x: window.x + guestX * window.width / displayWidth,
@@ -123,7 +127,7 @@ func click(window: TartWindow, displayWidth: Double, displayHeight: Double,
     let down: CGEventType
     let up: CGEventType
     switch buttonName {
-    case "left":
+    case "left", "double":
         button = .left
         down = .leftMouseDown
         up = .leftMouseUp
@@ -142,9 +146,14 @@ func click(window: TartWindow, displayWidth: Double, displayHeight: Double,
     activate(window)
     CGWarpMouseCursorPosition(point)
     usleep(75_000)
-    postMouse(type: down, point: point, button: button)
-    usleep(75_000)
-    postMouse(type: up, point: point, button: button)
+    for count in 1...(buttonName == "double" ? 2 : 1) {
+        postMouse(type: down, point: point, button: button,
+                  clickCount: Int64(count))
+        usleep(75_000)
+        postMouse(type: up, point: point, button: button,
+                  clickCount: Int64(count))
+        if count == 1 && buttonName == "double" { usleep(100_000) }
+    }
 }
 
 func drag(window: TartWindow, displayWidth: Double, displayHeight: Double,

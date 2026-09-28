@@ -13,7 +13,7 @@ remote_binary="$remote_contents/MacOS/PrivacyConsentFixture"
 macvm_exec /bin/mkdir -p "$(/usr/bin/dirname "$remote_source")" "$remote_contents/MacOS"
 macvm_exec -i /usr/bin/tee "$remote_source" <"$source_file" >/dev/null
 macvm_exec -i /usr/bin/tee "$remote_contents/Info.plist" <"$info_file" >/dev/null
-macvm_exec /usr/bin/xcrun swiftc -O -framework AppKit \
+macvm_guest_xcrun swiftc -O -framework AppKit \
     -framework ApplicationServices -framework AVFoundation -framework Network \
     -framework ScreenCaptureKit -framework UserNotifications \
     -o "$remote_binary" "$remote_source"

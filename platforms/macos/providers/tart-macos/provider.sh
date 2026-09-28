@@ -242,7 +242,7 @@ host_control() {
 input_click() {
     macvm_assert_outer_input_allowed
     if [[ $# -lt 2 || $# -gt 3 ]]; then
-        printf 'Usage: macvm click X Y [left|right|middle]\n' >&2
+        printf 'Usage: macvm click X Y [left|right|middle|double]\n' >&2
         return 2
     fi
     local button="${3:-left}"

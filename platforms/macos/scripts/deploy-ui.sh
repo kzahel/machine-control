@@ -133,10 +133,10 @@ macvm_exec -i /usr/bin/tee "$remote_resident_plist" \
     < "$local_resident_plist" >/dev/null
 macvm_exec -i /usr/bin/tee "$remote_directory/Probe.m" < "$probe_source" >/dev/null
 macvm_exec -i /usr/bin/tee "$remote_directory/Session.h" < "$session_header" >/dev/null
-macvm_exec /usr/bin/xcrun clang -fobjc-arc -Wno-unused-function \
+macvm_guest_xcrun clang -fobjc-arc -Wno-unused-function \
     -framework Foundation -framework IOKit -o "$remote_contents/Resources/mc-session-probe" \
     "$remote_directory/Probe.m"
-macvm_exec /usr/bin/xcrun swiftc -O \
+macvm_guest_xcrun swiftc -O \
     -framework AppKit -framework ApplicationServices -framework CoreGraphics \
     -framework SystemConfiguration \
     -o "$remote_binary" "$remote_source"

@@ -3,8 +3,8 @@
 Topics: [operational-workflow-automation](../../topics/operational-workflow-automation.md),
 [macos-resident-control](../../topics/macos-resident-control.md)
 
-Status: partial; fresh prepared Tart reached ready doctor, while the Apple IPSW
-path still needs Setup Assistant, guest-agent, and consent acceptance.
+Status: complete; fresh prepared and Apple IPSW Tart paths both reached ready
+doctor through the stage reports.
 
 ## Objective and completion conditions
 
@@ -88,4 +88,21 @@ sheet accepted one submission, and guest health independently reported the
 grant. A display-capture request then exposed a separate Screen Recording
 grant. Enabling MacVM UI in the visible macOS settings and restarting the
 resident made capture ready. All prepared stages and doctor passed, as did the
-full Mac smoke suite. The Apple IPSW path remains at Setup Assistant.
+full Mac smoke suite.
+
+A fresh Apple IPSW VM then completed Setup Assistant, account creation, guest
+agent installation, resident deployment, visible Accessibility and Screen
+Recording grants, and a resident restart. Its stage report marked all twelve
+stages complete; doctor reported administration, desktop, resident, semantic
+control, capture, and input ready. The development post-update audit was
+healthy, and the full Mac smoke suite passed against the fresh VM. The initial
+50 GB virtual disk could not fit Command Line Tools;
+after growing Tart's disk to 80 GB, Recovery's APFS resize made space for the
+installer. The installed tools chose a newer SDK than the running macOS
+release; deployment now selects the guest's matching SDK when available.
+Outer Tart screenshots and clicks were corrected for a scaled window, and
+Finder double-click was added for the setup route. Synthetic Shift and Command
+events still failed to reach this fresh guest; the account was made with a
+lowercase-and-digit credential, and the owner-only stored value was verified
+through the guest's `sudo` authentication path before acceptance. No password
+or private target identifier was recorded in Git.

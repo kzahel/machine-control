@@ -135,9 +135,14 @@ transport cannot hang its caller. A fresh prepared guest reached ready doctor
 after the agent used its verified, recorded public bootstrap credential for
 the visible initial Accessibility sheet, granted Screen Recording through
 System Settings, and restarted the resident. The one-shot outer credential
-route keeps password bytes out of arguments and output. A fresh IPSW guest
-reached Setup Assistant and reported the account and guest-agent handoff;
-that path still needs ready-doctor acceptance.
+route keeps password bytes out of arguments and output. A fresh Apple IPSW
+guest completed Setup Assistant, installed the guest agent and resident,
+received visible Accessibility and Screen Recording grants, then reached all
+stages complete, ready doctor, and a healthy development post-update audit.
+The run exposed a default disk too small for Command Line Tools, a mismatched
+newer SDK selected by the installed tools, scaled-window coordinate error, and
+unreliable synthetic modifier keys. The [bootstrap guide](../platforms/macos/docs/bootstrap.md)
+records the supported recovery and current keyboard limits.
 
 ## Current Tart goal
 
