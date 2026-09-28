@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+trap 'printf "macOS smoke failed at line %s: %s\n" "$LINENO" "$BASH_COMMAND" >&2' ERR
 
 # This suite isolates Tart and resident-control behavior. Claim enforcement is
 # covered by the shared cross-adapter claim suite.
