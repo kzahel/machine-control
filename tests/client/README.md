@@ -50,6 +50,21 @@ claim selection, pre-dispatch refusal, and atomic workspace composition.
 Shared provider tests add exact-resource contention, fencing, expiry, private
 state permissions, adapter enforcement, and claim-checked workspace cleanup.
 
+`test_scoped_run.py` exercises `run` with a stateful short-lease adapter:
+inherited selection, task exit status, renewal, exact workspace release,
+refused/malformed management responses, and interrupted descendant cleanup.
+It checks held-resource files and delayed child effects independently of the
+runner's audit output. These tests use no live targets. See
+[scoped tasks](../../docs/scoped-runs.md) for the public workflow and its
+process/lifecycle boundaries.
+
+For a read-only live check, run `python3 tests/client/live-scoped-run.py ALIAS`.
+It requires an available claim, performs doctor, runs two claimed status
+operations across renewal, and independently verifies release and unchanged
+power. It never starts the target or takes host focus. Native Windows process
+cleanup is exercised when the portable suite runs on Windows; a Mac run does
+not establish Windows acceptance.
+
 The same fake adapter proves that `target ensure-ready` is a no-op when ready,
 starts an off target only through its declared `up` operation, and refuses to
 invent a running-target repair. A reported start failure still receives an

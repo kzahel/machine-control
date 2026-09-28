@@ -68,6 +68,16 @@ current same-user CLI profile, claims coordinate cooperating processes and do
 not claim isolation from another process with the same shell and filesystem
 authority.
 
+**Current:** `machine-control --target ALIAS run … -- PROGRAM ARG…` composes
+read-only doctor and exact-identity status, attributed acquisition, renewal,
+inherited selection, task-process cleanup, and release. `--intent` scopes a
+workspace using both its returned handle and claim. The parent owns scope
+management; child common-client calls inherit selection and reject conflicting
+selectors. Plain scopes do not assume target shutdown authority. See the
+[scoped-task guide](../docs/scoped-runs.md) for usage and unresolved cleanup,
+and [tactical 046](../docs/tactical/046-scoped-target-tasks.md) for validation
+and platform evidence limits.
+
 `claim capabilities`, `claim status`, target `status`, target `doctor`, target
 `capabilities`, workspace `capabilities`, workspace `inventory`, and dry-run
 workspace garbage collection remain claim-free. Other target use requires a

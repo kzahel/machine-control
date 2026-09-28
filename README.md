@@ -285,7 +285,27 @@ provider setup, resolution precedence, and the provider command contract.
 
 ## Common workflows
 
+### Run a bounded task under a claim
+
+```bash
+bin/machine-control --target windows run \
+  --reason 'inspect the application desktop' \
+  --claimant-authority example-agent --claimant-id task-42 \
+  -- bin/machine-control desktop applications
+```
+
+The runner performs read-only doctor and exact-identity preflight, acquires and
+renews the claim, passes selection to nested common-client commands, and
+releases after task cleanup. Add `--intent isolated` to own a workspace and
+its claim together. Supply a script for a sequence of operations. The program
+runs locally; use `machine-control os -- …` inside it for guest commands.
+Plain scopes do not stop the VM; tasks still own any required lifecycle
+cleanup. See [scoped tasks](docs/scoped-runs.md) for signals, audit output,
+workspace retention, and unresolved-release recovery.
+
 ### Claim a VM for exclusive use
+
+Use the lower-level commands when ownership must span independent processes:
 
 ```bash
 mc=bin/machine-control

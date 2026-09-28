@@ -679,14 +679,25 @@ def run_adapter(
         raise ClientError("adapter_unavailable", "Testbed adapter is unavailable")
     started = time.monotonic()
     try:
-        completed = subprocess.run(
+        runner = subprocess.run
+        scoped_options = {}
+        if "_adapterTimeout" in target:
+            from scoped_process import bounded_capture
+
+            runner = bounded_capture
+            scoped_options = {"timeout": target["_adapterTimeout"]}
+        completed = runner(
             [*command, *arguments],
             text=True,
-            capture_output=True,
-            check=False,
-            input=input_text,
+            **(scoped_options or {
+                "capture_output": True, "check": False, "input": input_text,
+            }),
             env={**os.environ, **target.get("environment", {})},
         )
+    except subprocess.TimeoutExpired as error:
+        raise ClientError(
+            "adapter_timeout", "The scoped adapter operation timed out", 1
+        ) from error
     except OSError as error:
         raise ClientError(
             "adapter_failed", f"Testbed adapter could not execute: {error}"
@@ -703,7 +714,8 @@ def run_adapter(
     ):
         # Keep the adapter's operator diagnosis visible without copying its
         # possibly private detail into the minimized JSON refusal.
-        sys.stderr.write(completed.stderr)
+        if "_adapterTimeout" not in target:
+            sys.stderr.write(completed.stderr)
         raise ClientError(
             "adapter_failed",
             f"Testbed adapter command failed with exit code {completed.returncode}",
@@ -3302,6 +3314,8 @@ Commands:
          ensure-ready|validate-candidate|prepare-promotion
   claim capabilities|status|acquire|renew|release
                                     Use `claim --help` for attribution syntax
+  run [CLAIM OPTIONS] [--intent INTENT] -- PROGRAM ARG...
+                                    Scoped task; use `run --help`
   maintenance capabilities|audit|repair [--reboot]|certify [--profile ...]
   workspace capabilities|acquire|inventory|release|gc --dry-run
                                     Use `workspace --help` for claim composition
@@ -3417,6 +3431,9 @@ def main(argv: list[str] | None = None) -> int:
     remainder: list[str] = []
     try:
         known, remainder = parse_global_options(arguments)
+        from scoped_run import apply_scope
+
+        apply_scope(known, remainder)
         if known.help or not remainder:
             print(usage(), end="")
             return 0 if known.help else 2
@@ -3495,6 +3512,10 @@ def main(argv: list[str] | None = None) -> int:
             )
         if operation == "target":
             return handle_target(alias, target, remainder[1:])
+        if operation == "run":
+            from scoped_run import handle_run
+
+            return handle_run(alias, target, remainder[1:])
         if operation == "claim":
             return handle_claim(alias, target, remainder[1:])
         if operation == "maintenance":
@@ -3532,4 +3553,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    # Scoped helpers import this module; preserve exception identity when the
+    # implementation file itself is used as the entry point.
+    sys.modules.setdefault("machine_control", sys.modules[__name__])
     raise SystemExit(main())

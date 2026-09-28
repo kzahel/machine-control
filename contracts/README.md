@@ -29,6 +29,8 @@ than a frozen cross-device wire protocol.
 - [`claim-result-v0.schema.json`](claim-result-v0.schema.json) describes claim
   acquisition, use class, status, validation, renewal, release, and typed
   conflicts without exposing the concrete provider identity.
+- [`run-result-v0.schema.json`](run-result-v0.schema.json) describes scoped-task
+  stderr audit records, including independent task outcome and cleanup status.
 - [`workspace-capabilities-v0.schema.json`](workspace-capabilities-v0.schema.json)
   describes provider-neutral persistent, isolated, and candidate workspace
   support without naming the hypervisor or a concrete VM.

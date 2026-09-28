@@ -147,6 +147,13 @@ also reports the acquired target-use claim. It does not publish the concrete
 source or derived VM identity. Workspace release requires that matching live
 claim and relinquishes it only after safe retain-or-discard handling completes.
 
+**Current:** the common [scoped runner](../docs/scoped-runs.md) composes this
+contract through `run --intent … -- PROGRAM ARG…`. It retains both selectors,
+renews against the workspace, and releases the exact handle under its claim.
+Failed workspace cleanup remains unresolved; it does not fall back to a plain
+claim release. The [execution record](../docs/tactical/046-scoped-target-tasks.md)
+distinguishes fixture validation from live provider evidence.
+
 ## Provider direction
 
 **Current:** Windows and Linux lifecycle use UTM/QEMU on macOS and

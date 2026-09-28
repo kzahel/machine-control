@@ -85,3 +85,4 @@ the commits' `Topic:` trailers and register that exact string in
 | [`043-macos-utm-windows-factory-stages.md`](043-macos-utm-windows-factory-stages.md) | complete | Read-only Mac UTM Windows stages and fresh exact-source certification |
 | [`044-macos-tart-bootstrap-stages.md`](044-macos-tart-bootstrap-stages.md) | complete | Fresh prepared and Apple IPSW paths reached all stages complete and ready doctor |
 | [`045-macos-tart-outer-keyboard.md`](045-macos-tart-outer-keyboard.md) | complete | Guest-oracle diagnosis and correction of Tart Shift/Command delivery; untested modifiers remain guarded |
+| [`046-scoped-target-tasks.md`](046-scoped-target-tasks.md) | complete | Scoped claim/workspace runner, failure fixtures, and live Mac renewal/release; native Windows and live workspace acceptance unverified |

@@ -44,7 +44,7 @@ linked implementation and exit evidence.
 | ID | Queue | State | Workflow and evidence | Suggested path | Exit check |
 | --- | --- | --- | --- | --- | --- |
 | W1 | Done | done | [Windows factory](../platforms/windows/docs/image-factory.md) has read-only stages on Linux/KVM and Mac UTM. Both routes have fresh-candidate certification: [Linux](../docs/tactical/039-linux-windows-factory-stages.md) and [Mac](../docs/tactical/043-macos-utm-windows-factory-stages.md). The Mac run included an explicitly observed firmware recovery before a clean disk-only boot and certification. | Keep stage reports read-only and use the bounded factory commands for each action; retain the outer route for observed bootstrap or recovery failures. | A fresh candidate on each host advanced from media preflight through certification and clean stop, with blocked and secret cases represented truthfully. |
-| C1 | Now | open | [Common claim/workspace examples](../README.md#common-workflows) require callers to parse IDs, renew, and arrange cleanup around every task. | Add a scoped common-client runner or SDK helper for doctor, acquire, renewal, command execution, and `finally` release. | Success, command failure, signal, and renewal failure all leave an auditable release or explicit unresolved claim; workspace cleanup uses its returned handle and claim. |
+| C1 | Done | done | The [scoped common-client runner](../docs/scoped-runs.md) owns doctor, attributed acquisition, renewal, inherited selection, and cleanup; [tactical 046](../docs/tactical/046-scoped-target-tasks.md) records stateful failure tests and live Mac renewal/release. | Use `run` for bounded tasks and `--intent` for workspace ownership; keep task-owned lifecycle cleanup explicit. | Success, command failure, signal, and renewal failure leave an auditable release or explicit unresolved claim; workspace cleanup uses its returned handle and claim. Native Windows and live workspace evidence remain explicitly distinguished from fixtures. |
 | L1 | Done | done | [Linux factory](../platforms/linux/docs/bootstrap.md#native-x86_64-libvirt-image-factory) has native KVM [fresh-candidate acceptance](../docs/tactical/040-linux-kvm-ubuntu-factory-stages.md) and Mac UTM [precreation](../docs/tactical/041-macos-utm-ubuntu-precreation-stages.md) plus [claimed-candidate acceptance](../docs/tactical/042-macos-utm-ubuntu-candidate-stages.md). Both routes reached exact-source certification and clean stop from stage reports. | Keep stage inspection read-only and choose each guarded action explicitly. | Both host routes report the same stage meanings and prove cloud-init/boot generation, exact pin, detached seed, resident readiness, and stopped source without treating command delivery as effect. |
 | M1 | Done | done | [macOS bootstrap](../platforms/macos/docs/bootstrap.md) has a read-only [prepared/vanilla Tart inspector](../docs/tactical/044-macos-tart-bootstrap-stages.md). Fresh prepared and Apple IPSW guests each advanced through visible consent to all stages complete and ready doctor. The IPSW run also passed the development post-update audit. [Outer keyboard checks](../docs/tactical/045-macos-tart-outer-keyboard.md) now verify Shift/Command through guest effects and retain refusal for untested modifiers. | Keep stage inspection read-only and choose each guarded action explicitly. | Both fresh paths reported the next safe action and rechecked host and guest state through ready doctor; the inspector did not change TCC or handle passwords, and the chosen one-shot credential route kept the recorded value out of arguments and output. |
 | I1 | Next | open | [Target registry setup](../docs/target-registry.md) distributes validation across `targets`, `inventory status`, credential inspection, doctor, and private file editing. | Add a read-only `inventory preflight` report joining schema, resolution, exact pin, credential locator/permissions, and doctor eligibility without copying private values into common output. | A misconfigured controller gets stable blocker codes and the owning private/config action; a valid controller can proceed to claim without interpreting a checklist. |
@@ -62,14 +62,12 @@ linked implementation and exit evidence.
    credential boundary, and claimed inspector. Keep the
    [factory guide](../platforms/windows/docs/image-factory.md) for media
    provenance, security posture, and observed outer recovery.
-2. **Implement C1 as a small common-client composition.** It should take a
-   truthful caller-supplied authority, claimant ID, reason, and bounded
-   metadata; call read-only doctor, acquire, renew while work runs, pass the
-   claim to the child operation, and release in `finally`. Workspace scope
-   must retain both returned values and release the exact handle under its
-   claim. Doctor may report an ordinary powered-off target as unready; an
-   unresolved exact identity or invalid doctor result must stop acquisition.
-   Do not make this a long-lived generic agent session or hide outer routes.
+2. **Use C1 for bounded common-client tasks.** Supply truthful attribution to
+   `run`; nested commands inherit selection while the parent owns renewal and
+   cleanup. `--intent` owns the workspace handle and its claim together. Check
+   the final audit's cleanup state even when the task itself succeeded. Tasks
+   still arrange their required lifecycle transitions; a scope does not infer
+   shutdown authority or grant an outer route.
 3. **Use that scoped invocation on future factory runs.** W1 and L1 have
    fresh-candidate acceptance on both hosts through exact-source certification.
    Use the helper for subsequent checks, while retaining each
