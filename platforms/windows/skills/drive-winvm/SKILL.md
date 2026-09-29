@@ -46,9 +46,9 @@ Read the result before acting:
 - If TCP/SSH fails, capture the UTM window and use provider recovery. Read
   `docs/bootstrap.md` when OpenSSH needs repair.
 - If SSH works but the UI relay fails, check whether Explorer has an
-  interactive session. Wait for configured auto-logon or ask the user to log
-  into Windows after a cold boot; then run `winvm deploy-ui` if the relay
-  remains unavailable.
+  interactive session. Wait for configured auto-logon or use the stored-login
+  command below for an observed sign-in surface; then run `winvm deploy-ui`
+  if the relay remains unavailable.
 - If all checks pass, use SSH for system work and semantic UI automation for
   desktop work.
 
@@ -79,16 +79,14 @@ claim in `claim_id`, resolve the ready locator and stream it through the
 dedicated login helper:
 
 ```bash
-WINVM_LOGIN_SECRET_FILE="$(
-  bin/machine-control inventory credentials winvm --json |
-    jq -er '.testbeds[] | select(.id == "winvm") | .credentials[] |
-      select(.id == "guest-login-password" and .state == "ready") | .file'
-)"
-
-MACHINE_CONTROL_CLAIM_ID="$claim_id" \
-  scripts/login-windows.sh winvm password < "$WINVM_LOGIN_SECRET_FILE"
-unset WINVM_LOGIN_SECRET_FILE
+bin/machine-control inventory credentials winvm --json
+bin/machine-control --target windows --claim "$claim_id" testbed -- login
 ```
+
+The platform command resolves the canonical credential file and configured SSH
+transport from the selected inventory. Do not pass the logical target or
+inventory ID to `scripts/login-windows.sh`: that lower-level helper expects an
+actual SSH destination, and those names need not be configured SSH aliases.
 
 Use this only for a confirmed Windows credential surface. The protected login
 route refuses before secret submission when provider or field discovery is
