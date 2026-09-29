@@ -973,6 +973,40 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(value["data"]["powerState"], "running")
         self.assertNotIn("private-adapter-detail", result.stdout)
 
+    def test_linux_promotion_refuses_missing_handoff_before_shutdown(self):
+        state = self.directory / "power-state"
+        state.write_text("running", encoding="utf-8")
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "prepare-promotion",
+            extra_env={"MACHINE_CONTROL_MOCK_STATE_FILE": str(state),
+                       "MACHINE_CONTROL_MOCK_CREDENTIAL_FAIL": "verify"},
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("credential_handoff_required", result.stdout)
+        self.assertNotIn("eligibleForPrivatePromotion", result.stdout)
+        self.assertEqual(state.read_text(), "running")
+
+    def test_linux_promotion_rechecks_credential_receipt_after_shutdown(self):
+        state = self.directory / "power-state"
+        state.write_text("running", encoding="utf-8")
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "prepare-promotion",
+            extra_env={"MACHINE_CONTROL_MOCK_STATE_FILE": str(state),
+                       "MACHINE_CONTROL_MOCK_CREDENTIAL_FAIL": "status"},
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("credential_handoff_required", result.stdout)
+        self.assertNotIn("eligibleForPrivatePromotion", result.stdout)
+        self.assertEqual(state.read_text(), "off")
+
+    def test_candidate_validation_does_not_require_completed_credentials(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "validate-candidate",
+            extra_env={"MACHINE_CONTROL_MOCK_CREDENTIAL_FAIL": "verify"},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertFalse(value["data"]["eligibleForPrivatePromotion"])
+
     def test_workspace_capabilities_are_validated_and_projected(self):
         result, value = self.run_cli(
             "--target", "fixture", "workspace", "capabilities"

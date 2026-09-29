@@ -21,6 +21,11 @@ linuxvm_config_names=(
     LINUXVM_LIBVIRT_NVRAM_DIRECTORY
     LINUXVM_LIBVIRT_NVRAM_TEMPLATE
     LINUXVM_DESKTOP_USER
+    LINUXVM_CREDENTIAL_PROFILE
+    LINUXVM_LOGIN_SECRET_FILE
+    LINUXVM_SETUP_SSH_KEY_FILE
+    LINUXVM_SETUP_SSH_KNOWN_HOSTS_FILE
+    LINUXVM_CREDENTIAL_STATE_DIR
     LINUXVM_DISPLAY_WIDTH
     LINUXVM_DISPLAY_HEIGHT
     LINUXVM_BOOT_TIMEOUT
@@ -150,6 +155,9 @@ linuxvm_apply_workspace_selection
 
 export LINUXVM_REPO_DIR LINUXVM_CONFIG_FILE LINUXVM_PROVIDER
 export LINUXVM_UTM_NAME LINUXVM_UTMCTL LINUXVM_DESKTOP_USER
+export LINUXVM_CREDENTIAL_PROFILE LINUXVM_LOGIN_SECRET_FILE
+export LINUXVM_SETUP_SSH_KEY_FILE LINUXVM_SETUP_SSH_KNOWN_HOSTS_FILE
+export LINUXVM_CREDENTIAL_STATE_DIR
 export LINUXVM_LIBVIRT_URI LINUXVM_LIBVIRT_DOMAIN_NAME
 export LINUXVM_LIBVIRT_VIRSH LINUXVM_LIBVIRT_QEMU
 export LINUXVM_LIBVIRT_NETWORK LINUXVM_LIBVIRT_POOL
@@ -253,8 +261,9 @@ linuxvm_utm_library_unloaded() {
 linuxvm_load_utm_library() {
     linuxvm_utm_library_unloaded || return 0
     /usr/bin/open -g -a UTM >/dev/null 2>&1 || true
-    local attempt
-    for attempt in {1..20}; do
+    local remaining=20
+    while (( remaining > 0 )); do
+        remaining=$((remaining - 1))
         sleep 1
         linuxvm_utm_library_unloaded || return 0
     done

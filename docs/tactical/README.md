@@ -90,3 +90,5 @@ the commits' `Topic:` trailers and register that exact string in
 
 - [`048-linux-rebuild-credential-handoff.md`](048-linux-rebuild-credential-handoff.md):
   disposable Linux recreation, stored-password handoff and installed readiness.
+- [`049-linux-credential-promotion-gate.md`](049-linux-credential-promotion-gate.md):
+  enforced Linux credential verification and factory/promotion completion gate.

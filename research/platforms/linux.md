@@ -64,6 +64,16 @@ accepted GNOME profile and controller route, not every Linux host or desktop.
 
 ## Remaining profiles
 
+**Current — credential handoff tooling:** The owned Linux lifecycle route now
+has a claimed credential verifier and factory/common promotion gates. The
+password route uses pinned setup SSH stdin and an in-guest shadow-hash comparison;
+an explicitly password-free profile proves a locked entry. Source review and
+deterministic refusal tests are recorded in
+[Tactical 049](../../docs/tactical/049-linux-credential-promotion-gate.md).
+Live acceptance of the new command remains unverified. This administration
+operation does not close the protected GUI login/unlock gap; current decisions
+remain in the [Linux topic](../../topics/linux-resident-control.md).
+
 **Open:** Build separate evidence matrices for X11, Sway/wlroots, KDE/KWin,
 nested compositors, and physical Linux hardware. Test exact arbitrary-window
 capture, foreground/background actions, portal lifetime, transient surfaces,

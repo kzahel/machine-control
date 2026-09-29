@@ -292,6 +292,46 @@ removed. Credential-file readiness alone does not prove a matching password.
 If no local password is intentionally supported, record that explicit profile
 instead of leaving an undiscoverable or unknown password.
 
+In ignored controller configuration, set `LINUXVM_DESKTOP_USER` to the exact
+account and `LINUXVM_LOGIN_SECRET_FILE` to the canonical locator resolved from
+`inventory credentials TARGET`. Set `LINUXVM_SETUP_SSH_KEY_FILE` to the retained
+key-only setup key and `LINUXVM_SETUP_SSH_KNOWN_HOSTS_FILE` to its independently
+pinned known-hosts file. Keep these locators in private inventory/configuration.
+On the running claimed candidate, run:
+
+```bash
+bin/linuxvm credential verify --json
+bin/linuxvm credential status --json
+```
+
+Verification requires the exact selected UUID, account discovery, owner-only
+regular secret file, and a matching guest ED25519 host key before reading the
+password. Only the dedicated verifier sends password bytes on SSH stdin; the
+guest compares its shadow hash using libcrypt and returns a fixed result. It
+rejects locked, expired, or forced-change password accounts. This verifies the
+stored password against the guest hash; it does not qualify GUI/PAM unlock.
+
+Successful verification writes a mode-0600 private receipt bound to provider,
+UUID, account, profile, canonical locator and secret-file metadata. It expires
+after 24 hours; replacing/modifying the file or changing that configuration
+invalidates it. Failed guest reverification removes prior evidence. Status and
+factory inspection never read password bytes or write receipts. Receipts are
+bounded handoff evidence, not continuous detection of guest account changes.
+
+The intentional key-only alternative sets
+`LINUXVM_CREDENTIAL_PROFILE=password-free` and uses the same `credential verify`
+command to prove the exact account has a locked password entry. This explicit
+profile does not promise password login or unlock. The default is `password`;
+an absent locator never implies a password-free profile.
+
+Both factory routes expose `credential-handoff` and `promotion` stages.
+Promotion remains blocked without completed credential evidence and clean stop.
+Common `target prepare-promotion` verifies credentials while running, then
+rechecks the private receipt after shutdown before reporting eligibility.
+`target doctor`, `ensure-ready`, and `validate-candidate` retain their operational
+readiness meaning during bootstrap. No command here edits private inventory or
+sets/resets an account password implicitly.
+
 For the native KVM route, rerun `bin/linuxvm factory-stages --json` after
 pinning the exact candidate, read-only doctor, and claim acquisition. Its
 states distinguish guest-agent and cloud-init waits, a bootstrap action,

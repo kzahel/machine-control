@@ -94,6 +94,17 @@ RTC-scheduled suspend-to-idle experiment failed to return; guarded forced-stop
 and readiness recover it, without qualifying native sleep/wake. GUI password
 submission remains a distinct provider gap.
 
+**Current:** [Tactical 049](../docs/tactical/049-linux-credential-promotion-gate.md)
+adds a private credential verifier and a required factory/promotion handoff.
+Password verification uses pinned setup SSH stdin and guest shadow-hash
+comparison; explicitly password-free profiles instead prove a locked entry.
+Both factory routes require current exact-target evidence before reporting
+promotion complete, and common promotion preparation verifies before shutdown
+and rechecks the receipt afterward. Operational readiness remains independent.
+Deterministic regression coverage is recorded in the tactical; live SSH/guest
+acceptance of this new command remains unverified. This is not a GUI unlock
+implementation.
+
 ## Current goal
 
 **Decision:** Keep this accepted GNOME Wayland profile stable while extending

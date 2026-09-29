@@ -71,6 +71,12 @@ invent a running-target repair. A reported start failure still receives an
 independent final doctor observation without exposing adapter diagnostics.
 Candidate tests require a fresh running-ready observation and prove that only
 a cleanly stopped second identity assertion is eligible for private promotion.
+Linux additionally proves credential verification before shutdown and a matching
+receipt afterward; either failure prevents eligibility. Ordinary candidate
+validation remains usable during incomplete provisioning. The Linux platform
+suite covers private receipt invalidation, explicit password-free profiles,
+secret-file permissions, pinned-host refusal before secret consumption, and
+both factory routes. These fixtures do not establish live SSH/guest acceptance.
 
 The maintenance fixtures prove that capability discovery never invokes an
 adapter, Windows/macOS/Linux audit and repair use the same common operation

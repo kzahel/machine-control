@@ -2,8 +2,17 @@
 
 set -euo pipefail
 
-readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly REPO_DIR
 readonly LINUXVM="$REPO_DIR/bin/linuxvm"
+
+if [[ "${1:-}" == --static && $# -eq 1 ]]; then
+    exec bash "$REPO_DIR/tests/static.sh"
+fi
+if (( $# != 0 )); then
+    printf 'Usage: smoke.sh [--static]\n' >&2
+    exit 2
+fi
 
 find "$REPO_DIR/bin" "$REPO_DIR/scripts" "$REPO_DIR/providers" \
     "$REPO_DIR/guests" "$REPO_DIR/tests" -type f \

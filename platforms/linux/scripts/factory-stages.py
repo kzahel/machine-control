@@ -61,6 +61,28 @@ def stage(name: str, state: str, evidence: str, *next_command: str) -> dict:
             "nextCommand": list(next_command) if next_command else None}
 
 
+def credential_stage(power: str) -> dict:
+    observation = document(str(CLI), "credential", "status", "--json",
+                           allow_failure_json=True)
+    ready = (observation.get("schema") == "linuxvm-credential-handoff/v0"
+             and observation.get("ready") is True
+             and (observation.get("profile"), observation.get("evidence")) in (
+                 ("password", "guest_password_hash_verified"),
+                 ("password-free", "explicit_locked_password_profile_verified")))
+    return stage("credential-handoff", "complete" if ready else "blocked",
+                 observation["evidence"] if ready else "credential_handoff_required",
+                 *("bin/linuxvm", "credential", "verify", "--json")
+                 if not ready and power == "running" else ())
+
+
+def promotion_stage(stages: list[dict]) -> dict:
+    complete = all(next(item for item in stages if item["name"] == name)["state"]
+                   == "complete" for name in ("final-stop", "credential-handoff"))
+    return stage("promotion", "complete" if complete else "blocked",
+                 "stopped_source_and_credential_verified" if complete else
+                 "stopped_source_and_credential_required")
+
+
 def private_seed(path: Path, user: str, public_key: str, provider: str) -> bool:
     try:
         if not path.is_file() or stat.S_IMODE(path.stat().st_mode) != 0o600:
@@ -275,6 +297,8 @@ def candidate() -> dict:
                         else "clean_shutdown_required" if resident and shape == "detached"
                         else "resident_and_detached_media_required",
                         *("bin/linuxvm", "shutdown") if resident and shape == "detached" and power == "running" else ()))
+    stages.append(credential_stage(power))
+    stages.append(promotion_stage(stages))
     return {"schema": SCHEMA, "provider": "libvirt-linux", "stages": stages}
 
 
@@ -451,8 +475,9 @@ def utm_candidate(identifier: str) -> dict:
                 resident_state = "complete"
                 resident_evidence = "full_doctor_ready"
             elif doctor.get("states", {}).get("desktop") == "locked":
-                resident_state = "human_required"
+                resident_state = "action_required"
                 resident_evidence = "desktop_locked"
+                resident_command = ("../../bin/machine-control", "inventory", "credentials", "TARGET")
             else:
                 resident_state = "action_required"
                 resident_evidence = "resident_not_ready"
@@ -475,6 +500,8 @@ def utm_candidate(identifier: str) -> dict:
                         "clean_shutdown_required" if resident and shape == "detached" else
                         "resident_attestation_and_detached_media_required",
                         *("bin/linuxvm", "shutdown") if resident and shape == "detached" and power == "running" else ()))
+    stages.append(credential_stage(power))
+    stages.append(promotion_stage(stages))
     return {"schema": SCHEMA, "provider": "utm-macos", "stages": stages}
 
 

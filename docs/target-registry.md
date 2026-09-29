@@ -361,6 +361,15 @@ When an adapter needs a controller-held credential:
    value without adding it to ordinary arguments, JSON, logs, captures, or
    evidence.
 
+For Linux factory/promotion handoff, configure `LINUXVM_LOGIN_SECRET_FILE` from
+this canonical locator and retain the setup SSH key and independently pinned
+known-hosts locators in private configuration. The
+[Linux verifier](../platforms/linux/docs/bootstrap.md#required-credential-handoff-before-promotion)
+checks guest password-hash equality without copying password bytes into this
+registry interface. File readiness and a verified guest credential are separate
+observations. An intentional password-free profile requires explicit declaration
+and guest verification; an empty credential inventory does not establish it.
+
 Do not commit real machine names, endpoints, addresses, device identifiers,
 accounts, local paths, credential locators, or topology to this public
 repository. `machine-control targets` intentionally projects only logical and

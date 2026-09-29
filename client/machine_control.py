@@ -1596,6 +1596,8 @@ def handle_candidate(
         ))
         return 0
 
+    if target["platform"] == "linux":
+        elapsed_ms += require_linux_credential_handoff(target, "verify")
     _, _, shutdown_ms = run_adapter(target, ["shutdown"])
     stopped, stopped_ms = candidate_assertion(target)
     elapsed_ms += shutdown_ms + stopped_ms
@@ -1605,6 +1607,8 @@ def handle_candidate(
             "Candidate did not reach the required stopped handoff state",
             1,
         )
+    if target["platform"] == "linux":
+        elapsed_ms += require_linux_credential_handoff(target, "status")
     actions = [{
         "id": "clean-shutdown",
         "adapterOperation": "shutdown",
@@ -1614,6 +1618,25 @@ def handle_candidate(
         alias, target, operation, stopped, readiness, actions, elapsed_ms, True
     ))
     return 0
+
+
+def require_linux_credential_handoff(target: dict[str, Any], operation: str) -> int:
+    completed, observation, elapsed_ms = run_adapter(
+        target, ["credential", operation, "--json"], accept_json_failure=True
+    )
+    if (completed.returncode != 0 or not isinstance(observation, dict)
+            or set(observation) != {"schema", "ready", "profile", "evidence"}
+            or observation.get("schema") != "linuxvm-credential-handoff/v0"
+            or observation.get("ready") is not True
+            or (observation.get("profile"), observation.get("evidence")) not in (
+                ("password", "guest_password_hash_verified"),
+                ("password-free", "explicit_locked_password_profile_verified"))):
+        raise ClientError(
+            "credential_handoff_required",
+            "Linux promotion requires a verified canonical stored password "
+            "or an explicitly verified password-free appliance profile", 1,
+        )
+    return elapsed_ms
 
 
 def doctor(alias: str, target: dict[str, Any]) -> tuple[dict[str, Any], int]:

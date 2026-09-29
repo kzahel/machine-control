@@ -528,6 +528,16 @@ if (
     }))
     raise SystemExit(0 if ready else 1)
 
+if command == "credential" and arguments[1:] in (["verify", "--json"], ["status", "--json"]):
+    ready = os.environ.get("MACHINE_CONTROL_MOCK_CREDENTIAL_FAIL") != arguments[1]
+    print(json.dumps({
+        "schema": "linuxvm-credential-handoff/v0",
+        "ready": ready,
+        "profile": "password",
+        "evidence": "guest_password_hash_verified" if ready else "credential_handoff_required",
+    }))
+    raise SystemExit(0 if ready else 1)
+
 if command == "candidate-status" and arguments[1:] == ["--json"]:
     print(json.dumps({
         "schema": "machine-control-candidate-assertion/v0",
