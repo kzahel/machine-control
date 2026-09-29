@@ -12,6 +12,8 @@ parser.add_argument('--source', type=Path, default=(Path(__file__).resolve().par
 parser.add_argument('--iterations', type=int, default=500)
 parser.add_argument('--idle-only', action='store_true',
                     help='compare unchanged old/new no-argument observer under a 128-FD limit')
+parser.add_argument('--spawn-boundary', action='store_true',
+                    help='explicit isolated 12000-FD Darwin spawn-boundary diagnostic')
 parser.add_argument('--caller-pool', action='store_true',
                     help='diagnostic pool around each idle-only call')
 args = parser.parse_args()
@@ -100,6 +102,46 @@ for i in 1...Int(CommandLine.arguments[2])! {
     if value["desktopState"] as? String != "unlocked" { exit(1) }
 }
 precondition(fds() == initial)
+'''
+if args.spawn_boundary:
+    fixture = r'''
+func fds() -> Int { (0..<20000).filter { fcntl(Int32($0), F_GETFD) >= 0 }.count }
+var limit = rlimit()
+precondition(getrlimit(RLIMIT_NOFILE, &limit) == 0)
+precondition(limit.rlim_cur > 13000, "requires an already sufficient process limit")
+print("limit=\(limit.rlim_cur) baseline=\(fds())")
+var readers: [Int32] = []
+defer { for fd in readers { close(fd) } }
+for target in [100, 1000, 10000, 10230, 10240, 10300, 10600, 12000] {
+    while readers.count < target {
+        var pair: [Int32] = [0, 0]
+        precondition(pipe(&pair) == 0)
+        close(pair[1]); readers.append(pair[0])
+    }
+    var actions: posix_spawn_file_actions_t? = nil
+    precondition(posix_spawn_file_actions_init(&actions) == 0)
+    let high = readers.last!
+    let duplicated = posix_spawn_file_actions_adddup2(&actions, high, 1)
+    posix_spawn_file_actions_destroy(&actions)
+    // Check the actual OS boundary separately from Foundation and the probe.
+    precondition(duplicated == (high >= OPEN_MAX ? EBADF : 0))
+    var spawnError = 0
+    do {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+        try process.run(); process.waitUntilExit()
+    } catch { spawnError = (error as NSError).code }
+    let state = nativeSessionObservation()
+    print("prefill=\(target) highFD=\(high) adddup2=\(duplicated) spawnError=\(spawnError) fds=\(fds()) state=\(state["desktopState"] ?? "absent")")
+    fflush(stdout)
+    if high >= OPEN_MAX {
+        precondition(spawnError == Int(EBADF))
+        precondition(state["desktopState"] as? String == "unknown")
+    } else if target <= 10000 {
+        precondition(spawnError == 0)
+        precondition(state["desktopState"] as? String == "unlocked")
+    }
+}
 '''
 with tempfile.TemporaryDirectory(prefix='mc-probe-resources-') as directory:
     path = Path(directory)

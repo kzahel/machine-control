@@ -162,8 +162,11 @@ reproduced one retained pipe descriptor per session probe outside a draining
 autorelease pool. The unchanged resident grew about three pipe FDs per second
 while idle; no capture or application operation was necessary. Reduced-limit
 reproduction turned the resulting probe launch failure into unknown desktop
-state. The two historical incidents are consistent with this cause, but their
-removed logs cannot establish identical causes or the exact capture failure.
+state. A same-guest high-FD experiment also identified the Darwin spawn
+file-action ceiling at descriptor 10,240 despite a 65,536 process limit; both
+probe and capture-like Foundation subprocess launch failed with EBADF. The two
+historical incidents are consistent with this cause, but their removed logs
+cannot establish identical causes or the exact capture failure.
 
 **Decision:** The observer owns a pool, closes its handles explicitly, bounds
 output/execution, and reaps failed/cancelled children. Idle refresh also has a

@@ -1,0 +1,2700 @@
+{
+  "guest": {
+    "os": "macOS",
+    "version": "26.6.2",
+    "build": "25G83",
+    "architecture": "arm64",
+    "provider": "Tart 2.30.5",
+    "outerUI": "prohibited"
+  },
+  "fixedResident": {
+    "samples": [
+      {
+        "phase": "baseline",
+        "elapsedSeconds": 0.3,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 8,
+        "rssKiB": 18432,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 2
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "status",
+        "elapsedSeconds": 33.6,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 8,
+        "rssKiB": 18496,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 203
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "AX-observation",
+        "elapsedSeconds": 53.9,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 8,
+        "rssKiB": 18768,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 204,
+          "snapshot": 100
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "AX-action",
+        "elapsedSeconds": 127.1,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 8,
+        "rssKiB": 18880,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 205,
+          "snapshot": 200,
+          "action": 100
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "activation",
+        "elapsedSeconds": 160.9,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 8,
+        "rssKiB": 18880,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 206,
+          "snapshot": 200,
+          "action": 100,
+          "application.activate": 100
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "keyboard",
+        "elapsedSeconds": 250.3,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 21664,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 207,
+          "snapshot": 200,
+          "action": 100,
+          "application.activate": 100,
+          "input.key": 100
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "capture",
+        "elapsedSeconds": 257.1,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 21792,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 208,
+          "snapshot": 200,
+          "action": 100,
+          "application.activate": 100,
+          "input.key": 100,
+          "capture": 30
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-50",
+        "elapsedSeconds": 353.5,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 21808,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 209,
+          "snapshot": 250,
+          "action": 150,
+          "application.activate": 150,
+          "input.key": 150,
+          "capture": 35
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-100",
+        "elapsedSeconds": 449.7,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 21824,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 210,
+          "snapshot": 300,
+          "action": 200,
+          "application.activate": 200,
+          "input.key": 200,
+          "capture": 40
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-150",
+        "elapsedSeconds": 545.6,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 21904,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 211,
+          "snapshot": 350,
+          "action": 250,
+          "application.activate": 250,
+          "input.key": 250,
+          "capture": 45
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-200",
+        "elapsedSeconds": 641.6,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 21936,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 212,
+          "snapshot": 400,
+          "action": 300,
+          "application.activate": 300,
+          "input.key": 300,
+          "capture": 50
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-250",
+        "elapsedSeconds": 736.9,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 21952,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 213,
+          "snapshot": 450,
+          "action": 350,
+          "application.activate": 350,
+          "input.key": 350,
+          "capture": 55
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-300",
+        "elapsedSeconds": 832.9,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 21952,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 214,
+          "snapshot": 500,
+          "action": 400,
+          "application.activate": 400,
+          "input.key": 400,
+          "capture": 60
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-350",
+        "elapsedSeconds": 928.8,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22000,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 215,
+          "snapshot": 550,
+          "action": 450,
+          "application.activate": 450,
+          "input.key": 450,
+          "capture": 65
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-400",
+        "elapsedSeconds": 1025.0,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22016,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 216,
+          "snapshot": 600,
+          "action": 500,
+          "application.activate": 500,
+          "input.key": 500,
+          "capture": 70
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-450",
+        "elapsedSeconds": 1120.3,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22032,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 217,
+          "snapshot": 650,
+          "action": 550,
+          "application.activate": 550,
+          "input.key": 550,
+          "capture": 75
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-500",
+        "elapsedSeconds": 1216.0,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22032,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 218,
+          "snapshot": 700,
+          "action": 600,
+          "application.activate": 600,
+          "input.key": 600,
+          "capture": 80
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-550",
+        "elapsedSeconds": 1311.8,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22160,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 219,
+          "snapshot": 750,
+          "action": 650,
+          "application.activate": 650,
+          "input.key": 650,
+          "capture": 85
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-600",
+        "elapsedSeconds": 1407.9,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22160,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 220,
+          "snapshot": 800,
+          "action": 700,
+          "application.activate": 700,
+          "input.key": 700,
+          "capture": 90
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-650",
+        "elapsedSeconds": 1503.3,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22176,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 221,
+          "snapshot": 850,
+          "action": 750,
+          "application.activate": 750,
+          "input.key": 750,
+          "capture": 95
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-700",
+        "elapsedSeconds": 1600.0,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22192,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 222,
+          "snapshot": 900,
+          "action": 800,
+          "application.activate": 800,
+          "input.key": 800,
+          "capture": 100
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-750",
+        "elapsedSeconds": 1696.3,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22240,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 223,
+          "snapshot": 950,
+          "action": 850,
+          "application.activate": 850,
+          "input.key": 850,
+          "capture": 105
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-800",
+        "elapsedSeconds": 1792.0,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22240,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 224,
+          "snapshot": 1000,
+          "action": 900,
+          "application.activate": 900,
+          "input.key": 900,
+          "capture": 110
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-850",
+        "elapsedSeconds": 1887.5,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22272,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 225,
+          "snapshot": 1050,
+          "action": 950,
+          "application.activate": 950,
+          "input.key": 950,
+          "capture": 115
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-900",
+        "elapsedSeconds": 1983.2,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22304,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 226,
+          "snapshot": 1100,
+          "action": 1000,
+          "application.activate": 1000,
+          "input.key": 1000,
+          "capture": 120
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-950",
+        "elapsedSeconds": 2078.4,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22336,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 227,
+          "snapshot": 1150,
+          "action": 1050,
+          "application.activate": 1050,
+          "input.key": 1050,
+          "capture": 125
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-1000",
+        "elapsedSeconds": 2174.1,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22336,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 228,
+          "snapshot": 1200,
+          "action": 1100,
+          "application.activate": 1100,
+          "input.key": 1100,
+          "capture": 130
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "mixed-complete",
+        "elapsedSeconds": 2174.3,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22336,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 229,
+          "snapshot": 1200,
+          "action": 1100,
+          "application.activate": 1100,
+          "input.key": 1100,
+          "capture": 130
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "idle-30",
+        "elapsedSeconds": 2204.5,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22336,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 230,
+          "snapshot": 1200,
+          "action": 1100,
+          "application.activate": 1100,
+          "input.key": 1100,
+          "capture": 130
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "idle-60",
+        "elapsedSeconds": 2234.7,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22336,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 231,
+          "snapshot": 1200,
+          "action": 1100,
+          "application.activate": 1100,
+          "input.key": 1100,
+          "capture": 130
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "idle-90",
+        "elapsedSeconds": 2264.8,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22336,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 232,
+          "snapshot": 1200,
+          "action": 1100,
+          "application.activate": 1100,
+          "input.key": 1100,
+          "capture": 130
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "idle-120",
+        "elapsedSeconds": 2295.1,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 12,
+        "rssKiB": 22336,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 233,
+          "snapshot": 1200,
+          "action": 1100,
+          "application.activate": 1100,
+          "input.key": 1100,
+          "capture": 130
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      }
+    ],
+    "summary": {
+      "summary": "passed",
+      "operations": {
+        "status": 233,
+        "snapshot": 1200,
+        "action": 1100,
+        "application.activate": 1100,
+        "input.key": 1100,
+        "capture": 130
+      },
+      "latencyMs": {
+        "status": {
+          "p50": 164.9,
+          "p95": 175.4,
+          "maximum": 193.0
+        },
+        "snapshot": {
+          "p50": 200.4,
+          "p95": 235.7,
+          "maximum": 260.2
+        },
+        "action": {
+          "p50": 477.3,
+          "p95": 499.3,
+          "maximum": 556.4
+        },
+        "application.activate": {
+          "p50": 323.15,
+          "p95": 340.0,
+          "maximum": 442.6
+        },
+        "input.key": {
+          "p50": 895.2,
+          "p95": 921.9,
+          "maximum": 1012.7
+        },
+        "capture": {
+          "p50": 225.8,
+          "p95": 292.5,
+          "maximum": 363.1
+        }
+      },
+      "samples": 32
+    }
+  },
+  "commonTransport": {
+    "operations": 30,
+    "elapsedSeconds": 74.99311083275825
+  },
+  "completion": "passed",
+  "recovery": {
+    "artifactRoundTrips": {
+      "roundtrips": 20,
+      "pngChecks": 20,
+      "ownedArtifactsRemoved": true
+    },
+    "probeFault": [
+      {
+        "fault": "probe_execution_denied",
+        "independentDesktop": "unlocked",
+        "residentDesktop": "unknown",
+        "probe": {
+          "errorCode": 4,
+          "failure": "launch_failed"
+        },
+        "semanticAuthorization": "ready",
+        "semanticReadiness": "unavailable",
+        "inputRefusal": "desktop_not_unlocked"
+      },
+      {
+        "probeRestored": true,
+        "sameResident": true,
+        "desktopGenerationChanged": true,
+        "ready": true
+      }
+    ],
+    "stoppedAuditHealthy": false,
+    "maintenanceHealthy": true,
+    "reboot": {
+      "observed": false,
+      "requested": false
+    },
+    "repairs": [
+      {
+        "id": "guest_daemon",
+        "status": "not_needed"
+      },
+      {
+        "id": "guest_user_agent",
+        "status": "not_needed"
+      },
+      {
+        "id": "resident_launch_agent",
+        "status": "not_needed"
+      }
+    ],
+    "restart": {
+      "ready": true,
+      "generationChanged": true,
+      "staleReferenceRefused": "stale_reference",
+      "freshActionEffect": true
+    }
+  },
+  "residentSourceRevision": "8480463",
+  "postRecoveryIdle": {
+    "samples": [
+      {
+        "phase": "post-recovery-idle-0",
+        "elapsedSeconds": 0.3,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15056,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 2
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-60",
+        "elapsedSeconds": 60.5,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15104,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 3
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-120",
+        "elapsedSeconds": 120.9,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15104,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 4
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-180",
+        "elapsedSeconds": 181.1,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15104,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 5
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-240",
+        "elapsedSeconds": 241.4,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15104,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 6
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-300",
+        "elapsedSeconds": 301.6,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15104,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 7
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-360",
+        "elapsedSeconds": 361.9,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15104,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 8
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-420",
+        "elapsedSeconds": 422.3,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15104,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 9
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-480",
+        "elapsedSeconds": 482.4,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15104,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 10
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-540",
+        "elapsedSeconds": 542.7,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15120,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 11
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-600",
+        "elapsedSeconds": 603.1,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15120,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 12
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-660",
+        "elapsedSeconds": 663.4,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15120,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 13
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-720",
+        "elapsedSeconds": 723.7,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15120,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 14
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-780",
+        "elapsedSeconds": 783.9,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15120,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 15
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-840",
+        "elapsedSeconds": 844.1,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15120,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 16
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-900",
+        "elapsedSeconds": 904.3,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15136,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 17
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-960",
+        "elapsedSeconds": 964.6,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15136,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 18
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-1020",
+        "elapsedSeconds": 1024.9,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15136,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 19
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-1080",
+        "elapsedSeconds": 1085.1,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15136,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 20
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-1140",
+        "elapsedSeconds": 1145.5,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15136,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 21
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-1200",
+        "elapsedSeconds": 1205.8,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15184,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 22
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-1260",
+        "elapsedSeconds": 1266.1,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15184,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 23
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-1320",
+        "elapsedSeconds": 1326.3,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15184,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 24
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-1380",
+        "elapsedSeconds": 1386.5,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15184,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 25
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-1440",
+        "elapsedSeconds": 1446.7,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15184,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 26
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-1500",
+        "elapsedSeconds": 1506.8,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15184,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 27
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-1560",
+        "elapsedSeconds": 1567.0,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15184,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 28
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-1620",
+        "elapsedSeconds": 1627.2,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15184,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 29
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-1680",
+        "elapsedSeconds": 1687.5,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15184,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 30
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-1740",
+        "elapsedSeconds": 1747.7,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15184,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 31
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      },
+      {
+        "phase": "post-recovery-idle-1800",
+        "elapsedSeconds": 1808.0,
+        "fds": 6,
+        "fdTypes": {
+          "CHR": 2,
+          "REG": 2,
+          "unix": 1,
+          "PIPE": 1
+        },
+        "access": {
+          "r": 1,
+          "u": 3,
+          " ": 1,
+          "w": 1
+        },
+        "nonDescriptorEntries": 6,
+        "rssKiB": 15184,
+        "threads": 3,
+        "children": 0,
+        "outstandingTestRequests": 0,
+        "operations": {
+          "status": 32
+        },
+        "readiness": {
+          "desktopState": "unlocked",
+          "inputState": "ready",
+          "semanticState": "ready",
+          "nativeSemanticState": "ready",
+          "captureState": "ready",
+          "nativeCaptureState": "ready"
+        },
+        "independentDesktop": "unlocked"
+      }
+    ],
+    "summary": {
+      "samples": 31,
+      "elapsedSeconds": 1808.0,
+      "result": "passed"
+    }
+  },
+  "isolatedSpawnBoundary": {
+    "processSoftFdLimit": 65536,
+    "darwinOpenMax": 10240,
+    "samples": [
+      {
+        "prefill": 100,
+        "highFD": 102,
+        "adddup2": 0,
+        "spawnError": 0,
+        "fds": 103,
+        "state": "unlocked"
+      },
+      {
+        "prefill": 1000,
+        "highFD": 1002,
+        "adddup2": 0,
+        "spawnError": 0,
+        "fds": 1003,
+        "state": "unlocked"
+      },
+      {
+        "prefill": 10000,
+        "highFD": 10002,
+        "adddup2": 0,
+        "spawnError": 0,
+        "fds": 10003,
+        "state": "unlocked"
+      },
+      {
+        "prefill": 10230,
+        "highFD": 10232,
+        "adddup2": 0,
+        "spawnError": 0,
+        "fds": 10233,
+        "state": "unlocked"
+      },
+      {
+        "prefill": 10240,
+        "highFD": 10242,
+        "adddup2": 9,
+        "spawnError": 9,
+        "fds": 10243,
+        "state": "unknown"
+      },
+      {
+        "prefill": 10300,
+        "highFD": 10302,
+        "adddup2": 9,
+        "spawnError": 9,
+        "fds": 10303,
+        "state": "unknown"
+      },
+      {
+        "prefill": 10600,
+        "highFD": 10602,
+        "adddup2": 9,
+        "spawnError": 9,
+        "fds": 10603,
+        "state": "unknown"
+      },
+      {
+        "prefill": 12000,
+        "highFD": 12002,
+        "adddup2": 9,
+        "spawnError": 9,
+        "fds": 12003,
+        "state": "unknown"
+      }
+    ],
+    "result": "passed"
+  },
+  "deployment": {
+    "architecture": "arm64",
+    "sourceDigestMatches": true,
+    "probeExecutable": true,
+    "signatureValid": true,
+    "fixturePathsAbsent": true,
+    "fixtureProcesses": 0
+  },
+  "isolatedProbeEndurance": {
+    "successes": 30000,
+    "fdBaseline": 3,
+    "fdFinal": 3,
+    "elapsedControllerSeconds": 5517.8,
+    "checks": [
+      "completion",
+      "errors",
+      "output_limit",
+      "deadlines",
+      "cancellation",
+      "recovery",
+      "child_reaping"
+    ],
+    "checkpoints": [
+      {
+        "probes": 1000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 2000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 3000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 4000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 5000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 6000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 7000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 8000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 9000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 10000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 11000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 12000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 13000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 14000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 15000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 16000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 17000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 18000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 19000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 20000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 21000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 22000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 23000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 24000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 25000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 26000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 27000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 28000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 29000,
+        "fds": 3,
+        "baseline": 3
+      },
+      {
+        "probes": 30000,
+        "fds": 3,
+        "baseline": 3
+      }
+    ],
+    "result": "passed"
+  },
+  "finalResidentSample": {
+    "phase": "final-before-suspend",
+    "elapsedSeconds": 0.3,
+    "fds": 6,
+    "fdTypes": {
+      "CHR": 2,
+      "REG": 2,
+      "unix": 1,
+      "PIPE": 1
+    },
+    "access": {
+      "r": 1,
+      "u": 3,
+      " ": 1,
+      "w": 1
+    },
+    "nonDescriptorEntries": 6,
+    "rssKiB": 15296,
+    "threads": 3,
+    "children": 0,
+    "outstandingTestRequests": 0,
+    "operations": {
+      "status": 2
+    },
+    "readiness": {
+      "desktopState": "unlocked",
+      "inputState": "ready",
+      "semanticState": "ready",
+      "nativeSemanticState": "ready",
+      "captureState": "ready",
+      "nativeCaptureState": "ready"
+    },
+    "independentDesktop": "unlocked"
+  },
+  "cleanup": {
+    "probeExecutable": true,
+    "fixturePathsAbsent": true,
+    "temporaryTestDirectories": 0,
+    "ownedProcesses": 0,
+    "doctorBeforeSuspendReady": true,
+    "suspendExitCode": 0,
+    "finalPower": "suspended",
+    "claimState": "available",
+    "scopedClaimReleased": true
+  }
+}

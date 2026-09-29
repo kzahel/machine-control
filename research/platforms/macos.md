@@ -229,7 +229,10 @@ refresh outside its request autorelease pool. The unchanged guest gained
 Isolated process-limit reproduction caused unknown session state while the
 probe's independent unlocked observation remained valid. This is an owned
 resident lifetime defect, not evidence of a Cua or RSTorrent leak or TCC
-revocation. The [fix and validation record](../../docs/tactical/047-macos-resident-resource-reliability.md)
+revocation. Separate guest testing reproduced the Darwin spawn file-action
+ceiling at FD 10,240 despite a 65,536 process limit: both the observer and a
+plain Foundation subprocess launch returned EBADF. The
+[fix and validation record](../../docs/tactical/047-macos-resident-resource-reliability.md)
 separates confirmed mechanism from the two historical incidents whose raw
 logs are unavailable, and tracks fixed workload/recovery evidence.
 

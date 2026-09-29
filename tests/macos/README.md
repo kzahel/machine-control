@@ -125,6 +125,10 @@ desktop. Always-on Swift preconditions check repeated completion, launch and
 parse errors, bounded output, timeout, cancellation, recovery, FD counts, and
 child reaping. `--idle-only --source FILE` accepts the old no-argument observer
 for a before/after reproduction; `--caller-pool` isolates the missing pool.
+The opt-in `--spawn-boundary` diagnostic retains at most 12,000 pipe readers
+in an isolated process and checks the actual Darwin spawn boundary separately
+from configured FD limits. It requires already sufficient limits and is not
+part of the ordinary native check suite.
 `maintenance-projection.py` checks the actual audit's consent/readiness
 projection. Both run in the native static suite.
 
