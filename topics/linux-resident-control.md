@@ -84,10 +84,15 @@ clean stop. A fresh candidate passed the Linux smoke suite and changed-boot
 exact-source certification with portable and native checks, then stopped
 cleanly and released its claim.
 
-**Active:** [Tactical 048](../docs/tactical/048-linux-rebuild-credential-handoff.md)
-recreates a disposable appliance with an explicit stored-password handoff.
-The key-only seed remains bootstrap-only for this profile; promotion requires
-an independently verified local password and ready private inventory locator.
+**Current:** [Tactical 048](../docs/tactical/048-linux-rebuild-credential-handoff.md)
+recreates and promotes a disposable x86_64 appliance with an explicit stored
+password handoff. The key-only seed remains bootstrap-only; promotion verifies
+the canonical password against the guest and registers its private locator.
+Portable checks, native smoke, seed detachment, restart and final readiness pass;
+the retained VM is off and claim-free after consuming product tests. A separate
+RTC-scheduled suspend-to-idle experiment failed to return; guarded forced-stop
+and readiness recover it, without qualifying native sleep/wake. GUI password
+submission remains a distinct provider gap.
 
 ## Current goal
 
