@@ -64,8 +64,10 @@ Read the result before acting:
    them; prefer names/selectors over coordinates.
 3. Use `winvm screenshot`, raw input, and mouse coordinates only for recovery
    or inaccessible app content.
-4. Ask for the smallest necessary user action when Windows requires a login,
-   consent prompt, or secure desktop.
+4. For appliance login, resolve the stored credential first and use the
+   dedicated helper below. Ask for human action only when a concrete missing
+   route or human-only consent step remains; a secure desktop alone is not a
+   reason to ignore the canonical credential file.
 
 Do not launch GUI apps through raw SSH because SSH is in session 0. Use:
 

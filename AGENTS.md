@@ -106,6 +106,19 @@ file, or a chat transcript. A VM whose login credential is unknown is not
 recovered by guessing; destroy and rebuild it after confirming it holds nothing
 irreplaceable.
 
+Before asking a user to log in or unlock a dedicated test VM, always resolve
+its credential locator from the selected controller's private registry or
+inventory (`bin/machine-control inventory credentials TARGET`). Use the
+canonical controller-local secret file through the platform's supported secret
+transport; stored appliance credentials are intended for unattended use.
+Never assume that a lock screen requires human password entry. If the locator
+is absent or its file is not ready, diagnose and repair that credential handoff
+within the authorized task; do not guess values or ask for secrets in chat.
+An unavailable secret-safe delivery route is a distinct implementation gap,
+not a prohibition on using stored VM credentials. Ask for human action only
+when that concrete gap or a genuinely human-only step remains after lookup.
+See `docs/target-registry.md#credentials-and-private-data` for the contract.
+
 Before meaningful use of an accepted VM target, run its read-only doctor and
 acquire an exclusive target-use claim through the common Machine Control CLI.
 Supply a truthful caller-chosen authority, claimant ID, reason, and any useful

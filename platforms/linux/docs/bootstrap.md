@@ -57,8 +57,10 @@ sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y qe
 ```
 
 The original image had passwordless `sudo`. If another image requests a
-password, the user enters it directly in the VM; do not add a password argument
-or store it in configuration.
+password, first resolve its canonical controller-local credential through
+private inventory and use a supported secret-safe route. Follow
+[credential preflight](../skills/drive-linuxvm/SKILL.md#credential-preflight);
+do not add a password argument or store its value in configuration.
 
 Ubuntu's `qemu-guest-agent.service` is a static device-activated unit. Running
 `systemctl enable qemu-guest-agent` prints that the unit has no installation
@@ -123,8 +125,12 @@ bin/linuxvm user-exec -- gsettings set org.gnome.desktop.session idle-delay 0
 bin/linuxvm user-exec -- gsettings set org.gnome.desktop.screensaver lock-enabled false
 ```
 
-Do not disable GDM authentication or store an auto-unlock credential. A user
-may still lock the session manually; use the outer visible path to recover.
+Do not disable GDM authentication. Keep appliance passwords in their canonical
+controller-local secret files, referenced by private inventory, including when
+auto-login is configured. A user may still lock the session manually; resolve
+the stored credential and supported delivery route before requesting human
+entry. Do not silently change inherited idle-lock policy during application
+testing or enable continuous automatic unlock to avoid implementing recovery.
 
 ## 5 — Apply A Full Ubuntu Upgrade
 
@@ -189,7 +195,8 @@ the guest back to a stable mode before relying on coordinates.
 2. Root commands through the QEMU guest agent
 3. `bin/linuxvm user-exec` and AT-SPI
 4. Normalized screenshot plus `type`, `key`, `scan`, `click`, and `drag`
-5. The smallest necessary user action for passwords or authentication
+5. Credential inventory and supported secret-safe authentication; request human
+   action only for a concrete unresolved gap after this lookup
 
 ### Guest agent missing after reboot
 
@@ -219,8 +226,13 @@ desktop and may require logout/login after first installation.
 ### Session is locked
 
 AT-SPI belongs to the logged-in desktop and does not control GDM or a distinct
-lock-screen session. Use the normalized screenshot and virtual input. The user
-enters any authentication secret directly.
+lock-screen session. Always perform
+[credential preflight](../skills/drive-linuxvm/SKILL.md#credential-preflight)
+first. Stored appliance passwords are intended for unattended authentication;
+a lock screen does not by itself require human entry. Use only a supported
+secret-safe route for the exact target. Linux's current CLI lacks dedicated
+password submission, so distinguish that implementation gap from absent
+credential metadata. Generic virtual input is not a secret transport.
 
 ## Native x86_64 libvirt image factory
 

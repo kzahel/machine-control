@@ -253,8 +253,12 @@ To connect a real target:
    [target-registry guide](docs/target-registry.md). Keep credential values in
    its declared local secret store, not in this repository or the target
    registry.
-4. When an inventory provider declares a stored guest credential, run
-   `inventory credentials TARGET`. Then run the read-only doctor, repair
+4. Always inspect `inventory credentials TARGET` before VM login/unlock or
+   asking for human password entry. In registry-only setups, resolve the
+   adapter's declared secret-file locator. Use stored appliance credentials
+   through the supported secret transport. A missing locator/file or unsupported
+   delivery route is a specific handoff/capability gap; do not assume a locked
+   disposable VM requires manual entry. Then run the read-only doctor, repair
    private identity if necessary, and claim the target before meaningful use.
 
 On a controller with a private inventory provider:

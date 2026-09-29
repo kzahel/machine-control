@@ -14,7 +14,9 @@ fallback. Neither path is sufficient alone.
 6. Use resident capture and the in-guest virtual HID broker when semantics are
    missing.
 7. Reserve normalized UTM screenshot/input for bootstrap and recovery.
-8. Ask the user to enter passwords or other secrets directly in the guest.
+8. Resolve the target's canonical stored credential first; follow
+   [credential preflight](../skills/drive-linuxvm/SKILL.md#credential-preflight).
+   Human entry is a fallback after identifying a concrete remaining gap.
 
 ## Launching GUI Applications
 
@@ -142,7 +144,11 @@ absolute clicks may be unreliable. Use raw scan-code shortcuts such as
 AT-SPI exposes enough of the tested Polkit dialog to detect it and cancel it
 without a secret; it does not remove the authentication requirement. Routine
 root administration instead uses the explicit root-equivalent QEMU
-guest-agent command channel. The CLI has no password option, and screenshots
+guest-agent command channel. Stored test-appliance credentials are authorized
+for unattended use: first resolve their private inventory locator. The current
+CLI has no dedicated secret-safe password submission operation; this is a
+provider gap, not a policy requiring human entry. Do not substitute generic
+`type` or ordinary JSON for a secret transport. Screenshots
 containing authentication context are generated artifacts rather than
 repository content.
 

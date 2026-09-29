@@ -24,8 +24,32 @@ disable the default mutation guard to make a public example work.
    Inspect with `apps`, `windows`, `tree`, or `find` before acting.
 6. Use `screenshot`, `click`, `drag`, `type`, `key`, or `scan` for lock screens,
    bootstrap, or recovery when semantic access is unavailable.
-7. Ask the user to enter passwords directly in the guest. Never include one in
-   chat, a command, `config.local`, or a repository file.
+7. Always resolve the VM's stored credential through the private inventory
+   before asking for login/unlock help. Use the canonical file and a supported
+   secret-safe delivery route; see the credential preflight below. Never put
+   its value in chat, command arguments, ordinary JSON, `config.local`, or Git.
+
+## Credential preflight
+
+From the common repository root, run `bin/machine-control inventory status`
+and `bin/machine-control inventory credentials TARGET --json` on the selected
+controller. Use its inventory testbed ID, not an assumed logical alias. Resolve
+the declared file locator and readiness; do not print/read the password into
+tool output. Registry-only setups use the adapter's documented private locator.
+The [credential contract](../../../../docs/target-registry.md#credentials-and-private-data)
+owns storage, permissions, rotation and handoff rules.
+
+Stored disposable-VM credentials are for unattended authentication. Do not ask
+the user to type a password merely because the desktop is locked. If inventory
+has no locator or the file is not ready, investigate the provisioning record
+and repair the canonical handoff within task authority. If the secret is ready
+but the provider has no supported non-echoing submission path, report that
+specific capability gap. The current Linux CLI has no dedicated password
+submission operation: generic `type`, command arguments and ordinary control
+JSON are not secret transports. Do not invent a supported unlock command or
+claim a login succeeded from credential availability alone. Human input is a
+fallback for an unresolved delivery gap or genuinely human-only step, after
+this lookup, not the default disposable-VM policy.
 
 ## Start and inspect
 
@@ -77,7 +101,8 @@ move the host pointer; avoid it while the user is operating another host app.
 Read `docs/bootstrap.md` completely before guest-agent repair, full upgrades,
 or future fresh-image work. When `utmctl exec` is missing, use the visible UTM
 desktop and `key ctrl-alt-t`, then install and start `qemu-guest-agent` with the
-documented one-line command. Let the user perform any password entry.
+documented one-line command. If authentication is needed, perform the credential
+preflight above before selecting a supported secret route or reporting its gap.
 
 Prefer `suspend` for routine parking, `reboot` for a tracked guest restart, and
 `shutdown` for an orderly power-down. `shutdown` waits for the provider to

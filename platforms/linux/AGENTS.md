@@ -30,9 +30,15 @@ changing AT-SPI or coordinate behavior, read `docs/ui-automation.md`. Preserve
 the three independent recovery layers: QEMU guest agent, AT-SPI inside the
 interactive session, and the visible UTM window.
 
-Never store passwords, private keys, portal restore tokens, or machine-specific
-identifiers. Ask the user to enter authentication directly in the guest. Keep
-`config.local`, generated captures, and command artifacts untracked.
+Always inspect the selected controller's private credential inventory before
+login/unlock or asking for human entry. Follow the repository's
+[credential contract](../../docs/target-registry.md#credentials-and-private-data):
+store VM passwords in the canonical untracked controller-local secret file,
+with only its locator in private inventory. Use a supported secret-safe route;
+missing metadata/file or missing delivery support is a specific recovery gap,
+not a blanket requirement for human authentication. Never commit credentials,
+private keys, portal tokens or machine-specific identifiers. Keep `config.local`,
+generated captures and command artifacts untracked.
 
 Run `tests/smoke.sh` before committing behavior changes. Shell, Python, and
 Swift checks must be warning-free.
