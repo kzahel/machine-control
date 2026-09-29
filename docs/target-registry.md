@@ -328,6 +328,25 @@ A logical target name is a selector, not a credential, bearer token, claim, or
 authorization grant. The target registry may contain private route metadata,
 but it must not contain credential values.
 
+Always resolve the selected target's canonical credential locator **before**
+asking the user for VM login/unlock or declaring authentication blocked. On the
+actual controller, run `machine-control inventory credentials TARGET`; this
+reports locators and file readiness without printing credential contents.
+`TARGET` is the inventory testbed ID, which may differ from the common logical
+target alias. For registry-only setups without an inventory provider, inspect
+the adapter's documented private configuration/default locator instead. Do not
+invent a second password location or search unrelated files for secrets.
+
+Dedicated disposable test appliances are expected to use these stored
+credentials unattended. A lock screen alone is not a human gate. Missing
+inventory metadata, an absent/unreadable secret file, and a platform without a
+supported secret-safe submission route are different failures: report and
+repair the actual one within task authority. An empty credential list is not
+proof that no password exists. Check the target's provisioning record and
+register its existing canonical file; never guess a value or silently create,
+rotate, or reset an account merely to unlock it. Truly human-only consent or
+biometrics remain separate from stored appliance passwords.
+
 When an adapter needs a controller-held credential:
 
 1. Store the value in an appropriate untracked local secret store. Record every

@@ -93,6 +93,14 @@ capability, result, and reference vocabulary.
 
 ## Decisions
 
+- Always discover the canonical stored appliance credential through private
+  inventory before declaring login/unlock a human gate. The controller-local
+  secret file is the source of truth; public guides contain only generic
+  locator rules. See the [credential contract](../docs/target-registry.md#credentials-and-private-data).
+  Stored disposable-VM credentials may be used unattended. Linux currently
+  lacks a dedicated secret-safe password submission operation; distinguish
+  that provider gap from missing credential metadata or a human-only step.
+
 - Treat GNOME Wayland as a concrete platform profile, not generic “Linux.”
   Capability reports name the desktop session, compositor, XWayland use,
   portal state, and actual capture/input route.

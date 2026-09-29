@@ -173,7 +173,9 @@ The UTM window remains the lowest common denominator for:
 - a missing or stopped QEMU guest agent;
 - GDM, lock screens, and session loss;
 - incomplete or hung accessibility providers; and
-- password or Polkit dialogs that remain user-authenticated.
+- password or Polkit dialogs outside ordinary resident control. Resolve the
+  stored appliance credential first; a missing secret-safe submission provider
+  is a capability gap, not a blanket human-entry policy.
 
 Host capture removes the UTM title bar and scales the guest viewport to the
 configured logical resolution. UTM's scripting API accepts those logical

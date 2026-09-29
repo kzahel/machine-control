@@ -396,12 +396,18 @@ default trust or transport path.
 
 ## Security
 
-- No password, SSH key, or portal token is stored or accepted by the CLI.
+- Always resolve stored VM credentials from private inventory before asking
+  for login/unlock help. Values live only in canonical controller-local secret
+  files; the public repository and ordinary CLI requests contain no secrets.
+  See the [credential contract](../../docs/target-registry.md#credentials-and-private-data).
 - Guest-agent commands are root-equivalent and remain explicit.
 - Semantic UI commands run as the logged-in non-root desktop user.
 - The dedicated-appliance input broker runs as root, owns `/dev/uinput`, and
   exposes only a mode-`0600` active-user socket with bounded input operations.
-- Password and Polkit authentication remain user-entered inside the guest.
+- Stored appliance credentials may be used unattended through supported
+  secret-safe transports. Linux currently has no dedicated password submission
+  operation; report that delivery gap separately from a missing credential.
+  Do not pass passwords through generic text input or command arguments.
 - `force-stop` is an explicit recovery operation, never routine lifecycle.
 
 ## License

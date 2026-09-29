@@ -11,6 +11,16 @@ Lifecycle mutations require ignored/private configuration that binds the
 candidate or disposable role to the exact selected VM name; never disable the
 default mutation guard to make a public example work.
 
+Before login/unlock or asking for human password entry, resolve the selected
+controller's credential inventory with `bin/machine-control inventory
+credentials TARGET`. Use the declared canonical local secret file through the
+supported one-shot transport. Follow the
+[credential contract](../../../../docs/target-registry.md#credentials-and-private-data);
+missing locator/file and unavailable delivery support are distinct gaps.
+Stored test-VM passwords are intended for unattended use, including disposable
+VMs. Existing-session unlock helpers retain their own declared contract; a
+stored password does not imply that every protected route consumes it.
+
 ## Choose the control layer
 
 1. Run `bin/macvm doctor` and inspect every failed boundary.
