@@ -88,3 +88,5 @@ the commits' `Topic:` trailers and register that exact string in
 | [`046-scoped-target-tasks.md`](046-scoped-target-tasks.md) | complete | Scoped claim/workspace runner, failure fixtures, and live Mac renewal/release; native Windows and live workspace acceptance unverified |
 
 | [`047-windows-exact-semantic-references.md`](047-windows-exact-semantic-references.md) | complete | Exact UIA reference resolution and duplicate-label refusal regression |
+
+- [048-linux-rebuild-credential-handoff.md](048-linux-rebuild-credential-handoff.md): disposable Linux recreation and stored-password handoff.

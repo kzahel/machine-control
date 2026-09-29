@@ -84,6 +84,11 @@ clean stop. A fresh candidate passed the Linux smoke suite and changed-boot
 exact-source certification with portable and native checks, then stopped
 cleanly and released its claim.
 
+**Active:** [Tactical 048](../docs/tactical/048-linux-rebuild-credential-handoff.md)
+recreates a disposable appliance with an explicit stored-password handoff.
+The key-only seed remains bootstrap-only for this profile; promotion requires
+an independently verified local password and ready private inventory locator.
+
 ## Current goal
 
 **Decision:** Keep this accepted GNOME Wayland profile stable while extending
