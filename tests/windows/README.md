@@ -105,3 +105,10 @@ setting `CUA_DRIVER_RS_SESSION_IDLE_TTL_SECS=5` and pass `-IdleSeconds 35`.
 The test requires expiry to occur, refuses an old action, obtains a fresh
 observation, and independently verifies exactly one subsequent action. Restore
 the launch environment afterward; normal product launches retain upstream TTLs.
+
+`reference-fixture.ps1 -EvidencePath <owned-path>` exposes duplicate buttons and
+text fields with independent file effects. Launch it in the interactive guest,
+then run `reference-conformance.ps1` with an isolated user-host executable,
+instance, session ID and that evidence path. It checks exact reference routing,
+removed-element and generation refusal, and unchanged query-only behavior.
+Close the owned fixture and stop the user host after the suite.

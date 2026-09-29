@@ -809,7 +809,7 @@ internal static class DesktopController
                 "The semantic reference is not valid for this generation");
         }
         var query = request.Query ?? selector?.PreferredQuery ?? string.Empty;
-        var element = FindElement(root, query, maxVisited: 10000);
+        var element = FindElement(root, query, maxVisited: 10000, selector);
         if (element is null)
         {
             return Failure(
@@ -817,8 +817,8 @@ internal static class DesktopController
                 generation,
                 desktopName,
                 timer,
-                "element_not_found",
-                $"No element matched '{query}'");
+                selector is null ? "element_not_found" : "stale_or_unknown_reference",
+                selector is null ? $"No element matched '{query}'" : "The observed element is no longer available");
         }
 
         var beforeDesktop = desktopName;
@@ -951,7 +951,7 @@ internal static class DesktopController
                 "The semantic reference is not valid for this generation");
         }
         var query = request.Query ?? selector?.PreferredQuery ?? string.Empty;
-        var element = FindElement(root, query, maxVisited: 10_000);
+        var element = FindElement(root, query, maxVisited: 10_000, selector);
         if (element is null)
         {
             return Failure(
@@ -959,8 +959,8 @@ internal static class DesktopController
                 generation,
                 desktopName,
                 timer,
-                "element_not_found",
-                $"No element matched '{query}'");
+                selector is null ? "element_not_found" : "stale_or_unknown_reference",
+                selector is null ? $"No element matched '{query}'" : "The observed element is no longer available");
         }
         if (!element.TryGetCurrentPattern(
                 ValuePattern.Pattern,
@@ -1746,10 +1746,7 @@ internal static class DesktopController
             {
                 var bounds = current.BoundingRectangle;
                 var runtimeId = element.GetRuntimeId() ?? [];
-                var referenceBytes = Encoding.UTF8.GetBytes(
-                    $"{generation}:{string.Join('.', runtimeId)}");
-                var reference = Convert.ToHexString(
-                    SHA256.HashData(referenceBytes)[..12]).ToLowerInvariant();
+                var reference = Guid.NewGuid().ToString("n");
                 if (Selectors.Count > 10_000)
                 {
                     Selectors.Clear();
@@ -1758,7 +1755,9 @@ internal static class DesktopController
                     generation,
                     string.IsNullOrWhiteSpace(automationId)
                         ? name
-                        : automationId);
+                        : automationId,
+                    runtimeId,
+                    current.ProcessId);
                 records.Add(new ElementRecord(
                     reference,
                     depth,
@@ -1798,7 +1797,8 @@ internal static class DesktopController
     private static AutomationElement? FindElement(
         AutomationElement? root,
         string query,
-        int maxVisited)
+        int maxVisited,
+        CachedSelector? selector = null)
     {
         if (root is null) return null;
         AutomationElement? partial = null;
@@ -1812,14 +1812,16 @@ internal static class DesktopController
             {
                 var name = current.Current.Name ?? string.Empty;
                 var automationId = current.Current.AutomationId ?? string.Empty;
-                if (name.Equals(query, StringComparison.OrdinalIgnoreCase) ||
-                    automationId.Equals(
-                        query,
-                        StringComparison.OrdinalIgnoreCase))
+                if (selector is not null
+                    ? selector.RuntimeId.Length > 0 &&
+                        current.Current.ProcessId == selector.ProcessId &&
+                        current.GetRuntimeId().SequenceEqual(selector.RuntimeId)
+                    : name.Equals(query, StringComparison.OrdinalIgnoreCase) ||
+                        automationId.Equals(query, StringComparison.OrdinalIgnoreCase))
                 {
                     return current;
                 }
-                if (partial is null &&
+                if (selector is null && partial is null &&
                     (name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
                      automationId.Contains(
                          query,
@@ -2411,7 +2413,9 @@ internal static class DesktopController
 
 internal sealed record CachedSelector(
     string Generation,
-    string PreferredQuery);
+    string PreferredQuery,
+    int[] RuntimeId,
+    int ProcessId);
 
 internal static class SessionStateInspector
 {
