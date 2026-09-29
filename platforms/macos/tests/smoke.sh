@@ -478,6 +478,8 @@ fi
 
 python3 "$REPO_DIR/../../tests/macos/doctor-state.py"
 python3 "$REPO_DIR/../../tests/macos/lock-screen-projection.py"
+python3 "$REPO_DIR/../../tests/macos/session-probe-resources.py"
+python3 "$REPO_DIR/../../tests/macos/maintenance-projection.py"
 
 if [[ "$mode" == "--static" ]]; then
     printf 'macOS native static checks passed\n'

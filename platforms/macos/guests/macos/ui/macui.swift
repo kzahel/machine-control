@@ -422,17 +422,83 @@ struct AuthorizationLease {
 }
 
 // Shared native observer also used by the privileged mechanism and doctor.
-func nativeSessionObservation() -> [String: Any] {
-    let probe = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
-        .deletingLastPathComponent().appendingPathComponent("Resources/mc-session-probe")
-    let process = Process(); process.executableURL = probe
-    let pipe = Pipe(); process.standardOutput = pipe; process.standardError = FileHandle.nullDevice
-    do {
-        try process.run()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile(); process.waitUntilExit()
-        if process.terminationStatus == 0, let result = try JSONSerialization.jsonObject(with: data) as? [String: Any] { return result }
-    } catch {}
-    return ["desktopState": "unknown"]
+// This runs during idle polling as well as requests. Own an autorelease pool
+// here: Foundation's autoreleased pipe read handles otherwise survive the
+// server's request-only pool and consume one descriptor on every idle poll.
+func nativeSessionObservation(probeURL: URL? = nil,
+                              timeout: TimeInterval = 2,
+                              cancelled: () -> Bool = { false }) -> [String: Any] {
+    autoreleasepool {
+        func unavailable(_ reason: String, code: Int? = nil) -> [String: Any] {
+            var result: [String: Any] = ["desktopState": "unknown", "probeFailure": reason]
+            if let code { result["probeErrorCode"] = code }
+            return result
+        }
+        let probe = probeURL ?? URL(fileURLWithPath: CommandLine.arguments[0])
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Resources/mc-session-probe")
+        if cancelled() { return unavailable("cancelled") }
+        let process = Process()
+        let pipe = Pipe()
+        // A private handle permits explicit close without relying on the
+        // lifetime of Foundation's autoreleased nullDevice object.
+        guard let errors = FileHandle(forWritingAtPath: "/dev/null") else {
+            return unavailable("stderr_unavailable", code: Int(errno))
+        }
+        defer {
+            try? pipe.fileHandleForReading.close()
+            try? pipe.fileHandleForWriting.close()
+            try? errors.close()
+        }
+        process.executableURL = probe
+        process.standardOutput = pipe
+        process.standardError = errors
+        do { try process.run() }
+        catch { return unavailable("launch_failed", code: (error as NSError).code) }
+        // The known probe has no descendants. Always reap it, including on
+        // timeout/cancellation/output refusal. Never cache the last good state.
+        defer {
+            if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
+            process.waitUntilExit()
+        }
+        try? pipe.fileHandleForWriting.close()
+        let fd = pipe.fileHandleForReading.fileDescriptor
+        let deadline = ProcessInfo.processInfo.systemUptime + timeout
+        var data = Data()
+        var eof = false
+        while !eof || process.isRunning {
+            if cancelled() { return unavailable("cancelled") }
+            if ProcessInfo.processInfo.systemUptime >= deadline {
+                return unavailable("timeout")
+            }
+            if eof { usleep(1_000); continue }
+            var pending = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+            let ready = poll(&pending, 1, 10)
+            if ready < 0 {
+                if errno == EINTR { continue }
+                return unavailable("read_failed", code: Int(errno))
+            }
+            if ready == 0 { continue }
+            var buffer = [UInt8](repeating: 0, count: 4096)
+            let count = Darwin.read(fd, &buffer, buffer.count)
+            if count < 0 {
+                if errno == EINTR { continue }
+                return unavailable("read_failed", code: Int(errno))
+            }
+            if count == 0 { eof = true; continue }
+            data.append(buffer, count: count)
+            if data.count > 16_384 { return unavailable("output_limit") }
+        }
+        guard process.terminationStatus == 0 else {
+            return unavailable("nonzero_exit", code: Int(process.terminationStatus))
+        }
+        guard let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let state = result["desktopState"] as? String,
+              ["unlocked", "locked", "no_session", "unknown"].contains(state) else {
+            return unavailable("invalid_response")
+        }
+        return result
+    }
 }
 
 // Pure projection: permission/preflight evidence is not an observed UI effect.
@@ -1677,6 +1743,10 @@ final class ResidentService {
                     "desktopState": observedSession["desktopState"] ?? "unknown",
                     "desktopGeneration": desktopGeneration,
                     "observationSource": "iokit.console-session",
+                    "sessionProbe": [
+                        "failure": observedSession["probeFailure"] ?? NSNull(),
+                        "errorCode": observedSession["probeErrorCode"] ?? NSNull(),
+                    ],
                     "observedAt": ISO8601DateFormatter().string(from: Date()),
                     "displayState": displayState(),
                     "unlock": unlockStatus(),
@@ -1685,6 +1755,8 @@ final class ResidentService {
                         (CGPreflightPostEventAccess() || cuaAccessibility) ? "ready" : "unavailable",
                     "semanticState": observedSession["desktopState"] as? String == "unlocked" && (AXIsProcessTrusted() || cuaAccessibility) ?
                         "ready" : "unavailable",
+                    "semanticAuthorizationState": AXIsProcessTrusted() || cuaAccessibility ? "ready" : "unavailable",
+                    "captureAuthorizationState": CGPreflightScreenCaptureAccess() || cuaCapture ? "ready" : "unavailable",
                     "nativeSemanticState": AXIsProcessTrusted() ? "ready" : "unavailable",
                     "captureState": !activeDisplayJSON().isEmpty && (CGPreflightScreenCaptureAccess() || cuaCapture) ?
                         "ready" : "unavailable",
@@ -2559,7 +2631,7 @@ func runResidentServer(socketPath: String) throws -> Never {
     }
     let service = ResidentService()
     while true {
-        service.refreshSession()
+        autoreleasepool { service.refreshSession() }
         var pending = pollfd(fd: descriptor, events: Int16(POLLIN), revents: 0)
         if poll(&pending, 1, 250) <= 0 { continue }
         let client = accept(descriptor, nil, nil)

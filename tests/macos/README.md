@@ -1,7 +1,7 @@
 # macOS conformance
 
-The macOS corpus drives the target-resident facade provided by the sibling
-`macvm-testbed` repository. `conformance.sh` runs the same request vocabulary
+The macOS corpus drives the target-resident facade owned by
+`platforms/macos`. `conformance.sh` runs the same request vocabulary
 through two placements:
 
 - `remote`: the host wrapper sends a request through `tart exec`; and
@@ -116,3 +116,37 @@ explicit privileged fixture setup, disconnect/timeout revocation. These native
 fixtures do not authorize use of the controller desktop. See
 [Tactical 034](../../docs/tactical/034-macos-session-state-and-unlock.md) and the
 [runbook](../../platforms/macos/docs/session-unlock.md) for scope and evidence.
+
+## Resident resource reliability
+
+`session-probe-resources.py` compiles the production session observer with a
+synthetic probe and a 128-FD limit. It needs no UI consent and never queries a
+desktop. Always-on Swift preconditions check repeated completion, launch and
+parse errors, bounded output, timeout, cancellation, recovery, FD counts, and
+child reaping. `--idle-only --source FILE` accepts the old no-argument observer
+for a before/after reproduction; `--caller-pool` isolates the missing pool.
+`maintenance-projection.py` checks the actual audit's consent/readiness
+projection. Both run in the native static suite.
+
+`resident-resources.py` is an explicit **guest-local** live runner. The caller
+must first doctor, claim, ensure readiness, deploy and launch a previously
+absent AppKit fixture, and arrange fixture/power/claim cleanup. Invoke it through
+common `os -- /usr/bin/python3 -c "$(cat tests/macos/resident-resources.py)"`.
+It isolates operation families before a combined workload, checks independent
+fixture effects, and reports numeric FDs/types, non-FD lsof entries, RSS,
+threads, children, test request counts, latency, and readiness. It captures
+only the fixture and deletes every owned artifact. It does not measure opaque
+framework queues or claim that sampled RSS is a strict memory bound.
+
+`resident-recovery.py --evidence-dir PRIVATE_DIRECTORY` runs on the controller
+under the same claimed task. It refuses an inherited fixture, owns its setup
+and removal, tests common capture/artifact round trips, temporarily removes
+execute permission from the deployed session probe with `finally` restoration,
+and verifies unknown-state refusal while an independent probe sees unlocked.
+It then uses supported resident stop, maintenance audit/repair, and fresh AX
+effects to check recovery and stale references. This is a deliberate fault
+injection for a dedicated test appliance, not a personal-workstation command.
+The caller owns initial power-state restoration and claim release.
+
+[Tactical 047](../../docs/tactical/047-macos-resident-resource-reliability.md)
+contains replay commands, measurements, and the limits of historical attribution.

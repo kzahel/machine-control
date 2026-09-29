@@ -427,6 +427,14 @@ and profile tools. macOS does not expose one reliable local pending-reboot
 marker, so that check is explicitly optional and not observable rather than
 silently reported clear.
 
+The authorization checks describe consent separately from desktop readiness.
+If the socket is active but the resident's desktop is unknown, inspect
+`desktop status` and its `sessionProbe` diagnostics, compare the independent
+probe, and preserve aggregate process resources before repair. Do not interpret
+that mismatch alone as revoked TCC consent. The
+[resident reliability runbook](ui-automation.md#resident-readiness-and-resource-diagnosis)
+links the bounded diagnostic and regression runners.
+
 If audit identifies a launchd/startup failure on the exact retained candidate:
 
 ```bash

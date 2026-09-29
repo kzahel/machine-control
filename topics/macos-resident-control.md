@@ -155,6 +155,23 @@ agent; acceptance used the prepared guest for independent oracles. Ordinary
 post-bootstrap input stays target-resident, and the exact private VM-view
 translation mechanism remains unproved.
 
+## Resident lifetime reliability
+
+**Current (2026-09-29):** Investigation following RSTorrent Tactical 232
+reproduced one retained pipe descriptor per session probe outside a draining
+autorelease pool. The unchanged resident grew about three pipe FDs per second
+while idle; no capture or application operation was necessary. Reduced-limit
+reproduction turned the resulting probe launch failure into unknown desktop
+state. The two historical incidents are consistent with this cause, but their
+removed logs cannot establish identical causes or the exact capture failure.
+
+**Decision:** The observer owns a pool, closes its handles explicitly, bounds
+output/execution, and reaps failed/cancelled children. Idle refresh also has a
+pool. Probe failure diagnostics and authorization projections stay separate
+from desktop readiness; unknown state continues to refuse ordinary input.
+[Tactical 047](../docs/tactical/047-macos-resident-resource-reliability.md)
+owns reproduction, bounded workload/recovery validation, and remaining limits.
+
 ## Current Tart goal
 
 **Decision:** Until physical Mac testing becomes an active workstream, focus

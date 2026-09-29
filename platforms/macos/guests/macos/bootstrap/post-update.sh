@@ -100,16 +100,20 @@ collect_state() {
         if [[ "$(json_value "$resident_result" schema || true)" == \
                 machine-control/v0 ]] &&
                 [[ "$(json_value "$resident_result" accepted || true)" == true ]]; then
-            if [[ "$(json_value "$resident_result" data.semanticState || true)" == \
-                    ready ]]; then
+            # Consent and desktop readiness are independent. Older residents
+            # have no consent projection, so retain their readiness fallback.
+            semantic_consent="$(json_value "$resident_result" data.semanticAuthorizationState || true)"
+            capture_consent="$(json_value "$resident_result" data.captureAuthorizationState || true)"
+            [[ -n "$semantic_consent" ]] || semantic_consent="$(json_value "$resident_result" data.semanticState || true)"
+            [[ -n "$capture_consent" ]] || capture_consent="$(json_value "$resident_result" data.captureState || true)"
+            if [[ "$semantic_consent" == ready ]]; then
                 semantic_authorization=true
             fi
-            if [[ "$(json_value "$resident_result" data.captureState || true)" == \
-                    ready ]]; then
+            if [[ "$capture_consent" == ready ]]; then
                 capture_authorization=true
             fi
-            if [[ "$semantic_authorization" == true &&
-                  "$capture_authorization" == true ]]; then
+            if [[ "$(json_value "$resident_result" data.semanticState || true)" == ready &&
+                  "$(json_value "$resident_result" data.captureState || true)" == ready ]]; then
                 target_native=true
             fi
         fi

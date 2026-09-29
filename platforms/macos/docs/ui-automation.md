@@ -303,3 +303,25 @@ the bounded resident authorization path above for matching normal Aqua
 administrator sheets. Loginwindow, FileVault/preboot, Recovery, and other
 unimplemented protected surfaces still require another explicitly selected
 route or a user.
+
+## Resident readiness and resource diagnosis
+
+A live resident socket does not prove an observed unlocked desktop or valid
+provider consent. Status separates `desktopState`, `sessionProbe.failure` and
+numeric `errorCode`, `semanticAuthorizationState`, `captureAuthorizationState`,
+and actual input/semantic/capture readiness. A failed probe reports unknown;
+ordinary mutations continue to refuse with `desktop_not_unlocked`. Never use a
+previously unlocked observation to bypass that refusal.
+
+Before restarting an unhealthy resident, preserve minimized status, an
+independent `mc-session-probe` observation, and numeric descriptor counts/types,
+threads, children, and RSS. Count only numeric `lsof` descriptor records; total
+lines include mappings and are not an FD count. Common maintenance audit now
+separates consent from readiness, so unavailable semantics with retained
+consent does not call for changing TCC. Use supported common maintenance repair
+only after evidence collection, then independently verify readiness/effects.
+
+The [resource investigation](../../../docs/tactical/047-macos-resident-resource-reliability.md)
+and [bounded runners](../../../tests/macos/README.md#resident-resource-reliability)
+cover the idle session-probe pipe lifetime defect, reduced-limit reproduction,
+operation-family measurements, and dedicated-appliance recovery testing.

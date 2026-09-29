@@ -220,6 +220,19 @@ not a new Setup Assistant/account run, and does not prove the exact private
 Tart/Virtualization.framework mechanism. The input path needs no guest agent;
 the test uses one only for setup and independent observation.
 
+## Owned resident lifetime reliability
+
+**Current (2026-09-29), source-reviewed and live-tested in Tart:** The owned
+resident's idle session observer retained a pipe read descriptor on each
+refresh outside its request autorelease pool. The unchanged guest gained
+272 numeric pipe FDs in 91 seconds without capture, AX, or input operations.
+Isolated process-limit reproduction caused unknown session state while the
+probe's independent unlocked observation remained valid. This is an owned
+resident lifetime defect, not evidence of a Cua or RSTorrent leak or TCC
+revocation. The [fix and validation record](../../docs/tactical/047-macos-resident-resource-reliability.md)
+separates confirmed mechanism from the two historical incidents whose raw
+logs are unavailable, and tracks fixed workload/recovery evidence.
+
 ## Current direction
 
 **Decision:** Preserve Cua as a replaceable common-plane adapter and Peekaboo as
