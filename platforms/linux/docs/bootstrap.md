@@ -272,6 +272,26 @@ domain. After cloud-init and the normal resident bootstrap pass, stop the
 candidate and use `factory-detach-media` under the same claim to remove its
 NoCloud seed.
 
+### Required credential handoff before promotion
+
+The key-only seed is an initial bootstrap state, not the final password
+handoff for a disposable desktop VM. Before promoting a password-capable
+appliance, create its canonical controller-local password file (directory mode
+`0700`, file mode `0600`) and register only its locator in private inventory.
+The [registry contract](../../../docs/target-registry.md#credentials-and-private-data)
+applies even with auto-login and idle locking disabled.
+
+Use the seed's authenticated setup SSH channel to provision the local password:
+verify the SSH host key independently through claimed guest administration,
+then stream the stored value to `sudo chpasswd` over stdin. Never put it in a
+shell argument, environment value, ordinary guest-agent request or transcript.
+Verify the stored value against guest authentication, keep SSH password login
+disabled, and require `inventory credentials TARGET` to report `ready` before
+handoff. Retain the canonical file and locator when temporary setup media is
+removed. Credential-file readiness alone does not prove a matching password.
+If no local password is intentionally supported, record that explicit profile
+instead of leaving an undiscoverable or unknown password.
+
 For the native KVM route, rerun `bin/linuxvm factory-stages --json` after
 pinning the exact candidate, read-only doctor, and claim acquisition. Its
 states distinguish guest-agent and cloud-init waits, a bootstrap action,

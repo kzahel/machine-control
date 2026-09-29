@@ -87,3 +87,6 @@ the commits' `Topic:` trailers and register that exact string in
 | [`045-macos-tart-outer-keyboard.md`](045-macos-tart-outer-keyboard.md) | complete | Guest-oracle diagnosis and correction of Tart Shift/Command delivery; untested modifiers remain guarded |
 | [`046-scoped-target-tasks.md`](046-scoped-target-tasks.md) | complete | Scoped claim/workspace runner, failure fixtures, and live Mac renewal/release; native Windows and live workspace acceptance unverified |
 | [047-macos-resident-resource-reliability.md](047-macos-resident-resource-reliability.md) | complete | Idle probe descriptor ownership, readiness diagnostics, bounded regressions, and live workload/recovery evidence |
+
+- [`048-linux-rebuild-credential-handoff.md`](048-linux-rebuild-credential-handoff.md):
+  disposable Linux recreation, stored-password handoff and installed readiness.
