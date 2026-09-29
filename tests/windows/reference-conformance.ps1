@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)][string]$Executable,
-    [Parameter(Mandatory = $true)][string]$Instance,
+    [string]$Instance,
     [Parameter(Mandatory = $true)][string]$EvidencePath,
     [int]$SessionId = 1
 )
@@ -8,7 +8,10 @@ $ErrorActionPreference = 'Stop'
 function Call-Control($request) {
     $request.scope = 'system'
     $text = $request | ConvertTo-Json -Compress -Depth 8
-    return ($text | & $Executable call --profile user --instance $Instance --session-id $SessionId) | ConvertFrom-Json
+    if ($Instance) {
+        return ($text | & $Executable call --profile user --instance $Instance --session-id $SessionId) | ConvertFrom-Json
+    }
+    return ($text | & $Executable call) | ConvertFrom-Json
 }
 function Assert($condition, $label) { if (!$condition) { throw $label } }
 function State { Get-Content $EvidencePath -Raw | ConvertFrom-Json }

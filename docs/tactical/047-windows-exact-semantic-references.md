@@ -1,6 +1,6 @@
 # Windows Exact Semantic References
 
-Status: active, 2026-09-29.
+Status: complete, 2026-09-29.
 
 Native UIA currently converts a snapshot reference back into a global label
 query. Two controls named Start can therefore invoke the wrong application.
@@ -38,5 +38,7 @@ the shell Start button was untouched.
 Linux cross-publishes for win-x64 and win-arm64 pass. Plain Linux build/format
 cannot load Windows desktop runtime references, so full Windows static checks
 were run in the guest: four builds, format verification, PowerShell parsing,
-and WindowsUnlock.Contracts all pass. The installed appliance deployment
-remains to be refreshed after owned product experiments finish.
+and WindowsUnlock.Contracts all pass. The claimed common runtime bootstrap then refreshed the installed appliance.
+The same duplicate-reference regression passes through its installed facade;
+the owned fixture was closed and temporary user host stopped. No outer UI
+was used.

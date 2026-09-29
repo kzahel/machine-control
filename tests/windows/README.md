@@ -112,3 +112,6 @@ then run `reference-conformance.ps1` with an isolated user-host executable,
 instance, session ID and that evidence path. It checks exact reference routing,
 removed-element and generation refusal, and unchanged query-only behavior.
 Close the owned fixture and stop the user host after the suite.
+
+Omit `-Instance` to run the same reference assertions against the installed
+appliance facade after deployment.
