@@ -43,8 +43,12 @@ Read the result before acting:
   default). Windows update/recovery and delayed post-boot services can be
   healthy but slow. Continue bounded read-only probes; do not shut down,
   restart, or force-stop the target during this interval.
-- If TCP/SSH fails, capture the UTM window and use provider recovery. Read
-  `docs/bootstrap.md` when OpenSSH needs repair.
+- If SSH reports a changed host key, use claimed `testbed --
+  trust-ssh-host-key`. This verifies the selected guest's public key through
+  its authenticated guest-agent channel; never disable host-key checking.
+  Repeat doctor afterward. For other administration failures, read
+  `docs/bootstrap.md` and use the bounded maintenance audit before considering
+  recovery. An outer-UI prohibition remains absolute.
 - If SSH works but the UI relay fails, check whether Explorer has an
   interactive session. Wait for configured auto-logon or ask the user to log
   into Windows after a cold boot; then run `winvm deploy-ui` if the relay
@@ -73,20 +77,16 @@ winvm ui launch notepad.exe
 
 Private inventory stores a typed locator next to the VM metadata and keeps the
 password bytes in an untracked controller-local file. With a live target-use
-claim in `claim_id`, resolve the ready locator and stream it through the
-dedicated login helper:
+claim in `claim_id`, use the inventory-aware testbed login operation:
 
 ```bash
-WINVM_LOGIN_SECRET_FILE="$(
-  bin/machine-control inventory credentials winvm --json |
-    jq -er '.testbeds[] | select(.id == "winvm") | .credentials[] |
-      select(.id == "guest-login-password" and .state == "ready") | .file'
-)"
-
-MACHINE_CONTROL_CLAIM_ID="$claim_id" \
-  scripts/login-windows.sh winvm password < "$WINVM_LOGIN_SECRET_FILE"
-unset WINVM_LOGIN_SECRET_FILE
+bin/machine-control --target windows --claim "$claim_id" testbed -- login
 ```
+
+The adapter resolves the configured guest account and dedicated one-shot secret
+transport. Do not call the low-level SSH login helper with a guessed alias:
+the controller's ordinary SSH alias may select a different account from private
+inventory, failing before the resident is reached.
 
 Use this only for a confirmed Windows credential surface. The protected login
 route refuses before secret submission when provider or field discovery is
