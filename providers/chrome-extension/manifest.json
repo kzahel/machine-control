@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Machine Control",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Lets the Machine Control resident on this computer operate Chrome tabs when a person has granted browser access.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp/yNNmfNee18zUXoc5w/xUK64DS7uh+6rEBoVMLb1BMvv8JQLShDr/Y583zodH5Kr4owGSKVCB3NM8icR69seBVgTgYc7OcG0mKznIROBaxGFkpymre+bn66Vn+BPplnEXnXPUFjh7Jsos7ZXh6jKAghT1dzc8WDv59WwrithXeO4iZ7qoiqfiP9ZzfVGBkzWbIm4e002KYZ1lTwZXwmkLlNScAglfJKWP/RRHgdvMq90p+0C71l6zydeNDaOlSuYsUl2peXf8nVO9eo8h0h5p2aF7Lc4Qk4jdUaYwUHmgPNER9/FA4ol0u+mzUJY86uNPzZz/cdLZDEKMmKE9zeHQIDAQAB",
   "minimum_chrome_version": "116",

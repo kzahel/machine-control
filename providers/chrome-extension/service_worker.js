@@ -23,6 +23,9 @@ const KEYS = {
 
 let port = null;
 let granted = false;
+let lastDisconnect = "";
+let retryDelayMs = 1000;
+let retryTimer = null;
 const attached = new Set();
 const generations = new Map();
 
@@ -33,21 +36,41 @@ class ProviderError extends Error {
   }
 }
 
+// The native host exits whenever the Machine Control app restarts, updates,
+// or is not running. That is expected: record why and reconnect with
+// backoff; the alarm below is the fallback if this worker was suspended.
+function scheduleReconnect() {
+  clearTimeout(retryTimer);
+  retryTimer = setTimeout(connect, retryDelayMs);
+  retryDelayMs = Math.min(retryDelayMs * 2, 60000);
+}
+
 function connect() {
   if (port) return;
+  clearTimeout(retryTimer);
   try {
     port = chrome.runtime.connectNative(HOST);
   } catch (error) {
     port = null;
+    lastDisconnect = String(error.message || error);
     updateBadge();
+    scheduleReconnect();
     return;
   }
-  port.onMessage.addListener(onResidentMessage);
+  port.onMessage.addListener((message) => {
+    // Any message means the resident accepted this connection.
+    retryDelayMs = 1000;
+    lastDisconnect = "";
+    onResidentMessage(message);
+  });
   port.onDisconnect.addListener(() => {
+    // Reading lastError marks it handled, so Chrome does not report it.
+    lastDisconnect = chrome.runtime.lastError?.message || "disconnected";
     port = null;
     granted = false;
     detachAll();
     updateBadge();
+    scheduleReconnect();
   });
   port.postMessage({
     type: "hello",
@@ -63,7 +86,7 @@ function updateBadge() {
   chrome.action.setBadgeText({ text });
   chrome.action.setBadgeBackgroundColor({ color: granted ? "#c62828" : "#757575" });
   chrome.action.setTitle({
-    title: !port ? "Machine Control: resident not connected"
+    title: !port ? `Machine Control: not connected to the app (${lastDisconnect || "starting"}); retrying`
       : granted ? "Machine Control: an agent may control Chrome"
         : "Machine Control: no browser access granted",
   });
