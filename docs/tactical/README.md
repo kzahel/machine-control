@@ -92,6 +92,6 @@ the commits' `Topic:` trailers and register that exact string in
   disposable Linux recreation, stored-password handoff and installed readiness.
 - [`049-linux-credential-promotion-gate.md`](049-linux-credential-promotion-gate.md):
   enforced Linux credential verification and factory/promotion completion gate.
-- [`050-macos-host-control-mvp.md`](050-macos-host-control-mvp.md):
+- [`050-macos-host-control-mvp.md`](050-macos-host-control-mvp.md) (active):
   shared resident package, grant broker, menu bar approval, local host target,
-  and unpacked browser extension.
+  and unpacked browser extension; host installation remains.

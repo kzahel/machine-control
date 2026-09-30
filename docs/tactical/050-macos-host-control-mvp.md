@@ -1,6 +1,7 @@
 # Tactical 050: macOS Host Control MVP
 
-Status: proposed, 2026-09-30.
+Status: active, 2026-09-30. Steps 1–6 complete; step 7 needs the person at
+the development Mac.
 Topics: `host-control`, `browser-control`, `macos-resident-control`.
 
 ## Objective and completion conditions
@@ -98,7 +99,8 @@ Add a local-socket transport and a `host` target kind to the common client and
 registry schema, with generic examples only; concrete host inventory stays
 private. Add `machine-control host request --scope … --duration … --reason …`
 that blocks for a bounded time, and map `approval_required` into the common
-result vocabulary. Keep doctor and target-use claims unchanged for the host.
+result vocabulary. (Implemented as `grant request|status|revoke`, which also
+works against guests.) Keep doctor and target-use claims unchanged for the host.
 Add a host skill that tells agents to request a grant before control and to
 treat denial as final.
 
@@ -143,4 +145,46 @@ desktop and browser task from a local agent under an approved grant.
 
 ## Result
 
-Not started.
+Steps 1–6 were completed and committed on 2026-09-30 against the Tart
+appliance under an exclusive claim, with outer UI prohibited.
+
+- **Shared package.** The resident is a SwiftPM package. Guests no longer
+  compile it: `deploy-ui` builds `Machine Control.app` on the controller for
+  the guest architecture, so guests and hosts run identical bundles.
+- **Policy and grants.** 31 unit and socket-level tests cover policy trust and
+  fallback, operation classes, expiry, revocation, narrowing, prompt-time
+  pausing, direct-socket refusal, self-targeting, and the browser relay. Live,
+  a missing or user-owned policy file turned the guest into a workstation.
+- **Menu bar app.** A workstation instance ran beside the appliance resident.
+  Its prompt, Allow, Deny, manual arming, Stop hotkey, revocation, and refusal
+  of a click on its own status item behaved as designed. The appliance
+  resident could press those controls through Accessibility, confirming the
+  documented same-user gap that Touch ID approval is meant to close.
+- **Host target.** The `host` target, `machost` adapter, `grant` commands,
+  remediation hint, and skill are in place. The adapter's doctor validated in
+  the guest; it has not run against a resident on the development Mac.
+- **Browser.** Chrome for Testing in the guest loaded the unpacked extension,
+  which connected and passed the code-identity check; a Python peer was
+  refused. Typing, clicking, navigation, capture, `file:` refusal, and
+  revocation were observed. Chrome for Testing showed no debugger info bar.
+- **Guest migration.** The old testbed resident granted the new identity
+  Accessibility and Screen Recording through the guest's own System Settings,
+  then was retired. Doctor was ready, the maintenance audit was healthy, and
+  a repeat deploy was a no-op.
+
+Deviations and limits:
+
+- `conformance.sh` stops at raw text input because Cua is absent from this
+  guest; the previous build stops at the same step. With that one cell
+  removed, the suite passed for both placements.
+- The `grant` command replaces the planned `host request` name.
+- Development signing is ad-hoc with an identifier-only requirement, so any
+  ad-hoc app claiming `org.machine-control.app` would satisfy the macOS
+  consent and browser-provider checks. Release signing remains open.
+- The controller's private registry sets `includeDefaults: false`, so it must
+  list `host` before the default host target is selectable there.
+
+Step 7 remains: install on the development Mac with `install-user.sh`, have
+the person grant Accessibility and Screen Recording and approve the login
+item, register and load the extension in their Chrome, then complete a
+realistic desktop and browser task from a local agent under an approved grant.

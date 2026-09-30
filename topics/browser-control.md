@@ -2,8 +2,8 @@
 
 Topic: `browser-control`
 
-Status: proposed. Page-level CDP is used on ChromeOS; no desktop browser
-extension or local browser route exists.
+Status: developer preview extension accepted with Chrome for Testing in a
+disposable Tart guest; not yet used with the controller user's own Chrome.
 [Tactical 050](../docs/tactical/050-macos-host-control-mvp.md) owns the first
 slice.
 
@@ -23,8 +23,14 @@ developer configuration enabling a fixed remote-debugging port. Its desktop
 functions borrow ChromeOS accessibility extensions and do not apply
 elsewhere; the page-level logic is reusable.
 
-**Current:** On desktop platforms, the browser is controllable only as an
-ordinary application through the platform's accessibility and input routes.
+**Current (2026-09-30):** The [Machine Control extension](../providers/chrome-extension)
+connects through native messaging to the resident on macOS. In a Tart guest,
+Chrome for Testing loaded it unpacked; after a `browser` grant was approved,
+typing and clicking produced the fixture page's own text change, a link
+navigated, `file:` URLs were refused, and capture produced an artifact. A
+same-user process claiming the provider role was refused by the resident's
+code-identity check. Chrome for Testing showed no debugger info bar, so its
+removal on revocation was not visually confirmed.
 
 **Current (reported by the controller user):** Browser extensions coupled to a
 particular assistant product did not work from agents running under

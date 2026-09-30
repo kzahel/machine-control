@@ -2,9 +2,9 @@
 
 Topic: `host-control`
 
-Status: proposed. The macOS resident is accepted only on disposable Tart
-appliances; no physical-host or personal-machine profile is implemented or
-supported yet. [Tactical 050](../docs/tactical/050-macos-host-control-mvp.md)
+Status: developer preview implemented and accepted on a disposable Tart
+guest; not yet installed or accepted on a physical Mac, and not a supported
+personal-machine profile. [Tactical 050](../docs/tactical/050-macos-host-control-mvp.md)
 owns the first slice.
 
 ## Scope
@@ -22,17 +22,31 @@ permitted applications.
 
 ## Current
 
-**Current:** The macOS resident is one Swift source compiled inside a Tart
-guest, ad-hoc signed under a testbed bundle identity, and started by a
-per-user LaunchAgent on a mode-`0600` socket. Any process running as that user
-can call any registered operation. The optional root unlock broker
-authenticates the resident, not the original caller, and its installation
-persistently enables the alternate unlock policy. Both are appropriate only for
-the disposable-appliance profile described in
-[`macos-resident-control`](macos-resident-control.md).
+**Current (2026-09-30):** One ad-hoc-signed `Machine Control.app`
+(`org.machine-control.app`), built from the
+[resident package](../platforms/macos/resident), serves Tart guests and
+physical hosts. It runs as a per-user Aqua LaunchAgent on a mode-`0600`
+socket and shows a menu bar item. A root-owned policy file selects the preset;
+guests receive `appliance`, and a Mac without the file is a `workstation`.
+Tart guests were migrated to it without outer input and pass resident
+conformance apart from the Cua-dependent text cell, which the guest cannot run.
 
-**Current:** The common CLI reaches the macOS resident only through `tart exec`
-or SSH. There is no local host transport and no grant or approval concept.
+**Current:** Every operation passes the grant broker before any provider runs.
+In a workstation instance inside the guest, capture, input, and browser calls
+were refused with `approval_required` until a prompt was approved. Approval,
+denial, timeout, manual arming from the menu, the Stop hotkey, revocation,
+narrowing to view-only, and refusal of input aimed at the app's own status
+item were observed live. Expiry, desktop-lock revocation, and prompt-time
+pausing are covered by unit and socket-level tests.
+
+**Current:** The common client has a default `host` target
+(`macos-host-resident`) with a local-socket adapter and `grant
+request|status|revoke`. It has not yet been run against a resident on a
+physical Mac.
+
+**Current:** The optional root unlock broker still authenticates the resident,
+not the original caller; workstation policy does not register protected
+operations, and host installation installs no root helper.
 
 **Current:** The Windows ordinary-user workstation host
 ([Tactical 036](../docs/tactical/036-windows-workstation-distribution.md))
@@ -95,10 +109,10 @@ enforcement.
 
 ## Workstation grant model
 
-**Proposal:** In the MVP, the workstation preset is off by default.
+**Current:** In the MVP, the workstation preset is off by default.
 
 - An agent requests a scope (`observe`, `control`, or `browser`), a duration,
-  and a free-text reason. The request blocks until approval, denial, or a
+  and a free-text reason with `grant request`. The request blocks until approval, denial, or a
   bounded timeout.
 - The prompt shows the reason and the caller's kernel peer process and parent
   chain, labelled unverified. The approver may grant a narrower scope or a
@@ -176,9 +190,9 @@ avoids two tools owning `pmset disablesleep`.
 
 ## Next direction
 
-1. [Tactical 050](../docs/tactical/050-macos-host-control-mvp.md): shared
-   resident package, policy and grant broker, menu bar application,
-   click approval, local host target, and the unpacked browser extension.
+1. Finish [Tactical 050](../docs/tactical/050-macos-host-control-mvp.md):
+   install on the development Mac with the person granting macOS consent,
+   approving prompts, and loading the unpacked extension.
 2. The `unattended` preset on a dedicated physical machine.
 3. Away mode: curtain, presence guard, relock, then closed lid.
 4. Touch ID and out-of-band approvers; connection-bound grants.
