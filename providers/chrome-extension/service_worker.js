@@ -143,6 +143,9 @@ function tabJSON(tab) {
   return {
     tabId: tab.id, windowId: tab.windowId, active: tab.active,
     title: tab.title || "", url: tab.url || "", status: tab.status || "",
+    // A discarded (memory-unloaded) tab reloads when the debugger attaches,
+    // so it is not immediately ready to read or drive.
+    discarded: tab.discarded === true,
   };
 }
 

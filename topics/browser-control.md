@@ -85,14 +85,21 @@ and returns the value. Both require a separate `devtools` scope, because that
 access can run scripts and read data on every signed-in site, and data read
 that way can outlive the grant. The prompt says so, the badge shows `DEV`,
 and recent activity records each method. Chrome still withholds a few domains
-from extensions. Events are not streamed to agents yet.
+from extensions. For a live session with streamed events, an agent uses the
+WebSocket endpoint above rather than these single-shot calls.
+
+**Current (2026-09-30):** Verified on the host and in the guest that a raw CDP
+WebSocket reads and drives the real signed-in Chrome, with events streaming.
+`Runtime.evaluate` without an explicit context lands in the page's main world
+and reads `document.title` correctly even alongside an isolated-world
+extension. An empty read on a heavy single-page app traced to the tab being
+discarded (reloaded on attach) and setting its title after load, not to a
+bridge fault; `browser.tabs` now reports `discarded` so a caller can wait.
 
 ## Open
 
-- **Open:** The operation vocabulary: tabs, navigation, a compact accessibility
-  snapshot, element actions, text entry, and capture. It should share
-  reference and staleness rules with the desktop contract rather than exposing
-  raw CDP.
+- **Open:** Browser-level CDP attachment (target list plus per-tab attach) so
+  Playwright and Puppeteer `connectOverCDP` work, not only tab-level clients.
 - **Open:** Windows and Linux native-messaging registration, and other
   Chromium browsers.
 - **Open:** Web Store publication, which changes the extension ID and install

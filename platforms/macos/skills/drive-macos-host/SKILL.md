@@ -40,6 +40,11 @@ refused until the person at the computer approves a grant.
 
 - Prefer `browser` commands over desktop input in Chrome: `snapshot` gives
   references, then `click`, `type`, `key --key Enter`, and `navigate`.
+- `browser tabs` reports each tab's `status` and `discarded`. A discarded
+  tab reloads when Machine Control attaches, so wait for it to load before
+  reading it, and remember that a heavy web app may set its title and content
+  with JavaScript a moment after load. If a snapshot, eval, or title looks
+  empty, re-read after the page settles rather than assuming failure.
 - Attach files with `browser upload --reference R --file /absolute/path`,
   where `R` is a file input or the page's upload/attach button. It never opens
   the macOS file dialog. Do not click upload buttons and then drive the
