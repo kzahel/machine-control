@@ -13,7 +13,8 @@ component with a stable public entry point and platform-specific helpers.
 Reuse existing residents and provider boundaries. A consumer such as
 YepAnywhere owns install/enable controls, supervision, and agent-tool exposure.
 Machine Control owns artifacts, the desktop contract, capability reporting,
-and providers. Tauri is not a runtime prerequisite.
+and providers. The shared Tauri desktop product is an optional operator and distribution
+surface; headless resident/CLI use remains independent.
 
 Reuse Desktop Release Kit's signing and validation patterns. Keep the package
 key independent of consumer updater keys. Native signing/notarization and
@@ -127,3 +128,14 @@ update timing and recovery to the prior package. A release does not update
 appliances or install/arm protected unlock. Incompatible or unverifiable
 releases leave the installed version usable. Component publication does not
 deploy a new YA server or hosted client.
+
+## Shared desktop product
+
+**Decision:** Use the shared Tauri UX and Desktop Release Kit update contract
+for the standalone desktop product, with a unique updater key and product
+route. macOS initially embeds the native Swift resident as a framework in the
+application process. Its operator UI does not move enforcement into the
+WebView. Windows and Linux keep their native providers and separate evidence
+gates. [Tactical 051](../docs/tactical/051-tauri-macos-desktop.md) owns the first
+signed Mac candidate and Tart acceptance. CI candidates do not publish releases
+or deploy the update service.

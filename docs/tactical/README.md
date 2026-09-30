@@ -95,3 +95,6 @@ the commits' `Topic:` trailers and register that exact string in
 - [`050-macos-host-control-mvp.md`](050-macos-host-control-mvp.md) (active):
   shared resident package, grant broker, menu bar approval, local host target,
   and unpacked browser extension; host installation remains.
+- [`051-tauri-macos-desktop.md`](051-tauri-macos-desktop.md) (active):
+  shared Tauri desktop UX, embedded native Mac resident, signed CI artifacts,
+  and exact-artifact Tart acceptance.

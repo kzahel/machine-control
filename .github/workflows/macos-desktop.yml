@@ -1,0 +1,110 @@
+name: macOS desktop
+on:
+  push:
+    branches: [main]
+    paths: ['desktop/**', 'platforms/macos/resident/**', 'platforms/macos/guests/macos/unlock/**', '.github/workflows/macos-desktop.yml', 'release/with-macos-signing.sh']
+  pull_request:
+    paths: ['desktop/**', 'platforms/macos/resident/**', 'platforms/macos/guests/macos/unlock/**', '.github/workflows/macos-desktop.yml', 'release/with-macos-signing.sh']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Candidate version (no public release is created)'
+        default: '0.3.0'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: macos-desktop-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: desktop/package.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: pnpm --dir desktop install --frozen-lockfile
+      - run: pnpm --dir desktop build
+      - run: swift test --package-path platforms/macos/resident
+      - run: platforms/macos/tests/smoke.sh --static
+      - run: cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
+      - run: cargo clippy --manifest-path desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
+      - run: python3 bin/check --portable
+  signed:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: check
+    runs-on: macos-26
+    environment: release
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        target: [aarch64-apple-darwin, x86_64-apple-darwin]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: desktop/package.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: pnpm --dir desktop install --frozen-lockfile
+      - name: Set candidate version
+        env:
+          CANDIDATE_VERSION: ${{ inputs.version }}
+        run: python3 desktop/scripts/set-version.py "$CANDIDATE_VERSION"
+      - name: Build actual Mac application
+        working-directory: desktop
+        run: pnpm tauri build --target '${{ matrix.target }}' --bundles app --no-sign
+      - name: Sign, notarize, staple, and authenticate final packages
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ vars.MACOS_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${TAURI_SIGNING_PRIVATE_KEY:?Missing product updater key}"
+          : "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:?Missing product updater password}"
+          bash release/with-macos-signing.sh bash desktop/scripts/sign-macos.sh \
+            'desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos/Machine Control.app' \
+            'artifacts/macos-desktop/${{ matrix.target }}'
+      - run: brew install minisign
+      - name: Verify final archive and reject tampering
+        env:
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+        run: python3 desktop/scripts/verify-package.py 'artifacts/macos-desktop/${{ matrix.target }}' --revision "$GITHUB_SHA" --team-id "$APPLE_TEAM_ID" --test-tampering
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: macos-desktop-${{ matrix.target }}
+          path: artifacts/macos-desktop/${{ matrix.target }}/*
+          if-no-files-found: error
+          retention-days: 30

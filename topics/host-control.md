@@ -108,13 +108,21 @@ ungated socket would be bypassable by any same-user process. For the same
 reason, the macOS host application bundles the resident and its UI in one
 signed process.
 
-**Decision:** The first host application is native Swift/AppKit. It reuses the
+**Decision:** The initial host application was native Swift/AppKit. It reused the
 menu bar, login item, setup/repair/uninstall, and release patterns of
 [lid-awake](https://github.com/kzahel/lid-awake), a sibling macOS utility with
 a signed privileged helper. The grant and approval protocol lives in the
 resident and `contracts/`, so a later cross-platform shell, for example Tauri
 with the existing updater infrastructure, can replace the menu without moving
 enforcement.
+
+**Decision:** The desktop product moves to a shared Tauri operator UX and the
+existing desktop release infrastructure. The first Mac slice embeds the Swift
+resident in the Tauri native process as a framework, preserving grant
+checks, the permission owner, and same-process approval authority. It does not
+rewrite providers. Windows and a named Linux workstation profile follow their
+own acceptance gates. [Tactical 051](../docs/tactical/051-tauri-macos-desktop.md)
+owns packaging and exact signed-artifact validation.
 
 ## Workstation grant model
 
@@ -207,6 +215,7 @@ avoids two tools owning `pmset disablesleep`.
 4. Touch ID and out-of-band approvers; connection-bound grants.
 5. Remote callers of a physical host over SSH or YepAnywhere, with prompts that
    identify remote callers.
-6. Developer ID signing, notarization, and Sparkle updates in CI; the
+6. Shared Tauri desktop UX, Developer ID signing, notarization, and the
+   Desktop Release Kit update contract; the
    personal-machine support statement in [`SECURITY.md`](../SECURITY.md).
 7. The same model on Windows, reusing the ordinary workstation host.

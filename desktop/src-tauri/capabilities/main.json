@@ -1,0 +1,6 @@
+{
+  "identifier": "main",
+  "description": "Local operator window; no remote content or general shell access.",
+  "windows": ["main"],
+  "permissions": ["core:default", "updater:allow-check", "process:allow-restart"]
+}

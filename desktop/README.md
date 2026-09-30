@@ -1,0 +1,78 @@
+# Machine Control desktop
+
+A shared Tauri operator application with the existing Mac resident embedded
+as a Swift framework in its native process. macOS is the first implemented
+adapter; Windows and Linux desktop integration is not yet supported.
+
+## Development and installation
+
+Requires Node 24+, pnpm, Rust, and Xcode on macOS.
+
+```bash
+cd desktop
+pnpm install --frozen-lockfile
+pnpm tauri build --bundles app --no-sign
+```
+
+Local development builds are unsigned. Do not use them to establish production
+permission retention. The assembled bundle includes its native framework,
+session probe, and unpacked Chrome extension; no checkout path is embedded.
+The main executable retains `macui request SOCKET JSON`, `credential`,
+`screen-capture-preflight`, and Chrome native-messaging modes before it starts
+Tauri. This preserves the common CLI and browser code-identity check.
+
+Use the existing per-user installer for a development/test deployment:
+
+```bash
+# From the repository root:
+platforms/macos/resident/scripts/install-user.sh --app APP_PATH
+```
+
+That installer verifies integrity, but it is not a release authenticator. For
+an external package, verify the product updater signature, exact publisher,
+notarization, and final bytes before installation. The manual desktop workflow
+produces candidates as CI artifacts and does not publish GitHub Releases.
+
+## Approval and control boundaries
+
+The resident still loads the trusted deployment policy and checks every
+operation. The operator WebView calls only closed in-process native methods;
+the agent socket has no approval method. Pending decisions are matched to
+request ID and may only narrow scope and lifetime. Native self-interface
+screening, input pausing during prompts, expiry, lock revocation, and a native
+Control–Option–Command–Period Stop shortcut remain in force.
+
+Preview grants remain target-wide for same-user callers. This app is not a
+sandbox for an agent with unrestricted same-user shell access. Closing the
+operator window keeps the tray and resident running; Quit ends the process.
+Permission changes may require Restart. Browser integration is optional and
+currently uses the bundled unpacked extension, with explicit user setup.
+
+## Signed candidates
+
+`.github/workflows/macos-desktop.yml` runs unsigned source checks on changes.
+A manual main-only dispatch builds Apple silicon and Intel candidates in the
+protected `release` environment. Signing configuration uses the existing
+publisher variables and certificate/notarization secrets. Machine Control
+has its own Tauri updater key and password; private values stay in the
+maintainer's owner-only store and CI secrets.
+
+The finalizer signs the native framework, session probe, and application,
+notarizes/staples the app and DMG, and signs the final update archive with the
+product updater key and version. `build.json` binds hashes and source/workflow
+identity. Verification also extracts fresh bytes and rejects a modified
+archive before checking code signatures, Gatekeeper, and the stapled ticket.
+
+```bash
+python3 desktop/scripts/verify-package.py ARTIFACT_DIRECTORY \
+  --revision EXPECTED_SOURCE_SHA --team-id EXPECTED_TEAM_ID --test-tampering
+```
+
+The configured public update route is reserved; its server deployment and
+first production-feed update are a separate release step. No automatic update
+installation is enabled. Native code rechecks that no access or approval is
+active immediately before bundle replacement and restarts with access off.
+Appliances with standing access use their administrator-managed deployment.
+Adopt Desktop Release Kit's update contract when
+publishing; the application owns its lifecycle and native acceptance rather
+than treating a canary pass as Machine Control acceptance.

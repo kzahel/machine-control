@@ -144,3 +144,13 @@ When adding a capability:
 
 Do not add the same operation independently to all five layers. Choose one
 owner and expose it through adapters.
+
+## Desktop product and release infrastructure
+
+Machine Control owns the optional Tauri desktop operator application, its native
+resident/providers, grant enforcement, product updater key/configuration, and
+artifact acceptance. Desktop Release Kit owns the shared update contract and
+release validation reference; simple-app-update-server owns metadata routing
+over GitHub Releases. Dotfiles owns private signing credential locators and
+service deployment. YepAnywhere connects as a consumer rather than owning a
+second copy of the desktop application's grant UI or updater.
