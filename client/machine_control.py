@@ -2568,15 +2568,71 @@ def grant_request(arguments: list[str]) -> dict[str, Any]:
     return request
 
 
+BROWSER_COMMANDS = {
+    "tabs", "navigate", "snapshot", "click", "type", "key", "capture", "release",
+}
+
+
+def browser_request(arguments: list[str]) -> dict[str, Any]:
+    if not arguments or arguments[0] not in BROWSER_COMMANDS:
+        raise ClientError(
+            "usage", "browser requires " + "|".join(sorted(BROWSER_COMMANDS))
+        )
+    command, rest = arguments[0], arguments[1:]
+    parser = argparse.ArgumentParser(add_help=False, exit_on_error=False)
+    parser.add_argument("--tab", type=int)
+    parser.add_argument("--url")
+    parser.add_argument("--new-tab", action="store_true")
+    parser.add_argument("--reference")
+    parser.add_argument("--text")
+    parser.add_argument("--key")
+    parser.add_argument("--max", type=int)
+    parser.add_argument("--interactive", action="store_true")
+    try:
+        options = parser.parse_args(rest)
+    except (argparse.ArgumentError, SystemExit) as error:
+        raise ClientError("usage", f"Invalid browser {command} options") from error
+    request: dict[str, Any] = {"operation": f"browser.{command}"}
+    if options.tab is not None:
+        request["tabId"] = options.tab
+    required = {
+        "navigate": ("url",), "click": ("reference",), "type": ("text",),
+        "key": ("key",),
+    }.get(command, ())
+    for field in required:
+        if getattr(options, field) is None:
+            raise ClientError("usage", f"browser {command} requires --{field}")
+    for field, key in (("url", "url"), ("reference", "reference"),
+                       ("text", "text"), ("key", "key"), ("max", "maxElements")):
+        if getattr(options, field) is not None:
+            request[key] = getattr(options, field)
+    if options.new_tab:
+        request["newTab"] = True
+    if options.interactive:
+        request["interactiveOnly"] = True
+    return request
+
+
+def handle_browser(
+    alias: str, target: dict[str, Any], arguments: list[str]
+) -> int:
+    return send_resident_request(alias, target, browser_request(arguments))
+
+
 def handle_grant(
     alias: str, target: dict[str, Any], arguments: list[str]
+) -> int:
+    return send_resident_request(alias, target, grant_request(arguments))
+
+
+def send_resident_request(
+    alias: str, target: dict[str, Any], request: dict[str, Any]
 ) -> int:
     if target.get("interface", "machine-control-v0") != "machine-control-v0":
         raise ClientError(
             "unsupported_desktop_interface",
-            "This target does not expose resident grants",
+            "This target does not expose the common resident interface",
         )
-    request = grant_request(arguments)
     serialized = json.dumps(request, separators=(",", ":"), ensure_ascii=False)
     completed, parsed, elapsed_ms = run_adapter(
         target, ["control", serialized], accept_json_failure=True
@@ -3069,7 +3125,7 @@ def operation_requires_claim(operation: str, arguments: list[str]) -> bool:
         return subcommand != "capabilities"
     if operation == "workspace":
         return False
-    return operation in {"desktop", "grant", "ios", "testbed", "os"}
+    return operation in {"desktop", "grant", "browser", "ios", "testbed", "os"}
 
 
 def operation_required_claim_use_class(
@@ -3429,6 +3485,9 @@ Commands:
   grant request --scope observe|control|browser... --reason TEXT
         [--duration D] [--timeout D] | grant status | grant revoke
                                     Ask a person at the target for access
+  browser tabs|navigate|snapshot|click|type|key|capture|release
+        [--tab ID] [--url URL] [--new-tab] [--reference R] [--text T]
+                                    Operate Chrome through the extension
   desktop status|capabilities|applications|windows|snapshot|action|capture
   desktop input text|key|click|move|drag|scroll
   desktop session unlock --expected-desktop-generation ID --expected-helper-generation ID --request-id ID
@@ -3636,6 +3695,8 @@ def main(argv: list[str] | None = None) -> int:
             return handle_desktop(alias, target, remainder[1:])
         if operation == "grant":
             return handle_grant(alias, target, remainder[1:])
+        if operation == "browser":
+            return handle_browser(alias, target, remainder[1:])
         if operation == "ios":
             return handle_ios(alias, target, remainder[1:])
         if operation == "testbed":

@@ -1261,7 +1261,7 @@ final class ResidentService {
         throw MacUIError.application("Application did not become observable: \(query)")
     }
 
-    private func artifactURL() throws -> URL {
+    func artifactURL() throws -> URL {
         let root = FileManager.default.urls(for: .cachesDirectory,
                                              in: .userDomainMask)[0]
             .appendingPathComponent("machine-control/artifacts", isDirectory: true)

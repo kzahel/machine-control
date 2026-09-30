@@ -89,10 +89,16 @@ final class ResidentServer {
     private var pendingTimeout: DispatchWorkItem?
     private var lastDesktopState: String?
 
+    let browser: BrowserRelay
+
     init(socketPath: String, service: ResidentService, broker: GrantBroker) {
         self.socketPath = socketPath
         self.service = service
         self.broker = broker
+        browser = BrowserRelay(service: service, broker: broker)
+        browser.respond = { [weak self] client, request, response, caller, claimID in
+            self?.respond(client, request, response, caller: caller, claimID: claimID)
+        }
     }
 
     func start() throws {
@@ -176,6 +182,14 @@ final class ResidentServer {
         let caller = CallerIdentity.of(socket: client)
         let claimID = request["claimId"] as? String
 
+        if operation == "browser.provider" {
+            if let refusal = browser.register(client, request) {
+                respond(client, request, refusal, caller: caller, claimID: claimID)
+            } else {
+                keepOpen = true
+            }
+            return
+        }
         if operation.hasPrefix("grant.") {
             if let response = handleGrant(request, operation: operation, caller: caller,
                                           client: client) {
@@ -192,6 +206,14 @@ final class ResidentServer {
         if broker.policy.grantMode == .approval, case let .scoped(scope) = operationClass(operation),
            scope != .observe, let refusal = guardRequest?(request) {
             respond(client, request, refused(request, refusal), caller: caller, claimID: claimID)
+            return
+        }
+        if operationClass(operation) == .scoped(.browser) {
+            if let refusal = browser.forward(client, request, caller: caller, claimID: claimID) {
+                respond(client, request, refusal, caller: caller, claimID: claimID)
+            } else {
+                keepOpen = true
+            }
             return
         }
         do {
@@ -214,6 +236,7 @@ final class ResidentServer {
             if operation == "status" || operation == "capabilities",
                var data = response["data"] as? [String: Any] {
                 data["deployment"] = broker.statusJSON
+                data["browser"] = browser.statusJSON
                 response["data"] = data
             }
             respond(client, request, response, caller: caller, claimID: claimID)
@@ -344,7 +367,7 @@ func runResident(socketPath: String) throws -> Never {
     let approval = ApprovalPanelController()
     let menu = StatusMenuController(broker: broker, approval: approval)
     menu.onRevoke = { [weak server] reason in server?.revoke(reason: reason) }
-    broker.onChange = { [weak menu] in menu?.updateIcon() }
+    broker.observe { [weak menu] in menu?.updateIcon() }
     approval.onChange = { [weak menu] in menu?.updateIcon() }
     if broker.policy.grantMode == .approval {
         server.approver = approval

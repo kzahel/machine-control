@@ -5,6 +5,7 @@ enum OperationClass: Equatable {
     case discovery
     case grantManagement
     case lifecycle
+    case providerRegistration
     case scoped(GrantScope)
     case protected
 }
@@ -15,6 +16,8 @@ func operationClass(_ operation: String) -> OperationClass {
         return .discovery
     case "grant.request", "grant.status", "grant.revoke":
         return .grantManagement
+    case "browser.provider":
+        return .providerRegistration
     case "server.stop":
         return .lifecycle
     case "applications", "windows", "snapshot", "capture":
@@ -153,7 +156,7 @@ struct AuditEntry {
 final class GrantBroker {
     let policy: DeploymentPolicy
     var now: () -> Date = Date.init
-    var onChange: (() -> Void)?
+    private var observers: [() -> Void] = []
 
     private(set) var grant: Grant?
     private(set) var pending: GrantRequest?
@@ -163,6 +166,20 @@ final class GrantBroker {
 
     init(policy: DeploymentPolicy) {
         self.policy = policy
+    }
+
+    /// Registers a callback for grant, pending-request, and expiry changes.
+    func observe(_ observer: @escaping () -> Void) {
+        observers.append(observer)
+    }
+
+    private func notify() {
+        for observer in observers { observer() }
+    }
+
+    /// Whether browser operations are currently allowed.
+    var browserAllowed: Bool {
+        policy.grantMode == .standing || activeGrant?.scopes.contains(.browser) == true
     }
 
     /// The live grant, after retiring an expired one.
@@ -175,7 +192,7 @@ final class GrantBroker {
 
     func authorize(_ operation: String) -> GrantRefusal? {
         switch operationClass(operation) {
-        case .discovery, .grantManagement, .lifecycle:
+        case .discovery, .grantManagement, .lifecycle, .providerRegistration:
             return nil
         case .protected:
             guard policy.protectedOperations else {
@@ -223,7 +240,7 @@ final class GrantBroker {
             return GrantRefusal("approval_pending", "Another grant request is awaiting a decision")
         }
         pending = request
-        onChange?()
+        notify()
         return nil
     }
 
@@ -231,7 +248,7 @@ final class GrantBroker {
     func finishPending(_ decision: GrantDecision, approver: String) -> Grant? {
         guard let request = pending else { return nil }
         pending = nil
-        defer { onChange?() }
+        defer { notify() }
         guard case let .approved(scopes, duration) = decision else { return nil }
         let narrowed = scopes.intersection(request.scopes)
         guard !narrowed.isEmpty else { return nil }
@@ -253,7 +270,7 @@ final class GrantBroker {
                          reason: reason, requester: requester, approver: approver)
         grant = next
         lastEnded = nil
-        onChange?()
+        notify()
         return next
     }
 
@@ -265,7 +282,7 @@ final class GrantBroker {
     private func end(reason: String) {
         grant = nil
         lastEnded = (reason, now())
-        onChange?()
+        notify()
     }
 
     func record(operation: String, accepted: Bool, errorCode: String?,

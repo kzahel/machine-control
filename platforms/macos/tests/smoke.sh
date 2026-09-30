@@ -58,6 +58,7 @@ for script in \
     resident/scripts/build-app.sh \
     resident/scripts/install-user.sh \
     resident/scripts/install-policy.sh \
+    resident/scripts/install-browser.sh \
     guests/macos/bootstrap/post-update.sh \
     guests/macos/bootstrap/bootstrap-guest.sh; do
     /bin/bash -n "$script"
@@ -95,6 +96,20 @@ done
     guests/macos/electron-fixture/package.json >/dev/null
 /usr/bin/python3 -m py_compile host/machost.py
 bin/machost help >/dev/null
+# The unpacked extension's fixed key must produce the ID that the native
+# host registration allows.
+/usr/bin/python3 - ../../providers/chrome-extension/manifest.json \
+    resident/scripts/install-browser.sh <<'PY'
+import base64, hashlib, json, re, sys
+key = json.load(open(sys.argv[1]))["key"]
+digest = hashlib.sha256(base64.b64decode(key)).hexdigest()[:32]
+derived = "".join(chr(ord("a") + int(c, 16)) for c in digest)
+script = open(sys.argv[2]).read()
+assert f"DEFAULT_EXTENSION_ID='{derived}'" in script, derived
+PY
+if command -v node >/dev/null 2>&1; then
+    node --check ../../providers/chrome-extension/service_worker.js
+fi
 for policy in resident/policies/*.json; do
     /usr/bin/python3 -m json.tool "$policy" >/dev/null
 done

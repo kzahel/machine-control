@@ -1228,6 +1228,29 @@ class ClientTests(unittest.TestCase):
             self.assertEqual(result.returncode, 2, arguments)
             self.assertEqual(value["errorCode"], "usage")
 
+    def test_browser_requests_are_typed(self):
+        self.write_registry("macos")
+        result, value = self.run_cli(
+            "--target", "fixture", "browser", "navigate", "--url",
+            "https://example.com/", "--new-tab",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["data"]["request"], {
+            "operation": "browser.navigate", "url": "https://example.com/",
+            "newTab": True,
+        })
+        result, value = self.run_cli(
+            "--target", "fixture", "browser", "snapshot", "--tab", "4",
+            "--max", "50", "--interactive",
+        )
+        self.assertEqual(value["data"]["request"], {
+            "operation": "browser.snapshot", "tabId": 4, "maxElements": 50,
+            "interactiveOnly": True,
+        })
+        result, value = self.run_cli("--target", "fixture", "browser", "click")
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(value["errorCode"], "usage")
+
     def test_approval_required_adds_grant_remediation(self):
         self.write_registry("macos")
         result, value = self.run_cli(

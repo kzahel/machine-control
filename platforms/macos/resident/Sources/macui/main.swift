@@ -16,6 +16,9 @@ if arguments.count >= 4, arguments[0] == "--output",
     atexit(writeMacUIExitStatus)
     arguments.removeFirst(4)
 }
+if let origin = arguments.first, origin.hasPrefix("chrome-extension://") {
+    runBrowserHost(origin: origin)
+}
 guard let command = arguments.first else {
     fail(MacUIError.usage(usage()), status: 2)
 }
