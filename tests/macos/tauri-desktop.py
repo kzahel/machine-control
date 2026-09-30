@@ -49,9 +49,15 @@ def accepted(result):
 
 
 def press(pid, label, role='AXButton'):
-    elements = accepted(base(dict(operation='snapshot', target=str(pid),
-        query=label, projection='compact', maxDepth=30, maxElements=500)))['elements']
-    matches = [e for e in elements if e['label'] == label and e['role'] == role]
+    # WebKit publishes its AX tree asynchronously after activation and
+    # React updates. Poll read-only state; never repeat an uncertain press.
+    for _ in range(5):
+        elements = accepted(base(dict(operation='snapshot', target=str(pid),
+            query=label, projection='compact', maxDepth=30, maxElements=500)))['elements']
+        matches = [e for e in elements if e['label'] == label and e['role'] == role]
+        if matches:
+            break
+        time.sleep(0.2)
     assert len(matches) == 1, (label, len(matches))
     accepted(base(dict(operation='action', reference=matches[0]['reference'], action='press')))
 

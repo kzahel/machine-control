@@ -1200,7 +1200,7 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(host["platform"], "macos")
         self.assertEqual(host["profile"], "macos-host-resident")
         self.assertEqual(host["claimPolicy"], "required")
-        self.assertTrue(host["command"][0].endswith("platforms/macos/bin/machost"))
+        self.assertTrue(Path(host["command"][0]).as_posix().endswith("platforms/macos/bin/machost"))
 
     def test_grant_request_builds_bounded_resident_request(self):
         self.write_registry("macos")
