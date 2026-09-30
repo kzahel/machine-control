@@ -39,6 +39,15 @@ narrowing to view-only, and refusal of input aimed at the app's own status
 item were observed live. Expiry, desktop-lock revocation, and prompt-time
 pausing are covered by unit and socket-level tests.
 
+**Current:** A setup checklist replaces the permissions submenu. It opens
+while macOS consent is missing, shows each grant's live state in plain terms,
+and opens the exact settings pane. A short-lived child process detects a new
+Screen Recording grant that the running app cannot see yet, and the app then
+restarts itself under its LaunchAgent. On the development Mac this flow
+granted both permissions; System Settings' own "Quit & Reopen" dialog still
+appears afterwards and is out of date, so the checklist tells the person to
+choose Later. Opening the bundle directly starts the LaunchAgent.
+
 **Current:** The common client has a default `host` target
 (`macos-host-resident`) with a local-socket adapter and `grant
 request|status|revoke`. It has not yet been run against a resident on a

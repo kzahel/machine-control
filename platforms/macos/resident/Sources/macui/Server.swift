@@ -370,6 +370,38 @@ final class ResidentServer {
     }
 }
 
+let residentLabel = "org.machine-control.resident"
+let defaultResidentSocket = FileManager.default.homeDirectoryForCurrentUser
+    .appendingPathComponent("Library/Application Support/MachineControl/control.sock").path
+
+/// Opening the bundle directly starts the installed LaunchAgent, which owns
+/// the resident's lifetime; without one the app serves the default socket.
+func openedAsApplication() -> Never {
+    let agent = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/LaunchAgents/\(residentLabel).plist").path
+    if FileManager.default.fileExists(atPath: agent) {
+        let domain = "gui/\(getuid())"
+        for arguments in [["bootstrap", domain, agent], ["kickstart", "\(domain)/\(residentLabel)"]] {
+            let launchctl = Process()
+            launchctl.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+            launchctl.arguments = arguments
+            launchctl.standardOutput = FileHandle.nullDevice
+            launchctl.standardError = FileHandle.nullDevice
+            try? launchctl.run()
+            launchctl.waitUntilExit()
+        }
+        exit(0)
+    }
+    try? FileManager.default.createDirectory(
+        atPath: (defaultResidentSocket as NSString).deletingLastPathComponent,
+        withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    do {
+        try runResident(socketPath: defaultResidentSocket)
+    } catch {
+        fail(error)
+    }
+}
+
 /// Starts the resident under the trusted deployment policy and runs the
 /// application event loop.
 func runResident(socketPath: String) throws -> Never {
@@ -380,7 +412,9 @@ func runResident(socketPath: String) throws -> Never {
     let application = NSApplication.shared
     application.setActivationPolicy(.accessory)
     let approval = ApprovalPanelController()
-    let menu = StatusMenuController(broker: broker, approval: approval)
+    let setup = SetupWindowController()
+    setup.browserConnected = { [weak server] in server?.browser.connected == true }
+    let menu = StatusMenuController(broker: broker, approval: approval, setup: setup)
     menu.onRevoke = { [weak server] reason in server?.revoke(reason: reason) }
     broker.observe { [weak menu] in menu?.updateIcon() }
     approval.onChange = { [weak menu] in menu?.updateIcon() }
@@ -400,7 +434,19 @@ func runResident(socketPath: String) throws -> Never {
         let reference = (request["reference"] as? String).flatMap { server?.service.referencedProcess($0) }
         return selfTargetRefusal(request, own: own, referencedProcess: reference)
     }
-    withExtendedLifetime((server, menu, approval)) { application.run() }
+    // A personal Mac opens the checklist while macOS permissions are
+    // missing; a restart for a new grant reopens it to show the result.
+    let reopen = UserDefaults.standard.bool(forKey: SetupWindowController.reopenKey)
+    UserDefaults.standard.removeObject(forKey: SetupWindowController.reopenKey)
+    setup.refresh()
+    if reopen {
+        // Back after a restart for a new grant: show the result without
+        // taking focus from System Settings.
+        DispatchQueue.main.async { setup.show(activate: false, restarted: true) }
+    } else if broker.policy.grantMode == .approval && !setup.state.complete {
+        DispatchQueue.main.async { setup.show() }
+    }
+    withExtendedLifetime((server, menu, approval, setup)) { application.run() }
     exit(0)
 }
 

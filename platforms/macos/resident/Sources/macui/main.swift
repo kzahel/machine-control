@@ -16,8 +16,17 @@ if arguments.count >= 4, arguments[0] == "--output",
     atexit(writeMacUIExitStatus)
     arguments.removeFirst(4)
 }
+if arguments.isEmpty || arguments.first?.hasPrefix("-psn_") == true {
+    // Opened from Finder or by System Settings' "Quit & Reopen".
+    openedAsApplication()
+}
 if let origin = arguments.first, origin.hasPrefix("chrome-extension://") {
     runBrowserHost(origin: origin)
+}
+if arguments == ["screen-capture-preflight"] {
+    // Used by the setup checklist: a fresh process sees a new grant.
+    print(CGPreflightScreenCaptureAccess())
+    exit(0)
 }
 guard let command = arguments.first else {
     fail(MacUIError.usage(usage()), status: 2)

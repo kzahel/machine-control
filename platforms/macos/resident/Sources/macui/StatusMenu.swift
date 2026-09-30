@@ -9,6 +9,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
 
     let broker: GrantBroker
     let approval: ApprovalPanelController
+    let setup: SetupWindowController
     var onRevoke: ((String) -> Void)?
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -17,9 +18,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     private var hotKey: EventHotKeyRef?
     private(set) var menuOpen = false
 
-    init(broker: GrantBroker, approval: ApprovalPanelController) {
+    init(broker: GrantBroker, approval: ApprovalPanelController, setup: SetupWindowController) {
         self.broker = broker
         self.approval = approval
+        self.setup = setup
         super.init()
         menu.delegate = self
         menu.autoenablesItems = false
@@ -79,6 +81,14 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         let heading = approvalMode ? "Machine Control — \(policy.preset.capitalized)" :
             "Machine Control — \(policy.preset.capitalized), always allowed"
         menu.addItem(disabled(heading))
+        setup.refresh()
+        if !setup.state.complete {
+            let finish = NSMenuItem(
+                title: "⚠︎ Finish Setup (\(setup.state.requiredDone) of \(SetupState.requiredCount) permissions)…",
+                action: #selector(showSetup), keyEquivalent: "")
+            finish.target = self
+            menu.addItem(finish)
+        }
         if let issue = policy.issue, issue != "policy_absent" {
             menu.addItem(disabled("Policy fallback: \(issue.replacingOccurrences(of: "_", with: " "))"))
         }
@@ -125,21 +135,10 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         if entries.items.isEmpty { entries.addItem(disabled("No activity yet")) }
         activity.submenu = entries
         menu.addItem(activity)
-        let permissions = NSMenuItem(title: "Permissions", action: nil, keyEquivalent: "")
-        let permissionMenu = NSMenu()
-        permissionMenu.autoenablesItems = false
-        permissionMenu.addItem(disabled("Accessibility: \(AXIsProcessTrusted() ? "granted" : "not granted")"))
-        permissionMenu.addItem(disabled("Screen Recording: \(CGPreflightScreenCaptureAccess() ? "granted" : "not granted")"))
-        permissionMenu.addItem(.separator())
-        for (title, selector) in [("Request Missing Permissions…", #selector(requestPermissions)),
-                                  ("Open Accessibility Settings…", #selector(openAccessibility)),
-                                  ("Open Screen Recording Settings…", #selector(openScreenRecording))] {
-            let item = NSMenuItem(title: title, action: selector, keyEquivalent: "")
-            item.target = self
-            permissionMenu.addItem(item)
-        }
-        permissions.submenu = permissionMenu
-        menu.addItem(permissions)
+        let setupItem = NSMenuItem(title: "Setup and Permissions…", action: #selector(showSetup),
+                                   keyEquivalent: "")
+        setupItem.target = self
+        menu.addItem(setupItem)
         if approvalMode {
             menu.addItem(.separator())
             let quit = NSMenuItem(title: "Quit Machine Control", action: #selector(quit),
@@ -172,22 +171,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
                      approver: "menu")
     }
 
-    @objc private func requestPermissions() {
-        let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-        _ = AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
-        if !CGPreflightScreenCaptureAccess() { _ = CGRequestScreenCaptureAccess() }
-    }
-
-    @objc private func openAccessibility() {
-        openSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
-    }
-
-    @objc private func openScreenRecording() {
-        openSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
-    }
-
-    private func openSettings(_ address: String) {
-        if let url = URL(string: address) { NSWorkspace.shared.open(url) }
+    @objc private func showSetup() {
+        setup.show()
     }
 
     @objc private func quit() {

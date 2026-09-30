@@ -39,6 +39,10 @@ contents="$app/Contents"
 /bin/cp "$PACKAGE_DIR/app/Info.plist" "$contents/Info.plist"
 /bin/cp "$PACKAGE_DIR/app/org.machine-control.resident.plist.in" "$contents/Resources/"
 /bin/cp -R "$PACKAGE_DIR/policies" "$contents/Resources/policies"
+# Development builds remember their checkout so setup can point at the
+# unpacked Chrome extension.
+/usr/bin/plutil -replace MCSourceCheckout -string "$(cd "$MACOS_DIR/../.." && pwd)" \
+    "$contents/Info.plist"
 /usr/bin/plutil -lint "$contents/Info.plist" >/dev/null
 
 # Development builds are ad-hoc signed with a pinned identifier so macOS
