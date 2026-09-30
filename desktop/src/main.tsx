@@ -225,7 +225,8 @@ function App() {
             </div>
             <section className="card">
               <p className="card-intro">
-                Choose what an agent can do, and for how long.
+                This preview enables access for all callers running as your
+                user. Choose what they can do, and for how long.
               </p>
               <div className="scope-grid">
                 {(Object.keys(labels) as Scope[]).map((s) => (
@@ -525,6 +526,9 @@ function App() {
             <p className="caller">
               {state.pending.caller}
               <small>Caller identity is unverified</small>
+              <small>
+                Approval enables access for all callers running as your user.
+              </small>
             </p>
             <div className="approval-scopes">
               {state.pending.scopes.map((s) => (

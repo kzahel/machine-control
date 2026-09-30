@@ -43,6 +43,11 @@ with tempfile.TemporaryDirectory(prefix='mc-verify-') as tmp:
     app=root/'extracted/Machine Control.app'
     info=plistlib.loads((app/'Contents/Info.plist').read_bytes())
     if info['CFBundleIdentifier']!='org.machine-control.app' or info['CFBundleShortVersionString']!=manifest['version'] or info.get('MCSourceRevision')!=manifest['sourceRevision']:raise SystemExit('Installed app identity mismatch')
+    for relative in ['Contents/Resources/org.machine-control.resident.plist.in',
+                     'Contents/Resources/chrome-extension/manifest.json',
+                     'Contents/Resources/mc-session-probe',
+                     'Contents/Frameworks/MCResident.framework/MCResident']:
+        if not (app/relative).is_file():raise SystemExit('Required installed resource missing: '+relative)
     for path in [app,app/'Contents/Frameworks/MCResident.framework',app/'Contents/Resources/mc-session-probe']:
         subprocess.run(['codesign','--verify','--strict','-R',f'=anchor apple generic and certificate leaf[subject.OU] = "{args.team_id}"',str(path)],check=True)
     subprocess.run(['codesign','--verify','--deep','--strict',str(app)],check=True)
