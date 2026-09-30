@@ -568,6 +568,13 @@ final class ResidentService {
         referenceOrder.removeAll(); authorizationLeases.removeAll()
     }
 
+    /// The process owning an element reference, when it is a native one.
+    func referencedProcess(_ reference: String) -> pid_t? {
+        guard let element = references[reference] else { return nil }
+        var pid: pid_t = 0
+        return AXUIElementGetPid(element, &pid) == .success ? pid : nil
+    }
+
     func refusal(_ request: [String: Any], code: String, message: String,
                  data: [String: Any]? = nil) -> [String: Any] {
         var result = refused(request, code: code, message: message)

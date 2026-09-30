@@ -54,6 +54,9 @@ for script in \
     scripts/doctor-json.sh \
     scripts/doctor.sh \
     guests/macos/ui/machine-control \
+    resident/scripts/build-app.sh \
+    resident/scripts/install-user.sh \
+    resident/scripts/install-policy.sh \
     guests/macos/bootstrap/post-update.sh \
     guests/macos/bootstrap/bootstrap-guest.sh; do
     /bin/bash -n "$script"
@@ -64,6 +67,8 @@ done
     guests/macos/bootstrap/org.cirruslabs.tart-guest-daemon.plist.in \
     guests/macos/ui/com.kzahel.macvm-testbed.resident.plist.in \
     guests/macos/ui/Info.plist \
+    resident/app/Info.plist \
+    resident/app/org.machine-control.resident.plist.in \
     guests/macos/fixture/Info.plist \
     guests/macos/admin-fixture/Info.plist \
     guests/macos/privacy-fixture/Info.plist \
@@ -87,6 +92,9 @@ done
 
 /usr/bin/python3 -m json.tool \
     guests/macos/electron-fixture/package.json >/dev/null
+for policy in resident/policies/*.json; do
+    /usr/bin/python3 -m json.tool "$policy" >/dev/null
+done
 for file in guests/macos/electron-fixture/main.js \
     guests/macos/electron-fixture/preload.js; do
     test -s "$file"

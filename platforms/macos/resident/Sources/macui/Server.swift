@@ -77,6 +77,9 @@ final class ResidentServer {
     let service: ResidentService
     let broker: GrantBroker
     weak var approver: GrantApprover?
+    /// Extra screening for approved control, such as refusing input aimed
+    /// at the resident's own interface.
+    var guardRequest: (([String: Any]) -> GrantRefusal?)?
 
     private var listener: Int32 = -1
     private var acceptSource: DispatchSourceRead?
@@ -186,6 +189,11 @@ final class ResidentServer {
             respond(client, request, refused(request, refusal), caller: caller, claimID: claimID)
             return
         }
+        if broker.policy.grantMode == .approval, case let .scoped(scope) = operationClass(operation),
+           scope != .observe, let refusal = guardRequest?(request) {
+            respond(client, request, refused(request, refusal), caller: caller, claimID: claimID)
+            return
+        }
         do {
             var response: [String: Any]
             if operation == "authorization.submit" {
@@ -270,6 +278,13 @@ final class ResidentServer {
         }
     }
 
+    /// Ends the grant from a trusted local surface such as the menu.
+    func revoke(reason: String) {
+        guard broker.grant != nil else { return }
+        broker.revoke(reason: reason)
+        service.invalidateReferences()
+    }
+
     private func decide(_ decision: GrantDecision) {
         guard let request = pendingRequest, let pending = broker.pending else { return }
         pendingTimeout?.cancel()
@@ -326,8 +341,48 @@ func runResident(socketPath: String) throws -> Never {
     try server.start()
     let application = NSApplication.shared
     application.setActivationPolicy(.accessory)
-    withExtendedLifetime(server) { application.run() }
+    let approval = ApprovalPanelController()
+    let menu = StatusMenuController(broker: broker, approval: approval)
+    menu.onRevoke = { [weak server] reason in server?.revoke(reason: reason) }
+    broker.onChange = { [weak menu] in menu?.updateIcon() }
+    approval.onChange = { [weak menu] in menu?.updateIcon() }
+    if broker.policy.grantMode == .approval {
+        server.approver = approval
+    }
+    let processID = ProcessInfo.processInfo.processIdentifier
+    let identifiers = Set([Bundle.main.bundleIdentifier, Bundle.main.infoDictionary?["CFBundleName"] as? String,
+                           ProcessInfo.processInfo.processName].compactMap { $0?.lowercased() })
+    server.guardRequest = { [weak server, weak menu] request in
+        let own = OwnInterface(processID: processID, identifiers: identifiers,
+                               windowFrames: ownWindowFrames(processID,
+                                                             extra: menu?.interfaceWindows ?? []),
+                               hasKeyWindow: NSApp.keyWindow != nil,
+                               menuOpen: menu?.menuOpen == true,
+                               pointer: CGEvent(source: nil)?.location)
+        let reference = (request["reference"] as? String).flatMap { server?.service.referencedProcess($0) }
+        return selfTargetRefusal(request, own: own, referencedProcess: reference)
+    }
+    withExtendedLifetime((server, menu, approval)) { application.run() }
     exit(0)
+}
+
+/// On-screen windows owned by this process, in global display points. The
+/// window server list can omit some system-hosted windows such as status
+/// items, so AppKit's own windows are included as well.
+func ownWindowFrames(_ processID: pid_t, extra: [NSWindow] = []) -> [CGRect] {
+    let listed = (CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID)
+        as? [[String: Any]] ?? []).compactMap { window -> CGRect? in
+        guard (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == processID,
+              let bounds = window[kCGWindowBounds as String] as? NSDictionary else { return nil }
+        return CGRect(dictionaryRepresentation: bounds)
+    }
+    let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+    let drawn = (NSApp.windows + extra).filter(\.isVisible).map { window -> CGRect in
+        let frame = window.frame
+        return CGRect(x: frame.minX, y: primaryHeight - frame.maxY,
+                      width: frame.width, height: frame.height)
+    }
+    return listed + drawn
 }
 
 func runResidentClient(socketPath: String, requestData: Data) throws {
