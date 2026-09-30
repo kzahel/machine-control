@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import Darwin
 import Foundation
 
@@ -206,6 +207,20 @@ final class ResidentServer {
         if broker.policy.grantMode == .approval, case let .scoped(scope) = operationClass(operation),
            scope != .observe, let refusal = guardRequest?(request) {
             respond(client, request, refused(request, refusal), caller: caller, claimID: claimID)
+            return
+        }
+        if operation == "permissions.request" {
+            // Registers this application in the Accessibility and Screen
+            // Recording lists; macOS still requires a person or trusted
+            // settings automation to enable them.
+            let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+            let accessibility = AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
+            let capture = CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess()
+            respond(client, request, service.acceptance(request, data: [
+                "accessibilityAuthorized": accessibility,
+                "screenCaptureAuthorized": capture,
+                "bundleIdentifier": Bundle.main.bundleIdentifier ?? NSNull(),
+            ]), caller: caller, claimID: claimID)
             return
         }
         if operationClass(operation) == .scoped(.browser) {

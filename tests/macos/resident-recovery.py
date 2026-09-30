@@ -94,9 +94,9 @@ def interrupted(signum, frame):
     raise SystemExit(128 + signum)
 signal.signal(signal.SIGTERM, interrupted)
 home = Path.home()
-exe = home / 'Applications/MacVM UI.app/Contents/MacOS/macui'
+exe = home / 'Applications/Machine Control.app/Contents/MacOS/macui'
 probe = exe.parent.parent / 'Resources/mc-session-probe'
-endpoint = home / 'Library/Application Support/macvm-testbed/control.sock'
+endpoint = home / 'Library/Application Support/MachineControl/control.sock'
 def request(obj):
     return json.loads(subprocess.check_output(
         [str(exe), 'request', str(endpoint), json.dumps(obj)], text=True, timeout=15))

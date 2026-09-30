@@ -31,6 +31,7 @@ for script in \
     scripts/certify-appliance.sh \
     scripts/deploy-maintenance.sh \
     scripts/deploy-ui.sh \
+    scripts/grant-resident-consent.sh \
     scripts/unlock-provider.sh \
     guests/macos/unlock/build.sh \
     scripts/deploy-fixture.sh \
@@ -67,8 +68,6 @@ done
 /usr/bin/plutil -lint \
     guests/macos/bootstrap/org.cirruslabs.tart-guest-agent.plist.in \
     guests/macos/bootstrap/org.cirruslabs.tart-guest-daemon.plist.in \
-    guests/macos/ui/com.kzahel.macvm-testbed.resident.plist.in \
-    guests/macos/ui/Info.plist \
     resident/app/Info.plist \
     resident/app/org.machine-control.resident.plist.in \
     guests/macos/fixture/Info.plist \

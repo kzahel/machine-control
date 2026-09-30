@@ -261,9 +261,9 @@ Host agent
   +-- tart CLI ----------------- lifecycle, IP, suspend, stop
 ```
 
-The UI helper is compiled and ad-hoc signed with an explicit stable designated
-requirement inside the guest as
-`~/Applications/MacVM UI.app`. Tart's interactive user agent requests each
+The resident is the shared `Machine Control.app`, built and ad-hoc signed with
+an explicit stable designated requirement and installed in the guest as
+`~/Applications/Machine Control.app`. Tart's interactive user agent requests each
 LaunchServices invocation and returns its output, while macOS sees one stable
 app identity for Accessibility consent. This avoids the Windows-style
 session-0 relay, but requires a logged-in Aqua session and one explicit grant.
@@ -319,8 +319,9 @@ Guest:
 - Tart guest agent for `exec` and reliable IP discovery
 - or an explicitly authorized SSH account/key when SSH is selected as the
   guest command transport
-- Xcode Command Line Tools to compile the semantic helper
-- Accessibility permission for the deployed MacVM UI app
+- Xcode Command Line Tools to compile the deterministic fixtures
+- Accessibility and Screen Recording permission for the deployed Machine
+  Control app
 
 ## Security
 

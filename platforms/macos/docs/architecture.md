@@ -116,8 +116,8 @@ keyboard events after the resident verifies foreground application and secure
 field focus; process-targeted events failed on that live sheet. The calling
 workflow's independent oracle remains authoritative for the privileged effect.
 
-The helper is compiled and ad-hoc signed with an explicit stable designated
-requirement as `MacVM UI.app`. The selected host command transport asks
+The helper is built and ad-hoc signed with an explicit stable designated
+requirement as `Machine Control.app`, the same bundle a physical host runs. The selected host command transport asks
 LaunchServices to run a fresh helper command, then collects its output and
 exit status from a private temporary directory. macOS therefore attributes
 Accessibility responsibility to the stable app identity rather than the

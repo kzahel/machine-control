@@ -177,13 +177,13 @@ if ! remote_status="$(macvm_exec \
             "$remote_app" >&2
         exit "$launch_status"
     fi
-    printf 'MacVM UI did not report command status\n' >&2
+    printf 'Machine Control did not report command status\n' >&2
     exit 1
 fi
 
 macvm_exec /bin/cat "$remote_output" || true
 if [[ ! "$remote_status" =~ ^[0-9]+$ ]]; then
-    printf 'Unexpected MacVM UI status: %s\n' "$remote_status" >&2
+    printf 'Unexpected Machine Control status: %s\n' "$remote_status" >&2
     exit 1
 fi
 exit "$remote_status"

@@ -143,7 +143,7 @@ ignored local configuration asks for it.
 
 ## TCC And Integrity
 
-The signed MacVM UI app requires Accessibility permission. `macvm authorize-ui`
+The signed Machine Control app requires Accessibility permission. `macvm authorize-ui`
 requests the normal macOS flow; [bootstrap](bootstrap.md) records the exact
 one-time setup. Do not copy, replace, or edit a TCC database.
 
@@ -260,8 +260,8 @@ ASCII. The result reports only delivery, whether sheet dismissal was observed,
 the non-secret context, and uncertainty. The caller still verifies the
 intended privileged effect independently.
 
-This path does not help with the initial MacVM UI Accessibility grant because
-the resident is not trusted yet. Bootstrap consent remains a direct guest-user
+This path does not help with the initial Machine Control Accessibility grant
+when no trusted resident exists yet. Bootstrap consent remains a direct guest-user
 step. It also does not claim loginwindow, FileVault/preboot, Recovery, or
 unrestricted root authority.
 

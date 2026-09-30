@@ -11,7 +11,7 @@ if arguments.count >= 4, arguments[0] == "--output",
     removeStaleCommandDirectories(currentOutputPath: outputPath)
     guard freopen(outputPath, "w", stdout) != nil,
           freopen(outputPath, "a", stderr) != nil else {
-        fail(MacUIError.action("Unable to open MacVM UI command output"))
+        fail(MacUIError.action("Unable to open Machine Control command output"))
     }
     atexit(writeMacUIExitStatus)
     arguments.removeFirst(4)
@@ -83,7 +83,7 @@ do {
         } else {
             throw MacUIError.permission(
                 "Accessibility access is pending. Use the Tart screenshot/input path " +
-                "to enable MacVM UI in System Settings, then retry."
+                "to enable Machine Control in System Settings, then retry."
             )
         }
     case "apps":

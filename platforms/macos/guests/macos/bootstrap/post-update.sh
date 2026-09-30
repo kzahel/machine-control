@@ -3,7 +3,7 @@
 set -uo pipefail
 
 readonly SCHEMA=machine-control-macos-post-update/v0
-readonly RESIDENT_LABEL=com.kzahel.macvm-testbed.resident
+readonly RESIDENT_LABEL=org.machine-control.resident
 readonly GUEST_DAEMON_LABEL=org.cirruslabs.tart-guest-daemon
 readonly GUEST_AGENT_LABEL=org.cirruslabs.tart-guest-agent
 readonly GUEST_DAEMON_PLIST=/Library/LaunchDaemons/org.cirruslabs.tart-guest-daemon.plist
@@ -48,9 +48,9 @@ fi
 readonly uid="$(/usr/bin/id -u)"
 readonly domain="gui/$uid"
 readonly home_directory="$HOME"
-readonly resident_app="$home_directory/Applications/MacVM UI.app"
+readonly resident_app="$home_directory/Applications/Machine Control.app"
 readonly resident_binary="$resident_app/Contents/MacOS/macui"
-readonly resident_socket_path="$home_directory/Library/Application Support/macvm-testbed/control.sock"
+readonly resident_socket_path="$home_directory/Library/Application Support/MachineControl/control.sock"
 readonly resident_plist="$home_directory/Library/LaunchAgents/$RESIDENT_LABEL.plist"
 readonly resident_cli="$home_directory/bin/machine-control"
 

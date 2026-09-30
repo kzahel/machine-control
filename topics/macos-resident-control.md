@@ -10,8 +10,10 @@ fresh login, preboot, Recovery, and physical hardware remain open.
 ## Current state
 
 The authoritative [`platforms/macos`](../platforms/macos/README.md) now packages
-a persistent ordinary-session facade inside the stable MacVM UI application
-identity. A per-user Aqua LaunchAgent starts and keeps that signed resident
+a persistent ordinary-session facade inside the shared `Machine Control.app`
+identity that physical hosts also run; a root-owned appliance deployment
+policy gives guests standing access
+([`host-control`](host-control.md)). A per-user Aqua LaunchAgent starts and keeps that signed resident
 available after login, reboot, or a crash; doctor observes it without starting
 it. Guest-local and `tart exec` callers use the same user-owned socket,
 generation, request vocabulary, and normalized result shape without routine

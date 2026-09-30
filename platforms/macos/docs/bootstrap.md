@@ -13,8 +13,9 @@ A complete guest has:
 - a logged-in, non-root desktop user;
 - the Tart guest daemon and interactive-user agent;
 - working `tart exec` and agent-based IP discovery;
-- Xcode Command Line Tools;
-- the deployed and ad-hoc signed MacVM UI app;
+- Xcode Command Line Tools for the deterministic fixtures;
+- the deployed and ad-hoc signed Machine Control app with the appliance
+  deployment policy;
 - explicit Accessibility permission for that app identity;
 - explicit Screen Recording permission for that app identity; and
 - a warning-free `bin/macvm doctor` result.
@@ -273,9 +274,10 @@ Run:
 bin/macvm authorize-ui
 ```
 
-`deploy-ui` compiles and ad-hoc signs
-`~/Applications/MacVM UI.app`. The helper triggers macOS's normal
-Accessibility prompt. Use the outer path to click **Open System Settings**.
+`deploy-ui` builds and ad-hoc signs `Machine Control.app` on the controller,
+installs it as `~/Applications/Machine Control.app` with the same per-user
+LaunchAgent a physical host uses, and installs the root-owned appliance
+policy. The helper triggers macOS's normal Accessibility prompt. Use the outer path to click **Open System Settings**.
 If the prepared image's 1024×768 display clips the Accessibility list, check
 the exact candidate with `tart get VM_NAME --format json`, then, while holding
 its disruptive claim, run
@@ -283,7 +285,7 @@ its disruptive claim, run
 running guest. Capture a new screenshot before clicking the now-visible row.
 In Privacy & Security → Accessibility:
 
-1. Find the automatically registered **MacVM UI** row.
+1. Find the automatically registered **Machine Control** row.
 2. Enable its switch.
 3. If macOS asks to modify settings on the prepared base, inspect the password
    sheet and focused field, then use `bin/macvm type-secret` under the exact
@@ -294,7 +296,7 @@ In Privacy & Security → Accessibility:
    `accessibilityTrusted: true`. Do not capture a filled password field or
    retry a failed submission automatically.
 4. If the row is absent, click `+` and choose
-   `/Users/ADMIN_SHORT_NAME/Applications/MacVM UI.app`, substituting the guest
+   `/Users/ADMIN_SHORT_NAME/Applications/Machine Control.app`, substituting the guest
    short account name configured as `MACVM_GUEST_USER`.
 5. Rerun `bin/macvm authorize-ui` and `bin/macvm doctor`.
 
@@ -313,8 +315,8 @@ open macOS's Screen Recording prompt:
 bin/macvm control '{"operation":"capture","scope":"display"}'
 ```
 
-In **Privacy & Security → Screen & System Audio Recording**, enable **MacVM
-UI**. Restart the resident with `bin/macvm ui resident-restart`, then recheck
+In **Privacy & Security → Screen & System Audio Recording**, enable
+**Machine Control**. Restart the resident with `bin/macvm ui resident-restart`, then recheck
 doctor. The fresh prepared run needed this process restart before the new
 capture grant became visible to its resident.
 
@@ -323,6 +325,16 @@ it is ready, or navigate the visible guest UI with unmodified outer keys and
 clicks during bootstrap. The verified outer Shift/Command route is also
 available. `--capture-system-keys` separately controls which system shortcuts
 the host reserves.
+
+A guest that still runs the earlier `MacVM UI.app` testbed resident migrates
+without outer input. `deploy-ui` installs the shared application beside it,
+then `scripts/grant-resident-consent.sh` has the already-trusted testbed
+resident open the guest's own Privacy & Security panes and enable
+**Machine Control** in Accessibility and Screen & System Audio Recording. Any
+administrator sheet uses the one-shot credential channel with the declared
+stored credential (`macvm authorization-submit --stored --legacy-resident`).
+The testbed resident, its LaunchAgent, and its deployed sources are removed
+only after the shared application reports both consents ready.
 
 Never use `sqlite3`, filesystem replacement, recovery-mode copying, or any
 other technique to modify the TCC database. The visible consent is part of the
@@ -457,11 +469,11 @@ bin/macvm appliance-certify --profile development
 ```
 
 `deploy-ui` still accepts `--force`. A changed or forced ad-hoc build keeps the
-`com.kzahel.macvm-testbed.ui` bundle identifier, but macOS may retain the old
+`org.machine-control.app` bundle identifier, but macOS may retain the old
 code requirement with a misleading enabled switch. If semantic control loses
 trust after a rebuild:
 
-1. select the stale **MacVM UI** row and remove it with `-`;
+1. select the stale **Machine Control** row and remove it with `-`;
 2. rerun `bin/macvm authorize-ui`;
 3. click **Open System Settings** and enable the newly registered row; and
 4. rerun `bin/macvm doctor`.

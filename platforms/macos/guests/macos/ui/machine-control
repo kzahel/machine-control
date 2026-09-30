@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-readonly app="$HOME/Applications/MacVM UI.app"
-readonly socket="$HOME/Library/Application Support/macvm-testbed/control.sock"
+readonly app="$HOME/Applications/Machine Control.app"
+readonly socket="$HOME/Library/Application Support/MachineControl/control.sock"
 
 exec "$app/Contents/MacOS/macui" request "$socket" "$@"

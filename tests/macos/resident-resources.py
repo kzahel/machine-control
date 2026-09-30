@@ -20,8 +20,8 @@ parser.add_argument('--idle-seconds', type=int, default=120)
 args = parser.parse_args()
 assert 1 <= args.rounds <= 10000 and 0 <= args.idle_seconds <= 3600
 home = Path.home()
-binary = home / 'Applications/MacVM UI.app/Contents/MacOS/macui'
-endpoint = home / 'Library/Application Support/macvm-testbed/control.sock'
+binary = home / 'Applications/Machine Control.app/Contents/MacOS/macui'
+endpoint = home / 'Library/Application Support/MachineControl/control.sock'
 probe = binary.parent.parent / 'Resources/mc-session-probe'
 oracle = home / 'Library/Caches/machine-control-fixture/state.json'
 fixture = 'org.machine-control.fixture'

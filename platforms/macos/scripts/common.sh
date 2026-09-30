@@ -18,7 +18,6 @@ macvm_config_names=(
     MACVM_GUEST_USER
     MACVM_ADMIN_SECRET_FILE
     MACVM_UI_REMOTE_RELATIVE
-    MACVM_CONTROL_SOCKET_RELATIVE
     MACVM_REQUIRE_MUTATION_GUARD
     MACVM_TARGET_ROLE
     MACVM_EXPECTED_NAME
@@ -71,7 +70,6 @@ MACVM_CAPTURE_SYSTEM_KEYS="${MACVM_CAPTURE_SYSTEM_KEYS:-false}"
 MACVM_SHARE_REPO="${MACVM_SHARE_REPO:-true}"
 MACVM_GUEST_USER="${MACVM_GUEST_USER:-admin}"
 MACVM_UI_REMOTE_RELATIVE="${MACVM_UI_REMOTE_RELATIVE:-Library/Application Support/macvm-testbed}"
-MACVM_CONTROL_SOCKET_RELATIVE="${MACVM_CONTROL_SOCKET_RELATIVE:-Library/Application Support/macvm-testbed/control.sock}"
 MACVM_REQUIRE_MUTATION_GUARD="${MACVM_REQUIRE_MUTATION_GUARD:-true}"
 MACVM_TARGET_ROLE="${MACVM_TARGET_ROLE:-unspecified}"
 MACVM_EXPECTED_NAME="${MACVM_EXPECTED_NAME:-}"
@@ -142,7 +140,6 @@ export MACVM_REPO_DIR MACVM_CONFIG_FILE MACVM_NAME MACVM_TART
 export MACVM_BOOT_TIMEOUT MACVM_SUSPENDABLE MACVM_CAPTURE_SYSTEM_KEYS
 export MACVM_SHARE_REPO
 export MACVM_GUEST_USER MACVM_ADMIN_SECRET_FILE MACVM_UI_REMOTE_RELATIVE
-export MACVM_CONTROL_SOCKET_RELATIVE
 export MACVM_REQUIRE_MUTATION_GUARD MACVM_TARGET_ROLE MACVM_EXPECTED_NAME
 export MACVM_FORBID_OUTER_UI
 export MACVM_GUEST_TRANSPORT MACVM_SSH_HOST MACVM_SSH_USER
@@ -364,13 +361,30 @@ macvm_remote_ui_binary() {
     printf '%s/Contents/MacOS/macui\n' "$(macvm_remote_ui_app)"
 }
 
+# Guests run the same Machine Control.app, LaunchAgent, and socket as a
+# physical host; only the root-owned deployment policy differs.
 macvm_remote_ui_app() {
-    printf '/Users/%s/Applications/MacVM UI.app\n' "$MACVM_GUEST_USER"
+    printf '/Users/%s/Applications/Machine Control.app\n' "$MACVM_GUEST_USER"
 }
 
 macvm_remote_control_socket() {
-    printf '/Users/%s/%s\n' "$MACVM_GUEST_USER" \
-        "$MACVM_CONTROL_SOCKET_RELATIVE"
+    printf '/Users/%s/Library/Application Support/MachineControl/control.sock\n' \
+        "$MACVM_GUEST_USER"
+}
+
+# The pre-shared testbed resident, retired by deploy-ui after the shared
+# application holds its own consent.
+macvm_remote_legacy_ui_app() {
+    printf '/Users/%s/Applications/MacVM UI.app\n' "$MACVM_GUEST_USER"
+}
+
+macvm_remote_legacy_control_socket() {
+    printf '/Users/%s/Library/Application Support/macvm-testbed/control.sock\n' \
+        "$MACVM_GUEST_USER"
+}
+
+macvm_remote_legacy_resident_label() {
+    printf 'com.kzahel.macvm-testbed.resident\n'
 }
 
 macvm_remote_control_cli() {
@@ -378,7 +392,7 @@ macvm_remote_control_cli() {
 }
 
 macvm_remote_resident_label() {
-    printf 'com.kzahel.macvm-testbed.resident\n'
+    printf 'org.machine-control.resident\n'
 }
 
 macvm_remote_resident_plist() {
