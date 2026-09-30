@@ -7,14 +7,11 @@ import {
   Activity,
   ArrowUpRight,
   Check,
-  Circle,
-  Clock3,
   Command,
   Monitor,
   Settings2,
   ShieldCheck,
   Square,
-  Zap,
 } from "lucide-react";
 import "./style.css";
 
@@ -50,10 +47,10 @@ type State = {
   stopShortcutAvailable: boolean;
 };
 const labels: Record<Scope, string> = {
-  observe: "View the desktop",
+  observe: "View desktop",
   control: "Control apps and input",
-  browser: "Use browser tabs",
-  devtools: "Browser developer access",
+  browser: "Browser tabs",
+  devtools: "Browser scripts and DevTools",
 };
 async function native(command: Record<string, unknown>) {
   return invoke<{ state?: State; extensionPath?: string }>("operator_command", {
@@ -62,7 +59,7 @@ async function native(command: Record<string, unknown>) {
 }
 function App() {
   const [state, setState] = useState<State>();
-  const [page, setPage] = useState("overview");
+  const [page, setPage] = useState("access");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -71,6 +68,10 @@ function App() {
   const [pendingScopes, setPendingScopes] = useState<Scope[]>([]);
   const [pendingDuration, setPendingDuration] = useState(900);
   const [update, setUpdate] = useState<Awaited<ReturnType<typeof check>>>(null);
+  const navigate = (next: string) => {
+    setPage(next);
+    setNotice("");
+  };
   const refresh = async () => {
     try {
       const r = await native({ method: "state" });
@@ -110,66 +111,29 @@ function App() {
     setter(values.includes(s) ? values.filter((v) => v !== s) : [...values, s]);
   return (
     <div className="shell">
-      <aside>
-        <div className="brand">
-          <div className="mark">
-            <Command size={21} />
-          </div>
-          <div>
-            Machine Control<small>YOUR COMPUTER. YOUR CALL.</small>
-          </div>
-        </div>
-        <div className="nav-label">WORKSPACE</div>
-        <nav>
-          {[
-            ["overview", "Overview", Monitor],
-            ["setup", "Setup", ShieldCheck],
-            ["activity", "Activity", Activity],
-            ["settings", "Settings", Settings2],
-          ].map(([id, label, Icon]) => {
-            const I = Icon as typeof Monitor;
-            return (
-              <button
-                key={id as string}
-                className={page === id ? "selected" : ""}
-                onClick={() => setPage(id as string)}
-              >
-                <I size={18} />
-                {label as string}
-                {id === "setup" && !ready && <span className="dot" />}
-              </button>
-            );
-          })}
-        </nav>
-        <div className="sidebar-bottom">
-          <span className={"status-dot " + (grant || standing ? "on" : "")} />
-          {grant
-            ? "Access active"
-            : standing
-              ? "Standing access"
-              : "Access off"}
-          <small>macOS preview · {state?.version ?? "connecting"}</small>
-        </div>
-      </aside>
-      <main>
-        <header>
-          <div className="eyebrow">LOCAL WORKSPACE</div>
-          <div className="header-row">
-            <h1>{page[0].toUpperCase() + page.slice(1)}</h1>
-            <span className="badge">
-              <Circle size={7} fill="currentColor" /> This Mac
-            </span>
-          </div>
-          <p className="subtitle">
-            {page === "overview"
-              ? "Give agents a hand. Keep yourself in control."
-              : page === "setup"
-                ? "A few permissions, then you’re ready."
-                : page === "activity"
-                  ? "See what Machine Control has been asked to do."
-                  : "Make Machine Control work your way."}
-          </p>
-        </header>
+      <nav aria-label="Sections" inert={!!state?.pending}>
+        {[
+          ["access", "Access", Monitor],
+          ["setup", "Permissions", ShieldCheck],
+          ["activity", "Activity", Activity],
+          ["settings", "Settings", Settings2],
+        ].map(([id, label, Icon]) => {
+          const I = Icon as typeof Monitor;
+          return (
+            <button
+              key={id as string}
+              className={page === id ? "selected" : ""}
+              aria-current={page === id ? "page" : undefined}
+              onClick={() => navigate(id as string)}
+            >
+              <I size={16} />
+              {label as string}
+              {id === "setup" && state && !ready && <span className="dot" />}
+            </button>
+          );
+        })}
+      </nav>
+      <main inert={!!state?.pending}>
         {error && (
           <div role="alert" className="message error">
             {error}
@@ -180,34 +144,29 @@ function App() {
             {notice}
           </div>
         )}
-        {page === "overview" && (
+        {page === "access" && (
           <>
-            <section className={"hero " + (grant || standing ? "active" : "")}>
-              <div className="hero-icon">
-                <ShieldCheck size={28} />
-              </div>
+            <div className="access-status">
               <div>
-                <div className="eyebrow">
-                  {standing
-                    ? "APPLIANCE POLICY"
-                    : grant
-                      ? "APPROVED ACCESS"
-                      : "YOU’RE IN CONTROL"}
-                </div>
-                <h2>
-                  {standing
-                    ? "Standing access is enabled"
-                    : grant
-                      ? "Access is active"
-                      : "Your computer is yours."}
-                </h2>
-                <p>
-                  {standing
-                    ? "This test appliance allows standing access under its installed policy."
-                    : grant
-                      ? `${grant.requester} · ${Math.ceil(grant.remainingSeconds / 60)} min remaining`
-                      : "Agents need your approval before they can view or control this Mac."}
-                </p>
+                <h1>
+                  <span
+                    className={"status-dot " + (grant || standing ? "on" : "")}
+                  />
+                  {!state
+                    ? "Connecting…"
+                    : standing
+                      ? "Standing access"
+                      : grant
+                        ? "Access active"
+                        : "Access off"}
+                </h1>
+                {grant && (
+                  <p className="grant-detail">
+                    {grant.requester} · {Math.ceil(grant.remainingSeconds / 60)}{" "}
+                    min left
+                  </p>
+                )}
+                {standing && <p className="grant-detail">Appliance policy</p>}
               </div>
               {grant && (
                 <button
@@ -215,48 +174,26 @@ function App() {
                   disabled={busy}
                   onClick={() => void act({ method: "stop" })}
                 >
-                  <Square size={14} /> Stop access
+                  <Square size={12} /> Stop access
                 </button>
               )}
-            </section>
-            <div className="section-heading">
-              <h3>Allow access</h3>
-              <span>Temporary, visible, revocable</span>
             </div>
-            <section className="card">
-              <p className="card-intro">
-                This preview enables access for all callers running as your
-                user. Choose what they can do, and for how long.
-              </p>
-              <div className="scope-grid">
+            <section className="group" aria-label="Access scopes">
+              <div className="scope-list">
                 {(Object.keys(labels) as Scope[]).map((s) => (
-                  <label
-                    className={"scope " + (scopes.includes(s) ? "checked" : "")}
-                    key={s}
-                  >
+                  <label className="scope" key={s}>
                     <input
                       type="checkbox"
                       checked={scopes.includes(s)}
                       onChange={() => selected(scopes, setScopes, s)}
                     />
-                    <span>
-                      {labels[s]}
-                      <small>
-                        {s === "observe"
-                          ? "Screenshots and app information"
-                          : s === "control"
-                            ? "Keyboard, pointer and app actions"
-                            : s === "browser"
-                              ? "Navigate, read and interact with tabs"
-                              : "Scripts and raw DevTools commands"}
-                      </small>
-                    </span>
+                    {labels[s]}
                   </label>
                 ))}
               </div>
-              <div className="card-footer">
+              <div className="group-footer">
                 <label className="duration">
-                  <Clock3 size={16} /> For{" "}
+                  Duration
                   <select
                     aria-label="Access duration"
                     value={duration}
@@ -274,161 +211,103 @@ function App() {
                   disabled={busy || !state || standing || scopes.length === 0}
                   onClick={() => void act({ method: "arm", scopes, duration })}
                 >
-                  <Zap size={15} /> Allow selected access
+                  Enable access
                 </button>
               </div>
             </section>
-            <p className="footnote">
-              Preview: an approval currently allows all callers running as your
-              user. Access ends on expiry, Stop, lock, or app restart.
-            </p>
-            <div className="section-heading">
-              <h3>Ready when you are</h3>
-              <button className="text-button" onClick={() => setPage("setup")}>
-                Review setup <ArrowUpRight size={14} />
+            <p className="note">Applies to all callers running as your user.</p>
+            {state && !ready && (
+              <button className="text-button" onClick={() => navigate("setup")}>
+                Permissions needed <ArrowUpRight size={13} />
               </button>
-            </div>
-            <div className="readiness">
-              <div>
-                <span className={"status-dot " + (ready ? "on" : "")} />
-                <strong>
-                  {ready ? "Desktop permissions ready" : "Finish desktop setup"}
-                </strong>
-                <small>Accessibility + Screen Recording</small>
-              </div>
-              <div>
-                <span
-                  className={
-                    "status-dot " + (state?.browser.connected ? "on" : "")
-                  }
-                />
-                <strong>
-                  {state?.browser.connected
-                    ? "Browser connected"
-                    : "Browser optional"}
-                </strong>
-                <small>Connect the Chrome extension for tab control</small>
-              </div>
-            </div>
+            )}
           </>
         )}
         {page === "setup" && (
-          <section className="card setup-card">
-            {[
-              [
-                "accessibility",
-                "Accessibility",
-                "Read application controls and deliver keyboard and pointer input.",
-              ],
-              [
-                "screenRecording",
-                "Screen Recording",
-                "Capture the screen and application windows.",
-              ],
-            ].map(([id, title, description]) => (
-              <div className="setup-row" key={id}>
-                <div
+          <>
+            <section className="group" aria-label="Permissions">
+              {[
+                ["accessibility", "Accessibility"],
+                ["screenRecording", "Screen Recording"],
+              ].map(([id, title]) => {
+                const granted =
+                  state?.permissions[id as keyof State["permissions"]];
+                return (
+                  <div className="setting-row" key={id}>
+                    <span
+                      className={"permission-icon " + (granted ? "done" : "")}
+                    >
+                      {granted ? <Check size={15} /> : <Monitor size={15} />}
+                    </span>
+                    <span className="row-label">{title}</span>
+                    <span className="row-status">
+                      {!state ? "—" : granted ? "Granted" : "Required"}
+                    </span>
+                    <button
+                      disabled={busy}
+                      onClick={() =>
+                        void act({ method: "permission", permission: id })
+                      }
+                    >
+                      Open Settings
+                    </button>
+                  </div>
+                );
+              })}
+              <div className="setting-row">
+                <span
                   className={
-                    "step-icon " +
-                    (state?.permissions[id as keyof State["permissions"]]
-                      ? "done"
-                      : "")
+                    "permission-icon " +
+                    (state?.browser.connected ? "done" : "")
                   }
                 >
-                  {state?.permissions[id as keyof State["permissions"]] ? (
-                    <Check size={18} />
-                  ) : (
-                    <Monitor size={18} />
-                  )}
-                </div>
-                <div>
-                  <h3>{title}</h3>
-                  <p>{description}</p>
-                  <small>
-                    {state?.permissions[id as keyof State["permissions"]]
-                      ? "Granted"
-                      : "Permission required"}
-                  </small>
-                </div>
+                  <Command size={15} />
+                </span>
+                <span className="row-label">
+                  Browser extension <span className="optional">(optional)</span>
+                </span>
+                <span className="row-status">
+                  {state?.browser.connected ? "Connected" : "Not connected"}
+                </span>
                 <button
                   disabled={busy}
-                  onClick={() =>
-                    void act({ method: "permission", permission: id })
-                  }
+                  onClick={async () => {
+                    try {
+                      await native({ method: "browser.setup" });
+                      setNotice(
+                        "Path copied. In Chrome extensions, enable Developer mode, then Load unpacked.",
+                      );
+                    } catch (e) {
+                      setError(String(e));
+                    }
+                  }}
                 >
-                  Open Settings <ArrowUpRight size={14} />
+                  Set up
                 </button>
               </div>
-            ))}
-            <div className="setup-row">
-              <div
-                className={
-                  "step-icon " + (state?.browser.connected ? "done" : "")
-                }
-              >
-                <Command size={18} />
-              </div>
-              <div>
-                <h3>
-                  Browser extension <span className="optional">Optional</span>
-                </h3>
-                <p>
-                  Control Chrome tabs through the Machine Control extension.
-                </p>
-                <small>
-                  {state?.browser.connected
-                    ? "Connected"
-                    : "Developer preview: load the bundled extension unpacked."}
-                </small>
-              </div>
-              <button
-                disabled={busy}
-                onClick={async () => {
-                  try {
-                    const result = await native({ method: "browser.setup" });
-                    setNotice(
-                      `Extension path copied. In Chrome, open chrome://extensions, enable Developer mode, choose Load unpacked, and paste ${result.extensionPath}.`,
-                    );
-                  } catch (e) {
-                    setError(String(e));
-                  }
-                }}
-              >
-                Set up browser
-              </button>
+            </section>
+            <div className="restart-row">
+              <p className="note">Restart after changing Screen Recording.</p>
+              <button onClick={() => void relaunch()}>Restart</button>
             </div>
-            <div className="setup-note">
-              After enabling Screen Recording, restart Machine Control so it
-              sees the new permission. Choose Later in macOS’s Quit & Reopen
-              dialog if you have already restarted.
-            </div>
-            <button onClick={() => void relaunch()}>
-              Restart Machine Control
-            </button>
-          </section>
+          </>
         )}
         {page === "activity" && (
-          <section className="card activity-card">
+          <section className="group activity-list" aria-label="Recent activity">
             {!state?.activity.length ? (
-              <div className="empty">
-                <Activity size={32} />
-                <h3>No recent activity</h3>
-                <p>Requests will appear here while this app is running.</p>
-              </div>
+              <p className="empty">No recent activity</p>
             ) : (
               state.activity.map((entry, i) => (
                 <div className="activity-row" key={i}>
                   <span
                     className={"status-dot " + (entry.accepted ? "on" : "")}
                   />
-                  <div>
-                    <strong>{entry.operation}</strong>
-                    <small>
-                      {entry.accepted
-                        ? "Accepted"
-                        : (entry.errorCode ?? "Refused")}
-                    </small>
-                  </div>
+                  <strong>{entry.operation}</strong>
+                  <span className="row-status">
+                    {entry.accepted
+                      ? "Accepted"
+                      : (entry.errorCode ?? "Refused")}
+                  </span>
                   <time>{new Date(entry.at).toLocaleTimeString()}</time>
                 </div>
               ))
@@ -437,13 +316,9 @@ function App() {
         )}
         {page === "settings" && (
           <>
-            <section className="card">
-              <h3>Updates</h3>
-              <p>
-                Signed desktop packages. Installation restarts the app and ends
-                access.
-              </p>
-              <div className="settings-actions">
+            <section className="group" aria-label="Updates">
+              <div className="setting-row">
+                <span className="row-label">Updates</span>
                 <button
                   disabled={busy}
                   onClick={async () => {
@@ -453,12 +328,12 @@ function App() {
                       setUpdate(candidate);
                       setNotice(
                         candidate
-                          ? `Version ${candidate.version} is available.`
-                          : "You’re up to date.",
+                          ? `Version ${candidate.version} available.`
+                          : "Up to date.",
                       );
                     } catch {
                       setNotice(
-                        "The public update feed is not available for this preview. Use a verified CI package.",
+                        "Update feed unavailable. Use a verified CI package.",
                       );
                     } finally {
                       setBusy(false);
@@ -487,27 +362,28 @@ function App() {
                 )}
               </div>
             </section>
-            <section className="card details">
-              <h3>About this installation</h3>
+            <section className="group details" aria-label="Installation">
               <dl>
                 <dt>Version</dt>
-                <dd>{state?.version}</dd>
+                <dd>
+                  {state?.version ?? "—"}{" "}
+                  <span className="optional">(preview)</span>
+                </dd>
                 <dt>Policy</dt>
-                <dd>{state?.deployment.policy.preset}</dd>
+                <dd>{state?.deployment.policy.preset ?? "—"}</dd>
                 <dt>Stop shortcut</dt>
                 <dd>
                   {state?.stopShortcutAvailable
-                    ? "Control–Option–Command–Period"
-                    : "Unavailable; use Stop in this app or its menu"}
+                    ? "⌃⌥⌘."
+                    : "Unavailable; use Stop access"}
                 </dd>
-                <dt>Resident connection</dt>
-                <dd>{state?.socket}</dd>
+                <dt>Socket</dt>
+                <dd>{state?.socket ?? "—"}</dd>
               </dl>
-              <p>
-                Closing this window keeps Machine Control in the menu bar. Quit
-                from the menu bar to stop the app.
-              </p>
             </section>
+            <p className="note">
+              Close hides the window. Quit from the menu bar.
+            </p>
           </>
         )}
       </main>
@@ -519,20 +395,14 @@ function App() {
             aria-modal="true"
             aria-labelledby="approval-title"
           >
-            <ShieldCheck size={32} />
-            <div className="eyebrow">APPROVAL REQUEST</div>
-            <h2 id="approval-title">An agent wants to use this Mac</h2>
+            <h2 id="approval-title">Allow access?</h2>
             <p className="request-reason">{state.pending.reason}</p>
             <p className="caller">
-              {state.pending.caller}
-              <small>Caller identity is unverified</small>
-              <small>
-                Approval enables access for all callers running as your user.
-              </small>
+              {state.pending.caller} <span>(unverified)</span>
             </p>
             <div className="approval-scopes">
               {state.pending.scopes.map((s) => (
-                <label key={s}>
+                <label className="scope" key={s}>
                   <input
                     type="checkbox"
                     checked={pendingScopes.includes(s)}
@@ -545,7 +415,7 @@ function App() {
               ))}
             </div>
             <label className="duration">
-              Allow for{" "}
+              Duration
               <select
                 aria-label="Approval duration"
                 value={pendingDuration}
@@ -559,13 +429,18 @@ function App() {
                   .sort((a, b) => a - b)
                   .map((v) => (
                     <option key={v} value={v}>
-                      {v / 60} minutes
+                      {v / 60} {v === 60 ? "minute" : "minutes"}
                     </option>
                   ))}
               </select>
             </label>
+            <p className="note">
+              Applies to all callers running as your user. Input is paused.
+            </p>
             <div className="approval-actions">
               <button
+                disabled={busy}
+                autoFocus
                 onClick={() =>
                   void act({
                     method: "decision",
@@ -592,10 +467,6 @@ function App() {
                 Allow access
               </button>
             </div>
-            <small>
-              Input through Machine Control is paused while this request is
-              open.
-            </small>
           </section>
         </div>
       )}

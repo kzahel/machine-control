@@ -15,10 +15,10 @@
       {
         "label": "main",
         "title": "Machine Control",
-        "width": 960,
-        "height": 720,
-        "minWidth": 800,
-        "minHeight": 620
+        "width": 640,
+        "height": 440,
+        "minWidth": 580,
+        "minHeight": 400
       }
     ],
     "security": {

@@ -71,6 +71,11 @@ approval.
 
 ## Decisions
 
+**Decision:** The desktop operator is a compact settings dialog. Use short
+labels, status rows, and direct controls; omit marketing copy, page subtitles,
+hero banners, and repeated explanations. Keep grant scope and same-user reach
+visible beside approval controls. The shared Tauri UI follows this direction.
+
 **Decision:** One program serves VM guests and physical hosts. Both install the
 same application bundle, with the same code identity, resident, and menu bar;
 only the deployment policy differs. On a VM the policy grants standing access

@@ -106,7 +106,7 @@ try:
     accepted(candidate(dict(operation='grant.revoke')))
     assert candidate(dict(operation='snapshot', target=fixture))['errorCode'] == 'approval_required'
     assert candidate(dict(operation='grant.approve'))['errorCode'] == 'unsupported_operation'
-    press(pid, 'Overview')
+    press(pid, 'Access')
     pending = request(['observe', 'control'])
     press(pid, 'Deny')
     assert finish(pending)['errorCode'] == 'approval_denied'
@@ -121,7 +121,7 @@ try:
     assert not candidate(dict(operation='input.key', target=fixture, key='tab'))['accepted']
     press(pid, 'Stop access')
 
-    press(pid, 'Allow selected access')
+    press(pid, 'Enable access')
     assert candidate(dict(operation='input.key', target=str(pid), key='tab'))['errorCode'] == 'self_target_refused'
     assert candidate(dict(operation='authorization.begin'))['errorCode'] == 'operation_not_permitted_by_policy'
     before = oracle()['count']
