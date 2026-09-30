@@ -18,6 +18,10 @@ func operationClass(_ operation: String) -> OperationClass {
         return .grantManagement
     case "browser.provider":
         return .providerRegistration
+    case "browser.cdp", "browser.eval":
+        // Raw DevTools protocol access is broader than operating tabs: it
+        // can run scripts and read data on any signed-in site.
+        return .scoped(.devtools)
     case "server.stop":
         return .lifecycle
     case "applications", "windows", "snapshot", "capture":
@@ -75,7 +79,7 @@ struct GrantRequest {
     static func parse(_ request: [String: Any], caller: CallerIdentity)
         -> Result<GrantRequest, GrantRefusal> {
         guard let names = request["scopes"] as? [String], !names.isEmpty else {
-            return .failure(GrantRefusal("invalid_request", "scopes must list observe, control, or browser"))
+            return .failure(GrantRefusal("invalid_request", "scopes must list observe, control, browser, or devtools"))
         }
         var scopes = Set<GrantScope>()
         for name in names {
@@ -179,8 +183,13 @@ final class GrantBroker {
     }
 
     /// Whether browser operations are currently allowed.
-    var browserAllowed: Bool {
-        policy.grantMode == .standing || activeGrant?.scopes.contains(.browser) == true
+    var browserAllowed: Bool { allows(.browser) }
+
+    /// Whether raw DevTools protocol access is currently allowed.
+    var devtoolsAllowed: Bool { allows(.devtools) }
+
+    private func allows(_ scope: GrantScope) -> Bool {
+        policy.grantMode == .standing || activeGrant?.scopes.contains(scope) == true
     }
 
     /// The live grant, after retiring an expired one.

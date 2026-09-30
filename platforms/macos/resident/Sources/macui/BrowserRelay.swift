@@ -158,7 +158,8 @@ final class BrowserRelay {
 
     private func sendGrantState() {
         guard connected else { return }
-        write(["type": "grant", "browser": broker.browserAllowed])
+        let devtools = broker.devtoolsAllowed
+        write(["type": "grant", "browser": broker.browserAllowed || devtools, "devtools": devtools])
     }
 
     private func write(_ message: [String: Any]) {
@@ -234,6 +235,10 @@ final class BrowserRelay {
         }
         var result = routed(service.acceptance(request, data: data))
         switch operation {
+        case "browser.cdp", "browser.eval":
+            result["delivery"] = "confirmed"
+            result["effect"] = "unverifiable"
+            result["uncertainty"] = "raw_protocol_effect_not_observed"
         case "browser.upload":
             result["delivery"] = "confirmed"
             result["effect"] = "unverifiable"

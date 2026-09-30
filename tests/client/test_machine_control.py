@@ -1268,6 +1268,29 @@ class ClientTests(unittest.TestCase):
                 "--target", "fixture", "browser", "upload", *arguments)
             self.assertEqual(value["errorCode"], "usage", arguments)
 
+    def test_browser_cdp_and_eval_requests(self):
+        self.write_registry("macos")
+        result, value = self.run_cli(
+            "--target", "fixture", "browser", "cdp", "--tab", "3", "--method",
+            "Page.reload", "--params", '{"ignoreCache":true}',
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["data"]["request"], {
+            "operation": "browser.cdp", "tabId": 3, "method": "Page.reload",
+            "params": {"ignoreCache": True},
+        })
+        result, value = self.run_cli(
+            "--target", "fixture", "browser", "eval", "--expression", "document.title")
+        self.assertEqual(value["data"]["request"], {
+            "operation": "browser.eval", "expression": "document.title"})
+        for arguments in (["cdp"], ["cdp", "--method", "X.y", "--params", "[1]"], ["eval"]):
+            result, value = self.run_cli("--target", "fixture", "browser", *arguments)
+            self.assertEqual(value["errorCode"], "usage", arguments)
+        result, value = self.run_cli(
+            "--target", "fixture", "grant", "request", "--scope", "devtools",
+            "--reason", "debug")
+        self.assertEqual(value["data"]["request"]["scopes"], ["devtools"])
+
     def test_desktop_input_key_help_and_target(self):
         self.write_registry("macos")
         result, value = self.run_cli(

@@ -28,7 +28,8 @@ refused until the person at the computer approves a grant.
    The call waits while the person decides. Write the reason for them: it is
    shown verbatim in the prompt. Each extra request is another interruption,
    so plan scopes up front: `observe` to see the screen or windows, `control`
-   for keyboard, pointer, and apps, and `browser` for Chrome tabs. A browser
+   for keyboard, pointer, and apps, `browser` for Chrome tabs, and `devtools`
+   for raw DevTools protocol access. A browser
    task that may show a native dialog needs all three.
 4. Use the ordinary `desktop` commands. A result with
    `errorCode: approval_required` names the missing scope in
@@ -43,6 +44,10 @@ refused until the person at the computer approves a grant.
   where `R` is a file input or the page's upload/attach button. It never opens
   the macOS file dialog. Do not click upload buttons and then drive the
   native Open dialog with keystrokes.
+- For anything the typed commands do not cover, request the `devtools` scope
+  and use `browser cdp --method Domain.method --params JSON` or
+  `browser eval --expression JS`. Say in the reason why raw DevTools access is
+  needed; it lets the agent act on every signed-in site.
 - Files in hidden folders or `~/Library` are refused. If Chrome reports
   `file_access_not_allowed`, ask the person to turn on "Allow access to file
   URLs" for Machine Control in `chrome://extensions`.

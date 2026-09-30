@@ -2541,7 +2541,7 @@ def add_client_projection(
     return value
 
 
-GRANT_SCOPES = {"observe", "control", "browser"}
+GRANT_SCOPES = {"observe", "control", "browser", "devtools"}
 
 
 def grant_request(arguments: list[str]) -> dict[str, Any]:
@@ -2583,7 +2583,7 @@ def grant_request(arguments: list[str]) -> dict[str, Any]:
 
 BROWSER_COMMANDS = {
     "tabs", "navigate", "snapshot", "click", "type", "key", "capture", "upload",
-    "release",
+    "cdp", "eval", "release",
 }
 
 
@@ -2603,6 +2603,9 @@ def browser_request(arguments: list[str]) -> dict[str, Any]:
     parser.add_argument("--max", type=int)
     parser.add_argument("--interactive", action="store_true")
     parser.add_argument("--file", action="append")
+    parser.add_argument("--method")
+    parser.add_argument("--params")
+    parser.add_argument("--expression")
     try:
         options = parser.parse_args(rest)
     except (argparse.ArgumentError, SystemExit) as error:
@@ -2630,6 +2633,22 @@ def browser_request(arguments: list[str]) -> dict[str, Any]:
                        ("text", "text"), ("key", "key"), ("max", "maxElements")):
         if getattr(options, field) is not None:
             request[key] = getattr(options, field)
+    if command == "cdp":
+        if not options.method:
+            raise ClientError("usage", "browser cdp requires --method Domain.method [--params JSON]")
+        request["method"] = options.method
+        if options.params is not None:
+            try:
+                params = json.loads(options.params)
+            except json.JSONDecodeError as error:
+                raise ClientError("usage", f"--params is not valid JSON: {error}") from error
+            if not isinstance(params, dict):
+                raise ClientError("usage", "--params must be a JSON object")
+            request["params"] = params
+    if command == "eval":
+        if not options.expression:
+            raise ClientError("usage", "browser eval requires --expression JS")
+        request["expression"] = options.expression
     if options.file:
         request["files"] = options.file
     if options.new_tab:
@@ -3508,12 +3527,12 @@ Commands:
   maintenance capabilities|audit|repair [--reboot]|certify [--profile ...]
   workspace capabilities|acquire|inventory|release|gc --dry-run
                                     Use `workspace --help` for claim composition
-  grant request --scope observe|control|browser... --reason TEXT
+  grant request --scope observe|control|browser|devtools... --reason TEXT
         [--duration D] [--timeout D] | grant status | grant revoke
                                     Ask a person at the target for access
-  browser tabs|navigate|snapshot|click|type|key|capture|upload|release
+  browser tabs|navigate|snapshot|click|type|key|capture|upload|cdp|eval|release
         [--tab ID] [--url URL] [--new-tab] [--reference R] [--text T]
-        [--file PATH]...
+        [--file PATH]... [--method M --params JSON] [--expression JS]
                                     Operate Chrome through the extension
   desktop status|capabilities|applications|windows|snapshot|action|capture
   desktop input text|key|click|move|drag|scroll

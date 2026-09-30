@@ -226,7 +226,7 @@ final class ResidentServer {
             ]), caller: caller, claimID: claimID)
             return
         }
-        if operationClass(operation) == .scoped(.browser) {
+        if [.scoped(.browser), .scoped(.devtools)].contains(operationClass(operation)) {
             if let refusal = browser.forward(client, request, caller: caller, claimID: claimID) {
                 respond(client, request, refusal, caller: caller, claimID: claimID)
             } else {
@@ -375,6 +375,10 @@ final class ResidentServer {
             var detail: String?
             if operation == "browser.upload", let files = request["files"] as? [String] {
                 detail = files.map { ($0 as NSString).lastPathComponent }.joined(separator: ", ")
+            } else if operation == "browser.cdp" {
+                detail = (request["method"] as? String).map { String($0.prefix(80)) }
+            } else if operation == "browser.eval" {
+                detail = "Runtime.evaluate"
             }
             broker.record(operation: operation, accepted: response["accepted"] as? Bool == true,
                           errorCode: response["errorCode"] as? String, caller: caller,

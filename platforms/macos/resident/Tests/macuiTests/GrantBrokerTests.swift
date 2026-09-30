@@ -25,6 +25,21 @@ final class GrantBrokerTests: XCTestCase {
         XCTAssertEqual(operationClass("something.new"), .scoped(.control))
     }
 
+    func testDevtoolsIsSeparateFromBrowser() {
+        XCTAssertEqual(operationClass("browser.cdp"), .scoped(.devtools))
+        XCTAssertEqual(operationClass("browser.eval"), .scoped(.devtools))
+        let broker = broker()
+        broker.issue(scopes: [.browser], durationSeconds: 600, reason: "r", requester: "x",
+                     approver: "test")
+        XCTAssertNil(broker.authorize("browser.tabs"))
+        XCTAssertEqual(broker.authorize("browser.cdp")?.requiredScope, .devtools)
+        XCTAssertFalse(broker.devtoolsAllowed)
+        broker.issue(scopes: [.browser, .devtools], durationSeconds: 600, reason: "r",
+                     requester: "x", approver: "test")
+        XCTAssertNil(broker.authorize("browser.eval"))
+        XCTAssertTrue(broker.devtoolsAllowed)
+    }
+
     func testWorkstationRefusesWithoutGrant() {
         let broker = broker()
         XCTAssertNil(broker.authorize("status"))

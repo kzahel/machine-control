@@ -23,6 +23,7 @@ const KEYS = {
 
 let port = null;
 let granted = false;
+let devtools = false;
 let lastDisconnect = "";
 let retryDelayMs = 1000;
 let retryTimer = null;
@@ -68,6 +69,7 @@ function connect() {
     lastDisconnect = chrome.runtime.lastError?.message || "disconnected";
     port = null;
     granted = false;
+    devtools = false;
     detachAll();
     updateBadge();
     scheduleReconnect();
@@ -82,11 +84,12 @@ function connect() {
 }
 
 function updateBadge() {
-  const text = !port ? "!" : granted ? "ON" : "";
+  const text = !port ? "!" : devtools ? "DEV" : granted ? "ON" : "";
   chrome.action.setBadgeText({ text });
   chrome.action.setBadgeBackgroundColor({ color: granted ? "#c62828" : "#757575" });
   chrome.action.setTitle({
     title: !port ? `Machine Control: not connected to the app (${lastDisconnect || "starting"}); retrying`
+      : devtools ? "Machine Control: an agent has full DevTools access"
       : granted ? "Machine Control: an agent may control Chrome"
         : "Machine Control: no browser access granted",
   });
@@ -95,6 +98,7 @@ function updateBadge() {
 async function onResidentMessage(message) {
   if (message?.type === "grant") {
     granted = message.browser === true;
+    devtools = message.devtools === true;
     if (!granted) await detachAll();
     updateBadge();
     return;
@@ -122,6 +126,8 @@ async function perform(operation, params) {
     case "browser.key": return key(params);
     case "browser.capture": return capture(params);
     case "browser.upload": return upload(params);
+    case "browser.cdp": return cdp(params);
+    case "browser.eval": return evaluate(params);
     case "browser.release": await detachAll(); return { released: true };
     default: throw new ProviderError("unsupported_operation", `Unsupported ${operation}`);
   }
@@ -381,6 +387,35 @@ async function setFiles(tabId, backendNodeId, files) {
     }
     throw error;
   }
+}
+
+// Raw DevTools protocol access under the separate devtools grant. Chrome
+// still refuses the few domains it withholds from extensions.
+async function cdp(params) {
+  if (typeof params.method !== "string" || !/^[A-Z][A-Za-z]*\.[a-zA-Z]+$/.test(params.method)) {
+    throw new ProviderError("invalid_request", "method must look like Domain.method");
+  }
+  const tab = await resolveTab(params);
+  const result = await send(tab.id, params.method, params.params || {});
+  return { tabId: tab.id, method: params.method, result: result ?? {} };
+}
+
+async function evaluate(params) {
+  if (typeof params.expression !== "string" || !params.expression) {
+    throw new ProviderError("invalid_request", "expression is required");
+  }
+  const tab = await resolveTab(params);
+  const { result, exceptionDetails } = await send(tab.id, "Runtime.evaluate", {
+    expression: params.expression,
+    awaitPromise: params.awaitPromise !== false,
+    returnByValue: true,
+    userGesture: true,
+  });
+  if (exceptionDetails) {
+    const text = exceptionDetails.exception?.description || exceptionDetails.text || "exception";
+    throw new ProviderError("script_exception", text);
+  }
+  return { tabId: tab.id, type: result?.type, value: result?.value ?? null };
 }
 
 async function capture(params) {

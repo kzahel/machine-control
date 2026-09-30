@@ -2,7 +2,7 @@ import Darwin
 import Foundation
 
 enum GrantScope: String, CaseIterable, Comparable {
-    case observe, control, browser
+    case observe, control, browser, devtools
 
     static func < (lhs: GrantScope, rhs: GrantScope) -> Bool {
         allCases.firstIndex(of: lhs)! < allCases.firstIndex(of: rhs)!

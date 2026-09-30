@@ -110,7 +110,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             stop.target = self
             stop.isEnabled = broker.activeGrant != nil
             menu.addItem(stop)
-            let arm = NSMenuItem(title: "Allow Full Access For", action: nil, keyEquivalent: "")
+            let arm = NSMenuItem(title: "Allow Full Access (Including DevTools) For", action: nil,
+                                 keyEquivalent: "")
             let durations = NSMenu()
             for (title, seconds) in [("15 Minutes", 900), ("1 Hour", 3600), ("4 Hours", 14_400)] {
                 let item = NSMenuItem(title: title, action: #selector(armManually(_:)),

@@ -64,14 +64,21 @@ extension ID stable across checkouts.
 resident's grant broker. The extension badge mirrors grant state but does not
 enforce it.
 
+**Decision:** Raw DevTools protocol access is available, because it is the
+most capable and efficient browser route. `browser.cdp` passes any method and
+parameters through `chrome.debugger`, and `browser.eval` evaluates JavaScript
+and returns the value. Both require a separate `devtools` scope, because that
+access can run scripts and read data on every signed-in site, and data read
+that way can outlive the grant. The prompt says so, the badge shows `DEV`,
+and recent activity records each method. Chrome still withholds a few domains
+from extensions. Events are not streamed to agents yet.
+
 ## Open
 
 - **Open:** The operation vocabulary: tabs, navigation, a compact accessibility
   snapshot, element actions, text entry, and capture. It should share
   reference and staleness rules with the desktop contract rather than exposing
   raw CDP.
-- **Open:** Whether an arbitrary CDP escape hatch is ever exposed, and under
-  what grant.
 - **Open:** Windows and Linux native-messaging registration, and other
   Chromium browsers.
 - **Open:** Web Store publication, which changes the extension ID and install

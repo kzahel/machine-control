@@ -148,6 +148,8 @@ final class ApprovalPanelController: NSObject, GrantApprover {
             case .observe: return "see the screen and windows"
             case .control: return "use the keyboard, mouse, and apps"
             case .browser: return "control Chrome tabs and upload files to web pages"
+            case .devtools: return "full Chrome DevTools access, including running scripts and "
+                + "reading data on any site you are signed into"
             }
         }.joined(separator: "; ")
     }

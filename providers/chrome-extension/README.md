@@ -6,7 +6,8 @@ This MV3 extension is the browser provider for a Machine Control resident on
 the same computer. It connects to the resident only through Chrome native
 messaging (`org.machine_control.browser`), and it acts only on requests the
 resident forwards. The resident checks the person's `browser` grant before
-forwarding; the extension badge shows `ON` while that grant is active and
+forwarding; the extension badge shows `ON` while that grant is active (`DEV`
+for the broader `devtools` grant) and
 detaches its debugger sessions when the grant ends.
 
 Operations use `chrome.debugger` (CDP) on individual tabs:
@@ -21,6 +22,8 @@ Operations use `chrome.debugger` (CDP) on individual tabs:
 | `browser.key` | Press Enter, Tab, Escape, Backspace, or an arrow key |
 | `browser.capture` | Viewport PNG stored as a resident artifact |
 | `browser.upload` | Attach local files to a file input, or to the chooser an upload button opens, without the OS file dialog |
+| `browser.cdp` | Any DevTools protocol method with its parameters (`devtools` grant) |
+| `browser.eval` | Evaluate JavaScript in a tab and return the value (`devtools` grant) |
 | `browser.release` | Detach all debugger sessions |
 
 References look like `TAB:GENERATION:NODE`. Taking a new snapshot or loading a
