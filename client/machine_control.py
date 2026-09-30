@@ -71,6 +71,16 @@ DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
         "workspaceDefaultIntent": "persistent",
         "command": [str(ROOT / "platforms" / "macos" / "bin" / "macvm")],
     },
+    "host": {
+        # The Mac running this client. Its resident's root-owned policy
+        # decides whether access is standing or needs a person's approval.
+        "platform": "macos",
+        "profile": "macos-host-resident",
+        "controllerPlatforms": ["darwin"],
+        "launcher": "direct",
+        "claimPolicy": "required",
+        "command": [str(ROOT / "platforms" / "macos" / "bin" / "machost")],
+    },
     "linux": {
         "platform": "linux",
         "profile": "ubuntu-gnome-wayland",
@@ -2504,7 +2514,81 @@ def add_client_projection(
             "_clientCompatibilityFields", []
         ),
     }
+    data = value.get("data") if isinstance(value.get("data"), dict) else {}
+    if value.get("errorCode") == "approval_required" and isinstance(
+        data.get("requiredScope"), str
+    ):
+        value["client"]["remediation"] = {
+            "command": [
+                "grant", "request", "--scope", data["requiredScope"],
+                "--reason", "REASON",
+            ],
+            "note": "A person at the target must approve the request.",
+        }
     return value
+
+
+GRANT_SCOPES = {"observe", "control", "browser"}
+
+
+def grant_request(arguments: list[str]) -> dict[str, Any]:
+    if not arguments or arguments[0] not in {"request", "status", "revoke"}:
+        raise ClientError("usage", "grant requires request, status, or revoke")
+    command, rest = arguments[0], arguments[1:]
+    if command != "request":
+        if rest:
+            raise ClientError("usage", f"grant {command} accepts no arguments")
+        return {"operation": f"grant.{command}"}
+    parser = argparse.ArgumentParser(add_help=False, exit_on_error=False)
+    parser.add_argument("--scope", action="append", choices=sorted(GRANT_SCOPES))
+    parser.add_argument("--duration")
+    parser.add_argument("--timeout")
+    parser.add_argument("--reason")
+    try:
+        options = parser.parse_args(rest)
+    except (argparse.ArgumentError, SystemExit) as error:
+        raise ClientError("usage", "grant request accepts --scope, --duration, "
+                          "--timeout, and --reason") from error
+    if not options.scope or not options.reason or not options.reason.strip():
+        raise ClientError(
+            "usage", "grant request requires at least one --scope and --reason"
+        )
+    request: dict[str, Any] = {
+        "operation": "grant.request",
+        "scopes": sorted(set(options.scope)),
+        "reason": options.reason.strip(),
+    }
+    try:
+        if options.duration is not None:
+            request["durationSeconds"] = parse_duration_seconds(options.duration)
+        if options.timeout is not None:
+            request["timeoutSeconds"] = parse_duration_seconds(options.timeout)
+    except argparse.ArgumentTypeError as error:
+        raise ClientError("usage", str(error)) from error
+    return request
+
+
+def handle_grant(
+    alias: str, target: dict[str, Any], arguments: list[str]
+) -> int:
+    if target.get("interface", "machine-control-v0") != "machine-control-v0":
+        raise ClientError(
+            "unsupported_desktop_interface",
+            "This target does not expose resident grants",
+        )
+    request = grant_request(arguments)
+    serialized = json.dumps(request, separators=(",", ":"), ensure_ascii=False)
+    completed, parsed, elapsed_ms = run_adapter(
+        target, ["control", serialized], accept_json_failure=True
+    )
+    value = validate_resident(parsed, target["platform"])
+    value = add_client_projection(
+        value, alias, target, str(request["operation"]),
+        len(serialized.encode("utf-8")),
+        len(completed.stdout.strip().encode("utf-8")), elapsed_ms, False,
+    )
+    emit(value)
+    return 0 if value["accepted"] else 1
 
 
 def ios_request(arguments: list[str]) -> dict[str, Any]:
@@ -2985,7 +3069,7 @@ def operation_requires_claim(operation: str, arguments: list[str]) -> bool:
         return subcommand != "capabilities"
     if operation == "workspace":
         return False
-    return operation in {"desktop", "ios", "testbed", "os"}
+    return operation in {"desktop", "grant", "ios", "testbed", "os"}
 
 
 def operation_required_claim_use_class(
@@ -3342,6 +3426,9 @@ Commands:
   maintenance capabilities|audit|repair [--reboot]|certify [--profile ...]
   workspace capabilities|acquire|inventory|release|gc --dry-run
                                     Use `workspace --help` for claim composition
+  grant request --scope observe|control|browser... --reason TEXT
+        [--duration D] [--timeout D] | grant status | grant revoke
+                                    Ask a person at the target for access
   desktop status|capabilities|applications|windows|snapshot|action|capture
   desktop input text|key|click|move|drag|scroll
   desktop session unlock --expected-desktop-generation ID --expected-helper-generation ID --request-id ID
@@ -3547,6 +3634,8 @@ def main(argv: list[str] | None = None) -> int:
             return handle_workspace(alias, target, remainder[1:])
         if operation == "desktop":
             return handle_desktop(alias, target, remainder[1:])
+        if operation == "grant":
+            return handle_grant(alias, target, remainder[1:])
         if operation == "ios":
             return handle_ios(alias, target, remainder[1:])
         if operation == "testbed":

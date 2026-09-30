@@ -42,6 +42,13 @@ The dependency-free client has generic logical targets such as `windows`,
 Those entries select the public adapter under `platforms/`; they do not contain
 a real machine identity or authorize mutation.
 
+The `host` target is the Mac running the client. Its adapter talks to the
+local Machine Control resident socket and needs no inventory entry. The
+resident's root-owned deployment policy decides whether access is standing
+or needs a person's approval; see [`host-control`](../topics/host-control.md).
+A private registry that sets `includeDefaults: false` must list `host`
+explicitly to use it.
+
 For a standard setup:
 
 1. Follow the selected [platform guide](../platforms/README.md).

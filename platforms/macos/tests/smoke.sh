@@ -21,6 +21,7 @@ cd "$REPO_DIR"
 for script in \
     bin/macui \
     bin/macvm \
+    bin/machost \
     providers/tart-macos/provider.sh \
     providers/tart-macos/workspace.sh \
     providers/tart-macos/screenshot \
@@ -92,6 +93,8 @@ done
 
 /usr/bin/python3 -m json.tool \
     guests/macos/electron-fixture/package.json >/dev/null
+/usr/bin/python3 -m py_compile host/machost.py
+bin/machost help >/dev/null
 for policy in resident/policies/*.json; do
     /usr/bin/python3 -m json.tool "$policy" >/dev/null
 done

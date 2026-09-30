@@ -1195,6 +1195,49 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(value["operation"], "set_value")
         self.assertEqual(value["data"]["request"]["value"], "Hello, 世界")
 
+    def test_host_is_a_default_macos_target(self):
+        host = machine_control.DEFAULT_TARGETS["host"]
+        self.assertEqual(host["platform"], "macos")
+        self.assertEqual(host["profile"], "macos-host-resident")
+        self.assertEqual(host["claimPolicy"], "required")
+        self.assertTrue(host["command"][0].endswith("platforms/macos/bin/machost"))
+
+    def test_grant_request_builds_bounded_resident_request(self):
+        self.write_registry("macos")
+        result, value = self.run_cli(
+            "--target", "fixture", "grant", "request", "--scope", "control",
+            "--scope", "observe", "--scope", "control", "--duration", "15m",
+            "--timeout", "90", "--reason", " Fix the build ",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["data"]["request"], {
+            "operation": "grant.request", "scopes": ["control", "observe"],
+            "durationSeconds": 900, "timeoutSeconds": 90,
+            "reason": "Fix the build",
+        })
+        result, value = self.run_cli("--target", "fixture", "grant", "revoke")
+        self.assertEqual(value["data"]["request"], {"operation": "grant.revoke"})
+
+    def test_grant_request_requires_scope_and_reason(self):
+        self.write_registry("macos")
+        for arguments in (["--scope", "observe"], ["--reason", "x"],
+                          ["--scope", "root", "--reason", "x"],
+                          ["--scope", "observe", "--reason", "x", "--duration", "soon"]):
+            result, value = self.run_cli(
+                "--target", "fixture", "grant", "request", *arguments)
+            self.assertEqual(result.returncode, 2, arguments)
+            self.assertEqual(value["errorCode"], "usage")
+
+    def test_approval_required_adds_grant_remediation(self):
+        self.write_registry("macos")
+        result, value = self.run_cli(
+            "--target", "fixture", "desktop", "status",
+            extra_env={"MACHINE_CONTROL_MOCK_RESIDENT_REFUSAL": "approval_required"},
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(value["client"]["remediation"]["command"][:4],
+                         ["grant", "request", "--scope", "control"])
+
     def test_desktop_target_does_not_replace_machine_target(self):
         result, value = self.run_cli(
             "--target", "fixture", "desktop", "snapshot",

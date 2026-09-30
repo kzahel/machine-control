@@ -587,6 +587,11 @@ elif command in {"control", "control-local"}:
         "elapsedMs": 1,
         "data": {"request": request}
     }
+    if code := os.environ.get("MACHINE_CONTROL_MOCK_RESIDENT_REFUSAL"):
+        result.update({"accepted": False, "delivery": "refused",
+                       "effect": "refused", "errorCode": code,
+                       "data": {"requiredScope": "control",
+                                "requestOperation": "grant.request"}})
     if not os.environ.get("MACHINE_CONTROL_MOCK_OMIT_HOST_INTERFERENCE"):
         result["hostInterference"] = "none"
     print(json.dumps(result))

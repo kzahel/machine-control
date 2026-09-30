@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Adapter for the Machine Control resident running on this Mac. It reuses
+# the common claim store for coordination between agents; the resident's
+# deployment policy and grants decide what any caller may do.
+
+set -euo pipefail
+
+readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../../../providers/claims/common.sh
+source "$REPO_DIR/../../providers/claims/common.sh"
+
+readonly CLAIM_PROVIDER=macos-host
+readonly STATE_DIR="${MACHINE_CONTROL_HOST_STATE_DIR:-$HOME/Library/Application Support/MachineControl/controller}"
+
+usage() {
+    cat <<'USAGE'
+Usage: machost COMMAND [ARG...]
+
+  doctor [--json]          Check the local resident, desktop, and grant state
+  control JSON             Send one request to the local resident
+  control-local JSON       Same as control; the resident is already local
+  artifact-fetch PATH [OUT]
+                           Copy one resident-created artifact
+  claim-capabilities | claim-status | claim-acquire | claim-check
+  claim-renew | claim-release
+                           Coordinate use of this Mac among agents
+
+Claims coordinate agents. They are not authority: a personal Mac still
+requires an approved grant from the person at the computer.
+USAGE
+}
+
+host_resource_id() {
+    /usr/sbin/ioreg -rd1 -c IOPlatformExpertDevice |
+        /usr/bin/awk -F'"' '/IOPlatformUUID/ { print $4; exit }'
+}
+
+command="${1:-help}"
+shift || true
+case "$command" in
+    help|-h|--help) usage ;;
+    doctor) exec /usr/bin/python3 "$REPO_DIR/host/machost.py" doctor ;;
+    claim-*)
+        claim_adapter_main "$STATE_DIR/claims" "$CLAIM_PROVIDER" \
+            "$(host_resource_id)" "$command" "$@"
+        ;;
+    control|control-local|artifact-fetch)
+        claim_require_tools
+        claim_require_exact "$STATE_DIR/claims" "$CLAIM_PROVIDER" "$(host_resource_id)"
+        exec /usr/bin/python3 "$REPO_DIR/host/machost.py" "$command" "$@"
+        ;;
+    *)
+        printf 'Unknown machost command: %s\n\n' "$command" >&2
+        usage >&2
+        exit 2
+        ;;
+esac
