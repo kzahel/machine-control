@@ -13,7 +13,7 @@ bin/macvm
   |     optional command execution in the logged-in user session
   +-- authorized SSH
   |     alternate command transport to the same target-resident surface
-  +-- guests/macos/ui/macui.swift
+  +-- resident/ (Swift package)
         resident facade, guest-native providers, optional Cua adapter
 ```
 

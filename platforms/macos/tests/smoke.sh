@@ -74,7 +74,7 @@ done
 /usr/bin/swiftc -typecheck tests/fixtures/outer-keyboard.swift
 /usr/bin/swiftc -typecheck providers/tart-macos/normalize-screenshot.swift
 /usr/bin/swiftc -typecheck -framework SystemConfiguration \
-    guests/macos/ui/macui.swift
+    resident/Sources/macui/*.swift
 /usr/bin/swiftc -typecheck guests/macos/fixture/MachineControlFixture.swift
 /usr/bin/swiftc -typecheck -framework AppKit \
     guests/macos/admin-fixture/AdminAuthorizationFixture.swift

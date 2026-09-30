@@ -7,8 +7,8 @@ import tempfile
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--source', type=Path, default=(Path(__file__).resolve().parents[2] /
-                    'platforms/macos/guests/macos/ui/macui.swift') if '__file__' in globals() else
-                    Path.home() / 'Library/Application Support/macvm-testbed/macui.swift')
+                    'platforms/macos/resident/Sources/macui/Resident.swift') if '__file__' in globals() else
+                    Path.home() / 'Library/Application Support/macvm-testbed/src/Resident.swift')
 parser.add_argument('--iterations', type=int, default=500)
 parser.add_argument('--idle-only', action='store_true',
                     help='compare unchanged old/new no-argument observer under a 128-FD limit')

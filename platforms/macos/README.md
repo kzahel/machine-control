@@ -285,7 +285,8 @@ bin/macvm                         Main agent-facing CLI
 bin/macui                         Guest semantic-control wrapper
 providers/tart-macos/             Lifecycle, capture, and raw input
 guests/macos/bootstrap/           Fresh-guest installation assets
-guests/macos/ui/macui.swift       Native Accessibility helper
+resident/                         Resident Swift package (guest and host)
+guests/macos/ui/                  Guest bundle metadata and LaunchAgent
 guests/macos/fixture/             Deterministic native conformance fixture
 guests/macos/admin-fixture/       Harmless administrator-sheet fixture
 guests/macos/privacy-fixture/     Privacy API and System Settings fixture

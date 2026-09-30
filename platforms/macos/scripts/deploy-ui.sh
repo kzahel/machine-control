@@ -23,15 +23,23 @@ case "${1:-}" in
         ;;
 esac
 
-source_file="$MACVM_REPO_DIR/guests/macos/ui/macui.swift"
+source_dir="$MACVM_REPO_DIR/resident/Sources/macui"
+source_files=("$source_dir"/*.swift)
 probe_source="$MACVM_REPO_DIR/guests/macos/unlock/Probe.m"
 session_header="$MACVM_REPO_DIR/guests/macos/unlock/Session.h"
-source_digest="$(cat "$source_file" "$probe_source" "$session_header" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')"
+source_digest="$(
+    for file in "${source_files[@]}"; do
+        printf '%s\n' "$(/usr/bin/basename "$file")"
+        /bin/cat "$file"
+    done | /bin/cat - "$probe_source" "$session_header" |
+        /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}'
+)"
 info_file="$MACVM_REPO_DIR/guests/macos/ui/Info.plist"
 control_cli_file="$MACVM_REPO_DIR/guests/macos/ui/machine-control"
 resident_plist_template="$MACVM_REPO_DIR/guests/macos/ui/com.kzahel.macvm-testbed.resident.plist.in"
 remote_directory="$(macvm_remote_ui_dir)"
-remote_source="$remote_directory/macui.swift"
+remote_source_dir="$remote_directory/src"
+remote_source="$remote_source_dir/main.swift"
 remote_app="$(macvm_remote_ui_app)"
 remote_contents="$remote_app/Contents"
 remote_binary="$(macvm_remote_ui_binary)"
@@ -121,8 +129,14 @@ fi
 macvm_exec /bin/mkdir -p \
     "$remote_directory" "$remote_contents/MacOS" "$remote_contents/Resources" \
     "$(/usr/bin/dirname "$remote_resident_plist")"
-macvm_exec -i /usr/bin/tee "$remote_source" \
-    < "$source_file" >/dev/null
+macvm_exec /bin/rm -rf "$remote_source_dir"
+macvm_exec /bin/mkdir -p "$remote_source_dir"
+remote_source_files=()
+for file in "${source_files[@]}"; do
+    remote_file="$remote_source_dir/$(/usr/bin/basename "$file")"
+    macvm_exec -i /usr/bin/tee "$remote_file" < "$file" >/dev/null
+    remote_source_files+=("$remote_file")
+done
 macvm_exec -i /usr/bin/tee "$remote_contents/Info.plist" \
     < "$info_file" >/dev/null
 macvm_exec /bin/mkdir -p \
@@ -139,7 +153,7 @@ macvm_guest_xcrun clang -fobjc-arc -Wno-unused-function \
 macvm_guest_xcrun swiftc -O \
     -framework AppKit -framework ApplicationServices -framework CoreGraphics \
     -framework SystemConfiguration \
-    -o "$remote_binary" "$remote_source"
+    -o "$remote_binary" "${remote_source_files[@]}"
 macvm_exec /bin/chmod 755 "$remote_binary"
 macvm_exec /bin/chmod 755 "$remote_control_cli"
 macvm_exec /bin/chmod 600 "$remote_resident_plist"
