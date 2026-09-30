@@ -151,6 +151,9 @@ Machine Control owns the optional Tauri desktop operator application, its native
 resident/providers, grant enforcement, product updater key/configuration, and
 artifact acceptance. Desktop Release Kit owns the shared update contract and
 release validation reference; simple-app-update-server owns metadata routing
-over GitHub Releases. Dotfiles owns private signing credential locators and
-service deployment. YepAnywhere connects as a consumer rather than owning a
+over GitHub Releases. The Machine Control website owns the public desktop
+download page and resolves versioned installer links from the desktop release
+family; it does not implement the updater protocol. Dotfiles owns private
+signing credential locators and service deployment. YepAnywhere connects as a
+consumer rather than owning a
 second copy of the desktop application's grant UI or updater.

@@ -1,16 +1,22 @@
 name: macOS desktop
+run-name: macOS desktop ${{ inputs.release_tag || inputs.version || github.sha }}
 on:
   push:
     branches: [main]
-    paths: ['desktop/**', 'platforms/macos/resident/**', 'platforms/macos/guests/macos/unlock/**', '.github/workflows/macos-desktop.yml', 'release/with-macos-signing.sh']
+    paths: ['desktop/**', 'tests/release/test_desktop_release.py', 'platforms/macos/resident/**', 'platforms/macos/guests/macos/unlock/**', '.github/workflows/macos-desktop.yml', 'release/with-macos-signing.sh']
   pull_request:
-    paths: ['desktop/**', 'platforms/macos/resident/**', 'platforms/macos/guests/macos/unlock/**', '.github/workflows/macos-desktop.yml', 'release/with-macos-signing.sh']
+    paths: ['desktop/**', 'tests/release/test_desktop_release.py', 'platforms/macos/resident/**', 'platforms/macos/guests/macos/unlock/**', '.github/workflows/macos-desktop.yml', 'release/with-macos-signing.sh']
   workflow_dispatch:
     inputs:
       version:
-        description: 'Candidate version (no public release is created)'
+        description: 'Candidate or tagged desktop release version'
         default: '0.3.0'
         required: true
+        type: string
+      release_tag:
+        description: 'Existing desktop-vVERSION tag to publish (empty = CI candidate)'
+        default: ''
+        required: false
         type: string
 permissions:
   contents: read
@@ -25,6 +31,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+          fetch-depth: 0
+      - name: Validate exact tagged main source and release notes
+        if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: python3 desktop/scripts/release.py check-tag "$RELEASE_TAG" --version "$RELEASE_VERSION" --revision "$GITHUB_SHA"
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.12'
@@ -39,6 +52,7 @@ jobs:
           components: rustfmt, clippy
       - run: pnpm --dir desktop install --frozen-lockfile
       - run: pnpm --dir desktop build
+      - run: python3 -m unittest discover -s tests/release -p test_desktop_release.py -v
       - run: swift test --package-path platforms/macos/resident
       - run: platforms/macos/tests/smoke.sh --static
       - run: cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
@@ -109,3 +123,52 @@ jobs:
           path: artifacts/macos-desktop/${{ matrix.target }}/*
           if-no-files-found: error
           retention-days: 30
+  publish:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.release_tag != ''
+    needs: [check, signed]
+    runs-on: macos-26
+    environment: release
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: macos-desktop-*
+          path: candidates
+      - run: brew install minisign
+      - name: Reverify both final packages and stage public assets
+        env:
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          python3 desktop/scripts/release.py check-tag "$RELEASE_TAG" --version "$RELEASE_VERSION" --revision "$GITHUB_SHA" > release-notes.md
+          for target in aarch64-apple-darwin x86_64-apple-darwin; do
+            python3 desktop/scripts/verify-package.py "candidates/macos-desktop-$target" --revision "$GITHUB_SHA" --team-id "$APPLE_TEAM_ID" --test-tampering
+          done
+          python3 desktop/scripts/release.py stage candidates public-assets --version "$RELEASE_VERSION" --revision "$GITHUB_SHA" --run "$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT"
+      - name: Publish once, after both architectures pass
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/releases?per_page=100" > previous-releases.json
+          python3 desktop/scripts/release.py check-existing previous-releases.json --version "$RELEASE_VERSION"
+          remote_tag="$(gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" --jq .object.sha)"
+          test "$remote_tag" = "$(git rev-parse "refs/tags/$RELEASE_TAG")"
+          gh release create "$RELEASE_TAG" public-assets/* --verify-tag --target "$GITHUB_SHA" --draft --title "Machine Control desktop $RELEASE_VERSION" --notes-file release-notes.md
+          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > uploaded-release.json
+          python3 desktop/scripts/release.py check-upload public-assets uploaded-release.json --version "$RELEASE_VERSION"
+          gh release edit "$RELEASE_TAG" --draft=false --latest=false

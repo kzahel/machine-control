@@ -1,0 +1,47 @@
+---
+import SiteFooter from "../components/SiteFooter.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteLayout from "../layouts/SiteLayout.astro";
+import { loadDesktopRelease } from "../lib/desktop-release";
+const title = "Downloads — Machine Control";
+const description = "Download the Machine Control Mac desktop preview for Apple silicon or Intel.";
+let release;
+let unavailable = false;
+try { release = await loadDesktopRelease(); } catch { unavailable = true; }
+Astro.response.headers.set("Cache-Control", "public, max-age=300");
+if (unavailable) {
+  Astro.response.status = 503;
+  Astro.response.headers.set("Cache-Control", "no-store");
+  Astro.response.headers.set("Retry-After", "60");
+}
+---
+<SiteLayout title={title} description={description} canonicalPath="/downloads/">
+  <SiteHeader />
+  <main class="downloads-page">
+    <div class="shell start-shell">
+      <h1>Downloads</h1>
+      <section class="download-panel" aria-labelledby="mac-download">
+        <div class="download-heading">
+          <h2 id="mac-download">Mac desktop</h2>
+          <span>{release ? `v${release.version} · Preview` : "Preview"}</span>
+        </div>
+        <p>Menu bar app with visible access controls. Requires macOS 13 or later.</p>
+        {release ? <>
+          <div class="actions">
+            <a class="button button-primary" href="/download/macos/arm64">Apple silicon .dmg</a>
+            <a class="button button-secondary" href="/download/macos/x86_64">Intel .dmg</a>
+          </div>
+          <p class="download-note">Signed and notarized. <a href={release.url}>Release notes</a></p>
+          <ol class="download-steps">
+            <li>Open the DMG and drag Machine Control to Applications.</li>
+            <li>Open the app. Grant Accessibility and Screen Recording in Permissions.</li>
+            <li>Choose access scopes and a duration, or approve an agent request.</li>
+          </ol>
+          <p class="download-note">Grants apply to all callers running as your user. Live tests cover Apple silicon Tart; physical Mac and Intel runtime acceptance remain open.</p>
+        </> : <p class="download-state">{unavailable ? "Downloads temporarily unavailable. Try again shortly." : "No public Mac release yet."}</p>}
+      </section>
+      <p class="download-note">Windows and Linux desktop apps are planned. For testbeds and the common CLI, see <a href="/getting-started/">Getting started</a>.</p>
+    </div>
+  </main>
+  <SiteFooter />
+</SiteLayout>

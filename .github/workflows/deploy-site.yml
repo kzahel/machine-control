@@ -45,6 +45,10 @@ jobs:
         working-directory: site
         run: pnpm build
 
+      - name: Test release selection and download routes
+        working-directory: site
+        run: pnpm test
+
       - name: Bind production database
         working-directory: site
         env:

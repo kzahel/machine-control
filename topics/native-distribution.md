@@ -147,3 +147,11 @@ WebView. Windows and Linux keep their native providers and separate evidence
 gates. [Tactical 051](../docs/tactical/051-tauri-macos-desktop.md) owns the first
 signed Mac candidate and Tart acceptance. CI candidates do not publish releases
 or deploy the update service.
+
+**Current:** [Tagged desktop publication](../release/macos-desktop.md) uses a
+clean main checkout, explicit changelog notes, and annotated `desktop-v` tags.
+The main-only workflow requires exact tag/source identity, verifies both Mac
+packages and GitHub-uploaded hashes, and publishes the complete draft once.
+The website resolves the latest desktop DMGs independently of Windows component
+releases. No public desktop release has been published by this implementation;
+production updater routing and installed-feed acceptance remain open.

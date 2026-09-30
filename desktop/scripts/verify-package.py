@@ -54,4 +54,9 @@ with tempfile.TemporaryDirectory(prefix='mc-verify-') as tmp:
     subprocess.run(['codesign','--verify','--deep','--strict',str(app)],check=True)
     subprocess.run(['spctl','--assess','--type','execute',str(app)],check=True)
     subprocess.run(['xcrun','stapler','validate',str(app)],check=True,stdout=subprocess.DEVNULL)
+    dmgs=[args.directory/item['name'] for item in manifest['artifacts'] if item['name'].endswith('.dmg')]
+    if len(dmgs)!=1:raise SystemExit('Exactly one DMG is required')
+    subprocess.run(['codesign','--verify','--strict','-R',f'=anchor apple generic and certificate leaf[subject.OU] = "{args.team_id}"',str(dmgs[0])],check=True)
+    subprocess.run(['xcrun','stapler','validate',str(dmgs[0])],check=True,stdout=subprocess.DEVNULL)
+    subprocess.run(['spctl','--assess','--type','open','--context','context:primary-signature',str(dmgs[0])],check=True)
 print('Archive, updater signature, signed version, native signatures, Gatekeeper, and stapling verified')

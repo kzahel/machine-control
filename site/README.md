@@ -70,3 +70,21 @@ WHERE email = ?;
 ```
 
 Delete the matching row instead when a subscriber asks for full removal.
+
+## Desktop downloads
+
+`/downloads/` exposes the latest published Mac desktop preview, with stable
+`/download/macos/arm64` and `/download/macos/x86_64` redirect paths. Selection
+filters `desktop-vX.Y.Z` tags and excludes drafts/prereleases and independent
+Windows component releases. The highest numeric desktop version must carry the
+complete Mac installer/updater set. Releases are queried through GitHub's public
+API with a five-minute Cloudflare cache; the lookup is bounded to the 100 most
+recent repository releases. An absent release shows an honest empty state, and
+upstream/metadata failures return temporary unavailability.
+
+No site rebuild or version edit is needed after publication. In-app update
+routing remains owned by simple-app-update-server, with production deployment
+and signed update acceptance separate from website links. See
+[the release process](../release/macos-desktop.md).
+
+Run release-selection and redirect tests with `pnpm test`.

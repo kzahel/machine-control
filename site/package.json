@@ -10,6 +10,7 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
     "deploy": "astro build && wrangler deploy",
     "generate-types": "wrangler types"
   },

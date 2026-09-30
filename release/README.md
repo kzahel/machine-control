@@ -1,5 +1,9 @@
 # Native signing smoke
 
+The Mac Tauri desktop has its own [tagged release process](macos-desktop.md),
+`desktop/scripts/release.sh VERSION`, and two-architecture publication workflow.
+An empty release-tag input still produces signed CI candidates only.
+
 The real Windows workstation preview is implemented separately in
 [windows-workstation.md](windows-workstation.md) and
 [Tactical 036](../docs/tactical/036-windows-workstation-distribution.md).

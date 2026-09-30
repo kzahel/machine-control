@@ -4,6 +4,10 @@ A shared Tauri operator application with the existing Mac resident embedded
 as a Swift framework in its native process. macOS is the first implemented
 adapter; Windows and Linux desktop integration is not yet supported.
 
+The operator uses a compact settings window with Access, Permissions, Activity,
+and Settings tabs. Labels and status rows replace banners and explanatory
+subtitles; same-user grant reach stays visible beside access controls.
+
 ## Development and installation
 
 Requires Node 24+, pnpm, Rust, and Xcode on macOS.
@@ -33,7 +37,8 @@ platforms/macos/resident/scripts/install-user.sh --app APP_PATH
 That installer verifies integrity, but it is not a release authenticator. For
 an external package, verify the product updater signature, exact publisher,
 notarization, and final bytes before installation. The manual desktop workflow
-produces candidates as CI artifacts and does not publish GitHub Releases.
+produces CI candidates with an empty release tag. Tagged publication uses
+[the desktop release script](../release/macos-desktop.md).
 
 ## Approval and control boundaries
 
@@ -75,6 +80,12 @@ archive before checking code signatures, Gatekeeper, and the stapled ticket.
 python3 desktop/scripts/verify-package.py ARTIFACT_DIRECTORY \
   --revision EXPECTED_SOURCE_SHA --team-id EXPECTED_TEAM_ID --test-tampering
 ```
+
+The tagged release script creates an annotated `desktop-vX.Y.Z` tag and
+dispatches the main-only workflow. After both Mac packages pass verification,
+CI creates and verifies a draft before publication. The website resolves the
+latest desktop release separately from Windows component releases. See the
+[release process](../release/macos-desktop.md) and [changelog](CHANGELOG.md).
 
 The configured public update route is reserved; its server deployment and
 first production-feed update are a separate release step. No automatic update
