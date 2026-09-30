@@ -18,6 +18,10 @@ func operationClass(_ operation: String) -> OperationClass {
         return .grantManagement
     case "browser.provider":
         return .providerRegistration
+    case "browser.endpoint":
+        // Reports the DevTools WebSocket endpoint; the token, not this call,
+        // gates the socket, and the endpoint is only present under a grant.
+        return .discovery
     case "browser.cdp", "browser.eval":
         // Raw DevTools protocol access is broader than operating tabs: it
         // can run scripts and read data on any signed-in site.

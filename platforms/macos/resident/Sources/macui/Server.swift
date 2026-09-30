@@ -91,12 +91,14 @@ final class ResidentServer {
     private var lastDesktopState: String?
 
     let browser: BrowserRelay
+    let devtools: BrowserDevToolsBridge
 
     init(socketPath: String, service: ResidentService, broker: GrantBroker) {
         self.socketPath = socketPath
         self.service = service
         self.broker = broker
         browser = BrowserRelay(service: service, broker: broker)
+        devtools = BrowserDevToolsBridge(broker: broker, relay: browser)
         browser.respond = { [weak self] client, request, response, caller, claimID in
             self?.respond(client, request, response, caller: caller, claimID: claimID)
         }
@@ -226,6 +228,13 @@ final class ResidentServer {
             ]), caller: caller, claimID: claimID)
             return
         }
+        if operation == "browser.endpoint" {
+            var data = browser.statusJSON
+            data["devtoolsEndpoint"] = devtools.reconcile() ?? NSNull()
+            respond(client, request, service.acceptance(request, data: data),
+                    caller: caller, claimID: claimID)
+            return
+        }
         if [.scoped(.browser), .scoped(.devtools)].contains(operationClass(operation)) {
             if let refusal = browser.forward(client, request, caller: caller, claimID: claimID) {
                 respond(client, request, refusal, caller: caller, claimID: claimID)
@@ -261,7 +270,9 @@ final class ResidentServer {
             if operation == "status" || operation == "capabilities",
                var data = response["data"] as? [String: Any] {
                 data["deployment"] = broker.statusJSON
-                data["browser"] = browser.statusJSON
+                var browserStatus = browser.statusJSON
+                browserStatus["devtoolsEndpoint"] = devtools.endpoint ?? NSNull()
+                data["browser"] = browserStatus
                 response["data"] = data
             }
             respond(client, request, response, caller: caller, claimID: claimID)
@@ -294,6 +305,7 @@ final class ResidentServer {
             if broker.policy.grantMode == .standing {
                 var data = broker.statusJSON
                 data["decision"] = "standing"
+                data["devtoolsEndpoint"] = devtools.reconcile() ?? NSNull()
                 return service.acceptance(request, data: data)
             }
             let parsed: GrantRequest
@@ -304,6 +316,7 @@ final class ResidentServer {
             if let current = broker.covering(parsed) {
                 var data = broker.statusJSON
                 data["decision"] = "existing_grant"
+                data["devtoolsEndpoint"] = devtools.reconcile() ?? NSNull()
                 data["grant"] = current.json(now: broker.now())
                 return service.acceptance(request, data: data)
             }
@@ -346,6 +359,7 @@ final class ResidentServer {
         if let grant {
             var data = broker.statusJSON
             data["decision"] = "approved"
+            data["devtoolsEndpoint"] = devtools.reconcile() ?? NSNull()
             data["grant"] = grant.json(now: broker.now())
             response = service.acceptance(request, data: data)
         } else if decision == .timedOut {
@@ -454,10 +468,13 @@ func openedAsApplication() -> Never {
 /// Starts the resident under the trusted deployment policy and runs the
 /// application event loop.
 func runResident(socketPath: String) throws -> Never {
+    // A server never wants a stray write to a closed peer to kill it.
+    signal(SIGPIPE, SIG_IGN)
     let broker = GrantBroker(policy: DeploymentPolicy.load())
     let server = ResidentServer(socketPath: socketPath, service: ResidentService(),
                                 broker: broker)
     try server.start()
+    server.devtools.start()
     let application = NSApplication.shared
     application.setActivationPolicy(.accessory)
     let approval = ApprovalPanelController()

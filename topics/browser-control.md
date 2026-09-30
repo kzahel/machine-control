@@ -64,8 +64,22 @@ extension ID stable across checkouts.
 resident's grant broker. The extension badge mirrors grant state but does not
 enforce it.
 
-**Decision:** Raw DevTools protocol access is available, because it is the
-most capable and efficient browser route. `browser.cdp` passes any method and
+**Decision:** For a live, efficient session an agent connects a raw CDP
+WebSocket. Chrome refuses `--remote-debugging-port` on the signed-in profile,
+so the Machine Control app hosts a loopback WebSocket server and relays frames
+through the extension per tab. `browser.endpoint` (and a `devtools` grant
+result) returns `ws://127.0.0.1:PORT/devtools/page/<tabId>?token=…`. The
+server runs for the resident's lifetime; a per-grant token, cleared when the
+grant ends, gates every connection, and the server also rejects any request
+carrying an `Origin` header so a web page cannot reach it. Events stream back
+over the socket. Tab-level clients and raw CDP libraries work directly;
+browser-level attachment for Playwright and Puppeteer would need target
+emulation and is not built. A separate agent Chrome profile started with
+`--remote-debugging-port` remains the alternative for full native access
+without the extension in the path.
+
+**Decision:** Single-shot raw DevTools access is also available, because it is
+the most capable and efficient browser route. `browser.cdp` passes any method and
 parameters through `chrome.debugger`, and `browser.eval` evaluates JavaScript
 and returns the value. Both require a separate `devtools` scope, because that
 access can run scripts and read data on every signed-in site, and data read

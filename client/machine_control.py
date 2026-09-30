@@ -2583,7 +2583,7 @@ def grant_request(arguments: list[str]) -> dict[str, Any]:
 
 BROWSER_COMMANDS = {
     "tabs", "navigate", "snapshot", "click", "type", "key", "capture", "upload",
-    "cdp", "eval", "release",
+    "cdp", "eval", "endpoint", "release",
 }
 
 
@@ -3530,7 +3530,8 @@ Commands:
   grant request --scope observe|control|browser|devtools... --reason TEXT
         [--duration D] [--timeout D] | grant status | grant revoke
                                     Ask a person at the target for access
-  browser tabs|navigate|snapshot|click|type|key|capture|upload|cdp|eval|release
+  browser tabs|navigate|snapshot|click|type|key|capture|upload|cdp|eval
+        |endpoint|release
         [--tab ID] [--url URL] [--new-tab] [--reference R] [--text T]
         [--file PATH]... [--method M --params JSON] [--expression JS]
                                     Operate Chrome through the extension

@@ -86,6 +86,7 @@ final class BrowserRelay {
     private var source: DispatchSourceRead?
     private var buffer = Data()
     private var pending: [String: Pending] = [:]
+    private var sessions: [String: DevToolsSession] = [:]
     private(set) var hello: [String: Any]?
     private let bufferLimit = 48 * 1_048_576
 
@@ -156,6 +157,31 @@ final class BrowserRelay {
         return nil
     }
 
+    /// Opens a raw DevTools session on a tab for `handler`. The extension
+    /// attaches the debugger and forwards that tab's events.
+    func openSession(tabId: Int, handler: DevToolsSession) -> String {
+        let id = UUID().uuidString.lowercased()
+        sessions[id] = handler
+        write(["type": "session.open", "id": id, "tabId": tabId])
+        return id
+    }
+
+    func sendSessionCommand(_ id: String, cmdId: Int, method: String, params: [String: Any]) {
+        write(["type": "session.command", "id": id, "cmdId": cmdId,
+               "method": method, "params": params])
+    }
+
+    func closeSession(_ id: String) {
+        guard sessions.removeValue(forKey: id) != nil else { return }
+        write(["type": "session.close", "id": id])
+    }
+
+    /// Ends every open session, for grant loss or provider disconnect.
+    func closeAllSessions(reason: String) {
+        for (id, handler) in sessions { handler.sessionClosed(reason) ; _ = id }
+        sessions.removeAll()
+    }
+
     private func sendGrantState() {
         guard connected else { return }
         let devtools = broker.devtoolsAllowed
@@ -192,6 +218,22 @@ final class BrowserRelay {
             case "hello": hello = message
             case "response":
                 if let id = message["id"] as? String { complete(id, message) }
+            case "session.opened":
+                if let id = message["id"] as? String { sessions[id]?.sessionOpened() }
+            case "session.failed":
+                if let id = message["id"] as? String {
+                    sessions[id]?.sessionClosed(message["message"] as? String ?? "session_failed")
+                    sessions.removeValue(forKey: id)
+                }
+            case "session.result":
+                if let id = message["id"] as? String { sessions[id]?.sessionResult(message) }
+            case "session.event":
+                if let id = message["id"] as? String { sessions[id]?.sessionEvent(message) }
+            case "session.closed":
+                if let id = message["id"] as? String {
+                    sessions[id]?.sessionClosed(message["reason"] as? String ?? "closed")
+                    sessions.removeValue(forKey: id)
+                }
             default: break
             }
         }
@@ -203,6 +245,7 @@ final class BrowserRelay {
         if provider >= 0 { Darwin.close(provider) }
         provider = -1
         hello = nil
+        closeAllSessions(reason: "browser_provider_disconnected")
         for id in Array(pending.keys) {
             complete(id, ["ok": false, "errorCode": reason,
                           "message": "The browser provider disconnected"])

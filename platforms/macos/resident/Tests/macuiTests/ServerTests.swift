@@ -25,6 +25,7 @@ final class ServerTests: XCTestCase {
     private var broker: GrantBroker!
 
     override func setUpWithError() throws {
+        signal(SIGPIPE, SIG_IGN)
         socketPath = "/tmp/mc-test-\(getpid())-\(Int.random(in: 0..<100_000)).sock"
         broker = GrantBroker(policy: .workstation(issue: nil))
         server = ResidentServer(socketPath: socketPath, service: ResidentService(), broker: broker)

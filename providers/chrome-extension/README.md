@@ -24,6 +24,7 @@ Operations use `chrome.debugger` (CDP) on individual tabs:
 | `browser.upload` | Attach local files to a file input, or to the chooser an upload button opens, without the OS file dialog |
 | `browser.cdp` | Any DevTools protocol method with its parameters (`devtools` grant) |
 | `browser.eval` | Evaluate JavaScript in a tab and return the value (`devtools` grant) |
+| `browser.endpoint` | Report the local DevTools WebSocket endpoint template (`devtools` grant) |
 | `browser.release` | Detach all debugger sessions |
 
 References look like `TAB:GENERATION:NODE`. Taking a new snapshot or loading a

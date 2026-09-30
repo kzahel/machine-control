@@ -29,6 +29,8 @@ let retryDelayMs = 1000;
 let retryTimer = null;
 const attached = new Set();
 const generations = new Map();
+// Raw DevTools sessions opened for the WebSocket bridge: id -> tabId.
+const sessions = new Map();
 
 class ProviderError extends Error {
   constructor(code, message) {
@@ -99,10 +101,14 @@ async function onResidentMessage(message) {
   if (message?.type === "grant") {
     granted = message.browser === true;
     devtools = message.devtools === true;
-    if (!granted) await detachAll();
+    if (!devtools) await closeAllSessions("devtools_grant_ended");
+    if (!granted && !devtools) await detachAll();
     updateBadge();
     return;
   }
+  if (message?.type === "session.open") return openSession(message);
+  if (message?.type === "session.command") return sessionCommand(message);
+  if (message?.type === "session.close") return closeSession(message.id, "closed");
   if (message?.type !== "request") return;
   const reply = { type: "response", id: message.id };
   try {
@@ -389,6 +395,56 @@ async function setFiles(tabId, backendNodeId, files) {
   }
 }
 
+async function openSession(message) {
+  const { id, tabId } = message;
+  try {
+    await ensureAttached(tabId);
+    sessions.set(id, tabId);
+    port?.postMessage({ type: "session.opened", id });
+  } catch (error) {
+    port?.postMessage({ type: "session.failed", id, message: String(error.message || error) });
+  }
+}
+
+async function sessionCommand(message) {
+  const tabId = sessions.get(message.id);
+  if (tabId === undefined) {
+    port?.postMessage({ type: "session.result", id: message.id, cmdId: message.cmdId,
+      error: { code: -32000, message: "session closed" } });
+    return;
+  }
+  try {
+    const result = await chrome.debugger.sendCommand({ tabId }, message.method, message.params || {});
+    port?.postMessage({ type: "session.result", id: message.id, cmdId: message.cmdId, result: result ?? {} });
+  } catch (error) {
+    port?.postMessage({ type: "session.result", id: message.id, cmdId: message.cmdId,
+      error: { code: -32000, message: String(error.message || error) } });
+  }
+}
+
+async function closeSession(id, reason) {
+  const tabId = sessions.get(id);
+  if (tabId === undefined) return;
+  sessions.delete(id);
+  // Detach only when no session or other work holds the tab.
+  if (![...sessions.values()].includes(tabId)) {
+    await chrome.debugger.detach({ tabId }).catch(() => {});
+    attached.delete(tabId);
+  }
+  port?.postMessage({ type: "session.closed", id, reason });
+}
+
+async function closeAllSessions(reason) {
+  for (const id of [...sessions.keys()]) await closeSession(id, reason);
+}
+
+// Forward every debugger event to each session on that tab.
+chrome.debugger.onEvent.addListener((source, method, params) => {
+  for (const [id, tabId] of sessions) {
+    if (tabId === source.tabId) port?.postMessage({ type: "session.event", id, method, params });
+  }
+});
+
 // Raw DevTools protocol access under the separate devtools grant. Chrome
 // still refuses the few domains it withholds from extensions.
 async function cdp(params) {
@@ -428,6 +484,14 @@ chrome.debugger.onDetach.addListener(({ tabId }) => attached.delete(tabId));
 chrome.tabs.onRemoved.addListener((tabId) => {
   attached.delete(tabId);
   generations.delete(tabId);
+  for (const [id, sessionTab] of sessions) {
+    if (sessionTab === tabId) { sessions.delete(id); port?.postMessage({ type: "session.closed", id, reason: "tab_closed" }); }
+  }
+});
+chrome.debugger.onDetach.addListener((source) => {
+  for (const [id, tabId] of sessions) {
+    if (tabId === source.tabId) { sessions.delete(id); port?.postMessage({ type: "session.closed", id, reason: "detached" }); }
+  }
 });
 chrome.tabs.onUpdated.addListener((tabId, change) => {
   // A navigation invalidates element references for that tab.

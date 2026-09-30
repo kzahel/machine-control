@@ -44,6 +44,7 @@ final class BrowserRelayTests: XCTestCase {
     private var broker: GrantBroker!
 
     override func setUpWithError() throws {
+        signal(SIGPIPE, SIG_IGN)
         socketPath = "/tmp/mc-browser-\(getpid())-\(Int.random(in: 0..<100_000)).sock"
         broker = GrantBroker(policy: .workstation(issue: nil))
         server = ResidentServer(socketPath: socketPath, service: ResidentService(), broker: broker)
@@ -80,18 +81,23 @@ final class BrowserRelayTests: XCTestCase {
         }
     }
 
-    private func connectProvider() -> FakeProvider? {
+    /// Connects a provider and, when trusted, drains the "registered" reply in
+    /// the same main-pumped hop so registration is deterministic under load.
+    private func connectProvider(drainRegistered: Bool = true) -> FakeProvider? {
         let path = socketPath
-        let provider = onBackground { FakeProvider(socketPath: path) }
-        provider?.send(["operation": "browser.provider", "origin": "chrome-extension://test/"])
-        return provider
+        return onBackground { () -> FakeProvider? in
+            guard let provider = FakeProvider(socketPath: path) else { return nil }
+            provider.send(["operation": "browser.provider", "origin": "chrome-extension://test/"])
+            if drainRegistered { _ = provider.next() }
+            return provider
+        }
     }
 
     func testUntrustedProviderIsRefused() {
         // In tests the fake provider shares this process's code identity, so
         // inject a peer that fails the check.
         server.browser.identityCheck = { _ in false }
-        let provider = connectProvider()
+        let provider = connectProvider(drainRegistered: false)
         let reply = onBackground { provider?.next() }
         XCTAssertEqual(reply?["errorCode"] as? String, "browser_provider_untrusted")
         XCTAssertFalse(server.browser.connected)
@@ -108,7 +114,6 @@ final class BrowserRelayTests: XCTestCase {
     func testRelayForwardsAndReportsGrantState() {
         server.browser.identityCheck = { _ in true }
         guard let provider = connectProvider() else { return XCTFail("provider did not connect") }
-        XCTAssertEqual(onBackground { provider.next() }?["type"] as? String, "registered")
         XCTAssertEqual(onBackground { provider.next() }?["browser"] as? Bool, false)
 
         broker.issue(scopes: [.observe, .browser], durationSeconds: 600, reason: "r",
@@ -143,7 +148,7 @@ final class BrowserRelayTests: XCTestCase {
     func testProviderDisconnectFailsPendingRequest() {
         server.browser.identityCheck = { _ in true }
         var provider = connectProvider()
-        XCTAssertEqual(onBackground { provider?.next() }?["type"] as? String, "registered")
+        XCTAssertNotNil(provider)
         broker.issue(scopes: [.browser], durationSeconds: 600, reason: "r", requester: "x", approver: "test")
         let dropped = expectation(description: "provider dropped")
         DispatchQueue.global().async {

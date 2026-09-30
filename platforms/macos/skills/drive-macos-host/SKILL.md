@@ -44,9 +44,13 @@ refused until the person at the computer approves a grant.
   where `R` is a file input or the page's upload/attach button. It never opens
   the macOS file dialog. Do not click upload buttons and then drive the
   native Open dialog with keystrokes.
-- For anything the typed commands do not cover, request the `devtools` scope
-  and use `browser cdp --method Domain.method --params JSON` or
-  `browser eval --expression JS`. Say in the reason why raw DevTools access is
+- For anything the typed commands do not cover, request the `devtools` scope.
+  For a few calls, use `browser cdp --method Domain.method --params JSON` or
+  `browser eval --expression JS`. For a live session or to watch events, run
+  `browser endpoint` and connect a raw CDP WebSocket client to the returned
+  `ws://127.0.0.1:PORT/devtools/page/<tabId>?token=…` (substitute a real tab
+  id from `browser tabs`). Do not send an Origin header. The endpoint stops
+  working when the grant ends. Say in the reason why raw DevTools access is
   needed; it lets the agent act on every signed-in site.
 - Files in hidden folders or `~/Library` are refused. If Chrome reports
   `file_access_not_allowed`, ask the person to turn on "Allow access to file
