@@ -233,6 +233,7 @@ class FactoryStagesTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "completion_required"):
                 MODULE.attest_cloud_init("00000000-0000-0000-0000-000000000000")
 
+    @unittest.skipUnless(os.name == "posix", "UTM receipt permissions require POSIX file modes")
     def test_utm_completion_receipt_is_private_and_exact(self):
         identifier = "00000000-0000-0000-0000-000000000000"
         identity = {"schema": "machine-control-candidate-assertion/v0",

@@ -20,6 +20,7 @@ SPEC.loader.exec_module(MODULE)
 IDENTIFIER = "00000000-0000-0000-0000-000000000000"
 
 
+@unittest.skipUnless(os.name == "posix", "Linux credential checks require POSIX ownership and no-follow opens")
 class CredentialTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
