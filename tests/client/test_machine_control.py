@@ -1268,6 +1268,17 @@ class ClientTests(unittest.TestCase):
                 "--target", "fixture", "browser", "upload", *arguments)
             self.assertEqual(value["errorCode"], "usage", arguments)
 
+    def test_browser_help_and_wait(self):
+        self.write_registry("macos")
+        result, value = self.run_cli("--target", "fixture", "browser", "key", "--help")
+        self.assertEqual(value["errorCode"], "usage")
+        self.assertIn("Enter", value["message"])
+        result, value = self.run_cli(
+            "--target", "fixture", "browser", "wait", "--tab", "5", "--timeout", "10")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["data"]["request"],
+                         {"operation": "browser.wait", "tabId": 5, "timeoutMs": 10000})
+
     def test_browser_cdp_and_eval_requests(self):
         self.write_registry("macos")
         result, value = self.run_cli(

@@ -15,10 +15,23 @@ const KEYS = {
   Tab: { code: "Tab", keyCode: 9 },
   Escape: { code: "Escape", keyCode: 27 },
   Backspace: { code: "Backspace", keyCode: 8 },
+  Delete: { code: "Delete", keyCode: 46 },
+  Home: { code: "Home", keyCode: 36 },
+  End: { code: "End", keyCode: 35 },
+  PageUp: { code: "PageUp", keyCode: 33 },
+  PageDown: { code: "PageDown", keyCode: 34 },
   ArrowUp: { code: "ArrowUp", keyCode: 38 },
   ArrowDown: { code: "ArrowDown", keyCode: 40 },
   ArrowLeft: { code: "ArrowLeft", keyCode: 37 },
   ArrowRight: { code: "ArrowRight", keyCode: 39 },
+};
+// Common names an agent might use for the keys above.
+const KEY_ALIASES = {
+  return: "Enter", enter: "Enter", tab: "Tab", esc: "Escape", escape: "Escape",
+  backspace: "Backspace", back: "Backspace", del: "Delete", delete: "Delete",
+  home: "Home", end: "End", pageup: "PageUp", pagedown: "PageDown",
+  up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight",
+  arrowup: "ArrowUp", arrowdown: "ArrowDown", arrowleft: "ArrowLeft", arrowright: "ArrowRight",
 };
 
 let port = null;
@@ -125,6 +138,7 @@ async function onResidentMessage(message) {
 async function perform(operation, params) {
   switch (operation) {
     case "browser.tabs": return listTabs();
+    case "browser.wait": return waitReady(params);
     case "browser.navigate": return navigate(params);
     case "browser.snapshot": return snapshot(params);
     case "browser.click": return click(params);
@@ -322,13 +336,31 @@ async function type(params) {
 }
 
 async function key(params) {
-  const spec = KEYS[params.key];
-  if (!spec) throw new ProviderError("invalid_request", `key must be one of ${Object.keys(KEYS).join(", ")}`);
+  const name = KEYS[params.key] ? params.key : KEY_ALIASES[String(params.key || "").toLowerCase()];
+  const spec = KEYS[name];
+  if (!spec) throw new ProviderError("invalid_request",
+    `key must name one of: ${Object.keys(KEYS).join(", ")} (to type characters use browser type)`);
   const tabId = (await resolveTab(params)).id;
-  const base = { key: params.key, code: spec.code, windowsVirtualKeyCode: spec.keyCode };
+  const base = { key: name, code: spec.code, windowsVirtualKeyCode: spec.keyCode };
   await send(tabId, "Input.dispatchKeyEvent", { type: "keyDown", ...base, text: spec.text });
   await send(tabId, "Input.dispatchKeyEvent", { type: "keyUp", ...base });
-  return { tabId, key: params.key };
+  return { tabId, key: name };
+}
+
+// Waits until a tab finishes loading (and is no longer discarded), so a
+// caller can act on a page that is ready rather than sleeping.
+async function waitReady(params) {
+  const timeoutMs = Math.min(Math.max(Number(params.timeoutMs) || 15000, 500), 60000);
+  const deadline = Date.now() + timeoutMs;
+  let tab = await resolveTab(params);
+  while (Date.now() < deadline) {
+    tab = await chrome.tabs.get(tab.id);
+    if (tab.status === "complete" && !tab.discarded) {
+      return { tab: tabJSON(tab), ready: true };
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return { tab: tabJSON(tab), ready: false };
 }
 
 function waitForEvent(tabId, method, timeoutMs) {

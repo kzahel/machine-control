@@ -39,7 +39,12 @@ refused until the person at the computer approves a grant.
 ## Browser work
 
 - Prefer `browser` commands over desktop input in Chrome: `snapshot` gives
-  references, then `click`, `type`, `key --key Enter`, and `navigate`.
+  references, then `click`, `type`, `key --key Enter`, and `navigate`. Run
+  `browser CMD --help` for a command's exact flags. `browser key` takes a
+  named key (Enter, Tab, Escape, arrows, and aliases like `return`), not
+  characters; use `browser type` for text.
+- After `navigate`, or before reading a tab that was discarded or still
+  loading, run `browser wait --tab ID` so the page is ready.
 - `browser tabs` reports each tab's `status` and `discarded`. A discarded
   tab reloads when Machine Control attaches, so wait for it to load before
   reading it, and remember that a heavy web app may set its title and content

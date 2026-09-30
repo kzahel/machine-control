@@ -15,6 +15,7 @@ Operations use `chrome.debugger` (CDP) on individual tabs:
 | Resident operation | Effect |
 | --- | --- |
 | `browser.tabs` | List tabs |
+| `browser.wait` | Wait until a tab finishes loading and is not discarded |
 | `browser.navigate` | Load an `http`, `https`, or `about:blank` URL in a tab or a new tab |
 | `browser.snapshot` | Compact accessibility tree with generation-bound references |
 | `browser.click` | Trusted mouse click at an element's center |

@@ -2583,7 +2583,27 @@ def grant_request(arguments: list[str]) -> dict[str, Any]:
 
 BROWSER_COMMANDS = {
     "tabs", "navigate", "snapshot", "click", "type", "key", "capture", "upload",
-    "cdp", "eval", "endpoint", "release",
+    "cdp", "eval", "endpoint", "wait", "release",
+}
+
+BROWSER_USAGE = {
+    "tabs": "browser tabs — list open tabs (tabId, url, title, status, discarded)",
+    "wait": "browser wait [--tab ID] [--timeout D] — wait until the tab finishes loading",
+    "navigate": "browser navigate --url URL [--tab ID] [--new-tab] — open http/https/about:blank",
+    "snapshot": "browser snapshot [--tab ID] [--max N] [--interactive] — compact accessibility tree",
+    "click": "browser click --reference R [--tab ID] — click an element from a snapshot",
+    "type": "browser type --text T [--reference R] [--tab ID] — insert text (focus R first)",
+    "key": "browser key --key NAME [--tab ID] — press a named key: Enter, Tab, Escape, "
+           "Backspace, Delete, Home, End, PageUp, PageDown, ArrowUp/Down/Left/Right "
+           "(aliases like return, esc, up work). Use browser type for characters.",
+    "capture": "browser capture [--tab ID] — viewport PNG artifact",
+    "upload": "browser upload --reference R --file PATH [--file PATH]... — attach files "
+              "to a file input or upload button, without the OS dialog",
+    "cdp": "browser cdp --method Domain.method [--params JSON] [--tab ID] — one raw "
+           "DevTools call (devtools grant)",
+    "eval": "browser eval --expression JS [--tab ID] — evaluate JavaScript (devtools grant)",
+    "endpoint": "browser endpoint — the DevTools WebSocket URL for a live session (devtools grant)",
+    "release": "browser release — detach all debugger sessions",
 }
 
 
@@ -2593,6 +2613,8 @@ def browser_request(arguments: list[str]) -> dict[str, Any]:
             "usage", "browser requires " + "|".join(sorted(BROWSER_COMMANDS))
         )
     command, rest = arguments[0], arguments[1:]
+    if any(flag in rest for flag in ("--help", "-h")):
+        raise ClientError("usage", BROWSER_USAGE.get(command, "browser " + command))
     parser = argparse.ArgumentParser(add_help=False, exit_on_error=False)
     parser.add_argument("--tab", type=int)
     parser.add_argument("--url")
@@ -2606,10 +2628,11 @@ def browser_request(arguments: list[str]) -> dict[str, Any]:
     parser.add_argument("--method")
     parser.add_argument("--params")
     parser.add_argument("--expression")
+    parser.add_argument("--timeout")
     try:
         options = parser.parse_args(rest)
     except (argparse.ArgumentError, SystemExit) as error:
-        raise ClientError("usage", f"Invalid browser {command} options") from error
+        raise ClientError("usage", BROWSER_USAGE.get(command, f"Invalid browser {command} options")) from error
     if command == "upload":
         if not options.reference or not options.file:
             raise ClientError(
@@ -2655,6 +2678,8 @@ def browser_request(arguments: list[str]) -> dict[str, Any]:
         request["newTab"] = True
     if options.interactive:
         request["interactiveOnly"] = True
+    if command == "wait" and options.timeout is not None:
+        request["timeoutMs"] = parse_duration_seconds(options.timeout) * 1000
     return request
 
 
@@ -3530,8 +3555,8 @@ Commands:
   grant request --scope observe|control|browser|devtools... --reason TEXT
         [--duration D] [--timeout D] | grant status | grant revoke
                                     Ask a person at the target for access
-  browser tabs|navigate|snapshot|click|type|key|capture|upload|cdp|eval
-        |endpoint|release
+  browser tabs|wait|navigate|snapshot|click|type|key|capture|upload|cdp|eval
+        |endpoint|release   (browser CMD --help for details)
         [--tab ID] [--url URL] [--new-tab] [--reference R] [--text T]
         [--file PATH]... [--method M --params JSON] [--expression JS]
                                     Operate Chrome through the extension
