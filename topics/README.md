@@ -36,6 +36,8 @@ its `Topic:` trailers.
 - [`android-family-control.md`](android-family-control.md): shared ADB provider
   primitives, distinct Android-handheld and Quest profiles, protected phone
   unlock, evidence, and remaining semantic/profile work.
+- [`browser-control.md`](browser-control.md): user-browser control through a
+  Machine Control extension, native messaging, and grant-scoped CDP.
 - [`capabilities-and-results.md`](capabilities-and-results.md): common
   capability, observation, action, uncertainty, and conformance vocabulary.
 - [`cross-platform-coordinator.md`](cross-platform-coordinator.md): portable
@@ -43,6 +45,8 @@ its `Topic:` trailers.
   and target-native validation.
 - [`delegation-and-agent-placement.md`](delegation-and-agent-placement.md): YA
   coordination and the separation between agent placement and control target.
+- [`host-control.md`](host-control.md): physical and personal hosts, deployment
+  presets, grant broker and approval, menu bar application, and away mode.
 - [`inner-first-routing.md`](inner-first-routing.md): ordinary resident routes,
   explicit outer recovery, and host-interference policy.
 - [`ios-device-control.md`](ios-device-control.md): adopted CoreDevice/XCTest

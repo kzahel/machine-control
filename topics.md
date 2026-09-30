@@ -49,3 +49,7 @@ commits with no expected follow-up do not need a trailer or registry entry.
   administrator arming, controller authorization and credential transport.
 - `operational-workflow-automation` — staged agent-driven setup, recovery,
   claims, validation, and release workflows that replace prose-only decisions.
+- `host-control` — physical and personal hosts, deployment presets, grant
+  broker and approvers, menu bar application, and attended-away operation.
+- `browser-control` — user-browser control through a Machine Control
+  extension, native messaging, and grant-scoped CDP.
