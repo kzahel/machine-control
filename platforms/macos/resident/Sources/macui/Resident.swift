@@ -556,6 +556,33 @@ final class ResidentService {
         }
     }
 
+    // Grant-broker integration: the server gates dispatch but reuses the
+    // resident's result shape and reference invalidation.
+    var observedDesktopState: String {
+        observedSession["desktopState"] as? String ?? "unknown"
+    }
+
+    func invalidateReferences() {
+        desktopGeneration = UUID().uuidString.lowercased()
+        references.removeAll(); cuaReferences.removeAll()
+        referenceOrder.removeAll(); authorizationLeases.removeAll()
+    }
+
+    func refusal(_ request: [String: Any], code: String, message: String,
+                 data: [String: Any]? = nil) -> [String: Any] {
+        var result = refused(request, code: code, message: message)
+        if let data { result["data"] = data }
+        return result
+    }
+
+    func acceptance(_ request: [String: Any], data: [String: Any]) -> [String: Any] {
+        var result = base(request)
+        result["delivery"] = "not_applicable"
+        result["effect"] = "not_applicable"
+        result["data"] = data
+        return result
+    }
+
     private func connectUnlockBroker() throws -> Int32 {
         let path = "/var/run/machine-control-unlock/control.sock"
         var info = stat()

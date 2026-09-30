@@ -27,7 +27,7 @@ if command == "serve" || command == "request" || command == "credential" {
         }
         let socketPath = arguments[1]
         if command == "serve" {
-            try runResidentServer(socketPath: socketPath)
+            try runResident(socketPath: socketPath)
         }
         if command == "credential" {
             guard arguments.count == 3 else {

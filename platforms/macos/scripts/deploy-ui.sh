@@ -66,6 +66,30 @@ if ! macvm_exec /usr/bin/true; then
     exit 1
 fi
 
+# The resident reads its deployment policy from a root-owned file and treats
+# anything absent or untrusted as a personal workstation. Tart guests are
+# disposable appliances, so install the standing policy before the resident.
+policy_file="$MACVM_REPO_DIR/resident/policies/appliance.json"
+remote_policy_dir='/Library/Application Support/MachineControl'
+remote_policy="$remote_policy_dir/policy.json"
+local_policy_hash="$(/usr/bin/shasum -a 256 "$policy_file" | /usr/bin/awk '{print $1}')"
+remote_policy_hash="$(macvm_exec /usr/bin/shasum -a 256 "$remote_policy" 2>/dev/null |
+    /usr/bin/awk '{print $1}' || true)"
+policy_owner="$(macvm_exec /usr/bin/stat -f '%Su:%Sg:%Lp' "$remote_policy" 2>/dev/null || true)"
+if [[ "$local_policy_hash" != "$remote_policy_hash" || "$policy_owner" != 'root:wheel:644' ]]; then
+    macvm_exec /usr/bin/sudo -n /usr/bin/install -d -o root -g wheel -m 755 \
+        "$remote_policy_dir"
+    macvm_exec -i /usr/bin/sudo -n /usr/bin/tee "$remote_policy.new" \
+        < "$policy_file" >/dev/null
+    macvm_exec /usr/bin/sudo -n /usr/sbin/chown root:wheel "$remote_policy.new"
+    macvm_exec /usr/bin/sudo -n /bin/chmod 644 "$remote_policy.new"
+    macvm_exec /usr/bin/sudo -n /bin/mv -f "$remote_policy.new" "$remote_policy"
+    printf 'Installed appliance deployment policy at %s\n' "$remote_policy"
+    policy_changed=true
+else
+    policy_changed=false
+fi
+
 if ! macvm_exec /usr/bin/xcrun --find swiftc >/dev/null; then
     printf 'Guest Xcode Command Line Tools are required to compile macui\n' >&2
     exit 1
@@ -103,6 +127,9 @@ if [[ "$binary_current" == true ]] &&
 fi
 if [[ "$binary_current" == true && "$plist_current" == true ]]; then
     printf 'MacVM UI is already current at %s\n' "$remote_app"
+    if [[ "$policy_changed" == true ]]; then
+        "$MACVM_REPO_DIR/bin/macui" resident-stop >/dev/null 2>&1 || true
+    fi
     "$MACVM_REPO_DIR/bin/macui" resident-start >/dev/null
     "$MACVM_REPO_DIR/bin/macui" control '{"operation":"status"}'
     exit 0
