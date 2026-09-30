@@ -1251,6 +1251,38 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertEqual(value["errorCode"], "usage")
 
+    def test_browser_upload_requires_reference_and_absolute_files(self):
+        self.write_registry("macos")
+        result, value = self.run_cli(
+            "--target", "fixture", "browser", "upload", "--reference", "1:2:3",
+            "--file", "/tmp/a.png", "--file", "/tmp/b.png",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["data"]["request"], {
+            "operation": "browser.upload", "reference": "1:2:3",
+            "files": ["/tmp/a.png", "/tmp/b.png"],
+        })
+        for arguments in (["--reference", "1:2:3"], ["--file", "/tmp/a.png"],
+                          ["--reference", "1:2:3", "--file", "a.png"]):
+            result, value = self.run_cli(
+                "--target", "fixture", "browser", "upload", *arguments)
+            self.assertEqual(value["errorCode"], "usage", arguments)
+
+    def test_desktop_input_key_help_and_target(self):
+        self.write_registry("macos")
+        result, value = self.run_cli(
+            "--target", "fixture", "desktop", "input", "key", "--help")
+        self.assertEqual(value["errorCode"], "usage")
+        self.assertIn("cmd+shift+g", value["message"])
+        result, value = self.run_cli(
+            "--target", "fixture", "desktop", "input", "text", "hello",
+            "--target", "com.apple.TextEdit",
+        )
+        self.assertEqual(value["data"]["request"], {
+            "operation": "input.text", "text": "hello",
+            "target": "com.apple.TextEdit",
+        })
+
     def test_approval_required_adds_grant_remediation(self):
         self.write_registry("macos")
         result, value = self.run_cli(

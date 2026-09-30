@@ -31,6 +31,37 @@ private func ownDesignatedRequirement() -> SecRequirement? {
     return requirement
 }
 
+/// Checks files an agent asks to upload. Uploading sends a local file to a
+/// website, so only named, readable regular files outside hidden directories
+/// and the user's Library qualify; symbolic links are resolved first.
+func validatedUploadFiles(_ value: Any?, home: String = NSHomeDirectory())
+    -> Result<[String], GrantRefusal> {
+    guard let names = value as? [String], (1...20).contains(names.count) else {
+        return .failure(GrantRefusal("invalid_request", "files must list 1 to 20 absolute paths"))
+    }
+    let library = ((home as NSString).appendingPathComponent("Library") as NSString)
+        .resolvingSymlinksInPath
+    var resolved: [String] = []
+    for name in names {
+        guard name.hasPrefix("/") else {
+            return .failure(GrantRefusal("invalid_request", "Upload paths must be absolute: \(name)"))
+        }
+        let path = (name as NSString).resolvingSymlinksInPath
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+              !isDirectory.boolValue, FileManager.default.isReadableFile(atPath: path) else {
+            return .failure(GrantRefusal("upload_file_unavailable", "Not a readable file: \(name)"))
+        }
+        if path.split(separator: "/").contains(where: { $0.hasPrefix(".") }) ||
+            path == library || path.hasPrefix(library + "/") {
+            return .failure(GrantRefusal("upload_path_not_permitted",
+                "Files in hidden folders or ~/Library are not uploaded: \(name)"))
+        }
+        resolved.append(path)
+    }
+    return .success(resolved)
+}
+
 /// Relays browser operations to the Machine Control Chrome extension through
 /// its native-messaging host. The resident has already checked the grant;
 /// the extension only executes.
@@ -102,8 +133,15 @@ final class BrowserRelay {
             return routed(service.refusal(request, code: "browser_provider_unavailable",
                 message: "The Machine Control Chrome extension is not connected"))
         }
-        let id = UUID().uuidString.lowercased()
         var params = request
+        if request["operation"] as? String == "browser.upload" {
+            switch validatedUploadFiles(request["files"]) {
+            case let .success(files): params["files"] = files
+            case let .failure(refusal):
+                return routed(service.refusal(request, code: refusal.code, message: refusal.message))
+            }
+        }
+        let id = UUID().uuidString.lowercased()
         for key in ["operation", "requestId", "claimId", "schema"] { params.removeValue(forKey: key) }
         let timeout = DispatchWorkItem { [weak self] in
             self?.complete(id, ["ok": false, "errorCode": "browser_timeout",
@@ -196,6 +234,10 @@ final class BrowserRelay {
         }
         var result = routed(service.acceptance(request, data: data))
         switch operation {
+        case "browser.upload":
+            result["delivery"] = "confirmed"
+            result["effect"] = "unverifiable"
+            result["uncertainty"] = "page_acceptance_not_observed"
         case "browser.click", "browser.type", "browser.key":
             result["delivery"] = "confirmed"
             result["effect"] = "unverifiable"

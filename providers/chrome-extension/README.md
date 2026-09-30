@@ -20,6 +20,7 @@ Operations use `chrome.debugger` (CDP) on individual tabs:
 | `browser.type` | Focus an element and insert text |
 | `browser.key` | Press Enter, Tab, Escape, Backspace, or an arrow key |
 | `browser.capture` | Viewport PNG stored as a resident artifact |
+| `browser.upload` | Attach local files to a file input, or to the chooser an upload button opens, without the OS file dialog |
 | `browser.release` | Detach all debugger sessions |
 
 References look like `TAB:GENERATION:NODE`. Taking a new snapshot or loading a

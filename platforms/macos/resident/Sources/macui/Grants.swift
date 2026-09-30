@@ -138,6 +138,7 @@ struct AuditEntry {
     let errorCode: String?
     let caller: String
     let claimID: String?
+    var detail: String? = nil
 
     var json: [String: Any] {
         [
@@ -286,10 +287,10 @@ final class GrantBroker {
     }
 
     func record(operation: String, accepted: Bool, errorCode: String?,
-                caller: CallerIdentity, claimID: String?) {
+                caller: CallerIdentity, claimID: String?, detail: String? = nil) {
         audit.append(AuditEntry(at: now(), operation: operation, accepted: accepted,
                                 errorCode: errorCode, caller: caller.summary,
-                                claimID: claimID))
+                                claimID: claimID, detail: detail))
         if audit.count > auditLimit { audit.removeFirst(audit.count - auditLimit) }
     }
 

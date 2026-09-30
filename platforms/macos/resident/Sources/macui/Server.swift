@@ -180,6 +180,9 @@ final class ResidentServer {
             return
         }
         let operation = request["operation"] as? String ?? ""
+        if operation == "input.key", let key = request["key"] as? String {
+            request["key"] = normalizedKeyChord(key)
+        }
         let caller = CallerIdentity.of(socket: client)
         let claimID = request["claimId"] as? String
 
@@ -247,6 +250,13 @@ final class ResidentServer {
                 response = service.handleCredential(request, credential: credential)
             } else {
                 response = service.handle(request)
+            }
+            if operation == "input.key" || operation == "input.text",
+               response["accepted"] as? Bool == true {
+                // Untargeted keystrokes go wherever focus is; say where.
+                var data = response["data"] as? [String: Any] ?? [:]
+                data["keyboardReceiver"] = keyboardReceiver()
+                response["data"] = data
             }
             if operation == "status" || operation == "capabilities",
                var data = response["data"] as? [String: Any] {
@@ -362,12 +372,47 @@ final class ResidentServer {
                          caller: CallerIdentity, claimID: String?) {
         let operation = request["operation"] as? String ?? "unknown"
         if operationClass(operation) != .discovery && operation != "grant.status" {
+            var detail: String?
+            if operation == "browser.upload", let files = request["files"] as? [String] {
+                detail = files.map { ($0 as NSString).lastPathComponent }.joined(separator: ", ")
+            }
             broker.record(operation: operation, accepted: response["accepted"] as? Bool == true,
                           errorCode: response["errorCode"] as? String, caller: caller,
-                          claimID: claimID)
+                          claimID: claimID, detail: detail)
         }
         try? writeSocket(client, data: encodeJSONLine(response))
     }
+}
+
+/// Accepts `cmd+shift+g` as well as the resident's `cmd-shift-g`.
+func normalizedKeyChord(_ chord: String) -> String {
+    guard chord.count > 1, chord.contains("+") else { return chord }
+    var parts = chord.split(separator: "+", omittingEmptySubsequences: false).map(String.init)
+    // A trailing empty part means the key itself is "+".
+    if parts.last == "" { parts.removeLast(); parts[parts.count - 1] += "+" }
+    return parts.joined(separator: "-")
+}
+
+/// The application, window, and element that currently receive keystrokes.
+func keyboardReceiver() -> [String: Any] {
+    guard let app = NSWorkspace.shared.frontmostApplication else { return ["application": NSNull()] }
+    var receiver: [String: Any] = [
+        "application": app.localizedName ?? NSNull(),
+        "bundleIdentifier": app.bundleIdentifier ?? NSNull(),
+        "processId": app.processIdentifier,
+    ]
+    let root = AXUIElementCreateApplication(app.processIdentifier)
+    if let window = attribute(root, kAXFocusedWindowAttribute as CFString) {
+        receiver["window"] = stringAttribute(window as! AXUIElement, kAXTitleAttribute as CFString)
+    }
+    if let focused = attribute(root, kAXFocusedUIElementAttribute as CFString) {
+        let element = focused as! AXUIElement
+        receiver["focusedRole"] = stringAttribute(element, kAXRoleAttribute as CFString)
+        let label = stringAttribute(element, kAXTitleAttribute as CFString)
+        receiver["focusedLabel"] = label.isEmpty ?
+            stringAttribute(element, kAXDescriptionAttribute as CFString) : label
+    }
+    return receiver
 }
 
 let residentLabel = "org.machine-control.resident"

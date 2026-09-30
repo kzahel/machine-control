@@ -2369,8 +2369,21 @@ def desktop_request(arguments: list[str]) -> tuple[dict[str, Any], bool]:
         if not rest:
             raise ClientError("usage", "desktop input requires a kind")
         kind, values = rest[0], rest[1:]
-        if kind in {"text", "key"} and len(values) == 1:
-            return {"operation": f"input.{kind}", kind: values[0]}, False
+        if kind in {"text", "key"}:
+            if values[:1] in (["--help"], ["-h"]) or not values:
+                raise ClientError(
+                    "usage",
+                    f"desktop input {kind} VALUE [--target APP]. Keys join modifiers "
+                    "(cmd, shift, option, ctrl) and one key with - or +, for example "
+                    "cmd+shift+g. Without --target, keystrokes go to whatever has focus; "
+                    "the result names it in data.keyboardReceiver.",
+                )
+            request = {"operation": f"input.{kind}", kind: values[0]}
+            if len(values) == 3 and values[1] == "--target":
+                request["target"] = values[2]
+            elif len(values) != 1:
+                raise ClientError("usage", f"desktop input {kind} VALUE [--target APP]")
+            return request, False
         if kind in {"click", "move"} and len(values) in {2, 3}:
             request = {
                 "operation": f"input.{kind}",
@@ -2569,7 +2582,8 @@ def grant_request(arguments: list[str]) -> dict[str, Any]:
 
 
 BROWSER_COMMANDS = {
-    "tabs", "navigate", "snapshot", "click", "type", "key", "capture", "release",
+    "tabs", "navigate", "snapshot", "click", "type", "key", "capture", "upload",
+    "release",
 }
 
 
@@ -2588,10 +2602,20 @@ def browser_request(arguments: list[str]) -> dict[str, Any]:
     parser.add_argument("--key")
     parser.add_argument("--max", type=int)
     parser.add_argument("--interactive", action="store_true")
+    parser.add_argument("--file", action="append")
     try:
         options = parser.parse_args(rest)
     except (argparse.ArgumentError, SystemExit) as error:
         raise ClientError("usage", f"Invalid browser {command} options") from error
+    if command == "upload":
+        if not options.reference or not options.file:
+            raise ClientError(
+                "usage",
+                "browser upload requires --reference R (a file input or upload "
+                "button from browser snapshot) and one or more --file ABSOLUTE_PATH",
+            )
+        if not all(os.path.isabs(path) for path in options.file):
+            raise ClientError("usage", "browser upload --file paths must be absolute")
     request: dict[str, Any] = {"operation": f"browser.{command}"}
     if options.tab is not None:
         request["tabId"] = options.tab
@@ -2606,6 +2630,8 @@ def browser_request(arguments: list[str]) -> dict[str, Any]:
                        ("text", "text"), ("key", "key"), ("max", "maxElements")):
         if getattr(options, field) is not None:
             request[key] = getattr(options, field)
+    if options.file:
+        request["files"] = options.file
     if options.new_tab:
         request["newTab"] = True
     if options.interactive:
@@ -3485,8 +3511,9 @@ Commands:
   grant request --scope observe|control|browser... --reason TEXT
         [--duration D] [--timeout D] | grant status | grant revoke
                                     Ask a person at the target for access
-  browser tabs|navigate|snapshot|click|type|key|capture|release
+  browser tabs|navigate|snapshot|click|type|key|capture|upload|release
         [--tab ID] [--url URL] [--new-tab] [--reference R] [--text T]
+        [--file PATH]...
                                     Operate Chrome through the extension
   desktop status|capabilities|applications|windows|snapshot|action|capture
   desktop input text|key|click|move|drag|scroll

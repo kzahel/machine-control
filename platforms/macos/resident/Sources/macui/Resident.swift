@@ -1159,7 +1159,10 @@ final class ResidentService {
     private func sendKey(_ chord: String, processID: pid_t? = nil) throws {
         let parts = chord.lowercased().split(separator: "-").map(String.init)
         guard let keyName = parts.last, let code = keyCode(keyName) else {
-            throw MacUIError.usage("Unsupported key chord: \(chord)")
+            throw MacUIError.usage("Unsupported key chord: \(chord). Join modifiers "
+                + "(cmd, shift, option, ctrl) and one key with - or +, for example "
+                + "cmd-shift-g; keys are letters, digits, punctuation, return, tab, space, "
+                + "delete, escape, and arrow names")
         }
         var flags: CGEventFlags = []
         for modifier in parts.dropLast() {

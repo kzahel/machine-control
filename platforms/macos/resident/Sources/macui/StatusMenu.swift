@@ -130,7 +130,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         formatter.timeStyle = .medium
         for entry in broker.audit.suffix(15).reversed() {
             let mark = entry.accepted ? "✓" : "✗ \(entry.errorCode ?? "refused")"
-            entries.addItem(disabled("\(formatter.string(from: entry.at))  \(entry.operation) \(mark) — \(entry.caller)"))
+            let detail = entry.detail.map { " (\($0))" } ?? ""
+            entries.addItem(disabled("\(formatter.string(from: entry.at))  \(entry.operation)\(detail) \(mark) — \(entry.caller)"))
         }
         if entries.items.isEmpty { entries.addItem(disabled("No activity yet")) }
         activity.submenu = entries

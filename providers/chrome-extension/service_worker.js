@@ -98,6 +98,7 @@ async function perform(operation, params) {
     case "browser.type": return type(params);
     case "browser.key": return key(params);
     case "browser.capture": return capture(params);
+    case "browser.upload": return upload(params);
     case "browser.release": await detachAll(); return { released: true };
     default: throw new ProviderError("unsupported_operation", `Unsupported ${operation}`);
   }
@@ -290,6 +291,73 @@ async function key(params) {
   await send(tabId, "Input.dispatchKeyEvent", { type: "keyDown", ...base, text: spec.text });
   await send(tabId, "Input.dispatchKeyEvent", { type: "keyUp", ...base });
   return { tabId, key: params.key };
+}
+
+function waitForEvent(tabId, method, timeoutMs) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => finish(null), timeoutMs);
+    function listener(source, eventMethod, params) {
+      if (source.tabId === tabId && eventMethod === method) finish(params);
+    }
+    function finish(value) {
+      clearTimeout(timer);
+      chrome.debugger.onEvent.removeListener(listener);
+      resolve(value);
+    }
+    chrome.debugger.onEvent.addListener(listener);
+  });
+}
+
+// Attaches local files without the operating system's file dialog. A file
+// input receives them directly; any other element is clicked while Chrome's
+// file chooser is intercepted, and the chooser's input receives them. The
+// resident has already checked that every path is a readable regular file.
+async function upload(params) {
+  const files = params.files;
+  if (!Array.isArray(files) || files.length === 0) {
+    throw new ProviderError("invalid_request", "files must list at least one path");
+  }
+  const { tabId, backendNodeId } = await resolveReference(params.reference);
+  const { node } = await send(tabId, "DOM.describeNode", { backendNodeId });
+  const attributes = node.attributes || [];
+  const typeIndex = attributes.indexOf("type");
+  const isFileInput = node.nodeName === "INPUT" && typeIndex >= 0 &&
+    String(attributes[typeIndex + 1]).toLowerCase() === "file";
+  if (isFileInput) {
+    await setFiles(tabId, backendNodeId, files);
+    return { tabId, files: files.length, route: "file_input" };
+  }
+  await send(tabId, "Page.enable");
+  await send(tabId, "Page.setInterceptFileChooserDialog", { enabled: true });
+  try {
+    const opened = waitForEvent(tabId, "Page.fileChooserOpened", 8000);
+    await click({ reference: params.reference });
+    const chooser = await opened;
+    if (!chooser?.backendNodeId) {
+      throw new ProviderError("file_chooser_not_opened",
+        "Clicking the element did not open a file chooser; snapshot the page for a file input or upload button");
+    }
+    if (chooser.mode === "selectSingle" && files.length > 1) {
+      throw new ProviderError("file_chooser_single", "This file chooser accepts one file");
+    }
+    await setFiles(tabId, chooser.backendNodeId, files);
+    return { tabId, files: files.length, route: "intercepted_file_chooser", mode: chooser.mode };
+  } finally {
+    await send(tabId, "Page.setInterceptFileChooserDialog", { enabled: false }).catch(() => {});
+  }
+}
+
+async function setFiles(tabId, backendNodeId, files) {
+  try {
+    await send(tabId, "DOM.setFileInputFiles", { files, backendNodeId });
+  } catch (error) {
+    const allowed = await chrome.extension.isAllowedFileSchemeAccess();
+    if (!allowed) {
+      throw new ProviderError("file_access_not_allowed",
+        "Turn on \"Allow access to file URLs\" for Machine Control in chrome://extensions");
+    }
+    throw error;
+  }
 }
 
 async function capture(params) {

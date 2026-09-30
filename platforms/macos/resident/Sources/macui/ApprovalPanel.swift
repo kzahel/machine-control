@@ -147,7 +147,7 @@ final class ApprovalPanelController: NSObject, GrantApprover {
             switch scope {
             case .observe: return "see the screen and windows"
             case .control: return "use the keyboard, mouse, and apps"
-            case .browser: return "control Chrome tabs"
+            case .browser: return "control Chrome tabs and upload files to web pages"
             }
         }.joined(separator: "; ")
     }

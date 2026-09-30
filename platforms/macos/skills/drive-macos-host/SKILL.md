@@ -17,7 +17,7 @@ refused until the person at the computer approves a grant.
    ask the person to install it rather than starting it yourself.
 2. Acquire a target-use claim as for any other target and pass `--claim`
    on every call. The claim coordinates agents; it grants no access.
-3. Ask for the least access and time the task needs:
+3. Ask once for every scope the task can need, for the time it needs:
 
    ```bash
    bin/machine-control --target host --claim "$CLAIM" grant request \
@@ -26,11 +26,35 @@ refused until the person at the computer approves a grant.
    ```
 
    The call waits while the person decides. Write the reason for them: it is
-   shown verbatim in the prompt.
+   shown verbatim in the prompt. Each extra request is another interruption,
+   so plan scopes up front: `observe` to see the screen or windows, `control`
+   for keyboard, pointer, and apps, and `browser` for Chrome tabs. A browser
+   task that may show a native dialog needs all three.
 4. Use the ordinary `desktop` commands. A result with
    `errorCode: approval_required` names the missing scope in
    `data.requiredScope`; request it once, with a reason.
 5. When finished, run `grant revoke` and release the claim.
+
+## Browser work
+
+- Prefer `browser` commands over desktop input in Chrome: `snapshot` gives
+  references, then `click`, `type`, `key --key Enter`, and `navigate`.
+- Attach files with `browser upload --reference R --file /absolute/path`,
+  where `R` is a file input or the page's upload/attach button. It never opens
+  the macOS file dialog. Do not click upload buttons and then drive the
+  native Open dialog with keystrokes.
+- Files in hidden folders or `~/Library` are refused. If Chrome reports
+  `file_access_not_allowed`, ask the person to turn on "Allow access to file
+  URLs" for Machine Control in `chrome://extensions`.
+
+## Desktop input
+
+- Key chords join modifiers and one key with `-` or `+`: `cmd+shift+g`,
+  `ctrl-option-cmd-.`, `return`, `escape`.
+- Pass `--target APP` when you know which application should receive keys.
+  Some system sheets only accept untargeted input; then check
+  `data.keyboardReceiver` in the result to confirm where the keys went, and
+  stop if it is not the application you meant.
 
 ## Rules
 
