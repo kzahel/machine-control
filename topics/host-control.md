@@ -22,6 +22,12 @@ permitted applications.
 
 ## Current
 
+**Current:** a shared [Tauri operator app](../desktop/README.md) embeds the
+existing Swift resident. Local Developer ID packaging and a first native Tart
+UI pass are complete; exact signed CI artifacts and upgrade acceptance are
+tracked by [tactical 051](../docs/tactical/051-tauri-macos-desktop.md).
+The earlier AppKit operator remains available for appliance bootstrap.
+
 **Current (2026-09-30):** One ad-hoc-signed `Machine Control.app`
 (`org.machine-control.app`), built from the
 [resident package](../platforms/macos/resident), serves Tart guests and

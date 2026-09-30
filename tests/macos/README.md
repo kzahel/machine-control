@@ -1,5 +1,14 @@
 # macOS conformance
 
+`tauri-desktop.py` exercises an already installed signed Tauri candidate in a
+claimed dedicated testbed. Supply the logical target, current exclusive claim,
+guest candidate app path, and socket. Keep the standing appliance resident
+running separately, deploy and launch the AppKit fixture first, and give the
+candidate workstation policy. The test uses native AX input to approve and
+deny; no socket or test-only bypass approves access. Installation, consent,
+signed replacement, power restoration, and claim release belong to the caller.
+Do not run it on a personal workstation.
+
 The macOS corpus drives the target-resident facade owned by
 `platforms/macos`. `conformance.sh` runs the same request vocabulary
 through two placements:

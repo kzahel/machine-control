@@ -480,7 +480,9 @@ select {
   backdrop-filter: blur(3px);
 }
 .approval {
-  width: 455px;
+  width: min(455px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
   background: white;
   border: 1px solid #dce7e0;
   padding: 30px;
@@ -505,6 +507,7 @@ select {
 .caller {
   font-size: 12px;
   color: #72808f;
+  overflow-wrap: anywhere;
 }
 .caller small {
   display: block;

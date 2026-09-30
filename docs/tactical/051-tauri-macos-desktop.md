@@ -61,6 +61,14 @@ DMG have been notarized and stapled. Fresh archive extraction and updater
 signature/tampering checks pass. Local packages are identified as working-tree
 builds rather than exact clean-source releases.
 
-CI artifacts and actual Tauri guest acceptance remain pending. The configured
+**Current:** the locally signed app rendered correctly in a claimed Tart
+guest. Visible denial and scope narrowing, self-interface and protected-route
+refusals, pausing existing control during a new prompt, Stop, and explicit
+restart passed. An Increment action changed the independent fixture oracle.
+Accessibility and Screen Recording were ready before and after restart.
+The reusable [guest test](../../tests/macos/tauri-desktop.py) has no approval
+bypass and uses the separate appliance resident's native AX input.
+
+CI artifact acceptance and signed upgrade remain pending. The configured
 public update feed is reserved and has not been deployed. No public release
 has been created.
