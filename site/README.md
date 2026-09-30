@@ -7,6 +7,9 @@ Cloudflare Turnstile.
 
 ## Local development
 
+Use Node 22.12+ and the project-pinned pnpm 11. Build-script permissions live in
+the workspace's `allowBuilds` map.
+
 Install dependencies and create the local database once:
 
 ```sh
