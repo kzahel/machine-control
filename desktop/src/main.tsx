@@ -47,6 +47,7 @@ type State = {
   }[];
   version: string;
   socket: string;
+  stopShortcutAvailable: boolean;
 };
 const labels: Record<Scope, string> = {
   observe: "View the desktop",
@@ -492,6 +493,12 @@ function App() {
                 <dd>{state?.version}</dd>
                 <dt>Policy</dt>
                 <dd>{state?.deployment.policy.preset}</dd>
+                <dt>Stop shortcut</dt>
+                <dd>
+                  {state?.stopShortcutAvailable
+                    ? "Control–Option–Command–Period"
+                    : "Unavailable; use Stop in this app or its menu"}
+                </dd>
                 <dt>Resident connection</dt>
                 <dd>{state?.socket}</dd>
               </dl>

@@ -55,7 +55,9 @@ if [[ "$operation" == audit && "$reboot" == true ]]; then
 fi
 
 macvm_require_command jq
-nonce="$(LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c 24 || true)"
+# A finite read avoids depending on SIGPIPE delivery from an endless
+# tr/head pipeline (which can hang hosted macOS runner shells).
+nonce="$(python3 -c 'import secrets; print(secrets.token_hex(12))')"
 if [[ ${#nonce} -ne 24 ]]; then
     printf 'Could not generate a post-update report nonce.\n' >&2
     exit 1

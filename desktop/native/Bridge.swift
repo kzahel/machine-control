@@ -10,6 +10,13 @@ private var desktopMenuTracking = false
 private var desktopHotKey: EventHotKeyRef?
 private var desktopUpdating = false
 
+private func stopDesktopAccess() {
+    if let pending = desktopApprover.request {
+        try? desktopApprover.decide(id: pending.id, scopes: [], duration: 0, allow: false)
+    }
+    desktopServer?.revoke(reason: "stopped_by_person")
+}
+
 private func bridgeJSON(_ value: [String: Any]) -> UnsafeMutablePointer<CChar>? {
     guard let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
           let text = String(data: data, encoding: .utf8) else { return nil }
@@ -67,7 +74,7 @@ public func mcDesktopStart(_ path: UnsafePointer<CChar>) -> UnsafeMutablePointer
         NotificationCenter.default.addObserver(forName: NSMenu.didEndTrackingNotification, object: nil, queue: .main) { _ in desktopMenuTracking = false }
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
-            desktopServer?.revoke(reason: "stopped_by_hotkey")
+            stopDesktopAccess()
             return noErr
         }, 1, &spec, nil, nil)
         RegisterEventHotKey(UInt32(kVK_ANSI_Period), UInt32(controlKey | optionKey | cmdKey),
@@ -91,6 +98,7 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                 var state: [String: Any] = ["deployment": server.broker.statusJSON,
                     "permissions": ["accessibility": setup.accessibility, "screenRecording": setup.screen == .allowed],
                     "browser": server.browser.statusJSON, "activity": server.broker.audit.reversed().prefix(30).map(\.json),
+                    "stopShortcutAvailable": desktopHotKey != nil,
                     "socket": server.socketPath, "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "development"]
                 if let pending = desktopApprover.request {
                     state["pending"] = ["id": pending.id, "reason": pending.reason, "caller": pending.caller.summary,
@@ -98,10 +106,7 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                 }
                 return bridgeJSON(["ok": true, "state": state])
             case "stop":
-                if let pending = desktopApprover.request {
-                    try desktopApprover.decide(id: pending.id, scopes: [], duration: 0, allow: false)
-                }
-                server.revoke(reason: "stopped_by_person")
+                stopDesktopAccess()
             case "decision":
                 try desktopApprover.decide(id: command["id"] as? String ?? "", scopes: command["scopes"] as? [String] ?? [],
                     duration: command["duration"] as? Int ?? 0, allow: command["allow"] as? Bool == true)
