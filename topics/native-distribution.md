@@ -3,8 +3,9 @@
 Topic: `native-distribution`
 
 Status: signed Windows workstation preview and direct YA Node/Codex consumer
-accepted. Public release publication and YA download/update code are implemented;
-first published-release acceptance remains pending.
+accepted; signed Mac desktop candidates are verified and accepted in ARM64
+Tart. Public release publication and YA download/update code are implemented;
+published-release acceptance and the Mac production update feed remain pending.
 
 ## Direction
 
@@ -130,6 +131,13 @@ releases leave the installed version usable. Component publication does not
 deploy a new YA server or hosted client.
 
 ## Shared desktop product
+
+**Current:** the standalone Mac candidate has verified signed/notarized CI
+DMGs and updater archives for both architectures. The ARM64 app passed native
+Tart operator and installed-upgrade acceptance. This is a developer preview,
+with target-wide grants; Intel execution, physical-host acceptance, publication,
+and the first production-feed update remain separate gates. The evidence and
+bounded omissions live in [tactical 051](../docs/tactical/051-tauri-macos-desktop.md).
 
 **Decision:** Use the shared Tauri UX and Desktop Release Kit update contract
 for the standalone desktop product, with a unique updater key and product

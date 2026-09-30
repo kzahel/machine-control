@@ -8,6 +8,8 @@ candidate workstation policy. The test uses native AX input to approve and
 deny; no socket or test-only bypass approves access. Installation, consent,
 signed replacement, power restoration, and claim release belong to the caller.
 Do not run it on a personal workstation.
+When the candidate occupies the canonical installation, supply a separate
+source-native appliance with `--operator-app` and `--operator-socket`.
 
 The macOS corpus drives the target-resident facade owned by
 `platforms/macos`. `conformance.sh` runs the same request vocabulary

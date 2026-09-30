@@ -29,8 +29,9 @@ with tempfile.TemporaryDirectory(prefix='mc-verify-') as tmp:
     def verify(file):
         return subprocess.run(['minisign','-V','-p',str(pub),'-m',str(file),'-x',str(signature)],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
     if verify(archive).returncode:raise SystemExit('Updater archive signature failed')
-    text=signature.read_text()
-    if f'version:{manifest["version"]}' not in text:raise SystemExit('Signed version mismatch')
+    comments=[line for line in signature.read_text().splitlines() if line.startswith('trusted comment: ')]
+    versions=[field.removeprefix('version:') for line in comments for field in line.split('\t') if field.startswith('version:')]
+    if len(comments)!=1 or versions!=[manifest['version']]:raise SystemExit('Signed version mismatch')
     if args.test_tampering:
         bad=root/'tampered';shutil.copyfile(archive,bad)
         with bad.open('ab') as stream:stream.write(b'tampered')

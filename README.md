@@ -110,6 +110,11 @@ still executes entirely on the target.
 The project deliberately shares an experience rather than pretending every
 platform has the same implementation.
 
+The optional [Tauri desktop app](desktop/README.md) supplies setup, visible
+approval, activity, and menu-bar controls over the native resident. The signed
+Mac candidate is accepted in ARM64 Tart; Windows/Linux operator adapters and
+physical-host acceptance remain open. Headless control remains independent.
+
 | Platform | Current control surface | Maturity |
 | --- | --- | --- |
 | Windows | Common desktop facade, administration, UIA/Cua semantics, capture/input, application and session control, UAC/lock/login, lifecycle, workspaces, and appliance maintenance | First complete vertical slice; live ARM64 VM and physical x64 evidence |

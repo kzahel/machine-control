@@ -135,12 +135,13 @@ No proprietary Computer Use implementation or AsyncVNC code is a dependency.
 
 **Current (2026-09-30), `live-tested`, operator packaging in Tart:** the new
 Tauri desktop shell embeds the same Swift resident in its native process.
-A locally Developer ID signed, notarized, stapled bundle rendered correctly
+A Developer ID signed, notarized, stapled CI bundle rendered correctly
 and exercised visible denial/narrowed approval, prompt pausing, self-interface
 and protected-operation refusal, Stop, restart, and an independently observed
 AppKit fixture effect. This changes packaging and operator presentation rather
-than the underlying provider composition. Exact signed CI artifact acceptance
-and signed upgrade verification are tracked in
+than the underlying provider composition. Both architecture packages are
+authenticated; ARM64 installed upgrade retained permissions and ended active
+access. Intel runtime execution remains open. Precise acceptance is tracked in
 [tactical 051](../../docs/tactical/051-tauri-macos-desktop.md); public feed and
 physical-host acceptance remain separate gates.
 

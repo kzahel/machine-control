@@ -20,6 +20,8 @@ session probe, and unpacked Chrome extension; no checkout path is embedded.
 The main executable retains `macui request SOCKET JSON`, `credential`,
 `screen-capture-preflight`, and Chrome native-messaging modes before it starts
 Tauri. This preserves the common CLI and browser code-identity check.
+Optional Cua routes still require an independently installed provider; they
+are not bundled. Capability reporting exposes unavailable routes.
 
 Use the existing per-user installer for a development/test deployment:
 
@@ -49,6 +51,12 @@ Permission changes may require Restart. Browser integration is optional and
 currently uses the bundled unpacked extension, with explicit user setup.
 
 ## Signed candidates
+
+Candidate `0.3.2` passed signed CI package verification for Apple silicon and
+Intel, plus actual ARM64 Tart installation, approval, and signed upgrade checks.
+[Tactical 051](../docs/tactical/051-tauri-macos-desktop.md) records the exact run
+and omissions. The application remains a developer preview; physical-host and
+Intel runtime acceptance are still open.
 
 `.github/workflows/macos-desktop.yml` runs unsigned source checks on changes.
 A manual main-only dispatch builds Apple silicon and Intel candidates in the

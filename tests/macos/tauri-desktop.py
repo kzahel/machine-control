@@ -19,7 +19,11 @@ p.add_argument('--target', required=True)
 p.add_argument('--claim', required=True)
 p.add_argument('--candidate-app', required=True)
 p.add_argument('--candidate-socket', required=True)
+p.add_argument('--operator-app', help='Separate guest appliance app; defaults to installed native app')
+p.add_argument('--operator-socket', help='Separate appliance socket; required with --operator-app')
 args = p.parse_args()
+if bool(args.operator_app) != bool(args.operator_socket):
+    p.error('--operator-app and --operator-socket must be supplied together')
 mc = [str(Path(__file__).resolve().parents[2] / 'bin/machine-control'),
       '--target', args.target, '--claim', args.claim]
 binary = args.candidate_app + '/Contents/MacOS/macui'
@@ -36,9 +40,13 @@ def candidate(request):
 
 
 def base(request):
-    script = ('"$HOME/Applications/Machine Control.app/Contents/MacOS/macui" '
-              'request "$HOME/Library/Application Support/MachineControl/control.sock" '
-              + shlex.quote(json.dumps(request)))
+    if args.operator_app:
+        script = ' '.join(map(shlex.quote, [args.operator_app + '/Contents/MacOS/macui',
+            'request', args.operator_socket, json.dumps(request)]))
+    else:
+        script = ('"$HOME/Applications/Machine Control.app/Contents/MacOS/macui" '
+                  'request "$HOME/Library/Application Support/MachineControl/control.sock" '
+                  + shlex.quote(json.dumps(request)))
     return json.loads(call('os', '--', '/bin/zsh', '-c', script))
 
 

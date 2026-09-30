@@ -1,6 +1,6 @@
 # Tactical 051: Tauri macOS desktop and signed packaging
 
-Status: active.
+Status: complete within the stated candidate boundary.
 Topics: `host-control`, `native-distribution`, `macos-resident-control`.
 
 ## Objective and completion conditions
@@ -69,6 +69,31 @@ Accessibility and Screen Recording were ready before and after restart.
 The reusable [guest test](../../tests/macos/tauri-desktop.py) has no approval
 bypass and uses the separate appliance resident's native AX input.
 
-CI artifact acceptance and signed upgrade remain pending. The configured
-public update feed is reserved and has not been deployed. No public release
-has been created.
+**Current:** the [final CI run](https://github.com/kzahel/machine-control/actions/runs/36754166526)
+produced version-stamped `0.3.2` Apple silicon and Intel candidates from
+`0a1ca188f6460409f5908cc2ff7a1f10aebd636f`. Both downloaded archives and DMGs
+passed expected-publisher signatures, notarization/stapling, exact signed
+version and source checks, required-resource checks, and archive tampering
+rejection. Main executable, framework, and probe architecture match each
+package. Intel runtime acceptance remains open; live execution used ARM64 Tart.
+
+The actual per-user installer upgraded an installed signed local `0.3.0` app
+to the exact CI `0.3.2` archive. Accessibility and Screen Recording stayed
+ready, an active grant ended, the runtime generation changed, and an old
+reference was refused after fresh arming. The reusable visible-approval and
+fixture test passed against that installed CI artifact. Global Stop revoked
+access and denied a pending request; menu-bar Quit exited successfully without
+LaunchAgent respawn. The common CLI and doctor worked with the Tauri resident.
+Native-messaging startup produced a correctly framed, access-off grant state;
+actual Chrome-extension browsing was not part of this packaging acceptance.
+
+Cleanup restored the original source-native app, private LaunchAgent and
+appliance policy, verified the restored doctor, removed owned guest staging
+and test processes, restored the original suspended power state, and released
+the claim. The existing canonical credential file remained ready and `0600`.
+
+The public update route is reserved and has not been deployed. Installed
+upgrade acceptance used the authenticated archive and per-user installer;
+the first production-feed in-app update remains a release gate. No public
+release, physical-host acceptance, or Windows/Linux desktop acceptance was
+performed. Preview grants remain target-wide for same-user callers.

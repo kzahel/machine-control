@@ -23,12 +23,13 @@ permitted applications.
 ## Current
 
 **Current:** a shared [Tauri operator app](../desktop/README.md) embeds the
-existing Swift resident. Local Developer ID packaging and a first native Tart
-UI pass are complete; exact signed CI artifacts and upgrade acceptance are
-tracked by [tactical 051](../docs/tactical/051-tauri-macos-desktop.md).
+existing Swift resident. Signed/notarized Apple silicon and Intel CI candidates
+are verified; the exact ARM64 CI app and signed installed upgrade pass native
+Tart operator checks. [Tactical 051](../docs/tactical/051-tauri-macos-desktop.md)
+owns the evidence and remaining public-feed/physical-host gates.
 The earlier AppKit operator remains available for appliance bootstrap.
 
-**Current (2026-09-30):** One ad-hoc-signed `Machine Control.app`
+**Current (2026-09-30):** The source-native ad-hoc-signed `Machine Control.app`
 (`org.machine-control.app`), built from the
 [resident package](../platforms/macos/resident), serves Tart guests and
 physical hosts. It runs as a per-user Aqua LaunchAgent on a mode-`0600`
