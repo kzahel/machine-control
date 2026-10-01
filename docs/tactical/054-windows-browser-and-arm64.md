@@ -77,8 +77,23 @@ The native host exits when the resident ends while Chrome remains alive.
 Registration and owned test processes/profiles are restored after the probe.
 
 Portable contracts, native static/build/format checks, both self-contained
-publishes, frontend build, portable repository checks, and 43 release tests pass.
-Exact signed installed UI/browser and update acceptance remain pending.
+publishes, frontend build, portable repository checks, and 46 release tests pass.
+Exact signed 0.4.4 x64 installed grant, Cua, tray, lifecycle and startup
+registration acceptance passes. The 0.4.3 to 0.4.4 update relaunches correctly.
+Signed 0.4.4 browser setup, native approvals, independent effects/capture,
+DevTools separation, Stop, stale references and operator restart also pass.
+
+The 0.4.4 to 0.4.5 browser-open update exposes a replacement blocker: Chrome
+retries native messaging after the sender exits and keeps the old executable
+open. NSIS installs the operator but pauses at the resident file-write prompt;
+this is not an accepted update. The incoming 0.4.6 installer temporarily hides
+only the owning manifest, waits for those processes to exit, then restores its
+exact bytes and unchanged registry value after extraction. Startup recovers an
+interrupted maintenance marker. Native ownership, collision, invalid-origin,
+restoration and noninteractive uninstall probes pass; signed update acceptance
+of this fix remains pending. Real cold-boot/stored-credential sign-in startup of
+0.4.5 passes with revoked authority. A separate SSH transport failure was
+recovered through the claimed native lifecycle route, without outer UI.
 
 Local inventory presently has no registered Windows target or ready
 credential handoff. The accepted remote x64 target has verified identity and a

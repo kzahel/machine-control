@@ -47,8 +47,10 @@ internal static class BrowserRegistration
     }
     internal static void RemoveOwned()
     {
-        RuntimeProfile.ConfigureUser("desktop");
-        var manifest = Path.Combine(RuntimeProfile.ManagementRoot, "browser-host.json");
+        // Installer cleanup changes only owned per-user registration; it needs
+        // no active desktop, Medium input capability, or resident grant.
+        BrowserInstaller.RecoverOwn();
+        var manifest = BrowserInstaller.Manifest;
         if (!File.Exists(manifest)) return;
         using var document = JsonDocument.Parse(File.ReadAllText(manifest));
         if (!document.RootElement.TryGetProperty("path", out var path) ||

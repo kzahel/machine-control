@@ -52,6 +52,14 @@ internal static class Program
                 case "browser-unregister":
                     BrowserRegistration.RemoveOwned();
                     return 0;
+                case "browser-install-prepare":
+                    if (args.Length != 2) throw new ArgumentException("Installation directory required");
+                    BrowserInstaller.Prepare(args[1]);
+                    return 0;
+                case "browser-install-finish":
+                    if (args.Length != 2) throw new ArgumentException("Installation directory required");
+                    BrowserInstaller.Finish(args[1]);
+                    return 0;
                 case "desktop":
                     return await DesktopHost.RunAsync();
                 case "desktop-worker":

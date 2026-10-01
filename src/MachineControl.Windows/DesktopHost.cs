@@ -17,6 +17,7 @@ internal static class DesktopHost
         var broker = new DesktopGrants();
         DesktopSafety.Broker = broker;
         RuntimeProfile.ConfigureUser("desktop");
+        BrowserInstaller.RecoverOwn();
         using var reader = new StreamReader(Console.OpenStandardInput(), Encoding.UTF8, false);
         await using var writer = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
         // First frame comes from the parent before any public pipe is served.

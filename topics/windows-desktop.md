@@ -71,3 +71,9 @@ owns route details.
 [Tactical 054](../docs/tactical/054-windows-browser-and-arm64.md) owns the next
 browser integration and ARM64 execution slice. Target availability and
 architecture execution are observed separately.
+
+**Current:** Exact signed 0.4.4 installed grants, lifecycle, tray and browser
+fixture tasks pass on x64. Browser-open 0.4.4 to 0.4.5 replacement is blocked
+by Chrome reconnecting to the old native-host executable. The 0.4.6 incoming
+installer pauses the owning manifest and restores it after replacement; native
+maintenance conformance passes, signed update acceptance remains pending.

@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [0.4.6]
+
+- Let Windows updates finish while Chrome remains open by pausing only the
+  owning native-host registration during replacement and restoring it afterward.
+- Recover interrupted browser-registration maintenance when the app starts.
+- Remove owned browser registration during uninstall without requiring an
+  interactive desktop or changing another installation's host.
+
+This internal Windows candidate fixes a live 0.4.4 browser-open updater blocker.
+Public Windows downloads and the production update feed remain separate gates.
+
 ## [0.4.5]
 
 - Add installed-browser update checks for registration and startup retention,
