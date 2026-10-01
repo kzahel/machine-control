@@ -58,10 +58,15 @@ acceptance. Existing engine/package evidence is in
 [Tactical 036](../docs/tactical/036-windows-workstation-distribution.md);
 [native distribution](native-distribution.md) owns shared release decisions.
 
-**Open:** ARM64 native UI/runtime execution, physical hardware, browser
-integration, in-place unlock recovery, and production Windows feed publication.
+**Open:** ARM64 native UI/runtime execution, physical hardware, signed browser
+acceptance, in-place unlock recovery, and production Windows feed publication.
 ARM64 signing, installation, payload bytes, and updater authentication pass CI;
 they do not establish ARM64 desktop execution.
+
+**Current:** Windows browser setup and browser/devtools scopes are implemented.
+Source-native fixture effects and enforcement pass on x64. Upload and raw CDP
+WebSockets are explicitly unavailable; the [browser dossier](../research/providers/chrome-extension.md)
+owns route details.
 
 [Tactical 054](../docs/tactical/054-windows-browser-and-arm64.md) owns the next
 browser integration and ARM64 execution slice. Target availability and

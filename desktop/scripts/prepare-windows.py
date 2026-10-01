@@ -28,6 +28,7 @@ def stage(payload, output, revision, runtime):
             shutil.copytree(file, output / file.name)
         else:
             shutil.copyfile(file, output / file.name)
+    shutil.copytree(ROOT / 'providers/chrome-extension', output / 'browser-extension')
     (output / 'desktop-runtime.json').write_text(json.dumps({
         'schema': 'machine-control-desktop-runtime/v0', 'sourceRevision': revision,
         'runtime': runtime, 'providerDigest': build['providerDigest'],

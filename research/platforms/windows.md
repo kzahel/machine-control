@@ -48,6 +48,11 @@ VM. ARM64 candidate signing and installed bytes pass; native ARM64 desktop
 execution remains unproved. [Tactical 053](../../docs/tactical/053-windows-desktop.md)
 owns this product-specific evidence.
 
+**Current — browser route:** The owned [Chrome extension](../providers/chrome-extension.md)
+now connects to the ordinary desktop resident through Windows native messaging.
+Source-native x64 fixture conformance passes; exact signed installed browser
+acceptance remains in [Tactical 054](../../docs/tactical/054-windows-browser-and-arm64.md).
+
 ## Candidate matrix
 
 | Candidate | Evidence | Demonstrated value | Material gaps or unknowns | Current disposition |

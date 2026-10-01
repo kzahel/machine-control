@@ -68,7 +68,19 @@ checks; independent browser fixture and installed signed acceptance. Update the
 
 ## Result
 
-Pending. Local inventory presently has no registered Windows target or ready
+Source-native x64 browser conformance passes with a dedicated Chrome for
+Testing profile: independent counter/text effects, navigation, capture/hash,
+browser versus DevTools scopes, prompt pause, denial/narrowing/request timeout,
+Stop/expiry, stale grant/snapshot/provider references, bounded operation timeout
+with unknown delivery/no replay, provider reconnect, and origin/process refusal.
+The native host exits when the resident ends while Chrome remains alive.
+Registration and owned test processes/profiles are restored after the probe.
+
+Portable contracts, native static/build/format checks, both self-contained
+publishes, frontend build, portable repository checks, and 43 release tests pass.
+Exact signed installed UI/browser and update acceptance remain pending.
+
+Local inventory presently has no registered Windows target or ready
 credential handoff. The accepted remote x64 target has verified identity and a
 stored credential. Local ARM64 provisioning is a separate target-selection
 question; no ARM64 execution is inferred from cross-build or prior component

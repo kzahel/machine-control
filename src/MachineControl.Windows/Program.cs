@@ -21,6 +21,8 @@ internal static class Program
 
         try
         {
+            if (args[0].StartsWith("chrome-extension://", StringComparison.Ordinal))
+                return await BrowserNativeHost.RunAsync(args[0]);
             switch (args[0].ToLowerInvariant())
             {
                 case "service":
@@ -46,6 +48,9 @@ internal static class Program
                         await new UserHost(GetOption(args, "--instance") ?? "default")
                             .RunAsync(cancellation.Token);
                     }
+                    return 0;
+                case "browser-unregister":
+                    BrowserRegistration.RemoveOwned();
                     return 0;
                 case "desktop":
                     return await DesktopHost.RunAsync();
@@ -143,7 +148,8 @@ internal static class Program
         }
         var request = Contract.ParseRequest(requestText);
         var defaultTimeout = request.Operation == "grant.request"
-            ? (Math.Clamp(request.TimeoutSeconds ?? 120, 5, 600) + 15) * 1000 : 30000;
+            ? (Math.Clamp(request.TimeoutSeconds ?? 120, 5, 600) + 15) * 1000 : args.Contains("--instance") && GetOption(args, "--instance") == "desktop" &&
+                request.Operation.StartsWith("browser.", StringComparison.Ordinal) ? 60000 : 30000;
         var timeoutMs = int.Parse(GetOption(args, "--timeout-ms") ?? defaultTimeout.ToString());
         if (timeoutMs is < 100 or > 615000)
             throw new ArgumentException("--timeout-ms must be 100-615000");

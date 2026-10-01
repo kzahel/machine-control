@@ -1,0 +1,139 @@
+# Independent UI actor: no approval hook or private operator transport.
+param([Parameter(Mandatory=$true)][string]$Install,
+ [Parameter(Mandatory=$true)][string]$Chrome,
+ [Parameter(Mandatory=$true)][string]$Fixture,
+ [Parameter(Mandatory=$true)][string]$Payload,
+ [Parameter(Mandatory=$true)][string]$ExpectedPublisher,
+ [Parameter(Mandatory=$true)][string]$EvidencePath)
+Set-StrictMode -Version Latest
+$ErrorActionPreference='Stop'
+Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,System.Windows.Forms
+$exe=Join-Path $Install 'runtime\machine-control-windows.exe'
+$operator=Join-Path $Install 'machine-control.exe'
+$summary=[ordered]@{schema='machine-control-windows-browser-installed/v0';passed=$false;checks=@()}
+$app=$null;$server=$null;$profile=$null
+$root=Join-Path (Split-Path $EvidencePath) ('browser-'+[Guid]::NewGuid().ToString('n'))
+New-Item -ItemType Directory $root|Out-Null
+$registry=[Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::CurrentUser,[Microsoft.Win32.RegistryView]::Registry32)
+$keyPath='Software\Google\Chrome\NativeMessagingHosts\org.machine_control.browser'
+$old=$registry.OpenSubKey($keyPath);$oldValue=if($old){$old.GetValue('')}else{$null};if($old){$old.Dispose()}
+$manifest=Join-Path $env:LOCALAPPDATA 'MachineControl\packages\desktop\browser-host.json'
+$oldManifest=if(Test-Path $manifest){[IO.File]::ReadAllBytes($manifest)}else{$null}
+function Assert($Value,[string]$Message){if(-not $Value){throw $Message};$summary.checks+=@($Message)}
+function Call($Value){$Value|ConvertTo-Json -Depth 20 -Compress|& $exe call --profile user --instance desktop --session-id ([Diagnostics.Process]::GetCurrentProcess().SessionId)|ConvertFrom-Json}
+function Accepted($Value){if(-not $Value.accepted){throw ('Browser operation refused: '+$Value.errorCode)};return $Value}
+function Element([string]$Name,[string]$Type='Button'){
+ $deadline=[DateTime]::UtcNow.AddSeconds(12)
+ do{
+  $app.Refresh()
+  if($app.MainWindowHandle -ne [IntPtr]::Zero){
+   $ui=[Windows.Automation.AutomationElement]::FromHandle($app.MainWindowHandle)
+   $conditions=[Windows.Automation.Condition[]]@(
+    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,$Name),
+    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::$Type),
+    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::IsOffscreenProperty,$false),
+    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::IsEnabledProperty,$true))
+   $item=$ui.FindFirst([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.AndCondition]::new($conditions))
+   if($item){return $item}
+  }
+  Start-Sleep -Milliseconds 100
+ }while([DateTime]::UtcNow -lt $deadline)
+ throw "Installed browser UI unavailable: $Name"
+}
+function Press([string]$Name){(Element $Name).GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke();Start-Sleep -Milliseconds 400}
+function Grant([string[]]$Scopes,[bool]$Allow=$true){
+ $start=[Diagnostics.ProcessStartInfo]::new($exe,('call --profile user --instance desktop --session-id '+[Diagnostics.Process]::GetCurrentProcess().SessionId))
+ $start.UseShellExecute=$false;$start.CreateNoWindow=$true;$start.RedirectStandardInput=$true;$start.RedirectStandardOutput=$true
+ $client=[Diagnostics.Process]::Start($start)
+ try{
+  $reason='Installed browser fixture '+[Guid]::NewGuid().ToString('n')
+  $client.StandardInput.WriteLine((@{operation='grant.request';scopes=$Scopes;durationSeconds=300;timeoutSeconds=30;reason=$reason}|ConvertTo-Json -Compress));$client.StandardInput.Close()
+  Element $reason 'Text'|Out-Null
+  if($Allow){Press 'Allow access'}else{Press 'Deny'}
+  Assert ($client.WaitForExit(10000)) 'Installed browser approval completes'
+  $reply=$client.StandardOutput.ReadToEnd()|ConvertFrom-Json
+  Assert ($reply.accepted -eq $Allow) 'Installed browser UI approval outcome'
+ }finally{if(-not $client.HasExited){$client.Kill()};$client.Dispose()}
+}
+function Effect([string]$Field,$Expected){
+ $deadline=[DateTime]::UtcNow.AddSeconds(8)
+ do{$v=Get-Content (Join-Path $root 'effect.json') -Raw|ConvertFrom-Json;if($v.$Field -eq $Expected){return};Start-Sleep -Milliseconds 100}while([DateTime]::UtcNow -lt $deadline)
+ throw 'Independent installed browser effect absent'
+}
+try{
+ $inventory=Get-Content $Payload -Raw|ConvertFrom-Json
+ $metadata=Get-Content (Join-Path $Install 'runtime\desktop-runtime.json') -Raw|ConvertFrom-Json
+ Assert ($metadata.sourceRevision -eq $inventory.sourceRevision) 'Browser package source identity'
+ Assert ((Get-Item $operator).VersionInfo.ProductVersion -eq $inventory.version) 'Browser package version'
+ Assert (@(Get-ChildItem $Install -Recurse -File).Count -eq $inventory.files.Count) 'Exact browser installed file set'
+ foreach($file in $inventory.files){Assert ((Get-FileHash (Join-Path $Install $file.name) -Algorithm SHA256).Hash.ToLowerInvariant() -eq $file.sha256) ('Exact browser payload: '+$file.name)}
+ foreach($binary in @($operator,$exe)){$signature=Get-AuthenticodeSignature $binary;Assert ($signature.Status -eq 'Valid' -and $signature.SignerCertificate.GetNameInfo('SimpleName',$false) -eq $ExpectedPublisher -and $signature.TimeStamperCertificate) 'Browser package publisher and timestamp'}
+ $app=Start-Process $operator -PassThru
+ Press 'Access'
+ Assert ((Call @{operation='browser.tabs'}).errorCode -eq 'approval_required') 'Installed browser access starts off'
+ Press 'Permissions';Press 'Set up'
+ Assert ([Threading.Thread]::CurrentThread.GetApartmentState() -eq 'STA') 'Installed UI actor uses STA clipboard'
+ $extension=[Windows.Forms.Clipboard]::GetText()
+ Assert (Test-Path (Join-Path $extension 'manifest.json')) 'Installed setup copies bundled extension path'
+ $hostManifest=Get-Content $manifest -Raw|ConvertFrom-Json
+ Assert ($hostManifest.path -eq $exe -and $hostManifest.allowed_origins.Count -eq 1 -and $hostManifest.allowed_origins[0] -eq 'chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/') 'Installed setup registers exact host and origin'
+ $server=Start-Process (Get-Command python.exe).Source -ArgumentList @(('"'+$Fixture+'"'),'--marker',('"'+(Join-Path $root 'effect.json')+'"'),'--port-file',('"'+(Join-Path $root 'port.txt')+'"')) -PassThru -WindowStyle Hidden
+ $deadline=[DateTime]::UtcNow.AddSeconds(10);while(-not(Test-Path (Join-Path $root 'port.txt'))){if([DateTime]::UtcNow -gt $deadline){throw 'Browser fixture unavailable'};Start-Sleep -Milliseconds 100}
+ $url='http://127.0.0.1:'+(Get-Content (Join-Path $root 'port.txt'))+'/'
+ $profile=Join-Path $root 'profile'
+ Start-Process $Chrome -ArgumentList @('--no-first-run','--no-default-browser-check',('--user-data-dir="'+$profile+'"'),('--load-extension="'+$extension+'"'))|Out-Null
+ $deadline=[DateTime]::UtcNow.AddSeconds(30)
+ do{$connected=(Call @{operation='capabilities'}).data.browser.connected;if($connected){break};Start-Sleep -Milliseconds 200}while([DateTime]::UtcNow -lt $deadline)
+ Assert $connected 'Installed native messaging connects'
+ Press 'Access'
+ Grant @('browser') $false
+ Assert ((Call @{operation='browser.tabs'}).errorCode -eq 'approval_required') 'Installed browser denial keeps access off'
+ Grant @('browser')
+ $page=Accepted (Call @{operation='browser.navigate';url=$url;newTab=$true});$tab=$page.data.tab.tabId
+ $snap=Accepted (Call @{operation='browser.snapshot';tabId=$tab;interactiveOnly=$true})
+ $button=@($snap.data.elements|Where-Object {$_.name -eq 'Increment browser counter'})[0].reference
+ Accepted (Call @{operation='browser.click';reference=$button})|Out-Null
+ Effect counter 1;Assert $true 'Independent installed browser counter effect'
+ $text='signed-'+[Guid]::NewGuid().ToString('n')
+ Accepted (Call @{operation='browser.type';reference=@($snap.data.elements|Where-Object {$_.name -eq 'Message'})[0].reference;text=$text})|Out-Null
+ Accepted (Call @{operation='browser.click';reference=@($snap.data.elements|Where-Object {$_.name -eq 'Save message'})[0].reference})|Out-Null
+ Effect message $text;Assert $true 'Independent installed browser text effect'
+ Assert ((Call @{operation='browser.eval';tabId=$tab;expression='document.title'}).errorCode -eq 'approval_required') 'Installed browser grant excludes raw evaluation'
+ $capture=Accepted (Call @{operation='browser.capture';tabId=$tab})
+ $capturePath=Join-Path (Call @{operation='status'}).data.artifactRoot ($capture.data.artifactId+'.png')
+ Assert ((Get-FileHash $capturePath -Algorithm SHA256).Hash.ToLowerInvariant() -eq $capture.data.sha256) 'Installed browser PNG bytes and hash'
+ Remove-Item $capturePath
+ Press 'Stop access'
+ Assert ((Call @{operation='browser.tabs'}).errorCode -eq 'approval_required') 'Installed UI Stop revokes browser'
+ Grant @('devtools')
+ Assert ((Call @{operation='browser.click';reference=$button}).errorCode -eq 'stale_reference') 'Installed browser old grant reference refused'
+ Assert ((Accepted (Call @{operation='browser.eval';tabId=$tab;expression='document.title'})).data.value -eq 'Machine Control Browser Fixture') 'Installed DevTools grant reaches page main world'
+ $cdp=Accepted (Call @{operation='browser.cdp';tabId=$tab;method='Runtime.evaluate';params=@{expression='document.title';returnByValue=$true}})
+ Assert ($cdp.data.result.result.value -eq 'Machine Control Browser Fixture') 'Installed raw CDP method and parameters reach page'
+ Press 'Stop access'
+ Press 'Settings';Press 'Restart'
+ $deadline=[DateTime]::UtcNow.AddSeconds(15)
+ do{$replacement=@(Get-Process machine-control -ErrorAction SilentlyContinue|Where-Object {$_.Path -eq $operator -and $_.Id -ne $app.Id});if($replacement.Count){break};Start-Sleep -Milliseconds 100}while([DateTime]::UtcNow -lt $deadline)
+ Assert ($replacement.Count -eq 1) 'Browser operator restarts'
+ $app=$replacement[0];Press 'Access'
+ Assert ((Call @{operation='browser.tabs'}).errorCode -eq 'approval_required') 'Browser restart retains off-state'
+ $deadline=[DateTime]::UtcNow.AddSeconds(30)
+ do{$connected=(Call @{operation='capabilities'}).data.browser.connected;if($connected){break};Start-Sleep -Milliseconds 200}while([DateTime]::UtcNow -lt $deadline)
+ Assert $connected 'Browser extension reconnects after operator restart'
+ & $exe browser-unregister
+ $key=$registry.OpenSubKey($keyPath)
+ try{Assert ($null -eq $key -and -not(Test-Path $manifest)) 'Owned browser unregister removes registry and manifest'}finally{if($key){$key.Dispose()}}
+ $summary.passed=$true
+}catch{$summary.error=$_.Exception.Message;$summary.location=$_.ScriptStackTrace;throw}
+finally{
+ if($app -and -not $app.HasExited){Stop-Process -Id $app.Id -ErrorAction SilentlyContinue}
+ if($profile){Get-CimInstance Win32_Process|Where-Object {$_.Name -eq 'chrome.exe' -and $_.CommandLine -like ('*'+(Split-Path $root -Leaf)+'*')}|ForEach-Object {Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue}}
+ if($server -and -not $server.HasExited){$server.Kill();$server.WaitForExit()}
+ if($oldValue){$key=$registry.CreateSubKey($keyPath);$key.SetValue('',$oldValue);$key.Dispose()}else{$registry.DeleteSubKeyTree($keyPath,$false)}
+ if($oldManifest){[IO.File]::WriteAllBytes($manifest,$oldManifest)}elseif(Test-Path $manifest){Remove-Item $manifest}
+ $registry.Dispose()
+ $deadline=[DateTime]::UtcNow.AddSeconds(30)
+ do{try{Remove-Item $root -Recurse -Force;break}catch{Start-Sleep -Milliseconds 250}}while([DateTime]::UtcNow -lt $deadline)
+ if(Test-Path $root){$summary.cleanupError=$true;$summary.passed=$false}
+ $summary|ConvertTo-Json -Depth 5|Set-Content $EvidencePath -Encoding UTF8
+}

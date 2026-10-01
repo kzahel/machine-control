@@ -4,7 +4,9 @@ Topic: `browser-control`
 
 Status: source-native developer preview accepted with Chrome for Testing in a
 Tart guest and a per-tab CDP bridge exercised against real Chrome on the Mac.
-Full extension acceptance on the signed Tauri package remains open.
+Windows source-native browser conformance now passes on x64; exact signed
+Tauri browser acceptance remains open. The [provider dossier](../research/providers/chrome-extension.md)
+owns platform evidence and omissions.
 [Tactical 050](../docs/tactical/050-macos-host-control-mvp.md) owns the first
 slice.
 
@@ -106,7 +108,10 @@ package and environment boundaries.
 
 - **Open:** Browser-level CDP attachment (target list plus per-tab attach) so
   Playwright and Puppeteer `connectOverCDP` work, not only tab-level clients.
-- **Open:** Windows and Linux native-messaging registration, and other
-  Chromium browsers.
+- **Current:** Windows per-user registration, scoped browser operations, and
+  single-shot raw CDP/evaluation are implemented. Signed installed acceptance
+  is in [054](../docs/tactical/054-windows-browser-and-arm64.md). Windows upload
+  and raw CDP WebSockets remain unavailable and are reported as omissions.
+- **Open:** Linux registration and other Chromium browsers.
 - **Open:** Web Store publication, which changes the extension ID and install
   flow.

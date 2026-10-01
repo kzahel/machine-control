@@ -17,8 +17,33 @@ var broker = new DesktopGrants(clock);
 broker.SetReady(true);
 Assert(broker.Authorize("snapshot") == "approval_required", "Off by default");
 Assert(broker.Authorize("session.login") == "unsupported_operation", "No protected scope");
-Refuses(() => broker.Arm(["browser"], 60), "Unsupported scope");
+Refuses(() => broker.Arm(["protected"], 60), "Unsupported scope");
 Refuses(() => broker.Arm(["observe"], 59), "Unbounded duration");
+broker.Arm(["browser"], 60);
+Assert(broker.Authorize("browser.tabs") is null, "Browser scope authorizes tabs");
+Assert(broker.Authorize("browser.eval") == "approval_required", "Browser is not raw DevTools");
+Assert(broker.Authorize("snapshot") == "approval_required", "Browser is not desktop observation");
+broker.Stop("test");
+broker.Arm(["devtools"], 60);
+Assert(broker.Authorize("browser.eval") is null && broker.Authorize("browser.tabs") is null, "DevTools includes browser");
+var browserPending = broker.RequestAsync(new Request { Operation = "grant.request", Scopes = ["control"], DurationSeconds = 60, Reason = "Other scope" }, "caller");
+Assert(broker.Authorize("browser.eval") == "approval_prompt_visible" && broker.Authorize("browser.click") == "approval_prompt_visible", "Prompt pauses browser writes and raw evaluation");
+Assert(broker.Authorize("browser.tabs") is null, "Prompt permits browser observation");
+broker.Stop("test");
+Assert((await browserPending).ErrorCode == "test", "Stop cancels browser prompt");
+await using (var frame = new MemoryStream())
+{
+    await BrowserWire.WriteAsync(frame, new System.Text.Json.Nodes.JsonObject { ["type"] = "hello" }, CancellationToken.None);
+    frame.Position = 0;
+    Assert((await BrowserWire.ReadAsync(frame, CancellationToken.None))?["type"]?.GetValue<string>() == "hello", "Native framing round trip");
+}
+foreach (var length in new uint[] { 0, BrowserWire.MaximumInput + 1 })
+{
+    var header = new byte[4]; System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(header, length);
+    await using var frame = new MemoryStream(header);
+    try { await BrowserWire.ReadAsync(frame, CancellationToken.None); throw new Exception("Expected frame refusal"); }
+    catch (InvalidDataException) { }
+}
 var original = broker.Generation;
 broker.Arm(["observe"], 60);
 Assert(broker.Generation != original, "Arming changes generation");

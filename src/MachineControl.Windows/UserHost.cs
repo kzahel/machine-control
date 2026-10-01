@@ -7,7 +7,7 @@ using System.Text.Json;
 
 namespace MachineControl.Windows;
 
-internal sealed class UserHost(string instance, DesktopGrants? grants = null)
+internal sealed class UserHost(string instance, DesktopGrants? grants = null, BrowserRelay? browser = null)
 {
     private readonly string _generation = Guid.NewGuid().ToString("n");
     private readonly SemaphoreSlim _providerGate = new(1, 1);
@@ -108,7 +108,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null)
     [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GetNamedPipeClientProcessId(Microsoft.Win32.SafeHandles.SafePipeHandle pipe, out uint id);
 
-    private static NamedPipeServerStream CreatePipe(string name, bool first)
+    internal static NamedPipeServerStream CreatePipe(string name, bool first)
     {
         using var identity = WindowsIdentity.GetCurrent();
         var security = new PipeSecurity();
@@ -138,7 +138,8 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null)
         if (request.ExpectedGeneration is not null && request.ExpectedGeneration != Generation)
             return result with { ErrorCode = "stale_generation", Message = "Runtime generation changed" };
         if (!Operations.Contains(request.Operation, StringComparer.Ordinal) &&
-            !(grants is not null && request.Operation is "grant.request" or "grant.status" or "grant.revoke"))
+            !(grants is not null && request.Operation is "grant.request" or "grant.status" or "grant.revoke") &&
+            !(browser is not null && BrowserWire.Operations.Contains(request.Operation, StringComparer.Ordinal)))
             return result with { ErrorCode = "unsupported_operation", Message = "Operation is unavailable in the workstation profile" };
         if (request.SecretPipe is not null || request.CredentialKind is not null)
             return result with { ErrorCode = "profile_refused", Message = "Workstation mode has no credential transport" };
@@ -190,7 +191,8 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null)
                 : new
                 {
                     profile = "workstation",
-                    operations = grants is null ? Operations : [.. Operations, "grant.request", "grant.status", "grant.revoke"],
+                    operations = grants is null ? Operations : [.. Operations, .. BrowserWire.Operations, "grant.request", "grant.status", "grant.revoke"],
+                    browser = browser?.State,
                     authorization = grants is null ? "component_owner" : "native_target_wide_grants",
                     providers = ProviderRouter.DescribeUser(),
                     serviceOperations = Array.Empty<string>(),
@@ -211,6 +213,8 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null)
         }
         if (!ready)
             return result with { ErrorCode = "desktop_unavailable", Message = "The active unlocked user desktop is unavailable" };
+        if (browser is not null && BrowserWire.Operations.Contains(request.Operation, StringComparer.Ordinal))
+            return await browser.ExecuteAsync(request, Envelope(request), cancellationToken);
         await _providerGate.WaitAsync(cancellationToken);
         try
         {

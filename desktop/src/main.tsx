@@ -319,40 +319,37 @@ function App() {
                     </div>
                   );
                 })}
-              {!windows && (
-                <div className="setting-row">
-                  <span
-                    className={
-                      "permission-icon " +
-                      (state?.browser.connected ? "done" : "")
+              <div className="setting-row">
+                <span
+                  className={
+                    "permission-icon " +
+                    (state?.browser.connected ? "done" : "")
+                  }
+                >
+                  <Command size={15} />
+                </span>
+                <span className="row-label">
+                  Browser extension <span className="optional">(optional)</span>
+                </span>
+                <span className="row-status">
+                  {state?.browser.connected ? "Connected" : "Not connected"}
+                </span>
+                <button
+                  disabled={busy}
+                  onClick={async () => {
+                    try {
+                      await native({ method: "browser.setup" });
+                      setNotice(
+                        "Path copied. In Chrome extensions, enable Developer mode, then Load unpacked.",
+                      );
+                    } catch (e) {
+                      setError(String(e));
                     }
-                  >
-                    <Command size={15} />
-                  </span>
-                  <span className="row-label">
-                    Browser extension{" "}
-                    <span className="optional">(optional)</span>
-                  </span>
-                  <span className="row-status">
-                    {state?.browser.connected ? "Connected" : "Not connected"}
-                  </span>
-                  <button
-                    disabled={busy}
-                    onClick={async () => {
-                      try {
-                        await native({ method: "browser.setup" });
-                        setNotice(
-                          "Path copied. In Chrome extensions, enable Developer mode, then Load unpacked.",
-                        );
-                      } catch (e) {
-                        setError(String(e));
-                      }
-                    }}
-                  >
-                    Set up
-                  </button>
-                </div>
-              )}
+                  }}
+                >
+                  Set up
+                </button>
+              </div>
             </section>
             {!windows && (
               <div className="restart-row">

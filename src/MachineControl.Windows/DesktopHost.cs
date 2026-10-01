@@ -26,7 +26,9 @@ internal static class DesktopHost
         DesktopSafety.OperatorProcessId = hello["processId"]!.GetValue<int>();
         broker.SetReady(DesktopSafety.Ready());
         using var shortcut = new DesktopStopShortcut(broker);
-        var resident = new UserHost("desktop", broker).RunAsync(stop.Token);
+        var browser = new BrowserRelay(broker);
+        var browserTask = browser.RunAsync(stop.Token);
+        var resident = new UserHost("desktop", broker, browser).RunAsync(stop.Token);
         var monitor = Task.Run(async () =>
         {
             while (!stop.IsCancellationRequested)
@@ -42,8 +44,8 @@ internal static class DesktopHost
             while (!stop.IsCancellationRequested)
             {
                 var read = ReadCommandAsync(reader, stop.Token);
-                var completed = await Task.WhenAny(read, resident);
-                if (completed == resident) { await resident; break; }
+                var completed = await Task.WhenAny(read, resident, browserTask, monitor);
+                if (completed != read) { await completed; break; }
                 var line = await read;
                 if (line is null) break;
                 object reply;
@@ -61,10 +63,13 @@ internal static class DesktopHost
                             state["stopShortcutAvailable"] = shortcut.Available;
                             state["stopShortcut"] = "Ctrl+Alt+Shift+.";
                             state["permissions"] = new JsonObject { ["accessibility"] = ready, ["screenRecording"] = ready };
-                            state["browser"] = new JsonObject { ["connected"] = false, ["available"] = false };
+                            state["browser"] = JsonSerializer.SerializeToNode(browser.State, Contract.Json);
                             state["socket"] = RuntimeProfile.UserPipe("desktop", RuntimeProfile.SessionId);
                             reply = new { ok = true, state };
                             break;
+                        case "browser.setup":
+                            BrowserRegistration.Install();
+                            reply = new { ok = true }; break;
                         case "arm":
                             broker.Arm(command["scopes"]?.Deserialize<string[]>(), command["duration"]?.GetValue<int>() ?? 900);
                             reply = new { ok = true }; break;
@@ -79,7 +84,8 @@ internal static class DesktopHost
                         default: throw new ArgumentException("Unknown operator command");
                     }
                 }
-                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or JsonException)
+                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or JsonException or
+                    IOException or UnauthorizedAccessException or System.Security.SecurityException)
                 { reply = new { ok = false, error = ex.Message }; }
                 await writer.WriteLineAsync(Contract.Serialize(reply));
             }
@@ -90,6 +96,7 @@ internal static class DesktopHost
             stop.Cancel();
             try { await resident; } catch (OperationCanceledException) { }
             try { await monitor; } catch (OperationCanceledException) { }
+            try { await browserTask; } catch (OperationCanceledException) { }
             DesktopSafety.Broker = null;
         }
         return 0;

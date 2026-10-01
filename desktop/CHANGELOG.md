@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [0.4.4]
+
+- Add Windows Chrome extension setup and scoped browser control.
+- Keep browser scripts and raw DevTools behind a separate approval scope.
+- Refuse stale browser references after grant or provider changes and report
+  uncertain delivery when a browser request times out.
+- Preserve startup and browser registration during updater replacement; remove
+  only the owning installation's browser registration on ordinary uninstall.
+
+Windows browser support uses the bundled unpacked extension. File upload,
+raw CDP WebSockets, and browser-level attachment are not available on this
+Windows candidate. Public Windows publication remains a separate gate.
+
 ## [0.4.3]
 
 - Refuse Cua stale-element errors even when its CLI exits successfully.

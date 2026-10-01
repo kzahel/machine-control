@@ -16,7 +16,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null)
     private string? _lastEnded;
     private readonly Queue<object> _activity = new();
 
-    internal static readonly string[] SupportedScopes = ["observe", "control"];
+    internal static readonly string[] SupportedScopes = ["observe", "control", "browser", "devtools"];
     internal string Generation { get { lock (Gate) { Refresh(); return _generation; } } }
 
     internal static string? ScopeFor(string operation) => operation switch
@@ -24,6 +24,10 @@ internal sealed class DesktopGrants(TimeProvider? time = null)
         "windows" or "snapshot" or "screenshot" => "observe",
         "app.launch" or "app.activate" or "invoke" or "set.value" or
         "click" or "key" or "type" or "window.state" => "control",
+        "browser.tabs" or "browser.wait" or "browser.navigate" or "browser.snapshot" or
+        "browser.click" or "browser.type" or "browser.key" or "browser.capture" or
+        "browser.release" => "browser",
+        "browser.cdp" or "browser.eval" => "devtools",
         _ => null,
     };
 
@@ -48,8 +52,10 @@ internal sealed class DesktopGrants(TimeProvider? time = null)
             if (scope is null) return "unsupported_operation";
             if (!_ready) return "desktop_unavailable";
             if (_updating) return "update_in_progress";
-            if (_pending is not null && scope == "control") return "approval_prompt_visible";
-            if (_grant is null || !_grant.Scopes.Contains(scope)) return "approval_required";
+            if (_pending is not null && (scope is "control" or "devtools" ||
+                scope == "browser" && !BrowserWire.Observes(operation))) return "approval_prompt_visible";
+            if (_grant is null || !(_grant.Scopes.Contains(scope) ||
+                scope == "browser" && _grant.Scopes.Contains("devtools"))) return "approval_required";
             return null;
         }
     }
@@ -222,9 +228,9 @@ internal sealed class DesktopGrants(TimeProvider? time = null)
 
     private static HashSet<string> ValidateScopes(string[]? scopes)
     {
-        if (scopes is null || scopes.Length is < 1 or > 2 ||
+        if (scopes is null || scopes.Length is < 1 or > 4 ||
             scopes.Any(scope => !SupportedScopes.Contains(scope, StringComparer.Ordinal)))
-            throw new ArgumentException("Choose observe and/or control");
+            throw new ArgumentException("Choose supported access scopes");
         return scopes.ToHashSet(StringComparer.Ordinal);
     }
     private static int ValidateDuration(int seconds) => seconds is >= 60 and <= 28800
