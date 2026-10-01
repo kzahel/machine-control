@@ -4,7 +4,12 @@ param([Parameter(Mandatory=$true)][string]$Install,
  [Parameter(Mandatory=$true)][string]$Fixture,
  [Parameter(Mandatory=$true)][string]$Payload,
  [Parameter(Mandatory=$true)][string]$ExpectedPublisher,
- [Parameter(Mandatory=$true)][string]$EvidencePath)
+ [Parameter(Mandatory=$true)][string]$EvidencePath,
+ [switch]$Lock,
+ [switch]$StartupRecovery,
+ [string]$UpdateVersion,
+ [string]$UpdateRevision,
+ [string]$UpdatePayload)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,System.Windows.Forms
@@ -22,7 +27,7 @@ $oldManifest=if(Test-Path $manifest){[IO.File]::ReadAllBytes($manifest)}else{$nu
 function Assert($Value,[string]$Message){if(-not $Value){throw $Message};$summary.checks+=@($Message)}
 function Call($Value){$Value|ConvertTo-Json -Depth 20 -Compress|& $exe call --profile user --instance desktop --session-id ([Diagnostics.Process]::GetCurrentProcess().SessionId)|ConvertFrom-Json}
 function Accepted($Value){if(-not $Value.accepted){throw ('Browser operation refused: '+$Value.errorCode)};return $Value}
-function Element([string]$Name,[string]$Type='Button'){
+function Element([string]$Name,[string]$Type='Button',[bool]$Enabled=$true){
  $deadline=[DateTime]::UtcNow.AddSeconds(12)
  do{
   $app.Refresh()
@@ -32,7 +37,7 @@ function Element([string]$Name,[string]$Type='Button'){
     [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,$Name),
     [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::$Type),
     [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::IsOffscreenProperty,$false),
-    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::IsEnabledProperty,$true))
+    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::IsEnabledProperty,$Enabled))
    $item=$ui.FindFirst([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.AndCondition]::new($conditions))
    if($item){return $item}
   }
@@ -120,9 +125,73 @@ try{
  $deadline=[DateTime]::UtcNow.AddSeconds(30)
  do{$connected=(Call @{operation='capabilities'}).data.browser.connected;if($connected){break};Start-Sleep -Milliseconds 200}while([DateTime]::UtcNow -lt $deadline)
  Assert $connected 'Browser extension reconnects after operator restart'
+ if($UpdateVersion){
+  Assert ($UpdateRevision -and $UpdatePayload) 'Browser update identity supplied'
+  Press 'Settings'
+  $startup=(Element 'Start at login' 'CheckBox').GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
+  if($startup.Current.ToggleState -ne 'On'){$startup.Toggle();Start-Sleep -Milliseconds 500}
+  $startupBefore=[Microsoft.Win32.Registry]::GetValue('HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run','Machine Control',$null)
+  Assert ($startupBefore -match '--background') 'Browser update begins with startup enabled'
+  $hostBefore=[IO.File]::ReadAllText($manifest)
+  $key=$registry.OpenSubKey($keyPath);try{$registrationBefore=$key.GetValue('')}finally{$key.Dispose()}
+  $chromeBefore=@(Get-CimInstance Win32_Process|Where-Object {$_.Name -eq 'chrome.exe' -and $_.CommandLine -like ('*'+(Split-Path $root -Leaf)+'*') -and $_.CommandLine -notmatch '--type='})[0].ProcessId
+  Press 'Access';Grant @('devtools')
+  $epoch=(Call @{operation='status'}).generation
+  $beforeUpdate=Accepted (Call @{operation='browser.snapshot';tabId=$tab;interactiveOnly=$true})
+  $oldReference=@($beforeUpdate.data.elements|Where-Object {$_.name -eq 'Increment browser counter'})[0].reference
+  Press 'Settings';Press 'Check for updates'
+  Assert (-not (Element 'Install and restart' 'Button' $false).Current.IsEnabled) 'Browser update blocked during active access'
+  Press 'Access';Press 'Stop access';Press 'Settings'
+  Press 'Install and restart'
+  $deadline=[DateTime]::UtcNow.AddSeconds(120)
+  do{$replacement=@(Get-Process machine-control -ErrorAction SilentlyContinue|Where-Object {$_.Path -eq $operator -and $_.Id -ne $app.Id});$version=try{(Get-Item $operator).VersionInfo.ProductVersion}catch{$null};if($replacement.Count -eq 1 -and $version -eq $UpdateVersion){break};Start-Sleep -Milliseconds 200}while([DateTime]::UtcNow -lt $deadline)
+  Assert ($replacement.Count -eq 1 -and $version -eq $UpdateVersion) 'Browser signed update automatically relaunches operator'
+  $app=$replacement[0];Press 'Access'
+  $metadata=Get-Content (Join-Path $Install 'runtime\desktop-runtime.json') -Raw|ConvertFrom-Json
+  Assert ($metadata.sourceRevision -eq $UpdateRevision) 'Browser update matches exact new source'
+  $updatedInventory=Get-Content $UpdatePayload -Raw|ConvertFrom-Json
+  Assert ($updatedInventory.sourceRevision -eq $UpdateRevision -and $updatedInventory.version -eq $UpdateVersion) 'Browser update inventory binds source and version'
+  Assert (@(Get-ChildItem $Install -Recurse -File).Count -eq $updatedInventory.files.Count) 'Exact browser updated file set'
+  foreach($file in $updatedInventory.files){Assert ((Get-FileHash (Join-Path $Install $file.name) -Algorithm SHA256).Hash.ToLowerInvariant() -eq $file.sha256) ('Exact updated browser payload: '+$file.name)}
+  Assert ((Call @{operation='browser.tabs'}).errorCode -eq 'approval_required') 'Browser update relaunches with access off'
+  Assert ((Call @{operation='status'}).generation -ne $epoch) 'Browser update invalidates old generation'
+  Assert ([Microsoft.Win32.Registry]::GetValue('HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run','Machine Control',$null) -eq $startupBefore) 'Signed update preserves exact startup entry'
+  $key=$registry.OpenSubKey($keyPath);try{Assert ($key.GetValue('') -eq $registrationBefore) 'Signed update preserves browser registration'}finally{$key.Dispose()}
+  Assert ([IO.File]::ReadAllText($manifest) -ceq $hostBefore) 'Signed update preserves exact browser manifest'
+  Assert ($null -ne (Get-Process -Id $chromeBefore -ErrorAction SilentlyContinue)) 'User browser survives signed update'
+  $deadline=[DateTime]::UtcNow.AddSeconds(30)
+  do{$connected=(Call @{operation='capabilities'}).data.browser.connected;if($connected){break};Start-Sleep -Milliseconds 200}while([DateTime]::UtcNow -lt $deadline)
+  Assert $connected 'Extension reconnects after signed update'
+  Grant @('devtools')
+  Assert ((Call @{operation='browser.click';reference=$oldReference}).errorCode -eq 'stale_reference') 'Updated browser refuses pre-update reference'
+  Effect counter 1
+  Assert ((Accepted (Call @{operation='browser.eval';tabId=$tab;expression='document.title'})).data.value -eq 'Machine Control Browser Fixture') 'Updated browser retains original page'
+  $fresh=Accepted (Call @{operation='browser.snapshot';tabId=$tab;interactiveOnly=$true})
+  Accepted (Call @{operation='browser.click';reference=@($fresh.data.elements|Where-Object {$_.name -eq 'Increment browser counter'})[0].reference})|Out-Null
+  Effect counter 2;Assert $true 'Independent browser effect after signed replacement'
+  Press 'Stop access'
+ }
+ if($StartupRecovery){
+  Press 'Settings'
+  $startup=(Element 'Start at login' 'CheckBox').GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
+  if($startup.Current.ToggleState -ne 'On'){$startup.Toggle();Start-Sleep -Milliseconds 500}
+  Assert ([Microsoft.Win32.Registry]::GetValue('HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run','Machine Control',$null) -match '--background') 'Startup recovery entry enabled'
+  $summary.startupRecoveryPending=$true
+  Press 'Access'
+ }
  & $exe browser-unregister
  $key=$registry.OpenSubKey($keyPath)
  try{Assert ($null -eq $key -and -not(Test-Path $manifest)) 'Owned browser unregister removes registry and manifest'}finally{if($key){$key.Dispose()}}
+ if($Lock){
+  Grant @('devtools')
+  $beforeLock=(Call @{operation='status'}).generation
+  Add-Type -TypeDefinition 'public static class BrowserFixtureLock { [System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool LockWorkStation(); }'
+  Assert ([BrowserFixtureLock]::LockWorkStation()) 'Browser lock request delivered'
+  $deadline=[DateTime]::UtcNow.AddSeconds(10)
+  do{$after=Call @{operation='grant.status'};if($after.generation -ne $beforeLock){break};Start-Sleep -Milliseconds 200}while([DateTime]::UtcNow -lt $deadline)
+  Assert ($after.generation -ne $beforeLock -and $null -eq $after.data.PSObject.Properties['grant']) 'Lock revokes browser grant and generation'
+  Assert ((Call @{operation='browser.tabs'}).errorCode -in @('desktop_unavailable','approval_required')) 'Locked desktop refuses browser operations'
+ }
  $summary.passed=$true
 }catch{$summary.error=$_.Exception.Message;$summary.location=$_.ScriptStackTrace;throw}
 finally{

@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [0.4.5]
+
+- Add installed-browser update checks for registration and startup retention,
+  Chrome survival/reconnect, access revocation, and stale references.
+- Confirm browser effects after replacement and startup recovery after sign-in.
+
+This internal Windows candidate exercises an actual 0.4.4 to 0.4.5 update.
+Public Windows downloads and the production update feed remain separate gates.
+
 ## [0.4.4]
 
 - Add Windows Chrome extension setup and scoped browser control.
