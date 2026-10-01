@@ -244,6 +244,7 @@ internal static class ProviderRouter
             };
         var operation = request.Operation.ToLowerInvariant();
         var ordinaryExactWindow = request.Hwnd is > 0 &&
+            !DesktopSafety.IsShellWindow(request.Hwnd) &&
             !string.Equals(request.Scope, "system", StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(request.Target, "taskbar", StringComparison.OrdinalIgnoreCase);
         var routeCua = ordinaryExactWindow &&

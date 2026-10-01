@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+import contextlib
+import io
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -14,6 +16,20 @@ spec.loader.exec_module(winhost)
 
 
 class WindowsHostTests(unittest.TestCase):
+    def test_doctor_projects_public_deployment_state(self):
+        deployment = {'policy': {'grantMode': 'approval'}, 'grant': {'scopes': ['observe']}}
+        replies = [{'accepted': True, 'generation': 'native-generation',
+                    'sessionLocked': False, 'data': {'desktopProduct': True, 'ready': True}},
+                   {'accepted': True, 'data': deployment}]
+        output = io.StringIO()
+        with mock.patch.object(winhost, 'resource_id', return_value='private-identity'), \
+                mock.patch.object(winhost, 'call', side_effect=replies), contextlib.redirect_stdout(output):
+            self.assertEqual(winhost.doctor(), 0)
+        value = json.loads(output.getvalue())
+        self.assertEqual(value['extensions']['deployment'], deployment)
+        self.assertEqual(value['extensions']['runtimeGeneration'], 'native-generation')
+        self.assertEqual(value['checks'][-1]['status'], 'pass')
+
     def test_installation_refuses_component_or_wrong_instance(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

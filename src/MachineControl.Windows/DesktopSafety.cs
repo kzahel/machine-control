@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows.Automation;
 
 namespace MachineControl.Windows;
@@ -30,11 +31,17 @@ internal static class DesktopSafety
             return "self_target_refused";
         if (request.Operation is "key" or "type" && OwnWindow(NativeMethods.GetForegroundWindow()))
             return "self_target_refused";
+        if (request.Operation is "key" or "type" && OwnShellElement(AutomationElement.FocusedElement))
+            return "self_target_refused";
         if (request.Operation == "click")
         {
             if (request.X is not { } x || request.Y is not { } y) return "invalid_request";
-            if (OwnWindow(WindowFromPoint(new Point { X = x, Y = y }))) return "self_target_refused";
+            if (OwnWindow(WindowFromPoint(new Point { X = x, Y = y })) || OwnPoint(x, y)) return "self_target_refused";
+            if (OwnShellElement(AutomationElement.FromPoint(new System.Windows.Point(x, y))))
+                return "self_target_refused";
         }
+        if (request.Operation == "app.activate" && request.ApplicationId == "org.machine-control.app")
+            return "self_target_refused";
         if (request.Operation == "app.launch" && request.ExecutablePath is { } executable)
         {
             var name = System.IO.Path.GetFileName(executable);
@@ -51,6 +58,7 @@ internal static class DesktopSafety
         var code = Check(request, generation, element?.Current.ProcessId);
         if (code is null && element is not null && DesktopGrants.ScopeFor(request.Operation) == "control")
         {
+            if (OwnShellElement(element)) code = "self_target_refused";
             // WebView controls can belong to a browser child process. Follow
             // native UI ancestry rather than trusting the element's PID alone.
             var current = element;
@@ -63,6 +71,66 @@ internal static class DesktopSafety
         }
         if (code is not null) throw new DesktopAccessRefusedException(code);
     }
+
+    // Explorer owns our taskbar/tray elements. Their UIA identity plus shell
+    // ancestry is required; PID/HWND ownership alone misses those controls.
+    private static bool OwnShellElement(AutomationElement? element)
+    {
+        var ownIdentity = false;
+        for (var depth = 0; element is not null && depth < 64; depth++)
+        {
+            var current = element.Current;
+            ownIdentity |= OwnShellIdentity(current.Name, current.AutomationId);
+            if (ownIdentity && ShellClass(current.ClassName)) return true;
+            element = TreeWalker.RawViewWalker.GetParent(element);
+        }
+        return false;
+    }
+
+    private static bool OwnShellIdentity(string name, string automationId) =>
+        automationId == "Appid: org.machine-control.app" || name == "Machine Control" ||
+        name.StartsWith("Machine Control - ", StringComparison.Ordinal) ||
+        name.StartsWith("Machine Control Machine Control - ", StringComparison.Ordinal);
+
+    private static bool OwnPoint(int x, int y)
+    {
+        // A transparent provider cursor overlay can win FromPoint discovery
+        // while input passes through it. Guard visible operator regions and
+        // Explorer-owned product buttons independently of the topmost hit.
+        var windows = new List<IntPtr>();
+        NativeMethods.EnumDesktopWindows(IntPtr.Zero, (hwnd, _) =>
+        {
+            if (NativeMethods.IsWindowVisible(hwnd) && !NativeMethods.IsIconic(hwnd) &&
+                NativeMethods.GetWindowRect(hwnd, out var rect) &&
+                x >= rect.Left && x < rect.Right && y >= rect.Top && y < rect.Bottom)
+                windows.Add(hwnd);
+            return true;
+        }, IntPtr.Zero);
+        foreach (var hwnd in windows)
+        {
+            if (OwnWindow(hwnd)) return true;
+            if (!IsShellWindow(hwnd.ToInt64())) continue;
+            var root = AutomationElement.FromHandle(hwnd);
+            var buttons = root.FindAll(TreeScope.Descendants, new PropertyCondition(
+                AutomationElement.ControlTypeProperty, ControlType.Button));
+            foreach (AutomationElement button in buttons)
+            {
+                var current = button.Current;
+                if (!current.IsOffscreen && OwnShellIdentity(current.Name, current.AutomationId) &&
+                    current.BoundingRectangle.Contains(new System.Windows.Point(x, y))) return true;
+            }
+        }
+        return false;
+    }
+
+    internal static bool IsShellWindow(long? hwnd)
+    {
+        if (hwnd is not > 0) return false;
+        var name = new StringBuilder(256);
+        return NativeMethods.GetClassName(new IntPtr(hwnd.Value), name, name.Capacity) > 0 && ShellClass(name.ToString());
+    }
+    private static bool ShellClass(string name) => name is
+        "Shell_TrayWnd" or "Shell_SecondaryTrayWnd" or "TopLevelWindowForOverflowXamlIsland" or "NotifyIconOverflowWindow";
 
     private static bool OwnProcess(int? processId) => processId is > 0 &&
         (processId == OperatorProcessId || processId == Environment.ProcessId);

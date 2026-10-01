@@ -21,7 +21,7 @@ function Call([hashtable]$request) {
  if ($LASTEXITCODE -ne 0) {throw 'Resident client transport failed'}
  return $raw|ConvertFrom-Json
 }
-function Granted {$deployment=(Call @{operation='grant.status'}).data.deployment; if ($null -ne $deployment.PSObject.Properties['grant']) {return $deployment.grant};return $null}
+function Granted {$deployment=(Call @{operation='grant.status'}).data; if ($null -ne $deployment.PSObject.Properties['grant']) {return $deployment.grant};return $null}
 function Process {$items=@(Get-Process machine-control -ErrorAction SilentlyContinue|Where-Object {$_.Path -eq (Join-Path $Install 'machine-control.exe')}); if ($items.Count) {return $items[0]};return $null}
 function Element([string]$Name,[string]$Type='Button') {
  $deadline=[DateTime]::UtcNow.AddSeconds(12)
@@ -90,6 +90,12 @@ try {
  Press 'Stop access';WaitGrant $false
  Request $true
  $status=Call @{operation='status'};$generation=$status.generation
+ $taskbar=Call @{operation='snapshot';target='taskbar';scope='system';query='Machine Control';maxDepth=8;maxElements=100}
+ $own=@($taskbar.data.elements|Where-Object {$_.automationId -eq 'Appid: org.machine-control.app'})[0]
+ $self=Call @{operation='invoke';scope='system';reference=$own.reference;expectedGeneration=$generation}
+ Assert (-not $self.accepted -and $self.errorCode -eq 'self_target_refused') 'Own taskbar semantics refused'
+ $self=Call @{operation='click';x=[int]($own.bounds.x+$own.bounds.width/2);y=[int]($own.bounds.y+$own.bounds.height/2)}
+ Assert (-not $self.accepted -and $self.errorCode -eq 'self_target_refused') 'Own taskbar coordinates refused'
  $launch=Call @{operation='app.launch';executablePath=$Fixture}
  Assert $launch.accepted 'Installed resident launches fixture'
  $fixtureProcess=$launch.data.processId

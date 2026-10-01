@@ -95,7 +95,7 @@ def doctor() -> int:
         for name in ("semantic", "capture", "input"):
             states[name] = "ready" if data.get("ready") else "unavailable"
         grant = call({"operation": "grant.status"})
-        deployment = grant.get("data", {}).get("deployment", {})
+        deployment = grant.get("data", {})
         extensions["deployment"] = deployment
         extensions["runtimeGeneration"] = status.get("generation")
         checks.append(dict(id="resident", status="pass", summary="Desktop resident is reachable"))
