@@ -18,6 +18,11 @@ Windows component releases. Both Mac architectures publish together.
    desktop/scripts/release.sh 0.3.3
    ```
 
+Every publication requires exactly one `## [X.Y.Z]` changelog section with
+at least one nonempty change bullet. Missing, duplicate, empty, and placeholder
+notes are refused locally and in CI. The checked-in section becomes both the
+GitHub release body and the updater metadata notes.
+
 The script validates a strictly increasing version and release notes, creates
 and pushes an annotated tag, then dispatches `macos-desktop.yml` from `main`
 with that tag and version. CI requires the tag to point to the exact workflow

@@ -4,6 +4,7 @@ import argparse
 import base64
 from datetime import datetime, timezone
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import re
@@ -11,6 +12,9 @@ import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
+spec = importlib.util.spec_from_file_location('release_changelog', ROOT / 'release/changelog.py')
+changelog_notes = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(changelog_notes)
 REPOSITORY = 'kzahel/machine-control'
 VERSION = r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)'
 TARGETS = {'aarch64-apple-darwin': ('arm64', 'darwin-aarch64'),
@@ -24,17 +28,7 @@ def version_tuple(version):
 
 
 def notes(version, changelog=None):
-    version_tuple(version)
-    lines = (changelog or ROOT / 'desktop/CHANGELOG.md').read_text().splitlines()
-    indices = [i for i, line in enumerate(lines) if line.strip() == f'## [{version}]']
-    if len(indices) != 1:
-        raise ValueError('Expected exactly one changelog section for the release')
-    start = indices[0] + 1
-    end = next((i for i in range(start, len(lines)) if lines[i].startswith('## ')), len(lines))
-    body = '\n'.join(lines[start:end]).strip()
-    if not any(line.startswith('- ') for line in body.splitlines()):
-        raise ValueError('Release notes require at least one bullet')
-    return body + '\n'
+    return changelog_notes.notes(version, changelog or ROOT / 'desktop/CHANGELOG.md')
 
 
 def git(*args):

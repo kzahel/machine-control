@@ -3,9 +3,9 @@ run-name: macOS desktop ${{ inputs.release_tag || inputs.version || github.sha }
 on:
   push:
     branches: [main]
-    paths: ['desktop/**', 'tests/release/test_desktop_release.py', 'platforms/macos/resident/**', 'platforms/macos/guests/macos/unlock/**', '.github/workflows/macos-desktop.yml', 'release/with-macos-signing.sh']
+    paths: ['desktop/**', 'tests/release/test_desktop_release.py', 'tests/release/test_changelog.py', 'release/changelog.py', 'platforms/macos/resident/**', 'platforms/macos/guests/macos/unlock/**', '.github/workflows/macos-desktop.yml', 'release/with-macos-signing.sh']
   pull_request:
-    paths: ['desktop/**', 'tests/release/test_desktop_release.py', 'platforms/macos/resident/**', 'platforms/macos/guests/macos/unlock/**', '.github/workflows/macos-desktop.yml', 'release/with-macos-signing.sh']
+    paths: ['desktop/**', 'tests/release/test_desktop_release.py', 'tests/release/test_changelog.py', 'release/changelog.py', 'platforms/macos/resident/**', 'platforms/macos/guests/macos/unlock/**', '.github/workflows/macos-desktop.yml', 'release/with-macos-signing.sh']
   workflow_dispatch:
     inputs:
       version:
@@ -52,7 +52,9 @@ jobs:
           components: rustfmt, clippy
       - run: pnpm --dir desktop install --frozen-lockfile
       - run: pnpm --dir desktop build
-      - run: python3 -m unittest discover -s tests/release -p test_desktop_release.py -v
+      - run: |
+          python3 -m unittest discover -s tests/release -p test_desktop_release.py -v
+          python3 -m unittest discover -s tests/release -p test_changelog.py -v
       - run: swift test --package-path platforms/macos/resident
       - run: platforms/macos/tests/smoke.sh --static
       - run: cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check

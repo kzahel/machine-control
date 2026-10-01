@@ -19,6 +19,12 @@ Native interactive acceptance remains a separate gate.
 gh workflow run windows-workstation.yml --ref main -f version=0.1.0
 ```
 
+Every publication requires a checked-in version section with meaningful change
+bullets: [desktop changelog](../desktop/CHANGELOG.md) or
+[Windows workstation changelog](WORKSTATION_CHANGELOG.md). CI refuses missing,
+empty, duplicate, or placeholder notes before signing and rechecks them before
+publication. The version section supplies the GitHub release notes.
+
 Use a new semantic version for every publication. Never replace published bytes.
 The ZIPs, `release.json`, and `release.json.minisig` are published together on
 `kzahel/machine-control`. The [distribution contract](../topics/native-distribution.md#public-windows-release-contract)

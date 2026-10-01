@@ -1,0 +1,4 @@
+# Windows workstation changelog
+
+## [Unreleased]
+

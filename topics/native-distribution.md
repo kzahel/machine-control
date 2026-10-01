@@ -108,6 +108,12 @@ digest handling remain prerequisites to shipping those providers.
 
 ## Public Windows release contract
 
+**Decision:** Every published release requires a checked-in changelog section
+for its exact version with meaningful change bullets. Desktop and Windows
+workstation publication both refuse missing, empty, duplicate, or placeholder
+notes. The version section is the GitHub release body; desktop updater metadata
+uses the same notes. CI candidates without publication remain independent.
+
 The Windows workstation workflow accepts an optional stable `version` input.
 Empty input retains CI-only preview behavior. A version produces both
 architectures and `release.json` with its minisign detached signature.
