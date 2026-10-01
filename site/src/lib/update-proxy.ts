@@ -26,12 +26,13 @@ export async function proxyUpdate(
       { headers, signal: AbortSignal.timeout(15000), redirect: "error" },
     );
     if (upstream.status !== 200 && upstream.status !== 204)
-      throw new Error("Update service unavailable");
+      throw new Error(`Update service returned HTTP ${upstream.status}`);
     return new Response(upstream.status === 204 ? null : upstream.body, {
       status: upstream.status,
       headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
     });
-  } catch {
+  } catch (error) {
+    console.error("Update proxy failed:", error instanceof Error ? error.message : "Unknown error");
     return new Response("Updates temporarily unavailable", {
       status: 503,
       headers: { "Cache-Control": "no-store", "Retry-After": "60" },
