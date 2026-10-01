@@ -70,6 +70,17 @@ def press(pid, label, role='AXButton'):
     accepted(base(dict(operation='action', reference=matches[0]['reference'], action='press')))
 
 
+def tray(pid, label):
+    elements = accepted(base(dict(operation='snapshot', target=str(pid),
+        projection='compact', maxDepth=30, maxElements=600)))['elements']
+    items = [e for e in elements if e['role'] == 'AXMenuBarItem'
+             and e.get('bounds', {}).get('height', 0) > 0
+             and 'AXPress' in e['actions']]
+    assert len(items) == 1, ('tray', len(items))
+    accepted(base(dict(operation='action', reference=items[0]['reference'], action='press')))
+    press(pid, label, 'AXMenuItem')
+
+
 def request(scopes):
     payload = dict(operation='grant.request', requestId=str(uuid.uuid4()),
         scopes=scopes, reason='Verify signed desktop candidate',
@@ -139,6 +150,31 @@ try:
     pending = None
     press(pid, 'Stop access')
     assert candidate(dict(operation='snapshot', target=fixture))['errorCode'] == 'approval_required'
+    tray(pid, 'Settings…')
+    # The setting-row button proves the menu navigated to the right page.
+    for _ in range(10):
+        elements = accepted(base(dict(operation='snapshot', target=str(pid),
+            query='Check for updates', projection='compact', maxDepth=30,
+            maxElements=500)))['elements']
+        if any(e['label'] == 'Check for updates' and e['role'] == 'AXButton' for e in elements):
+            break
+        time.sleep(0.2)
+    else:
+        raise AssertionError('Settings tray command did not open Settings')
+    tray(pid, 'Check for Updates…')
+    for _ in range(110):
+        elements = accepted(base(dict(operation='snapshot', target=str(pid),
+            projection='compact', maxDepth=30, maxElements=600)))['elements']
+        if any(e.get('label') == 'Up to date.' for e in elements):
+            break
+        time.sleep(0.2)
+    else:
+        raise AssertionError('Tray update check did not report up to date')
+    tray(pid, 'Open Machine Control')
+    press(pid, 'Enable access')
+    tray(pid, 'Stop access')
+    assert accepted(candidate(dict(operation='grant.status')))['grant'] is None
+    print('Tray Settings, production update check, Open, and Stop passed')
     print('Visible denial, narrowed approval, fixture effect, self/protected refusal, prompt pause, and Stop passed')
 finally:
     # A failed assertion must not leave an approval waiting or access armed.

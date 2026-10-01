@@ -13,6 +13,7 @@ test("update proxy preserves protocol responses and limits forwarded headers", a
     assert.equal(headers.get("X-Check-Reason"), "manual");
     assert.equal(headers.has("Cookie"), false);
     assert.equal(headers.has("Authorization"), false);
+    assert.equal(options?.redirect, "manual");
     return Response.json({ version: "0.3.4", signature: "signed", url: "artifact" });
   }) as typeof fetch;
   const response = await proxyUpdate(params, request, fetcher);
@@ -30,5 +31,6 @@ test("invalid targets and upstream failures fail closed", async () => {
     assert.equal((await proxyUpdate(invalid, request, unavailable)).status, 404);
   }
   assert.equal((await proxyUpdate(params, request, unavailable)).status, 503);
+  assert.equal((await proxyUpdate(params, request, (async () => new Response(null, { status: 302, headers: { Location: "https://example.com" } })) as typeof fetch)).status, 503);
   assert.equal((await proxyUpdate(params, request, (async () => { throw new Error("offline"); }) as typeof fetch)).status, 503);
 });

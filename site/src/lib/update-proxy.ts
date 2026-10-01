@@ -23,7 +23,7 @@ export async function proxyUpdate(
   try {
     const upstream = await fetcher(
       `https://updates.graehlarts.com/machine-control/tauri/${target}/${arch}/${version}`,
-      { headers, signal: AbortSignal.timeout(15000), redirect: "error" },
+      { headers, signal: AbortSignal.timeout(15000), redirect: "manual" },
     );
     if (upstream.status !== 200 && upstream.status !== 204)
       throw new Error(`Update service returned HTTP ${upstream.status}`);
