@@ -5,7 +5,8 @@ Topic: `native-distribution`
 Status: signed Windows workstation preview and direct YA Node/Codex consumer
 accepted; signed Mac desktop candidates are verified and accepted in ARM64
 Tart. Mac desktop `0.3.3` is published; public packages and latest download
-routes are verified. The Mac production update feed remains pending. YA
+routes are verified. The Mac production route is deployed; 0.3.4 notarization is blocked on
+the publisher agreement, and installed-feed acceptance remains pending. YA
 download/update code is implemented, while public Windows consumer acceptance
 is open.
 
