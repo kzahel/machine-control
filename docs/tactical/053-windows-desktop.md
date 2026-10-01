@@ -87,6 +87,19 @@ Step 1 is implemented. Portable grant contracts and the native x64 source
 probe passed: off-by-default refusal, no public approval operation, narrowing,
 prompt pause, Stop, stale generation, independent fixture counter, verified
 PNG/hash, and update gating. Native Windows static/build/format and unlock
-contracts pass; ARM64/x64 self-contained publishes pass. Operator packaging,
-signed installed execution, lifecycle/update acceptance, and component
-regressions remain in progress.
+contracts pass; ARM64/x64 self-contained publishes pass.
+
+Step 2 builds and installs the shared Tauri app on x64. Installed unsigned UI
+checks pass approval/denial/narrowing, prompt pause, independently confirmed
+fixture action/capture, Stop/stale generation, restart with access off,
+companion-failure recovery, job cleanup, and survival of a user-launched app.
+Own-WebView invocation is refused. The native local CLI passes coordination
+claim/release, doctor, grant state, guest-local discovery, and grant refusal.
+
+Step 3 has main-only signed candidate CI. Its first run passed native/frontend
+checks and publisher signing, then exposed packaging failures: stale package
+version in Cargo.lock and a transient lock in an excluded setup-tool build.
+Version updates now preserve the lock and the desktop build excludes component
+tools. A second candidate run is active. Signed installed execution,
+tray/shortcut/session/update acceptance, and component regressions remain in
+progress.

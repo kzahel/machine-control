@@ -52,6 +52,23 @@ DISRUPTIVE_TESTBED_COMMANDS = {
     "macos": {"screenshot", "click", "drag", "type", "key"},
 }
 
+
+def default_host_target(system: str) -> dict[str, Any]:
+    if system == "Windows":
+        return {
+            "platform": "windows", "profile": "windows-host-desktop",
+            "controllerPlatforms": ["windows"], "launcher": "python",
+            "claimPolicy": "required",
+            "command": [str(ROOT / "platforms/windows/host/winhost.py")],
+        }
+    return {
+        "platform": "macos", "profile": "macos-host-resident",
+        "controllerPlatforms": ["darwin"], "launcher": "direct",
+        "claimPolicy": "required",
+        "command": [str(ROOT / "platforms/macos/bin/machost")],
+    }
+
+
 DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
     "windows": {
         "platform": "windows",
@@ -71,16 +88,7 @@ DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
         "workspaceDefaultIntent": "persistent",
         "command": [str(ROOT / "platforms" / "macos" / "bin" / "macvm")],
     },
-    "host": {
-        # The Mac running this client. Its resident's root-owned policy
-        # decides whether access is standing or needs a person's approval.
-        "platform": "macos",
-        "profile": "macos-host-resident",
-        "controllerPlatforms": ["darwin"],
-        "launcher": "direct",
-        "claimPolicy": "required",
-        "command": [str(ROOT / "platforms" / "macos" / "bin" / "machost")],
-    },
+    "host": default_host_target(host_platform.system()),
     "linux": {
         "platform": "linux",
         "profile": "ubuntu-gnome-wayland",

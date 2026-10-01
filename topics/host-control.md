@@ -78,6 +78,12 @@ workstream is [Windows desktop](windows-desktop.md), executed by
 contracts plus an x64 VM source probe. This does not change the existing YA
 component's authorization boundary or establish signed desktop acceptance.
 
+**Current:** The Tauri Windows operator also passes installed unsigned x64 UI
+and lifecycle checks. The common CLI now selects a Windows `host` adapter;
+outside controllers explicitly select the desktop profile. Both require
+common coordination claims and use the same grant-gated resident. Signed
+candidate and native CLI acceptance remain in the Windows workstream.
+
 ## Decisions
 
 **Decision:** The desktop operator is a compact settings dialog. Use short

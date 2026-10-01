@@ -65,3 +65,23 @@ is an explicit per-user preference. Updates recheck native idle state before
 replacement. The Windows
 [updater exit hook](https://v2.tauri.app/plugin/updater/#windows-before-exit-hook)
 cleans up the companion and Tauri before installation.
+
+## Common CLI
+
+On Windows, `python bin/machine-control --target host target doctor` selects
+the installed desktop product in the current interactive user session.
+Acquire a common target-use claim before `grant request|status|revoke` or
+`desktop` operations. Claims coordinate callers; the native operator grant
+decides authority. The adapter never starts or approves the resident.
+
+An outside VM controller explicitly selects `WINVM_RESIDENT_PROFILE=desktop`
+and the interactive `WINVM_USER_SESSION_ID` in its private target environment.
+This uses the same instance, grant requests, generations, and artifact IDs.
+The appliance remains the default; `user` continues selecting a separately
+installed workstation component. There is no fallback among profiles.
+
+Both adapters default to the per-user `Machine Control` installation.
+Controller-local `MACHINE_CONTROL_DESKTOP_INSTALL_DIR` (local) or
+`WINVM_DESKTOP_INSTALL_DIR` (outside) can locate a custom acceptance install.
+Locators are private configuration; requests cannot override them. Metadata
+must identify the ordinary desktop profile and instance before any call.

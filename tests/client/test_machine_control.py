@@ -18,6 +18,14 @@ import machine_control  # noqa: E402
 
 
 class ClientTests(unittest.TestCase):
+    def test_windows_local_host_selects_native_adapter(self):
+        target = machine_control.default_host_target("Windows")
+        self.assertEqual(target["platform"], "windows")
+        self.assertEqual(target["launcher"], "python")
+        self.assertEqual(target["claimPolicy"], "required")
+        self.assertTrue(Path(target["command"][0]).is_file())
+        self.assertEqual(machine_control.default_host_target("Darwin")["profile"], "macos-host-resident")
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.directory = Path(self.temporary.name)

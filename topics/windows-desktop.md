@@ -2,9 +2,8 @@
 
 Topic: `windows-desktop`
 
-Status: active implementation; native grants pass an x64 VM prototype and
-portable contracts. Shared operator packaging and signed installed acceptance
-remain in progress.
+Status: active implementation; native grants and the shared installed unsigned
+x64 operator pass VM checks. Signed installed acceptance remains in progress.
 
 ## Product and boundaries
 
@@ -44,6 +43,20 @@ and generation invalidation. Portable contracts and native x64 source probes
 passed approval narrowing, prompt pause, Stop, stale generation, fixture effect,
 PNG/hash verification, and update gating. This is source-prototype evidence,
 not signed installed Tauri acceptance.
+
+**Current:** The shared Tauri Windows app builds and installs per user. Its
+installed unsigned x64 UI passes approval, denial, narrowing, prompt pause,
+fixture effect/capture, Stop/stale generation, restart with access off,
+companion-failure recovery, job cleanup, and survival of a user-launched app.
+The controlled endpoint refuses to invoke the operator's WebView buttons.
+These developer checks precede exact signed candidate acceptance.
+
+**Current:** The common CLI selects a Windows local `host` adapter and supports
+an explicitly selected outside `desktop` profile. Both preserve native grants
+and target-use claims; the component and appliance selectors remain distinct.
+Native local CLI checks pass doctor, exact coordination claim/release, grant
+status, guest-local discovery, and off-by-default refusal. Outside desktop
+profile acceptance remains pending.
 
 [Tactical 053](../docs/tactical/053-windows-desktop.md) owns implementation and
 acceptance. Existing engine/package evidence is in
