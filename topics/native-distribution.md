@@ -6,7 +6,9 @@ Status: signed Windows workstation preview and direct YA Node/Codex consumer
 accepted; signed Mac desktop candidates are verified and accepted in ARM64
 Tart. Mac desktop `0.3.4` is published; public packages, latest download routes and
 production feed are verified. Installed-feed testing found an automatic
-relaunch defect; its repair and acceptance remain in progress. YA
+relaunch defect. Its signed repair fixture now passes Restart and automatic
+production-feed installation; patch publication and public-client acceptance
+remain in progress. YA
 download/update code is implemented, while public Windows consumer acceptance
 is open.
 

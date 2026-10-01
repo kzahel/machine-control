@@ -5,9 +5,9 @@ Status: production release published; updater relaunch repair in progress
 
 ## Objective
 
-Release 0.3.4 with compact menu-bar Settings and Check for Updates commands,
-deploy the existing update endpoint, and prove an installed signed 0.3.3 app
-updates through that production route.
+Release compact menu-bar Settings and Check for Updates commands, deploy the
+existing update endpoint, and prove installed signed updates through that route.
+Preserve the published 0.3.4 release and ship its relaunch repair as 0.3.5.
 
 ## Completion conditions
 
@@ -16,8 +16,11 @@ updates through that production route.
 - Both Mac packages pass signed CI verification; ARM64 Tart passes native
   operator, tray navigation, Stop, and Quit acceptance before publication.
 - Tagged CI publishes the complete immutable 0.3.4 release with required notes.
-- Public 0.3.3 discovers, installs, and relaunches public 0.3.4 in Tart;
+- A signed repair fixture automatically updates to public 0.3.4 in Tart;
   permissions remain ready, access stays off, and resident generation changes.
+- Tagged CI publishes immutable 0.3.5 with the required legacy-reopen note.
+- Public 0.3.3 updates to public 0.3.5 with any required reopening reported;
+  signed 0.3.5 passes Permissions Restart, operator, tray, Stop and Quit.
 - Original testbed application, policy, power state, and claim are restored.
 
 ## Boundaries
@@ -127,3 +130,17 @@ Prove this correction with a signed older-version fixture updating through the
 actual public feed before publishing the next patch. Older published senders
 cannot be changed: their first update may require reopening the installed app.
 Keep that limitation explicit. Do not move the 0.3.4 tag or replace its bytes.
+
+**Current:** The bounded restart repair from
+`4661d79d37ffda8abac83e5dc6a2c425faf9fbb9` passed both signed architecture
+builds in [CI](https://github.com/kzahel/machine-control/actions/runs/36849762988)
+and independent package authentication/tamper checks. In claimed ARM64 Tart,
+the signed 0.3.3-version fixture passed Permissions Restart with access revoked,
+then automatically installed and launched public 0.3.4 through the real feed.
+Permissions remained ready, generation changed, access stayed off, and stale
+references were refused. Visible denial, narrowed approval, independent fixture
+effect, self/protected refusal, prompt pausing, global Stop, tray Settings/check/
+Open/Stop, and real Quit without a surviving app PID or respawn passed. Original
+application, policy, LaunchAgent, readiness and suspended power were restored;
+owned guest staging was removed and the verified caller-owned claim released.
+Tagged 0.3.5 publication and public-client acceptance remain pending.

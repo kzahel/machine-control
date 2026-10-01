@@ -134,5 +134,6 @@ installer links and signed update routes are verified.
 
 The production 0.3.3 to 0.3.4 test installed the new bundle but failed automatic
 relaunch. Older 0.3.3/0.3.4 clients may require reopening Machine Control after
-installation. Tactical 052 tracks the event-loop restart repair and signed
-acceptance. Published bytes and tags remain immutable.
+installation. Tactical 052 tracks the bounded restart handoff. Its signed fixture passes
+Permissions Restart and automatic production-feed installation; 0.3.5
+publication and public-client acceptance remain pending. Published bytes and tags remain immutable.

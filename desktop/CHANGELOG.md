@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.5]
+
 - Reliable Restart and relaunch after signed updates.
 
 When updating from 0.3.3 or 0.3.4, reopen Machine Control if it closes after

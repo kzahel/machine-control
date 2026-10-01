@@ -142,8 +142,13 @@ AppKit fixture effect. This changes packaging and operator presentation rather
 than the underlying provider composition. Both architecture packages are
 authenticated; ARM64 installed upgrade retained permissions and ended active
 access. Intel runtime execution remains open. Precise acceptance is tracked in
-[tactical 051](../../docs/tactical/051-tauri-macos-desktop.md); public feed and
-physical-host acceptance remain separate gates.
+[tactical 051](../../docs/tactical/051-tauri-macos-desktop.md). Subsequent public
+update testing found an automatic relaunch failure in the legacy sender.
+A signed repair fixture now passes native Permissions Restart and automatic
+production-feed installation, retaining permissions and ending access.
+[Tactical 052](../../docs/tactical/052-macos-production-updates.md) owns that
+repair, patch publication, and public-client acceptance. Physical-host and Intel
+runtime acceptance remain separate gates.
 
 ## Owned authorization unlock prototype
 
