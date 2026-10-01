@@ -1,5 +1,8 @@
 # Topics
 
+- [Windows desktop](windows-desktop.md): shared Tauri operator, native Windows
+  grants, companion packaging, and signed installed acceptance (active).
+
 Focused, living records of continuing machine-control concerns live here.
 
 Prefer the smallest coherent topic whose status, decisions, evidence, gaps, and

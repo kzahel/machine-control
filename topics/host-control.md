@@ -69,6 +69,11 @@ operations, and host installation installs no root helper.
 refuses protected operations but does not gate ordinary control behind an
 approval.
 
+**Decision:** The standalone Windows app adds resident-enforced approvals in a
+distinct desktop instance while retaining the component profile. Its current
+workstream is [Windows desktop](windows-desktop.md), executed by
+[Tactical 053](../docs/tactical/053-windows-desktop.md).
+
 ## Decisions
 
 **Decision:** The desktop operator is a compact settings dialog. Use short
