@@ -7,6 +7,7 @@ param(
  [Parameter(Mandatory=$true)][string]$EvidencePath,
  [Parameter(Mandatory=$true)][string]$ExpectedRevision,
  [string]$ExpectedPublisher,
+ [string]$Payload,
  [switch]$AllowUnsigned
 )
 Set-StrictMode -Version Latest
@@ -22,6 +23,7 @@ public static class DesktopFixtureInput {
  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hwnd,uint message,IntPtr wParam,IntPtr lParam);
  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
  [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string className,string title);
+ [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd,out uint processId);
 }
 '@
 $exe=Join-Path $Install 'runtime\machine-control-windows.exe'
@@ -35,11 +37,19 @@ function Call([hashtable]$request) {
 }
 function Granted {$deployment=(Call @{operation='grant.status'}).data; if ($null -ne $deployment.PSObject.Properties['grant']) {return $deployment.grant};return $null}
 function Process {$items=@(Get-Process machine-control -ErrorAction SilentlyContinue|Where-Object {$_.Path -eq (Join-Path $Install 'machine-control.exe')}); if ($items.Count) {return $items[0]};return $null}
+function MainWindow {
+ $process=Process
+ $hwnd=[DesktopFixtureInput]::FindWindow('Tauri Window','Machine Control')
+ $owner=[uint32]0
+ $null=[DesktopFixtureInput]::GetWindowThreadProcessId($hwnd,[ref]$owner)
+ if ($null -ne $process -and $owner -eq $process.Id) {return $hwnd}
+ return [IntPtr]::Zero
+}
 function Element([string]$Name,[string]$Type='Button') {
  $deadline=[DateTime]::UtcNow.AddSeconds(12)
  do {
-  $p=Process
-  if ($null -eq $p -or $p.MainWindowHandle -eq 0) {Start-Sleep -Milliseconds 150;continue}; $root=[Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle)
+  $hwnd=MainWindow
+  if ($hwnd -eq [IntPtr]::Zero -or -not [DesktopFixtureInput]::IsWindowVisible($hwnd)) {Start-Sleep -Milliseconds 150;continue}; $root=[Windows.Automation.AutomationElement]::FromHandle($hwnd)
   $conditions=@([Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,$Name),[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::$Type),[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::IsOffscreenProperty,$false),[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::IsEnabledProperty,$true))
   $condition=[Windows.Automation.AndCondition]::new([Windows.Automation.Condition[]]$conditions)
   $element=$root.FindFirst([Windows.Automation.TreeScope]::Descendants,$condition)
@@ -64,8 +74,11 @@ function Request([bool]$Allow,[bool]$Narrow=$false,[bool]$Timeout=$false) {
  $start.UseShellExecute=$false;$start.CreateNoWindow=$true;$start.RedirectStandardInput=$true;$start.RedirectStandardOutput=$true
  $client=[Diagnostics.Process]::Start($start)
  try {
-  $request=@{operation='grant.request';scopes=@('observe','control');durationSeconds=60;timeoutSeconds=$(if($Timeout){8}else{15});reason='Installed app fixture acceptance'}|ConvertTo-Json -Compress
+  $reason='Installed app fixture '+[Guid]::NewGuid().ToString('n')
+  $request=@{operation='grant.request';scopes=@('observe','control');durationSeconds=60;timeoutSeconds=$(if($Timeout){8}else{15});reason=$reason}|ConvertTo-Json -Compress
   $client.StandardInput.Write($request);$client.StandardInput.Close()
+  # Match this request, rather than a prior prompt awaiting UI refresh.
+  $null=Element $reason 'Text'
   $null=Element 'Allow access'
   $paused=Call @{operation='click';x=10;y=10}
   Assert (-not $paused.accepted -and $paused.errorCode -eq 'approval_prompt_visible') 'Pending prompt pauses input'
@@ -101,14 +114,15 @@ function RawNamed($Root,[string]$Name) {
 }
 function Tray([string]$Name) {
  $overflow=RootClass 'TopLevelWindowForOverflowXamlIsland'
- if ($null -eq $overflow -or -not [DesktopFixtureInput]::IsWindowVisible([IntPtr]$overflow.Current.NativeWindowHandle)) {
+ if ($null -eq $overflow) {
   $taskbar=RootClass 'Shell_TrayWnd'
   $items=$taskbar.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Button))
   $expand=@($items|Where-Object {$_.Current.Name.StartsWith('Show Hidden Icons')})[0]
-  ClickElement $expand
+  $expand.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
   $deadline=[DateTime]::UtcNow.AddSeconds(5)
   do {$overflow=RootClass 'TopLevelWindowForOverflowXamlIsland';if($null -ne $overflow){break};Start-Sleep -Milliseconds 100} while([DateTime]::UtcNow -lt $deadline)
  }
+ if ($null -eq $overflow) {throw 'Tray overflow did not become visible'}
  $buttons=$overflow.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Button))
  $icon=@($buttons|Where-Object {$_.Current.Name.StartsWith('Machine Control ') -and -not $_.Current.IsOffscreen})[0]
  ClickElement $icon $true
@@ -141,12 +155,24 @@ try {
  $evidence.runtime=$metadata.runtime
  $evidence.unsignedDeveloperBuild=[bool]$AllowUnsigned
  if (-not $AllowUnsigned) {
-  Assert (-not [string]::IsNullOrWhiteSpace($ExpectedPublisher)) 'Publisher expectation supplied'
+  Assert (-not [string]::IsNullOrWhiteSpace($ExpectedPublisher) -and -not [string]::IsNullOrWhiteSpace($Payload)) 'Publisher and exact installed inventory supplied'
+  $inventory=Get-Content -LiteralPath $Payload -Raw|ConvertFrom-Json
+  Assert ($inventory.sourceRevision -eq $ExpectedRevision -and $inventory.target -eq 'x86_64-pc-windows-msvc') 'Installed inventory binds source and native architecture'
+  Assert ((Get-Item (Join-Path $Install 'machine-control.exe')).VersionInfo.ProductVersion -eq $inventory.version) 'Installed version matches signed candidate'
+  $files=@(Get-ChildItem -LiteralPath $Install -Recurse -File)
+  Assert ($files.Count -eq $inventory.files.Count) 'Installed payload has exactly the candidate file set'
+  foreach ($file in $inventory.files) {
+   Assert ($file.name -notmatch '(^/|\\|(^|/)\.\.?(/|$)|:)') 'Inventory contains a safe relative path'
+   $path=Join-Path $Install $file.name
+   Assert ((Get-Item -LiteralPath $path).Length -eq $file.size -and (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -eq $file.sha256) ('Installed candidate bytes: '+$file.name)
+  }
   foreach ($binary in @((Join-Path $Install 'machine-control.exe'),$exe)) {
    $signature=Get-AuthenticodeSignature -LiteralPath $binary
    Assert ($signature.Status -eq 'Valid' -and $signature.SignerCertificate.GetNameInfo('SimpleName',$false) -eq $ExpectedPublisher -and $null -ne $signature.TimeStamperCertificate) 'Installed publisher signature and timestamp'
   }
  }
+ # A prior tray action may have left Settings selected.
+ Press 'Access'
  # Clean a manually armed developer session, using the independent operator UI.
  if ($null -ne (Granted)) {Press 'Stop access';WaitGrant $false}
  $off=Call @{operation='snapshot'}
@@ -171,6 +197,7 @@ try {
  $window=@($launch.data.windows|Where-Object {$_.title -eq 'Machine Control Medium Fixture' -and $_.visible})[0]
  $snapshot=Call @{operation='snapshot';hwnd=[long]$window.hwnd;maxDepth=8;maxElements=100}
  Assert $snapshot.accepted 'Installed resident observes fixture'
+ if (-not $AllowUnsigned) {Assert ($snapshot.actualRoute -match '/cua/' -and -not $snapshot.fallbackUsed) 'Signed packaged provider supplies fixture observation'}
  $button=@($snapshot.data.elements|Where-Object {$_.name -eq 'Increment counter'})[0]
  $invoke=Call @{operation='invoke';hwnd=[long]$window.hwnd;reference=$button.reference;expectedGeneration=$generation}
  Assert $invoke.accepted 'Installed resident invokes fixture'
@@ -178,6 +205,7 @@ try {
  Assert ($marker.counter -eq 1) 'Independent installed fixture effect'
  $capture=Call @{operation='screenshot';hwnd=[long]$window.hwnd}
  Assert $capture.accepted 'Installed resident captures fixture'
+ if (-not $AllowUnsigned) {Assert ($capture.actualRoute -match '/cua/' -and -not $capture.fallbackUsed) 'Signed packaged provider supplies fixture capture'}
  $capturePath=Join-Path $status.data.artifactRoot ($capture.data.artifactId+'.png')
  Assert ((Get-FileHash $capturePath -Algorithm SHA256).Hash.ToLowerInvariant() -eq $capture.data.sha256) 'Installed capture bytes match hash'
  Remove-Item $capturePath
@@ -201,12 +229,12 @@ try {
  Assert ((Startup) -match '--background') 'Startup preference registers background launch'
  $toggle.Toggle();Start-Sleep -Milliseconds 600
  Assert ($null -eq (Startup)) 'Startup preference removes login entry'
- $windowHandle=(Process).MainWindowHandle
+ $windowHandle=MainWindow
  $null=[DesktopFixtureInput]::SendMessage($windowHandle,0x10,[IntPtr]::Zero,[IntPtr]::Zero)
  Start-Sleep -Milliseconds 300
  Assert (-not [DesktopFixtureInput]::IsWindowVisible($windowHandle) -and $null -ne (Process)) 'Close hides to tray and keeps resident'
  Tray 'Open Machine Control';$null=Element 'Enable access'
- Assert ([DesktopFixtureInput]::IsWindowVisible((Process).MainWindowHandle)) 'Tray Open restores settings window'
+ Assert ([DesktopFixtureInput]::IsWindowVisible((MainWindow))) 'Tray Open restores settings window'
  Tray 'Settings…';$null=Element 'Start at login' 'CheckBox'
  Tray 'Check for Updates…';$null=Element 'Check for updates'
  $p=Process;$priorId=$p.Id

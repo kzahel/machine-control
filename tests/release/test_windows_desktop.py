@@ -47,7 +47,11 @@ class WindowsDesktopTests(unittest.TestCase):
         signature = Path(str(self.installer) + '.minisig')
         Path(str(self.installer) + '.sig').write_bytes(base64.b64encode(signature.read_bytes()))
         (self.directory / 'payload.json').write_text(json.dumps({'schema': 'machine-control-desktop-payload/v0',
-            'sourceRevision': REVISION, 'target': TARGET, 'version': VERSION, 'files': []}))
+            'sourceRevision': REVISION, 'target': TARGET, 'version': VERSION, 'files': [
+                {'name': name, 'size': 1, 'sha256': 'b' * 64} for name in (
+                    'machine-control.exe', 'uninstall.exe', 'runtime/desktop-runtime.json',
+                    'runtime/machine-control-windows.exe', 'runtime/package.cat',
+                    'runtime/providers/cua/cua-driver.exe')]}))
         package.evidence(self.directory, target=TARGET, version=VERSION, revision=REVISION, run='123.1')
 
     def verify(self, **changes):
@@ -77,6 +81,18 @@ class WindowsDesktopTests(unittest.TestCase):
                     [dict(original['artifacts'][0], name='..\\outside.exe')]]
         for files in variants:
             changed = dict(original, artifacts=files); path.write_text(json.dumps(changed))
+            with self.assertRaises(ValueError): self.verify()
+
+    def test_installed_inventory_rejects_wrong_root_and_unsafe_files(self):
+        path = self.directory / 'payload.json'
+        original = json.loads(path.read_text())
+        variants = [[], [dict(file, name='f8/' + file['name']) for file in original['files']],
+                    original['files'] + [dict(original['files'][0], name='../outside')],
+                    original['files'] + original['files'][:1],
+                    [dict(file, sha256='bad') for file in original['files']]]
+        for files in variants:
+            path.write_text(json.dumps(dict(original, files=files)))
+            package.evidence(self.directory, target=TARGET, version=VERSION, revision=REVISION, run='123.1')
             with self.assertRaises(ValueError): self.verify()
 
     def test_authenticated_version_comment(self):

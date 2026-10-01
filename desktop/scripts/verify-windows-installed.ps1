@@ -39,8 +39,11 @@ try {
     if ((Get-FileHash -LiteralPath $provider -Algorithm SHA256).Hash.ToLowerInvariant() -ne $runtime.providerDigest) {throw 'Installed provider digest mismatch'}
     $info=(Get-Item (Join-Path $installRoot 'machine-control.exe')).VersionInfo
     if ($info.ProductVersion -ne $Version) {throw 'Installed product version mismatch'}
-    $files=@(Get-ChildItem -LiteralPath $installRoot -Recurse -File | Sort-Object FullName | ForEach-Object {
-        @{name=$_.FullName.Substring($installRoot.Length+1).Replace('\','/'); size=$_.Length;
+    # TEMP may use an 8.3 alias while enumeration expands the user's name.
+    # Derive the root from the same canonical file representation.
+    $payloadRoot=(Get-Item -LiteralPath (Join-Path $installRoot 'machine-control.exe')).DirectoryName
+    $files=@(Get-ChildItem -LiteralPath $payloadRoot -Recurse -File | Sort-Object FullName | ForEach-Object {
+        @{name=[IO.Path]::GetRelativePath($payloadRoot,$_.FullName).Replace('\','/'); size=$_.Length;
           sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()}
     })
     @{schema='machine-control-desktop-payload/v0';sourceRevision=$Revision;target=$Target;version=$Version;files=$files} |

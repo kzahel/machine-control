@@ -63,6 +63,21 @@ def verify(directory, *, revision, version, run=None, target=None, tamper=False)
             or payload.get('sourceRevision') != revision or payload.get('version') != version
             or payload.get('target') != value['target']):
         raise ValueError('Installed payload identity mismatch')
+    payload_names = set()
+    for item in payload.get('files', []):
+        name = item.get('name', '')
+        if (not isinstance(name, str) or name in payload_names or not name
+                or '\\' in name or ':' in name or name.startswith('/')
+                or any(part in {'', '.', '..'} for part in name.split('/'))
+                or not isinstance(item.get('size'), int) or item['size'] < 0
+                or not re.fullmatch(r'[0-9a-f]{64}', item.get('sha256', ''))):
+            raise ValueError('Unsafe or incomplete installed payload inventory')
+        payload_names.add(name)
+    required = {'machine-control.exe', 'uninstall.exe', 'runtime/desktop-runtime.json',
+                'runtime/machine-control-windows.exe', 'runtime/package.cat',
+                'runtime/providers/cua/cua-driver.exe'}
+    if not required.issubset(payload_names):
+        raise ValueError('Installed inventory must be relative to the product root')
     with tempfile.TemporaryDirectory(prefix='mc-windows-verify-') as tmp:
         root = Path(tmp)
         config = json.loads((ROOT / 'desktop/src-tauri/tauri.conf.json').read_text(encoding='utf-8-sig'))

@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [0.4.2]
+
+- Verify installed Windows files using paths relative to the product root,
+  including controllers whose temporary directory uses a Windows short alias.
+- Reject incomplete, duplicate, or unsafe installed payload inventories.
+
+This candidate continues the signed Windows VM acceptance work. Publication
+remains a separate gate.
+
 ## [0.4.1]
 
 - Guard Windows taskbar and tray controls owned by Explorer.

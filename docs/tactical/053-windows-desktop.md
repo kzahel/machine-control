@@ -96,10 +96,13 @@ companion-failure recovery, job cleanup, and survival of a user-launched app.
 Own-WebView invocation is refused. The native local CLI passes coordination
 claim/release, doctor, grant state, guest-local discovery, and grant refusal.
 
-Step 3 has main-only signed candidate CI. Its first run passed native/frontend
-checks and publisher signing, then exposed packaging failures: stale package
-version in Cargo.lock and a transient lock in an excluded setup-tool build.
-Version updates now preserve the lock and the desktop build excludes component
-tools. A second candidate run is active. Signed installed execution,
-tray/shortcut/session/update acceptance, and component regressions remain in
-progress.
+Step 3 has main-only signed candidate CI. Both architecture jobs pass publisher,
+timestamp, catalog, installed source/version/provider, and updater/tamper checks.
+The signed 0.4.0 to 0.4.1 x64 update passes native UI exclusion while access is
+active, automatic relaunch with access off, generation invalidation, and survival
+of a user application. Independent installed byte comparison exposed a report
+defect: an 8.3 temporary-directory alias produced a spurious prefix in inventory
+paths. The report now derives its root from canonical installed file paths; a
+native short-alias probe and portable rejection tests cover the fix. A final
+0.4.2 candidate will supply the unmodified installed inventory. Full signed
+tray/session/local-outside and component acceptance remains in progress.

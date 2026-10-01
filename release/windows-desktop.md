@@ -85,3 +85,17 @@ Controller-local `MACHINE_CONTROL_DESKTOP_INSTALL_DIR` (local) or
 `WINVM_DESKTOP_INSTALL_DIR` (outside) can locate a custom acceptance install.
 Locators are private configuration; requests cannot override them. Metadata
 must identify the ordinary desktop profile and instance before any call.
+
+## Installed acceptance probes
+
+Run `tests/windows/desktop-installed.ps1` in the interactive user session with
+the exact installer directory, independent fixture, expected source/publisher,
+and the authenticated candidate's `-Payload` inventory. It verifies every
+installed file before UI, grant, tray, shortcut, expiry, and failure checks.
+Signed runs require the bundled provider for fixture observation and capture.
+`-AllowUnsigned` is only for explicitly labelled developer evidence.
+
+`tests/windows/desktop-update.ps1` uses the installed native UI against a
+controller-owned HTTPS fixture feed. It checks active-access exclusion, automatic
+relaunch, revoked grants, new generation, and preservation of a user app.
+Restore temporary fixture trust and DNS/hosts configuration after the run.
