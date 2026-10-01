@@ -87,8 +87,12 @@ the product there using `githubRepo: kzahel/machine-control`,
 Concrete host/path configuration and proxy deployment belong in private
 infrastructure configuration.
 
-The app's `machinecontrol.dev/updates/tauri/...` route remains reserved until
-that routing is deployed. Publication alone does not deploy the update server.
+The product configuration is [update-server/machine-control.json](../update-server/machine-control.json).
+Deploy it through the shared server's product-config directory. The website
+proxies `machinecontrol.dev/updates/tauri/...` to the product's public shared
+server route. The proxy accepts only supported Mac targets and numeric versions,
+forwards optional anonymous check metadata, and does not forward website
+credentials. Publication alone does not deploy the server or website.
 Installed production-feed update acceptance remains open. Native code requires
 access and pending approvals to be off before bundle replacement, and verifies
 the updater signature and its trusted version.
@@ -113,3 +117,6 @@ updater metadata. The workflow now uses IDs for draft verification/publication.
 Public package and website download verification is recorded in the
 [native distribution topic](../topics/native-distribution.md).
 The production in-app update feed remains undeployed.
+
+[Tactical 052](../docs/tactical/052-macos-production-updates.md) owns deployment
+and the first production-feed update acceptance.

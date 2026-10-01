@@ -177,3 +177,10 @@ public DMGs and archives passed publisher signatures, notarization/stapling,
 updater signature/version and tamper rejection. The live download page selects
 `0.3.3`; both architecture routes redirect to its exact installers. Production
 updater routing and installed-feed acceptance remain open.
+
+**Decision:** [Tactical 052](../docs/tactical/052-macos-production-updates.md)
+adds compact Settings and Check for Updates menu-bar commands, registers the
+product on the existing shared update service, and proxies the endpoint already
+embedded in 0.3.3. A signed candidate passes native acceptance before 0.3.4
+publication; the installed public 0.3.3 to 0.3.4 production update is the final
+acceptance gate. No automatic installation is enabled.

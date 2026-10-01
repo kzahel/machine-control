@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check } from "@tauri-apps/plugin-updater";
 import {
@@ -68,6 +69,44 @@ function App() {
   const [pendingScopes, setPendingScopes] = useState<Scope[]>([]);
   const [pendingDuration, setPendingDuration] = useState(900);
   const [update, setUpdate] = useState<Awaited<ReturnType<typeof check>>>(null);
+  const checking = useRef(false);
+  const checkUpdates = async () => {
+    if (checking.current) return;
+    checking.current = true;
+    setBusy(true);
+    setError("");
+    setNotice("Checking…");
+    try {
+      const candidate = await check({
+        timeout: 20000,
+        headers: { "X-Check-Reason": "manual" },
+      });
+      setUpdate((previous) => {
+        void previous?.close();
+        return candidate;
+      });
+      setNotice(
+        candidate ? `Version ${candidate.version} available.` : "Up to date.",
+      );
+    } catch {
+      setNotice("Couldn’t check for updates. Try again.");
+    } finally {
+      checking.current = false;
+      setBusy(false);
+    }
+  };
+  const trayAction = useRef(checkUpdates);
+  trayAction.current = checkUpdates;
+  useEffect(() => {
+    const listener = listen<string>("tray-command", ({ payload }) => {
+      setPage(payload === "open" ? "access" : "settings");
+      setNotice("");
+      if (payload === "updates") void trayAction.current();
+    });
+    return () => {
+      void listener.then((unlisten) => unlisten());
+    };
+  }, []);
   const navigate = (next: string) => {
     setPage(next);
     setNotice("");
@@ -319,27 +358,7 @@ function App() {
             <section className="group" aria-label="Updates">
               <div className="setting-row">
                 <span className="row-label">Updates</span>
-                <button
-                  disabled={busy}
-                  onClick={async () => {
-                    setBusy(true);
-                    try {
-                      const candidate = await check();
-                      setUpdate(candidate);
-                      setNotice(
-                        candidate
-                          ? `Version ${candidate.version} available.`
-                          : "Up to date.",
-                      );
-                    } catch {
-                      setNotice(
-                        "Update feed unavailable. Use a verified CI package.",
-                      );
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
-                >
+                <button disabled={busy} onClick={() => void checkUpdates()}>
                   Check for updates
                 </button>
                 {update && (

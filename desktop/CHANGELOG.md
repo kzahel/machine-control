@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.3.4]
+
+- Settings and Check for Updates in the menu bar.
+- Production update checks and signed installation with access off.
+- Bounded update checks with concise status and retry messages.
+
+Grants apply to all callers running as the same user. Native acceptance covers
+ARM64 Tart; physical Mac and Intel runtime acceptance remain open.
+Windows and Linux desktop apps are not available yet.
+
 ## [0.3.3]
 
 - First public Mac desktop preview for Apple silicon and Intel.

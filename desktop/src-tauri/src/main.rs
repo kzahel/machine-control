@@ -2,9 +2,9 @@
 use serde_json::{json, Value};
 use std::ffi::{CStr, CString};
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
-    Manager,
+    Emitter, Manager,
 };
 use tauri_plugin_updater::UpdaterExt;
 
@@ -202,18 +202,24 @@ fn main() {
                 }
             });
             let open = MenuItem::with_id(app, "open", "Open Machine Control", true, None::<&str>)?;
+            let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
+            let updates =
+                MenuItem::with_id(app, "updates", "Check for Updates…", true, None::<&str>)?;
             let stop = MenuItem::with_id(app, "stop", "Stop access", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit Machine Control", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &stop, &quit])?;
+            let separator = PredefinedMenuItem::separator(app)?;
+            let menu =
+                Menu::with_items(app, &[&open, &settings, &updates, &separator, &stop, &quit])?;
             TrayIconBuilder::with_id("control")
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("Machine Control")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "open" => {
+                    "open" | "settings" | "updates" => {
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
+                            let _ = window.emit("tray-command", event.id.as_ref());
                         }
                     }
                     "stop" => {
