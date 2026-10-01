@@ -83,7 +83,10 @@ acknowledgement is not an application-effect oracle.
 
 ## Result
 
-Plan recorded; implementation pending. This work follows the request to focus
-on Windows, reuse Tauri and existing Windows machinery, implement/test the
-workstream, and commit in stages. Update with evidence, deviations, and remaining
-work during execution.
+Step 1 is implemented. Portable grant contracts and the native x64 source
+probe passed: off-by-default refusal, no public approval operation, narrowing,
+prompt pause, Stop, stale generation, independent fixture counter, verified
+PNG/hash, and update gating. Native Windows static/build/format and unlock
+contracts pass; ARM64/x64 self-contained publishes pass. Operator packaging,
+signed installed execution, lifecycle/update acceptance, and component
+regressions remain in progress.

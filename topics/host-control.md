@@ -74,6 +74,10 @@ distinct desktop instance while retaining the component profile. Its current
 workstream is [Windows desktop](windows-desktop.md), executed by
 [Tactical 053](../docs/tactical/053-windows-desktop.md).
 
+**Current:** The new desktop profile has a native broker and passes portable
+contracts plus an x64 VM source probe. This does not change the existing YA
+component's authorization boundary or establish signed desktop acceptance.
+
 ## Decisions
 
 **Decision:** The desktop operator is a compact settings dialog. Use short

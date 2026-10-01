@@ -47,6 +47,8 @@ internal static class Program
                             .RunAsync(cancellation.Token);
                     }
                     return 0;
+                case "desktop":
+                    return await DesktopHost.RunAsync();
                 case "desktop-worker":
                     return await RunDesktopWorkerAsync(args);
                 case "call":
@@ -140,9 +142,11 @@ internal static class Program
             requestText = await Console.In.ReadToEndAsync();
         }
         var request = Contract.ParseRequest(requestText);
-        var timeoutMs = int.Parse(GetOption(args, "--timeout-ms") ?? "30000");
-        if (timeoutMs is < 100 or > 120000)
-            throw new ArgumentException("--timeout-ms must be 100-120000");
+        var defaultTimeout = request.Operation == "grant.request"
+            ? (Math.Clamp(request.TimeoutSeconds ?? 120, 5, 600) + 15) * 1000 : 30000;
+        var timeoutMs = int.Parse(GetOption(args, "--timeout-ms") ?? defaultTimeout.ToString());
+        if (timeoutMs is < 100 or > 615000)
+            throw new ArgumentException("--timeout-ms must be 100-615000");
         var response = await PipeTransport.CallAsync(
             pipe,
             Contract.Serialize(request),

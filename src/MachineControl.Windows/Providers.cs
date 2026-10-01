@@ -229,6 +229,19 @@ internal static class ProviderRouter
         string generation,
         CancellationToken cancellationToken)
     {
+        var refused = DesktopSafety.Check(request, generation);
+        if (refused is not null)
+            return new Result
+            {
+                RequestId = request.RequestId!,
+                Operation = request.Operation,
+                Generation = generation,
+                ActualRoute = "windows.user_session/workstation",
+                Delivery = "refused",
+                Effect = "refused",
+                RetrySafety = "safe_not_dispatched",
+                ErrorCode = refused
+            };
         var operation = request.Operation.ToLowerInvariant();
         var ordinaryExactWindow = request.Hwnd is > 0 &&
             !string.Equals(request.Scope, "system", StringComparison.OrdinalIgnoreCase) &&

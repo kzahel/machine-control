@@ -320,6 +320,9 @@ internal sealed class CuaProvider : IControlProvider
                 staleReferenceEvents: 1);
         }
 
+        var refusal = DesktopSafety.Check(request with { Hwnd = reference.Hwnd }, generation, reference.ProcessId);
+        if (refusal is not null)
+            return Failure(request, generation, refusal, "Desktop access refused", "refused", "refused", elapsedMs: 0);
         var upstream = await _host.CallToolAsync(
             "click",
             new Dictionary<string, object?>

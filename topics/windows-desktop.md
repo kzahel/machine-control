@@ -2,8 +2,9 @@
 
 Topic: `windows-desktop`
 
-Status: active implementation; the ordinary Windows runtime is accepted, but
-the shared desktop application has no Windows adapter yet.
+Status: active implementation; native grants pass an x64 VM prototype and
+portable contracts. Shared operator packaging and signed installed acceptance
+remain in progress.
 
 ## Product and boundaries
 
@@ -35,6 +36,14 @@ checked-in versioned notes. Exact signed installed acceptance precedes any
 Windows support claim.
 
 ## Execution and remaining gates
+
+**Current:** A distinct desktop resident enforces off-by-default grants before
+provider dispatch. It has an inherited private operator channel, a native Stop
+shortcut, desktop/session monitoring, update arming exclusion, bounded activity,
+and generation invalidation. Portable contracts and native x64 source probes
+passed approval narrowing, prompt pause, Stop, stale generation, fixture effect,
+PNG/hash verification, and update gating. This is source-prototype evidence,
+not signed installed Tauri acceptance.
 
 [Tactical 053](../docs/tactical/053-windows-desktop.md) owns implementation and
 acceptance. Existing engine/package evidence is in

@@ -12,6 +12,25 @@ namespace MachineControl.Windows;
 
 internal static class DesktopController
 {
+    [ThreadStatic] private static Request? _desktopRequest;
+    [ThreadStatic] private static string? _desktopGeneration;
+    [ThreadStatic] private static bool _desktopEffectStarted;
+    private static void RequireDesktopAuthority(AutomationElement? element = null)
+    {
+        if (_desktopRequest is not null && _desktopGeneration is not null)
+            DesktopSafety.Require(_desktopRequest, _desktopGeneration, element);
+    }
+
+    private static T DesktopAction<T>(Func<T> action, AutomationElement? element = null)
+    {
+        if (DesktopSafety.Broker is not { } broker) return action();
+        lock (broker.Gate) { RequireDesktopAuthority(element); _desktopEffectStarted = true; return action(); }
+    }
+    private static void DesktopAction(Action action, AutomationElement? element = null) =>
+        DesktopAction(() => { action(); return true; }, element);
+    private static uint SendDesktopInput(uint count, NativeMethods.INPUT[] inputs, int size) =>
+        DesktopAction(() => NativeMethods.SendInput(count, inputs, size));
+
     private static readonly ConcurrentDictionary<string, CachedSelector>
         Selectors = new();
 
@@ -27,10 +46,27 @@ internal static class DesktopController
         {
             try
             {
+                _desktopRequest = request;
+                _desktopGeneration = generation;
                 completion.SetResult(Execute(
                     request,
                     generation,
                     out switchedDesktop));
+            }
+            catch (DesktopAccessRefusedException ex)
+            {
+                completion.SetResult(new Result
+                {
+                    RequestId = request.RequestId!,
+                    Operation = request.Operation,
+                    Generation = generation,
+                    ActualRoute = "windows.user_session/workstation",
+                    Delivery = _desktopEffectStarted ? "unknown" : "refused",
+                    Effect = _desktopEffectStarted ? "unknown" : "refused",
+                    RetrySafety = _desktopEffectStarted ? "unsafe_unknown_delivery" : "safe_not_dispatched",
+                    Uncertainty = _desktopEffectStarted ? "Access ended after an earlier effect was dispatched" : "none",
+                    ErrorCode = ex.Code
+                });
             }
             catch (Exception ex)
             {
@@ -87,6 +123,7 @@ internal static class DesktopController
         out IntPtr switchedDesktop)
     {
         switchedDesktop = IntPtr.Zero;
+        DesktopSafety.Require(request, generation);
         var timer = Stopwatch.StartNew();
         var desktop = NativeMethods.OpenInputDesktop(
             0,
@@ -322,13 +359,9 @@ internal static class DesktopController
                 "app.launch arguments exceed 4096 UTF-16 code units");
         }
 
-        var process = Process.Start(new ProcessStartInfo
-        {
-            FileName = request.ExecutablePath,
-            Arguments = request.Arguments ?? string.Empty,
-            WorkingDirectory = Path.GetDirectoryName(request.ExecutablePath),
-            UseShellExecute = false,
-        });
+        RequireDesktopAuthority();
+        var process = DesktopAction(() => DesktopApplicationLauncher.Start(request.ExecutablePath,
+            request.Arguments ?? string.Empty));
         if (process is null)
         {
             return Failure(
@@ -420,9 +453,9 @@ internal static class DesktopController
         uint processId;
         try
         {
-            processId = ApplicationActivation.Activate(
+            processId = DesktopAction(() => ApplicationActivation.Activate(
                 request.ApplicationId,
-                request.Arguments ?? string.Empty);
+                request.Arguments ?? string.Empty));
         }
         catch (COMException ex)
         {
@@ -985,7 +1018,8 @@ internal static class DesktopController
                 "element_read_only",
                 "The matched element reports a read-only value");
         }
-        valuePattern.SetValue(request.Text);
+        RequireDesktopAuthority(element);
+        DesktopAction(() => valuePattern.SetValue(request.Text), element);
         Thread.Sleep(100);
         var observed = valuePattern.Current.Value;
         var exactReadback = string.Equals(
@@ -1123,7 +1157,7 @@ internal static class DesktopController
                 windowPattern = (WindowPattern)patternObject;
                 if (command == -2)
                 {
-                    windowPattern.Close();
+                    DesktopAction(() => windowPattern.Close(), element);
                 }
                 else
                 {
@@ -1135,7 +1169,7 @@ internal static class DesktopController
                             WindowVisualState.Maximized,
                         _ => WindowVisualState.Normal,
                     };
-                    windowPattern.SetWindowVisualState(visualState);
+                    DesktopAction(() => windowPattern.SetWindowVisualState(visualState), element);
                 }
                 delivered = true;
                 route = "windows.native/uia_window_pattern";
@@ -1150,13 +1184,9 @@ internal static class DesktopController
         }
         if (!delivered)
         {
-            delivered = command == -2
-                ? NativeMethods.PostMessage(
-                    hwnd,
-                    NativeMethods.WM_CLOSE,
-                    IntPtr.Zero,
-                    IntPtr.Zero)
-                : NativeMethods.ShowWindowAsync(hwnd, command);
+            delivered = DesktopAction(() => command == -2
+                ? NativeMethods.PostMessage(hwnd, NativeMethods.WM_CLOSE, IntPtr.Zero, IntPtr.Zero)
+                : NativeMethods.ShowWindowAsync(hwnd, command), AutomationElement.FromHandle(hwnd));
             route = windowPattern is null
                 ? "windows.native/show_window_async"
                 : "windows.native/uia_window_pattern_then_show_window_async";
@@ -1924,25 +1954,26 @@ internal static class DesktopController
 
     private static string? TryInvokePattern(AutomationElement element)
     {
+        RequireDesktopAuthority(element);
         if (element.TryGetCurrentPattern(
                 InvokePattern.Pattern,
                 out var invoke))
         {
-            ((InvokePattern)invoke).Invoke();
+            DesktopAction(() => ((InvokePattern)invoke).Invoke(), element);
             return "windows.native/uia_invoke";
         }
         if (element.TryGetCurrentPattern(
                 TogglePattern.Pattern,
                 out var toggle))
         {
-            ((TogglePattern)toggle).Toggle();
+            DesktopAction(() => ((TogglePattern)toggle).Toggle(), element);
             return "windows.native/uia_toggle";
         }
         if (element.TryGetCurrentPattern(
                 SelectionItemPattern.Pattern,
                 out var selection))
         {
-            ((SelectionItemPattern)selection).Select();
+            DesktopAction(() => ((SelectionItemPattern)selection).Select(), element);
             return "windows.native/uia_select";
         }
         if (element.TryGetCurrentPattern(
@@ -2006,7 +2037,8 @@ internal static class DesktopController
                 NativeMethods.MOUSEEVENTF_ABSOLUTE |
                 NativeMethods.MOUSEEVENTF_VIRTUALDESK),
         };
-        if (NativeMethods.SendInput(
+        RequireDesktopAuthority();
+        if (SendDesktopInput(
                 (uint)inputs.Length,
                 inputs,
                 Marshal.SizeOf<NativeMethods.INPUT>()) != inputs.Length)
@@ -2070,7 +2102,8 @@ internal static class DesktopController
                 strokes[i],
                 NativeMethods.KEYEVENTF_KEYUP));
         }
-        if (NativeMethods.SendInput(
+        RequireDesktopAuthority();
+        if (SendDesktopInput(
                 (uint)inputs.Count,
                 inputs.ToArray(),
                 Marshal.SizeOf<NativeMethods.INPUT>()) != inputs.Count)
@@ -2117,10 +2150,11 @@ internal static class DesktopController
             inputs[1] = UnicodeInput(
                 character,
                 NativeMethods.KEYEVENTF_KEYUP);
-            if (NativeMethods.SendInput(
-                    (uint)inputs.Length,
-                    inputs,
-                    Marshal.SizeOf<NativeMethods.INPUT>()) != inputs.Length)
+            RequireDesktopAuthority();
+            if (SendDesktopInput(
+                        (uint)inputs.Length,
+                        inputs,
+                        Marshal.SizeOf<NativeMethods.INPUT>()) != inputs.Length)
             {
                 throw new System.ComponentModel.Win32Exception(
                     Marshal.GetLastWin32Error());
@@ -2152,7 +2186,8 @@ internal static class DesktopController
             }
             inputs[^2] = KeyboardInput(0x0D, 0);
             inputs[^1] = KeyboardInput(0x0D, NativeMethods.KEYEVENTF_KEYUP);
-            if (NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<NativeMethods.INPUT>()) != inputs.Length)
+            RequireDesktopAuthority();
+            if (SendDesktopInput((uint)inputs.Length, inputs, Marshal.SizeOf<NativeMethods.INPUT>()) != inputs.Length)
                 throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
         }
         finally { Array.Clear(inputs); }
@@ -2169,10 +2204,11 @@ internal static class DesktopController
                 inputs[1] = UnicodeInput(
                     value[i],
                     NativeMethods.KEYEVENTF_KEYUP);
-                if (NativeMethods.SendInput(
-                        (uint)inputs.Length,
-                        inputs,
-                        Marshal.SizeOf<NativeMethods.INPUT>()) != inputs.Length)
+                RequireDesktopAuthority();
+                if (SendDesktopInput(
+                                (uint)inputs.Length,
+                                inputs,
+                                Marshal.SizeOf<NativeMethods.INPUT>()) != inputs.Length)
                 {
                     throw new System.ComponentModel.Win32Exception(
                         Marshal.GetLastWin32Error());
