@@ -144,7 +144,14 @@ try{
   Press 'Access';Press 'Stop access';Press 'Settings'
   Press 'Install and restart'
   $deadline=[DateTime]::UtcNow.AddSeconds(120)
-  do{$replacement=@(Get-Process machine-control -ErrorAction SilentlyContinue|Where-Object {$_.Path -eq $operator -and $_.Id -ne $app.Id});$version=try{(Get-Item $operator).VersionInfo.ProductVersion}catch{$null};if($replacement.Count -eq 1 -and $version -eq $UpdateVersion){break};Start-Sleep -Milliseconds 200}while([DateTime]::UtcNow -lt $deadline)
+  $summary.updateObservations=@();$lastObservation=$null
+  do{
+   $replacement=@(Get-Process machine-control -ErrorAction SilentlyContinue|Where-Object {$_.Path -eq $operator -and $_.Id -ne $app.Id})
+   $version=try{(Get-Item $operator).VersionInfo.ProductVersion}catch{$null}
+   $observation=(@{version=$version;replacementIds=@($replacement|ForEach-Object Id)}|ConvertTo-Json -Compress)
+   if($observation -ne $lastObservation){$summary.updateObservations+=@(@{at=[DateTime]::UtcNow.ToString('o');state=$observation});$lastObservation=$observation}
+   if($replacement.Count -eq 1 -and $version -eq $UpdateVersion){break};Start-Sleep -Milliseconds 200
+  }while([DateTime]::UtcNow -lt $deadline)
   Assert ($replacement.Count -eq 1 -and $version -eq $UpdateVersion) 'Browser signed update automatically relaunches operator'
   $app=$replacement[0];Press 'Access'
   $metadata=Get-Content (Join-Path $Install 'runtime\desktop-runtime.json') -Raw|ConvertFrom-Json
