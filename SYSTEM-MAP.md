@@ -157,3 +157,10 @@ family; it does not implement the updater protocol. Dotfiles owns private
 signing credential locators and service deployment. YepAnywhere connects as a
 consumer rather than owning a
 second copy of the desktop application's grant UI or updater.
+
+The Mac desktop embeds the Swift resident in its native process. Windows owns
+a distinct ordinary-user desktop companion and inherited operator transport,
+with grants enforced inside that companion. Its process job owns resident/
+provider children while explicitly excluding user-launched applications.
+The existing YA component and protected appliance remain separate profiles.
+[Windows desktop](topics/windows-desktop.md) owns the standalone workstream.

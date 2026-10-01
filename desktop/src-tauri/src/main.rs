@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use serde_json::{json, Value};
+#[cfg(target_os = "macos")]
 use std::ffi::{CStr, CString};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
@@ -8,6 +9,8 @@ use tauri::{
 };
 use tauri_plugin_updater::UpdaterExt;
 mod restart;
+#[cfg(target_os = "windows")]
+mod windows;
 
 #[cfg(target_os = "macos")]
 extern "C" {
@@ -41,7 +44,11 @@ fn native_command(command: Value) -> Result<Value, String> {
     let input = CString::new(command.to_string()).map_err(|e| e.to_string())?;
     decode(unsafe { mc_desktop_command(input.as_ptr()) })
 }
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+fn native_command(command: Value) -> Result<Value, String> {
+    windows::command(command)
+}
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn native_command(_: Value) -> Result<Value, String> {
     Err("Desktop workstation control is currently available on macOS; this platform adapter is not installed".into())
 }
@@ -76,6 +83,12 @@ async fn restart_application(
     let (send, receive) = std::sync::mpsc::channel();
     let handle = app.clone();
     app.run_on_main_thread(move || {
+        #[cfg(target_os = "windows")]
+        let result = {
+            let _ = native_command(json!({"method":"stop"}));
+            restart::request(&handle)
+        };
+        #[cfg(not(target_os = "windows"))]
         let result =
             native_command(json!({"method":"stop"})).and_then(|_| restart::request(&handle));
         let _ = send.send(result);
@@ -96,8 +109,17 @@ async fn install_update(
     if window.label() != "main" {
         return Err("Operator window required".into());
     }
-    let update = app
-        .updater()
+    let updater = app.updater_builder();
+    #[cfg(target_os = "windows")]
+    let updater = {
+        let exit = app.clone();
+        updater.on_before_exit(move || {
+            windows::shutdown();
+            exit.cleanup_before_exit();
+        })
+    };
+    let update = updater
+        .build()
         .map_err(|e| e.to_string())?
         .check()
         .await
@@ -143,12 +165,19 @@ fn main() {
         eprintln!("Usage: macui [serve SOCKET | request SOCKET [JSON] | credential SOCKET LEASE | screen-capture-preflight]");
         std::process::exit(2);
     }
+    #[cfg(target_os = "macos")]
     let socket = if args.first().is_some_and(|v| v == "serve") {
         args.get(1).cloned().unwrap_or_default()
     } else {
         String::new()
     };
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(target_os = "windows")]
+    let builder = builder.plugin(tauri_plugin_autostart::init(
+        tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+        Some(vec!["--background"]),
+    ));
+    builder
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
@@ -162,6 +191,15 @@ fn main() {
             restart_application
         ])
         .setup(move |app| {
+            #[cfg(target_os = "windows")]
+            {
+                windows::start(app.handle()).map_err(std::io::Error::other)?;
+                if args == ["--background"] {
+                    if let Some(window) = app.get_webview_window("main") {
+                        window.hide()?;
+                    }
+                }
+            }
             #[cfg(target_os = "macos")]
             {
                 let path = CString::new(socket.clone())?;
@@ -251,6 +289,8 @@ fn main() {
                     }
                     "quit" => {
                         let _ = native_command(json!({"method":"stop"}));
+                        #[cfg(target_os = "windows")]
+                        windows::shutdown();
                         app.exit(0);
                     }
                     _ => {}
@@ -264,6 +304,14 @@ fn main() {
                 let _ = window.hide();
             }
         })
-        .run(tauri::generate_context!())
-        .expect("Machine Control could not start");
+        .build(tauri::generate_context!())
+        .expect("Machine Control could not start")
+        .run(|_, event| {
+            #[cfg(target_os = "windows")]
+            if matches!(event, tauri::RunEvent::Exit) {
+                windows::shutdown();
+            }
+            #[cfg(not(target_os = "windows"))]
+            let _ = event;
+        });
 }

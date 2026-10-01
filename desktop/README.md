@@ -1,8 +1,9 @@
 # Machine Control desktop
 
 A shared Tauri operator application with the existing Mac resident embedded
-as a Swift framework in its native process. macOS is the first implemented
-adapter; Windows and Linux desktop integration is not yet supported.
+as a Swift framework in its native process. Windows bundles the existing .NET
+resident as a supervised companion with native grants. Windows signed installed
+acceptance is in progress; Linux desktop integration is not yet implemented.
 
 The operator uses a compact settings window with Access, Permissions, Activity,
 and Settings tabs. Labels and status rows replace banners and explanatory
@@ -41,6 +42,13 @@ produces CI candidates with an empty release tag. Tagged publication uses
 [the desktop release script](../release/macos-desktop.md).
 
 ## Approval and control boundaries
+
+Windows uses a separate `desktop` instance and inherited private operator
+channel. Its public pipe enforces grants and cannot approve them. Ordinary
+control does not cross UAC, elevated apps, lock/login, or other user sessions.
+Ctrl+Alt+Shift+Period is the native emergency Stop shortcut. Startup is an
+explicit preference. See [Windows candidates](../release/windows-desktop.md)
+and [Tactical 053](../docs/tactical/053-windows-desktop.md) for current evidence.
 
 The resident still loads the trusted deployment policy and checks every
 operation. The operator WebView calls only closed in-process native methods;

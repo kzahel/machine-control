@@ -17,6 +17,10 @@ import "./style.css";
 
 type Scope = "observe" | "control" | "browser" | "devtools";
 type State = {
+  platform?: string;
+  supportedScopes?: Scope[];
+  stopShortcut?: string;
+  startOnLogin?: boolean;
   deployment: {
     policy: { preset: string; grantMode: string };
     grant: null | {
@@ -59,6 +63,7 @@ async function native(command: Record<string, unknown>) {
 }
 function App() {
   const [state, setState] = useState<State>();
+  const [platform, setPlatform] = useState<string>();
   const [page, setPage] = useState("access");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -114,7 +119,9 @@ function App() {
     try {
       const r = await native({ method: "state" });
       setState(r.state);
+      if (r.state?.platform) setPlatform(r.state.platform);
     } catch (e) {
+      setState(undefined);
       setError(String(e));
     }
   };
@@ -141,6 +148,9 @@ function App() {
       setBusy(false);
     }
   };
+  const windows = platform === "windows";
+  const availableScopes =
+    state?.supportedScopes ?? (Object.keys(labels) as Scope[]);
   const grant = state?.deployment.grant;
   const standing = state?.deployment.policy.grantMode === "standing";
   const ready =
@@ -218,7 +228,7 @@ function App() {
             </div>
             <section className="group" aria-label="Access scopes">
               <div className="scope-list">
-                {(Object.keys(labels) as Scope[]).map((s) => (
+                {availableScopes.map((s) => (
                   <label className="scope" key={s}>
                     <input
                       type="checkbox"
@@ -264,84 +274,106 @@ function App() {
         {page === "setup" && (
           <>
             <section className="group" aria-label="Permissions">
-              {[
-                ["accessibility", "Accessibility"],
-                ["screenRecording", "Screen Recording"],
-              ].map(([id, title]) => {
-                const granted =
-                  state?.permissions[id as keyof State["permissions"]];
-                return (
-                  <div className="setting-row" key={id}>
-                    <span
-                      className={"permission-icon " + (granted ? "done" : "")}
-                    >
-                      {granted ? <Check size={15} /> : <Monitor size={15} />}
-                    </span>
-                    <span className="row-label">{title}</span>
+              {windows && (
+                <>
+                  <div className="setting-row">
+                    <span className="row-label">Desktop session</span>
                     <span className="row-status">
-                      {!state ? "—" : granted ? "Granted" : "Required"}
+                      {ready ? "Available" : "Unavailable"}
                     </span>
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void act({ method: "permission", permission: id })
-                      }
-                    >
-                      Open Settings
-                    </button>
                   </div>
-                );
-              })}
-              <div className="setting-row">
-                <span
-                  className={
-                    "permission-icon " +
-                    (state?.browser.connected ? "done" : "")
-                  }
-                >
-                  <Command size={15} />
-                </span>
-                <span className="row-label">
-                  Browser extension <span className="optional">(optional)</span>
-                </span>
-                <span className="row-status">
-                  {state?.browser.connected ? "Connected" : "Not connected"}
-                </span>
+                  <div className="setting-row">
+                    <span className="row-label">
+                      Elevated apps and lock screen
+                    </span>
+                    <span className="row-status">Unavailable</span>
+                  </div>
+                </>
+              )}
+              {!windows &&
+                [
+                  ["accessibility", "Accessibility"],
+                  ["screenRecording", "Screen Recording"],
+                ].map(([id, title]) => {
+                  const granted =
+                    state?.permissions[id as keyof State["permissions"]];
+                  return (
+                    <div className="setting-row" key={id}>
+                      <span
+                        className={"permission-icon " + (granted ? "done" : "")}
+                      >
+                        {granted ? <Check size={15} /> : <Monitor size={15} />}
+                      </span>
+                      <span className="row-label">{title}</span>
+                      <span className="row-status">
+                        {!state ? "—" : granted ? "Granted" : "Required"}
+                      </span>
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          void act({ method: "permission", permission: id })
+                        }
+                      >
+                        Open Settings
+                      </button>
+                    </div>
+                  );
+                })}
+              {!windows && (
+                <div className="setting-row">
+                  <span
+                    className={
+                      "permission-icon " +
+                      (state?.browser.connected ? "done" : "")
+                    }
+                  >
+                    <Command size={15} />
+                  </span>
+                  <span className="row-label">
+                    Browser extension{" "}
+                    <span className="optional">(optional)</span>
+                  </span>
+                  <span className="row-status">
+                    {state?.browser.connected ? "Connected" : "Not connected"}
+                  </span>
+                  <button
+                    disabled={busy}
+                    onClick={async () => {
+                      try {
+                        await native({ method: "browser.setup" });
+                        setNotice(
+                          "Path copied. In Chrome extensions, enable Developer mode, then Load unpacked.",
+                        );
+                      } catch (e) {
+                        setError(String(e));
+                      }
+                    }}
+                  >
+                    Set up
+                  </button>
+                </div>
+              )}
+            </section>
+            {!windows && (
+              <div className="restart-row">
+                <p className="note">Restart after changing Screen Recording.</p>
                 <button
                   disabled={busy}
                   onClick={async () => {
+                    setBusy(true);
+                    setError("");
                     try {
-                      await native({ method: "browser.setup" });
-                      setNotice(
-                        "Path copied. In Chrome extensions, enable Developer mode, then Load unpacked.",
-                      );
+                      await invoke("restart_application");
                     } catch (e) {
                       setError(String(e));
+                      setBusy(false);
                     }
                   }}
                 >
-                  Set up
+                  Restart
                 </button>
               </div>
-            </section>
-            <div className="restart-row">
-              <p className="note">Restart after changing Screen Recording.</p>
-              <button
-                disabled={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  setError("");
-                  try {
-                    await invoke("restart_application");
-                  } catch (e) {
-                    setError(String(e));
-                    setBusy(false);
-                  }
-                }}
-              >
-                Restart
-              </button>
-            </div>
+            )}
           </>
         )}
         {page === "activity" && (
@@ -368,6 +400,34 @@ function App() {
         )}
         {page === "settings" && (
           <>
+            {windows && (
+              <section className="group" aria-label="Startup">
+                <label className="setting-row">
+                  <span className="row-label">Start at login</span>
+                  <input
+                    type="checkbox"
+                    checked={!!state?.startOnLogin}
+                    disabled={busy || !state}
+                    onChange={(e) =>
+                      void act({ method: "startup", enabled: e.target.checked })
+                    }
+                  />
+                </label>
+                <div className="setting-row">
+                  <span className="row-label">Restart</span>
+                  <button
+                    disabled={busy}
+                    onClick={() =>
+                      void invoke("restart_application").catch((e) =>
+                        setError(String(e)),
+                      )
+                    }
+                  >
+                    Restart
+                  </button>
+                </div>
+              </section>
+            )}
             <section className="group" aria-label="Updates">
               <div className="setting-row">
                 <span className="row-label">Updates</span>
@@ -406,15 +466,16 @@ function App() {
                 <dt>Stop shortcut</dt>
                 <dd>
                   {state?.stopShortcutAvailable
-                    ? "⌃⌥⌘."
+                    ? (state.stopShortcut ?? "⌃⌥⌘.")
                     : "Unavailable; use Stop access"}
                 </dd>
-                <dt>Socket</dt>
+                <dt>{windows ? "Endpoint" : "Socket"}</dt>
                 <dd>{state?.socket ?? "—"}</dd>
               </dl>
             </section>
             <p className="note">
-              Close hides the window. Quit from the menu bar.
+              Close hides the window. Quit from the{" "}
+              {windows ? "tray" : "menu bar"}.
             </p>
           </>
         )}

@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [0.4.0]
+
+- Windows desktop preview with shared settings and tray controls.
+- Native scoped approvals, expiry, Stop, and session revocation on Windows.
+- Bundled ordinary-user runtime with signed installers and update packages.
+- Windows startup preference and supervised resident lifecycle.
+
+Windows signed candidates precede public release. Grants apply to all callers
+running as the same user. Protected desktops and browser integration are outside
+the Windows preview; architecture-specific acceptance is recorded separately.
+
 ## [0.3.5]
 
 - Reliable Restart and relaunch after signed updates.

@@ -1,0 +1,200 @@
+name: Windows desktop
+run-name: Windows desktop ${{ inputs.version || github.sha }}
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Signed desktop candidate version (required changelog)'
+        default: '0.4.0'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: windows-desktop-candidate
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: desktop/package.json
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        with:
+          dotnet-version: '8.0.x'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Check native and frontend contracts
+        run: |
+          ./tests/windows/static.ps1
+          pnpm --dir desktop install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend install failed' }
+          pnpm --dir desktop build
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed' }
+          python release/windows-package.py build artifacts/component --runtime win-x64 --revision $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw 'Unsigned companion build failed' }
+          python desktop/scripts/prepare-windows.py artifacts/component --runtime win-x64 --revision $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw 'Unsigned companion staging failed' }
+          cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
+          if ($LASTEXITCODE -ne 0) { throw 'Rust format failed' }
+          cargo clippy --manifest-path desktop/src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+          if ($LASTEXITCODE -ne 0) { throw 'Windows Rust checks failed' }
+  signed:
+    needs: check
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-2025
+    environment: release
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            runtime: win-x64
+          - target: aarch64-pc-windows-msvc
+            runtime: win-arm64
+    env:
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+      AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+      AZURE_CERTIFICATE_PROFILE: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+      WINDOWS_SIGNER_NAME: ${{ vars.WINDOWS_SIGNER_NAME }}
+      CANDIDATE_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: desktop/package.json
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        with:
+          dotnet-version: '8.0.x'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: rustfmt, clippy
+      - name: Check contracts, format, and required release notes
+        run: |
+          python release/changelog.py desktop/CHANGELOG.md $env:CANDIDATE_VERSION
+          if ($LASTEXITCODE -ne 0) { throw 'Required candidate changelog missing' }
+          python bin/check --portable
+          if ($LASTEXITCODE -ne 0) { throw 'Portable checks failed' }
+          ./tests/windows/static.ps1
+          pnpm --dir desktop install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend install failed' }
+          pnpm --dir desktop build
+          if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed' }
+          cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
+          if ($LASTEXITCODE -ne 0) { throw 'Rust format failed' }
+      - name: Install pinned signing tool and locate SDK tools
+        run: |
+          cargo install artifact-signing-cli --version 0.11.0 --locked
+          if ($LASTEXITCODE -ne 0) { throw 'Signing tool install failed' }
+          $signtool = Get-ChildItem 'C:/Program Files (x86)/Windows Kits/10/bin/*/x64/signtool.exe' | Sort-Object FullName | Select-Object -Last 1
+          if ($null -eq $signtool) { throw 'Windows SDK signing tool missing' }
+          "SIGNTOOL_PATH=$($signtool.FullName)" >> $env:GITHUB_ENV
+          $azure = (Get-Command az.cmd -ErrorAction Stop).Source
+          "AZURE_CLI_PATH=$azure" >> $env:GITHUB_ENV
+      - name: Fetch and sign the pinned provider
+        run: |
+          python release/windows-package.py fetch-provider artifacts/provider --runtime '${{ matrix.runtime }}'
+          if ($LASTEXITCODE -ne 0) { throw 'Provider verification failed' }
+          ./desktop/scripts/sign-windows.ps1 artifacts/provider/providers/cua/cua-driver.exe
+          ./release/verify-windows-signatures.ps1 -Directory artifacts/provider -ExpectedPublisher $env:WINDOWS_SIGNER_NAME
+      - name: Build the companion bound to the signed provider
+        run: |
+          $digest = (Get-FileHash artifacts/provider/providers/cua/cua-driver.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          python release/windows-package.py build artifacts/component --runtime '${{ matrix.runtime }}' --revision $env:GITHUB_SHA --provider-digest $digest
+          if ($LASTEXITCODE -ne 0) { throw 'Companion build failed' }
+          Copy-Item artifacts/provider/providers/cua/cua-driver.exe artifacts/component/providers/cua/cua-driver.exe -Force
+          python desktop/scripts/prepare-windows.py artifacts/component --runtime '${{ matrix.runtime }}' --revision $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw 'Companion staging failed' }
+          ./desktop/scripts/sign-windows.ps1 desktop/src-tauri/native/runtime/machine-control-windows.exe
+          ./release/verify-windows-signatures.ps1 -Directory desktop/src-tauri/native/runtime -ExpectedPublisher $env:WINDOWS_SIGNER_NAME
+          New-Item -ItemType Directory artifacts/catalog | Out-Null
+          New-FileCatalog -Path desktop/src-tauri/native/runtime -CatalogFilePath artifacts/catalog/package.cat -CatalogVersion 2.0
+          ./desktop/scripts/sign-windows.ps1 artifacts/catalog/package.cat
+          Copy-Item artifacts/catalog/package.cat desktop/src-tauri/native/runtime/package.cat
+      - name: Set version and sign app, uninstaller, and installer
+        working-directory: desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY -or -not $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) { throw 'Product updater signing credentials missing' }
+          python scripts/set-version.py $env:CANDIDATE_VERSION
+          if ($LASTEXITCODE -ne 0) { throw 'Version validation failed' }
+          $signer = (Resolve-Path scripts/sign-windows.ps1).Path
+          $config = @{bundle=@{windows=@{signCommand=@{cmd='powershell.exe';args=@('-NoProfile','-ExecutionPolicy','Bypass','-File',$signer,'%1')}}}} | ConvertTo-Json -Compress -Depth 10
+          # Use a file, preserving exact structured arguments and Windows paths.
+          $config | Set-Content (Join-Path $env:RUNNER_TEMP 'mc-windows-signing.json') -Encoding utf8
+          cargo clippy --manifest-path src-tauri/Cargo.toml --target '${{ matrix.target }}' --all-targets --locked -- -D warnings
+          if ($LASTEXITCODE -ne 0) { throw 'Windows Rust checks failed' }
+          pnpm tauri build --target '${{ matrix.target }}' --bundles nsis --config (Join-Path $env:RUNNER_TEMP 'mc-windows-signing.json')
+          if ($LASTEXITCODE -ne 0) { throw 'Signed desktop build failed' }
+          New-Item -ItemType Directory '../artifacts/desktop' | Out-Null
+          Copy-Item "src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe" '../artifacts/desktop/'
+          $installer = (Get-ChildItem '../artifacts/desktop/*-setup.exe').FullName
+          pnpm tauri signer sign --app-version $env:CANDIDATE_VERSION $installer
+          if ($LASTEXITCODE -ne 0) { throw 'Final updater signature failed' }
+      - name: Verify actual installed bytes and emit provenance
+        run: |
+          $installer = (Get-ChildItem artifacts/desktop/*-setup.exe).FullName
+          ./desktop/scripts/verify-windows-installed.ps1 -Installer $installer -Directory artifacts/desktop -Target '${{ matrix.target }}' -Version $env:CANDIDATE_VERSION -Revision $env:GITHUB_SHA -ExpectedPublisher $env:WINDOWS_SIGNER_NAME
+          python desktop/scripts/windows-package.py evidence artifacts/desktop --version $env:CANDIDATE_VERSION --revision $env:GITHUB_SHA --run "$env:GITHUB_RUN_ID.$env:GITHUB_RUN_ATTEMPT" --target '${{ matrix.target }}'
+          if ($LASTEXITCODE -ne 0) { throw 'Final evidence failed' }
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: windows-desktop-${{ matrix.target }}
+          path: artifacts/desktop/*
+          if-no-files-found: error
+          retention-days: 30
+  authenticate:
+    needs: signed
+    runs-on: ubuntu-24.04
+    environment: release
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: windows-desktop-*
+          path: candidates
+      - run: sudo apt-get update -qq && sudo apt-get install -y minisign
+      - name: Authenticate both final installers and reject tampering
+        env:
+          CANDIDATE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          for target in x86_64-pc-windows-msvc aarch64-pc-windows-msvc; do
+            python3 desktop/scripts/windows-package.py verify "candidates/windows-desktop-$target" --version "$CANDIDATE_VERSION" --revision "$GITHUB_SHA" --run "$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT" --target "$target" --test-tampering
+          done
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: verified-windows-desktop
+          path: candidates/windows-desktop-*/*
+          if-no-files-found: error
+          retention-days: 30
