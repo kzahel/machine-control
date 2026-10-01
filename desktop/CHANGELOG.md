@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Relaunch through the application event loop after installing an update.
+
+When updating from 0.3.3 or 0.3.4, reopen Machine Control if it closes after
+installation. Those versions can install the update but miss automatic relaunch.
+
 ## [0.3.4]
 
 - Settings and Check for Updates in the menu bar.

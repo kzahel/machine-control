@@ -118,19 +118,21 @@ Public package and website download verification is recorded in the
 [native distribution topic](../topics/native-distribution.md).
 The production route is deployed and returns signed metadata for older clients
 and 204 for current clients on both Mac architectures. Installed 0.3.3 to
-0.3.4 production acceptance remains in progress.
+0.3.4 production testing installed the new bundle but found an automatic
+relaunch defect; acceptance remains in progress.
 
 [Tactical 052](../docs/tactical/052-macos-production-updates.md) owns deployment
 and the first production-feed update acceptance.
 
-## 0.3.4 publication gate
+## 0.3.4 publication and updater status
 
-The signed candidate passed both architecture authentication and claimed
-ARM64 Tart operator/tray acceptance. The immutable `desktop-v0.3.4` tag exists,
-but [tagged CI](https://github.com/kzahel/machine-control/actions/runs/36830572285)
-stopped before publication: Apple returned HTTP 403 for a missing or expired
-agreement on both notarization requests. The Account Holder must resolve that
-account gate. Verify read-only notarization access, then rerun **all jobs** of
-that existing run with `gh run rerun 36830572285`; do not recreate or move the
-tag. Both receipts must have the same new workflow attempt. Public package and
-installed-update acceptance follow. 0.3.3 remains the latest public release.
+[Tagged CI](https://github.com/kzahel/machine-control/actions/runs/36830572285)
+attempt 2 published 0.3.4 after the Account Holder resolved Apple's agreement
+HTTP 403. All jobs were rerun at the original tag/source; both receipts share
+attempt 2. Public package authenticity, the required changelog, both latest
+installer links and signed update routes are verified.
+
+The production 0.3.3 to 0.3.4 test installed the new bundle but failed automatic
+relaunch. Older 0.3.3/0.3.4 clients may require reopening Machine Control after
+installation. Tactical 052 tracks the event-loop restart repair and signed
+acceptance. Published bytes and tags remain immutable.

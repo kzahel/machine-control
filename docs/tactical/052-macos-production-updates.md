@@ -1,7 +1,7 @@
 # Mac production updates
 
 Topic: native-distribution
-Status: blocked on publisher account agreement
+Status: production release published; updater relaunch repair in progress
 
 ## Objective
 
@@ -80,19 +80,30 @@ production check, Open and Stop passed. Real tray Quit exited with status zero w
 LaunchAgent, and readiness were restored, and owned staging was removed.
 
 The annotated `desktop-v0.3.4` tag points to
-`8d076efd1d18fa9a97faf0d90d2f12479260c29c`. The
+`8d076efd1d18fa9a97faf0d90d2f12479260c29c`. The first
 [tagged workflow](https://github.com/kzahel/machine-control/actions/runs/36830572285)
-passed source checks and both application builds, then stopped on both
-notarization requests with HTTP 403: a required agreement is missing or expired.
-No draft or public 0.3.4 release was created. CI credential metadata was unchanged;
-read-only local probes with both configured key profiles returned the same
-account-level agreement refusal.
+attempt stopped on Apple notarization HTTP 403 for a missing or expired
+agreement. After the Account Holder accepted it, read-only access cleared
+and all jobs were rerun without moving the tag. Attempt 2 succeeded and
+published the complete nine-asset release with the exact required changelog.
+Both re-downloaded public package families passed signatures, notarization,
+stapling, updater signature/version, receipt identity and tamper rejection.
+Both website download routes select the exact 0.3.4 DMGs. Both architectures
+on the shared server and website proxy offer signed 0.3.4 metadata to 0.3.3
+and return 204 to 0.3.4.
 
-**Open:** The publisher's Account Holder must review the current Apple Developer
-Program agreement. After notary access clears, rerun **all jobs** of the
-original tagged workflow, preserving this tag/source and a single new attempt
-identity. Then authenticate the public packages and accept the installed public
-0.3.3 to 0.3.4 production update. Do not move the tag, publish the earlier CI
-candidate as this source, or bypass notarization. The VM's original app, policy,
-LaunchAgent and suspended state were restored, and the caller-owned claim was
-released. 0.3.3 remains the latest public desktop release.
+**Current:** The claimed ARM64 production test installed public 0.3.3 from
+its DMG, discovered 0.3.4 through Settings, refused installation with active
+access, and replaced the bundle with public 0.3.4 after Stop. Automatic
+relaunch did not return a resident: the LaunchAgent reported a clean exit
+without a running PID. Installed production-update acceptance therefore
+remains incomplete. The original app, policy, LaunchAgent and suspended state
+were restored, owned guest staging was removed, and the claim was released.
+
+**Decision:** Route updater restart through Tauri's event loop. The old main-thread
+`restart()` bypasses Exit events; the single-instance plugin removes its endpoint
+on Exit. `request_restart()` preserves that cleanup. Prove this correction with
+a signed older-version fixture updating through the actual public feed before
+publishing the next patch. Older published senders cannot be changed: their first
+update may require reopening the installed app. Keep that limitation explicit.
+Do not move the 0.3.4 tag or replace its published bytes.

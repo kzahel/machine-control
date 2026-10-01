@@ -96,7 +96,10 @@ async fn install_update(
         let result = native_command(json!({"method":"prepare_update"}))
             .and_then(|_| update.install(bytes).map_err(|e| e.to_string()));
         if result.is_ok() {
-            restart.restart();
+            // Preserve Exit events so the single-instance plugin releases
+            // its endpoint before the replacement process starts.
+            restart.request_restart();
+            let _ = send.send(Ok(()));
         } else {
             let _ = native_command(json!({"method":"cancel_update"}));
             let _ = send.send(result.map(|_| ()));

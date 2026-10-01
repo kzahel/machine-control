@@ -98,6 +98,6 @@ the commits' `Topic:` trailers and register that exact string in
 - [`051-tauri-macos-desktop.md`](051-tauri-macos-desktop.md) (active):
   shared Tauri desktop UX, embedded native Mac resident, signed CI artifacts,
   and exact-artifact Tart acceptance.
-- [`052-macos-production-updates.md`](052-macos-production-updates.md) (blocked on publisher agreement):
+- [`052-macos-production-updates.md`](052-macos-production-updates.md) (relaunch repair in progress):
   production update routing, menu-bar Settings and update checks, signed 0.3.4
   publication, and installed 0.3.3 to 0.3.4 Tart acceptance.

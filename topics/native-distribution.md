@@ -4,9 +4,9 @@ Topic: `native-distribution`
 
 Status: signed Windows workstation preview and direct YA Node/Codex consumer
 accepted; signed Mac desktop candidates are verified and accepted in ARM64
-Tart. Mac desktop `0.3.3` is published; public packages and latest download
-routes are verified. The Mac production route is deployed; 0.3.4 notarization is blocked on
-the publisher agreement, and installed-feed acceptance remains pending. YA
+Tart. Mac desktop `0.3.4` is published; public packages, latest download routes and
+production feed are verified. Installed-feed testing found an automatic
+relaunch defect; its repair and acceptance remain in progress. YA
 download/update code is implemented, while public Windows consumer acceptance
 is open.
 
@@ -71,7 +71,7 @@ UAC plus explicit account/controller/lifetime approval. The
 [tactical 037](../docs/tactical/037-windows-unlock-arming.md) its native acceptance.
 
 **Open:** Complete the first public Windows release and packaged YepAnywhere
-acceptance; resolve the Mac publisher agreement and validate an installed
+acceptance; repair Mac updater relaunch and validate an installed
 production-feed update; package Linux dependencies and validate a workstation portal/input
 profile. Mac bundle-relative providers and signed-upgrade consent have passed
 ARM64 Tart acceptance.
@@ -175,8 +175,8 @@ nine draft asset hashes/sizes, source identity, changelog and updater metadata,
 then published the same draft by ID without replacing bytes or its tag. Future
 CI publication now resolves and verifies the draft by ID. Both re-downloaded
 public DMGs and archives passed publisher signatures, notarization/stapling,
-updater signature/version and tamper rejection. The live download page selects
-`0.3.3`; both architecture routes redirect to its exact installers. The production
+updater signature/version and tamper rejection. The live download page now selects
+`0.3.4`; both architecture routes redirect to its exact installers. The production
 route now returns shared-server signed metadata for older clients and 204 for
 current clients on both Mac architectures, including a Tart guest check.
 Installed-feed acceptance remains in progress.
@@ -190,9 +190,13 @@ acceptance gate. No automatic installation is enabled.
 
 **Current:** The signed 0.3.4 candidate passed claimed ARM64 Tart upgrade,
 approvals, independent fixture effects, menu-bar Settings/check/Open/Stop/Quit,
-and global Stop. Production routing is deployed. Tagged publication stopped at
-Apple notarization with an account-level HTTP 403 agreement refusal; no 0.3.4
-release is public. [Tactical 052](../docs/tactical/052-macos-production-updates.md)
-owns the accepted candidate and blocked tagged workflow. After the Account
-Holder resolves the agreement, rerun that workflow without moving its tag,
-then complete installed production-update acceptance. 0.3.3 remains public.
+and global Stop. Production routing is deployed. After the Account Holder
+resolved Apple's agreement gate, attempt 2 of tagged publication succeeded
+without moving the tag. Public packages, required notes, receipts, download
+links and both architecture feeds are verified.
+
+The installed public 0.3.3 test discovered and installed public 0.3.4, but
+automatic relaunch failed. [Tactical 052](../docs/tactical/052-macos-production-updates.md)
+owns the observed failure, cleanup and event-loop restart repair. Older
+0.3.3/0.3.4 senders may require reopening the app after installation; full
+installed-update acceptance remains open until the signed repair is exercised.
