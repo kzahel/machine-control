@@ -41,6 +41,13 @@ workstream's stale-token tool-error finding. Installed acceptance must check
 application effects and error payloads rather than treating a successful
 provider CLI process as accepted input.
 
+**Current — signed x64 desktop conformance:** The shared Tauri product and
+bundled ordinary-user resident pass native grants, lifecycle, tray, signed
+update, independent Cua effects/capture, and local/outside parity on a dedicated
+VM. ARM64 candidate signing and installed bytes pass; native ARM64 desktop
+execution remains unproved. [Tactical 053](../../docs/tactical/053-windows-desktop.md)
+owns this product-specific evidence.
+
 ## Candidate matrix
 
 | Candidate | Evidence | Demonstrated value | Material gaps or unknowns | Current disposition |

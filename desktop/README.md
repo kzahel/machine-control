@@ -2,8 +2,9 @@
 
 A shared Tauri operator application with the existing Mac resident embedded
 as a Swift framework in its native process. Windows bundles the existing .NET
-resident as a supervised companion with native grants. Windows signed installed
-acceptance is in progress; Linux desktop integration is not yet implemented.
+resident as a supervised companion with native grants. The signed Windows x64
+preview passes installed VM acceptance; ARM64 native desktop execution remains
+open. Linux desktop integration is not yet implemented.
 
 The operator uses a compact settings window with Access, Permissions, Activity,
 and Settings tabs. Labels and status rows replace banners and explanatory

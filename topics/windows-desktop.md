@@ -2,8 +2,8 @@
 
 Topic: `windows-desktop`
 
-Status: active implementation; native grants and the shared installed unsigned
-x64 operator pass VM checks. Signed installed acceptance remains in progress.
+Status: signed x64 preview accepted on a dedicated VM. ARM64 native desktop
+execution, physical hardware, and production publication remain open.
 
 ## Product and boundaries
 
@@ -36,33 +36,29 @@ Windows support claim.
 
 ## Execution and remaining gates
 
-**Current:** A distinct desktop resident enforces off-by-default grants before
-provider dispatch. It has an inherited private operator channel, a native Stop
-shortcut, desktop/session monitoring, update arming exclusion, bounded activity,
-and generation invalidation. Portable contracts and native x64 source probes
-passed approval narrowing, prompt pause, Stop, stale generation, fixture effect,
-PNG/hash verification, and update gating. This is source-prototype evidence,
-not signed installed Tauri acceptance.
+**Current:** The exact signed 0.4.3 x64 candidate passes installed payload,
+native grant, self-interface protection, tray, expiry, emergency Stop, startup,
+restart, failure cleanup, and independent Cua fixture action/capture checks.
+The signed 0.4.2 to 0.4.3 update automatically relaunches with access off,
+invalidates the old generation, and preserves user applications.
 
-**Current:** The shared Tauri Windows app builds and installs per user. Its
-installed unsigned x64 UI passes approval, denial, narrowing, prompt pause,
-fixture effect/capture, Stop/stale generation, restart with access off,
-companion-failure recovery, job cleanup, and survival of a user-launched app.
-The controlled endpoint refuses to invoke the operator's WebView buttons.
-These developer checks precede exact signed candidate acceptance.
+**Current:** Local and explicitly selected outside common CLI callers reach the
+same desktop runtime generation and native grant. Both pass independently
+confirmed fixture effects, artifact hashes, and capture-superseded reference
+refusal without replay. The existing ordinary-user component also passes
+conformance using the final bundled runtime.
 
-**Current:** The common CLI selects a Windows local `host` adapter and supports
-an explicitly selected outside `desktop` profile. Both preserve native grants
-and target-use claims; the component and appliance selectors remain distinct.
-Native local CLI checks pass doctor, exact coordination claim/release, grant
-status, guest-local discovery, and off-by-default refusal. Outside desktop
-profile acceptance remains pending.
+**Current:** Lock revokes access. The accepted appliance lacks the optional
+existing-session unlock broker; recovery uses native logoff and canonical
+stored-credential sign-in. This does not establish in-place unlock acceptance.
+Interactive session selection must follow observed identity after re-logon.
 
 [Tactical 053](../docs/tactical/053-windows-desktop.md) owns implementation and
 acceptance. Existing engine/package evidence is in
 [Tactical 036](../docs/tactical/036-windows-workstation-distribution.md);
 [native distribution](native-distribution.md) owns shared release decisions.
 
-**Open:** Native grants/lifecycle, signed installer/updater verification,
-ARM64/x64 execution, and production Windows feed publication. Physical hardware
-acceptance remains separate from VM acceptance.
+**Open:** ARM64 native UI/runtime execution, physical hardware, browser
+integration, in-place unlock recovery, and production Windows feed publication.
+ARM64 signing, installation, payload bytes, and updater authentication pass CI;
+they do not establish ARM64 desktop execution.

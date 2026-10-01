@@ -217,6 +217,11 @@ console session at Medium integrity; RDP, elevated applications and protected
 sessions are explicit omissions. Distribution and migration acceptance live in
 [Tactical 036](../docs/tactical/036-windows-workstation-distribution.md).
 
+**Current:** The shared Tauri desktop product bundles this engine with native
+grants and a supervised lifetime. Its signed x64 VM acceptance and remaining
+architecture/publication gates belong to [Windows desktop](windows-desktop.md).
+The distinct component and appliance profiles remain available.
+
 The optional [protected unlock component](windows-protected-unlock.md) owns a
 separate grant-bound service and signed administrator setup. It supports an
 already logged-in local console account through explicit controller approval;

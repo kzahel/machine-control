@@ -11,7 +11,7 @@ Commit the intended source on main and add meaningful notes for its candidate
 version to [the desktop changelog](../desktop/CHANGELOG.md), then dispatch:
 
 ```bash
-gh workflow run windows-desktop.yml --ref main -f version=0.4.0
+gh workflow run windows-desktop.yml --ref main -f version=0.4.3
 ```
 
 The unsigned check job precedes protected main-only ARM64/x64 signing. Private
@@ -41,7 +41,7 @@ attempt, and target with `minisign` installed:
 
 ```bash
 python3 desktop/scripts/windows-package.py verify CANDIDATE_DIRECTORY \
-  --revision SOURCE_SHA --version 0.4.0 --run RUN_ID.ATTEMPT \
+  --revision SOURCE_SHA --version 0.4.3 --run RUN_ID.ATTEMPT \
   --target x86_64-pc-windows-msvc --test-tampering
 ```
 
@@ -49,6 +49,13 @@ Installed Windows verification also checks Authenticode, timestamps, the entire
 runtime catalog, and payload bytes. Signing/build checks are not desktop
 acceptance. [Tactical 053](../docs/tactical/053-windows-desktop.md) owns native
 approval/effect/Stop/session/tray/lifecycle/update acceptance through claimed VMs.
+
+The accepted x64 preview is version `0.4.3`, source
+`4468add959f8d591f8fcd1b1e8cf788e3a6af24f`, from
+[workflow run 36906816804](https://github.com/kzahel/machine-control/actions/runs/36906816804).
+Both architecture artifacts pass independent updater/provenance/tamper checks.
+Native desktop acceptance applies to x64; the ARM64 CI install validates bytes
+on an x64 runner, not ARM64 UI/runtime execution.
 
 Candidates do not publish a release or enable a production Windows feed.
 Publication follows exact installed acceptance, preserves the Mac feed, and
@@ -99,3 +106,9 @@ Signed runs require the bundled provider for fixture observation and capture.
 controller-owned HTTPS fixture feed. It checks active-access exclusion, automatic
 relaunch, revoked grants, new generation, and preservation of a user app.
 Restore temporary fixture trust and DNS/hosts configuration after the run.
+
+`tests/windows/desktop-cli.ps1` proves local doctor, claim/release, off-state
+refusal, and, with an independently armed grant and `-Fixture`, packaged Cua
+counter effects, artifact hashes, and capture-superseded reference refusal.
+An outside parity probe must take a fresh observation after the local capture;
+it cannot reuse that capture-superseded reference.

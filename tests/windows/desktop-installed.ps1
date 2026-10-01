@@ -98,6 +98,7 @@ function Request([bool]$Allow,[bool]$Narrow=$false,[bool]$Timeout=$false) {
 }
 function ClickElement($Element,[bool]$Right=$false) {
  $b=$Element.Current.BoundingRectangle
+ if ([double]::IsNaN($b.X) -or [double]::IsNaN($b.Y) -or $b.Width -le 0 -or $b.Height -le 0) {throw 'Native fixture element has no actionable rectangle'}
  $null=[DesktopFixtureInput]::SetCursorPos([int]($b.X+$b.Width/2),[int]($b.Y+$b.Height/2))
  $down=if($Right){8}else{2};$up=if($Right){16}else{4}
  try {[DesktopFixtureInput]::mouse_event($down,0,0,0,[UIntPtr]::Zero)}
@@ -143,7 +144,7 @@ function Tray([string]$Name) {
  $icon=$null
  do {
   $buttons=$overflow.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Button))
-  $icons=@($buttons|Where-Object {$_.Current.Name.StartsWith('Machine Control ') -and -not $_.Current.IsOffscreen})
+  $icons=@($buttons|Where-Object {$b=$_.Current.BoundingRectangle; $_.Current.Name.StartsWith('Machine Control ') -and -not $_.Current.IsOffscreen -and -not [double]::IsNaN($b.X) -and -not [double]::IsNaN($b.Y) -and -not [double]::IsInfinity($b.X) -and -not [double]::IsInfinity($b.Y) -and $b.Width -gt 0 -and $b.Height -gt 0})
   if ($icons.Count) {$icon=$icons[0];break}
   Start-Sleep -Milliseconds 100
  } while ([DateTime]::UtcNow -lt $deadline)
@@ -211,7 +212,7 @@ try {
  Press 'Stop access';WaitGrant $false
  Request $true
  $status=Call @{operation='status'};$generation=$status.generation
- $operatorSnapshot=Call @{operation='snapshot';hwnd=(MainWindow).ToInt64();maxDepth=20;maxElements=1000}
+ $operatorSnapshot=Call @{operation='snapshot';scope='system';hwnd=(MainWindow).ToInt64();maxDepth=20;maxElements=1000}
  Assert $operatorSnapshot.accepted 'Operator observation does not grant operator control'
  $operatorButton=@($operatorSnapshot.data.elements|Where-Object {$_.name -eq 'Stop access' -and $_.controlType -eq 'Button'})[0]
  $self=Call @{operation='invoke';reference=$operatorButton.reference;expectedGeneration=$generation}

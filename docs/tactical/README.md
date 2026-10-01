@@ -101,6 +101,6 @@ the commits' `Topic:` trailers and register that exact string in
 - [`052-macos-production-updates.md`](052-macos-production-updates.md) (complete):
   production update routing, menu-bar commands, signed 0.3.5 publication,
   automatic repair-fixture handoff, and legacy public-client Tart acceptance.
-- [`053-windows-desktop.md`](053-windows-desktop.md) (active):
+- [`053-windows-desktop.md`](053-windows-desktop.md) (complete for x64 VM preview):
   native Windows desktop grants, shared Tauri operator, supervised companion,
   signed installers, and installed VM acceptance.

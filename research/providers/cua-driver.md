@@ -7,7 +7,7 @@ for the repository. Upstream documents MIT-0 terms for skill copies published
 through ClawHub; treat that as a narrower distribution boundary, not as a
 change to the repository license.
 
-Last corpus review: 2026-09-12.
+Last corpus review: 2026-10-01.
 
 ## Evidence by platform
 
@@ -64,7 +64,8 @@ provider's element token. The daemon CLI unwraps an MCP tool error into JSON
 while exiting successfully; process exit alone therefore cannot establish tool
 acceptance. The owned Windows adapter now detects error payloads and classifies
 stale tokens as refused, without retry or replay. An independent fixture must
-remain unchanged after the refused action. The desktop acceptance work in
+remain unchanged after the refused action. Exact signed x64 installed, local,
+and outside CLI probes confirm refusal without replay. The desktop work in
 [Tactical 053](../../docs/tactical/053-windows-desktop.md) owns this regression
 and signed execution evidence. The upstream
 [pinned CLI](https://github.com/trycua/cua/blob/d21e3447f9b08c761c090946648d5aca5e6c9cf1/libs/cua-driver/rust/crates/cua-driver/src/cli.rs)

@@ -1,7 +1,8 @@
 # Topics
 
 - [Windows desktop](windows-desktop.md): shared Tauri operator, native Windows
-  grants, companion packaging, and signed installed acceptance (active).
+  grants, companion packaging, and signed x64 VM acceptance; ARM64 execution
+  and publication remain open.
 
 Focused, living records of continuing machine-control concerns live here.
 
