@@ -177,6 +177,13 @@ from desktop readiness; unknown state continues to refuse ordinary input.
 [Tactical 047](../docs/tactical/047-macos-resident-resource-reliability.md)
 owns reproduction, bounded workload/recovery validation, and remaining limits.
 
+**Current (2026-10-01):** Resident-owned Unix listeners and client sockets are
+marked close-on-exec. A regression test reproduced a plain spawned child
+retaining the live resident listener and now proves that the listener does not
+survive execution. Signed Tauri restart/update handoff acceptance is owned by
+[Tactical 052](../docs/tactical/052-macos-production-updates.md), separately from
+the session-probe lifetime workload above.
+
 ## Current Tart goal
 
 **Decision:** Until physical Mac testing becomes an active workstream, focus

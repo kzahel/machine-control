@@ -90,14 +90,17 @@ CI creates and verifies a draft before publication. The website resolves the
 latest desktop release separately from Windows component releases. See the
 [release process](../release/macos-desktop.md) and [changelog](CHANGELOG.md).
 
-The latest public release is [0.3.4](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.3.4),
+The latest public release is [0.3.5](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.3.5),
 and its update route is deployed through the existing shared service.
-Manual checks are available in Settings; 0.3.4 also exposes Settings and Check
-for Updates in the menu bar. Production testing installed 0.3.4 but found an automatic relaunch defect;
-0.3.3/0.3.4 clients may need to reopen the app after installation. The repair
-and installed acceptance are tracked in [tactical 052](../docs/tactical/052-macos-production-updates.md). No automatic update
-installation is enabled. Native code rechecks that no access or approval is
-active immediately before bundle replacement and restarts with access off.
+Manual checks are available in Settings and the menu bar. The fixed sender passes automatic production-feed
+handoff, and released 0.3.5 passes native Restart and operator acceptance in
+ARM64 Tart. Public 0.3.3 installs 0.3.5 with one native reopen for its old defect;
+0.3.3/0.3.4 clients may need to reopen after their first update. Exact acceptance
+and physical Mac/Intel omissions are tracked in
+[tactical 052](../docs/tactical/052-macos-production-updates.md).
+No automatic update installation is enabled. Native code rechecks that no
+access or approval is active immediately before bundle replacement and restarts
+with access off.
 Appliances with standing access use their administrator-managed deployment.
 Adopt Desktop Release Kit's update contract when
 publishing; the application owns its lifecycle and native acceptance rather

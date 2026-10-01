@@ -1,7 +1,7 @@
 # Mac production updates
 
 Topic: native-distribution
-Status: production release published; updater relaunch repair in progress
+Status: complete; 0.3.5 published and ARM64 production updates accepted
 
 ## Objective
 
@@ -99,8 +99,7 @@ and return 204 to 0.3.4.
 its DMG, discovered 0.3.4 through Settings, refused installation with active
 access, and replaced the bundle with public 0.3.4 after Stop. Automatic
 relaunch did not return a resident: the LaunchAgent reported a clean exit
-without a running PID. Installed production-update acceptance therefore
-remains incomplete. The original app, policy, LaunchAgent and suspended state
+without a running PID. That run did not establish installed production-update acceptance. The original app, policy, LaunchAgent and suspended state
 were restored, owned guest staging was removed, and the claim was released.
 
 **Current:** The event-loop-only repair was built as a signed 0.3.3 fixture
@@ -143,4 +142,33 @@ effect, self/protected refusal, prompt pausing, global Stop, tray Settings/check
 Open/Stop, and real Quit without a surviving app PID or respawn passed. Original
 application, policy, LaunchAgent, readiness and suspended power were restored;
 owned guest staging was removed and the verified caller-owned claim released.
-Tagged 0.3.5 publication and public-client acceptance remain pending.
+The annotated `desktop-v0.3.5` tag points to
+`2b91b005b4991e33ef86121d395df215946c7d94`.
+[Tagged CI](https://github.com/kzahel/machine-control/actions/runs/36852715035)
+passed and published all nine assets with the exact required changelog. Both
+re-downloaded public package families passed publisher signatures,
+notarization/stapling, updater signature/version, source/run receipts, GitHub
+asset hashes/sizes and tamper rejection. Both website download routes select
+the exact 0.3.5 DMGs. Both architectures on the shared server and website proxy
+offer the exact signed archive to 0.3.3/0.3.4 and return 204 to 0.3.5.
+Feed verification initially assumed only the newest notes; source review
+confirmed the existing cumulative-notes contract. Skipping 0.3.4 returns both
+required changelogs; a 0.3.4 client gets only 0.3.5's notes.
+
+**Final result:** Public 0.3.3 discovered and installed public 0.3.5 through
+Settings, with installation disabled while access was active. One native reopen
+was needed for the immutable old sender's relaunch defect and is reported
+separately from automatic acceptance. Permissions remained ready, access stayed
+off, generation changed, and stale references were refused. The released 0.3.5
+Permissions Restart then relaunched automatically and revoked access.
+Visible denial, narrowed approval, independent fixture effect, self/protected
+refusal, approval-prompt input pause, global Stop, tray Settings/check/Open/Stop,
+and real Quit without a surviving PID or respawn all passed. Original app,
+policy, LaunchAgent, readiness and suspended power were restored, owned staging
+was removed, and the exclusive caller-owned claim was released. The canonical
+controller-local appliance credential handoff remains ready and mode 0600.
+
+The repair fixture establishes automatic production-feed handoff from the fixed
+sender code; the public-client run establishes legacy installation/reopening
+and released 0.3.5 Restart/operator behavior. Physical Mac and Intel execution
+remain open. No host UI or TCC bypass was used.

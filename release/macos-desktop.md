@@ -119,7 +119,7 @@ Public package and website download verification is recorded in the
 The production route is deployed and returns signed metadata for older clients
 and 204 for current clients on both Mac architectures. Installed 0.3.3 to
 0.3.4 production testing installed the new bundle but found an automatic
-relaunch defect; acceptance remains in progress.
+relaunch defect, repaired in 0.3.5.
 
 [Tactical 052](../docs/tactical/052-macos-production-updates.md) owns deployment
 and the first production-feed update acceptance.
@@ -129,11 +129,24 @@ and the first production-feed update acceptance.
 [Tagged CI](https://github.com/kzahel/machine-control/actions/runs/36830572285)
 attempt 2 published 0.3.4 after the Account Holder resolved Apple's agreement
 HTTP 403. All jobs were rerun at the original tag/source; both receipts share
-attempt 2. Public package authenticity, the required changelog, both latest
-installer links and signed update routes are verified.
+attempt 2. At publication, public package authenticity, the required changelog,
+exact installer links and signed update routes were verified.
 
 The production 0.3.3 to 0.3.4 test installed the new bundle but failed automatic
 relaunch. Older 0.3.3/0.3.4 clients may require reopening Machine Control after
-installation. Tactical 052 tracks the bounded restart handoff. Its signed fixture passes
-Permissions Restart and automatic production-feed installation; 0.3.5
-publication and public-client acceptance remain pending. Published bytes and tags remain immutable.
+installation. The 0.3.5 bounded restart handoff and public-client acceptance are
+complete in ARM64 Tart; tactical 052 records the exact evidence. Published
+bytes and tags remain immutable.
+
+## 0.3.5 publication and update acceptance
+
+[Tagged CI](https://github.com/kzahel/machine-control/actions/runs/36852715035)
+published 0.3.5 with the required restart-repair and legacy-reopen notes. Both
+public package families, source/run receipts, exact assets, latest download
+links, signed update routes, cumulative changelogs and current-client 204 pass
+independent verification. A signed repair fixture automatically installs the
+actual public update. Public 0.3.3 installs public 0.3.5 with one native reopen;
+released 0.3.5 passes automatic Permissions Restart, permission retention,
+revoked access, stale-reference refusal, operator/tray/Stop/Quit acceptance and
+testbed restoration. Tactical 052 owns exact execution and remaining physical
+Mac/Intel runtime limits. Published tags and bytes are immutable.

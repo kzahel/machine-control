@@ -146,9 +146,11 @@ access. Intel runtime execution remains open. Precise acceptance is tracked in
 update testing found an automatic relaunch failure in the legacy sender.
 A signed repair fixture now passes native Permissions Restart and automatic
 production-feed installation, retaining permissions and ending access.
-[Tactical 052](../../docs/tactical/052-macos-production-updates.md) owns that
-repair, patch publication, and public-client acceptance. Physical-host and Intel
-runtime acceptance remain separate gates.
+Released 0.3.5 also passes native Restart and operator/tray acceptance after a
+public 0.3.3 production-feed installation with one legacy reopen.
+[Tactical 052](../../docs/tactical/052-macos-production-updates.md) owns exact
+release/update evidence. Physical-host and Intel runtime acceptance remain
+separate gates.
 
 ## Owned authorization unlock prototype
 

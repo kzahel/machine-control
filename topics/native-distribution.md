@@ -4,11 +4,10 @@ Topic: `native-distribution`
 
 Status: signed Windows workstation preview and direct YA Node/Codex consumer
 accepted; signed Mac desktop candidates are verified and accepted in ARM64
-Tart. Mac desktop `0.3.4` is published; public packages, latest download routes and
-production feed are verified. Installed-feed testing found an automatic
-relaunch defect. Its signed repair fixture now passes Restart and automatic
-production-feed installation; patch publication and public-client acceptance
-remain in progress. YA
+Tart. Mac desktop `0.3.5` is published; public packages, latest download routes,
+production feeds, and installed ARM64 public-client acceptance are verified.
+Fixed sender code passes automatic production-feed handoff; legacy 0.3.3/0.3.4
+senders may need one reopen after installation. YA
 download/update code is implemented, while public Windows consumer acceptance
 is open.
 
@@ -73,10 +72,9 @@ UAC plus explicit account/controller/lifetime approval. The
 [tactical 037](../docs/tactical/037-windows-unlock-arming.md) its native acceptance.
 
 **Open:** Complete the first public Windows release and packaged YepAnywhere
-acceptance; repair Mac updater relaunch and validate an installed
-production-feed update; package Linux dependencies and validate a workstation portal/input
-profile. Mac bundle-relative providers and signed-upgrade consent have passed
-ARM64 Tart acceptance.
+acceptance; complete physical Mac and Intel runtime acceptance; package Linux
+dependencies and validate a workstation portal/input profile. Mac bundle-relative
+providers and signed-upgrade consent have passed ARM64 Tart acceptance.
 Keep actual routes and unsupported capabilities visible.
 
 **Current:** An isolated YepAnywhere experiment exercised a small authenticated
@@ -177,28 +175,30 @@ nine draft asset hashes/sizes, source identity, changelog and updater metadata,
 then published the same draft by ID without replacing bytes or its tag. Future
 CI publication now resolves and verifies the draft by ID. Both re-downloaded
 public DMGs and archives passed publisher signatures, notarization/stapling,
-updater signature/version and tamper rejection. The live download page now selects
-`0.3.4`; both architecture routes redirect to its exact installers. The production
-route now returns shared-server signed metadata for older clients and 204 for
-current clients on both Mac architectures, including a Tart guest check.
-Installed-feed acceptance remains in progress.
+updater signature/version and tamper rejection. The live download page selects `0.3.5`, and both architecture routes redirect
+to its exact installers. Both the shared server and website proxy return signed
+archive metadata with cumulative required changelogs for older clients and 204
+for current clients. Product registration and the website proxy preserve the
+endpoint already embedded in 0.3.3.
 
-**Decision:** [Tactical 052](../docs/tactical/052-macos-production-updates.md)
-adds compact Settings and Check for Updates menu-bar commands, registers the
-product on the existing shared update service, and proxies the endpoint already
-embedded in 0.3.3. A signed candidate passes native acceptance before 0.3.4
-publication; the installed public 0.3.3 to 0.3.4 production update is the final
-acceptance gate. No automatic installation is enabled.
+**Current:** [Tactical 052](../docs/tactical/052-macos-production-updates.md)
+owns production update acceptance and immutable 0.3.4/0.3.5 publication. The
+0.3.4 release cleared Apple's agreement gate without moving its tag; installed
+testing exposed a legacy sender relaunch failure. The bounded native repair's
+signed fixture passes Permissions Restart and automatic installation of the
+actual public update. Public 0.3.3 installs public 0.3.5 with one native reopen
+for its old defect. Released 0.3.5 then passes automatic Permissions Restart,
+retained permissions, access revocation, stale-reference refusal, native
+approvals/fixture effects, global Stop, tray commands and Quit without respawn.
+Original testbed app, policy, LaunchAgent and power are restored and claims
+released. Both final public package families are authenticated; physical Mac
+and Intel runtime execution remain open.
 
-**Current:** The signed 0.3.4 candidate passed claimed ARM64 Tart upgrade,
-approvals, independent fixture effects, menu-bar Settings/check/Open/Stop/Quit,
-and global Stop. Production routing is deployed. After the Account Holder
-resolved Apple's agreement gate, attempt 2 of tagged publication succeeded
-without moving the tag. Public packages, required notes, receipts, download
-links and both architecture feeds are verified.
-
-The installed public 0.3.3 test discovered and installed public 0.3.4, but
-automatic relaunch failed. [Tactical 052](../docs/tactical/052-macos-production-updates.md)
-owns the observed failure, cleanup and bounded native restart repair. Older
-0.3.3/0.3.4 senders may require reopening the app after installation; full
-installed-update acceptance remains open until the signed repair is exercised.
+**Decision:** Share the bounded native handoff between Permissions Restart and
+explicit update installation. Preserve normal Exit cleanup, wait for the old
+process to exit, and keep the replacement outside the predecessor's process
+group. Native sockets are close-on-exec. No automatic installation is enabled;
+access and pending approvals are checked immediately before replacement.
+Older 0.3.3/0.3.4 senders may require reopening the app after their first update;
+the required 0.3.5 notes state that limitation. Published tags and bytes remain
+immutable.
