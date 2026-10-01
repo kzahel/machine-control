@@ -70,8 +70,8 @@ UAC plus explicit account/controller/lifetime approval. The
 [tactical 037](../docs/tactical/037-windows-unlock-arming.md) its native acceptance.
 
 **Open:** Complete the first public Windows release and packaged YepAnywhere
-acceptance; deploy the Mac production update feed and validate an installed
-feed update; package Linux dependencies and validate a workstation portal/input
+acceptance; resolve the Mac publisher agreement and validate an installed
+production-feed update; package Linux dependencies and validate a workstation portal/input
 profile. Mac bundle-relative providers and signed-upgrade consent have passed
 ARM64 Tart acceptance.
 Keep actual routes and unsupported capabilities visible.
@@ -186,3 +186,12 @@ product on the existing shared update service, and proxies the endpoint already
 embedded in 0.3.3. A signed candidate passes native acceptance before 0.3.4
 publication; the installed public 0.3.3 to 0.3.4 production update is the final
 acceptance gate. No automatic installation is enabled.
+
+**Current:** The signed 0.3.4 candidate passed claimed ARM64 Tart upgrade,
+approvals, independent fixture effects, menu-bar Settings/check/Open/Stop/Quit,
+and global Stop. Production routing is deployed. Tagged publication stopped at
+Apple notarization with an account-level HTTP 403 agreement refusal; no 0.3.4
+release is public. [Tactical 052](../docs/tactical/052-macos-production-updates.md)
+owns the accepted candidate and blocked tagged workflow. After the Account
+Holder resolves the agreement, rerun that workflow without moving its tag,
+then complete installed production-update acceptance. 0.3.3 remains public.

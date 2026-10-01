@@ -122,3 +122,15 @@ and 204 for current clients on both Mac architectures. Installed 0.3.3 to
 
 [Tactical 052](../docs/tactical/052-macos-production-updates.md) owns deployment
 and the first production-feed update acceptance.
+
+## 0.3.4 publication gate
+
+The signed candidate passed both architecture authentication and claimed
+ARM64 Tart operator/tray acceptance. The immutable `desktop-v0.3.4` tag exists,
+but [tagged CI](https://github.com/kzahel/machine-control/actions/runs/36830572285)
+stopped before publication: Apple returned HTTP 403 for a missing or expired
+agreement on both notarization requests. The Account Holder must resolve that
+account gate. Verify read-only notarization access, then rerun **all jobs** of
+that existing run with `gh run rerun 36830572285`; do not recreate or move the
+tag. Both receipts must have the same new workflow attempt. Public package and
+installed-update acceptance follow. 0.3.3 remains the latest public release.

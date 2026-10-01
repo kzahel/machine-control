@@ -1,7 +1,7 @@
 # Mac production updates
 
 Topic: native-distribution
-Status: in progress
+Status: blocked on publisher account agreement
 
 ## Objective
 
@@ -79,4 +79,20 @@ refusal, approval-prompt input pause, global Stop, and tray Settings, manual
 production check, Open and Stop passed. Real tray Quit exited with status zero without respawn. Original app, policy,
 LaunchAgent, and readiness were restored, and owned staging was removed.
 
-Tagged publication and installed public-update acceptance remain pending.
+The annotated `desktop-v0.3.4` tag points to
+`8d076efd1d18fa9a97faf0d90d2f12479260c29c`. The
+[tagged workflow](https://github.com/kzahel/machine-control/actions/runs/36830572285)
+passed source checks and both application builds, then stopped on both
+notarization requests with HTTP 403: a required agreement is missing or expired.
+No draft or public 0.3.4 release was created. CI credential metadata was unchanged;
+read-only local probes with both configured key profiles returned the same
+account-level agreement refusal.
+
+**Open:** The publisher's Account Holder must review the current Apple Developer
+Program agreement. After notary access clears, rerun **all jobs** of the
+original tagged workflow, preserving this tag/source and a single new attempt
+identity. Then authenticate the public packages and accept the installed public
+0.3.3 to 0.3.4 production update. Do not move the tag, publish the earlier CI
+candidate as this source, or bypass notarization. The VM's original app, policy,
+LaunchAgent and suspended state were restored, and the caller-owned claim was
+released. 0.3.3 remains the latest public desktop release.
