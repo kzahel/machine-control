@@ -1203,12 +1203,14 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(value["operation"], "set_value")
         self.assertEqual(value["data"]["request"]["value"], "Hello, 世界")
 
-    def test_host_is_a_default_macos_target(self):
+    def test_default_host_matches_the_controller_platform(self):
         host = machine_control.DEFAULT_TARGETS["host"]
-        self.assertEqual(host["platform"], "macos")
-        self.assertEqual(host["profile"], "macos-host-resident")
+        windows = machine_control.controller_platform() == "windows"
+        self.assertEqual(host["platform"], "windows" if windows else "macos")
+        self.assertEqual(host["profile"], "windows-host-desktop" if windows else "macos-host-resident")
         self.assertEqual(host["claimPolicy"], "required")
-        self.assertTrue(Path(host["command"][0]).as_posix().endswith("platforms/macos/bin/machost"))
+        suffix = "platforms/windows/host/winhost.py" if windows else "platforms/macos/bin/machost"
+        self.assertTrue(Path(host["command"][0]).as_posix().endswith(suffix))
 
     def test_grant_request_builds_bounded_resident_request(self):
         self.write_registry("macos")
@@ -1275,6 +1277,17 @@ class ClientTests(unittest.TestCase):
             result, value = self.run_cli(
                 "--target", "fixture", "browser", "upload", *arguments)
             self.assertEqual(value["errorCode"], "usage", arguments)
+
+    def test_browser_upload_uses_the_targets_path_syntax(self):
+        self.write_registry("windows")
+        result, value = self.run_cli("--target", "fixture", "browser", "upload",
+                                     "--reference", "fixture", "--file", "C:/Temp/upload.png")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["data"]["request"]["files"], ["C:/Temp/upload.png"])
+        for path in ("/tmp/upload.png", "C:upload.png", "upload.png"):
+            result, value = self.run_cli("--target", "fixture", "browser", "upload",
+                                         "--reference", "fixture", "--file", path)
+            self.assertEqual(value["errorCode"], "usage")
 
     def test_browser_help_and_wait(self):
         self.write_registry("macos")

@@ -7,7 +7,7 @@ import argparse
 from datetime import datetime
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import platform as host_platform
 import re
 import shutil
@@ -2615,7 +2615,7 @@ BROWSER_USAGE = {
 }
 
 
-def browser_request(arguments: list[str]) -> dict[str, Any]:
+def browser_request(arguments: list[str], target_platform: str | None = None) -> dict[str, Any]:
     if not arguments or arguments[0] not in BROWSER_COMMANDS:
         raise ClientError(
             "usage", "browser requires " + "|".join(sorted(BROWSER_COMMANDS))
@@ -2648,7 +2648,10 @@ def browser_request(arguments: list[str]) -> dict[str, Any]:
                 "browser upload requires --reference R (a file input or upload "
                 "button from browser snapshot) and one or more --file ABSOLUTE_PATH",
             )
-        if not all(os.path.isabs(path) for path in options.file):
+        # Upload paths belong to the selected target, not this controller.
+        # Windows Python 3.13+ rejects POSIX roots in os.path.isabs.
+        path_type = PureWindowsPath if target_platform == "windows" else PurePosixPath
+        if not all(path_type(path).is_absolute() for path in options.file):
             raise ClientError("usage", "browser upload --file paths must be absolute")
     request: dict[str, Any] = {"operation": f"browser.{command}"}
     if options.tab is not None:
@@ -2694,7 +2697,7 @@ def browser_request(arguments: list[str]) -> dict[str, Any]:
 def handle_browser(
     alias: str, target: dict[str, Any], arguments: list[str]
 ) -> int:
-    return send_resident_request(alias, target, browser_request(arguments))
+    return send_resident_request(alias, target, browser_request(arguments, target["platform"]))
 
 
 def handle_grant(

@@ -21,6 +21,7 @@ public static class DesktopFixtureInput {
  [DllImport("user32.dll")] public static extern void keybd_event(byte key,byte scan,uint flags,UIntPtr extra);
  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hwnd,uint message,IntPtr wParam,IntPtr lParam);
  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string className,string title);
 }
 '@
 $exe=Join-Path $Install 'runtime\machine-control-windows.exe'
@@ -85,21 +86,40 @@ function ClickElement($Element,[bool]$Right=$false) {
  Start-Sleep -Milliseconds 300
 }
 function RootClass([string]$Class) {
- return [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ClassNameProperty,$Class))
+ $hwnd=[DesktopFixtureInput]::FindWindow($Class,$null)
+ if ($hwnd -ne [IntPtr]::Zero -and [DesktopFixtureInput]::IsWindowVisible($hwnd)) {return [Windows.Automation.AutomationElement]::FromHandle($hwnd)}
+ return $null
+}
+function RawNamed($Root,[string]$Name) {
+ $walker=[Windows.Automation.TreeWalker]::RawViewWalker
+ $element=$walker.GetFirstChild($Root)
+ for ($i=0;$null -ne $element -and $i -lt 100;$i++) {
+  if ($element.Current.Name -eq $Name) {return $element}
+  $element=$walker.GetNextSibling($element)
+ }
+ return $null
 }
 function Tray([string]$Name) {
  $overflow=RootClass 'TopLevelWindowForOverflowXamlIsland'
- if ($null -eq $overflow -or $overflow.Current.IsOffscreen) {
+ if ($null -eq $overflow -or -not [DesktopFixtureInput]::IsWindowVisible([IntPtr]$overflow.Current.NativeWindowHandle)) {
   $taskbar=RootClass 'Shell_TrayWnd'
-  $expand=$taskbar.FindFirst([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,'Show Hidden Icons'))
+  $items=$taskbar.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Button))
+  $expand=@($items|Where-Object {$_.Current.Name.StartsWith('Show Hidden Icons')})[0]
   ClickElement $expand
-  $overflow=RootClass 'TopLevelWindowForOverflowXamlIsland'
+  $deadline=[DateTime]::UtcNow.AddSeconds(5)
+  do {$overflow=RootClass 'TopLevelWindowForOverflowXamlIsland';if($null -ne $overflow){break};Start-Sleep -Milliseconds 100} while([DateTime]::UtcNow -lt $deadline)
  }
  $buttons=$overflow.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Button))
  $icon=@($buttons|Where-Object {$_.Current.Name.StartsWith('Machine Control ') -and -not $_.Current.IsOffscreen})[0]
  ClickElement $icon $true
- $menu=RootClass '#32768'
- $item=$menu.FindFirst([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,$Name))
+ $deadline=[DateTime]::UtcNow.AddSeconds(5)
+ $item=$null
+ do {
+  $menu=RootClass '#32768'
+  if ($null -ne $menu) {$item=RawNamed $menu $Name}
+  if ($null -ne $item) {break};Start-Sleep -Milliseconds 100
+ } while ([DateTime]::UtcNow -lt $deadline)
+ if ($null -eq $item) {throw "Tray command unavailable: $Name"}
  ClickElement $item
 }
 function Shortcut {
@@ -110,7 +130,9 @@ function Shortcut {
 }
 $fixtureProcess=$null
 $startupKey='HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
-$startupBefore=Get-ItemPropertyValue $startupKey 'Machine Control' -ErrorAction SilentlyContinue
+$startupRegistry='HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run'
+function Startup {return [Microsoft.Win32.Registry]::GetValue($startupRegistry,'Machine Control',$null)}
+$startupBefore=Startup
 try {
  $metadata=Get-Content (Join-Path $Install 'runtime\desktop-runtime.json') -Raw|ConvertFrom-Json
  Assert ($metadata.schema -eq 'machine-control-desktop-runtime/v0' -and $metadata.profile -eq 'ordinary_user_desktop' -and $metadata.instance -eq 'desktop') 'Installed desktop product identity'
@@ -176,9 +198,9 @@ try {
  $toggle=$startup.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern)
  if ($toggle.Current.ToggleState -eq 'On') {$toggle.Toggle();Start-Sleep -Milliseconds 400}
  $toggle.Toggle();Start-Sleep -Milliseconds 600
- Assert ((Get-ItemPropertyValue $startupKey 'Machine Control') -match '--background') 'Startup preference registers background launch'
+ Assert ((Startup) -match '--background') 'Startup preference registers background launch'
  $toggle.Toggle();Start-Sleep -Milliseconds 600
- Assert ($null -eq (Get-ItemPropertyValue $startupKey 'Machine Control' -ErrorAction SilentlyContinue)) 'Startup preference removes login entry'
+ Assert ($null -eq (Startup)) 'Startup preference removes login entry'
  $windowHandle=(Process).MainWindowHandle
  $null=[DesktopFixtureInput]::SendMessage($windowHandle,0x10,[IntPtr]::Zero,[IntPtr]::Zero)
  Start-Sleep -Milliseconds 300
@@ -219,8 +241,14 @@ try {
  $evidence.passed=$true
 } catch {$evidence.error=$_.Exception.ToString();throw}
 finally {
+ if ($null -ne (Process)) {
+  try {'{"operation":"grant.revoke"}' | & $exe call --profile user --instance desktop --session-id ([Diagnostics.Process]::GetCurrentProcess().SessionId) --timeout-ms 1000 | Out-Null} catch {}
+ }
  if ($null -ne $startupBefore) {Set-ItemProperty $startupKey 'Machine Control' $startupBefore}
- else {Remove-ItemProperty $startupKey 'Machine Control' -ErrorAction SilentlyContinue}
+ else {
+  $key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Microsoft\Windows\CurrentVersion\Run',$true)
+  if ($null -ne $key) {try {$key.DeleteValue('Machine Control',$false)} finally {$key.Dispose()}}
+ }
  if ($fixtureProcess) {Stop-Process -Id $fixtureProcess -ErrorAction SilentlyContinue}
  $evidence|ConvertTo-Json -Depth 10|Set-Content $EvidencePath -Encoding UTF8
 }
