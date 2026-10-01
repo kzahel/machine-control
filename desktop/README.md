@@ -55,10 +55,13 @@ operator window keeps the tray and resident running; Quit ends the process.
 Permission changes may require Restart. Browser integration is optional and
 currently uses the bundled unpacked extension, with explicit user setup.
 
-## Signed candidates
+## Signed releases and candidates
 
-Candidate `0.3.2` passed signed CI package verification for Apple silicon and
-Intel, plus actual ARM64 Tart installation, approval, and signed upgrade checks.
+[Mac desktop `0.3.3`](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.3.3)
+is the first public preview for Apple silicon and Intel. Its exact signed source
+passed ARM64 Tart approval, fixture effects, Stop, tray Quit, and a `0.3.2` to
+`0.3.3` installed upgrade with permissions retained and grants revoked.
+Candidate `0.3.2` supplied the earlier signing and native acceptance baseline.
 [Tactical 051](../docs/tactical/051-tauri-macos-desktop.md) records the exact run
 and omissions. The application remains a developer preview; physical-host and
 Intel runtime acceptance are still open.

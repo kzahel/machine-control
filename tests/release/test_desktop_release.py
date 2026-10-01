@@ -94,11 +94,26 @@ class DesktopReleaseTests(unittest.TestCase):
         self.stage()
         assets = [{'name':p.name,'state':'uploaded','size':p.stat().st_size,
                    'digest':'sha256:'+hashlib.sha256(p.read_bytes()).hexdigest()} for p in self.output.iterdir()]
-        draft = {'tag_name':'desktop-v0.3.3','draft':True,'prerelease':False,'assets':assets}
+        draft = {'tag_name':'desktop-v0.3.3','draft':True,'prerelease':False,'assets':assets,'body':release.notes(VERSION)}
         release.check_upload(self.output,draft,VERSION)
+        draft['body'] = '- Different notes'
+        with self.assertRaises(ValueError):
+            release.check_upload(self.output,draft,VERSION)
+        draft['body'] = release.notes(VERSION)
         draft['assets'][0]['digest']='sha256:'+'0'*64
         with self.assertRaises(ValueError):
             release.check_upload(self.output,draft,VERSION)
+
+    def test_created_draft_resolved_by_id_and_exact_source(self):
+        draft = {'id':42,'tag_name':'desktop-v0.3.3','draft':True,'prerelease':False,'target_commitish':REVISION}
+        self.assertEqual(release.draft_id([{'tag_name':'workstation-v0.3.3'},draft],VERSION,REVISION),42)
+        for candidates in [[],[draft,draft]]:
+            with self.assertRaises(ValueError):
+                release.draft_id(candidates,VERSION,REVISION)
+        for key, value in [('id','42'),('id',True),('id',0),('draft',False),('prerelease',True),('target_commitish','b'*40)]:
+            changed = dict(draft);changed[key] = value
+            with self.subTest(key=key,value=value), self.assertRaises(ValueError):
+                release.draft_id([changed],VERSION,REVISION)
 
 
 if __name__ == '__main__':

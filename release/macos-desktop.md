@@ -38,6 +38,10 @@ asset set. It rechecks the remote tag and creates a draft. GitHub's uploaded
 asset hashes and sizes must match before that draft becomes public. Existing
 drafts/releases are refused; published bytes and tags are never replaced.
 A publication failure leaves its draft for diagnosis, not automatic clobbering.
+Draft verification and publication use the release ID; GitHub's by-tag endpoint
+resolves published releases. Recovery must authenticate the original CI
+packages and verify the existing draft's source, notes and complete asset hashes
+before publishing it. Do not recreate the draft or move the tag.
 
 The release includes:
 
@@ -92,6 +96,20 @@ the updater signature and its trusted version.
 ## Verify completion
 
 Check the successful workflow, public tag, downloaded package authenticity,
-website redirects for both architectures, and the intended updater response
-before calling a publication accepted. The first public publication has not
-been executed by the infrastructure change alone.
+website redirects for both architectures, and the published updater metadata
+before calling package publication accepted. Production in-app updates require
+separate feed deployment and installed-update acceptance.
+
+The first public preview is
+[`desktop-v0.3.3`](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.3.3),
+from source `15dbb63471dda2938cc9d2de905d28c33a8a2ef3`. The exact signed
+[candidate](https://github.com/kzahel/machine-control/actions/runs/36817620234)
+passed ARM64 Tart native UI and signed-upgrade acceptance. The
+[publication run](https://github.com/kzahel/machine-control/actions/runs/36820029330)
+passed both final package builds and staging, then left a complete draft when
+its by-tag lookup returned 404. Verified recovery published that same draft by
+ID after checking all nine uploaded assets, source identity, changelog and
+updater metadata. The workflow now uses IDs for draft verification/publication.
+Public package and website download verification is recorded in the
+[native distribution topic](../topics/native-distribution.md).
+The production in-app update feed remains undeployed.

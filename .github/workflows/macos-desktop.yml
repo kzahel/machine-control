@@ -171,6 +171,10 @@ jobs:
           remote_tag="$(gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" --jq .object.sha)"
           test "$remote_tag" = "$(git rev-parse "refs/tags/$RELEASE_TAG")"
           gh release create "$RELEASE_TAG" public-assets/* --verify-tag --target "$GITHUB_SHA" --draft --title "Machine Control desktop $RELEASE_VERSION" --notes-file release-notes.md
-          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > uploaded-release.json
+          # The by-tag endpoint only resolves published releases. Resolve the
+          # newly created draft from the authenticated list, then use its ID.
+          gh api "repos/$GH_REPO/releases?per_page=100" > created-releases.json
+          release_id="$(python3 desktop/scripts/release.py draft-id created-releases.json --version "$RELEASE_VERSION" --revision "$GITHUB_SHA")"
+          gh api "repos/$GH_REPO/releases/$release_id" > uploaded-release.json
           python3 desktop/scripts/release.py check-upload public-assets uploaded-release.json --version "$RELEASE_VERSION"
-          gh release edit "$RELEASE_TAG" --draft=false --latest=false
+          gh api --method PATCH "repos/$GH_REPO/releases/$release_id" -F draft=false -f make_latest=false > published-release.json

@@ -126,6 +126,8 @@ def check_upload(directory, release, version):
     if (release.get('tag_name') != 'desktop-v' + version
             or release.get('draft') is not True or release.get('prerelease') is not False):
         raise ValueError('Expected an unpublished desktop draft')
+    if release.get('body', '').strip() != notes(version).strip():
+        raise ValueError('Uploaded release notes must match the required changelog')
     files = {path.name: path for path in directory.iterdir() if path.is_file()}
     assets = release.get('assets', [])
     if len(assets) != len(files) or {asset.get('name') for asset in assets} != set(files):
@@ -136,6 +138,21 @@ def check_upload(directory, release, version):
         if (asset.get('state') != 'uploaded' or asset.get('size') != file.stat().st_size
                 or asset.get('digest') != 'sha256:' + digest):
             raise ValueError('Uploaded asset digest mismatch')
+
+
+def draft_id(releases, version, revision):
+    version_tuple(version)
+    matches = [release for release in releases if release.get('tag_name') == 'desktop-v' + version]
+    if len(matches) != 1:
+        raise ValueError('Expected exactly one created release draft')
+    release = matches[0]
+    identifier = release.get('id')
+    if (release.get('draft') is not True or release.get('prerelease') is not False
+            or not re.fullmatch(r'[0-9a-f]{40}', revision)
+            or release.get('target_commitish') != revision
+            or type(identifier) is not int or identifier <= 0):
+        raise ValueError('Created draft source or identity mismatch')
+    return identifier
 
 
 def main():
@@ -154,6 +171,10 @@ def main():
     uploaded.add_argument('directory', type=Path)
     uploaded.add_argument('file', type=Path)
     uploaded.add_argument('--version', required=True)
+    draft = sub.add_parser('draft-id')
+    draft.add_argument('file', type=Path)
+    for field in ('version', 'revision'):
+        draft.add_argument('--' + field, required=True)
     package = sub.add_parser('stage')
     package.add_argument('directory', type=Path)
     package.add_argument('output', type=Path)
@@ -170,6 +191,8 @@ def main():
         check_existing(json.loads(args.file.read_text()), args.version)
     elif args.command == 'check-upload':
         check_upload(args.directory, json.loads(args.file.read_text()), args.version)
+    elif args.command == 'draft-id':
+        print(draft_id(json.loads(args.file.read_text()), args.version, args.revision))
     else:
         stage(args.directory, args.output, args.version, args.revision, args.run, notes(args.version))
 

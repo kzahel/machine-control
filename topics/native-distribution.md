@@ -4,8 +4,10 @@ Topic: `native-distribution`
 
 Status: signed Windows workstation preview and direct YA Node/Codex consumer
 accepted; signed Mac desktop candidates are verified and accepted in ARM64
-Tart. Public release publication and YA download/update code are implemented;
-published-release acceptance and the Mac production update feed remain pending.
+Tart. Mac desktop `0.3.3` is published; public packages and latest download
+routes are verified. The Mac production update feed remains pending. YA
+download/update code is implemented, while public Windows consumer acceptance
+is open.
 
 ## Direction
 
@@ -67,9 +69,11 @@ UAC plus explicit account/controller/lifetime approval. The
 [protected unlock topic](windows-protected-unlock.md) owns its contract and
 [tactical 037](../docs/tactical/037-windows-unlock-arming.md) its native acceptance.
 
-**Open:** Complete first public release and packaged YepAnywhere acceptance;
-make macOS providers bundle-relative and prove consent across signed upgrades;
-package Linux dependencies and validate a workstation portal/input profile.
+**Open:** Complete the first public Windows release and packaged YepAnywhere
+acceptance; deploy the Mac production update feed and validate an installed
+feed update; package Linux dependencies and validate a workstation portal/input
+profile. Mac bundle-relative providers and signed-upgrade consent have passed
+ARM64 Tart acceptance.
 Keep actual routes and unsupported capabilities visible.
 
 **Current:** An isolated YepAnywhere experiment exercised a small authenticated
@@ -140,9 +144,11 @@ deploy a new YA server or hosted client.
 
 **Current:** the standalone Mac candidate has verified signed/notarized CI
 DMGs and updater archives for both architectures. The ARM64 app passed native
-Tart operator and installed-upgrade acceptance. This is a developer preview,
-with target-wide grants; Intel execution, physical-host acceptance, publication,
-and the first production-feed update remain separate gates. The evidence and
+Tart operator and installed-upgrade acceptance. The published `0.3.3` source
+also passed a signed `0.3.2` upgrade, visible approval/scope narrowing, independent
+fixture effects, global Stop, and tray Quit. This is a developer preview with
+target-wide grants; Intel execution, physical-host acceptance, and the first
+production-feed update remain separate gates. The evidence and
 bounded omissions live in [tactical 051](../docs/tactical/051-tauri-macos-desktop.md).
 
 **Decision:** Use the shared Tauri UX and Desktop Release Kit update contract
@@ -159,5 +165,15 @@ clean main checkout, explicit changelog notes, and annotated `desktop-v` tags.
 The main-only workflow requires exact tag/source identity, verifies both Mac
 packages and GitHub-uploaded hashes, and publishes the complete draft once.
 The website resolves the latest desktop DMGs independently of Windows component
-releases. No public desktop release has been published by this implementation;
-production updater routing and installed-feed acceptance remain open.
+releases. [Mac desktop 0.3.3](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.3.3)
+is the first public preview. Both final packages passed
+[CI signing and publication staging](https://github.com/kzahel/machine-control/actions/runs/36820029330).
+The first publication stopped after upload because its by-tag lookup could not
+resolve the draft. Recovery authenticated both exact CI packages, checked all
+nine draft asset hashes/sizes, source identity, changelog and updater metadata,
+then published the same draft by ID without replacing bytes or its tag. Future
+CI publication now resolves and verifies the draft by ID. Both re-downloaded
+public DMGs and archives passed publisher signatures, notarization/stapling,
+updater signature/version and tamper rejection. The live download page selects
+`0.3.3`; both architecture routes redirect to its exact installers. Production
+updater routing and installed-feed acceptance remain open.

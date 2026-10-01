@@ -112,8 +112,8 @@ platform has the same implementation.
 
 The optional [Tauri desktop app](desktop/README.md) supplies setup, visible
 approval, activity, and menu-bar controls over the native resident. The signed
-Mac candidate is accepted in ARM64 Tart; Windows/Linux operator adapters and
-physical-host acceptance remain open. Headless control remains independent.
+Mac preview is published and accepted in ARM64 Tart; Windows/Linux operator
+adapters and physical-host acceptance remain open. Headless control remains independent.
 The [desktop release process](release/macos-desktop.md) owns tagged publication
 and [latest Mac downloads](https://machinecontrol.dev/downloads/).
 
