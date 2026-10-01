@@ -2,7 +2,8 @@
 param([Parameter(Mandatory=$true)][string]$Executable,
  [Parameter(Mandatory=$true)][string]$Chrome,
  [Parameter(Mandatory=$true)][string]$Fixture,
- [Parameter(Mandatory=$true)][string]$EvidencePath)
+ [Parameter(Mandatory=$true)][string]$EvidencePath,
+ [string]$InstallerHelper)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $summary=[ordered]@{schema='machine-control-windows-browser-probe/v0';passed=$false}
@@ -121,6 +122,28 @@ try {
  Assert (Operator @{method='arm';scopes=@('devtools');duration=60}).ok 'Bounded expiry grant'
  Start-Sleep -Seconds 61
  Assert ((Call @{operation='browser.eval';tabId=$tab;expression='document.title'}).errorCode -eq 'approval_required') 'Live DevTools grant expiry'
+ if($InstallerHelper){
+  $installation=Split-Path (Split-Path $Executable)
+  Assert ((Join-Path $installation 'runtime\machine-control-windows.exe') -eq $Executable) 'Maintenance probe uses installed directory shape'
+  $hash=(Get-FileHash $manifest -Algorithm SHA256).Hash
+  Assert (Operator @{method='quit'}).ok 'Stop resident before installer maintenance'
+  Assert ($runtime.WaitForExit(10000)) 'Resident exits before replacement'
+  & $InstallerHelper browser-install-prepare $installation
+  Assert ($LASTEXITCODE -eq 0) 'Incoming helper pauses real Chrome native messaging'
+  Assert (-not(Test-Path $manifest) -and (Get-FileHash ($manifest+'.updating') -Algorithm SHA256).Hash -eq $hash) 'Maintenance retains exact owned manifest'
+  Start-Sleep -Seconds 6
+  $hosts=@(Get-CimInstance Win32_Process|Where-Object {$_.Name -eq 'machine-control-windows.exe' -and $_.ExecutablePath -eq $Executable})
+  Assert (-not $hosts.Count) 'Paused Chrome retries leave no installed executable open'
+  $runtime.Dispose();$runtime=[Diagnostics.Process]::Start($start)
+  $runtime.StandardInput.WriteLine((@{method='hello';processId=$PID}|ConvertTo-Json -Compress));$runtime.StandardInput.Flush()
+  $hello=$runtime.StandardOutput.ReadLineAsync()
+  Assert ($hello.Wait(10000) -and ($hello.Result|ConvertFrom-Json).ok) 'Resident starts after interrupted maintenance'
+  Assert ((Get-FileHash $manifest -Algorithm SHA256).Hash -eq $hash -and -not(Test-Path ($manifest+'.updating'))) 'Startup restores exact maintenance manifest'
+  Assert ((Call @{operation='browser.tabs'}).errorCode -eq 'approval_required') 'Maintenance recovery keeps access off'
+  $deadline=[DateTime]::UtcNow.AddSeconds(45)
+  do{$state=(Operator @{method='state'}).state;if($state.browser.connected){break};Start-Sleep -Milliseconds 200}while([DateTime]::UtcNow -lt $deadline)
+  Assert $state.browser.connected 'Original Chrome reconnects after maintenance recovery'
+ }
  $summary.passed=$true
 } catch {$summary.error=$_.Exception.Message;$summary.location=$_.ScriptStackTrace;throw}
 finally {

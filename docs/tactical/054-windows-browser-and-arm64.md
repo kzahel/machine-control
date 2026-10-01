@@ -90,8 +90,10 @@ this is not an accepted update. The incoming 0.4.6 installer temporarily hides
 only the owning manifest, waits for those processes to exit, then restores its
 exact bytes and unchanged registry value after extraction. Startup recovers an
 interrupted maintenance marker. Native ownership, collision, invalid-origin,
-restoration and noninteractive uninstall probes pass; signed update acceptance
-of this fix remains pending. Real cold-boot/stored-credential sign-in startup of
+restoration and noninteractive uninstall probes pass. Real Chrome also passes
+maintenance pause, retry suppression, interrupted-state startup recovery and
+reconnection with access off. Signed update acceptance of this fix remains
+pending. Real cold-boot/stored-credential sign-in startup of
 0.4.5 passes with revoked authority. A separate SSH transport failure was
 recovered through the claimed native lifecycle route, without outer UI.
 
@@ -100,3 +102,11 @@ credential handoff. The accepted remote x64 target has verified identity and a
 stored credential. Local ARM64 provisioning is a separate target-selection
 question; no ARM64 execution is inferred from cross-build or prior component
 acceptance.
+
+Exact candidate identities:
+
+| Version | Source | Workflow | Accepted boundary |
+| --- | --- | --- | --- |
+| 0.4.4 | `9890fbc65eb9ad1ebb2c7340d5cb1816601c9a17` | [36932907245](https://github.com/kzahel/machine-control/actions/runs/36932907245) | x64 installed UI/lifecycle and browser tasks; both architecture packages verified |
+| 0.4.5 | `37608c6e8094a2ee54d56ab0a0a7924bf6fec072` | [36935615977](https://github.com/kzahel/machine-control/actions/runs/36935615977) | x64 browser task, outside/local effects/artifacts and real login startup; both packages verified; browser-open update not accepted |
+| 0.4.6 | `fae55064c042cfc026071880333916a573658bb9` | [36941024448](https://github.com/kzahel/machine-control/actions/runs/36941024448) | Build and signed acceptance pending |

@@ -4,8 +4,9 @@ Topic: `browser-control`
 
 Status: source-native developer preview accepted with Chrome for Testing in a
 Tart guest and a per-tab CDP bridge exercised against real Chrome on the Mac.
-Windows source-native browser conformance now passes on x64; exact signed
-Tauri browser acceptance remains open. The [provider dossier](../research/providers/chrome-extension.md)
+Windows source-native and exact signed x64 Tauri browser tasks pass, including
+local/outside effects and artifacts. Browser-open updater repair acceptance
+remains open. The [provider dossier](../research/providers/chrome-extension.md)
 owns platform evidence and omissions.
 [Tactical 050](../docs/tactical/050-macos-host-control-mvp.md) owns the first
 slice.

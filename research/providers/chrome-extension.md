@@ -28,7 +28,8 @@ tab lifecycle APIs. It is not the approval authority.
 | --- | --- | --- |
 | macOS source-native extension/native messaging | `conformance-tested` | Fixture effects, navigation, capture and provider refusal in a Tart guest; predates signed Tauri acceptance |
 | macOS per-tab raw CDP WebSocket | `live-tested` | Reads/actions/events on physical and guest Chrome; browser-level attachment absent |
-| Windows source-native extension/native messaging | `conformance-tested` | Dedicated x64 VM, browser/devtools enforcement, independent fixture effects and PNG/hash checks; signed installed acceptance pending |
+| Windows source-native extension/native messaging | `conformance-tested` | Dedicated x64 VM, browser/devtools enforcement, independent fixture effects and PNG/hash checks; exact installed evidence below |
+| Windows signed Tauri extension/native messaging | `conformance-tested` | Exact 0.4.5 x64 VM package; UI setup/approval, independent effects/capture, restart and local/outside browser parity; browser-open update repair acceptance pending |
 | Linux and other Chromium browsers | `upstream-claimed` facilities only | Owned registration and product acceptance absent |
 
 [Tactical 050](../../docs/tactical/050-macos-host-control-mvp.md) and
@@ -60,5 +61,8 @@ execution is inferred from the x64 browser evidence.
 
 **Decision:** Retain this target-native route behind the common facade. A
 remote caller transports the same resident operations; it does not manipulate
-a VM window. Accept exact signed Windows installation, setup, grants,
-reconnect, uninstall, and update before promoting the Windows product claim.
+a VM window. Signed Windows setup, grants, fixture tasks, reconnect and
+local/outside artifact transfer now pass. Browser-open updater replacement must
+also pass before promoting the Windows product claim. The incoming installer
+pauses only the owning native-host manifest during replacement, preventing
+Chrome retries from locking its executable.

@@ -50,8 +50,9 @@ owns this product-specific evidence.
 
 **Current — browser route:** The owned [Chrome extension](../providers/chrome-extension.md)
 now connects to the ordinary desktop resident through Windows native messaging.
-Source-native x64 fixture conformance passes; exact signed installed browser
-acceptance remains in [Tactical 054](../../docs/tactical/054-windows-browser-and-arm64.md).
+Source-native and exact signed x64 browser fixture conformance pass, including
+local/outside effects and artifacts. Browser-open updater repair acceptance
+remains in [Tactical 054](../../docs/tactical/054-windows-browser-and-arm64.md).
 
 ## Candidate matrix
 

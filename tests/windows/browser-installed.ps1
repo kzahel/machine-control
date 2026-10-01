@@ -7,6 +7,7 @@ param([Parameter(Mandatory=$true)][string]$Install,
  [Parameter(Mandatory=$true)][string]$EvidencePath,
  [switch]$Lock,
  [switch]$StartupRecovery,
+ [switch]$RemoteProbe,
  [string]$UpdateVersion,
  [string]$UpdateRevision,
  [string]$UpdatePayload)
@@ -99,6 +100,7 @@ try{
  $button=@($snap.data.elements|Where-Object {$_.name -eq 'Increment browser counter'})[0].reference
  Accepted (Call @{operation='browser.click';reference=$button})|Out-Null
  Effect counter 1;Assert $true 'Independent installed browser counter effect'
+ $counter=1
  $text='signed-'+[Guid]::NewGuid().ToString('n')
  Accepted (Call @{operation='browser.type';reference=@($snap.data.elements|Where-Object {$_.name -eq 'Message'})[0].reference;text=$text})|Out-Null
  Accepted (Call @{operation='browser.click';reference=@($snap.data.elements|Where-Object {$_.name -eq 'Save message'})[0].reference})|Out-Null
@@ -115,6 +117,17 @@ try{
  Assert ((Accepted (Call @{operation='browser.eval';tabId=$tab;expression='document.title'})).data.value -eq 'Machine Control Browser Fixture') 'Installed DevTools grant reaches page main world'
  $cdp=Accepted (Call @{operation='browser.cdp';tabId=$tab;method='Runtime.evaluate';params=@{expression='document.title';returnByValue=$true}})
  Assert ($cdp.data.result.result.value -eq 'Machine Control Browser Fixture') 'Installed raw CDP method and parameters reach page'
+ if($RemoteProbe){
+  $ready=$EvidencePath+'.remote-ready.json';$done=$EvidencePath+'.remote-done.json'
+  Remove-Item $done -ErrorAction SilentlyContinue
+  @{generation=(Call @{operation='status'}).generation;tabId=$tab}|ConvertTo-Json|Set-Content $ready -Encoding UTF8
+  $deadline=[DateTime]::UtcNow.AddSeconds(150)
+  while(-not(Test-Path $done)){if([DateTime]::UtcNow -gt $deadline){throw 'Outside browser probe did not complete'};Start-Sleep -Milliseconds 200}
+  $outside=Get-Content $done -Raw|ConvertFrom-Json
+  Assert $outside.passed 'Outside common browser CLI and artifact verification complete'
+  Effect counter 2;$counter=2
+  Assert $true 'Independent browser effect from outside common CLI'
+ }
  Press 'Stop access'
  Press 'Settings';Press 'Restart'
  $deadline=[DateTime]::UtcNow.AddSeconds(15)
@@ -171,11 +184,11 @@ try{
   Assert $connected 'Extension reconnects after signed update'
   Grant @('devtools')
   Assert ((Call @{operation='browser.click';reference=$oldReference}).errorCode -eq 'stale_reference') 'Updated browser refuses pre-update reference'
-  Effect counter 1
+  Effect counter $counter
   Assert ((Accepted (Call @{operation='browser.eval';tabId=$tab;expression='document.title'})).data.value -eq 'Machine Control Browser Fixture') 'Updated browser retains original page'
   $fresh=Accepted (Call @{operation='browser.snapshot';tabId=$tab;interactiveOnly=$true})
   Accepted (Call @{operation='browser.click';reference=@($fresh.data.elements|Where-Object {$_.name -eq 'Increment browser counter'})[0].reference})|Out-Null
-  Effect counter 2;Assert $true 'Independent browser effect after signed replacement'
+  Effect counter ($counter+1);Assert $true 'Independent browser effect after signed replacement'
   Press 'Stop access'
  }
  if($StartupRecovery){
