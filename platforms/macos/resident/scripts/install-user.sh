@@ -24,6 +24,12 @@ USAGE
 }
 
 stop_agent() {
+    # A restarted app can outlive its original LaunchAgent job. Ask the
+    # installed resident to exit before unloading the job or replacing bytes.
+    local client="$INSTALLED_APP/Contents/MacOS/macui"
+    if [[ -x "$client" && -S "$SOCKET" ]]; then
+        "$client" request "$SOCKET" '{"operation":"server.stop"}' >/dev/null 2>&1 || true
+    fi
     /bin/launchctl bootout "$DOMAIN/$LABEL" >/dev/null 2>&1 || true
     /bin/rm -f "$SOCKET"
 }
@@ -73,7 +79,8 @@ trap '/bin/rm -f -- "$temporary"' EXIT
 /usr/bin/plutil -lint "$temporary" >/dev/null
 /usr/bin/install -m 600 "$temporary" "$AGENT"
 /bin/launchctl bootstrap "$DOMAIN" "$AGENT"
-/bin/launchctl kickstart -k "$DOMAIN/$LABEL" >/dev/null
+# RunAtLoad starts it. A second forced launch can race the first resident's
+# socket shutdown and make the new process mistake it for another instance.
 
 client="$INSTALLED_APP/Contents/MacOS/macui"
 for _ in {1..50}; do

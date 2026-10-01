@@ -47,7 +47,7 @@ public func mcDesktopStart(_ path: UnsafePointer<CChar>) -> UnsafeMutablePointer
     do {
         let socketPath = String(cString: path).isEmpty ? defaultResidentSocket : String(cString: path)
         // Never unlink another resident's live endpoint.
-        let existing = socket(AF_UNIX, SOCK_STREAM, 0)
+        let existing = try residentSocket()
         defer { Darwin.close(existing) }
         var (address, length) = try unixAddress(socketPath)
         if withSockAddr(&address, length: length, { Darwin.connect(existing, $0, $1) }) == 0 {

@@ -6,8 +6,7 @@ import Foundation
 /// messages to the resident socket as JSON lines and back.
 func runBrowserHost(origin: String) -> Never {
     let socketPath = defaultResidentSocket
-    let resident = socket(AF_UNIX, SOCK_STREAM, 0)
-    guard resident >= 0, let unix = try? unixAddress(socketPath) else {
+    guard let resident = try? residentSocket(), let unix = try? unixAddress(socketPath) else {
         FileHandle.standardError.write(Data("Machine Control resident is unavailable\n".utf8))
         exit(1)
     }

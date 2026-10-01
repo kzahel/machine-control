@@ -7,6 +7,7 @@ use tauri::{
     Emitter, Manager,
 };
 use tauri_plugin_updater::UpdaterExt;
+mod restart;
 
 #[cfg(target_os = "macos")]
 extern "C" {
@@ -64,6 +65,27 @@ async fn operator_command(
         .map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+async fn restart_application(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("Operator window required".into());
+    }
+    let (send, receive) = std::sync::mpsc::channel();
+    let handle = app.clone();
+    app.run_on_main_thread(move || {
+        let result =
+            native_command(json!({"method":"stop"})).and_then(|_| restart::request(&handle));
+        let _ = send.send(result);
+    })
+    .map_err(|e| e.to_string())?;
+    receive
+        .recv_timeout(std::time::Duration::from_secs(10))
+        .map_err(|e| e.to_string())?
+}
+
 /// Keep the lifecycle gate in native code, outside the web presentation.
 #[tauri::command]
 async fn install_update(
@@ -94,16 +116,12 @@ async fn install_update(
         // Check immediately before replacement on the resident's serial
         // main thread. No grant or approval can race bundle replacement.
         let result = native_command(json!({"method":"prepare_update"}))
-            .and_then(|_| update.install(bytes).map_err(|e| e.to_string()));
-        if result.is_ok() {
-            // Preserve Exit events so the single-instance plugin releases
-            // its endpoint before the replacement process starts.
-            restart.request_restart();
-            let _ = send.send(Ok(()));
-        } else {
+            .and_then(|_| update.install(bytes).map_err(|e| e.to_string()))
+            .and_then(|_| restart::request(&restart));
+        if result.is_err() {
             let _ = native_command(json!({"method":"cancel_update"}));
-            let _ = send.send(result.map(|_| ()));
         }
+        let _ = send.send(result);
     })
     .map_err(|e| e.to_string())?;
     receive
@@ -121,7 +139,7 @@ fn main() {
             std::process::exit(if mode > 0 { 0 } else { 1 });
         }
     }
-    if !(args.is_empty() || args.first().is_some_and(|v| v == "serve") && args.len() == 2) {
+    if !restart::valid_launch_args(&args) {
         eprintln!("Usage: macui [serve SOCKET | request SOCKET [JSON] | credential SOCKET LEASE | screen-capture-preflight]");
         std::process::exit(2);
     }
@@ -138,8 +156,11 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![operator_command, install_update])
+        .invoke_handler(tauri::generate_handler![
+            operator_command,
+            install_update,
+            restart_application
+        ])
         .setup(move |app| {
             #[cfg(target_os = "macos")]
             {

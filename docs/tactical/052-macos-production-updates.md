@@ -100,10 +100,30 @@ without a running PID. Installed production-update acceptance therefore
 remains incomplete. The original app, policy, LaunchAgent and suspended state
 were restored, owned guest staging was removed, and the claim was released.
 
-**Decision:** Route updater restart through Tauri's event loop. The old main-thread
-`restart()` bypasses Exit events; the single-instance plugin removes its endpoint
-on Exit. `request_restart()` preserves that cleanup. Prove this correction with
-a signed older-version fixture updating through the actual public feed before
-publishing the next patch. Older published senders cannot be changed: their first
-update may require reopening the installed app. Keep that limitation explicit.
-Do not move the 0.3.4 tag or replace its published bytes.
+**Current:** The event-loop-only repair was built as a signed 0.3.3 fixture
+from `35a77bee7ec2d49c9e715bce9fad64d0451ad8d7` in
+[CI](https://github.com/kzahel/machine-control/actions/runs/36839781314).
+Both architecture packages passed independent authentication and tamper checks,
+but the installed fixture still failed automatic relaunch after updating to
+public 0.3.4. Application, policy, LaunchAgent, power and claim were restored.
+
+**Current:** A native launchd diagnostic observed an ordinary child's delayed
+file effect disappear when its parent exited; explicit process-group/session
+children completed. The diagnostic's assumption about the ordinary child's
+reported group was false, so only the independently observed effects are
+accepted evidence. A separate regression test reproduced inheritance of the
+resident's live Unix listener by a plain spawned child. The close-on-exec repair
+passes that test and all 45 resident tests. Local ad-hoc application attempts
+failed readiness before testing the proposed handoff; they do not establish
+signed lifecycle or permission acceptance.
+
+**Decision:** Use a bounded Mac restart helper in its own process group. Wait
+for the old process to exit, preserving normal Tauri Exit cleanup, then execute
+the installed binary with its original arguments. Mark native sockets
+close-on-exec. Permissions Restart revokes access through the same native
+handoff. Installer maintenance stops the live resident, including a detached
+replacement, and relies on RunAtLoad rather than a second forced startup.
+Prove this correction with a signed older-version fixture updating through the
+actual public feed before publishing the next patch. Older published senders
+cannot be changed: their first update may require reopening the installed app.
+Keep that limitation explicit. Do not move the 0.3.4 tag or replace its bytes.

@@ -11,6 +11,15 @@ Do not run it on a personal workstation.
 When the candidate occupies the canonical installation, supply a separate
 source-native appliance with `--operator-app` and `--operator-socket`.
 
+`tauri-update.py` uses that same separate observer to check production update
+discovery, disabled installation during active access, explicit Stop, signed
+replacement, relaunch, permission readiness, access revocation, and stale
+reference refusal. Supply the authenticated sender and expected release
+versions. `--verify-restart-before` and `--verify-restart-after` also exercise
+the Permissions Restart button. `--legacy-reopen` permits one native reopen
+for published 0.3.3/0.3.4 senders and reports it separately from automatic
+relaunch. The caller owns installation, fixture setup, and restoration.
+
 The macOS corpus drives the target-resident facade owned by
 `platforms/macos`. `conformance.sh` runs the same request vocabulary
 through two placements:

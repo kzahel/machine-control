@@ -3,6 +3,22 @@ import ApplicationServices
 import Darwin
 import Foundation
 
+/// Resident endpoints must not survive in restarted apps or tool children.
+func closeOnExec(_ descriptor: Int32) throws {
+    let flags = fcntl(descriptor, F_GETFD)
+    guard flags >= 0, fcntl(descriptor, F_SETFD, flags | FD_CLOEXEC) == 0 else {
+        throw MacUIError.action("Unable to protect Unix socket from inheritance")
+    }
+}
+
+func residentSocket() throws -> Int32 {
+    let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
+    guard descriptor >= 0 else { throw MacUIError.action("Unable to create Unix socket") }
+    do { try closeOnExec(descriptor) }
+    catch { Darwin.close(descriptor); throw error }
+    return descriptor
+}
+
 func encodeJSONLine(_ object: [String: Any]) throws -> Data {
     var data = try JSONSerialization.data(withJSONObject: object,
                                            options: [.sortedKeys])
@@ -105,8 +121,9 @@ final class ResidentServer {
     }
 
     func start() throws {
-        let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard descriptor >= 0 else { throw MacUIError.action("Unable to create Unix socket") }
+        let descriptor = try residentSocket()
+        var started = false
+        defer { if !started { Darwin.close(descriptor) } }
         unlink(socketPath)
         var (address, length) = try unixAddress(socketPath)
         guard withSockAddr(&address, length: length, {
@@ -128,6 +145,7 @@ final class ResidentServer {
         timer.setEventHandler { [weak self] in self?.tick() }
         timer.resume()
         ticker = timer
+        started = true
     }
 
     private func tick() {
@@ -147,6 +165,8 @@ final class ResidentServer {
     private func acceptPending() {
         let client = accept(listener, nil, nil)
         guard client >= 0 else { return }
+        do { try closeOnExec(client) }
+        catch { Darwin.close(client); return }
         // A stalled client must not wedge the single-threaded resident.
         var timeout = timeval(tv_sec: 5, tv_usec: 0)
         setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout,
@@ -536,8 +556,7 @@ func ownWindowFrames(_ processID: pid_t, extra: [NSWindow] = []) -> [CGRect] {
 }
 
 func runResidentClient(socketPath: String, requestData: Data) throws {
-    let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
-    guard descriptor >= 0 else { throw MacUIError.action("Unable to create Unix socket") }
+    let descriptor = try residentSocket()
     defer { Darwin.close(descriptor) }
     var (address, length) = try unixAddress(socketPath)
     guard withSockAddr(&address, length: length, {
@@ -566,10 +585,7 @@ func runCredentialClient(socketPath: String, leaseID: String) throws {
         throw MacUIError.usage("Credential must contain 1 through 256 bytes")
     }
 
-    let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
-    guard descriptor >= 0 else {
-        throw MacUIError.action("Unable to create Unix socket")
-    }
+    let descriptor = try residentSocket()
     defer { Darwin.close(descriptor) }
     var (address, length) = try unixAddress(socketPath)
     guard withSockAddr(&address, length: length, {

@@ -197,6 +197,6 @@ links and both architecture feeds are verified.
 
 The installed public 0.3.3 test discovered and installed public 0.3.4, but
 automatic relaunch failed. [Tactical 052](../docs/tactical/052-macos-production-updates.md)
-owns the observed failure, cleanup and event-loop restart repair. Older
+owns the observed failure, cleanup and bounded native restart repair. Older
 0.3.3/0.3.4 senders may require reopening the app after installation; full
 installed-update acceptance remains open until the signed repair is exercised.

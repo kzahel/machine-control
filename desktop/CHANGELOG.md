@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- Relaunch through the application event loop after installing an update.
+- Reliable Restart and relaunch after signed updates.
 
 When updating from 0.3.3 or 0.3.4, reopen Machine Control if it closes after
 installation. Those versions can install the update but miss automatic relaunch.

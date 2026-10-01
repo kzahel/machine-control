@@ -597,8 +597,7 @@ final class ResidentService {
               info.st_mode & S_IFMT == S_IFSOCK else {
             throw MacUIError.permission("unlock_not_installed")
         }
-        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else { throw MacUIError.action("unlock_helper_unreachable") }
+        let fd = try residentSocket()
         var (address, length) = try unixAddress(path)
         guard withSockAddr(&address, length: length, { Darwin.connect(fd, $0, $1) }) == 0 else {
             Darwin.close(fd); throw MacUIError.action("unlock_helper_unreachable")

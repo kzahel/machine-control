@@ -72,6 +72,34 @@ final class ServerTests: XCTestCase {
         XCTAssertEqual((deployment?["policy"] as? [String: Any])?["preset"] as? String, "workstation")
     }
 
+    func testReplacementCannotInheritResidentListener() throws {
+        // Discover the real server endpoint without exposing its private FD.
+        let descriptor = try XCTUnwrap((3..<1024).first { fd in
+            var address = sockaddr_un()
+            var length = socklen_t(MemoryLayout.size(ofValue: address))
+            guard withUnsafeMutablePointer(to: &address, {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    Darwin.getsockname(Int32(fd), $0, &length)
+                }
+            }) == 0, address.sun_family == AF_UNIX else { return false }
+            return withUnsafePointer(to: &address.sun_path) {
+                $0.withMemoryRebound(to: CChar.self, capacity: 104) {
+                    String(cString: $0) == socketPath
+                }
+            }
+        })
+        // Use plain posix_spawn, without a framework closing descriptors for
+        // us. A replacement must not keep this socket alive after our exit.
+        let arguments = ["/bin/sh", "-c", "test ! -S /dev/fd/$1", "mc-inheritance", String(descriptor)]
+        var argv = arguments.map { strdup($0) } + [nil]
+        defer { argv.forEach { free($0) } }
+        var pid: pid_t = 0
+        XCTAssertEqual(posix_spawn(&pid, "/bin/sh", nil, nil, &argv, environ), 0)
+        var status: Int32 = 0
+        XCTAssertEqual(waitpid(pid, &status, 0), pid)
+        XCTAssertEqual(status, 0, "Replacement inherited the resident listener")
+    }
+
     func testRequestWithoutApproverIsRefused() {
         let result = call(["operation": "grant.request", "scopes": ["observe"], "reason": "t"])
         XCTAssertEqual(result["errorCode"] as? String, "approval_unavailable")

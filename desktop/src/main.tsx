@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { relaunch } from "@tauri-apps/plugin-process";
 import { check } from "@tauri-apps/plugin-updater";
 import {
   Activity,
@@ -327,7 +326,21 @@ function App() {
             </section>
             <div className="restart-row">
               <p className="note">Restart after changing Screen Recording.</p>
-              <button onClick={() => void relaunch()}>Restart</button>
+              <button
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError("");
+                  try {
+                    await invoke("restart_application");
+                  } catch (e) {
+                    setError(String(e));
+                    setBusy(false);
+                  }
+                }}
+              >
+                Restart
+              </button>
             </div>
           </>
         )}
