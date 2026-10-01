@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [0.4.1]
+
+- Guard Windows taskbar and tray controls owned by Explorer.
+- Refuse operator clicks through transparent provider cursor overlays.
+- Report Windows local host grant state through the common CLI.
+
+This Windows acceptance candidate also exercises the signed upgrade from 0.4.0.
+Windows publication remains gated by installed acceptance.
+
 ## [0.4.0]
 
 - Windows desktop preview with shared settings and tray controls.
