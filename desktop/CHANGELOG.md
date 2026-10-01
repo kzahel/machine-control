@@ -5,6 +5,8 @@
 ## [0.4.4]
 
 - Add Windows Chrome extension setup and scoped browser control.
+- Rebuild self-contained Windows packages and reject missing native runtime
+  companions or extension files before candidate acceptance.
 - Keep browser scripts and raw DevTools behind a separate approval scope.
 - Refuse stale browser references after grant or provider changes and report
   uncertain delivery when a browser request times out.

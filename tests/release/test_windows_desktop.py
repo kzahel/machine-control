@@ -51,7 +51,10 @@ class WindowsDesktopTests(unittest.TestCase):
                 {'name': name, 'size': 1, 'sha256': 'b' * 64} for name in (
                     'machine-control.exe', 'uninstall.exe', 'runtime/desktop-runtime.json',
                     'runtime/machine-control-windows.exe', 'runtime/package.cat',
-                    'runtime/providers/cua/cua-driver.exe')]}))
+                    'runtime/providers/cua/cua-driver.exe',
+                    'runtime/D3DCompiler_47_cor3.dll', 'runtime/PenImc_cor3.dll',
+                    'runtime/PresentationNative_cor3.dll', 'runtime/vcruntime140_cor3.dll',
+                    'runtime/wpfgfx_cor3.dll')]}))
         package.evidence(self.directory, target=TARGET, version=VERSION, revision=REVISION, run='123.1')
 
     def verify(self, **changes):
@@ -64,6 +67,25 @@ class WindowsDesktopTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.verify()
         package.evidence(self.directory, target=TARGET, version=VERSION, revision=REVISION, run='123.1')
         with self.assertRaises(ValueError): self.verify()  # Rehashed metadata cannot forge the signature.
+
+    def test_incomplete_native_runtime_inventory_is_rejected(self):
+        path = self.directory / 'payload.json'
+        payload = json.loads(path.read_text())
+        payload['files'] = [item for item in payload['files']
+                            if item['name'] != 'runtime/PresentationNative_cor3.dll']
+        path.write_text(json.dumps(payload))
+        package.evidence(self.directory, target=TARGET, version=VERSION, revision=REVISION, run='123.1')
+        with self.assertRaisesRegex(ValueError, 'Installed inventory'):
+            self.verify()
+
+    def test_browser_candidate_requires_extension_inventory(self):
+        path = self.directory / 'payload.json'
+        payload = json.loads(path.read_text()); payload['version'] = '0.4.4'
+        path.write_text(json.dumps(payload))
+        package.evidence(self.directory, target=TARGET, version='0.4.4', revision=REVISION, run='123.1')
+        with patch.object(package, 'ROOT', self.root):
+            with self.assertRaisesRegex(ValueError, 'Installed inventory'):
+                package.verify(self.directory, revision=REVISION, version='0.4.4', run='123.1', target=TARGET)
 
     def test_source_workflow_target_and_version_fences(self):
         path = self.directory / 'build.json'

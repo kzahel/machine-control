@@ -75,7 +75,15 @@ def verify(directory, *, revision, version, run=None, target=None, tamper=False)
         payload_names.add(name)
     required = {'machine-control.exe', 'uninstall.exe', 'runtime/desktop-runtime.json',
                 'runtime/machine-control-windows.exe', 'runtime/package.cat',
-                'runtime/providers/cua/cua-driver.exe'}
+                'runtime/providers/cua/cua-driver.exe',
+                'runtime/PenImc_cor3.dll',
+                'runtime/PresentationNative_cor3.dll', 'runtime/vcruntime140_cor3.dll',
+                'runtime/wpfgfx_cor3.dll'}
+    if value['arch'] == 'x64':
+        required.add('runtime/D3DCompiler_47_cor3.dll')
+    if tuple(int(part) for part in version.split('.')) >= (0, 4, 4):
+        required.update({'runtime/browser-extension/manifest.json',
+                         'runtime/browser-extension/service_worker.js'})
     if not required.issubset(payload_names):
         raise ValueError('Installed inventory must be relative to the product root')
     with tempfile.TemporaryDirectory(prefix='mc-windows-verify-') as tmp:

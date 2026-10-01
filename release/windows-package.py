@@ -73,12 +73,18 @@ def build(directory, rid, revision, provider_digest=None, desktop_companion=Fals
         raise ValueError('Full source revision required')
     directory.mkdir(parents=True)
     command = ['dotnet', 'publish', str(ROOT / 'src/MachineControl.Windows/MachineControl.Windows.csproj'),
-               '-c', 'Release', '-r', rid, '--self-contained', 'true', '-o', str(directory)]
+               '-c', 'Release', '-r', rid, '--self-contained', 'true', '-o', str(directory), '-t:Rebuild']
     if provider_digest:
         if not re.fullmatch('[0-9a-f]{64}', provider_digest):
             raise ValueError('Invalid signed provider digest')
         command.append('-p:CuaExecutableSha256=' + provider_digest)
     subprocess.run(command, check=True)
+    companions = {'PenImc_cor3.dll',
+                  'PresentationNative_cor3.dll', 'vcruntime140_cor3.dll', 'wpfgfx_cor3.dll'}
+    if rid == 'win-x64':
+        companions.add('D3DCompiler_47_cor3.dll')
+    if not all((directory / name).is_file() for name in companions):
+        raise ValueError('Self-contained Windows publish is missing native WPF companions')
     # Default build keeps the exact pinned provider bytes. Signing builds replace
     # this directory with the separately verified/signed copy before finalizing.
     fetch_provider(directory, rid)
