@@ -705,6 +705,17 @@ internal sealed class CuaDriverHost
             {
                 using var document = JsonDocument.Parse(
                     invocation.StandardOutput);
+                // The daemon CLI unwraps MCP tool content without propagating
+                // isError to its process exit code. A JSON tool error is a
+                // refusal, including superseded snapshot tokens, not delivery.
+                if (document.RootElement.ValueKind == JsonValueKind.Object &&
+                    ((document.RootElement.TryGetProperty("status", out var status) &&
+                      status.GetString() == "refused") ||
+                     (document.RootElement.TryGetProperty("error", out var error) &&
+                      error.ValueKind is not (JsonValueKind.Null or JsonValueKind.False)) ||
+                     (document.RootElement.TryGetProperty("isError", out var isError) &&
+                      isError.ValueKind == JsonValueKind.True)))
+                    throw ClassifyFailure(invocation, tool);
                 return new CuaCallResult(
                     document.RootElement.Clone(),
                     invocation.ElapsedMs);

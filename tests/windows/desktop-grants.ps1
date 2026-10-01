@@ -56,6 +56,13 @@ try {
     Assert ($bytes.Length -gt 1000 -and [BitConverter]::ToString($bytes[0..7]) -eq '89-50-4E-47-0D-0A-1A-0A') 'PNG bytes'
     Assert ((Get-FileHash -LiteralPath $capturePath -Algorithm SHA256).Hash.ToLowerInvariant() -eq $capture.data.sha256) 'Capture hash'
     Remove-Item -LiteralPath $capturePath
+    if ($capture.actualRoute -match '/cua/') {
+        $superseded = Call @{operation='invoke'; reference=$button.reference; expectedGeneration=$generation}
+        Assert (-not $superseded.accepted -and $superseded.errorCode -eq 'stale_or_unknown_reference' -and $superseded.delivery -eq 'refused') 'Superseded Cua snapshot reference refused'
+        $effect = Get-Content -LiteralPath $marker -Raw | ConvertFrom-Json
+        Assert ($effect.counter -eq 1) 'No replay or effect for a superseded reference'
+        $summary.captureInvalidatedReference = $true
+    }
 
     $self = Call @{operation='type'; text='must refuse'; processId=$PID}
     Assert (-not $self.accepted -and $self.errorCode -eq 'self_target_refused') 'Own operator targeting'

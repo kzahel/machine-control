@@ -23,6 +23,12 @@ public static class DesktopFixtureInput {
  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hwnd,uint message,IntPtr wParam,IntPtr lParam);
  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
  [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string className,string title);
+ [DllImport("user32.dll",EntryPoint="FindWindowW",CharSet=CharSet.Unicode)] public static extern IntPtr FindWindowClass(string className,IntPtr title);
+ [StructLayout(LayoutKind.Sequential)] public struct Rect {public int Left,Top,Right,Bottom;}
+ [DllImport("user32.dll")] public static extern int GetMenuItemCount(IntPtr menu);
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern int GetMenuString(IntPtr menu,uint item,System.Text.StringBuilder text,int count,uint flags);
+ [DllImport("user32.dll")] public static extern bool GetMenuItemRect(IntPtr window,IntPtr menu,uint item,out Rect rect);
+ [DllImport("user32.dll")] public static extern uint GetMenuState(IntPtr menu,uint item,uint flags);
  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd,out uint processId);
 }
 '@
@@ -99,16 +105,26 @@ function ClickElement($Element,[bool]$Right=$false) {
  Start-Sleep -Milliseconds 300
 }
 function RootClass([string]$Class) {
- $hwnd=[DesktopFixtureInput]::FindWindow($Class,$null)
+ $hwnd=[DesktopFixtureInput]::FindWindowClass($Class,[IntPtr]::Zero)
  if ($hwnd -ne [IntPtr]::Zero -and [DesktopFixtureInput]::IsWindowVisible($hwnd)) {return [Windows.Automation.AutomationElement]::FromHandle($hwnd)}
  return $null
 }
-function RawNamed($Root,[string]$Name) {
- $walker=[Windows.Automation.TreeWalker]::RawViewWalker
- $element=$walker.GetFirstChild($Root)
- for ($i=0;$null -ne $element -and $i -lt 100;$i++) {
-  if ($element.Current.Name -eq $Name) {return $element}
-  $element=$walker.GetNextSibling($element)
+function MenuPoint([string]$Name) {
+ # Tauri uses a classic Win32 popup. Bind its actual HMENU and owner, then
+ # inspect native item text/rectangles; UIA menu wrappers can be cached empty.
+ $hwnd=[DesktopFixtureInput]::FindWindowClass('#32768',[IntPtr]::Zero)
+ $owner=[uint32]0;$null=[DesktopFixtureInput]::GetWindowThreadProcessId($hwnd,[ref]$owner)
+ $process=Process
+ if ($null -eq $process -or $owner -ne $process.Id -or -not [DesktopFixtureInput]::IsWindowVisible($hwnd)) {return $null}
+ $menu=[DesktopFixtureInput]::SendMessage($hwnd,0x1e1,[IntPtr]::Zero,[IntPtr]::Zero)
+ $count=[DesktopFixtureInput]::GetMenuItemCount($menu)
+ for ($i=0;$i -lt $count -and $i -lt 100;$i++) {
+  $text=[Text.StringBuilder]::new(512)
+  $null=[DesktopFixtureInput]::GetMenuString($menu,$i,$text,512,0x400)
+  if ($text.ToString().Replace('&','') -ne $Name) {continue}
+  if (([DesktopFixtureInput]::GetMenuState($menu,$i,0x400) -band 3) -ne 0) {throw "Tray command disabled: $Name"}
+  $rect=[DesktopFixtureInput+Rect]::new()
+  if ([DesktopFixtureInput]::GetMenuItemRect([IntPtr]::Zero,$menu,$i,[ref]$rect)) {return $rect}
  }
  return $null
 }
@@ -123,18 +139,27 @@ function Tray([string]$Name) {
   do {$overflow=RootClass 'TopLevelWindowForOverflowXamlIsland';if($null -ne $overflow){break};Start-Sleep -Milliseconds 100} while([DateTime]::UtcNow -lt $deadline)
  }
  if ($null -eq $overflow) {throw 'Tray overflow did not become visible'}
- $buttons=$overflow.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Button))
- $icon=@($buttons|Where-Object {$_.Current.Name.StartsWith('Machine Control ') -and -not $_.Current.IsOffscreen})[0]
+ $deadline=[DateTime]::UtcNow.AddSeconds(5)
+ $icon=$null
+ do {
+  $buttons=$overflow.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Button))
+  $icons=@($buttons|Where-Object {$_.Current.Name.StartsWith('Machine Control ') -and -not $_.Current.IsOffscreen})
+  if ($icons.Count) {$icon=$icons[0];break}
+  Start-Sleep -Milliseconds 100
+ } while ([DateTime]::UtcNow -lt $deadline)
+ if ($null -eq $icon) {throw 'Installed operator tray icon unavailable'}
  ClickElement $icon $true
  $deadline=[DateTime]::UtcNow.AddSeconds(5)
  $item=$null
  do {
-  $menu=RootClass '#32768'
-  if ($null -ne $menu) {$item=RawNamed $menu $Name}
+  $item=MenuPoint $Name
   if ($null -ne $item) {break};Start-Sleep -Milliseconds 100
  } while ([DateTime]::UtcNow -lt $deadline)
  if ($null -eq $item) {throw "Tray command unavailable: $Name"}
- ClickElement $item
+ $null=[DesktopFixtureInput]::SetCursorPos([int](($item.Left+$item.Right)/2),[int](($item.Top+$item.Bottom)/2))
+ try {[DesktopFixtureInput]::mouse_event(2,0,0,0,[UIntPtr]::Zero)}
+ finally {[DesktopFixtureInput]::mouse_event(4,0,0,0,[UIntPtr]::Zero)}
+ Start-Sleep -Milliseconds 400
 }
 function Shortcut {
  # Independent native fixture input; never route this through the gated app.
@@ -171,7 +196,8 @@ try {
    Assert ($signature.Status -eq 'Valid' -and $signature.SignerCertificate.GetNameInfo('SimpleName',$false) -eq $ExpectedPublisher -and $null -ne $signature.TimeStamperCertificate) 'Installed publisher signature and timestamp'
   }
  }
- # A prior tray action may have left Settings selected.
+ # A prior run may have hidden the window or left Settings selected.
+ if (-not [DesktopFixtureInput]::IsWindowVisible((MainWindow))) {Tray 'Open Machine Control'}
  Press 'Access'
  # Clean a manually armed developer session, using the independent operator UI.
  if ($null -ne (Granted)) {Press 'Stop access';WaitGrant $false}
@@ -185,6 +211,13 @@ try {
  Press 'Stop access';WaitGrant $false
  Request $true
  $status=Call @{operation='status'};$generation=$status.generation
+ $operatorSnapshot=Call @{operation='snapshot';hwnd=(MainWindow).ToInt64();maxDepth=20;maxElements=1000}
+ Assert $operatorSnapshot.accepted 'Operator observation does not grant operator control'
+ $operatorButton=@($operatorSnapshot.data.elements|Where-Object {$_.name -eq 'Stop access' -and $_.controlType -eq 'Button'})[0]
+ $self=Call @{operation='invoke';reference=$operatorButton.reference;expectedGeneration=$generation}
+ Assert (-not $self.accepted -and $self.errorCode -eq 'self_target_refused') 'Own WebView semantics refused without a caller HWND'
+ $self=Call @{operation='app.launch';executablePath=(Join-Path $Install 'machine-control.exe')}
+ Assert (-not $self.accepted -and $self.errorCode -eq 'self_target_refused') 'Agent cannot relaunch operator'
  $taskbar=Call @{operation='snapshot';target='taskbar';scope='system';query='Machine Control';maxDepth=8;maxElements=100}
  $own=@($taskbar.data.elements|Where-Object {$_.automationId -eq 'Appid: org.machine-control.app'})[0]
  $self=Call @{operation='invoke';scope='system';reference=$own.reference;expectedGeneration=$generation}
@@ -209,6 +242,12 @@ try {
  $capturePath=Join-Path $status.data.artifactRoot ($capture.data.artifactId+'.png')
  Assert ((Get-FileHash $capturePath -Algorithm SHA256).Hash.ToLowerInvariant() -eq $capture.data.sha256) 'Installed capture bytes match hash'
  Remove-Item $capturePath
+ if (-not $AllowUnsigned) {
+  $superseded=Call @{operation='invoke';reference=$button.reference;expectedGeneration=$generation}
+  Assert (-not $superseded.accepted -and $superseded.errorCode -eq 'stale_or_unknown_reference' -and $superseded.delivery -eq 'refused') 'Capture-superseded provider reference refuses without replay'
+  $marker=Get-Content (Join-Path $env:LOCALAPPDATA 'MachineControl\conformance\counter.json') -Raw|ConvertFrom-Json
+  Assert ($marker.counter -eq 1 -and $marker.processId -eq $fixtureProcess) 'Superseded action produces no fixture effect'
+ }
  Shortcut;WaitGrant $false
  Assert ($null -eq (Granted)) 'Native emergency Stop shortcut revokes access'
  Request $true

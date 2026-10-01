@@ -106,3 +106,16 @@ paths. The report now derives its root from canonical installed file paths; a
 native short-alias probe and portable rejection tests cover the fix. A final
 0.4.2 candidate will supply the unmodified installed inventory. Full signed
 tray/session/local-outside and component acceptance remains in progress.
+
+The intermediate signed x64 package passes the full native UI suite, ordinary
+component conformance, and lock revocation. The accepted appliance lacks the
+optional existing-session unlock broker; native logoff and stored-credential
+sign-in recovered it. In-place unlock remains unproved. Re-logon changes the
+interactive session ID, so the outside acceptance selector is refreshed from
+observed session identity.
+
+The local/outside effect probe exposed a preexisting Cua error-handling gap:
+a capture-superseded token returned a JSON error with process exit zero. The
+owned adapter now classifies that payload as refused. Native regression checks
+require no fixture effect and no replay. Final 0.4.3 signed acceptance must
+include that correction and the unmodified installed inventory.

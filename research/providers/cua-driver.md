@@ -59,6 +59,18 @@ change daemon authorization or the appliance's revoke boundary. The pinned
 reports revival explicitly. Shortened-TTL regression passed on the final signed
 ARM64 and x64 workstation payloads; acceptance is tracked in Tactical 036.
 
+**Current — Windows tool-error finding:** A capture supersedes the pinned
+provider's element token. The daemon CLI unwraps an MCP tool error into JSON
+while exiting successfully; process exit alone therefore cannot establish tool
+acceptance. The owned Windows adapter now detects error payloads and classifies
+stale tokens as refused, without retry or replay. An independent fixture must
+remain unchanged after the refused action. The desktop acceptance work in
+[Tactical 053](../../docs/tactical/053-windows-desktop.md) owns this regression
+and signed execution evidence. The upstream
+[pinned CLI](https://github.com/trycua/cua/blob/d21e3447f9b08c761c090946648d5aca5e6c9cf1/libs/cua-driver/rust/crates/cua-driver/src/cli.rs)
+and [token contract](https://github.com/trycua/cua/blob/d21e3447f9b08c761c090946648d5aca5e6c9cf1/libs/cua-driver/rust/crates/cua-driver-core/src/element_token.rs)
+were source-reviewed; this does not change the MIT packaging boundary.
+
 ## Adjacent Cua sandbox scope
 
 **Current — source-reviewed:** Windows workstation preview packaging verifies

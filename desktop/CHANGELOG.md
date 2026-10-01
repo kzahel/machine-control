@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.4.3]
+
+- Refuse Cua stale-element errors even when its CLI exits successfully.
+- Keep capture-superseded actions from reporting accepted delivery on Windows.
+
+Windows signed preview acceptance requires independent application effects.
+
 ## [0.4.2]
 
 - Verify installed Windows files using paths relative to the product root,

@@ -36,6 +36,11 @@ resident stack must cover:
 - local and authenticated remote calls through the same logical contract; and
 - deterministic fixture effects plus real Windows-shell effects.
 
+The [Cua dossier](../providers/cua-driver.md) also records the desktop
+workstream's stale-token tool-error finding. Installed acceptance must check
+application effects and error payloads rather than treating a successful
+provider CLI process as accepted input.
+
 ## Candidate matrix
 
 | Candidate | Evidence | Demonstrated value | Material gaps or unknowns | Current disposition |
