@@ -62,3 +62,7 @@ acceptance. Existing engine/package evidence is in
 integration, in-place unlock recovery, and production Windows feed publication.
 ARM64 signing, installation, payload bytes, and updater authentication pass CI;
 they do not establish ARM64 desktop execution.
+
+[Tactical 054](../docs/tactical/054-windows-browser-and-arm64.md) owns the next
+browser integration and ARM64 execution slice. Target availability and
+architecture execution are observed separately.

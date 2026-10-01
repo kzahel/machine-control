@@ -104,3 +104,6 @@ the commits' `Topic:` trailers and register that exact string in
 - [`053-windows-desktop.md`](053-windows-desktop.md) (complete for x64 VM preview):
   native Windows desktop grants, shared Tauri operator, supervised companion,
   signed installers, and installed VM acceptance.
+- [`054-windows-browser-and-arm64.md`](054-windows-browser-and-arm64.md) (active):
+  Windows native browser integration, signed VM acceptance, and separately
+  observed ARM64 product execution.
