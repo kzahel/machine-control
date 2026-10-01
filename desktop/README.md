@@ -6,6 +6,9 @@ resident as a supervised companion with native grants. The signed Windows x64
 preview passes installed VM acceptance; ARM64 native desktop execution remains
 open. Linux desktop integration is not yet implemented.
 
+See the [acceptance matrix](../docs/desktop-acceptance.md) for tested behavior
+by package, architecture, and VM/physical environment.
+
 The operator uses a compact settings window with Access, Permissions, Activity,
 and Settings tabs. Labels and status rows replace banners and explanatory
 subtitles; same-user grant reach stays visible beside access controls.

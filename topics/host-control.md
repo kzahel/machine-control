@@ -2,9 +2,9 @@
 
 Topic: `host-control`
 
-Status: developer preview implemented and accepted on a disposable Tart
-guest; not yet installed or accepted on a physical Mac, and not a supported
-personal-machine profile. [Tactical 050](../docs/tactical/050-macos-host-control-mvp.md)
+Status: signed Tauri preview accepted in ARM64 Tart. Earlier source-native
+setup/browser behavior has physical Mac evidence; full signed Tauri physical
+desktop acceptance remains open. [Tactical 050](../docs/tactical/050-macos-host-control-mvp.md)
 owns the first slice.
 
 ## Scope
@@ -26,7 +26,9 @@ permitted applications.
 existing Swift resident. Signed/notarized Apple silicon and Intel CI candidates
 are verified; the exact ARM64 CI app and signed installed upgrade pass native
 Tart operator checks. [Tactical 051](../docs/tactical/051-tauri-macos-desktop.md)
-owns the evidence and remaining public-feed/physical-host gates.
+owns initial candidate evidence. [Tactical 052](../docs/tactical/052-macos-production-updates.md)
+owns accepted production updates. The [desktop matrix](../docs/desktop-acceptance.md)
+separates package, architecture, VM, and physical-host evidence.
 The earlier AppKit operator remains available for appliance bootstrap.
 
 **Current (2026-09-30):** The source-native ad-hoc-signed `Machine Control.app`
@@ -57,8 +59,9 @@ choose Later. Opening the bundle directly starts the LaunchAgent.
 
 **Current:** The common client has a default `host` target
 (`macos-host-resident`) with a local-socket adapter and `grant
-request|status|revoke`. It has not yet been run against a resident on a
-physical Mac.
+request|status|revoke`. CLI/doctor work with the signed Tauri resident in Tart.
+A full signed-product desktop task through this adapter on a physical Mac
+has not been established by the current acceptance records.
 
 **Current:** The optional root unlock broker still authenticates the resident,
 not the original caller; workstation policy does not register protected
@@ -74,15 +77,11 @@ distinct desktop instance while retaining the component profile. Its current
 workstream is [Windows desktop](windows-desktop.md), executed by
 [Tactical 053](../docs/tactical/053-windows-desktop.md).
 
-**Current:** The new desktop profile has a native broker and passes portable
-contracts plus an x64 VM source probe. This does not change the existing YA
-component's authorization boundary or establish signed desktop acceptance.
-
-**Current:** The Tauri Windows operator also passes installed unsigned x64 UI
-and lifecycle checks. The common CLI now selects a Windows `host` adapter;
-outside controllers explicitly select the desktop profile. Both require
-common coordination claims and use the same grant-gated resident. Signed
-candidate and native CLI acceptance remain in the Windows workstream.
+**Current:** The Windows desktop profile now passes exact signed x64 VM
+grant/UI/lifecycle and local/outside CLI acceptance. The existing YA component
+retains its distinct authorization boundary. [Windows desktop](windows-desktop.md)
+owns current status; [Tactical 053](../docs/tactical/053-windows-desktop.md) owns
+the execution record.
 
 ## Decisions
 

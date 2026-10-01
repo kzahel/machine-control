@@ -2,8 +2,9 @@
 
 Topic: `browser-control`
 
-Status: developer preview extension accepted with Chrome for Testing in a
-disposable Tart guest; not yet used with the controller user's own Chrome.
+Status: source-native developer preview accepted with Chrome for Testing in a
+Tart guest and a per-tab CDP bridge exercised against real Chrome on the Mac.
+Full extension acceptance on the signed Tauri package remains open.
 [Tactical 050](../docs/tactical/050-macos-host-control-mvp.md) owns the first
 slice.
 
@@ -95,6 +96,11 @@ and reads `document.title` correctly even alongside an isolated-world
 extension. An empty read on a heavy single-page app traced to the tab being
 discarded (reloaded on attach) and setting its title after load, not to a
 bridge fault; `browser.tabs` now reports `discarded` so a caller can wait.
+
+These observations precede the shared signed Tauri package. Its packaging
+acceptance verified native-messaging startup/framing, not a full extension
+task. The [desktop matrix](../docs/desktop-acceptance.md) separates those
+package and environment boundaries.
 
 ## Open
 

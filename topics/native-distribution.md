@@ -9,7 +9,11 @@ production feeds, and installed ARM64 public-client acceptance are verified.
 Fixed sender code passes automatic production-feed handoff; legacy 0.3.3/0.3.4
 senders may need one reopen after installation. YA
 download/update code is implemented, while public Windows consumer acceptance
-is open.
+is open. The shared Windows Tauri candidate passes signed x64 VM acceptance;
+its ARM64 product execution and public feed remain open.
+
+The [desktop acceptance matrix](../docs/desktop-acceptance.md) indexes behavior
+by package family, architecture, and virtual/physical environment.
 
 ## Direction
 
@@ -148,9 +152,17 @@ DMGs and updater archives for both architectures. The ARM64 app passed native
 Tart operator and installed-upgrade acceptance. The published `0.3.3` source
 also passed a signed `0.3.2` upgrade, visible approval/scope narrowing, independent
 fixture effects, global Stop, and tray Quit. This is a developer preview with
-target-wide grants; Intel execution, physical-host acceptance, and the first
-production-feed update remain separate gates. The evidence and
-bounded omissions live in [tactical 051](../docs/tactical/051-tauri-macos-desktop.md).
+target-wide grants; Intel execution and physical-host acceptance remain open.
+Production-feed acceptance subsequently passed in Tactical 052. Initial
+candidate evidence and bounded omissions live in [tactical 051](../docs/tactical/051-tauri-macos-desktop.md).
+
+**Current:** The shared Windows Tauri `0.4.3` candidate passes exact signed
+x64 installation, grants, tray/lifecycle, signed fixture-feed update, and
+local/outside control acceptance. ARM64 artifacts pass signing and byte
+verification, but product execution remains open. [Windows desktop](windows-desktop.md)
+owns the workstream and [Tactical 053](../docs/tactical/053-windows-desktop.md)
+the evidence. Physical hardware is later environment coverage; existing
+physical appliance-engine evidence does not establish this new operator app.
 
 **Decision:** Use the shared Tauri UX and Desktop Release Kit update contract
 for the standalone desktop product, with a unique updater key and product
