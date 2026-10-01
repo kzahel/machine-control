@@ -52,4 +52,31 @@ visible UI, and verify 0.3.4 relaunch and retained permissions. Restore the VM.
 
 ## Validation and result
 
-Pending exact signed candidate and public-update acceptance.
+Production routing is deployed: the corrected website workflow passed, both
+Mac architectures return signed metadata for older clients and 204 for current
+clients, and the Tart guest can reach the endpoint. Six website tests, desktop
+build/Clippy, 44 native resident tests, 37 release tests, native static checks,
+and portable checks passed. Both signed candidate architectures passed
+[CI](https://github.com/kzahel/machine-control/actions/runs/36825993636) and
+local re-download authentication, including tamper rejection.
+
+Native operator acceptance passed under a verified caller-owned claim.
+The first acquisition was refused but its diagnostic active claim was
+incorrectly extracted; another task suspended the guest during testing. The
+caller-owned claim was subsequently acquired and verified, and the original
+application, policy and LaunchAgent were restored before repeating acceptance.
+The public claim example now requires JSON acceptance before extracting an ID.
+
+The tray harness also now uses native pointer input at freshly observed
+status-item bounds: AXPress acknowledged delivery without opening the menu.
+Menu visibility and resulting application state establish effect. WebKit
+status text is read from its AX value rather than assuming an AX label.
+
+The signed ARM64 candidate passed a 0.3.3 package upgrade with permissions
+retained, grants revoked, generation change and stale-reference refusal.
+Visible denial, narrowed approval, independent fixture effect, self/protected
+refusal, approval-prompt input pause, global Stop, and tray Settings, manual
+production check, Open and Stop passed. Real tray Quit exited with status zero without respawn. Original app, policy,
+LaunchAgent, and readiness were restored, and owned staging was removed.
+
+Tagged publication and installed public-update acceptance remain pending.

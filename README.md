@@ -27,7 +27,7 @@ $mc --target windows target doctor
 claim="$($mc --target windows claim acquire --duration 30m \
   --reason 'exercise the application workflow' \
   --claimant-authority example-agent --claimant-id session-42)"
-claim_id="$(jq -r '.data.claim.claimId' <<<"$claim")"
+claim_id="$(jq -er 'select(.accepted == true) | .data.claim.claimId' <<<"$claim")" || exit 1
 $mc --target windows --claim "$claim_id" desktop applications
 $mc --target windows claim release "$claim_id"
 ```

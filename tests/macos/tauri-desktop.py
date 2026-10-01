@@ -77,7 +77,14 @@ def tray(pid, label):
              and e.get('bounds', {}).get('height', 0) > 0
              and 'AXPress' in e['actions']]
     assert len(items) == 1, ('tray', len(items))
-    accepted(base(dict(operation='action', reference=items[0]['reference'], action='press')))
+    # NSStatusItem's AXPress acknowledges delivery without opening the menu.
+    # Use native guest pointer input at its freshly observed bounds, then
+    # require the menu item and the resulting page/state as effect evidence.
+    bounds = items[0]['bounds']
+    accepted(base(dict(operation='input.click', target=str(pid),
+        x=round(bounds['x'] + bounds['width'] / 2),
+        y=round(bounds['y'] + bounds['height'] / 2),
+        coordinateSpace='global_display_points')))
     press(pid, label, 'AXMenuItem')
 
 
@@ -165,7 +172,7 @@ try:
     for _ in range(110):
         elements = accepted(base(dict(operation='snapshot', target=str(pid),
             projection='compact', maxDepth=30, maxElements=600)))['elements']
-        if any(e.get('label') == 'Up to date.' for e in elements):
+        if any((e.get('label') or e.get('value')) == 'Up to date.' for e in elements):
             break
         time.sleep(0.2)
     else:

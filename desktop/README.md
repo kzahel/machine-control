@@ -90,8 +90,10 @@ CI creates and verifies a draft before publication. The website resolves the
 latest desktop release separately from Windows component releases. See the
 [release process](../release/macos-desktop.md) and [changelog](CHANGELOG.md).
 
-The configured public update route is reserved; its server deployment and
-first production-feed update are a separate release step. No automatic update
+The public update route is deployed through the existing shared service.
+Manual checks are available in Settings; 0.3.4 also exposes Settings and Check
+for Updates in the menu bar. The first installed production-feed update is
+being accepted in [tactical 052](../docs/tactical/052-macos-production-updates.md). No automatic update
 installation is enabled. Native code rechecks that no access or approval is
 active immediately before bundle replacement and restarts with access off.
 Appliances with standing access use their administrator-managed deployment.

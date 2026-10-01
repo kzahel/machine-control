@@ -175,8 +175,10 @@ then published the same draft by ID without replacing bytes or its tag. Future
 CI publication now resolves and verifies the draft by ID. Both re-downloaded
 public DMGs and archives passed publisher signatures, notarization/stapling,
 updater signature/version and tamper rejection. The live download page selects
-`0.3.3`; both architecture routes redirect to its exact installers. Production
-updater routing and installed-feed acceptance remain open.
+`0.3.3`; both architecture routes redirect to its exact installers. The production
+route now returns shared-server signed metadata for older clients and 204 for
+current clients on both Mac architectures, including a Tart guest check.
+Installed-feed acceptance remains in progress.
 
 **Decision:** [Tactical 052](../docs/tactical/052-macos-production-updates.md)
 adds compact Settings and Check for Updates menu-bar commands, registers the

@@ -31,6 +31,12 @@ bind them to their exact private UTM or Tart identity. Claim state defaults to
 a private `claims` directory beneath platform workspace state; ignored local
 configuration may move it without changing the public target contract.
 
+Before extracting the acquired claim ID, require `accepted: true` and verify
+the returned claimant matches the caller's request. A `target_claimed` refusal
+includes the **other caller's** active claim under `data.claim` for diagnosis.
+Its ID does not grant permission to borrow that caller's claim. Claim JSON
+acceptance must be checked even when the command transport exits successfully.
+
 The common client provides a typed preflight for known outer commands, and the
 Windows, Linux, and macOS VM wrappers perform the authoritative class-aware
 check again. An ordinary holder receives `disruptive_claim_required` before
