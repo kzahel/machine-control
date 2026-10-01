@@ -43,7 +43,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Frontend install failed' }
           pnpm --dir desktop build
           if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed' }
-          python release/windows-package.py build artifacts/component --runtime win-x64 --revision $env:GITHUB_SHA
+          python release/windows-package.py build artifacts/component --runtime win-x64 --revision $env:GITHUB_SHA --desktop-companion
           if ($LASTEXITCODE -ne 0) { throw 'Unsigned companion build failed' }
           python desktop/scripts/prepare-windows.py artifacts/component --runtime win-x64 --revision $env:GITHUB_SHA
           if ($LASTEXITCODE -ne 0) { throw 'Unsigned companion staging failed' }
@@ -125,7 +125,7 @@ jobs:
       - name: Build the companion bound to the signed provider
         run: |
           $digest = (Get-FileHash artifacts/provider/providers/cua/cua-driver.exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          python release/windows-package.py build artifacts/component --runtime '${{ matrix.runtime }}' --revision $env:GITHUB_SHA --provider-digest $digest
+          python release/windows-package.py build artifacts/component --runtime '${{ matrix.runtime }}' --revision $env:GITHUB_SHA --provider-digest $digest --desktop-companion
           if ($LASTEXITCODE -ne 0) { throw 'Companion build failed' }
           Copy-Item artifacts/provider/providers/cua/cua-driver.exe artifacts/component/providers/cua/cua-driver.exe -Force
           python desktop/scripts/prepare-windows.py artifacts/component --runtime '${{ matrix.runtime }}' --revision $env:GITHUB_SHA

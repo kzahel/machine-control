@@ -10,3 +10,10 @@ for file in (root/'package.json', root/'src-tauri/tauri.conf.json'):
     value=json.loads(file.read_text());value['version']=version;file.write_text(json.dumps(value,indent=2)+'\n')
 file=root/'src-tauri/Cargo.toml'
 file.write_text(re.sub(r'^version = "[^"]+"',f'version = "{version}"',file.read_text(),count=1,flags=re.M))
+file=root/'src-tauri/Cargo.lock'
+text=file.read_text()
+text,count=re.subn(r'(\[\[package\]\]\nname = "machine-control-desktop"\nversion = ")[^"]+("\n)',
+                  lambda match: match[1]+version+match[2],text,count=1)
+if count != 1:
+    raise SystemExit('Desktop package is missing from Cargo.lock')
+file.write_text(text)
