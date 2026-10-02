@@ -8,6 +8,7 @@ LINUXVM_CONFIG_FILE="${LINUXVM_CONFIG_FILE:-$LINUXVM_REPO_DIR/config.local}"
 # Preserve non-empty process-environment values so callers can tighten local
 # configuration for one command, especially the fail-closed outer-UI guard.
 linuxvm_config_names=(
+    MACHINE_CONTROL_LINUX_INSTANCE
     LINUXVM_PROVIDER
     LINUXVM_UTM_NAME
     LINUXVM_UTMCTL
@@ -98,6 +99,12 @@ LINUXVM_SHUTDOWN_TIMEOUT="${LINUXVM_SHUTDOWN_TIMEOUT:-120}"
 LINUXVM_EXEC_TIMEOUT="${LINUXVM_EXEC_TIMEOUT:-300}"
 LINUXVM_REMOTE_ROOT="${LINUXVM_REMOTE_ROOT:-/var/tmp/linuxvm-testbed}"
 LINUXVM_UI_REMOTE="${LINUXVM_UI_REMOTE:-/usr/local/libexec/linuxvm-testbed/linuxui.py}"
+MACHINE_CONTROL_LINUX_INSTANCE="${MACHINE_CONTROL_LINUX_INSTANCE:-appliance}"
+case "$MACHINE_CONTROL_LINUX_INSTANCE" in
+    appliance|desktop) ;;
+    *) printf 'Unknown Linux resident instance\n' >&2; return 2 ;;
+esac
+export MACHINE_CONTROL_LINUX_INSTANCE
 LINUXVM_REQUIRE_MUTATION_GUARD="${LINUXVM_REQUIRE_MUTATION_GUARD:-true}"
 LINUXVM_TARGET_ROLE="${LINUXVM_TARGET_ROLE:-unspecified}"
 LINUXVM_EXPECTED_NAME="${LINUXVM_EXPECTED_NAME:-}"

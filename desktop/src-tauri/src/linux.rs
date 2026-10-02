@@ -67,10 +67,40 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
         "GI_TYPELIB_PATH",
         "GST_PLUGIN_PATH",
         "GST_PLUGIN_SYSTEM_PATH",
+        "GST_PLUGIN_SYSTEM_PATH_1_0",
+        "GST_PLUGIN_PATH_1_0",
+        "GST_PLUGIN_SCANNER",
+        "GST_REGISTRY",
+        "GSTREAMER_PREFIX",
+        "GTK_PATH",
+        "GTK_MODULES",
+        "GTK_DATA_PREFIX",
+        "GTK_EXE_PREFIX",
+        "GSETTINGS_SCHEMA_DIR",
+        "GDK_BACKEND",
+        "GTK_IM_MODULE_FILE",
+        "GIO_MODULE_DIR",
+        "GIO_EXTRA_MODULES",
+        "GDK_PIXBUF_MODULE_FILE",
+        "GDK_PIXBUF_MODULEDIR",
+        "APPDIR",
         "PYTHONHOME",
         "PYTHONPATH",
     ] {
         command.env_remove(name);
+    }
+    if let Some(appdir) = std::env::var_os("APPDIR") {
+        // Keep the user's ordinary data search paths, excluding this mounted
+        // bundle's GTK/GIO data. The companion uses the system desktop stack.
+        if let Some(paths) = std::env::var_os("XDG_DATA_DIRS") {
+            let kept: Vec<_> = std::env::split_paths(&paths)
+                .filter(|path| !path.starts_with(&appdir))
+                .collect();
+            command.env(
+                "XDG_DATA_DIRS",
+                std::env::join_paths(kept).map_err(|e| e.to_string())?,
+            );
+        }
     }
     // The kernel ends this exact child if its operator dies. Pipe EOF also
     // closes the portal and revokes access; no PID file grants kill authority.
@@ -158,6 +188,7 @@ pub fn command(command: Value) -> Result<Value, String> {
         reply["state"]["sourceRevision"] = json!(env!("MC_SOURCE_REVISION"));
         reply["state"]["startOnLogin"] =
             json!(app.autolaunch().is_enabled().map_err(|e| e.to_string())?);
+        reply["state"]["updateInstallSupported"] = json!(std::env::var_os("APPIMAGE").is_some());
     }
     Ok(reply)
 }

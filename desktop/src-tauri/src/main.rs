@@ -115,6 +115,10 @@ async fn install_update(
     if window.label() != "main" {
         return Err("Operator window required".into());
     }
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("APPIMAGE").is_none() {
+        return Err("Install Debian updates with the package manager".into());
+    }
     let updater = app.updater_builder();
     #[cfg(target_os = "windows")]
     let updater = {
@@ -165,7 +169,7 @@ fn main() {
             "{}",
             json!({"schema":"machine-control-desktop-identity/v0",
             "version":env!("CARGO_PKG_VERSION"), "sourceRevision":env!("MC_SOURCE_REVISION"),
-            "platform":"linux", "arch":std::env::consts::ARCH})
+            "platform":"linux", "arch":std::env::consts::ARCH, "purpose":env!("MC_DESKTOP_PURPOSE")})
         );
         return;
     }

@@ -123,6 +123,12 @@ fn main() {
         let revision = value["sourceRevision"].as_str().unwrap();
         assert!(revision.len() == 40 && revision.bytes().all(|b| b.is_ascii_hexdigit()));
         println!("cargo:rustc-env=MC_SOURCE_REVISION={revision}");
+        let purpose = value
+            .get("purpose")
+            .and_then(|v| v.as_str())
+            .unwrap_or("candidate");
+        assert!(matches!(purpose, "candidate" | "update_sender_fixture"));
+        println!("cargo:rustc-env=MC_DESKTOP_PURPOSE={purpose}");
     }
     tauri_build::build();
 }

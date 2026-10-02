@@ -20,6 +20,7 @@ import threading
 # surface into the AT-SPI bus creates an in-process accessibility recursion.
 # Visible approvals run in their own accessible process below.
 os.environ["NO_AT_BRIDGE"] = "1"
+os.environ.pop("GTK_MODULES", None)
 
 import gi
 
@@ -275,7 +276,7 @@ class Desktop:
                                   "inputState": "ready" if self.provider.input_ready() else "unavailable"}
             elif operation == "capabilities":
                 result["data"] = {"provider": "linux-desktop", "profile": "gnome_wayland",
-                                  "privilege": "ordinary_user", "operations": sorted(OBSERVE | CONTROL - {"input.drag"}),
+                                  "privilege": "ordinary_user", "operations": sorted(OBSERVE | CONTROL),
                                   "capture": {"route": "user/linux.portal-pipewire", "scope": "shared_screen",
                                               "state": self.portal.state},
                                   "input": {"route": "user/linux.portal-notify", "authorization": "portal_consent",

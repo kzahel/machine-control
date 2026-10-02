@@ -95,12 +95,26 @@ class Provider(linuxcontrol.Resident):
 
     def input(self, request):
         self.protect_input()
+        before = self.owner.portal.deliveries
+        try:
+            return self.dispatch_input(request)
+        except Exception:
+            if self.owner.portal.deliveries == before:
+                raise
+            result = self.fail(request, request["operation"], "input_delivery_unknown", "Input route failed after dispatch")
+            result.update(actualRoute="user/linux.portal-notify", delivery="unknown", effect="unknown",
+                          uncertainty="provider_failed_after_dispatch", retrySafety="unsafe_delivery_unknown")
+            return result
+
+    def dispatch_input(self, request):
         portal = self.owner.portal
         operation = request["operation"]
         if operation == "input.move":
             portal.move(float(request["x"]), float(request["y"]))
         elif operation == "input.click":
-            portal.click(float(request["x"]), float(request["y"]), request.get("button", "left"))
+            portal.click(float(request["x"]), float(request["y"]), request.get("button", "left"), request.get("count", 1))
+        elif operation == "input.drag":
+            portal.drag(*[float(request[name]) for name in ["x1", "y1", "x2", "y2"]])
         elif operation == "input.key":
             portal.key(request["key"])
         elif operation == "input.text":
@@ -130,8 +144,10 @@ class Provider(linuxcontrol.Resident):
                     helper.terminate()
                 helper.wait(timeout=3)
         elif operation == "input.scroll":
-            portal._notify("NotifyPointerAxis", "(oa{sv}dd)",
-                           [float(request.get("deltaX", 0)), float(request.get("deltaY", 0))])
+            if "x" in request or "y" in request:
+                portal.move(float(request["x"]), float(request["y"]))
+            portal.scroll(float(request.get("dx", request.get("deltaX", 0))),
+                          float(request.get("dy", request.get("deltaY", 0))))
         else:
             raise linuxcontrol.ControlFailure("unsupported_operation", "Input operation is unavailable")
         result = self.envelope(request, operation)
@@ -140,7 +156,8 @@ class Provider(linuxcontrol.Resident):
         result["data"] = {"coordinateSpace": "portal_shared_screen", "privilege": "ordinary_user",
                           "clipboardTextSideEffect": operation == "input.text",
                           "foregroundConsequence": "foreground_window_receives_input",
-                          "cursorConsequence": "moves" if operation in {"input.move", "input.click"} else "unchanged"}
+                          "cursorConsequence": "moves" if operation in {"input.move", "input.click", "input.drag"} or (
+                              operation == "input.scroll" and "x" in request) else "unchanged"}
         return result
 
     def application_activate(self, request):

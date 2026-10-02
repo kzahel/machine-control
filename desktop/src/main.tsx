@@ -55,6 +55,7 @@ type State = {
   version: string;
   socket: string;
   stopShortcutAvailable: boolean;
+  updateInstallSupported?: boolean;
 };
 const labels: Record<Scope, string> = {
   observe: "View desktop",
@@ -509,7 +510,7 @@ function App() {
                 <button disabled={busy} onClick={() => void checkUpdates()}>
                   Check for updates
                 </button>
-                {update && (
+                {update && state?.updateInstallSupported !== false && (
                   <button
                     disabled={busy || !!grant || standing || !!state?.pending}
                     onClick={async () => {
@@ -528,6 +529,11 @@ function App() {
                   </button>
                 )}
               </div>
+              {linux && state?.updateInstallSupported === false && (
+                <p className="note">
+                  Install updates with the package manager.
+                </p>
+              )}
             </section>
             <section className="group details" aria-label="Installation">
               <dl>

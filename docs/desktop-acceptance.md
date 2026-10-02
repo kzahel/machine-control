@@ -30,7 +30,8 @@ immediately. Concrete targets and raw evidence stay in private inventory/storage
 | Windows x64, Windows VM on Linux/KVM | Exact signed public 0.4.8 installer and payload verified | Public 0.4.8 UI/grants/lifecycle, browser tasks, production update and uninstall accepted; outside parity, lock/sign-in startup and component compatibility recorded on 0.4.7 | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md), [055](tactical/055-unified-desktop-publication.md) |
 | Windows ARM64, Windows VM | Signed public 0.4.8 verified; CI package checks run on x64 | New Tauri operator execution not recorded; earlier ARM64 component execution below | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md), [055](tactical/055-unified-desktop-publication.md) |
 | Windows x64, physical Windows | New candidate package verification does not establish physical execution | New Tauri operator acceptance not recorded; earlier appliance engine evidence below | [physical engine record](evidence/windows-physical-x64.md) |
-| Linux | Standalone Tauri integration/package not implemented | No standalone product acceptance; resident/provider work is separate | [Linux topic](../topics/linux-resident-control.md) |
+| Linux x64, Ubuntu GNOME Wayland VM | Initial 0.5.0 Debian/AppImage CI signatures and inventories verified; corrected final candidate pending | 43 development AppImage lifecycle checks; source-native control and browser conformance pass. Signed installed replacement acceptance in progress | [056](tactical/056-linux-desktop.md) |
+| Linux ARM64 | Native Ubuntu CI builds, compiled identity, final package inventories/signatures verified | GNOME desktop execution not yet established | [056](tactical/056-linux-desktop.md) |
 
 ## Shared Tauri behavior checklist
 

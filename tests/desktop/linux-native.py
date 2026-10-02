@@ -111,6 +111,7 @@ try:
     # Convert the substituted literal back into a Path; no shared oracle is changed.
     fixture_source.write_text(fixture_source.read_text().replace(
         "STATE_PATH = " + repr(str(fixture_state)), "STATE_PATH = Path(" + repr(str(fixture_state)) + ")"))
+    fixture_state.unlink(missing_ok=True)
     subprocess.run(["systemd-run", "--user", "--quiet", "--collect", "--unit", unit,
                     "/usr/bin/python3", str(fixture_source)], check=True)
     poll(lambda: fixture_state.exists())
@@ -172,6 +173,20 @@ try:
     check("portal pointer delivery", click["accepted"] and click["actualRoute"] == "user/linux.portal-notify")
     poll(lambda: fixture()["visualClicks"] == before + 1)
     check("independent pointer effect", fixture()["visualClicks"] == before + 1)
+    center = {"x": bounds["x"] + bounds["width"] / 2, "y": bounds["y"] + bounds["height"] / 2}
+    before = fixture()["visualClicks"]
+    check("double-click delivery", call("input.click", **center, count=2)["accepted"])
+    poll(lambda: fixture()["visualClicks"] >= before + 2)
+    check("independent double-click effect", True)
+    releases = fixture()["dragReleases"]
+    check("drag delivery", call("input.drag", x1=center["x"] - 40, y1=center["y"],
+                                x2=center["x"] + 40, y2=center["y"] + 20)["accepted"])
+    poll(lambda: fixture()["dragReleases"] > releases)
+    check("independent drag effect", True)
+    previous_scroll = fixture()["scrollY"]
+    check("scroll delivery", call("input.scroll", **center, dy=-2)["accepted"])
+    poll(lambda: fixture()["scrollY"] != previous_scroll)
+    check("independent scroll effect", True)
     entry = next(n for n in nodes if n["label"] == "Fixture Text")
     check("semantic focus", call("focus", reference=entry["reference"])["accepted"])
     check("clear entry", call("input.key", key="ctrl+a")["accepted"])

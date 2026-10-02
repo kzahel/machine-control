@@ -68,6 +68,14 @@ pnpm tauri build --config src-tauri/tauri.linux.conf.json --bundles deb,appimage
 
 Local packages establish development behavior, not production authentication.
 
+On a Linux workstation, `bin/machine-control --target host` reaches the app's
+ordinary-user socket. For a claimed Linux appliance, select the product explicitly
+in the private target's environment with `MACHINE_CONTROL_LINUX_INSTANCE=desktop`.
+The common remote/local desktop and artifact commands then reach that same
+resident. The default `appliance` instance retains its privileged test profile;
+the product never falls back to it. Claims coordinate target use; native grants
+authorize operations.
+
 Windows uses a separate `desktop` instance and inherited private operator
 channel. Its public pipe enforces grants and cannot approve them. Ordinary
 control does not cross UAC, elevated apps, lock/login, or other user sessions.

@@ -39,7 +39,7 @@ def packages(directory):
     return values
 
 
-def inventory(directory, target, version, revision):
+def inventory(directory, target, version, revision, purpose="candidate"):
     """Run on the native build architecture; read containers independently."""
     records = []
     for package in packages(directory):
@@ -64,14 +64,16 @@ def inventory(directory, target, version, revision):
             if (metadata.get("schema") != "machine-control-linux-desktop-runtime/v0"
                     or metadata.get("sourceRevision") != revision
                     or metadata.get("profile") != "gnome_wayland"
-                    or metadata.get("privilege") != "ordinary_user"):
+                    or metadata.get("privilege") != "ordinary_user"
+                    or metadata.get("purpose", "candidate") != purpose):
                 raise ValueError("Packaged runtime identity mismatch")
             binary = root / "usr/bin/machine-control"
             compiled = json.loads(subprocess.check_output([str(binary), "--identity"], text=True))
             if (compiled.get("schema") != "machine-control-desktop-identity/v0"
                     or compiled.get("sourceRevision") != revision
                     or compiled.get("version") != version or compiled.get("platform") != "linux"
-                    or compiled.get("arch") != TARGETS[target][1]):
+                    or compiled.get("arch") != TARGETS[target][1]
+                    or compiled.get("purpose", "candidate") != purpose):
                 raise ValueError("Compiled Linux identity mismatch")
             files = [{"name": "machine-control", "size": binary.stat().st_size, "sha256": digest(binary)}]
             entries = metadata.get("files", [])
@@ -95,7 +97,7 @@ def inventory(directory, target, version, revision):
     if records[0]["files"][1:] != records[1]["files"][1:]:
         raise ValueError("Debian and AppImage product payloads differ")
     value = {"schema": "machine-control-desktop-payload/v0", "platform": "linux",
-             "target": target, "version": version, "sourceRevision": revision, "packages": records}
+             "target": target, "version": version, "sourceRevision": revision, "purpose": purpose, "packages": records}
     (directory / "payload.json").write_text(json.dumps(value, indent=2) + "\n")
 
 
@@ -108,20 +110,20 @@ def public_name(name, arch):
     return "payload-linux-" + arch + ".json" if name == "payload.json" else name.replace("Machine Control_", "MachineControl_", 1)
 
 
-def evidence(directory, target, version, revision, run):
+def evidence(directory, target, version, revision, run, purpose="candidate"):
     identity(target, version, revision, run)
-    inventory(directory, target, version, revision)
+    inventory(directory, target, version, revision, purpose)
     files = [file for package in packages(directory) for file in (package, Path(str(package) + ".sig"))]
     files.append(directory / "payload.json")
     value = {"schema": "machine-control-desktop-build/v0", "platform": "linux", "target": target,
              "arch": TARGETS[target][0], "version": version, "sourceRevision": revision,
              "bundleIdentifier": "org.machine-control.app", "sourceState": "ci_checkout",
              "workflowRun": run.split(".")[0], "workflowAttempt": run.split(".")[1],
-             "artifacts": [{"name": file.name, "size": file.stat().st_size, "sha256": digest(file)} for file in files]}
+             "purpose": purpose, "artifacts": [{"name": file.name, "size": file.stat().st_size, "sha256": digest(file)} for file in files]}
     (directory / "build.json").write_text(json.dumps(value, indent=2) + "\n")
 
 
-def verify(directory, target, version, revision, run, tamper=False, published=False):
+def verify(directory, target, version, revision, run, tamper=False, published=False, purpose="candidate"):
     identity(target, version, revision, run)
     arch = TARGETS[target][0]
     receipt = "build-linux-" + arch + ".json" if published else "build.json"
@@ -130,7 +132,9 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
                 "arch": arch, "version": version, "sourceRevision": revision,
                 "bundleIdentifier": "org.machine-control.app", "sourceState": "ci_checkout",
                 "workflowRun": run.split(".")[0], "workflowAttempt": run.split(".")[1]}
-    if any(value.get(key) != item for key, item in expected.items()):
+    if published and purpose != "candidate":
+        raise ValueError("Update sender fixtures cannot be published")
+    if value.get("purpose", "candidate") != purpose or any(value.get(key) != item for key, item in expected.items()):
         raise ValueError("Linux candidate identity mismatch")
     def path(name):
         return directory / (public_name(name, arch) if published else name)
@@ -153,6 +157,8 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
         "schema": "machine-control-desktop-payload/v0", "platform": "linux",
         "target": target, "version": version, "sourceRevision": revision}.items()):
         raise ValueError("Linux payload identity mismatch")
+    if payload.get("purpose", "candidate") != purpose:
+        raise ValueError("Linux payload purpose mismatch")
     records = payload.get("packages", [])
     if len(records) != 2 or {r.get("package") for r in records} != {images[0], debs[0]}:
         raise ValueError("Both final containers need payload inventories")
@@ -211,10 +217,11 @@ if __name__ == "__main__":
         parser.add_argument("--" + name, required=True)
     parser.add_argument("--test-tampering", action="store_true")
     parser.add_argument("--published", action="store_true")
+    parser.add_argument("--purpose", choices=["candidate", "update_sender_fixture"], default="candidate")
     args = parser.parse_args()
     if args.command == "evidence":
-        evidence(args.directory, args.target, args.version, args.revision, args.run)
+        evidence(args.directory, args.target, args.version, args.revision, args.run, args.purpose)
     else:
         verify(args.directory, args.target, args.version, args.revision, args.run,
-               args.test_tampering, args.published)
+               args.test_tampering, args.published, args.purpose)
         print("Linux package signatures, signed versions, provenance and tamper rejection verified")

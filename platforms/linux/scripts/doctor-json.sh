@@ -147,12 +147,20 @@ if [[ -n "$control_status" ]]; then
     if [[ "$capture" == ready ]]; then
         add_check capture pass 'Target-native capture is ready'
     else
-        add_check capture fail 'Target-native capture is unavailable'
+        if [[ "$MACHINE_CONTROL_LINUX_INSTANCE" == desktop ]]; then
+            add_check capture warn 'Desktop screen sharing requires portal consent'
+        else
+            add_check capture fail 'Target-native capture is unavailable'
+        fi
     fi
     if [[ "$input" == ready ]]; then
         add_check input pass 'Target-native input is ready'
     else
-        add_check input fail 'Target-native input is unavailable'
+        if [[ "$MACHINE_CONTROL_LINUX_INSTANCE" == desktop ]]; then
+            add_check input warn 'Desktop input sharing requires portal consent'
+        else
+            add_check input fail 'Target-native input is unavailable'
+        fi
     fi
 else
     add_check resident fail 'Target-native resident is unavailable'
@@ -175,10 +183,25 @@ else
 fi
 
 ready=false
+profile=ubuntu-24.04-gnome-46-wayland
+privilege=root_test_appliance
+deployment=null
 if [[ "$power" == running && "$administration" == ready &&
       "$desktop" == unlocked && "$resident" == ready &&
       "$semantic" == ready && "$capture" == ready && "$input" == ready ]]; then
     ready=true
+fi
+if [[ "$MACHINE_CONTROL_LINUX_INSTANCE" == desktop ]]; then
+    profile=linux-desktop-gnome-wayland
+    privilege=ordinary_user
+    ready=false
+    if [[ "$power" == running && "$administration" == ready &&
+          "$desktop" == unlocked && "$resident" == ready && "$semantic" == ready ]] &&
+          jq -e '.data.desktopProduct == true and .data.ready == true' \
+              >/dev/null <<<"$control_status"; then
+        ready=true
+    fi
+    deployment="$(jq -c '.data | {policy,grant,pendingRequest}' <<<"${control_status:-null}")"
 fi
 
 jq -cn \
@@ -191,6 +214,9 @@ jq -cn \
     --arg capture "$capture" \
     --arg input "$input" \
     --arg outer "$outer" \
+    --arg profile "$profile" \
+    --arg privilege "$privilege" \
+    --argjson deployment "$deployment" \
     --argjson resident "$resident_json" \
     --argjson checks "$checks" \
     '{
@@ -198,7 +224,7 @@ jq -cn \
         ready:$ready,
         target:{
             platform:"linux",
-            profile:"ubuntu-24.04-gnome-46-wayland"
+            profile:$profile
         },
         states:{
             power:$power,
@@ -218,7 +244,9 @@ jq -cn \
         extensions:{
             administrationRoute:"qemu_guest_agent",
             desktopSession:"gnome_wayland",
-            inputPrivilege:"root_test_appliance"
+            inputPrivilege:$privilege,
+            residentInstance:$ENV.MACHINE_CONTROL_LINUX_INSTANCE,
+            deployment:$deployment
         }
     }'
 

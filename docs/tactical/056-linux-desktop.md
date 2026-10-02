@@ -64,7 +64,7 @@ compatibility. Record architecture-specific results in the acceptance matrix.
 
 ## Validation and final result
 
-Source-native acceptance passed 45 x64 GNOME VM checks: off/refusal, native
+Source-native acceptance passed 51 x64 GNOME VM checks: off/refusal, native
 denial/approval, prompt pause, Stop, generations, portal consent, capture/hash,
 pointer and Unicode file effects, sharing closure, old references, expiry,
 update exclusion, Quit, and endpoint removal. Eight portable grant tests,
@@ -78,6 +78,19 @@ references, and reconnect with Chrome alive through operator replacement.
 The existing Linux appliance live smoke passes with the companion installed as
 a separate ordinary-user profile. Native Linux Clippy passes after the
 supervisor's AppImage environment cleanup and compiled identity additions.
+
+Development AppImage acceptance passes 43 native product checks: compact UI,
+single instance, the five tray actions, Stop and self-interface refusal, startup
+registration/removal, actual shortcut effect, native denial/approval and pause,
+expiry, portal consent and capture/hash, Restart revocation and sharing closure,
+close-to-tray, reopen, and Quit. GStreamer/GTK search-prefix leakage from AppImage
+was found in installed testing and removed from the system Python companion.
+Foreground identity uncertainty refuses input rather than choosing another app.
+
+Initial signed x64 and ARM64 candidates from source `ee90c05` in Linux workflow
+`36968445205.1` pass native container inventories, both final signatures,
+authenticated versions, receipt identities, and tamper rejection. They precede
+the environment fix and are not the final installed acceptance candidates.
 
 Portable grant/protocol tests, Linux platform smoke, frontend checks,
 Linux native build/package verification, and claimed installed GNOME acceptance

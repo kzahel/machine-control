@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import os
+import time
 import uuid
 
 import gi
@@ -37,6 +38,7 @@ class Portal:
         self.error = None
         self.epoch = 0
         self.deadline = None
+        self.deliveries = 0
         self.bus.signal_subscribe(
             "org.freedesktop.DBus", "org.freedesktop.DBus", "NameOwnerChanged",
             "/org/freedesktop/DBus", DEST, Gio.DBusSignalFlags.NONE,
@@ -158,6 +160,7 @@ class Portal:
     def _notify(self, method, signature, args):
         if not self.ready:
             raise RuntimeError("Desktop sharing is unavailable")
+        self.deliveries += 1
         self._call(REMOTE, method, signature, [self.session, {}] + args)
 
     def move(self, x, y):
@@ -170,12 +173,44 @@ class Portal:
         self._notify("NotifyPointerMotionAbsolute", "(oa{sv}udd)",
                      [self.stream, float(x), float(y)])
 
-    def click(self, x, y, button="left"):
+    def click(self, x, y, button="left", count=1):
         codes = {"left": 272, "right": 273, "middle": 274}
+        if type(count) is not int or not 1 <= count <= 3:
+            raise ValueError("Choose 1-3 clicks")
         code = codes[button]
         self.move(x, y)
-        self._notify("NotifyPointerButton", "(oa{sv}iu)", [code, 1])
-        self._notify("NotifyPointerButton", "(oa{sv}iu)", [code, 0])
+        for index in range(count):
+            try:
+                self._notify("NotifyPointerButton", "(oa{sv}iu)", [code, 1])
+            finally:
+                self._notify("NotifyPointerButton", "(oa{sv}iu)", [code, 0])
+            if index + 1 < count:
+                time.sleep(.08)
+
+    def drag(self, x1, y1, x2, y2):
+        size = self.properties.get("logical_size", self.properties.get("size"))
+        if not size or not all(math.isfinite(v) for v in [x1, y1, x2, y2]) or not (
+                0 <= x1 < size[0] and 0 <= x2 < size[0] and 0 <= y1 < size[1] and 0 <= y2 < size[1]):
+            raise ValueError("Use coordinates inside the shared screen")
+        self.move(x1, y1)
+        try:
+            self._notify("NotifyPointerButton", "(oa{sv}iu)", [272, 1])
+            for index in range(1, 9):
+                self.move(x1 + (x2 - x1) * index / 8, y1 + (y2 - y1) * index / 8)
+                time.sleep(.025)
+        finally:
+            self._notify("NotifyPointerButton", "(oa{sv}iu)", [272, 0])
+
+    def scroll(self, dx, dy):
+        if not self.devices & 2 or not all(
+                math.isfinite(v) and float(v).is_integer() and abs(v) <= 1000
+                for v in [dx, dy]):
+            raise ValueError("Choose bounded scroll deltas with shared pointer access")
+        # The facade expresses wheel steps, rather than touchpad distances.
+        for axis, steps in [(0, dy), (1, dx)]:
+            if steps:
+                self._notify("NotifyPointerAxisDiscrete", "(oa{sv}ui)",
+                             [axis, int(steps)])
 
     def key(self, key):
         if not self.devices & 1:

@@ -133,7 +133,11 @@ artifact() {
     home="$("$PROVIDER" exec /usr/bin/getent passwd "$user" |
         /usr/bin/awk -F: '{print $6}')"
     [[ -n "$home" ]] || { printf 'Desktop home not found\n' >&2; return 1; }
-    remote="$home/.cache/linuxvm-testbed/artifacts/$artifact_id.png"
+    if [[ "$MACHINE_CONTROL_LINUX_INSTANCE" == desktop ]]; then
+        remote="$home/.cache/machine-control/desktop/artifacts/$artifact_id.png"
+    else
+        remote="$home/.cache/linuxvm-testbed/artifacts/$artifact_id.png"
+    fi
     if [[ -z "$output" ]]; then
         output="$LINUXVM_REPO_DIR/.artifacts/resident/$artifact_id.png"
     fi
@@ -240,7 +244,14 @@ case "$command" in
     desktop-user) desktop_user ;;
     ui) exec "$BIN_DIR/linuxui" "$@" ;;
     control|control-local)
-        user_exec /usr/local/bin/machine-control "$@"
+        if [[ "$MACHINE_CONTROL_LINUX_INSTANCE" == desktop ]]; then
+            user="$(desktop_user)"
+            uid="$("$PROVIDER" exec /usr/bin/id -u "$user")"
+            user_exec /usr/bin/python3 /usr/local/libexec/linuxvm-testbed/linuxcontrol.py \
+                call --socket "/run/user/$uid/machine-control-desktop/desktop.sock" "$@"
+        else
+            user_exec /usr/local/bin/machine-control "$@"
+        fi
         ;;
     artifact) artifact "$@" ;;
     fixture) fixture "$@" ;;
