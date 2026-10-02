@@ -80,7 +80,7 @@ export function selectDesktopRelease(value: unknown): DesktopRelease | null {
   if (compareVersions(version, "0.4.8") >= 0) {
     windowsDownloads = {} as Record<WindowsArch, string>;
     for (const arch of ["x64", "arm64"] as const) {
-      const installer = `Machine Control_${version}_${arch}-setup.exe`;
+      const installer = `MachineControl_${version}_${arch}-setup.exe`;
       windowsDownloads[arch] = asset(installer);
       asset(installer + ".sig");
       asset(`build-windows-${arch}.json`);

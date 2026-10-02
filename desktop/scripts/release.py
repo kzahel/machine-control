@@ -136,12 +136,12 @@ def stage(directory, output, version, revision, run, body):
         if installer != expected:
             raise ValueError('Unexpected Windows installer name')
         for name in (installer, installer + '.sig'):
-            payloads.append((source / name, name))
+            payloads.append((source / name, windows_package.public_name(name, arch)))
         payloads.append((source / 'build.json', f'build-windows-{arch}.json'))
         payloads.append((source / 'payload.json', f'payload-windows-{arch}.json'))
         platform = 'windows-' + ('x86_64' if arch == 'x64' else 'aarch64')
         platforms[platform] = {
-            'url': f'https://github.com/{REPOSITORY}/releases/download/desktop-v{version}/{quote(installer)}',
+            'url': f'https://github.com/{REPOSITORY}/releases/download/desktop-v{version}/{quote(windows_package.public_name(installer, arch))}',
             'signature': (source / (installer + '.sig')).read_text().strip(),
         }
     # Native signatures, Gatekeeper, notarization, and minisign verification run

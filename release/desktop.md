@@ -48,6 +48,11 @@ desktop/scripts/release.sh 0.4.8 CANDIDATE_RUN_ID
 
 The optional run must be a successful unified dispatch on main at the exact
 release source. The original workflow attempt is bound by every package receipt.
+Public Windows installer names omit spaces to avoid GitHub filename rewriting;
+build receipts retain original candidate names and hashes. Verify downloaded
+release assets with `windows-package.py verify --published --target TARGET`
+and the expected version, source, and original workflow identity.
+
 Expired/missing artifacts fail closed. A newer main commit requires a new
 candidate; never move a release tag to work around source validation.
 

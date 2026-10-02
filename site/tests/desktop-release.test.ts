@@ -20,8 +20,8 @@ function release(version = "0.3.3", prefix = "desktop-v") {
   ];
   if (compareVersions(version, "0.4.8") >= 0) names.push(
     ...["x64", "arm64"].flatMap((a) => [
-      `Machine Control_${version}_${a}-setup.exe`,
-      `Machine Control_${version}_${a}-setup.exe.sig`,
+      `MachineControl_${version}_${a}-setup.exe`,
+      `MachineControl_${version}_${a}-setup.exe.sig`,
       `build-windows-${a}.json`, `payload-windows-${a}.json`,
     ]),
     "build-macos-arm64.json", "build-macos-x86_64.json",
@@ -104,9 +104,9 @@ test("public download routes select each architecture and fail closed", async ()
 test("unified release requires both Windows architectures and retains legacy Mac releases", async () => {
   const unified = release("0.4.8");
   const selected = selectDesktopRelease([unified, release("0.3.5")]);
-  assert.match(selected!.windowsDownloads!.arm64, /Machine%20Control_0.4.8_arm64-setup.exe$/);
+  assert.match(selected!.windowsDownloads!.arm64, /MachineControl_0.4.8_arm64-setup.exe$/);
   assert.equal(selectDesktopRelease([release("0.3.5")])!.windowsDownloads, null);
-  for (const name of ["Machine Control_0.4.8_arm64-setup.exe", "payload-windows-x64.json"]) {
+  for (const name of ["MachineControl_0.4.8_arm64-setup.exe", "payload-windows-x64.json"]) {
     assert.throws(() => selectDesktopRelease([{...unified, assets: unified.assets.filter(a => a.name !== name)}, release("0.3.5")]));
   }
   const original = globalThis.fetch;

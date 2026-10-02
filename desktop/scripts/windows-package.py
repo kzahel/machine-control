@@ -36,8 +36,17 @@ def evidence(directory, *, target, version, revision, run):
     (directory / 'build.json').write_text(json.dumps(value, indent=2) + '\n')
 
 
-def verify(directory, *, revision, version, run=None, target=None, tamper=False):
-    value = json.loads((directory / 'build.json').read_text(encoding='utf-8-sig'))
+def public_name(name, arch):
+    if name == 'payload.json':
+        return f'payload-windows-{arch}.json'
+    return name.replace('Machine Control_', 'MachineControl_', 1)
+
+
+def verify(directory, *, revision, version, run=None, target=None, tamper=False, published=False):
+    if published and target not in TARGETS:
+        raise ValueError('Public package verification requires an explicit target')
+    receipt = f'build-windows-{TARGETS[target]}.json' if published else 'build.json'
+    value = json.loads((directory / receipt).read_text(encoding='utf-8-sig'))
     if (value.get('schema') != 'machine-control-desktop-build/v0' or value.get('platform') != 'windows'
             or value.get('bundleIdentifier') != 'org.machine-control.app'
             or value.get('sourceState') != 'ci_checkout' or value.get('sourceRevision') != revision
@@ -46,19 +55,21 @@ def verify(directory, *, revision, version, run=None, target=None, tamper=False)
             or (target is not None and value['target'] != target)
             or (run is not None and f"{value.get('workflowRun')}.{value.get('workflowAttempt')}" != run)):
         raise ValueError('Windows candidate identity mismatch')
+    def artifact_path(name):
+        return directory / (public_name(name, value['arch']) if published else name)
     names = set()
     for item in value['artifacts']:
         name = item['name']
         if name in names or '/' in name or '\\' in name or name in {'', '.', '..'}:
             raise ValueError('Unsafe or duplicate artifact name')
         names.add(name)
-        file = directory / name
+        file = artifact_path(name)
         if file.stat().st_size != item['size'] or digest(file) != item['sha256']:
             raise ValueError('Final artifact bytes changed')
     installers = [name for name in names if name.endswith('-setup.exe')]
     if len(installers) != 1 or names != {installers[0], installers[0] + '.sig', 'payload.json'}:
         raise ValueError('Incomplete final Windows artifact set')
-    payload = json.loads((directory / 'payload.json').read_text(encoding='utf-8-sig'))
+    payload = json.loads(artifact_path('payload.json').read_text(encoding='utf-8-sig'))
     if (payload.get('schema') != 'machine-control-desktop-payload/v0'
             or payload.get('sourceRevision') != revision or payload.get('version') != version
             or payload.get('target') != value['target']):
@@ -92,8 +103,8 @@ def verify(directory, *, revision, version, run=None, target=None, tamper=False)
         public = root / 'updater.pub'
         public.write_bytes(base64.b64decode(config['plugins']['updater']['pubkey'], validate=True))
         signature = root / 'installer.sig'
-        signature.write_bytes(base64.b64decode((directory / (installers[0] + '.sig')).read_text().strip(), validate=True))
-        installer = directory / installers[0]
+        signature.write_bytes(base64.b64decode(artifact_path(installers[0] + '.sig').read_text().strip(), validate=True))
+        installer = artifact_path(installers[0])
         def check(file):
             return subprocess.run(['minisign', '-V', '-p', str(public), '-m', str(file), '-x', str(signature)],
                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE).returncode == 0
@@ -120,10 +131,11 @@ if __name__ == '__main__':
     p.add_argument('--run')
     p.add_argument('--target', choices=TARGETS)
     p.add_argument('--test-tampering', action='store_true')
+    p.add_argument('--published', action='store_true', help='Verify release assets using public names and receipts')
     args = p.parse_args()
     if args.command == 'evidence':
         if not args.run or not args.target: p.error('evidence requires --run and --target')
         evidence(args.directory, target=args.target, version=args.version, revision=args.revision, run=args.run)
     else:
-        verify(args.directory, revision=args.revision, version=args.version, run=args.run, target=args.target, tamper=args.test_tampering)
+        verify(args.directory, revision=args.revision, version=args.version, run=args.run, target=args.target, tamper=args.test_tampering, published=args.published)
         print('Windows installer signature, signed version, provenance, and tamper rejection verified')

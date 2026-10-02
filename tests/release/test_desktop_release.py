@@ -77,7 +77,11 @@ class DesktopReleaseTests(unittest.TestCase):
         self.assertEqual(set(manifest['platforms']), {'darwin-aarch64', 'darwin-x86_64', 'windows-aarch64', 'windows-x86_64'})
         self.assertEqual(len(list(self.output.iterdir())), 17)
         self.assertIn('/desktop-v0.3.3/MachineControl_0.3.3_arm64.app.tar.gz', manifest['platforms']['darwin-aarch64']['url'])
-        self.assertIn('Machine%20Control_0.3.3_x64-setup.exe', manifest['platforms']['windows-x86_64']['url'])
+        self.assertIn('MachineControl_0.3.3_x64-setup.exe', manifest['platforms']['windows-x86_64']['url'])
+        for target in release.windows_package.TARGETS:
+            with patch.object(release.windows_package, 'ROOT', self.root):
+                release.windows_package.verify(self.output, version=VERSION, revision=REVISION,
+                                               run='123.1', target=target, published=True, tamper=True)
         with self.assertRaises(ValueError):
             self.stage()
 
