@@ -8,8 +8,8 @@ publisher verification and notarization; Windows x64/ARM64 installed catalogs
 and Linux x64/ARM64 final packages authenticate. Native Windows ARM64 CI now
 executes that architecture's bundled interpreter. Earlier Mac ARM64 appliance,
 Linux ARM64 container, and Windows x64 appliance evidence retains its own
-scope. Signed Windows/Linux GUI control and installed replacement acceptance
-remain separate. [Tactical 063](../docs/tactical/063-six-platform-desktop-release.md)
+scope. Signed Windows/Linux GUI control remains separate; Mac installed CLI
+replacement to public 0.5.3 is accepted. [Tactical 063](../docs/tactical/063-six-platform-desktop-release.md)
 owns exact published package and production delivery verification.
 
 ## Contract
@@ -98,8 +98,7 @@ owned YA process crash preserve the independently started MC resident's exact
 PID, generation and held claim. The orphaned Codex group is checked, reaped and
 observed gone; original resident readiness, initial power-off and released
 claims are confirmed. [YA's tactical result](../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md#full-ya-app-close-restart-and-crash-result)
-owns this probe. Signed replacement and Windows/Linux lifecycle parity remain
-separate.
+owns this probe. Windows/Linux lifecycle parity remains separate.
 
 **Current:** `tests/macos/cli-grant-expiry.py` passes through the installed signed
 Mac client with separate controller/host claims. A candidate loads workstation
@@ -111,6 +110,14 @@ then actual elapsed-time expiry reports `expired` and refuses observation with
 grant-state mutation is used. Cleanup disarms access, reaps the owned candidate
 and fixture, removes staging, restores initial power-off and releases claims.
 This closes Mac native grant expiry, separately from signed app replacement.
+
+**Current:** Mac installed replacement from an owned signed 0.5.2 fixture to
+exact public 0.5.3 passes through the installed CLI. Active access disables
+installation; Stop allows automatic signed replacement/relaunch with access
+off, retained permissions and a fresh generation. The CLI identity follows
+the replaced app, its held host claim remains valid, stale UI references refuse
+and YA reauthenticates the replacement. [Tactical 062](../docs/tactical/062-installed-agent-cli.md#published-mac-installed-cli-replacement)
+owns the fixture distinction, exact source and cleanup evidence.
 
 **Current:** The Mac ARM64 0.5.3 candidate from source `698550b` passes exact
 updater signature/version and source verification, complete CLI closure,
@@ -140,8 +147,8 @@ PNG through its native image viewer. YA also passes full-app HTTP media and
 real desktop/phone image-viewer acceptance: live output serves exact native PNG
 bytes, and a fresh app/media store reconstructs them from the actual transcript
 after provider shutdown. Preservation stays off and the fixture source remains
-available until cleanup. Provider-driven control remains separate. Signed
-installed replacement and per-platform evidence remain required before
+available until cleanup. This media-view cell is separate from provider-driven control. Windows/Linux
+per-platform evidence remains required before
 retiring any legacy YA component. [Tactical 062](../docs/tactical/062-installed-agent-cli.md)
 records implementation; [YA's migration plan](../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md)
 owns consumer cutover.

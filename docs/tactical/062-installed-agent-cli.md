@@ -247,3 +247,36 @@ owns its full checks and failed-attempt details. This is exact candidate
 discovery evidence; earlier control/model/lifecycle cells used the local signed
 assembly. Signed replacement, publication, other platforms and legacy cutover
 remain separate gates.
+
+## Published Mac installed CLI replacement
+
+**Current (2026-10-02):** `tests/macos/tauri-update.py` optionally uses the exact
+installed client with a caller-owned host claim, in addition to the existing
+independent controller claim/observer. Discovery verifies native update
+metadata plus the visible disabled install button instead of depending on one
+exact accessibility static-text rendering. Publisher and signed-version
+verification remain enforced.
+
+The sender is an owned Developer-ID-signed 0.5.2 fixture with a private loopback
+feed, not a published 0.5.2 release. The receiver is the untouched public Mac
+ARM64 desktop 0.5.3 archive/signature from source
+`d5aa271ca93d890325a12b0906432b762a4aaec4`. Full package verification, including
+source, updater signature/version, CLI inventory, Gatekeeper, native signatures,
+stapling and archive tamper refusal, passes before use.
+
+Through the installed CLI, native discovery reports 0.5.3 and the visible
+Install and restart action is disabled with active access. Stop enables it.
+Actual replacement and automatic relaunch retain semantic/capture permission,
+start with access off, change resident generation and refuse an old reference.
+Offline CLI identity changes from 0.5.2 to 0.5.3; the existing host claim still
+authorizes native status. Actual YA discovery, launch-context composition and
+publisher/script/interpreter negatives pass before and after replacement.
+Post-replacement source identity and signatures/staple match public 0.5.3.
+
+Cleanup restores original trusted policy bytes/metadata, disarms/reaps only the
+owned candidate/feed/fixture and removes staging. An independent staged CLI
+releases the host claim and verifies availability even after app replacement.
+The original resident stays ready. Initial power-off and controller claim
+availability are independently confirmed; canonical credentials are unchanged.
+Portable release tests (61) and Python syntax checking pass. Signed Windows/
+Linux native acceptance and YA legacy retirement remain open.

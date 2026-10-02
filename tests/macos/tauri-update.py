@@ -22,7 +22,14 @@ p.add_argument('--legacy-reopen', action='store_true',
 p.add_argument('--capture-dir', type=Path, help='Private controller evidence directory')
 p.add_argument('--verify-restart-before', action='store_true')
 p.add_argument('--verify-restart-after', action='store_true')
+p.add_argument('--candidate-client', help='Exact installed CLI path; requires --host-claim')
+p.add_argument('--host-claim', help='Caller-owned guest-local target-use claim')
+p.add_argument('--host-state', help='Optional isolated guest-local claim store')
 args = p.parse_args()
+if bool(args.candidate_client) != bool(args.host_claim):
+    p.error('--candidate-client and --host-claim must be supplied together')
+if args.host_state and not args.candidate_client:
+    p.error('--host-state requires --candidate-client')
 if args.legacy_reopen and args.initial_version not in ('0.3.3', '0.3.4'):
     p.error('Legacy reopening is limited to the affected published sender versions')
 mc = [str(Path(__file__).resolve().parents[2] / 'bin/machine-control'),
@@ -42,7 +49,29 @@ def resident(app, socket, request):
 
 
 def candidate(request):
+    if args.candidate_client:
+        environment = ['MACHINE_CONTROL_HOST_SOCKET=' + args.candidate_socket]
+        if args.host_state:
+            environment.append('MACHINE_CONTROL_HOST_STATE_DIR=' + args.host_state)
+        response = subprocess.run(mc + ['os', '--', '/usr/bin/env', *environment,
+            args.candidate_client, '--target', 'host', '--claim', args.host_claim,
+            'desktop', 'raw', json.dumps(request)], capture_output=True, text=True, timeout=60)
+        if response.returncode not in (0, 1):
+            raise RuntimeError('Installed CLI transport failed')
+        try:
+            value = json.loads(response.stdout)
+        except ValueError as error:
+            raise RuntimeError('Installed CLI unavailable during replacement') from error
+        if value.get('schema') == 'machine-control-client-error/v0':
+            raise RuntimeError('Installed CLI resident unavailable during replacement')
+        return value
     return resident(args.candidate_app, args.candidate_socket, request)
+
+
+def client_identity():
+    identity = json.loads(call('os', '--', args.candidate_client, 'agent', 'identity'))
+    assert identity['clientProtocol'] == 1 and identity['distribution'] == 'desktop'
+    return identity
 
 
 def observer(request):
@@ -109,8 +138,11 @@ if args.verify_restart_before:
 
 
 old = candidate(dict(operation='status'))
+old_client = client_identity() if args.candidate_client else None
 pid = accepted(old)['processId']
 assert version() == args.initial_version
+if old_client:
+    assert old_client['version'] == args.initial_version
 assert accepted(candidate(dict(operation='grant.status')))['grant'] is None
 accepted(observer(dict(operation='application.activate', target=str(pid))))
 press(pid, 'Access')
@@ -123,16 +155,22 @@ press(pid, 'Settings')
 press(pid, 'Check for updates')
 deadline = time.monotonic() + 45
 while time.monotonic() < deadline:
+    update = accepted(candidate(dict(operation='update.status')))['update']
+    if update['phase'] == 'error':
+        raise AssertionError('Native update discovery failed: ' + str(update['error']))
     snapshot = elements(pid)
-    if any((e.get('label') or e.get('value')) ==
-           f'Version {args.expected_version} available.' for e in snapshot):
+    installs = [e for e in snapshot if e['role'] == 'AXButton'
+                and e['label'] == 'Install and restart']
+    if (update['phase'] == 'available'
+            and update['availableVersion'] == args.expected_version
+            and len(installs) == 1):
         break
     time.sleep(0.2)
 else:
-    raise AssertionError('Installed sender did not discover the expected public update')
-install = next(e for e in snapshot if e['role'] == 'AXButton'
-               and e['label'] == 'Install and restart')
+    raise AssertionError('Installed sender did not discover the expected signed update')
+install = installs[0]
 assert not install['enabled'], 'Update installation was enabled with active access'
+print('PASS native discovery identifies the receiver and visible installation is disabled during active access', flush=True)
 press(pid, 'Access')
 press(pid, 'Stop access')
 press(pid, 'Settings')
@@ -164,6 +202,11 @@ else:
 assert new['generation'] != old['generation']
 assert state['semanticState'] == 'ready' and state['captureState'] == 'ready'
 assert accepted(candidate(dict(operation='grant.status')))['grant'] is None
+if old_client:
+    replacement_client = client_identity()
+    assert replacement_client['version'] == args.expected_version
+    assert replacement_client['version'] != old_client['version']
+    print('PASS installed CLI identity replaced with the signed app and claim still authorizes native status', flush=True)
 pid = state['processId']
 accepted(observer(dict(operation='application.activate', target=str(pid))))
 press(pid, 'Access')
@@ -175,4 +218,5 @@ if args.verify_restart_after:
 print(json.dumps(dict(initialVersion=args.initial_version, version=args.expected_version,
     relaunch='native_reopen' if reopened else 'automatic', permissionsRetained=True,
     accessOff=True, generationChanged=True, staleReferenceRefused=True,
+    installedClient=bool(args.candidate_client),
     restartBefore=args.verify_restart_before, restartAfter=args.verify_restart_after)), flush=True)
