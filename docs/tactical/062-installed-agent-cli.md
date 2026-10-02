@@ -45,6 +45,9 @@ through the same installation. Verify publisher trust before executing probes.
 ## Validation and result
 
 Mac ARM64 staging, CLI identity, portable packaging negatives, common client
-tests, desktop frontend build and Rust tests pass locally. Signed product and
-Windows/Linux installed execution remain separate gates. Update this record
+tests, desktop frontend build and Rust tests pass locally. A Developer ID signed
+Mac assembly passes deep verification and YA authentication, closure checks and
+launch-context composition. Physical CLI relocation and guest execution with
+ambient Python disabled pass. Notarization/publication, real provider/model use
+and Windows/Linux installed execution remain separate gates. Update this record
 with exact source-independent and consumer evidence as validation completes.

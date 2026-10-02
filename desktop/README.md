@@ -194,3 +194,8 @@ the Windows/Linux GUI executable. `agent identity` and `agent instructions`
 provide offline discovery and workflow guidance. Released older packages do
 not gain this interface until updated. Packaging, trust and acceptance limits
 are owned by [Installed agent CLI](../topics/installed-agent-cli.md).
+
+Local assembled-app signing can exercise the production nested-code and
+Python inventory order with `python3 desktop/scripts/sign-macos-payload.py APP
+--identity SIGNING_IDENTITY`. This signs and verifies the bundle; notarization,
+stapling, updater signing and publication remain in `sign-macos.sh`.

@@ -3,7 +3,10 @@
 Topic: `installed-agent-cli`
 
 Status: implemented in source; Mac ARM64 standalone packaging passes local
-smoke. Signed product and Windows/Linux execution acceptance remain separate.
+smoke, including physical payload relocation and isolated Python configuration.
+A locally assembled Developer ID app passes YA publisher, closure and identity
+verification. Notarization, publication and Windows/Linux execution acceptance
+remain separate.
 
 ## Contract
 

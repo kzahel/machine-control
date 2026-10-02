@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import tempfile
 
 parser = argparse.ArgumentParser()
@@ -13,6 +14,10 @@ parser.add_argument("--client", type=Path, required=True)
 args = parser.parse_args()
 client = args.client.resolve(strict=True)
 with tempfile.TemporaryDirectory(prefix="mc-cli-installed-") as tmp:
+    # Move the entire payload away from its original product/source location.
+    relocated = Path(tmp) / "relocated client"
+    shutil.copytree(client.parent.parent, relocated)
+    client = relocated / "commands" / client.name
     environment = {key: value for key, value in os.environ.items()
                    if not key.startswith("MACHINE_CONTROL_") and not key.startswith("PYTHON")}
     environment.update({"PATH": str(client.parent) + os.pathsep + ("/usr/bin:/bin" if os.name != "nt" else environment.get("SystemRoot", r"C:\Windows") + r"\System32"),
