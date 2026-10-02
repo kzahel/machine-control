@@ -161,8 +161,8 @@ standing policy, distinct from the earlier workstation approval slice.
 The generated native PNG also passes YA's separate full-app live/reloaded
 HTTP and desktop/phone viewer route. A separate browser model also uses the
 installed CLI to increment an independent HTTP fixture once and consume its
-new tab capture; the headed browser harness passes all 23 checks. Signed
-Windows/Linux native acceptance and lifecycle parity remain open.
+new tab capture; the headed browser harness passes all 23 checks. The Windows/Linux evidence below owns their accepted core slices; further
+platform model/browser/lifecycle cells remain separate.
 
 **Current:** Public desktop 0.5.3 Windows x64 from source `d5aa271` passes
 ordinary interactive installed-CLI acceptance in a claimed Windows 11 appliance.
@@ -176,8 +176,12 @@ and native Stop revokes access. `tests/windows/desktop-cli.ps1` supplies the
 control assertions. Its owned actor uses per-process PowerShell execution policy
 without changing the machine's policy. Temporary installation and staging are
 removed, the pre-existing custom-install registry restored, original power-off
-confirmed, and local and controller claims released. Windows provider-driven
-model control/media, browser and lifecycle parity remain separate gates.
+confirmed, and local and controller claims released. A real Windows
+YA Codex 0.159 provider now also uses the installed native JSON command route
+for exactly one semantic increment and new capture retrieval/image consumption.
+Independent fixture count and model image count agree. MC remains usable after
+provider close, then native Stop revokes access. Full YA media, Windows browser
+and further lifecycle cells remain separate gates.
 
 **Current:** Public 0.5.3 Linux x64 Debian bytes, source `d5aa271`, pass
 production YA receipt/full-client/identity/context verification and relocated,

@@ -54,11 +54,11 @@ search paths, and blocking operator IPC stays outside GTK's event thread.
 Debian updates use the package manager; AppImage uses the signed updater.
 
 **Current:** [Public downloads](https://machinecontrol.dev/downloads/) and
-[desktop 0.5.0](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.0)
-serve both architectures. Both production metadata routes return the authenticated
-AppImage to older clients and 204 to current clients. Installed replacement uses
-the strict localhost HTTPS fixture with those exact public incoming bytes;
-positive installed production-feed replacement remains separate.
+[desktop 0.5.3](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.3)
+serve both architectures. [Tactical 059](../docs/tactical/059-public-linux-desktop.md)
+retains the earlier 0.5.0 production metadata and signed replacement acceptance.
+Positive installed production-feed replacement to 0.5.3 remains separate from
+package authentication and the Debian CLI/core acceptance above.
 
 **Open:** Native ARM64 desktop execution, physical hardware, other compositors,
 multiple monitors/scaling, suspend/resume, arbitrary window activation, and

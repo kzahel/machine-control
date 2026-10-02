@@ -332,3 +332,14 @@ staging removed, original power-off confirmed, and host/controller claims releas
 The canonical stored credential remains ready and unchanged. Linux provider
 model/browser and further lifecycle cells, Windows model/browser/media and
 legacy migration remain explicit remaining work.
+
+**Current (2026-10-03):** A real ordinary-user Windows YA Codex 0.159.0
+provider turn now passes with the exact public 0.5.3 installed CLI: instructions,
+identity, claimed window enumeration/native JSON snapshot, one semantic
+invocation, exact-window capture, artifact retrieval and built-in image viewing.
+Independent fixture process/count and model-reported visible count match. YA
+reauthenticates the live runtime through its signed catalog using a bounded copy,
+because PowerShell cannot hash the active executable directly. Provider close
+leaves MC usable; native Stop revokes access before owned cleanup. Original
+installation registry/power are restored and all claims released. Windows browser,
+full-app media and further lifecycle gates remain open.
