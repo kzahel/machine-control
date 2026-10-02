@@ -55,3 +55,5 @@ commits with no expected follow-up do not need a trailer or registry entry.
   extension, native messaging, and grant-scoped CDP.
 - `windows-desktop` — shared Tauri Windows operator, resident grants,
   companion supervision, signed installers, and installed acceptance.
+- `linux-desktop` — ordinary-user Linux Tauri app, portal consent, grants,
+  native approvals, packages, and installed GNOME acceptance.

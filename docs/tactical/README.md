@@ -111,3 +111,5 @@ the commits' `Topic:` trailers and register that exact string in
 - [`055-unified-desktop-publication.md`](055-unified-desktop-publication.md) (complete):
   one Mac/Windows release script, complete signed publication, downloads, and
   production update acceptance.
+- [`056-linux-desktop.md`](056-linux-desktop.md) (active): ordinary-user GNOME
+  Wayland portal control, shared Tauri app, grants, packages, and acceptance.

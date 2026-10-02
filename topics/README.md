@@ -95,6 +95,9 @@ its `Topic:` trailers.
 
 ## Update policy
 
+- [`linux-desktop.md`](linux-desktop.md): ordinary-user Linux Tauri settings,
+  portal consent, grants, native approvals, packaging, and installed acceptance.
+
 - Read the relevant topic before changing the concern it governs.
 - Update it when work changes current status, a decision, evidence, validation,
   a known gap, or the recommended direction.
