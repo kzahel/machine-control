@@ -153,7 +153,8 @@ def stage(directory, output, version, revision, run, body):
             manifest = linux_package.verify(source, target=target, version=version, revision=revision, run=run)
             image = next(item['name'] for item in manifest['artifacts'] if item['name'].endswith('.AppImage'))
             deb = next(item['name'] for item in manifest['artifacts'] if item['name'].endswith('.deb'))
-            if image != f'Machine Control_{version}_{arch}.AppImage' or deb != f'Machine Control_{version}_{arch}.deb':
+            image_arch = 'aarch64' if arch == 'arm64' else arch
+            if image != f'Machine Control_{version}_{image_arch}.AppImage' or deb != f'Machine Control_{version}_{arch}.deb':
                 raise ValueError('Unexpected Linux package name')
             for name in (image, image + '.sig', deb, deb + '.sig', 'payload.json'):
                 payloads.append((source / name, linux_package.public_name(name, arch)))

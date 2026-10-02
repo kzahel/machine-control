@@ -204,8 +204,9 @@ class LinuxUnifiedReleaseTests(unittest.TestCase):
         for target, (arch, _) in release.linux_package.TARGETS.items():
             folder = self.candidates / ('linux-desktop-' + target)
             folder.mkdir()
-            packages = [f'Machine Control_{VERSION}_{arch}{suffix}'
-                        for suffix in ['.AppImage', '.deb']]
+            image_arch = 'aarch64' if arch == 'arm64' else arch
+            packages = [f'Machine Control_{VERSION}_{image_arch}.AppImage',
+                        f'Machine Control_{VERSION}_{arch}.deb']
             for name in packages:
                 path = folder / name
                 path.write_bytes(b'authenticated release fixture container')
@@ -241,6 +242,11 @@ class LinuxUnifiedReleaseTests(unittest.TestCase):
         self.assertEqual(set(latest['platforms']), {'darwin-aarch64', 'darwin-x86_64',
                          'windows-aarch64', 'windows-x86_64', 'linux-aarch64', 'linux-x86_64'})
         self.assertEqual(len(list(self.output.iterdir())), 29)
+        self.assertTrue(latest['platforms']['linux-aarch64']['url'].endswith(
+            '/MachineControl_0.5.0_arm64.AppImage'))
+        original = self.candidates / 'linux-desktop-aarch64-unknown-linux-gnu/Machine Control_0.5.0_aarch64.AppImage'
+        self.assertEqual(release.sha256(original), release.sha256(
+            self.output / 'MachineControl_0.5.0_arm64.AppImage'))
         for target in release.linux_package.TARGETS:
             with patch.object(release.linux_package, 'ROOT', self.root):
                 release.linux_package.verify(self.output, target, VERSION, REVISION,

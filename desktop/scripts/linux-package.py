@@ -107,7 +107,13 @@ def safe_name(name):
 
 
 def public_name(name, arch):
-    return "payload-linux-" + arch + ".json" if name == "payload.json" else name.replace("Machine Control_", "MachineControl_", 1)
+    if name == "payload.json":
+        return "payload-linux-" + arch + ".json"
+    # Tauri's ARM AppImage uses aarch64; Debian and public routes use arm64.
+    # Receipts retain the original name and authenticated bytes.
+    if arch == "arm64":
+        name = name.replace("_aarch64.AppImage", "_arm64.AppImage", 1)
+    return name.replace("Machine Control_", "MachineControl_", 1)
 
 
 def evidence(directory, target, version, revision, run, purpose="candidate"):
