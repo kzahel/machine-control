@@ -49,6 +49,8 @@ try {
         $cli.sourceRevision -ne $Revision -or $cli.version -ne $Version -or $cli.target -ne $Target) {
         throw 'Installed CLI identity mismatch'
     }
+    python (Join-Path $PSScriptRoot '../../tests/desktop/cli-installed.py') --client (Join-Path $cliRoot 'commands/machine-control.cmd')
+    if ($LASTEXITCODE -ne 0) {throw 'Relocated installed CLI execution failed'}
     # TEMP may use an 8.3 alias while enumeration expands the user's name.
     # Derive the root from the same canonical file representation.
     $payloadRoot=(Get-Item -LiteralPath (Join-Path $installRoot 'machine-control.exe')).DirectoryName

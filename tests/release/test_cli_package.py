@@ -52,6 +52,21 @@ class CliPackageTests(unittest.TestCase):
         with self.assertRaises((ValueError, tarfile.FilterError)):
             prepare.extract(self.archive(link="../../../outside"), self.root / "out")
 
+    def test_unused_terminfo_aliases_are_not_extracted(self):
+        archive = self.root / "python.tar.gz"
+        with tarfile.open(archive, "w:gz") as output:
+            runtime = tarfile.TarInfo("python/bin/python3")
+            runtime.size = 7
+            output.addfile(runtime, io.BytesIO(b"fixture"))
+            alias = tarfile.TarInfo("python/share/terminfo/n/NCR")
+            alias.type = tarfile.SYMTYPE
+            alias.linkname = "ncr"
+            output.addfile(alias)
+        destination = self.root / "out"
+        prepare.extract(archive, destination)
+        self.assertEqual((destination / "python/bin/python3").read_bytes(), b"fixture")
+        self.assertFalse((destination / "python/share/terminfo").exists())
+
     def test_download_requires_pinned_digest_and_repairs_bad_cache(self):
         archive = self.archive()
         pin = {"url": archive.as_uri(), "sha256": hashlib.sha256(archive.read_bytes()).hexdigest()}

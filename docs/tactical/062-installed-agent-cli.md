@@ -57,8 +57,8 @@ Separate controller and guest-local claims are released by the harness.
 The broader tray/updater run did not establish acceptance on the local 0.3.0
 assembly: the second tray opening did not expose `Check for Updates…` to AX.
 The new `--control-only` run passes its declared control slice; it leaves
-updater/tray acceptance open rather than treating the broad run as passing. Notarization/publication, real provider/model use
-and Windows/Linux installed execution remain separate gates. Browser acceptance passes 21 checks with the signed embedded native host and
+updater/tray acceptance open rather than treating the broad run as passing. Notarization/publication and Windows/Linux desktop acceptance remain separate
+gates. Browser acceptance passes 21 checks with the signed embedded native host and
 extension, Chrome for Testing, an independent HTTP/Chrome oracle, and the
 installed CLI. It exercises enumeration, semantics/click effects, PNG capture
 and bounded artifact retrieval, release/marker cleanup, debugger cancellation,
@@ -78,3 +78,12 @@ claims are released. The canonical login credential remains ready and
 owner-only; no credential changes. Windows/Linux execution and legacy YA
 retirement remain open. The configured Windows appliance is unavailable; no
 private infrastructure or credential locators are recorded here.
+
+Linux ARM64 offline CLI execution passes in an isolated native Ubuntu container
+using the bundled interpreter and physically relocated payload. Network and
+source checkout are absent; the installed payload is read-only. The run caught
+unused terminfo aliases that collide on case-insensitive build filesystems.
+Staging now omits that data before extraction, with a regression fixture; all
+57 release tests pass. Platform workflows now run the relocation smoke,
+including actual Windows installer bytes. These checks do not establish native
+Linux approval or capture acceptance.

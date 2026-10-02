@@ -20,9 +20,14 @@ to preserve a Python CLI without requiring users to install Python. This is a
 packaging dependency, not a desktop control provider or resident replacement.
 Native semantics and OS permissions remain with the existing adapters.
 
-**Current:** Mac ARM64 is **built** and exercised through the staged CLI's
-isolated interpreter. Intel Mac, Windows x64/ARM64 and Linux x64/ARM64 have exact
-archive pins but are not execution-accepted by this evidence. Source review
+**Current:** Mac ARM64 and Linux ARM64 are **built** and exercised through the
+staged CLI's isolated interpreter. Linux runs in a native ARM64 Ubuntu container
+with no network, a read-only installed payload and only the standalone smoke
+harness mounted; the full payload is copied to an unrelated path before use.
+Offline identity/instructions, local-target discovery and bundled claim
+capabilities pass. This is CLI execution evidence, not Linux desktop or signed
+package acceptance. Intel Mac, Windows x64/ARM64 and Linux x64 have exact archive
+pins but are not execution-accepted by this evidence. Source review
 covers archive filtering, internal link flattening, runtime isolation and
 whole-payload inventory; it does not establish signed end-user acceptance.
 The [installed CLI topic](../../topics/installed-agent-cli.md) owns adoption and

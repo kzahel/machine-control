@@ -84,6 +84,7 @@ jobs:
           cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
           TAURI_CONFIG="$(cat desktop/src-tauri/tauri.linux.conf.json)" cargo clippy --manifest-path desktop/src-tauri/Cargo.toml --all-targets --locked --features tauri/custom-protocol -- -D warnings
           TAURI_CONFIG="$(cat desktop/src-tauri/tauri.linux.conf.json)" cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --features tauri/custom-protocol
+          python3 tests/desktop/cli-installed.py --client desktop/src-tauri/native/mc-cli/commands/machine-control
           python3 -m unittest discover -s tests/desktop -p 'test_update*.py' -v
       - name: Build and sign final Debian and AppImage bytes
         working-directory: desktop

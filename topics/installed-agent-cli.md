@@ -5,8 +5,9 @@ Topic: `installed-agent-cli`
 Status: implemented in source; Mac ARM64 standalone packaging passes local
 smoke, including physical payload relocation and isolated Python configuration.
 A locally assembled Developer ID app passes YA publisher, closure and identity
-verification. Notarization, publication and Windows/Linux execution acceptance
-remain separate.
+verification. Linux ARM64 also passes relocated offline CLI execution in an isolated native
+container. Notarization, publication, Windows execution and Linux desktop
+acceptance remain separate.
 
 ## Contract
 
@@ -58,8 +59,11 @@ generation, delivery, effect and uncertainty reporting.
 
 [`cli-installed.py`](../tests/desktop/cli-installed.py) tests offline discovery,
 isolated runtime use and bundled claim dependencies from an unrelated directory.
-Archive traversal, external links, modified/missing files and unexpected files
-have portable negative tests. The signed Mac ARM64 assembly passes bounded
+Archive traversal, external links, unused terminal-data aliases,
+modified/missing files and unexpected files have portable negative tests.
+Linux ARM64 passes the same relocation smoke in an isolated native container.
+The Mac and Linux workflows execute this smoke after staging; Windows executes
+it against the actual signed installer payload before recording provenance. The signed Mac ARM64 assembly passes bounded
 workstation approval/refusal/revocation, an independent AppKit counter effect,
 exact-window capture and artifact retrieval through the installed CLI. This is
 claimed-appliance evidence, not physical-workstation acceptance. Chrome for Testing browser acceptance also passes 21 checks through the

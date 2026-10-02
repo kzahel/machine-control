@@ -48,9 +48,16 @@ def fetch(pin, cache):
 def extract(archive, destination):
     # Requires Python 3.12+ for the build, not a Python installation at runtime.
     with tarfile.open(archive) as source:
-        if any(not item.name.startswith("python/") for item in source.getmembers()):
+        members = source.getmembers()
+        if any(not item.name.startswith("python/") for item in members):
             raise ValueError("Unexpected standalone Python archive root")
-        source.extractall(destination, filter="data")
+        # The CLI does not use curses. Linux terminfo aliases can differ only
+        # by case, forming self-referential links on macOS build filesystems.
+        # Omit this unused data before extraction, not after following links.
+        members = [item for item in members
+                   if item.name.rstrip("/") != "python/share/terminfo"
+                   and not item.name.startswith("python/share/terminfo/")]
+        source.extractall(destination, members=members, filter="data")
     runtime = destination / "python"
     # Flatten only internal links. Tauri resources and signed inventories must
     # contain regular files, so installed trust checks cover their exact bytes.
