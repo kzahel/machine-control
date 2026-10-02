@@ -170,3 +170,23 @@ initial power-off confirmed. Standing appliance authority remains explicit.
 The generated tab PNG passes YA's separate full-app live/reloaded HTTP and
 desktop/phone viewer checks. Signed Windows/Linux control, lifecycle parity,
 public consumer selection and YA legacy retirement remain open.
+
+## Installed Mac claim and resident lifecycle result
+
+The new `tests/desktop/cli-lifecycle.py` passes against the signed, staged Mac
+assembly without a source checkout. The controller holds a fresh exact
+appliance claim; the helper owns a separate host claim store, socket and
+resident. Claim-free target observations refuse, a second claimant cannot
+acquire held access, and three concurrent claimed discovery calls report the
+same native generation. The actual one-minute minimum lease expires without
+changing policy or its stored clock; expired and superseded claim IDs refuse.
+
+Stopping only the helper's resident makes doctor unavailable and target
+operations refuse. Offline identity still works and the CLI leaves the socket
+absent. Explicitly restarting the same signed binary restores readiness with
+a different resident generation and the still-live host claim. The helper
+releases its claim, reaps its process and removes temporary state. The original
+appliance resident remains ready; the controller restores initial power-off
+and releases its claim. This closes the Mac installed claim/fencing and owned
+resident recovery cell. It does not prove app replacement, native grant expiry,
+YA session close/crash or Windows/Linux lifecycle parity.

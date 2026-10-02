@@ -77,6 +77,18 @@ INSTALLED_COMMAND --unavailable-resident` on Mac to reproduce this negative
 cell. The flag refuses on other platforms; it does not establish their native
 resident recovery or any successful control route.
 
+**Current:** `tests/desktop/cli-lifecycle.py --client INSTALLED_COMMAND` passes
+inside the claimed Mac appliance with the signed assembly and standing policy.
+It starts only its own isolated resident/socket, proves exclusive and concurrent
+claim behavior, real one-minute expiry and superseded-claim fencing, then stops
+that owned resident. Offline identity stays available, target operations refuse
+and the CLI creates no replacement. An explicit harness restart has a fresh
+resident generation while preserving the still-live target-use claim. The
+original appliance resident stays ready; owned processes/state are removed,
+the controller claim is released and initial power-off is restored. This is
+claim/resident recovery evidence, not app replacement, native grant expiry,
+YA session-close/crash behavior or Windows/Linux lifecycle parity.
+
 [`cli-installed.py`](../tests/desktop/cli-installed.py) tests offline discovery,
 isolated runtime use and bundled claim dependencies from an unrelated directory.
 Archive traversal, external links, unused terminal-data aliases,
