@@ -127,9 +127,10 @@ python3 desktop/scripts/verify-package.py ARTIFACT_DIRECTORY \
 ```
 
 The tagged release script creates an annotated `desktop-vX.Y.Z` tag and
-dispatches the main-only unified workflow. All four Mac/Windows targets must
-pass verification before CI publishes the complete verified draft. An accepted
-unified candidate can be promoted without rebuilding its signed bytes. The website resolves the
+dispatches the main-only unified workflow. Starting with 0.5.0, all six
+Mac/Windows/Linux targets must pass verification before CI publishes the
+complete verified draft. An accepted unified candidate can be promoted without
+rebuilding its signed bytes. The website resolves the
 latest desktop release separately from Windows component releases. See the
 [release process](../release/desktop.md) and [changelog](CHANGELOG.md).
 

@@ -30,41 +30,42 @@ immediately. Concrete targets and raw evidence stay in private inventory/storage
 | Windows x64, Windows VM on Linux/KVM | Exact signed public 0.4.8 installer and payload verified | Public 0.4.8 UI/grants/lifecycle, browser tasks, production update and uninstall accepted; outside parity, lock/sign-in startup and component compatibility recorded on 0.4.7 | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md), [055](tactical/055-unified-desktop-publication.md) |
 | Windows ARM64, Windows VM | Signed public 0.4.8 verified; CI package checks run on x64 | New Tauri operator execution not recorded; earlier ARM64 component execution below | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md), [055](tactical/055-unified-desktop-publication.md) |
 | Windows x64, physical Windows | New candidate package verification does not establish physical execution | New Tauri operator acceptance not recorded; earlier appliance engine evidence below | [physical engine record](evidence/windows-physical-x64.md) |
-| Linux x64, Ubuntu GNOME Wayland VM | Initial 0.5.0 Debian/AppImage CI signatures and inventories verified; corrected final candidate pending | 43 development AppImage lifecycle checks; source-native control and browser conformance pass. Signed installed replacement acceptance in progress | [056](tactical/056-linux-desktop.md) |
-| Linux ARM64 | Native Ubuntu CI builds, compiled identity, final package inventories/signatures verified | GNOME desktop execution not yet established | [056](tactical/056-linux-desktop.md) |
+| Linux x64, Ubuntu GNOME Wayland VM | Exact signed 0.5.0 candidate Debian/AppImage signatures and inventories verified | Native UI/grants/effects/lifecycle, signed replacement with browser tasks, lock, reboot/startup and ordinary removal accepted | [056](tactical/056-linux-desktop.md) |
+| Linux ARM64 | Final native Ubuntu CI builds, compiled identity, container inventories/signatures and tamper rejection verified | GNOME desktop execution not established | [056](tactical/056-linux-desktop.md) |
 
 ## Shared Tauri behavior checklist
 
-The two live product environments are macOS ARM64 Tart and Windows x64 VM.
+Live product environments are macOS ARM64 Tart, Windows x64 VM, and Linux x64
+GNOME Wayland VM. Linux evidence is for signed candidates, not public packages.
 Other environments retain the execution gaps above; do not copy a passing VM
 cell into a physical, architecture, or different package-family cell.
 
-| Behavior | macOS ARM64 Tart | Windows x64 VM |
-| --- | --- | --- |
-| Exact signed installed package | Pass, public 0.4.8 | Pass, public 0.4.8 |
-| Off-state refusal and native approval/denial | Pass | Pass |
-| Scope narrowing and input pause during approval | Pass | Pass |
-| Request timeout and live bounded grant expiry | Not established by the Tauri live record; native contract coverage exists | Pass |
-| Stop and stale-generation refusal | Pass | Pass |
-| Native emergency Stop shortcut | Pass | Pass |
-| Self-interface and protected-operation refusal | Pass | Pass |
-| Independent fixture action and capture | Fixture action passed; Tauri-specific capture/hash acceptance not claimed by 052 | Action, Cua capture, artifact hashes passed |
-| Capture-superseded Cua token refusal | Not established for this Mac package | Pass, no replay/effect |
-| Common CLI | CLI/doctor work with Tauri resident; explicit outside/local product parity not established | Local/outside desktop parity passed on 0.4.3 and browser parity on 0.4.7: shared generation, independent effects, exact artifacts |
-| Tray Open/Settings/Check for Updates/Stop/Quit | Pass | Pass |
-| Platform permissions/status | Accessibility and Screen Recording ready through restart/update | Ordinary unlocked Medium session/integrity availability; no protected service installed |
-| Restart with access revoked | Pass, public 0.4.8 | Pass |
-| Close-to-tray and login-startup registration/removal | Not separately established by 052 | Pass; cold-boot/sign-in starts 0.4.5; actual logoff/sign-in starts 0.4.7 in background with access off |
-| Companion/provider cleanup on operator failure | No separate companion; forced operator-failure acceptance not recorded | Pass; user-launched fixture survives |
-| Lock revokes access, followed by recovery | Live signed Tauri lock/recovery not established by 052 | Lock revocation and logoff/stored-credential sign-in passed |
-| In-place unlock integration | Not part of ordinary desktop acceptance | Not tested with this app; optional broker was absent |
-| In-app signed update | Pass, production 0.3.5 to 0.4.8 installation, automatic relaunch and Restart; immutable 0.3.3 sender needs one reopen | Pass, 0.4.7 to public 0.4.8 through production with Chrome open; earlier fixture 0.4.4 to 0.4.6 and 0.4.6 to 0.4.7; incoming installer fixes the older 0.4.5 file-lock failure |
-| Update refused while access is active | Pass | Pass |
-| Permissions/access/generation after replacement | Permissions retained, access off, new generation, stale references refused | Access off, exact new source, new generation, stale requests refused |
-| Full extension/browser task | Not rerun on signed Tauri; native-messaging framing passed in 051 | Pass, public 0.4.8: setup, scopes, effects, PNG/hash and restart; local/outside parity recorded on signed 0.4.7 |
-| Ordinary uninstall with connected browser and user app | Not separately established | Pass, public 0.4.8: complete payload/registration/startup removal; Chrome and fixture survive; held-image failure preserves exact payload and allows retry |
-| Touch ID/out-of-band approval, away mode, presence guard | Not implemented/accepted in this preview | Not implemented/accepted in this preview |
-| Public download and production update route | Pass for ARM64/Intel packages; execution evidence is ARM64 | Public x64/ARM64 packages and both production routes verified; execution evidence is x64 |
+| Behavior | macOS ARM64 Tart | Windows x64 VM | Linux x64 GNOME VM |
+| --- | --- | --- | --- |
+| Exact signed installed package | Pass, public 0.4.8 | Pass, public 0.4.8 | Pass, signed 0.5.0 candidate Debian/AppImage |
+| Off-state refusal and native approval/denial | Pass | Pass | Pass |
+| Scope narrowing and input pause during approval | Pass | Pass | Installed prompt pause passes; narrowing has contract coverage |
+| Request timeout and live bounded grant expiry | Not established by the Tauri live record; native contract coverage exists | Pass | Installed grant expiry passes; request timeout has contract coverage |
+| Stop and stale-generation refusal | Pass | Pass | Pass |
+| Native emergency Stop shortcut | Pass | Pass | Pass, opt-in GNOME shortcut |
+| Self-interface and protected-operation refusal | Pass | Pass | Operator/approval protected; protected control unavailable |
+| Independent fixture action and capture | Fixture action passed; Tauri-specific capture/hash acceptance not claimed by 052 | Action, Cua capture, artifact hashes passed | Independent semantic, pointer and Unicode effects; portal PNG/hash passes |
+| Capture-superseded Cua token refusal | Not established for this Mac package | Pass, no replay/effect | Not applicable; this app uses the portal provider |
+| Common CLI | CLI/doctor work with Tauri resident; explicit outside/local product parity not established | Local/outside desktop parity passed on 0.4.3 and browser parity on 0.4.7: shared generation, independent effects, exact artifacts | Local/outside generation, effects and artifact hashes pass |
+| Tray Open/Settings/Check for Updates/Stop/Quit | Pass | Pass | Pass; near-clock icon visually inspected |
+| Platform permissions/status | Accessibility and Screen Recording ready through restart/update | Ordinary unlocked Medium session/integrity availability; no protected service installed | Ordinary unlocked GNOME Wayland; visible sharing consent, no root input service |
+| Restart with access revoked | Pass, public 0.4.8 | Pass | Pass, access Off and sharing closed |
+| Close-to-tray and login-startup registration/removal | Not separately established by 052 | Pass; cold-boot/sign-in starts 0.4.5; actual logoff/sign-in starts 0.4.7 in background with access off | Pass; real reboot starts exact candidate in background with access/sharing Off |
+| Companion/provider cleanup on operator failure | No separate companion; forced operator-failure acceptance not recorded | Pass; user-launched fixture survives | Pass; independent user fixture survives |
+| Lock revokes access, followed by recovery | Live signed Tauri lock/recovery not established by 052 | Lock revocation and logoff/stored-credential sign-in passed | Lock revocation passes; reboot returns to accepted unlocked session |
+| In-place unlock integration | Not part of ordinary desktop acceptance | Not tested with this app; optional broker was absent | Not tested; no protected unlock integration |
+| In-app signed update | Pass, production 0.3.5 to 0.4.8 installation, automatic relaunch and Restart; immutable 0.3.3 sender needs one reopen | Pass, 0.4.7 to public 0.4.8 through production with Chrome open; earlier fixture 0.4.4 to 0.4.6 and 0.4.6 to 0.4.7; incoming installer fixes the older 0.4.5 file-lock failure | Pass, signed localhost fixture to exact 0.5.0 candidate, Chrome stays open |
+| Update refused while access is active | Pass | Pass | Pass, including access armed during download |
+| Permissions/access/generation after replacement | Permissions retained, access off, new generation, stale references refused | Access off, exact new source, new generation, stale requests refused | Access/sharing Off, exact source, new generation and stale request refusal |
+| Full extension/browser task | Not rerun on signed Tauri; native-messaging framing passed in 051 | Pass, public 0.4.8: setup, scopes, effects, PNG/hash and restart; local/outside parity recorded on signed 0.4.7 | Pass after signed replacement: native setup, scopes, navigation, effects and PNG/hash |
+| Ordinary uninstall with connected browser and user app | Not separately established | Pass, public 0.4.8: complete payload/registration/startup removal; Chrome and fixture survive; held-image failure preserves exact payload and allows retry | Pass; installed files removed, Chrome and user app survive, user data retained |
+| Touch ID/out-of-band approval, away mode, presence guard | Not implemented/accepted in this preview | Not implemented/accepted in this preview | Not implemented/accepted in this preview |
+| Public download and production update route | Pass for ARM64/Intel packages; execution evidence is ARM64 | Public x64/ARM64 packages and both production routes verified; execution evidence is x64 | Not published; route and unified publication contract tests pass |
 
 “In-app update” means the app checks, downloads, verifies, installs, and
 relaunches after explicit installation. Automatic unattended installation is

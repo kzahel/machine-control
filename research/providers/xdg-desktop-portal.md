@@ -28,11 +28,13 @@ or silently installed GNOME Shell extension.
 
 ## Evidence
 
-**Current — source-native conformance, GNOME x64 VM:** Combined consent returns
+**Current — conformance-tested, GNOME x64 VM:** Combined consent returns
 one monitor and keyboard/pointer authority. Capture yields a PNG with verified
 dimensions/hash. GTK semantic actions, portal pointer, and clipboard-backed
 portal paste produce independent file effects. Native approvals, refusal,
-expiry, Stop, sharing closure, and old references pass.
+expiry, Stop, sharing closure, and old references pass in the source companion
+and exact signed Debian/AppImage installs. Discrete wheel and drag effects are
+independently observed; lock closes the sharing session.
 [Tactical 056](../../docs/tactical/056-linux-desktop.md) owns execution and
 package-specific gates.
 
@@ -54,6 +56,6 @@ distinct route. Operator/approval/portal and password surfaces stay guarded.
 Root appliance input is never a desktop fallback.
 
 **Open:** KDE/wlroots/X11, physical hardware, multi-monitor scaling, restore-token
-lifetime, libei comparison, arbitrary window activation, and signed installed
-architecture/update acceptance. Report the actual backend, selected screen and
+lifetime, libei comparison, arbitrary window activation, ARM64 desktop execution,
+and suspend/resume. Report the actual backend, selected screen and
 devices, ordinary-user privilege, and session state.

@@ -72,7 +72,7 @@ if (unavailable) {
             <a class="button button-secondary" href="/download/linux/arm64/appimage">ARM64 AppImage</a>
           </div>
           <p class="download-note">Debian packages: <a href="/download/linux/amd64/deb">x64 .deb</a> · <a href="/download/linux/arm64/deb">ARM64 .deb</a>. <a href={release.url}>Release notes</a></p>
-          <p class="download-note">AppImage supports signed in-app updates. Install the runtime dependencies listed in the release guide. Other desktops and physical hardware require separate validation.</p>
+          <p class="download-note">AppImage supports signed in-app updates. See the <a href="https://github.com/kzahel/machine-control/blob/main/desktop/LINUX.md">installation guide</a> for dependencies. Other desktops and physical hardware require separate validation.</p>
         </> : <p class="download-state">{unavailable ? "Downloads temporarily unavailable. Try again shortly." : "No public Linux release yet."}</p>}
       </section>
       <p class="download-note">For testbeds and the common CLI, see <a href="/getting-started/">Getting started</a>.</p>

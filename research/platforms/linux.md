@@ -23,6 +23,7 @@ Sway/wlroots, GNOME/Mutter, KDE/KWin, XWayland, and nested compositors.
 | [Touchpoint](../providers/touchpoint.md) | `source-reviewed` | Compact AT-SPI facade; raw input mainly X11 | Alternative semantics/facade reference |
 | [kwin-mcp](../providers/kwin-mcp.md) | `source-reviewed` | Private virtual KWin session, compositor capture, EIS/libei input | Best isolated-session model |
 | [OculOS](../providers/oculos.md) | `source-reviewed` | AT-SPI/daemon shape, incomplete capture depth | Service reference |
+| [XDG Desktop Portal](../providers/xdg-desktop-portal.md) | `conformance-tested` on GNOME 46 Wayland x64 VM | RemoteDesktop Notify, ScreenCast/PipeWire and ordinary-user AT-SPI companion | Signed Debian/AppImage desktop preview; separate from the appliance |
 | Existing linuxVM route | `adopted` for GNOME 46 Wayland | Persistent AT-SPI resident, GNOME capture, appliance virtual HID, user-systemd lifecycle, guarded QEMU guest-agent transport | Accepted logged-in software-testing route; outer UI is recovery-only |
 
 ## Accepted GNOME Wayland profile
@@ -65,10 +66,11 @@ accepted GNOME profile and controller route, not every Linux host or desktop.
 ## Remaining profiles
 
 **Current — ordinary-user desktop implementation:** The shared Tauri app has
-a Linux companion and native grants. Source-native x64 GNOME tests prove
-portal capture and pointer input, clipboard-backed Unicode, native approvals,
-Stop, expiry, sharing closure, and stale references without root input. Installed
-Tauri, browser, signing, update, ARM64, and physical acceptance remain separate.
+a Linux companion and native grants. Exact signed x64 GNOME Debian/AppImage
+acceptance proves portal capture and input, Unicode, native approvals, Stop,
+expiry, sharing closure, references, startup and browser-open signed replacement
+without root input. ARM64 has native build/package evidence; desktop execution
+and physical acceptance remain separate.
 The [portal dossier](../providers/xdg-desktop-portal.md) owns route facts and
 [Tactical 056](../../docs/tactical/056-linux-desktop.md) owns execution gates.
 
@@ -78,7 +80,8 @@ password route uses pinned setup SSH stdin and an in-guest shadow-hash compariso
 an explicitly password-free profile proves a locked entry. Source review and
 deterministic refusal tests are recorded in
 [Tactical 049](../../docs/tactical/049-linux-credential-promotion-gate.md).
-Live acceptance of the new command remains unverified. This administration
+Claimed live password-hash verification passes on the x64 appliance in Tactical
+056. This administration
 operation does not close the protected GUI login/unlock gap; current decisions
 remain in the [Linux topic](../../topics/linux-resident-control.md).
 
