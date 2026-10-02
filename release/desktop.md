@@ -2,8 +2,9 @@
 
 One desktop version, required changelog, annotated `desktop-vX.Y.Z` tag, and
 release script cover every currently packaged platform: Mac Apple silicon and
-Intel, and Windows x64 and ARM64. Linux joins this same release matrix when its
-standalone product is implemented. Workstation components remain independent.
+Intel, Windows x64 and ARM64, and from 0.5.0 Linux x64 and ARM64.
+Workstation components remain independent. Linux desktop candidates are not yet
+published; the acceptance matrix distinguishes packaging from GUI execution.
 
 ## Release
 
@@ -70,6 +71,8 @@ Stable download paths are:
 
 - `/download/macos/arm64` and `/download/macos/x86_64`;
 - `/download/windows/x64` and `/download/windows/arm64`.
+- `/download/linux/amd64/appimage` and `/download/linux/arm64/appimage`, with
+  corresponding `/deb` paths for Debian packages.
 
 The shared update server consumes the same `latest.json` and product registration
 for `darwin-aarch64`, `darwin-x86_64`, `windows-aarch64`, and `windows-x86_64`.
@@ -80,3 +83,11 @@ are verified separately from package publication.
 
 Public ARM64 Windows availability does not imply native execution acceptance.
 The [acceptance matrix](../docs/desktop-acceptance.md) records that distinction.
+
+Linux native Ubuntu 24.04 runners build Debian and AppImage packages, sign both
+final containers with the product updater key and authenticated version, and
+inventory the extracted product payloads. Publication requires both architectures
+with the same source/workflow as Mac and Windows. AppImage is the Linux in-place
+updater format; Debian installation follows the system package manager.
+The unified manifest adds `linux-x86_64` and `linux-aarch64`. Historical releases
+before 0.5.0 retain their original Mac/Windows requirements.

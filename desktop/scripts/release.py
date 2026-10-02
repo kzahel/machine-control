@@ -19,6 +19,9 @@ spec.loader.exec_module(changelog_notes)
 windows_spec = importlib.util.spec_from_file_location('windows_desktop_package', ROOT / 'desktop/scripts/windows-package.py')
 windows_package = importlib.util.module_from_spec(windows_spec)
 windows_spec.loader.exec_module(windows_package)
+linux_spec = importlib.util.spec_from_file_location('linux_desktop_package', ROOT / 'desktop/scripts/linux-package.py')
+linux_package = importlib.util.module_from_spec(linux_spec)
+linux_spec.loader.exec_module(linux_package)
 REPOSITORY = 'kzahel/machine-control'
 VERSION = r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)'
 TARGETS = {'aarch64-apple-darwin': ('arm64', 'darwin-aarch64'),
@@ -144,6 +147,21 @@ def stage(directory, output, version, revision, run, body):
             'url': f'https://github.com/{REPOSITORY}/releases/download/desktop-v{version}/{quote(windows_package.public_name(installer, arch))}',
             'signature': (source / (installer + '.sig')).read_text().strip(),
         }
+    if version_tuple(version) >= (0, 5, 0):
+        for target, (arch, updater_arch) in linux_package.TARGETS.items():
+            source = directory / ('linux-desktop-' + target)
+            manifest = linux_package.verify(source, target=target, version=version, revision=revision, run=run)
+            image = next(item['name'] for item in manifest['artifacts'] if item['name'].endswith('.AppImage'))
+            deb = next(item['name'] for item in manifest['artifacts'] if item['name'].endswith('.deb'))
+            if image != f'Machine Control_{version}_{arch}.AppImage' or deb != f'Machine Control_{version}_{arch}.deb':
+                raise ValueError('Unexpected Linux package name')
+            for name in (image, image + '.sig', deb, deb + '.sig', 'payload.json'):
+                payloads.append((source / name, linux_package.public_name(name, arch)))
+            payloads.append((source / 'build.json', f'build-linux-{arch}.json'))
+            platforms['linux-' + updater_arch] = {
+                'url': f'https://github.com/{REPOSITORY}/releases/download/desktop-v{version}/{quote(linux_package.public_name(image, arch))}',
+                'signature': (source / (image + '.sig')).read_text().strip(),
+            }
     # Native signatures, Gatekeeper, notarization, and minisign verification run
     # on both input directories in the publication job before this staging step.
     output.mkdir(parents=True)

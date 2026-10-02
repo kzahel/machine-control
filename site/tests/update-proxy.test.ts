@@ -27,7 +27,7 @@ test("update proxy preserves protocol responses and limits forwarded headers", a
 test("invalid targets and upstream failures fail closed", async () => {
   const request = new Request("https://machinecontrol.dev");
   const unavailable = (async () => new Response("bad", { status: 500 })) as typeof fetch;
-  for (const invalid of [{ ...params, target: "linux" }, { ...params, arch: "../../evil" }, { ...params, version: "01.0.0" }]) {
+  for (const invalid of [{ ...params, target: "chromeos" }, { ...params, arch: "../../evil" }, { ...params, version: "01.0.0" }]) {
     assert.equal((await proxyUpdate(invalid, request, unavailable)).status, 404);
   }
   assert.equal((await proxyUpdate(params, request, unavailable)).status, 503);
@@ -35,13 +35,15 @@ test("invalid targets and upstream failures fail closed", async () => {
   assert.equal((await proxyUpdate(params, request, (async () => { throw new Error("offline"); }) as typeof fetch)).status, 503);
 });
 
-test("both Windows updater architectures use the existing product route", async () => {
+test("Windows and Linux updater architectures use the existing product route", async () => {
+  for (const target of ["windows", "linux"]) {
   for (const arch of ["x86_64", "aarch64"]) {
-    const response = await proxyUpdate({target: "windows", arch, version: "0.4.7"}, new Request("https://machinecontrol.dev"),
+    const response = await proxyUpdate({target, arch, version: "0.4.7"}, new Request("https://machinecontrol.dev"),
       (async (url) => {
-        assert.equal(url, `https://updates.graehlarts.com/machine-control/tauri/windows/${arch}/0.4.7`);
+        assert.equal(url, `https://updates.graehlarts.com/machine-control/tauri/${target}/${arch}/0.4.7`);
         return Response.json({version: "0.4.8", signature: "signed", url: "installer"});
       }) as typeof fetch);
     assert.equal(response.status, 200);
+  }
   }
 });

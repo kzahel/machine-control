@@ -4,6 +4,7 @@ const BASE = `https://github.com/${REPOSITORY}/releases`;
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 export type WindowsArch = "x64" | "arm64";
 export type MacArch = "arm64" | "x86_64";
+export type LinuxArch = "amd64" | "arm64";
 type Json = Record<string, unknown>;
 export type DesktopRelease = {
   version: string;
@@ -11,6 +12,7 @@ export type DesktopRelease = {
   manifestUrl: string;
   downloads: Record<MacArch, string>;
   windowsDownloads: Record<WindowsArch, string> | null;
+  linuxDownloads: Record<LinuxArch, { appimage: string; deb: string }> | null;
 };
 function object(value: unknown): Json {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -89,7 +91,20 @@ export function selectDesktopRelease(value: unknown): DesktopRelease | null {
     for (const arch of ["arm64", "x86_64"] as const)
       asset(`build-macos-${arch}.json`);
   }
-  return { version, url, downloads, windowsDownloads, manifestUrl: asset("latest.json") };
+  let linuxDownloads: DesktopRelease["linuxDownloads"] = null;
+  if (compareVersions(version, "0.5.0") >= 0) {
+    linuxDownloads = {} as NonNullable<DesktopRelease["linuxDownloads"]>;
+    for (const arch of ["amd64", "arm64"] as const) {
+      const image = `MachineControl_${version}_${arch}.AppImage`;
+      const deb = `MachineControl_${version}_${arch}.deb`;
+      linuxDownloads[arch] = { appimage: asset(image), deb: asset(deb) };
+      asset(image + ".sig");
+      asset(deb + ".sig");
+      asset(`build-linux-${arch}.json`);
+      asset(`payload-linux-${arch}.json`);
+    }
+  }
+  return { version, url, downloads, windowsDownloads, linuxDownloads, manifestUrl: asset("latest.json") };
 }
 async function publicJson(
   url: string,

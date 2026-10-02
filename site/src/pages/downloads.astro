@@ -4,7 +4,7 @@ import SiteHeader from "../components/SiteHeader.astro";
 import SiteLayout from "../layouts/SiteLayout.astro";
 import { loadDesktopRelease } from "../lib/desktop-release";
 const title = "Downloads — Machine Control";
-const description = "Download the Machine Control desktop preview for Mac and Windows.";
+const description = "Download the Machine Control desktop preview.";
 let release;
 let unavailable = false;
 try { release = await loadDesktopRelease(); } catch { unavailable = true; }
@@ -60,7 +60,22 @@ if (unavailable) {
           <p class="download-note">Grants apply to callers running as your user. x64 passes VM testing. ARM64 packages are verified; native ARM64 execution remains untested.</p>
         </> : <p class="download-state">{unavailable ? "Downloads temporarily unavailable. Try again shortly." : "No public Windows release yet."}</p>}
       </section>
-      <p class="download-note">Linux desktop support is planned. For testbeds and the common CLI, see <a href="/getting-started/">Getting started</a>.</p>
+      <section class="download-panel" aria-labelledby="linux-download">
+        <div class="download-heading">
+          <h2 id="linux-download">Linux desktop</h2>
+          <span>{release?.linuxDownloads ? `v${release.version} · Preview` : "Preview"}</span>
+        </div>
+        <p>Ubuntu GNOME Wayland. Screen and input sharing requires portal consent.</p>
+        {release?.linuxDownloads ? <>
+          <div class="actions">
+            <a class="button button-primary" href="/download/linux/amd64/appimage">x64 AppImage</a>
+            <a class="button button-secondary" href="/download/linux/arm64/appimage">ARM64 AppImage</a>
+          </div>
+          <p class="download-note">Debian packages: <a href="/download/linux/amd64/deb">x64 .deb</a> · <a href="/download/linux/arm64/deb">ARM64 .deb</a>. <a href={release.url}>Release notes</a></p>
+          <p class="download-note">AppImage supports signed in-app updates. Install the runtime dependencies listed in the release guide. Other desktops and physical hardware require separate validation.</p>
+        </> : <p class="download-state">{unavailable ? "Downloads temporarily unavailable. Try again shortly." : "No public Linux release yet."}</p>}
+      </section>
+      <p class="download-note">For testbeds and the common CLI, see <a href="/getting-started/">Getting started</a>.</p>
     </div>
   </main>
   <SiteFooter />

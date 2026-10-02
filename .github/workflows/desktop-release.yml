@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Desktop version (required changelog; Mac and Windows)'
+        description: 'Desktop version (required changelog; all supported platforms)'
         required: true
         type: string
       release_tag:
@@ -28,6 +28,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       package_run: ${{ steps.identity.outputs.package_run }}
+      linux: ${{ steps.identity.outputs.linux }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -55,6 +56,7 @@ jobs:
             package_run="$(python3 desktop/scripts/release.py check-run candidate-run.json --revision "$GITHUB_SHA" --id "$CANDIDATE_RUN")"
           fi
           echo "package_run=$package_run" >> "$GITHUB_OUTPUT"
+          python3 -c 'import os; v=tuple(map(int,os.environ["RELEASE_VERSION"].split(".")));print("linux=" + str(v >= (0,5,0)).lower())' >> "$GITHUB_OUTPUT"
   macos:
     if: inputs.candidate_run == ''
     needs: check
@@ -69,9 +71,16 @@ jobs:
     with:
       version: ${{ inputs.version }}
     secrets: inherit
+  linux:
+    if: inputs.candidate_run == '' && needs.check.outputs.linux == 'true'
+    needs: check
+    uses: ./.github/workflows/linux-desktop.yml
+    with:
+      version: ${{ inputs.version }}
+    secrets: inherit
   publish:
-    if: always() && github.ref == 'refs/heads/main' && inputs.release_tag != '' && needs.check.result == 'success' && ((needs.macos.result == 'success' && needs.windows.result == 'success') || (inputs.candidate_run != '' && needs.macos.result == 'skipped' && needs.windows.result == 'skipped'))
-    needs: [check, macos, windows]
+    if: always() && github.ref == 'refs/heads/main' && inputs.release_tag != '' && needs.check.result == 'success' && ((needs.macos.result == 'success' && needs.windows.result == 'success' && (needs.linux.result == 'success' || needs.check.outputs.linux == 'false')) || (inputs.candidate_run != '' && needs.macos.result == 'skipped' && needs.windows.result == 'skipped' && needs.linux.result == 'skipped'))
+    needs: [check, macos, windows, linux]
     runs-on: macos-26
     environment: release
     timeout-minutes: 20
@@ -93,7 +102,7 @@ jobs:
           run-id: ${{ inputs.candidate_run || github.run_id }}
           github-token: ${{ github.token }}
       - run: brew install minisign
-      - name: Reverify all four final packages and stage public assets
+      - name: Reverify every final package and stage public assets
         env:
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           PACKAGE_RUN: ${{ needs.check.outputs.package_run }}
@@ -108,6 +117,11 @@ jobs:
           for target in x86_64-pc-windows-msvc aarch64-pc-windows-msvc; do
             python3 desktop/scripts/windows-package.py verify "candidates/windows-desktop-$target" --version "$RELEASE_VERSION" --revision "$GITHUB_SHA" --run "$PACKAGE_RUN" --target "$target" --test-tampering
           done
+          if [ '${{ needs.check.outputs.linux }}' = true ]; then
+            for target in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
+              python3 desktop/scripts/linux-package.py verify "candidates/linux-desktop-$target" --version "$RELEASE_VERSION" --revision "$GITHUB_SHA" --run "$PACKAGE_RUN" --target "$target" --test-tampering
+            done
+          fi
           python3 desktop/scripts/release.py stage candidates public-assets --version "$RELEASE_VERSION" --revision "$GITHUB_SHA" --run "$PACKAGE_RUN"
       - name: Publish once, after all platforms and architectures pass
         env:

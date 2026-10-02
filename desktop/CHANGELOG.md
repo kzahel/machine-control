@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.5.0]
+
+- Add a Linux desktop preview for Ubuntu GNOME Wayland, with the shared settings
+  and tray, native access approval, timed scopes, Stop, and startup preferences.
+- Use visible portal consent for screen capture and input without the dedicated
+  test appliance's privileged input service. Close access when sharing or the
+  unlocked desktop session ends.
+- Add Linux Chrome integration and Debian/AppImage candidates for x64 and ARM64.
+  Include Linux in the single desktop release and signed AppImage update path.
+
 ## [0.4.8]
 
 - First public Windows desktop preview for x64 and ARM64, alongside Mac.

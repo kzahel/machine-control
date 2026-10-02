@@ -4,7 +4,10 @@ A shared Tauri operator application with the existing Mac resident embedded
 as a Swift framework in its native process. Windows bundles the existing .NET
 resident as a supervised companion with native grants. The signed Windows x64
 preview passes installed VM acceptance; ARM64 native desktop execution remains
-open. Linux desktop integration is not yet implemented.
+open. Linux uses a supervised Python/GI companion with native AT-SPI semantics
+and visible GNOME Wayland portal consent for screen capture and input. It never
+uses the dedicated appliance's root input broker. Source-native control and
+browser tests pass; exact installed package acceptance is in progress.
 
 See the [acceptance matrix](../docs/desktop-acceptance.md) for tested behavior
 by package, architecture, and VM/physical environment.
@@ -46,6 +49,24 @@ produces CI candidates with an empty release tag. Tagged publication uses
 [the desktop release script](../release/desktop.md).
 
 ## Approval and control boundaries
+
+Linux targets Ubuntu 24.04 GNOME 46 Wayland first. Install the Debian package to
+resolve its Python/GI, portal, PipeWire/GStreamer, and Wayland clipboard
+dependencies. AppImage uses those same system dependencies; it is not a bundled
+Python desktop stack. GNOME must expose an AppIndicator tray for the tray UI.
+The Stop shortcut is an explicit GNOME settings preference. Other desktops,
+lock/login control, arbitrary top-level window activation, and multi-monitor
+input are not accepted by this profile. See [Linux desktop](../topics/linux-desktop.md).
+
+Build Linux on Ubuntu 24.04 with the dependencies in `linux-desktop.yml`, then:
+
+```bash
+python3 desktop/scripts/prepare-linux.py --revision "$(git rev-parse HEAD)"
+cd desktop
+pnpm tauri build --config src-tauri/tauri.linux.conf.json --bundles deb,appimage --no-sign
+```
+
+Local packages establish development behavior, not production authentication.
 
 Windows uses a separate `desktop` instance and inherited private operator
 channel. Its public pipe enforces grants and cannot approve them. Ordinary

@@ -1,0 +1,95 @@
+name: Linux desktop
+run-name: Linux desktop ${{ inputs.version }}
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Signed desktop candidate version (required changelog)'
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: linux-desktop-candidate
+  cancel-in-progress: false
+jobs:
+  signed:
+    if: github.ref == 'refs/heads/main'
+    environment: release
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-24.04
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: desktop/package.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Install build and ordinary-user runtime dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev build-essential libfuse2 minisign python3-gi gir1.2-gtk-3.0 gir1.2-atspi-2.0 gir1.2-gst-plugins-base-1.0 gstreamer1.0-pipewire gstreamer1.0-plugins-good wl-clipboard xdg-desktop-portal xdg-desktop-portal-gnome
+      - name: Check and stage exact source
+        env:
+          CANDIDATE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          python3 release/changelog.py desktop/CHANGELOG.md "$CANDIDATE_VERSION"
+          python3 tests/desktop/linux-grants.py
+          platforms/linux/tests/smoke.sh --static
+          pnpm --dir desktop install --frozen-lockfile
+          python3 desktop/scripts/prepare-linux.py --revision "$GITHUB_SHA"
+          python3 desktop/scripts/set-version.py "$CANDIDATE_VERSION"
+          pnpm --dir desktop build
+          cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
+          TAURI_CONFIG="$(cat desktop/src-tauri/tauri.linux.conf.json)" cargo clippy --manifest-path desktop/src-tauri/Cargo.toml --all-targets --locked --features tauri/custom-protocol -- -D warnings
+      - name: Build and sign final Debian and AppImage bytes
+        working-directory: desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          CANDIDATE_VERSION: ${{ inputs.version }}
+          NO_STRIP: 'true'
+        run: |
+          set -euo pipefail
+          test -n "$TAURI_SIGNING_PRIVATE_KEY"
+          test -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+          pnpm tauri build --config src-tauri/tauri.linux.conf.json --bundles deb,appimage
+          mkdir -p ../artifacts/desktop
+          cp src-tauri/target/release/bundle/deb/*.deb src-tauri/target/release/bundle/appimage/*.AppImage ../artifacts/desktop/
+          for file in ../artifacts/desktop/*.AppImage ../artifacts/desktop/*.deb; do
+            pnpm tauri signer sign --app-version "$CANDIDATE_VERSION" "$file"
+          done
+      - name: Inventory final containers and authenticate both signatures
+        env:
+          CANDIDATE_VERSION: ${{ inputs.version }}
+          CANDIDATE_TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          python3 desktop/scripts/linux-package.py evidence artifacts/desktop --version "$CANDIDATE_VERSION" --revision "$GITHUB_SHA" --run "$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT" --target "$CANDIDATE_TARGET"
+          python3 desktop/scripts/linux-package.py verify artifacts/desktop --version "$CANDIDATE_VERSION" --revision "$GITHUB_SHA" --run "$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT" --target "$CANDIDATE_TARGET" --test-tampering
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: linux-desktop-${{ matrix.target }}
+          path: artifacts/desktop/*
+          if-no-files-found: error
+          retention-days: 30
