@@ -142,21 +142,25 @@ rebuilding its signed bytes. The website resolves the
 latest desktop release separately from Windows component releases. See the
 [release process](../release/desktop.md) and [changelog](CHANGELOG.md).
 
-The latest public release is [0.5.0](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.0),
+The latest public release is [0.5.3](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.3),
 with Mac, Windows, and Linux packages for both architectures and production
-metadata through the existing shared service. Linux installed acceptance and
-exact public asset verification are recorded in
-[Tactical 059](../docs/tactical/059-public-linux-desktop.md). Manual checks are available in Settings and the tray. ARM64 Tart passes
+metadata through the existing shared service. Current public package and
+delivery verification are recorded in
+[Tactical 063](../docs/tactical/063-six-platform-desktop-release.md); Linux
+installed GUI acceptance retains its exact 0.5.0 evidence in
+[Tactical 059](../docs/tactical/059-public-linux-desktop.md). Manual checks are
+available in Settings and the tray. ARM64 Tart passes
 public 0.3.5 to 0.4.8 replacement with automatic relaunch and retained permissions;
 Windows x64 passes 0.4.7 to public 0.4.8 with Chrome open. Mac 0.3.3/0.3.4 clients
 may need to reopen after their first update. Windows ARM64 packages are signed
-and verified; native ARM64 execution remains untested. Exact evidence is in
+and verified, with native ARM64 installed CLI smoke; Tauri GUI execution remains
+untested. Exact evidence is in
 [tactical 055](../docs/tactical/055-unified-desktop-publication.md), with earlier
 Mac update history in [052](../docs/tactical/052-macos-production-updates.md).
 No automatic update installation is enabled. Native code rechecks that no
 access or approval is active immediately before bundle replacement and restarts
 with access off.
-Source now schedules silent discovery five seconds after startup and every
+Public 0.5.3 schedules silent discovery five seconds after startup and every
 24 hours in the native Tauri process, including with the settings window closed.
 Concurrent checks coalesce; manual callers joining silent checks get visible
 feedback. Automatic errors are logged quietly and an available update survives
@@ -188,7 +192,7 @@ They are independent of desktop control arming and install no root service.
 
 ## Installed Python control CLI
 
-Source builds now bundle the existing Python client and a pinned CPython runtime
+Public 0.5.3 bundles the existing Python client and a pinned CPython runtime
 in `mc-cli`. The terminal entry lives under `mc-cli/commands`, separate from
 the Windows/Linux GUI executable. `agent identity` and `agent instructions`
 provide offline discovery and workflow guidance. Released older packages do

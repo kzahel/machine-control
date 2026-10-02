@@ -3,7 +3,8 @@
 Topic: `native-sudo`
 
 Status: implemented; signed ARM64 helpers pass dedicated Mac appliance
-conformance. Public release and physical-host acceptance remain open.
+conformance. Signed/notarized ARM64 and Intel helpers ship in public desktop
+0.5.3; physical-host acceptance remains open.
 
 ## Current
 
@@ -33,8 +34,9 @@ for a prompt on another Mac.
 
 **Open:** session/process leases, Touch ID, remote out-of-band approval, other
 OS implementations and automatic interception of ordinary sudo. These require
-separate authority design and evidence. Signed/notarized public release and
-physical workstation acceptance are separate from this implementation task.
+separate authority design and evidence. Physical workstation acceptance remains
+separate from the signed/notarized public packages recorded in
+[Tactical 063](../docs/tactical/063-six-platform-desktop-release.md).
 
 [Tactical 061](../docs/tactical/061-native-sudo.md) owns validation and final
 implementation results.

@@ -111,15 +111,17 @@ The project deliberately shares an experience rather than pretending every
 platform has the same implementation.
 
 The optional [Tauri desktop app](desktop/README.md) supplies setup, visible
-approval, activity, and tray controls over the native resident. Public 0.4.9
-includes Mac ARM64/Intel and Windows x64/ARM64. Native execution and production
-updates pass in ARM64 Tart and the Windows x64 VM; Windows ARM64 execution, Linux
-publication, and full physical-host product acceptance remain open.
+approval, activity, and tray controls over the native resident. Public 0.5.3
+includes Mac ARM64/Intel, Windows x64/ARM64, and Linux x64/ARM64 packages, plus
+the bundled Python CLI, native update discovery, and Mac sudo helpers. All six
+packages and production update routes are authenticated. Version-specific GUI
+execution evidence covers ARM64 Tart, Windows x64, and Linux x64 GNOME VMs;
+Intel/Windows ARM64/Linux ARM64 GUI and full physical-host acceptance remain open.
 The [desktop acceptance matrix](docs/desktop-acceptance.md) distinguishes
 these product results from earlier native runtime evidence.
 Headless control remains independent.
 The [desktop release process](release/desktop.md) owns one tagged publication flow
-and [latest Mac and Windows downloads](https://machinecontrol.dev/downloads/).
+and [latest Mac, Windows, and Linux downloads](https://machinecontrol.dev/downloads/).
 
 | Platform | Current control surface | Maturity |
 | --- | --- | --- |

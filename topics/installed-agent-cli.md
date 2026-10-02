@@ -2,13 +2,15 @@
 
 Topic: `installed-agent-cli`
 
-Status: implemented in source; Mac ARM64 standalone packaging passes local
-smoke, including physical payload relocation and isolated Python configuration.
-A locally assembled Developer ID app passes YA publisher, closure and identity
-verification. Linux ARM64 also passes relocated offline CLI execution in an isolated native
-container, and Windows x64 passes the same smoke in a claimed appliance.
-Notarization, publication and signed Windows/Linux desktop acceptance remain
-separate.
+Status: shipped in public desktop 0.5.3 for all six targets, with authenticated
+payload inventories and relocated offline CLI smoke in CI. Mac packages pass
+publisher verification and notarization; Windows x64/ARM64 installed catalogs
+and Linux x64/ARM64 final packages authenticate. Native Windows ARM64 CI now
+executes that architecture's bundled interpreter. Earlier Mac ARM64 appliance,
+Linux ARM64 container, and Windows x64 appliance evidence retains its own
+scope. Signed Windows/Linux GUI control and installed replacement acceptance
+remain separate. [Tactical 063](../docs/tactical/063-six-platform-desktop-release.md)
+owns exact published package and production delivery verification.
 
 ## Contract
 

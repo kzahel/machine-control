@@ -3,7 +3,7 @@
 Topic: `native-distribution`
 
 Status: signed Windows workstation preview and direct YA Node/Codex consumer
-accepted. Unified Mac/Windows/Linux desktop `0.5.0` is published; package
+accepted. Unified Mac/Windows/Linux desktop `0.5.3` is published; package
 signatures, public downloads, and production metadata are verified for all six
 architectures.
 ARM64 Tart has targeted signed browser-indicator evidence; Windows x64 retains
@@ -47,8 +47,8 @@ requests use that same controller. Discovery does not focus, download, install,
 restart, approve, or revoke access. Installation stays an explicit local operator
 action behind the resident's access/approval replacement gate.
 
-**Current:** This integration is implemented in source for Mac/Windows/Linux;
-released clients keep their shipped behavior until updated.
+**Current:** Public desktop 0.5.3 ships this integration for Mac/Windows/Linux;
+older released clients keep their shipped behavior until updated.
 [Tactical 060](../docs/tactical/060-native-update-discovery.md) records validation
 and installed-platform limitations.
 
@@ -207,7 +207,7 @@ then published the same draft by ID without replacing bytes or its tag. Future
 CI publication now resolves and verifies the draft by ID. Both re-downloaded
 public DMGs and archives passed publisher signatures, notarization/stapling,
 updater signature/version and tamper rejection. The live download page selects
-unified `0.5.0` for all eight installer/package routes. Both the shared server and website proxy return signed
+unified `0.5.3` for all eight installer/package routes. Both the shared server and website proxy return signed
 archive metadata with cumulative required changelogs for older clients and 204
 for current clients. Product registration and the website proxy preserve the
 endpoint already embedded in 0.3.3.
@@ -239,18 +239,23 @@ required changelog, tag and updater manifest for every implemented platform.
 Mac ARM64/Intel, Windows x64/ARM64, and Linux x64/ARM64 publish together. A
 successful exact-source unified candidate can be promoted without rebuilding
 its accepted signed bytes. Windows ARM64 publication is
-explicitly requested while native ARM64 execution remains unverified.
+explicitly requested while Tauri GUI execution remains unverified.
 [The unified process](../release/desktop.md) owns operator guidance;
 [Tactical 055](../docs/tactical/055-unified-desktop-publication.md) owns execution.
 
-**Current:** [Public desktop 0.5.0](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.0)
-promotes all six exact authenticated candidates without rebuilding. All 29
-public assets match candidate bytes and GitHub digests. Eight download redirects
-and both production metadata routes select the signed packages for older clients
-and return 204 to current clients on all six targets. Linux x64 Debian/AppImage
-installed acceptance and signed browser-open replacement pass; ARM64 desktop
-execution remains open. [Tactical 059](../docs/tactical/059-public-linux-desktop.md)
-owns publication and [Linux desktop](linux-desktop.md) owns the supported profile.
+**Current:** [Public desktop 0.5.3](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.3)
+promotes all six exact authenticated candidates without rebuilding. It ships
+native update discovery, the installed Python CLI, and Mac sudo helpers.
+[Tactical 063](../docs/tactical/063-six-platform-desktop-release.md) owns exact
+source, workflow, public-byte authentication and production delivery checks.
+All six CLI payloads pass offline relocation smoke; Windows ARM64 uses a native
+ARM64 runner. These checks do not establish new GUI control acceptance.
+
+Linux x64 Debian/AppImage installed acceptance and signed browser-open
+replacement retain their exact public 0.5.0 evidence in
+[Tactical 059](../docs/tactical/059-public-linux-desktop.md).
+[Linux desktop](linux-desktop.md) owns the supported profile; ARM64 desktop
+execution remains open.
 
 Earlier public-release execution remains in [055](../docs/tactical/055-unified-desktop-publication.md),
 [057](../docs/tactical/057-macos-until-stopped-release.md), and

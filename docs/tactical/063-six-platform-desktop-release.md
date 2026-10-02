@@ -1,6 +1,6 @@
 # 063 — Six-platform desktop 0.5.3 release
 
-Status: in progress.
+Status: complete.
 
 Owning topics: [native distribution](../../topics/native-distribution.md),
 [installed agent CLI](../../topics/installed-agent-cli.md), and
@@ -49,77 +49,66 @@ restore working edits, and keep execution gaps explicit.
 
 ## Validation and final result
 
-The initial 0.5.1 attempt at `fc10c83` caught a strict Rust lint in the
-new Mac sudo helper: a function item was cast directly to the integer signal
-handler type. Cast through a function pointer without changing delivery or
-authentication behavior. Cancel the doomed workflow; preserve its annotated
-`desktop-v0.5.1` tag and do not publish partial packages. Restart every build
-at one repaired source as 0.5.3. Source review of the second attempt found that the ARM64 Windows installed
-CLI smoke would execute ARM64 Python on an x64 runner. Cancel 0.5.2 before
-publication and preserve its tag too. Build that architecture on GitHub's
-native `windows-11-arm` runner, keeping every catalog, publisher, inventory,
-relocation and execution check required. Build the full 0.5.3 matrix as a
-candidate before creating its release tag. Public verification remains pending.
+**Current:** [Public desktop 0.5.3](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.3)
+contains Mac ARM64/Intel, Windows x64/ARM64, and Linux x64/ARM64 Debian/AppImage
+packages. The exact source is `d5aa271ca93d890325a12b0906432b762a4aaec4`.
+[Candidate run 37063349080](https://github.com/kzahel/machine-control/actions/runs/37063349080),
+attempt 1, built and authenticated all six targets.
+[Promotion run 37066468328](https://github.com/kzahel/machine-control/actions/runs/37066468328)
+published those verified artifacts without rebuilding.
 
-The first 0.5.3 candidate builds both Linux containers but refuses their CLI
-payload hashes. Upstream linuxdeploy rewrites every ELF beneath `usr/lib`,
-including bundled Python resources. Use its supported custom-file mappings to
-put the CLI under `usr/share/machine-control/mc-cli` in both Debian and AppImage.
-Keep staged hashes, require the installed CLI for this version, and run the
-relocation smoke from each extracted final container before signing evidence.
-Mac and Windows resource locations remain the same.
+All 29 downloaded public assets match their GitHub SHA-256 digests and expected
+sizes. All six build receipts bind version, source, candidate run and attempt.
+Mac publisher signatures, notarization and staples authenticate; Windows
+installer signatures and installed publisher catalogs authenticate; Linux
+Debian/AppImage signatures and complete extracted inventories authenticate.
+Package tamper rejection passes. Every CLI payload passes authenticated offline
+relocation smoke in CI, including native Windows ARM64 execution. This remains
+package/CLI evidence rather than new GUI control acceptance.
 
-Windows x64 reaches CLI catalog creation, where Windows SIP hashing cannot
-catalog the upstream stripped `zlib1.dll`. Catalog and publisher-sign the
-complete full-byte SHA-256 inventory instead. Final installed acceptance must
-authenticate that catalog first, verify every inventoried file and refuse
-unexpected files, then execute relocated CLI smoke. This preserves publisher
-trust without changing pinned runtime bytes or excluding native dependencies.
+The public updater manifest contains exactly six signed platform entries.
+All eight download redirects select the correct versioned assets. The public
+download page selects 0.5.3. All 24 production update responses across the site
+proxy and shared update service return matching signed metadata for 0.5.0
+clients and HTTP 204 for current 0.5.3 clients.
 
-The native Windows ARM64 runner also needs the x64 .NET 8 runtime used by
-Microsoft's x64 signing DLL. Install its official SHA-512-verified runtime
-archive, verify its extracted x64 host/runtime, and set only DOTNET_ROOT_X64;
-the native ARM64 build SDK and interpreter remain unchanged. Both Mac signed
-candidates from the first 0.5.3 run pass notarization and CLI relocation.
-A repaired unified candidate must still rebuild every platform at one source.
+Portable release regression tests pass (61 tests), alongside workflow lint and
+source checks. CI passes required Windows contract tests, format verification,
+x64/ARM64 publishes, strict Rust checks, native platform tests, signed-package
+verification and installed CLI checks. Earlier GUI and physical-host coverage
+retains its own versions in the
+[desktop acceptance matrix](../desktop-acceptance.md). Unrelated working edits
+were restored exactly after the clean-checkout promotion.
 
-The next Linux candidate preserves complete CLI hashes and passes relocation
-from both extracted containers on both native architectures. Its final
-receipt verifier rejects legitimate empty Python package files because the
-older resident-only size rule required every file to have positive length.
-Permit zero-byte CLI files with their exact SHA-256 digest; keep the positive
-size requirement for native resident files. Add authenticated-fixture coverage
-for this case before rebuilding the unified candidate.
+### Packaging failures resolved before publication
 
-The ARM64 runner does not expose the expected x64 registry installation
-location after the official installer succeeds. Extract the digest-verified
-runtime archive into a dedicated runner directory and verify that exact host
-before signing, rather than depending on installer registry layout.
+The initial 0.5.1 attempt caught a strict Rust signal-handler cast lint in the
+Mac sudo helper. Cast through a function pointer without changing behavior.
+The 0.5.2 attempt exposed ARM64 Python acceptance scheduled on an x64 Windows
+runner; move that build and installed smoke to native `windows-11-arm`.
+Both failed attempts remain immutable, unpublished tags. Build 0.5.3 as a
+complete candidate before tagging.
 
-Tauri also attempts individual Authenticode signatures on every Python PE
-resource, changing pinned bytes and failing on the same stripped DLL. Its
-bundle-only signing hook now authenticates the CLI catalog, complete inventory
-and publisher before preserving those exact resources. All other native
-resources, the operator, uninstaller and installer retain strict signing.
-Installed acceptance independently verifies the packaged result.
+Linux deployment rewrites ELF files beneath `usr/lib`, breaking pinned Python
+inventory hashes. Supported custom-file mappings place the CLI beneath
+`usr/share/machine-control/mc-cli` in Debian and AppImage; final extracted
+payloads retain every byte and pass relocation. Exact CLI hashes allow valid
+empty package files. The versioned resident allowlist requires the newly
+shipped `updates.py`; authenticated acceptance and missing-module refusal have
+regression coverage.
 
-Both extracted Linux CLI payloads then pass, but the native resident allowlist
-still describes 0.5.0 and rejects the newly shipped updates.py module. Require
-that module for 0.5.3 and newer, retain the exact native payload set, and cover
-both authenticated acceptance and missing-module refusal.
+Windows SIP hashing refuses an upstream stripped Python DLL. Publisher-sign a
+catalog over the full-byte SHA-256 inventory, then authenticate that catalog
+and every listed file while refusing unexpected files. Tauri's bundle-only
+hook preserves those catalog-authenticated PE resources; other native files,
+the app, uninstaller and installer retain strict Authenticode signing. Install
+the signing DLL's required x64 .NET runtime on ARM64 from its official
+SHA-512-verified archive, without replacing the native build SDK.
 
-Direct Windows PowerShell publisher/catalog/full-inventory preflight passes
-on both architectures, while the Tauri hook still fails without diagnostics.
-Normalize filesystem provider paths before routing CLI resources, exercise
-absolute, alternate-separator and relative inputs, and retain bounded hook
-exception messages in runner-local diagnostics for CI build failures. These
-checks retain the signed catalog and exact inventory as the required authority.
-
-The bounded diagnostic identifies the remaining Windows failure: the legacy
-Windows PowerShell host cannot load Microsoft.PowerShell.Security through
-Tauri's inherited PowerShell 7 module path. Direct PowerShell invocation had
-adjusted that environment and hidden the difference. Use the same absolute
-PowerShell 7 executable as CI, and exercise the signing preflight through a
-Python child that preserves the inherited environment. Native signatures,
-catalogs, publisher/timestamp checks and full inventory validation remain
-required; no runtime bytes or trust checks are relaxed.
+Tauri's indirect child inherits PowerShell 7 module paths that prevent the
+legacy Windows PowerShell host from loading its security module. Use CI's
+absolute PowerShell 7 executable for the bundle hook. Preflight it through an
+indirect child that preserves that environment, covering absolute, relative
+and alternate-separator resource paths. Final installed acceptance independently
+authenticates the publisher, timestamp, complete inventory and relocated CLI;
+no trust check or pinned runtime byte was relaxed to obtain a passing build.

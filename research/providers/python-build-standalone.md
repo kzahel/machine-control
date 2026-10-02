@@ -20,20 +20,22 @@ to preserve a Python CLI without requiring users to install Python. This is a
 packaging dependency, not a desktop control provider or resident replacement.
 Native semantics and OS permissions remain with the existing adapters.
 
-**Current:** Mac ARM64, Linux ARM64 and Windows x64 are **built** and exercised through the
-staged CLI's isolated interpreter. Linux runs in a native ARM64 Ubuntu container
-with no network, a read-only installed payload and only the standalone smoke
-harness mounted; the full payload is copied to an unrelated path before use.
-Offline identity/instructions, local-target discovery and bundled claim
-capabilities pass. This is CLI execution evidence, not Linux desktop or signed
-package acceptance. Windows x64 also passes physical relocation, offline discovery and claims
-through the bundled interpreter in a claimed Windows 11 appliance. Its staging
-payload is unsigned; publisher and desktop approval acceptance remain separate.
-Intel Mac, Windows ARM64 and Linux x64 have exact archive pins but are not
-execution-accepted by this evidence. Source review
+**Current:** All six adopted runtimes are **built** and have deterministic
+relocated offline CLI execution evidence in public desktop 0.5.3 CI. Linux
+x64/ARM64 and Windows x64/ARM64 use native runners; the Mac Intel target's hosted
+execution does not establish physical Intel hardware acceptance. Final Mac code
+signatures/notarization, Windows installed catalogs, and Linux final-container
+signatures authenticate their exact inventories. Package and offline CLI
+acceptance are distinct from desktop control.
+[Tactical 063](../../docs/tactical/063-six-platform-desktop-release.md) records
+exact source, workflow and public bytes.
+
+Earlier Mac ARM64, Linux ARM64 and Windows x64 isolated-runtime evidence,
+including appliance/container relocation, retains its bounded scope in
+[Tactical 062](../../docs/tactical/062-installed-agent-cli.md). Source review
 covers archive filtering, internal link flattening, runtime isolation and
-whole-payload inventory; it does not establish signed end-user acceptance.
-The [installed CLI topic](../../topics/installed-agent-cli.md) owns adoption and
+whole-payload inventory. The
+[installed CLI topic](../../topics/installed-agent-cli.md) owns adoption and
 remaining acceptance direction.
 
 ## Packaging compatibility

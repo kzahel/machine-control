@@ -5,8 +5,11 @@ Reviewed: 2026-10-02.
 This is an index of recorded acceptance for the shared Tauri desktop product,
 with earlier runtime evidence kept separate. Linked tactical records own exact
 versions, source identity, workflow artifacts, procedures, and limitations.
-Current public 0.5.0 package verification for all six targets is recorded in
-[059](tactical/059-public-linux-desktop.md); execution keeps its specific versions.
+Current public 0.5.3 package verification for all six targets is recorded in
+[063](tactical/063-six-platform-desktop-release.md); execution keeps its specific
+versions. All six installed CLI payloads authenticate and pass hosted offline
+relocation smoke, including native Windows ARM64; this is separate from GUI
+execution.
 An unrecorded cell is not a failure or a requirement to test that environment
 immediately. Concrete targets and raw evidence stay in private inventory/storage.
 
@@ -26,14 +29,14 @@ immediately. Concrete targets and raw evidence stay in private inventory/storage
 
 | Target environment | Package evidence | App execution evidence | Record |
 | --- | --- | --- | --- |
-| macOS ARM64, Tart VM | Signed/notarized public 0.5.0 verified | Targeted signed 0.4.10 browser indicators and fixture effects pass under appliance policy; 0.4.9 until-stopped access, Stop, restart and bounded approval pass; earlier full operator and production-update evidence is 0.4.8 | [052](tactical/052-macos-production-updates.md), [055](tactical/055-unified-desktop-publication.md), [057](tactical/057-macos-until-stopped-release.md), [058](tactical/058-browser-tab-indicators.md) |
+| macOS ARM64, Tart VM | Signed/notarized public 0.5.3 verified | Targeted signed 0.4.10 browser indicators and fixture effects pass under appliance policy; 0.4.9 until-stopped access, Stop, restart and bounded approval pass; earlier full operator and production-update evidence is 0.4.8 | [052](tactical/052-macos-production-updates.md), [055](tactical/055-unified-desktop-publication.md), [057](tactical/057-macos-until-stopped-release.md), [058](tactical/058-browser-tab-indicators.md); [063](tactical/063-six-platform-desktop-release.md) |
 | macOS ARM64, physical Mac | Public signed/notarized 0.4.8 package authenticated | Partial smoke: consent/readiness, off-state refusal, visible approval, independent AX counter effect, exact-window capture, keyboard delivery and revoke; full desktop acceptance remains open | [host topic](../topics/host-control.md) |
-| macOS Intel | Signed/notarized public 0.5.0 verified | Intel execution not recorded | [052](tactical/052-macos-production-updates.md), [057](tactical/057-macos-until-stopped-release.md), [058](tactical/058-browser-tab-indicators.md) |
-| Windows x64, Windows VM on Linux/KVM | Exact signed public 0.5.0 installer and payload verified | Public 0.4.8 UI/grants/lifecycle, browser tasks, production update and uninstall accepted; outside parity, lock/sign-in startup and component compatibility recorded on 0.4.7 | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md), [055](tactical/055-unified-desktop-publication.md), [057](tactical/057-macos-until-stopped-release.md), [058](tactical/058-browser-tab-indicators.md) |
-| Windows ARM64, Windows VM | Signed public 0.5.0 verified; CI package checks run on x64 | New Tauri operator execution not recorded; earlier ARM64 component execution below | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md), [057](tactical/057-macos-until-stopped-release.md), [058](tactical/058-browser-tab-indicators.md) |
+| macOS Intel | Signed/notarized public 0.5.3 verified | Intel GUI execution not recorded | [052](tactical/052-macos-production-updates.md), [057](tactical/057-macos-until-stopped-release.md), [058](tactical/058-browser-tab-indicators.md); [063](tactical/063-six-platform-desktop-release.md) |
+| Windows x64, Windows VM on Linux/KVM | Exact signed public 0.5.3 installer and payload verified | Public 0.4.8 UI/grants/lifecycle, browser tasks, production update and uninstall accepted; outside parity, lock/sign-in startup and component compatibility recorded on 0.4.7 | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md), [055](tactical/055-unified-desktop-publication.md), [057](tactical/057-macos-until-stopped-release.md), [058](tactical/058-browser-tab-indicators.md); [063](tactical/063-six-platform-desktop-release.md) |
+| Windows ARM64, Windows VM | Signed public 0.5.3 verified; native ARM64 CLI relocation smoke passes | New Tauri operator execution not recorded; earlier ARM64 component execution below | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md), [057](tactical/057-macos-until-stopped-release.md), [058](tactical/058-browser-tab-indicators.md); [063](tactical/063-six-platform-desktop-release.md) |
 | Windows x64, physical Windows | New candidate package verification does not establish physical execution | New Tauri operator acceptance not recorded; earlier appliance engine evidence below | [physical engine record](evidence/windows-physical-x64.md) |
-| Linux x64, Ubuntu GNOME Wayland VM | Exact signed public 0.5.0 Debian/AppImage bytes, signatures and inventories verified | Fresh installed UI/grants/effects/lifecycle and signed replacement with browser tasks pass; earlier same-core lock, reboot/startup and removal evidence remains in 056 | [056](tactical/056-linux-desktop.md), [059](tactical/059-public-linux-desktop.md) |
-| Linux ARM64 | Public 0.5.0 native Ubuntu CI builds, compiled identity, container inventories/signatures and tamper rejection verified | GNOME desktop execution not established | [056](tactical/056-linux-desktop.md), [059](tactical/059-public-linux-desktop.md) |
+| Linux x64, Ubuntu GNOME Wayland VM | Exact signed public 0.5.3 Debian/AppImage bytes, signatures and inventories verified | Public 0.5.0 fresh installed UI/grants/effects/lifecycle and signed replacement with browser tasks pass; earlier same-core lock, reboot/startup and removal evidence remains in 056 | [056](tactical/056-linux-desktop.md), [059](tactical/059-public-linux-desktop.md); [063](tactical/063-six-platform-desktop-release.md) |
+| Linux ARM64 | Public 0.5.3 native Ubuntu CI builds, compiled identity, container inventories/signatures and tamper rejection verified | GNOME desktop execution not established | [056](tactical/056-linux-desktop.md), [059](tactical/059-public-linux-desktop.md); [063](tactical/063-six-platform-desktop-release.md) |
 
 ## Shared Tauri behavior checklist
 
