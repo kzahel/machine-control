@@ -2,6 +2,7 @@
 export const REPOSITORY = "kzahel/machine-control";
 const BASE = `https://github.com/${REPOSITORY}/releases`;
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+export type WindowsArch = "x64" | "arm64";
 export type MacArch = "arm64" | "x86_64";
 type Json = Record<string, unknown>;
 export type DesktopRelease = {
@@ -9,6 +10,7 @@ export type DesktopRelease = {
   url: string;
   manifestUrl: string;
   downloads: Record<MacArch, string>;
+  windowsDownloads: Record<WindowsArch, string> | null;
 };
 function object(value: unknown): Json {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -55,7 +57,7 @@ export function selectDesktopRelease(value: unknown): DesktopRelease | null {
   const assets = release.assets.map(object);
   const asset = (name: string) => {
     const matches = assets.filter((a) => a.name === name);
-    const expected = `${BASE}/download/desktop-v${version}/${name}`;
+    const expected = `${BASE}/download/desktop-v${version}/${encodeURIComponent(name)}`;
     if (
       matches.length !== 1 ||
       matches[0].browser_download_url !== expected ||
@@ -72,7 +74,22 @@ export function selectDesktopRelease(value: unknown): DesktopRelease | null {
     asset(`MachineControl_${version}_${arch}.app.tar.gz`);
     asset(`MachineControl_${version}_${arch}.app.tar.gz.sig`);
   }
-  return { version, url, downloads, manifestUrl: asset("latest.json") };
+  let windowsDownloads: Record<WindowsArch, string> | null = null;
+  // Historical desktop releases are Mac-only. Unified releases require every
+  // published architecture; never hide missing Windows assets by downgrading.
+  if (compareVersions(version, "0.4.8") >= 0) {
+    windowsDownloads = {} as Record<WindowsArch, string>;
+    for (const arch of ["x64", "arm64"] as const) {
+      const installer = `Machine Control_${version}_${arch}-setup.exe`;
+      windowsDownloads[arch] = asset(installer);
+      asset(installer + ".sig");
+      asset(`build-windows-${arch}.json`);
+      asset(`payload-windows-${arch}.json`);
+    }
+    for (const arch of ["arm64", "x86_64"] as const)
+      asset(`build-macos-${arch}.json`);
+  }
+  return { version, url, downloads, windowsDownloads, manifestUrl: asset("latest.json") };
 }
 async function publicJson(
   url: string,

@@ -152,3 +152,7 @@ Tests use disposable keys and reject modified manifests, wrong keys, modified
 payloads, missing platforms, and wrong source/run identity. Native builds run
 on matching hosts. A passing smoke does not establish resident functionality,
 permissions, installation, upgrades, Intel macOS, or ARM64 Windows/Linux.
+
+The standalone Tauri product uses [one desktop release script](desktop.md) for
+all packaged platforms. Platform guides describe package details and evidence;
+they are not independent public release entry points.

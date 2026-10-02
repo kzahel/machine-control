@@ -1,4 +1,4 @@
-# Windows desktop candidates
+# Windows desktop packages
 
 The standalone product uses the shared Tauri UI and a bundled self-contained
 .NET companion. It installs per user and starts with access off. It does not
@@ -50,16 +50,15 @@ runtime catalog, and payload bytes. Signing/build checks are not desktop
 acceptance. [Tactical 053](../docs/tactical/053-windows-desktop.md) owns native
 approval/effect/Stop/session/tray/lifecycle/update acceptance through claimed VMs.
 
-The accepted x64 preview is version `0.4.3`, source
-`4468add959f8d591f8fcd1b1e8cf788e3a6af24f`, from
-[workflow run 36906816804](https://github.com/kzahel/machine-control/actions/runs/36906816804).
-Both architecture artifacts pass independent updater/provenance/tamper checks.
-Native desktop acceptance applies to x64; the ARM64 CI install validates bytes
-on an x64 runner, not ARM64 UI/runtime execution.
+Exact signed x64 candidate `0.4.7` passes installed UI, browser, updater,
+startup, and uninstall acceptance; [tactical 054](../docs/tactical/054-windows-browser-and-arm64.md)
+records its source and workflow. ARM64 package verification does not establish
+native ARM64 execution.
 
-Candidates do not publish a release or enable a production Windows feed.
-Publication follows exact installed acceptance, preserves the Mac feed, and
-requires meaningful checked-in versioned notes.
+Use the [unified release script](desktop.md) to publish Mac and Windows together
+with one version and required changelog. Direct Windows workflow dispatches
+remain candidates only. Public downloads include x64 and ARM64 with execution
+gaps recorded in the [acceptance matrix](../docs/desktop-acceptance.md).
 
 ## Lifecycle
 

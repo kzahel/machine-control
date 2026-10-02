@@ -7,7 +7,7 @@ export async function proxyUpdate(
 ): Promise<Response> {
   const { target, arch, version } = params;
   if (
-    target !== "darwin" ||
+    !["darwin", "windows"].includes(target ?? "") ||
     !["aarch64", "x86_64"].includes(arch ?? "") ||
     !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version ?? "")
   ) return new Response("Unsupported update target", { status: 404 });

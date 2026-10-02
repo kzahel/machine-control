@@ -1,0 +1,131 @@
+name: Desktop release
+run-name: Desktop ${{ inputs.release_tag || inputs.version }}
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Desktop version (required changelog; Mac and Windows)'
+        required: true
+        type: string
+      release_tag:
+        description: 'Existing desktop-vVERSION tag to publish (empty = candidate)'
+        default: ''
+        required: false
+        type: string
+      candidate_run:
+        description: 'Successful unified candidate run to promote without rebuilding (optional)'
+        default: ''
+        required: false
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    outputs:
+      package_run: ${{ steps.identity.outputs.package_run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Require release notes and exact tagged main source
+        id: identity
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          python3 release/changelog.py desktop/CHANGELOG.md "$RELEASE_VERSION"
+          if [ -n "$RELEASE_TAG" ]; then
+            python3 desktop/scripts/release.py check-tag "$RELEASE_TAG" --version "$RELEASE_VERSION" --revision "$GITHUB_SHA"
+          fi
+          package_run="$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT"
+          if [ -n "$CANDIDATE_RUN" ]; then
+            [[ "$CANDIDATE_RUN" =~ ^[1-9][0-9]*$ ]]
+            test -n "$RELEASE_TAG"
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN" > candidate-run.json
+            package_run="$(python3 desktop/scripts/release.py check-run candidate-run.json --revision "$GITHUB_SHA" --id "$CANDIDATE_RUN")"
+          fi
+          echo "package_run=$package_run" >> "$GITHUB_OUTPUT"
+  macos:
+    if: inputs.candidate_run == ''
+    needs: check
+    uses: ./.github/workflows/macos-desktop.yml
+    with:
+      version: ${{ inputs.version }}
+    secrets: inherit
+  windows:
+    if: inputs.candidate_run == ''
+    needs: check
+    uses: ./.github/workflows/windows-desktop.yml
+    with:
+      version: ${{ inputs.version }}
+    secrets: inherit
+  publish:
+    if: always() && github.ref == 'refs/heads/main' && inputs.release_tag != '' && needs.check.result == 'success' && ((needs.macos.result == 'success' && needs.windows.result == 'success') || (inputs.candidate_run != '' && needs.macos.result == 'skipped' && needs.windows.result == 'skipped'))
+    needs: [check, macos, windows]
+    runs-on: macos-26
+    environment: release
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: "*-desktop-*"
+          path: candidates
+          run-id: ${{ inputs.candidate_run || github.run_id }}
+          github-token: ${{ github.token }}
+      - run: brew install minisign
+      - name: Reverify all four final packages and stage public assets
+        env:
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          PACKAGE_RUN: ${{ needs.check.outputs.package_run }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          python3 desktop/scripts/release.py check-tag "$RELEASE_TAG" --version "$RELEASE_VERSION" --revision "$GITHUB_SHA" > release-notes.md
+          for target in aarch64-apple-darwin x86_64-apple-darwin; do
+            python3 desktop/scripts/verify-package.py "candidates/macos-desktop-$target" --revision "$GITHUB_SHA" --team-id "$APPLE_TEAM_ID" --test-tampering
+          done
+          for target in x86_64-pc-windows-msvc aarch64-pc-windows-msvc; do
+            python3 desktop/scripts/windows-package.py verify "candidates/windows-desktop-$target" --version "$RELEASE_VERSION" --revision "$GITHUB_SHA" --run "$PACKAGE_RUN" --target "$target" --test-tampering
+          done
+          python3 desktop/scripts/release.py stage candidates public-assets --version "$RELEASE_VERSION" --revision "$GITHUB_SHA" --run "$PACKAGE_RUN"
+      - name: Publish once, after all platforms and architectures pass
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/releases?per_page=100" > previous-releases.json
+          python3 desktop/scripts/release.py check-existing previous-releases.json --version "$RELEASE_VERSION"
+          remote_tag="$(gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" --jq .object.sha)"
+          test "$remote_tag" = "$(git rev-parse "refs/tags/$RELEASE_TAG")"
+          gh release create "$RELEASE_TAG" public-assets/* --verify-tag --target "$GITHUB_SHA" --draft --title "Machine Control desktop $RELEASE_VERSION" --notes-file release-notes.md
+          # The by-tag endpoint only resolves published releases. Resolve the
+          # newly created draft from the authenticated list, then use its ID.
+          gh api "repos/$GH_REPO/releases?per_page=100" > created-releases.json
+          release_id="$(python3 desktop/scripts/release.py draft-id created-releases.json --version "$RELEASE_VERSION" --revision "$GITHUB_SHA")"
+          gh api "repos/$GH_REPO/releases/$release_id" > uploaded-release.json
+          python3 desktop/scripts/release.py check-upload public-assets uploaded-release.json --version "$RELEASE_VERSION"
+          gh api --method PATCH "repos/$GH_REPO/releases/$release_id" -F draft=false -f make_latest=false > published-release.json

@@ -5,6 +5,7 @@ import {
   loadDesktopRelease,
   selectDesktopRelease,
 } from "../src/lib/desktop-release.ts";
+import { GET as windowsDownload } from "../src/pages/download/windows/[arch].ts";
 import { GET as download } from "../src/pages/download/macos/[arch].ts";
 const base = "https://github.com/kzahel/machine-control/releases";
 function release(version = "0.3.3", prefix = "desktop-v") {
@@ -17,6 +18,14 @@ function release(version = "0.3.3", prefix = "desktop-v") {
       ),
     ),
   ];
+  if (compareVersions(version, "0.4.8") >= 0) names.push(
+    ...["x64", "arm64"].flatMap((a) => [
+      `Machine Control_${version}_${a}-setup.exe`,
+      `Machine Control_${version}_${a}-setup.exe.sig`,
+      `build-windows-${a}.json`, `payload-windows-${a}.json`,
+    ]),
+    "build-macos-arm64.json", "build-macos-x86_64.json",
+  );
   return {
     tag_name: tag,
     html_url: `${base}/tag/${tag}`,
@@ -26,7 +35,7 @@ function release(version = "0.3.3", prefix = "desktop-v") {
       name,
       state: "uploaded",
       size: 100,
-      browser_download_url: `${base}/download/${tag}/${name}`,
+      browser_download_url: `${base}/download/${tag}/${encodeURIComponent(name)}`,
     })),
   };
 }
@@ -90,4 +99,28 @@ test("public download routes select each architecture and fail closed", async ()
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test("unified release requires both Windows architectures and retains legacy Mac releases", async () => {
+  const unified = release("0.4.8");
+  const selected = selectDesktopRelease([unified, release("0.3.5")]);
+  assert.match(selected!.windowsDownloads!.arm64, /Machine%20Control_0.4.8_arm64-setup.exe$/);
+  assert.equal(selectDesktopRelease([release("0.3.5")])!.windowsDownloads, null);
+  for (const name of ["Machine Control_0.4.8_arm64-setup.exe", "payload-windows-x64.json"]) {
+    assert.throws(() => selectDesktopRelease([{...unified, assets: unified.assets.filter(a => a.name !== name)}, release("0.3.5")]));
+  }
+  const original = globalThis.fetch;
+  try {
+    globalThis.fetch = fetcher([unified]);
+    for (const arch of ["x64", "arm64"]) {
+      const result = await windowsDownload(context({arch}));
+      assert.equal(result.status, 302);
+      assert.equal(result.headers.get("Location"), selected!.windowsDownloads![arch as "x64" | "arm64"]);
+    }
+    assert.equal((await windowsDownload(context({arch: "x86"}))).status, 404);
+    globalThis.fetch = fetcher();
+    assert.equal((await windowsDownload(context({arch: "x64"}))).status, 404);
+    globalThis.fetch = fetcher([{...unified, assets: []}]);
+    assert.equal((await windowsDownload(context({arch: "x64"}))).status, 503);
+  } finally { globalThis.fetch = original; }
 });

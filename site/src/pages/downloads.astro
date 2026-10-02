@@ -4,7 +4,7 @@ import SiteHeader from "../components/SiteHeader.astro";
 import SiteLayout from "../layouts/SiteLayout.astro";
 import { loadDesktopRelease } from "../lib/desktop-release";
 const title = "Downloads — Machine Control";
-const description = "Download the Machine Control Mac desktop preview for Apple silicon or Intel.";
+const description = "Download the Machine Control desktop preview for Mac and Windows.";
 let release;
 let unavailable = false;
 try { release = await loadDesktopRelease(); } catch { unavailable = true; }
@@ -40,7 +40,27 @@ if (unavailable) {
           <p class="download-note">Grants apply to all callers running as your user. Live tests cover Apple silicon Tart; physical Mac and Intel runtime acceptance remain open.</p>
         </> : <p class="download-state">{unavailable ? "Downloads temporarily unavailable. Try again shortly." : "No public Mac release yet."}</p>}
       </section>
-      <p class="download-note">Windows and Linux desktop apps are planned. For testbeds and the common CLI, see <a href="/getting-started/">Getting started</a>.</p>
+      <section class="download-panel" aria-labelledby="windows-download">
+        <div class="download-heading">
+          <h2 id="windows-download">Windows desktop</h2>
+          <span>{release?.windowsDownloads ? `v${release.version} · Preview` : "Preview"}</span>
+        </div>
+        <p>Tray app with visible access controls. Windows 11.</p>
+        {release?.windowsDownloads ? <>
+          <div class="actions">
+            <a class="button button-primary" href="/download/windows/x64">x64 .exe</a>
+            <a class="button button-secondary" href="/download/windows/arm64">ARM64 .exe</a>
+          </div>
+          <p class="download-note">Signed. <a href={release.url}>Release notes</a></p>
+          <ol class="download-steps">
+            <li>Run the installer, then open Machine Control.</li>
+            <li>Choose access scopes and a duration, or approve an agent request.</li>
+            <li>For Chrome, use browser setup in Permissions.</li>
+          </ol>
+          <p class="download-note">Grants apply to callers running as your user. x64 passes VM testing. ARM64 packages are verified; native ARM64 execution remains untested.</p>
+        </> : <p class="download-state">{unavailable ? "Downloads temporarily unavailable. Try again shortly." : "No public Windows release yet."}</p>}
+      </section>
+      <p class="download-note">Linux desktop support is planned. For testbeds and the common CLI, see <a href="/getting-started/">Getting started</a>.</p>
     </div>
   </main>
   <SiteFooter />

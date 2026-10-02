@@ -218,3 +218,12 @@ access and pending approvals are checked immediately before replacement.
 Older 0.3.3/0.3.4 senders may require reopening the app after their first update;
 the required 0.3.5 notes state that limitation. Published tags and bytes remain
 immutable.
+
+**Decision:** The standalone desktop product has one release script, version,
+required changelog, tag and updater manifest for every implemented platform.
+Mac ARM64/Intel and Windows x64/ARM64 publish together. A successful exact-source
+unified candidate can be promoted without rebuilding its accepted signed bytes.
+Linux will join this matrix when implemented. Windows ARM64 publication is
+explicitly requested while native ARM64 execution remains unverified.
+[The unified process](../release/desktop.md) owns operator guidance;
+[Tactical 055](../docs/tactical/055-unified-desktop-publication.md) owns execution.

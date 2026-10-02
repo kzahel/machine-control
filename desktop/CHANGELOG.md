@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [0.4.8]
+
+- First public Windows desktop preview for x64 and ARM64, alongside Mac.
+- Shared settings and tray controls with scoped approvals, expiry, and Stop.
+- Windows Chrome extension setup and separately approved browser scripts.
+- Signed Windows updates and uninstall while Chrome remains open.
+- One tagged release script, changelog, and update manifest for all packages.
+- Latest download links for Mac and Windows on the download page.
+
+Windows x64 passes installed VM testing. Windows ARM64 packages are signed and
+verified; native ARM64 execution remains untested. Mac native acceptance covers
+Apple silicon Tart; physical Mac and Intel execution remain open. Grants apply
+to callers running as your user. Protected Windows desktops, file upload, and
+raw CDP WebSockets are outside this Windows preview. Linux desktop packaging
+is not available yet.
+
+When updating Mac 0.3.3 or 0.3.4, reopen Machine Control if it closes after
+installation. Later versions support automatic relaunch.
+
 ## [0.4.7]
 
 - Finish ordinary Windows uninstall with Chrome open by stopping the operator

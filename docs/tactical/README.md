@@ -107,3 +107,7 @@ the commits' `Topic:` trailers and register that exact string in
 - [`054-windows-browser-and-arm64.md`](054-windows-browser-and-arm64.md) (active):
   Windows native browser integration, signed VM acceptance, and separately
   observed ARM64 product execution.
+
+- [`055-unified-desktop-publication.md`](055-unified-desktop-publication.md) (active):
+  one Mac/Windows release script, complete signed publication, downloads, and
+  production update acceptance.

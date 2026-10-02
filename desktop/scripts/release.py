@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate tagged desktop publication and stage the verified Mac asset set."""
+"""Validate tagged desktop publication and stage the verified cross-platform asset set."""
 import argparse
 import base64
 from datetime import datetime, timezone
@@ -10,11 +10,15 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location('release_changelog', ROOT / 'release/changelog.py')
 changelog_notes = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(changelog_notes)
+windows_spec = importlib.util.spec_from_file_location('windows_desktop_package', ROOT / 'desktop/scripts/windows-package.py')
+windows_package = importlib.util.module_from_spec(windows_spec)
+windows_spec.loader.exec_module(windows_package)
 REPOSITORY = 'kzahel/machine-control'
 VERSION = r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)'
 TARGETS = {'aarch64-apple-darwin': ('arm64', 'darwin-aarch64'),
@@ -70,6 +74,17 @@ def check_existing(releases, version):
             raise ValueError('Version must exceed every published desktop release')
 
 
+def check_run(value, revision, identifier):
+    if (value.get('path') != '.github/workflows/desktop-release.yml'
+            or value.get('head_sha') != revision or value.get('head_branch') != 'main'
+            or value.get('event') != 'workflow_dispatch'
+            or value.get('status') != 'completed' or value.get('conclusion') != 'success'
+            or type(value.get('id')) is not int or str(value['id']) != identifier
+            or type(value.get('run_attempt')) is not int or value['run_attempt'] <= 0):
+        raise ValueError('Candidate must be a successful unified main workflow at this exact source')
+    return f"{value['id']}.{value['run_attempt']}"
+
+
 def stage(directory, output, version, revision, run, body):
     version_tuple(version)
     if not re.fullmatch(r'[0-9a-f]{40}', revision) or not re.fullmatch(r'[0-9]+\.[0-9]+', run):
@@ -110,6 +125,24 @@ def stage(directory, output, version, revision, run, body):
         platforms[platform] = {
             'url': f'https://github.com/{REPOSITORY}/releases/download/desktop-v{version}/{archive}',
             'signature': signature,
+        }
+    for target, arch in windows_package.TARGETS.items():
+        source = directory / ('windows-desktop-' + target)
+        manifest = windows_package.verify(source, version=version, revision=revision,
+                                          run=run, target=target)
+        installer = next(item['name'] for item in manifest['artifacts']
+                         if item['name'].endswith('-setup.exe'))
+        expected = f'Machine Control_{version}_{arch}-setup.exe'
+        if installer != expected:
+            raise ValueError('Unexpected Windows installer name')
+        for name in (installer, installer + '.sig'):
+            payloads.append((source / name, name))
+        payloads.append((source / 'build.json', f'build-windows-{arch}.json'))
+        payloads.append((source / 'payload.json', f'payload-windows-{arch}.json'))
+        platform = 'windows-' + ('x86_64' if arch == 'x64' else 'aarch64')
+        platforms[platform] = {
+            'url': f'https://github.com/{REPOSITORY}/releases/download/desktop-v{version}/{quote(installer)}',
+            'signature': (source / (installer + '.sig')).read_text().strip(),
         }
     # Native signatures, Gatekeeper, notarization, and minisign verification run
     # on both input directories in the publication job before this staging step.
@@ -167,6 +200,10 @@ def main():
     existing = sub.add_parser('check-existing')
     existing.add_argument('file', type=Path)
     existing.add_argument('--version', required=True)
+    candidate = sub.add_parser('check-run')
+    candidate.add_argument('file', type=Path)
+    for field in ('revision', 'id'):
+        candidate.add_argument('--' + field, required=True)
     uploaded = sub.add_parser('check-upload')
     uploaded.add_argument('directory', type=Path)
     uploaded.add_argument('file', type=Path)
@@ -189,6 +226,8 @@ def main():
         print(check_tag(args.tag, args.version, args.revision), end='')
     elif args.command == 'check-existing':
         check_existing(json.loads(args.file.read_text()), args.version)
+    elif args.command == 'check-run':
+        print(check_run(json.loads(args.file.read_text()), args.revision, args.id))
     elif args.command == 'check-upload':
         check_upload(args.directory, json.loads(args.file.read_text()), args.version)
     elif args.command == 'draft-id':

@@ -2,64 +2,14 @@
 
 The desktop release entry point follows lid-awake's clean-checkout and changelog
 pattern. Tags use `desktop-vX.Y.Z`, independently of `workstation-vX.Y.Z`
-Windows component releases. Both Mac architectures publish together.
+Windows component releases. Both Mac architectures now publish alongside Windows through the unified flow.
 
 ## Release
 
-1. Add a version section to [the desktop changelog](../desktop/CHANGELOG.md).
-   Validate the intended signed candidate in the dedicated Tart testbed through
-   the common CLI, with doctor, a claim, and cleanup. The CI packaging checks do
-   not replace native application acceptance.
-2. Commit and push the source and notes to `main`. The local checkout must be
-   clean and match `origin/main`.
-3. From the repository root, run:
-
-   ```bash
-   desktop/scripts/release.sh 0.3.3
-   ```
-
-Every publication requires exactly one `## [X.Y.Z]` changelog section with
-at least one nonempty change bullet. Missing, duplicate, empty, and placeholder
-notes are refused locally and in CI. The checked-in section becomes both the
-GitHub release body and the updater metadata notes.
-
-The script validates a strictly increasing version and release notes, creates
-and pushes an annotated tag, then dispatches `macos-desktop.yml` from `main`
-with that tag and version. CI requires the tag to point to the exact workflow
-source commit. A concurrent main push can make dispatch fail this identity
-check; rerun the original workflow rather than moving the tag. The release
-signing environment retains its existing main-only policy. For a retry, rerun
-all jobs so both architecture receipts share the same workflow attempt.
-
-CI runs source checks, builds Apple silicon and Intel, signs/notarizes/staples
-both apps and DMGs, and authenticates the final updater archives. Publication
-reverifies both candidates, their source/version/run identity, and the complete
-asset set. It rechecks the remote tag and creates a draft. GitHub's uploaded
-asset hashes and sizes must match before that draft becomes public. Existing
-drafts/releases are refused; published bytes and tags are never replaced.
-A publication failure leaves its draft for diagnosis, not automatic clobbering.
-Draft verification and publication use the release ID; GitHub's by-tag endpoint
-resolves published releases. Recovery must authenticate the original CI
-packages and verify the existing draft's source, notes and complete asset hashes
-before publishing it. Do not recreate the draft or move the tag.
-
-The release includes:
-
-- versioned Apple silicon and Intel DMGs;
-- both authenticated `.app.tar.gz` archives and updater signatures;
-- separate architecture build receipts; and
-- standard Tauri `latest.json` with version-pinned URLs and signatures.
-
-The publication has a numeric version and is a normal GitHub release so the
-Stable update contract can select it. The app remains explicitly labelled a
-developer preview. It does not change GitHub's repository-wide latest pointer,
-which is also used by the independently released Windows component.
-
-An empty `release_tag` retains signed **CI candidate only** behavior:
-
-```bash
-gh workflow run macos-desktop.yml --ref main -f version=0.3.3
-```
+Use the [unified desktop release process](desktop.md). The single script now
+publishes both Mac architectures and both Windows architectures together.
+Direct `macos-desktop.yml` dispatches produce CI candidates only.
+The immutable Mac-only releases below retain their historical evidence.
 
 ## Website downloads
 
