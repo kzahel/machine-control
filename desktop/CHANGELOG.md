@@ -2,12 +2,26 @@
 
 ## [Unreleased]
 
+## [0.5.1]
+
 - Check for updates silently five seconds after startup and daily while the
   desktop app runs, independently of its settings window. Show available
   updates in Settings and the tray.
 - Add `machine-control update check|status` through existing resident transports.
   Discovery never downloads, installs, restarts, or focuses the app. Installation
   stays explicit and refuses active access or approval.
+- Bundle the Machine Control CLI and its Python runtime on all six desktop
+  targets. Agents can read offline identity and instructions and use the
+  installed CLI without a source checkout or system Python.
+- On Mac, include signed `mc-sudo` helpers for one-command administrator
+  authentication through a native password dialog.
+
+This release includes Mac Apple silicon/Intel, Windows x64/ARM64, and Linux
+x64/ARM64 Debian/AppImage packages. CLI relocation and offline execution have
+Mac ARM64, Windows x64, and Linux ARM64 evidence; native installed control has
+Mac ARM64 appliance evidence. Full signed Windows/Linux CLI desktop acceptance,
+Intel/Windows ARM64/Linux ARM64 GUI execution, and physical-host acceptance
+remain separate coverage gaps. Updates install only after explicit approval.
 
 ## [0.5.0]
 
