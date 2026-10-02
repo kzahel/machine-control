@@ -8,7 +8,7 @@ publisher verification and notarization; Windows x64/ARM64 installed catalogs
 and Linux x64/ARM64 final packages authenticate. Native Windows ARM64 CI now
 executes that architecture's bundled interpreter. Earlier Mac ARM64 appliance,
 Linux ARM64 container, and Windows x64 appliance evidence retains its own
-scope. Signed Windows/Linux GUI control remains separate; Mac installed CLI
+scope. Signed Windows x64 CLI control is accepted; Linux GUI control remains separate; Mac installed CLI
 replacement to public 0.5.3 is accepted. [Tactical 063](../docs/tactical/063-six-platform-desktop-release.md)
 owns exact published package and production delivery verification.
 
@@ -164,9 +164,17 @@ installed CLI to increment an independent HTTP fixture once and consume its
 new tab capture; the headed browser harness passes all 23 checks. Signed
 Windows/Linux native acceptance and lifecycle parity remain open.
 
-**Current:** Windows x64 passes physically relocated offline execution through
-its bundled interpreter in a claimed Windows 11 appliance. The Windows desktop
-harness accepts the installed command as an alternative to a checkout and uses
-it for control and artifact retrieval. Native PowerShell syntax passes; the selection-refusal run was blocked by the
-guest's script execution policy and is not counted as passing. Full signed installed desktop/browser and YA acceptance
-still need the new candidate; this staging smoke does not establish them.
+**Current:** Public desktop 0.5.3 Windows x64 from source `d5aa271` passes
+ordinary interactive installed-CLI acceptance in a claimed Windows 11 appliance.
+YA's real consumer authenticates the published product, complete client and
+relocated copy, including wrong-publisher, changed-script and missing-interpreter
+negatives. With no checkout or system Python in the payload, the installed
+command refuses control with access off. Visible native approval permits one
+Cua semantic counter increment independently confirmed by fixture state;
+capture/artifact bytes match their SHA-256, capture invalidates the old reference,
+and native Stop revokes access. `tests/windows/desktop-cli.ps1` supplies the
+control assertions. Its owned actor uses per-process PowerShell execution policy
+without changing the machine's policy. Temporary installation and staging are
+removed, the pre-existing custom-install registry restored, original power-off
+confirmed, and local and controller claims released. Windows provider-driven
+model control/media, browser and lifecycle parity remain separate gates.

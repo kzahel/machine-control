@@ -280,3 +280,27 @@ The original resident stays ready. Initial power-off and controller claim
 availability are independently confirmed; canonical credentials are unchanged.
 Portable release tests (61) and Python syntax checking pass. Signed Windows/
 Linux native acceptance and YA legacy retirement remain open.
+
+### Public Windows x64 installed CLI acceptance
+
+**Current (2026-10-03):** Exact public desktop 0.5.3, source `d5aa271`, passes
+YA's production authentication/closure/identity/instructions/context probe,
+including relocation and the three integrity/publisher negatives, in an ordinary
+interactive Windows 11 x64 session. The installer was authenticated first with
+the pinned updater key and signed version, then its valid timestamped native
+signature supplied the publisher for the test. No public trust key was changed.
+
+The existing `tests/windows/desktop-cli.ps1` runs from the installed command,
+without a checkout in the payload. Access-off refusal passes. An independent
+ordinary-user actor approves the visible request; the packaged Cua route performs
+one independently observed counter increment, captures only the fixture, verifies
+artifact bytes by SHA-256 and refuses the capture-superseded semantic reference.
+Native Stop revokes the grant. No system Python or developer toolchain executes
+these operations. PowerShell bypass is scoped to the owned test process.
+
+NSIS initially restored a previous test's custom installation path. The accepted
+run instead pins the normal product path and backs up/restores the pre-existing
+uninstall registry. Temporary installation and staging are removed, original
+power-off is independently confirmed, and both local CLI claims and the controller
+claim are released. Provider-driven Windows control/media, browser, lifecycle,
+Linux GUI acceptance and YA legacy retirement remain open.

@@ -2,7 +2,7 @@
 
 Topic: `windows-desktop`
 
-Status: public 0.4.8 preview published for x64 and ARM64. Signed x64 VM
+Status: public 0.5.3 preview published for x64 and ARM64. Signed x64 VM
 execution and production updates are accepted; ARM64 native execution and
 physical hardware remain open.
 
@@ -35,6 +35,13 @@ checked-in versioned notes. Exact signed installed acceptance precedes any
 Windows support claim.
 
 ## Execution and remaining gates
+
+**Current:** Public 0.5.3 x64 passes the installed Python CLI's ordinary-user
+native approval, refusal, independent Cua counter effect, capture/artifact hash,
+stale-reference and Stop slice, together with actual YA installation verification.
+[Installed agent CLI](installed-agent-cli.md) owns that evidence and its remaining
+model, browser and lifecycle gates. ARM64 offline packaging evidence does not
+establish ARM64 interactive desktop execution.
 
 **Current:** The exact signed 0.4.7 x64 candidate passes installed payload,
 native grant, self-interface protection, tray, expiry, emergency Stop, startup,
