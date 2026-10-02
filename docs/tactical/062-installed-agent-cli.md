@@ -131,3 +131,11 @@ passwordless shutdown command refused; guest-native System Events shutdown
 then succeeded. Power-off is independently confirmed, the controller claim is
 released and the canonical login credential remains ready. This inspection is
 preparation for provider-driven control, not its acceptance.
+
+A target-local YA provider attempt subsequently used the signed CLI, changed
+the AppKit count once and opened its new exact-window capture. It reached the
+bounded deadline before reporting the visible count, so the full probe did not
+pass. Its trace motivates clearer instructions: reuse a harness-supplied claim,
+show semantic press syntax, and retrieve the unchanged artifact path rather
+than guessing a capture id. The six CLI packaging checks pass. Provider-driven
+acceptance remains open pending the corrected run.

@@ -12,6 +12,10 @@ separate.
 
 ## Contract
 
+**Current:** Agent instructions distinguish harness-supplied claims from
+new claims, give the semantic action syntax, and require artifact handles to
+be passed unchanged. Mac capture retrieval uses the full `data.artifactPath`.
+
 **Decision:** Python remains the common CLI implementation. Developers run
 `bin/machine-control` directly; command changes require no Rust toolchain or
 desktop rebuild. Desktop packages bundle the same modules, local host adapters,

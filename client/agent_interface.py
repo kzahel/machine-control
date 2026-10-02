@@ -36,6 +36,10 @@ do not install a second resident or switch to outer VM/window control.
 Begin with:
   machine-control --target host target doctor
   machine-control --target host claim capabilities
+
+If your harness supplies a live claim for this task, carry that claim instead
+of acquiring another. Do not borrow another caller's claim from a refusal.
+Otherwise acquire your own claim:
   machine-control --target host claim acquire --duration 30m \\
     --reason 'describe the task' --claimant-authority YOUR_ENVIRONMENT \\
     --claimant-id YOUR_TASK_ID
@@ -63,6 +67,8 @@ Desktop workflow:
   machine-control --target host --claim CLAIM_ID desktop applications
   machine-control --target host --claim CLAIM_ID desktop windows
   machine-control --target host --claim CLAIM_ID desktop snapshot --target APP
+  machine-control --target host --claim CLAIM_ID desktop action \\
+    --reference REFERENCE --action press
   machine-control --target host --claim CLAIM_ID desktop capture \\
     --scope window --target active_window
 
@@ -83,9 +89,11 @@ Browser workflow (requires the installed extension and a browser scope):
 
 Use browser COMMAND --help for options. Raw CDP/evaluation/endpoints require
 the separate devtools scope; do not request it for ordinary browser semantics.
-Capture results contain bounded artifact handles. Retrieve them with
-`desktop artifact HANDLE OUTPUT_PATH`, carrying target and claim, then use
-your harness's image viewer. A JSON pathname alone is not an image observation.
+Capture results contain bounded artifact handles. Pass the returned handle
+unchanged to `desktop artifact HANDLE OUTPUT_PATH`, carrying target and claim.
+For a Mac capture this is `data.artifactPath`, including its full path; do not
+substitute a basename or capture id. Then use your harness's image viewer.
+A JSON pathname alone is not an image observation.
 Release browser debugger sessions when finished with `browser release`.
 
 MC access/arming never implies administrator authority. Native sudo is a
