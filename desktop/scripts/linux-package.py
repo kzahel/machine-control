@@ -167,7 +167,7 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
     required = {"machine-control", "linux-runtime/desktop-runtime.json", "linux-runtime/desktop.py",
                 "linux-runtime/grants.py", "linux-runtime/portal.py", "linux-runtime/provider.py",
                 "linux-runtime/approval.py", "linux-runtime/browser.py", "linux-runtime/browser_host.py",
-                "linux-runtime/artifacts.py", "linux-runtime/shortcut.py", "linux-runtime/linuxcontrol.py",
+                "linux-runtime/artifacts.py", "linux-runtime/shortcut.py", "linux-runtime/startup.py", "linux-runtime/linuxcontrol.py",
                 "linux-runtime/linuxui.py", "linux-runtime/extension/manifest.json",
                 "linux-runtime/extension/service_worker.js"}
     for record in records:

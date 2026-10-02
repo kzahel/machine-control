@@ -109,3 +109,17 @@ GTK's event thread; the companion still serializes grant decisions. Development
 installed acceptance passes 53 checks with independent semantic, pointer and
 Unicode effects and operator-loss cleanup while the user fixture survives.
 The earlier signed candidate is not accepted; a corrected build is required.
+
+Source `e8b7f09` in unified workflow `36975439124.1` passes authentication
+and native inventories on Linux x64/ARM64. Both exact x64 AppImage and Debian
+installs pass 54 native UI/effect/lifecycle checks. Signed localhost replacement
+passes 31 checks, including tamper and active-access refusal, exact incoming
+bytes, automatic relaunch Off, stale generations, and Chrome reconnect. Lock
+revocation, sharing closure, and generation rotation pass.
+
+Cold-boot testing exposed an upstream unquoted startup path, independently of
+the test staging directory being cleared. Linux now owns its private XDG entry
+and uses a fixed positional execv launcher. Three tests prove opt-in/removal,
+foreign/symlink preservation, and real GIO launch effects for six reserved-path
+cases. A corrected signed startup candidate and persistent-location boot proof
+are required. Mac and Windows retain their existing startup providers.

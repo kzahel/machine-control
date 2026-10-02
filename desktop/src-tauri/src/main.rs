@@ -218,7 +218,7 @@ fn main() {
         String::new()
     };
     let builder = tauri::Builder::default();
-    #[cfg(any(target_os = "windows", target_os = "linux"))]
+    #[cfg(target_os = "windows")]
     let builder = builder.plugin(tauri_plugin_autostart::init(
         tauri_plugin_autostart::MacosLauncher::LaunchAgent,
         Some(vec!["--background"]),

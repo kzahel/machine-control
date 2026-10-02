@@ -7,7 +7,6 @@ use std::{
     time::Duration,
 };
 use tauri::Manager;
-use tauri_plugin_autostart::ManagerExt;
 
 static RUNTIME: Mutex<Option<Runtime>> = Mutex::new(None);
 static APP: OnceLock<tauri::AppHandle> = OnceLock::new();
@@ -159,15 +158,6 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
 
 pub fn command(command: Value) -> Result<Value, String> {
     let app = APP.get().ok_or("Operator unavailable")?;
-    if command["method"] == "startup" {
-        match command["enabled"].as_bool() {
-            Some(true) => app.autolaunch().enable(),
-            Some(false) => app.autolaunch().disable(),
-            None => return Err("Choose a startup preference".into()),
-        }
-        .map_err(|e| e.to_string())?;
-        return Ok(json!({"ok":true}));
-    }
     let mut owner = RUNTIME.lock().map_err(|e| e.to_string())?;
     let runtime = owner.as_mut().ok_or("Resident unavailable")?;
     let mut reply = match runtime.call(&command) {
@@ -186,8 +176,6 @@ pub fn command(command: Value) -> Result<Value, String> {
     if command["method"] == "state" {
         reply["state"]["version"] = json!(app.package_info().version.to_string());
         reply["state"]["sourceRevision"] = json!(env!("MC_SOURCE_REVISION"));
-        reply["state"]["startOnLogin"] =
-            json!(app.autolaunch().is_enabled().map_err(|e| e.to_string())?);
         reply["state"]["updateInstallSupported"] = json!(std::env::var_os("APPIMAGE").is_some());
     }
     Ok(reply)

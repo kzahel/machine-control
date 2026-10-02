@@ -199,7 +199,7 @@ class LinuxUnifiedReleaseTests(unittest.TestCase):
         names = ['machine-control', *['linux-runtime/' + name for name in [
             'desktop-runtime.json', 'desktop.py', 'grants.py', 'portal.py',
             'provider.py', 'approval.py', 'browser.py', 'browser_host.py',
-            'artifacts.py', 'shortcut.py', 'linuxcontrol.py', 'linuxui.py',
+            'artifacts.py', 'shortcut.py', 'startup.py', 'linuxcontrol.py', 'linuxui.py',
             'extension/manifest.json', 'extension/service_worker.js']]]
         for target, (arch, _) in release.linux_package.TARGETS.items():
             folder = self.candidates / ('linux-desktop-' + target)

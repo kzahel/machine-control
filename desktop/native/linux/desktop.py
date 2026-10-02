@@ -32,6 +32,7 @@ from grants import Grants, OBSERVE, CONTROL
 from portal import Portal
 from provider import Provider
 from shortcut import Shortcut
+from startup import Startup
 from browser import Browser
 import linuxui
 
@@ -93,6 +94,7 @@ class Desktop:
         self.last_portal_state = "off"
         self.portal = Portal(self.changed)
         self.shortcut = Shortcut(executable)
+        self.startup = Startup(executable)
         self.browser = Browser(self)
         self.browser.refresh_owned_installation()
         self.dialog = None
@@ -204,7 +206,8 @@ class Desktop:
                 "portal": {"state": self.portal.state, "error": self.portal.error,
                            "pointer": bool(self.portal.devices & 2), "keyboard": bool(self.portal.devices & 1)},
                 "browser": {"connected": self.browser.provider is not None, "available": True},
-                "socket": str(self.endpoint), "stopShortcutAvailable": self.shortcut.available,
+                "socket": str(self.endpoint), "startOnLogin": self.startup.enabled,
+                "stopShortcutAvailable": self.shortcut.available,
                 "stopShortcut": "Ctrl+Alt+Shift+."}
 
     def operator(self, command):
@@ -222,6 +225,8 @@ class Desktop:
                 self.portal.close()
         elif method == "shortcut":
             self.shortcut.set(command.get("enabled"))
+        elif method == "startup":
+            self.startup.set(command.get("enabled"))
         elif method == "browser.setup":
             return {"ok": True, "extensionPath": self.browser.setup()}
         elif method == "permission":

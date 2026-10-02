@@ -63,6 +63,7 @@ jobs:
           set -euo pipefail
           python3 release/changelog.py desktop/CHANGELOG.md "$CANDIDATE_VERSION"
           python3 tests/desktop/linux-grants.py
+          python3 tests/desktop/linux-startup.py
           platforms/linux/tests/smoke.sh --static
           pnpm --dir desktop install --frozen-lockfile
           python3 desktop/scripts/prepare-linux.py --revision "$GITHUB_SHA"

@@ -30,7 +30,8 @@ bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
 endpoint = Path(os.environ["XDG_RUNTIME_DIR"]) / "machine-control-desktop/desktop.sock"
 checks = []
 log = args.output.with_suffix(".log").open("w")
-process = chrome = server = None
+process = chrome = server = browser_server = None
+effects = {"clicks": 0, "text": ""}
 tampered = True
 pause_download = False
 download_started = threading.Event()
@@ -84,7 +85,12 @@ def call(operation, **params):
 
 
 def nodes(app="machine-control"):
-    return list(linuxui.walk(linuxui.choose_application(linuxui.desktop(), app), 25, 2000))
+    context = GLib.MainContext.default()
+    while context.pending():
+        context.iteration(False)
+    root = linuxui.choose_application(linuxui.desktop(), app)
+    root.clear_cache()
+    return list(linuxui.walk(root, 25, 2000))
 
 
 def widget(label, app="machine-control"):
@@ -98,7 +104,12 @@ def press(label, app="machine-control"):
 
 
 def errors():
-    return " ".join(i["name"] for _, i in nodes() if i["name"]).lower()
+    values = []
+    for node, info in nodes():
+        values.append(info["name"])
+        if "Text" in info["interfaces"]:
+            values.append(linuxui.safe(lambda: linuxui.Atspi.Text.get_text(node, 0, -1), ""))
+    return " ".join(values).lower()
 
 
 def dbus(dest, path, interface, method, params):
@@ -140,6 +151,7 @@ class Feed(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
+        print("HTTPS fixture request:", self.path, file=log, flush=True)
         if self.path.startswith("/updates/"):
             body = json.dumps({"version": "0.5.0", "notes": "Linux update acceptance",
                                "pub_date": "2026-10-02T00:00:00Z", "platforms": {
@@ -165,6 +177,30 @@ class Feed(BaseHTTPRequestHandler):
                     self.wfile.write(b"tampered")
         else:
             self.send_error(404)
+
+
+class BrowserFixture(BaseHTTPRequestHandler):
+    def log_message(self, *_args):
+        pass
+
+    def do_GET(self):
+        if self.path.startswith("/effect?"):
+            from urllib.parse import parse_qs, urlsplit
+            values = parse_qs(urlsplit(self.path).query)
+            if "click" in values:
+                effects["clicks"] += 1
+            if "text" in values:
+                effects["text"] = values["text"][0]
+            body = b"ok"
+        else:
+            body = b'''<!doctype html><title>Installed Linux browser fixture</title>
+<button onclick="fetch('/effect?click=1')">Increment</button>
+<input aria-label="Fixture text" oninput="fetch('/effect?text='+encodeURIComponent(this.value))">'''
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html;charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
 
 try:
@@ -250,12 +286,40 @@ try:
         check("new owner native approval", pending.result()["accepted"])
     poll(lambda: call("browser.tabs").get("accepted"), 35)
     check("browser reconnects after replacement", True)
+    browser_server = ThreadingHTTPServer(("127.0.0.1", 0), BrowserFixture)
+    threading.Thread(target=browser_server.serve_forever, daemon=True).start()
+    url = "http://127.0.0.1:" + str(browser_server.server_port) + "/"
+    tabs = call("browser.tabs")["data"]["tabs"]
+    check("unambiguous isolated browser tab", len(tabs) == 1)
+    tab = tabs[0]["tabId"]
+    check("updated browser navigate", call("browser.navigate", tabId=tab, url=url)["accepted"])
+    poll(lambda: any(t["url"] == url for t in call("browser.tabs")["data"]["tabs"]))
+    snapshot = poll(lambda: call("browser.snapshot", tabId=tab).get("data", {}).get("elements"))
+    button = next(n for n in snapshot if n["name"] == "Increment" and n["role"] == "button")
+    entry = next(n for n in snapshot if n["name"] == "Fixture text" and n["role"] == "textbox")
+    check("updated browser click delivery", call("browser.click", reference=button["reference"])["accepted"])
+    poll(lambda: effects["clicks"] == 1)
+    check("updated independent browser click effect", True)
+    check("updated browser Unicode delivery", call("browser.type", reference=entry["reference"],
+          text="Updated Linux 世界 café")["accepted"])
+    poll(lambda: effects["text"] == "Updated Linux 世界 café")
+    check("updated independent browser Unicode effect", True)
+    capture = call("browser.capture", tabId=tab)
+    check("updated browser capture", capture["accepted"])
+    artifact = capture["data"]["artifact"]
+    check("updated browser capture hash", digest(Path(artifact["guestPath"])) == artifact["sha256"])
+    check("updated browser DevTools remains separate", call("browser.eval", tabId=tab,
+          expression="1+1")["errorCode"] == "approval_required")
     menu("Stop access")
     menu("Quit")
     poll(lambda: not endpoint.exists())
     check("updated Quit removes endpoint", True)
     report(complete=True)
 except BaseException as error:
+    try:
+        print("Native update diagnostics:", errors(), file=log, flush=True)
+    except Exception:
+        pass
     report(complete=True, failure=str(error))
     raise
 finally:
@@ -279,6 +343,9 @@ finally:
     if server:
         server.shutdown()
         server.server_close()
+    if browser_server:
+        browser_server.shutdown()
+        browser_server.server_close()
     shutil.rmtree(profile, ignore_errors=True)
     shutil.rmtree(data, ignore_errors=True)
     for path, previous in saved.items():

@@ -69,7 +69,12 @@ def call(operation, **params):
 
 
 def nodes(name="machine-control"):
-    return list(linuxui.walk(linuxui.choose_application(linuxui.desktop(), name), 25, 2000))
+    context = GLib.MainContext.default()
+    while context.pending():
+        context.iteration(False)
+    root = linuxui.choose_application(linuxui.desktop(), name)
+    root.clear_cache()
+    return list(linuxui.walk(root, 25, 2000))
 
 
 def widget(label, role="push button", app="machine-control"):
