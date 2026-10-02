@@ -82,3 +82,11 @@ installer, verify the registered x64 host/runtime, and set only DOTNET_ROOT_X64;
 the native ARM64 build SDK and interpreter remain unchanged. Both Mac signed
 candidates from the first 0.5.3 run pass notarization and CLI relocation.
 A repaired unified candidate must still rebuild every platform at one source.
+
+The next Linux candidate preserves complete CLI hashes and passes relocation
+from both extracted containers on both native architectures. Its final
+receipt verifier rejects legitimate empty Python package files because the
+older resident-only size rule required every file to have positive length.
+Permit zero-byte CLI files with their exact SHA-256 digest; keep the positive
+size requirement for native resident files. Add authenticated-fixture coverage
+for this case before rebuilding the unified candidate.

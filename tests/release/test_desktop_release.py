@@ -252,6 +252,27 @@ class LinuxUnifiedReleaseTests(unittest.TestCase):
                 release.linux_package.verify(self.output, target, VERSION, REVISION,
                                              '123.1', published=True, tamper=True)
 
+    def test_linux_cli_inventory_allows_real_empty_python_package_files(self):
+        target = 'x86_64-unknown-linux-gnu'
+        folder = self.candidates / ('linux-desktop-' + target)
+        path = folder / 'payload.json'
+        payload = json.loads(path.read_text())
+        names = ['client-runtime.json', 'files.json', 'launch.py',
+                 'commands/machine-control', 'python/bin/python3']
+        for record in payload['packages']:
+            record['files'].extend({'name': 'mc-cli/' + name, 'size': 1, 'sha256': 'b' * 64}
+                                   for name in names)
+            record['files'].append({'name': 'mc-cli/python/lib/python3.12/encodings/__init__.py',
+                                    'size': 0, 'sha256': hashlib.sha256(b'').hexdigest()})
+        path.write_text(json.dumps(payload))
+        path = folder / 'build.json'; receipt = json.loads(path.read_text())
+        for item in receipt['artifacts']:
+            item['size'] = (folder / item['name']).stat().st_size
+            item['sha256'] = release.sha256(folder / item['name'])
+        path.write_text(json.dumps(receipt))
+        with patch.object(release.linux_package, 'ROOT', self.root):
+            release.linux_package.verify(folder, target, VERSION, REVISION, '123.1')
+
     def test_cli_release_refuses_a_completely_omitted_linux_cli(self):
         target = 'x86_64-unknown-linux-gnu'
         folder = self.candidates / ('linux-desktop-' + target)

@@ -200,7 +200,8 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
         found = set()
         for item in record.get("files", []):
             name = item.get("name", "")
-            if (not safe_name(name) or name in found or type(item.get("size")) is not int or item["size"] < 1
+            if (not safe_name(name) or name in found or type(item.get("size")) is not int or item["size"] < 0
+                    or (item["size"] == 0 and not name.startswith("mc-cli/"))
                     or not re.fullmatch(r"[0-9a-f]{64}", item.get("sha256", ""))):
                 raise ValueError("Invalid Linux payload inventory")
             found.add(name)
