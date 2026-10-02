@@ -2,8 +2,9 @@
 
 Topic: `linux-desktop`
 
-Status: signed Debian/AppImage preview accepted on an Ubuntu GNOME Wayland
-x64 VM. Native x64/ARM64 packages are authenticated. No published Linux package.
+Status: public desktop 0.5.0 includes signed Debian/AppImage packages for
+x64 and ARM64. Installed x64 acceptance passes on Ubuntu GNOME Wayland;
+ARM64 desktop execution remains open.
 
 **Decision:** Extend the shared Tauri settings and tray app with an ordinary-user
 Linux companion. Reuse the owned AT-SPI facade, with compositor-mediated XDG
@@ -26,12 +27,14 @@ the existing signed Tauri updater. Linux joins the single desktop version,
 required changelog, release script, manifest, downloads, and update service;
 there is no Linux-only publication flow.
 
-[Tactical 056](../docs/tactical/056-linux-desktop.md) owns the ordered work and
-acceptance. [Linux resident control](linux-resident-control.md) owns appliance
-behavior; [native distribution](native-distribution.md) owns release policy.
+[Tactical 056](../docs/tactical/056-linux-desktop.md) owns initial acceptance;
+[059](../docs/tactical/059-public-linux-desktop.md) owns exact-package retesting
+and public six-platform publication.
+[Linux resident control](linux-resident-control.md) owns appliance behavior;
+[native distribution](native-distribution.md) owns release policy.
 
-**Current:** Exact signed x64 Debian/AppImage candidates pass native UI, grant,
-portal, independent effect, restart, tray, and operator-loss acceptance. Signed
+**Current:** Exact signed public 0.5.0 x64 Debian/AppImage bytes pass native UI,
+grant, portal, independent effect, restart, tray, and operator-loss acceptance. Signed
 AppImage replacement passes tamper and active-access refusal, automatic relaunch
 Off, stale generations, browser reconnect, and independent browser tasks.
 Native lock revokes access and closes sharing. Reboot starts the exact app in
@@ -43,7 +46,13 @@ Foreign entries are preserved. The system Python companion uses clean library
 search paths, and blocking operator IPC stays outside GTK's event thread.
 Debian updates use the package manager; AppImage uses the signed updater.
 
+**Current:** [Public downloads](https://machinecontrol.dev/downloads/) and
+[desktop 0.5.0](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.0)
+serve both architectures. Both production metadata routes return the authenticated
+AppImage to older clients and 204 to current clients. Installed replacement uses
+the strict localhost HTTPS fixture with those exact public incoming bytes;
+positive installed production-feed replacement remains separate.
+
 **Open:** Native ARM64 desktop execution, physical hardware, other compositors,
 multiple monitors/scaling, suspend/resume, arbitrary window activation, and
-protected login/unlock need separate acceptance. Publication and the production
-Linux updater route require the unified release transaction.
+protected login/unlock need separate acceptance.

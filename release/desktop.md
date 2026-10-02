@@ -3,8 +3,8 @@
 One desktop version, required changelog, annotated `desktop-vX.Y.Z` tag, and
 release script cover every currently packaged platform: Mac Apple silicon and
 Intel, Windows x64 and ARM64, and from 0.5.0 Linux x64 and ARM64.
-Workstation components remain independent. Linux desktop candidates are not yet
-published; the acceptance matrix distinguishes packaging from GUI execution.
+Workstation components remain independent. Public desktop 0.5.0 includes all
+six architectures; the acceptance matrix distinguishes packaging from GUI execution.
 
 ## Release
 
@@ -50,6 +50,8 @@ desktop/scripts/release.sh 0.5.0 CANDIDATE_RUN_ID
 
 The optional run must be a successful unified dispatch on main at the exact
 release source. The original workflow attempt is bound by every package receipt.
+Candidates also authenticate all final packages and stage the complete public
+asset set before passing; an empty release tag skips publication only.
 Public Windows installer names omit spaces to avoid GitHub filename rewriting;
 build receipts retain original candidate names and hashes. Verify downloaded
 release assets with `windows-package.py verify --published --target TARGET`
@@ -62,6 +64,14 @@ For a failed dispatch after the tag was pushed, rerun the printed workflow
 command at its original source. For a publication failure after draft creation,
 authenticate the original packages and verify that draft by ID before completing
 publication. Do not recreate it, replace its assets, or move its tag.
+
+If final staging stops before draft creation because of a release-tooling
+defect, repair the tooling and reauthenticate the original annotated tag,
+source, successful candidate run, required notes, and all original packages.
+Stage those exact bytes, check that no release/draft exists for the tag, upload
+one draft, verify the complete asset set and GitHub digests, then publish it
+by ID. A public filename mapping may change; original receipts and signed
+payloads must stay intact. Record the repair and recovery in the tactical.
 
 ## Downloads and updates
 

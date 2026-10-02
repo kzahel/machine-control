@@ -7,7 +7,9 @@ preview passes installed VM acceptance; ARM64 native desktop execution remains
 open. Linux uses a supervised Python/GI companion with native AT-SPI semantics
 and visible GNOME Wayland portal consent for screen capture and input. It never
 uses the dedicated appliance's root input broker. Source-native control and
-browser tests pass; exact installed package acceptance is in progress.
+browser tests pass; exact signed x64 Debian/AppImage acceptance passes.
+Public 0.5.0 packages are available for both architectures; ARM64 desktop
+execution remains open.
 
 See the [acceptance matrix](../docs/desktop-acceptance.md) for tested behavior
 by package, architecture, and VM/physical environment.
@@ -140,9 +142,11 @@ rebuilding its signed bytes. The website resolves the
 latest desktop release separately from Windows component releases. See the
 [release process](../release/desktop.md) and [changelog](CHANGELOG.md).
 
-The latest public release is [0.4.9](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.4.9),
-with Mac and Windows packages and production updates through the existing shared
-service. Manual checks are available in Settings and the tray. ARM64 Tart passes
+The latest public release is [0.5.0](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.0),
+with Mac, Windows, and Linux packages for both architectures and production
+metadata through the existing shared service. Linux installed acceptance and
+exact public asset verification are recorded in
+[Tactical 059](../docs/tactical/059-public-linux-desktop.md). Manual checks are available in Settings and the tray. ARM64 Tart passes
 public 0.3.5 to 0.4.8 replacement with automatic relaunch and retained permissions;
 Windows x64 passes 0.4.7 to public 0.4.8 with Chrome open. Mac 0.3.3/0.3.4 clients
 may need to reopen after their first update. Windows ARM64 packages are signed

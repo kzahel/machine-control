@@ -79,7 +79,7 @@ jobs:
       version: ${{ inputs.version }}
     secrets: inherit
   publish:
-    if: always() && github.ref == 'refs/heads/main' && inputs.release_tag != '' && needs.check.result == 'success' && ((needs.macos.result == 'success' && needs.windows.result == 'success' && (needs.linux.result == 'success' || needs.check.outputs.linux == 'false')) || (inputs.candidate_run != '' && needs.macos.result == 'skipped' && needs.windows.result == 'skipped' && needs.linux.result == 'skipped'))
+    if: always() && github.ref == 'refs/heads/main' && needs.check.result == 'success' && ((needs.macos.result == 'success' && needs.windows.result == 'success' && (needs.linux.result == 'success' || needs.check.outputs.linux == 'false')) || (inputs.candidate_run != '' && needs.macos.result == 'skipped' && needs.windows.result == 'skipped' && needs.linux.result == 'skipped'))
     needs: [check, macos, windows, linux]
     runs-on: macos-26
     environment: release
@@ -110,7 +110,11 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
-          python3 desktop/scripts/release.py check-tag "$RELEASE_TAG" --version "$RELEASE_VERSION" --revision "$GITHUB_SHA" > release-notes.md
+          if [ -n "$RELEASE_TAG" ]; then
+            python3 desktop/scripts/release.py check-tag "$RELEASE_TAG" --version "$RELEASE_VERSION" --revision "$GITHUB_SHA" > release-notes.md
+          else
+            python3 desktop/scripts/release.py notes "$RELEASE_VERSION" > release-notes.md
+          fi
           for target in aarch64-apple-darwin x86_64-apple-darwin; do
             python3 desktop/scripts/verify-package.py "candidates/macos-desktop-$target" --revision "$GITHUB_SHA" --team-id "$APPLE_TEAM_ID" --test-tampering
           done
@@ -124,6 +128,7 @@ jobs:
           fi
           python3 desktop/scripts/release.py stage candidates public-assets --version "$RELEASE_VERSION" --revision "$GITHUB_SHA" --run "$PACKAGE_RUN"
       - name: Publish once, after all platforms and architectures pass
+        if: inputs.release_tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}

@@ -3,12 +3,14 @@
 Topic: `native-distribution`
 
 Status: signed Windows workstation preview and direct YA Node/Codex consumer
-accepted. Unified Mac/Windows desktop `0.4.10` is published; package signatures,
-public downloads, and production feeds are verified for all four architectures.
+accepted. Unified Mac/Windows/Linux desktop `0.5.0` is published; package
+signatures, public downloads, and production metadata are verified for all six
+architectures.
 ARM64 Tart has targeted signed browser-indicator evidence; Windows x64 retains
 its earlier installed product acceptance. Intel, Windows ARM64 product execution,
-and full physical product acceptance remain separate. Linux `0.5.0` packages
-remain candidates. Legacy Mac `0.3.3`/`0.3.4` update senders may need one reopen;
+and full physical product acceptance remain separate. Linux x64 Debian/AppImage
+installed acceptance and signed replacement pass on Ubuntu GNOME Wayland;
+Linux ARM64 desktop execution remains open. Legacy Mac `0.3.3`/`0.3.4` update senders may need one reopen;
 fixed senders pass production-feed handoff. YA public Windows component consumer
 acceptance remains open.
 
@@ -76,8 +78,8 @@ UAC plus explicit account/controller/lifetime approval. The
 [tactical 037](../docs/tactical/037-windows-unlock-arming.md) its native acceptance.
 
 **Open:** Complete the first public Windows release and packaged YepAnywhere
-acceptance; complete physical Mac and Intel runtime acceptance; package Linux
-dependencies and validate a workstation portal/input profile. Mac bundle-relative
+acceptance; complete physical Mac and Intel runtime acceptance; extend Linux
+coverage beyond the accepted Ubuntu GNOME Wayland x64 desktop profile. Mac bundle-relative
 providers and signed-upgrade consent have passed ARM64 Tart acceptance.
 Keep actual routes and unsupported capabilities visible.
 
@@ -179,9 +181,9 @@ or deploy the update service.
 
 **Current:** [Tagged desktop publication](../release/desktop.md) uses a
 clean main checkout, explicit changelog notes, and annotated `desktop-v` tags.
-The main-only workflow requires exact tag/source identity, verifies all four Mac/Windows
-packages and GitHub-uploaded hashes, and publishes the complete draft once.
-The website resolves current Mac and Windows installers independently of
+The main-only workflow requires exact tag/source identity, verifies all six
+Mac/Windows/Linux packages and GitHub-uploaded hashes, and publishes the complete
+draft once. The website resolves current desktop installers independently of
 workstation component releases. [Mac desktop 0.3.3](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.3.3)
 is the first public preview. Both final packages passed
 [CI signing and publication staging](https://github.com/kzahel/machine-control/actions/runs/36820029330).
@@ -191,8 +193,8 @@ nine draft asset hashes/sizes, source identity, changelog and updater metadata,
 then published the same draft by ID without replacing bytes or its tag. Future
 CI publication now resolves and verifies the draft by ID. Both re-downloaded
 public DMGs and archives passed publisher signatures, notarization/stapling,
-updater signature/version and tamper rejection. The live download page selects the unified `0.4.10` release for all four
-architecture routes. Both the shared server and website proxy return signed
+updater signature/version and tamper rejection. The live download page selects
+unified `0.5.0` for all eight installer/package routes. Both the shared server and website proxy return signed
 archive metadata with cumulative required changelogs for older clients and 204
 for current clients. Product registration and the website proxy preserve the
 endpoint already embedded in 0.3.3.
@@ -221,33 +223,25 @@ immutable.
 
 **Decision:** The standalone desktop product has one release script, version,
 required changelog, tag and updater manifest for every implemented platform.
-Mac ARM64/Intel and Windows x64/ARM64 publish together. A successful exact-source
-unified candidate can be promoted without rebuilding its accepted signed bytes.
-Linux will join this matrix when implemented. Windows ARM64 publication is
+Mac ARM64/Intel, Windows x64/ARM64, and Linux x64/ARM64 publish together. A
+successful exact-source unified candidate can be promoted without rebuilding
+its accepted signed bytes. Windows ARM64 publication is
 explicitly requested while native ARM64 execution remains unverified.
 [The unified process](../release/desktop.md) owns operator guidance;
 [Tactical 055](../docs/tactical/055-unified-desktop-publication.md) owns execution.
 
-**Current:** [Public desktop 0.4.8](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.4.8)
-publishes all four exact authenticated candidates without rebuilding them.
-All 17 uploaded assets and public package bytes are verified. Both platform
-families expose signed production updates to older clients and 204 to current
-clients. Available native package and production-update acceptance is recorded
-in [Tactical 055](../docs/tactical/055-unified-desktop-publication.md).
+**Current:** [Public desktop 0.5.0](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.0)
+promotes all six exact authenticated candidates without rebuilding. All 29
+public assets match candidate bytes and GitHub digests. Eight download redirects
+and both production metadata routes select the signed packages for older clients
+and return 204 to current clients on all six targets. Linux x64 Debian/AppImage
+installed acceptance and signed browser-open replacement pass; ARM64 desktop
+execution remains open. [Tactical 059](../docs/tactical/059-public-linux-desktop.md)
+owns publication and [Linux desktop](linux-desktop.md) owns the supported profile.
 
-**Current:** [Public desktop 0.4.9](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.4.9)
-promotes the accepted exact-source Mac/Windows candidate without rebuilding.
-All 17 public assets match candidate bytes and GitHub digests; both Mac and
-Windows package families authenticate and reject tampering. All four download
-routes select 0.4.9; production metadata returns its signed packages to 0.4.8
-clients and 204 to current clients. Targeted signed ARM64 Tart acceptance proves
-manual until-stopped access, Stop, Restart, and bounded agent approvals.
-[Tactical 057](../docs/tactical/057-macos-until-stopped-release.md) owns the result.
-
-**Current:** [Public desktop 0.4.10](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.4.10)
-promotes exact authenticated Mac/Windows candidates. Targeted signed ARM64
-Tart testing proves owned browser markers, grouping, restoration, and reconnect
-under the standing appliance policy. Public assets, all download redirects,
-and signed production metadata match the accepted candidates.
-[Tactical 058](../docs/tactical/058-browser-tab-indicators.md) owns the result;
-workstation browser approval and unexecuted architecture coverage stay separate.
+Earlier public-release execution remains in [055](../docs/tactical/055-unified-desktop-publication.md),
+[057](../docs/tactical/057-macos-until-stopped-release.md), and
+[058](../docs/tactical/058-browser-tab-indicators.md). Mac until-stopped access
+and browser indicators are retained in 0.5.0; their signed native execution
+evidence remains the recorded ARM64 Tart tests. Other architecture and physical
+execution gaps are indexed in the acceptance matrix.

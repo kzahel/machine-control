@@ -63,4 +63,7 @@ was enabled. Explicit browser setup creates owned files under the user's
 configuration directory; ordinary package removal does not erase user data.
 
 Linux participates in the [single desktop release](../release/desktop.md).
-There is no public Linux release until the unified transaction is published.
+Download the public x64 or ARM64 packages from
+[machinecontrol.dev/downloads](https://machinecontrol.dev/downloads/).
+[Desktop 0.5.0](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.0)
+is the first public Linux desktop preview.
