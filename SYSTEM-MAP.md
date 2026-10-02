@@ -170,3 +170,11 @@ approval process, and a distinct desktop socket. It reuses AT-SPI semantics
 while portal consent owns capture/input; root appliance input stays separate.
 [Linux desktop](topics/linux-desktop.md) owns the workstream, and the shared
 release family owns its eventual packages.
+
+## Native command authentication
+
+**Current:** Machine Control owns the Mac `mc-sudo`/`mc-sudo-askpass` pair,
+its desktop packaging, local dialog and system-sudo authentication route.
+YepAnywhere owns opt-in discovery, publisher verification and agent launch
+instructions. This command route does not extend resident grants or the
+Windows protected broker. See [native sudo](topics/native-sudo.md).

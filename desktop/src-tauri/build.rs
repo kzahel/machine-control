@@ -10,6 +10,36 @@ fn main() {
         let root = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
         let sources = root.join("../../platforms/macos/resident/Sources/macui");
         let native = root.join("native");
+        let sudo = root.join("../../platforms/macos/sudo");
+        for file in [
+            "Cargo.toml",
+            "Cargo.lock",
+            "build.rs",
+            "Native.swift",
+            "src/lib.rs",
+            "src/macos.rs",
+            "src/main.rs",
+            "src/askpass.rs",
+        ] {
+            println!("cargo:rerun-if-changed={}", sudo.join(file).display());
+        }
+        let sudo_target = native.join("sudo-build");
+        let rust_target = env::var("TARGET").unwrap();
+        run(
+            Command::new(env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
+                .args(["build", "--locked", "--release", "--manifest-path"])
+                .arg(sudo.join("Cargo.toml"))
+                .args(["--target", &rust_target, "--target-dir"])
+                .arg(&sudo_target),
+        );
+        fs::create_dir_all(&native).unwrap();
+        for binary in ["mc-sudo", "mc-sudo-askpass"] {
+            fs::copy(
+                sudo_target.join(&rust_target).join("release").join(binary),
+                native.join(binary),
+            )
+            .unwrap();
+        }
         let framework = native.join("MCResident.framework");
         let revision = env::var("GITHUB_SHA").unwrap_or_else(|_| {
             String::from_utf8(
@@ -25,7 +55,7 @@ fn main() {
         });
         assert!(revision.len() == 40 && revision.bytes().all(|b| b.is_ascii_hexdigit()));
         fs::create_dir_all(&native).unwrap();
-        fs::write(native.join("Info.plist"), format!("<?xml version=\"1.0\"?><plist version=\"1.0\"><dict><key>MCSourceRevision</key><string>{revision}</string></dict></plist>")).unwrap();
+        fs::write(native.join("Info.plist"), format!("<?xml version=\"1.0\"?><plist version=\"1.0\"><dict><key>MCSourceRevision</key><string>{revision}</string><key>MCNativeSudoVersion</key><integer>1</integer></dict></plist>")).unwrap();
         println!("cargo:rerun-if-env-changed=GITHUB_SHA");
         for name in ["HEAD", "refs/heads/main"] {
             let path = Command::new("git")

@@ -296,3 +296,11 @@ multiple displays, localization, fresh login and broader loginwindow control,
 FileVault/preboot, bounded
 non-UI administration, a SIP-enabled protected-data image, private-API
 fragility, and longer background-interference soak runs.
+
+## Native command authentication
+
+**Current:** signed ARM64 desktop helpers pass native-dialog and root-effect
+conformance in a dedicated appliance. The Mac desktop bundles a wrapper over
+[system sudo](../providers/sudo.md), distinct from typed resident desktop
+control. [Native sudo](../../topics/native-sudo.md) owns the decision and
+[Tactical 061](../../docs/tactical/061-native-sudo.md) owns route evidence.

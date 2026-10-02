@@ -178,3 +178,10 @@ Appliances with standing access use their administrator-managed deployment.
 Adopt Desktop Release Kit's update contract when
 publishing; the application owns its lifecycle and native acceptance rather
 than treating a canary pass as Machine Control acceptance.
+
+## Native administrator commands on Mac
+
+The Mac bundle includes the signed `mc-sudo` and `mc-sudo-askpass` executables
+in `Contents/Resources`. [Native sudo](../platforms/macos/sudo/README.md) owns
+their invocation, local password dialog, per-command authority and tests.
+They are independent of desktop control arming and install no root service.

@@ -52,6 +52,12 @@ with tempfile.TemporaryDirectory(prefix='mc-verify-') as tmp:
         if not (app/relative).is_file():raise SystemExit('Required installed resource missing: '+relative)
     if tuple(map(int, manifest['version'].split('.'))) >= (0, 4, 10):
         if not (app/'Contents/Resources/chrome-extension/indicators.js').is_file():raise SystemExit('Required tab indicator module missing')
+    sudo_resources = [app/'Contents/Resources'/name for name in ['mc-sudo', 'mc-sudo-askpass']]
+    # Older release archives legitimately predate native sudo support.
+    if info.get('MCNativeSudoVersion') == 1 or any(path.exists() for path in sudo_resources):
+        for path, identifier in zip(sudo_resources, ['org.machine-control.sudo', 'org.machine-control.sudo.askpass']):
+            if not path.is_file():raise SystemExit('Incomplete native sudo helper pair')
+            subprocess.run(['codesign','--verify','--strict','-R',f'=anchor apple generic and certificate leaf[subject.OU] = "{args.team_id}" and identifier "{identifier}"',str(path)],check=True)
     for path in [app,app/'Contents/Frameworks/MCResident.framework',app/'Contents/Resources/mc-session-probe']:
         subprocess.run(['codesign','--verify','--strict','-R',f'=anchor apple generic and certificate leaf[subject.OU] = "{args.team_id}"',str(path)],check=True)
     subprocess.run(['codesign','--verify','--deep','--strict',str(app)],check=True)

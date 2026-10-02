@@ -174,3 +174,10 @@ The caller owns initial power-state restoration and claim release.
 
 [Tactical 047](../../docs/tactical/047-macos-resident-resource-reliability.md)
 contains replay commands, measurements, and the limits of historical attribution.
+
+## Native sudo acceptance
+
+[Native sudo](../../platforms/macos/sudo/README.md) documents the signed fixture
+builder and claimed dedicated-appliance conformance runner. It uses real sudo
+and a native AX secure-field driver, with temporary exact-command password
+policy and canonical secret transport. Never run the driver on a workstation.

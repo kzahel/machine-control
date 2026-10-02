@@ -17,6 +17,10 @@ codesign --force --timestamp --options runtime --sign "$MACOS_SIGNING_IDENTITY" 
     "$app/Contents/Frameworks/MCResident.framework"
 codesign --force --timestamp --options runtime --sign "$MACOS_SIGNING_IDENTITY" \
     "$app/Contents/Resources/mc-session-probe"
+codesign --force --timestamp --options runtime --sign "$MACOS_SIGNING_IDENTITY" \
+    --identifier org.machine-control.sudo "$app/Contents/Resources/mc-sudo"
+codesign --force --timestamp --options runtime --sign "$MACOS_SIGNING_IDENTITY" \
+    --identifier org.machine-control.sudo.askpass "$app/Contents/Resources/mc-sudo-askpass"
 codesign --force --timestamp --options runtime --sign "$MACOS_SIGNING_IDENTITY" "$app"
 codesign --verify --deep --strict "$app"
 codesign --verify --strict -R "=anchor apple generic and certificate leaf[subject.OU] = \"$APPLE_TEAM_ID\" and identifier \"org.machine-control.app\"" "$app"

@@ -125,3 +125,5 @@ the commits' `Topic:` trailers and register that exact string in
 - [`060-native-update-discovery.md`](060-native-update-discovery.md) (complete):
   native silent startup/daily checks, shared Settings/tray state, and metadata-only
   CLI discovery through existing resident transports.
+
+- [`061-native-sudo.md`](061-native-sudo.md) (complete for signed ARM64 helper acceptance): bundled native administrator authentication and dedicated Mac appliance acceptance.

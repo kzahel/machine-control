@@ -23,6 +23,7 @@ components remain necessary. Evidence levels are defined in the
 | [agent-desktop](agent-desktop.md) | Apache-2.0 | macOS implemented; Windows/Linux contract stubs | Source-reviewed |
 | [native-devtools-mcp](native-devtools-mcp.md) | MIT | macOS, Windows, Android | Source-reviewed |
 | [RustDesk](rustdesk.md) | AGPL-3.0 | Windows, macOS, Linux and remote-device variants | Windows service architecture source-reviewed |
+| [Sudo](sudo.md) | ISC-style with per-file BSD/ISC terms; uses installed OS binary | macOS askpass integration | Signed native dialog and independent root effect in ARM64 appliance |
 | [AsyncVNC](asyncvnc.md) | GPL-3.0 license text; package metadata says GPL | VNC servers; macOS Screen Sharing tested | Live-tested headless guest consent/bootstrap; not adopted |
 
 Search-triage projects that do not yet warrant dossiers remain listed in the

@@ -93,6 +93,8 @@ its `Topic:` trailers.
   proving-ground decisions, unresolved boundaries, and next implementation
   direction.
 
+- [`native-sudo.md`](native-sudo.md): one-command native Mac administrator authentication and bundled helper authority.
+
 ## Update policy
 
 - [`linux-desktop.md`](linux-desktop.md): ordinary-user Linux Tauri settings,
