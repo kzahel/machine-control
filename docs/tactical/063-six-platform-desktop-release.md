@@ -78,7 +78,7 @@ trust without changing pinned runtime bytes or excluding native dependencies.
 
 The native Windows ARM64 runner also needs the x64 .NET 8 runtime used by
 Microsoft's x64 signing DLL. Install its official SHA-512-verified runtime
-installer, verify the registered x64 host/runtime, and set only DOTNET_ROOT_X64;
+archive, verify its extracted x64 host/runtime, and set only DOTNET_ROOT_X64;
 the native ARM64 build SDK and interpreter remain unchanged. Both Mac signed
 candidates from the first 0.5.3 run pass notarization and CLI relocation.
 A repaired unified candidate must still rebuild every platform at one source.
@@ -90,3 +90,8 @@ older resident-only size rule required every file to have positive length.
 Permit zero-byte CLI files with their exact SHA-256 digest; keep the positive
 size requirement for native resident files. Add authenticated-fixture coverage
 for this case before rebuilding the unified candidate.
+
+The ARM64 runner does not expose the expected x64 registry installation
+location after the official installer succeeds. Extract the digest-verified
+runtime archive into a dedicated runner directory and verify that exact host
+before signing, rather than depending on installer registry layout.
