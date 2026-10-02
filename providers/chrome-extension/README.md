@@ -28,6 +28,25 @@ Operations use `chrome.debugger` (CDP) on individual tabs:
 | `browser.endpoint` | Report the local DevTools WebSocket endpoint template (`devtools` grant) |
 | `browser.release` | Detach all debugger sessions |
 
+Controlled tabs show an owned blue pointer over their site favicon. Newly
+created agent tabs join a blue **Machine Control** group in their own window;
+existing and pinned tabs keep their grouping. Listing tabs alone adds no marker.
+`browser.tabs` reports `groupId` and `controlIndicator` (`none`, `active`, or
+`unavailable`), so restricted-page omissions remain visible to callers.
+
+Release, ended/replaced grants, native disconnect, and worker recovery restore
+site icons and remove unchanged owned grouping. Site icon updates and user
+renames, recolors, moves, shared groups, and added tabs are preserved. The icon
+expires independently after ten seconds without a worker heartbeat. Indicators
+use the authorized per-tab debugger in an isolated world; no page content
+scripts or broad host permissions are added. They are visible status, not an
+authorization boundary or a marker of completed work.
+
+Run lifecycle checks with `node --test tests/browser/*.test.mjs`. The headed
+[`indicators-live.py`](../../tests/browser/indicators-live.py) runner exercises
+real Chrome for Testing and a native resident inside a claimed Mac appliance;
+its caller owns target selection, claims, grant approval, and power cleanup.
+
 References look like `TAB:GENERATION:NODE`. Taking a new snapshot or loading a
 new page makes older references stale.
 

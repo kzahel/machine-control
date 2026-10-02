@@ -42,6 +42,17 @@ removal on revocation was not visually confirmed.
 particular assistant product did not work from agents running under
 YepAnywhere.
 
+**Current (2026-10-02):** Controlled tabs carry an owned blue pointer favicon;
+new agent tabs join a blue **Machine Control** group. Existing user groups and
+pinned tabs stay in place. Release, grant replacement/revocation, disconnect,
+and fresh-worker recovery restore owned state while preserving site-icon and
+user-group edits. A page heartbeat expiry also clears an abandoned marker.
+`browser.tabs` reports per-tab indicator availability separately from the global
+grant. [Tactical 058](../docs/tactical/058-browser-tab-indicators.md) owns live
+acceptance and desktop 0.4.10 publication. The
+[Codex extension review](../research/providers/codex-browser-extension.md)
+provided interaction inspiration; implementation and artwork are owned.
+
 ## Decisions
 
 **Decision:** The first route is a Machine Control Chrome extension, loaded

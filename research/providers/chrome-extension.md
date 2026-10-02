@@ -60,6 +60,15 @@ execution is inferred from the x64 browser evidence.
 
 ## Fit and next evidence
 
+**Current:** The owned extension retains global `ON` / `DEV` toolbar badges and
+adds blue pointer favicons on controlled tabs and a blue **Machine Control**
+group for newly created agent tabs. Generation-fenced cleanup preserves site
+icon updates and user group edits. Worker recovery restores recorded changes
+without inferring authority. [058](../../docs/tactical/058-browser-tab-indicators.md)
+owns the targeted live evidence and release result. The
+[Codex extension review](codex-browser-extension.md) supplies source-reviewed
+interaction patterns for those indicators; no third-party code was adopted.
+
 **Decision:** Retain this target-native route behind the common facade. A
 remote caller transports the same resident operations; it does not manipulate
 a VM window. Signed Windows setup, grants, fixture tasks, reconnect and

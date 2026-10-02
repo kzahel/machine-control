@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [0.4.10]
+
+- Show a pointer badge on the favicon of each controlled browser tab.
+- Put new agent-created tabs in a blue **Machine Control** group, preserving
+  existing user groups.
+- Restore site icons and owned grouping when browser control is released,
+  access ends, or the connection closes. Preserve later site-icon and user
+  group edits; markers also expire if the extension loses its debugger.
+
+This patch includes Mac Apple silicon/Intel and Windows x64/ARM64 packages.
+Browser marker execution is checked in an Apple silicon macOS VM with Chrome
+for Testing. Other architecture execution and Linux publication remain separate
+coverage gates. Reload the unpacked Chrome extension after updating.
+
 ## [0.5.0]
 
 - Add a Linux desktop preview for Ubuntu GNOME Wayland, with the shared settings

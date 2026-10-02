@@ -141,6 +141,7 @@ class CompanionTests(unittest.TestCase):
             manifest = json.loads((output / 'browser-extension/manifest.json').read_text())
             self.assertIn('nativeMessaging', manifest['permissions'])
             self.assertTrue((output / 'browser-extension/service_worker.js').is_file())
+            self.assertTrue((output / 'browser-extension/indicators.js').is_file())
             self.assertEqual(json.loads((output / 'desktop-runtime.json').read_text())['profile'], 'ordinary_user_desktop')
             with self.assertRaises(ValueError): prepare.stage(source, output, REVISION, 'win-x64')
             build['sourceDirty'] = True; (source / 'build.json').write_text(json.dumps(build))

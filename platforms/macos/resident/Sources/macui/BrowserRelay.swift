@@ -185,7 +185,10 @@ final class BrowserRelay {
     private func sendGrantState() {
         guard connected else { return }
         let devtools = broker.devtoolsAllowed
-        write(["type": "grant", "browser": broker.browserAllowed || devtools, "devtools": devtools])
+        let browser = broker.browserAllowed || devtools
+        let grantGeneration = service.generation + ":" + (broker.grant?.id ?? "none")
+        write(["type": "grant", "browser": browser, "devtools": devtools,
+               "grantGeneration": grantGeneration])
     }
 
     private func write(_ message: [String: Any]) {

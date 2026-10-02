@@ -1,6 +1,7 @@
 // Machine Control browser provider. The resident on this computer owns
 // authorization: it forwards a request only while a person has granted the
 // browser scope, and tells this worker when that grant ends.
+import { TabIndicators } from "./indicators.js";
 
 const HOST = "org.machine_control.browser";
 const PROTOCOL_VERSION = 1;
@@ -44,6 +45,14 @@ const attached = new Set();
 const generations = new Map();
 // Raw DevTools sessions opened for the WebSocket bridge: id -> tabId.
 const sessions = new Map();
+let authorityGeneration = 0;
+let grantGeneration = null;
+const attaching = new Map();
+const indicators = new TabIndicators((tabId, method, params = {}) =>
+  chrome.debugger.sendCommand({ tabId }, method, params));
+const initialized = indicators.recover();
+let disconnectCleanup = Promise.resolve();
+let residentMessages = Promise.resolve();
 
 class ProviderError extends Error {
   constructor(code, message) {
@@ -61,7 +70,9 @@ function scheduleReconnect() {
   retryDelayMs = Math.min(retryDelayMs * 2, 60000);
 }
 
-function connect() {
+async function connect() {
+  await initialized;
+  await disconnectCleanup;
   if (port) return;
   clearTimeout(retryTimer);
   try {
@@ -73,19 +84,40 @@ function connect() {
     scheduleReconnect();
     return;
   }
+  const connection = port;
   port.onMessage.addListener((message) => {
+    if (port !== connection) return;
     // Any message means the resident accepted this connection.
     retryDelayMs = 1000;
     lastDisconnect = "";
-    onResidentMessage(message);
+    // Fence immediately on receipt, even while an earlier navigation is waiting.
+    const changedGrant = message?.type === "grant" && typeof message.grantGeneration === "string"
+      && grantGeneration !== null && message.grantGeneration !== grantGeneration;
+    if (message?.type === "grant" && typeof message.grantGeneration === "string") {
+      grantGeneration = message.grantGeneration;
+    }
+    let cleanup = Promise.resolve();
+    if (message?.type === "grant" && ((!message.browser && !message.devtools) || changedGrant)) {
+      granted = false;
+      devtools = false;
+      cleanup = detachAll();
+    }
+    residentMessages = residentMessages.then(async () => {
+      await cleanup;
+      if (port === connection) return onResidentMessage(message);
+    }).catch(() => {});
   });
   port.onDisconnect.addListener(() => {
+    if (port !== connection) return;
     // Reading lastError marks it handled, so Chrome does not report it.
     lastDisconnect = chrome.runtime.lastError?.message || "disconnected";
     port = null;
     granted = false;
     devtools = false;
-    detachAll();
+    authorityGeneration += 1;
+    grantGeneration = null;
+    sessions.clear();
+    disconnectCleanup = detachAll();
     updateBadge();
     scheduleReconnect();
   });
@@ -112,8 +144,10 @@ function updateBadge() {
 
 async function onResidentMessage(message) {
   if (message?.type === "grant") {
+    const revoked = (granted || devtools) && !message.browser && !message.devtools;
     granted = message.browser === true;
     devtools = message.devtools === true;
+    if (revoked) authorityGeneration += 1;
     if (!devtools) await closeAllSessions("devtools_grant_ended");
     if (!granted && !devtools) await detachAll();
     updateBadge();
@@ -156,6 +190,7 @@ async function perform(operation, params) {
 function tabJSON(tab) {
   return {
     tabId: tab.id, windowId: tab.windowId, active: tab.active,
+    groupId: tab.groupId, controlIndicator: indicators.status(tab.id),
     title: tab.title || "", url: tab.url || "", status: tab.status || "",
     // A discarded (memory-unloaded) tab reloads when the debugger attaches,
     // so it is not immediately ready to read or drive.
@@ -196,16 +231,22 @@ function checkURL(value) {
 
 function waitForLoad(tabId, timeoutMs = 20000) {
   return new Promise((resolve) => {
+    let finished = false;
     const timer = setTimeout(() => finish(false), timeoutMs);
     function listener(id, change) {
       if (id === tabId && change.status === "complete") finish(true);
     }
     function finish(loaded) {
+      if (finished) return;
+      finished = true;
       clearTimeout(timer);
       chrome.tabs.onUpdated.removeListener(listener);
       resolve(loaded);
     }
     chrome.tabs.onUpdated.addListener(listener);
+    chrome.tabs.get(tabId).then((tab) => {
+      if (tab.status === "complete") finish(true);
+    }).catch(() => finish(false));
   });
 }
 
@@ -214,22 +255,41 @@ async function navigate(params) {
   let tab;
   if (params.newTab === true) {
     tab = await chrome.tabs.create({ url, active: params.active !== false });
+    await ensureAttached(tab.id, true);
   } else {
     const current = await resolveTab(params);
+    await ensureAttached(current.id);
     tab = await chrome.tabs.update(current.id, { url });
   }
   const loaded = await waitForLoad(tab.id);
   return { tab: tabJSON(await chrome.tabs.get(tab.id)), loaded };
 }
 
-async function ensureAttached(tabId) {
+async function ensureAttached(tabId, newTab = false) {
+  if (!granted && !devtools) throw new ProviderError("approval_required", "Browser access ended");
   if (attached.has(tabId)) return;
-  try {
-    await chrome.debugger.attach({ tabId }, "1.3");
-  } catch (error) {
-    throw new ProviderError("debugger_attach_failed", String(error.message || error));
+  const generation = authorityGeneration;
+  if (!attaching.has(tabId)) {
+    const pending = (async () => {
+      try {
+        await chrome.debugger.attach({ tabId }, "1.3");
+      } catch (error) {
+        throw new ProviderError("debugger_attach_failed", String(error.message || error));
+      }
+      if (generation !== authorityGeneration || (!granted && !devtools)) {
+        await chrome.debugger.detach({ tabId }).catch(() => {});
+        throw new ProviderError("approval_required", "Browser access ended during attachment");
+      }
+      attached.add(tabId);
+      await indicators.track(tabId, newTab);
+    })();
+    attaching.set(tabId, pending);
+    pending.finally(() => attaching.delete(tabId)).catch(() => {});
   }
-  attached.add(tabId);
+  await attaching.get(tabId);
+  if (generation !== authorityGeneration || (!granted && !devtools)) {
+    throw new ProviderError("approval_required", "Browser access ended during attachment");
+  }
 }
 
 async function send(tabId, method, params = {}) {
@@ -242,8 +302,10 @@ async function send(tabId, method, params = {}) {
 }
 
 async function detachAll() {
+  authorityGeneration += 1;
   const tabs = [...attached];
   attached.clear();
+  await indicators.releaseAll();
   await Promise.all(tabs.map((tabId) => chrome.debugger.detach({ tabId }).catch(() => {})));
 }
 
@@ -463,6 +525,7 @@ async function closeSession(id, reason) {
   sessions.delete(id);
   // Detach only when no session or other work holds the tab.
   if (![...sessions.values()].includes(tabId)) {
+    await indicators.release(tabId);
     await chrome.debugger.detach({ tabId }).catch(() => {});
     attached.delete(tabId);
   }
@@ -515,10 +578,14 @@ async function capture(params) {
   return { tab: tabJSON(tab), png: data };
 }
 
-chrome.debugger.onDetach.addListener(({ tabId }) => attached.delete(tabId));
+chrome.debugger.onDetach.addListener(({ tabId }) => {
+  attached.delete(tabId);
+  indicators.release(tabId).catch(() => {});
+});
 chrome.tabs.onRemoved.addListener((tabId) => {
   attached.delete(tabId);
   generations.delete(tabId);
+  indicators.release(tabId).catch(() => {});
   for (const [id, sessionTab] of sessions) {
     if (sessionTab === tabId) { sessions.delete(id); port?.postMessage({ type: "session.closed", id, reason: "tab_closed" }); }
   }
@@ -531,9 +598,17 @@ chrome.debugger.onDetach.addListener((source) => {
 chrome.tabs.onUpdated.addListener((tabId, change) => {
   // A navigation invalidates element references for that tab.
   if (change.status === "loading") generations.set(tabId, (generations.get(tabId) || 0) + 1);
+  if (change.status === "complete" && attached.has(tabId) && (granted || devtools)) {
+    indicators.track(tabId).catch(() => {});
+  }
 });
 chrome.runtime.onStartup.addListener(connect);
 chrome.runtime.onInstalled.addListener(connect);
 chrome.alarms.create("reconnect", { periodInMinutes: 1 });
 chrome.alarms.onAlarm.addListener(connect);
-connect();
+// Chrome keeps a debugger-owning MV3 worker alive. The page marker expires
+// independently if this worker disappears or the user cancels attachment.
+setInterval(() => {
+  if (port && (granted || devtools)) indicators.heartbeat().catch(() => {});
+}, 3000);
+connect().catch(() => {});

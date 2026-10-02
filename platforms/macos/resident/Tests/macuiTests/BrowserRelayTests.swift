@@ -103,6 +103,23 @@ final class BrowserRelayTests: XCTestCase {
         XCTAssertFalse(server.browser.connected)
     }
 
+    func testSameScopeReplacementPublishesANewGrantGeneration() {
+        server.browser.identityCheck = { _ in true }
+        guard let provider = connectProvider() else { return XCTFail("provider did not connect") }
+        let initial = onBackground { provider.next() }?["grantGeneration"] as? String
+        XCTAssertNotNil(initial)
+        broker.issue(scopes: [.browser], durationSeconds: 600, reason: "first",
+                     requester: "fixture", approver: "test")
+        let first = onBackground { provider.next() }
+        broker.issue(scopes: [.browser], durationSeconds: 600, reason: "second",
+                     requester: "fixture", approver: "test")
+        let second = onBackground { provider.next() }
+        XCTAssertEqual(first?["browser"] as? Bool, true)
+        XCTAssertEqual(second?["browser"] as? Bool, true)
+        XCTAssertNotEqual(first?["grantGeneration"] as? String, initial)
+        XCTAssertNotEqual(second?["grantGeneration"] as? String, first?["grantGeneration"] as? String)
+    }
+
     func testBrowserOperationsNeedGrantAndProvider() {
         XCTAssertEqual(call(["operation": "browser.tabs"])["errorCode"] as? String, "approval_required")
         broker.issue(scopes: [.browser], durationSeconds: 600, reason: "r", requester: "x", approver: "test")

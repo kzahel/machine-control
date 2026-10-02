@@ -169,6 +169,11 @@ def portable_checks() -> None:
         )
     validate_json()
     validate_shell()
+    node = shutil.which("node")
+    if node:
+        run("browser indicator lifecycle", [node, "--test", "tests/browser/indicators.test.mjs", "tests/browser/worker.test.mjs"])
+    else:
+        print("\n== browser indicator lifecycle ==\nskip: Node.js is unavailable")
     if in_git_checkout():
         run("working-tree whitespace", ["git", "diff", "--check"])
     else:

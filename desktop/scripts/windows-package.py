@@ -95,6 +95,8 @@ def verify(directory, *, revision, version, run=None, target=None, tamper=False,
     if tuple(int(part) for part in version.split('.')) >= (0, 4, 4):
         required.update({'runtime/browser-extension/manifest.json',
                          'runtime/browser-extension/service_worker.js'})
+    if tuple(map(int, version.split('.'))) >= (0, 4, 10):
+        required.add('runtime/browser-extension/indicators.js')
     if not required.issubset(payload_names):
         raise ValueError('Installed inventory must be relative to the product root')
     with tempfile.TemporaryDirectory(prefix='mc-windows-verify-') as tmp:

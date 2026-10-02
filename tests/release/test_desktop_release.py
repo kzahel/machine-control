@@ -192,7 +192,7 @@ class LinuxUnifiedReleaseTests(unittest.TestCase):
             value = json.loads(path.read_text())
             value['files'].extend({'name': 'runtime/browser-extension/' + n,
                                    'size': 1, 'sha256': 'b' * 64}
-                                  for n in ['manifest.json', 'service_worker.js'])
+                                  for n in ['manifest.json', 'service_worker.js', 'indicators.js'])
             path.write_text(json.dumps(value))
             release.windows_package.evidence(folder, target=target, version=VERSION,
                                              revision=REVISION, run='123.1')
@@ -200,7 +200,7 @@ class LinuxUnifiedReleaseTests(unittest.TestCase):
             'desktop-runtime.json', 'desktop.py', 'grants.py', 'portal.py',
             'provider.py', 'approval.py', 'browser.py', 'browser_host.py',
             'artifacts.py', 'shortcut.py', 'startup.py', 'linuxcontrol.py', 'linuxui.py',
-            'extension/manifest.json', 'extension/service_worker.js']]]
+            'extension/manifest.json', 'extension/service_worker.js', 'extension/indicators.js']]]
         for target, (arch, _) in release.linux_package.TARGETS.items():
             folder = self.candidates / ('linux-desktop-' + target)
             folder.mkdir()

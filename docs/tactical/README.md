@@ -116,3 +116,6 @@ the commits' `Topic:` trailers and register that exact string in
 - [`057-macos-until-stopped-release.md`](057-macos-until-stopped-release.md) (complete):
   manual Mac access without a timer, signed VM acceptance, and stable 0.4.9
   Mac/Windows publication.
+- [`058-browser-tab-indicators.md`](058-browser-tab-indicators.md) (active):
+  owned browser favicon markers and new-tab groups, lifecycle cleanup, claimed
+  Mac VM acceptance, and desktop 0.4.10 publication.

@@ -8,6 +8,7 @@ components remain necessary. Evidence levels are defined in the
 | Provider | Declared top-level license | Platform reach under review | Strongest evidence here |
 | --- | --- | --- | --- |
 | [Machine Control Chrome extension](chrome-extension.md) | MIT; browser distributor terms remain separate | macOS, Windows; Linux integration open | Source-native browser conformance; signed Windows acceptance pending |
+| [Codex / ChatGPT browser extension](codex-browser-extension.md) | No top-level source license found in reviewed package; proprietary reference | Chromium browser indicators; platform behavior untested here | Source-reviewed tab groups, favicons, and cursor overlay |
 | [Cua Driver](cua-driver.md) | MIT; published skill copies have separate MIT-0 terms | Windows, macOS, Linux | Adopted by the Windows runtime; Windows/macOS conformance-tested |
 | [XDG Desktop Portal](xdg-desktop-portal.md) | RemoteDesktop LGPL-2.1-or-later; per-file terms | Linux compositor backends | Source-native GNOME x64 capture/input and independent effects |
 | [Open Computer Use](open-computer-use.md) | MIT; third-party notices apply | Windows, macOS, Linux | Source-reviewed at the spike pin |
