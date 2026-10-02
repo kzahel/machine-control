@@ -32,7 +32,13 @@ type State = {
     pendingRequest: unknown;
   };
   permissions: { accessibility: boolean; screenRecording: boolean };
-  browser: { connected: boolean };
+  portal?: {
+    state: string;
+    error?: string;
+    pointer: boolean;
+    keyboard: boolean;
+  };
+  browser: { connected: boolean; available?: boolean };
   pending?: {
     id: string;
     reason: string;
@@ -149,6 +155,8 @@ function App() {
     }
   };
   const windows = platform === "windows";
+  const linux = platform === "linux";
+  const mac = !windows && !linux;
   const availableScopes =
     state?.supportedScopes ?? (Object.keys(labels) as Scope[]);
   const grant = state?.deployment.grant;
@@ -290,7 +298,58 @@ function App() {
                   </div>
                 </>
               )}
-              {!windows &&
+              {linux && (
+                <>
+                  <div className="setting-row">
+                    <span className="row-label">Accessibility</span>
+                    <span className="row-status">
+                      {state?.permissions.accessibility
+                        ? "Available"
+                        : "Unavailable"}
+                    </span>
+                  </div>
+                  <div className="setting-row">
+                    <span className="row-label">Screen and input</span>
+                    <span className="row-status">
+                      {state?.portal?.state === "pending"
+                        ? "Awaiting consent"
+                        : state?.portal?.state === "ready"
+                          ? "Shared"
+                          : "Off"}
+                    </span>
+                    <button
+                      disabled={
+                        busy ||
+                        !!grant ||
+                        !!state?.pending ||
+                        state?.portal?.state === "pending"
+                      }
+                      onClick={() =>
+                        void act({
+                          method:
+                            state?.portal?.state === "ready"
+                              ? "permission.disconnect"
+                              : "permission",
+                        })
+                      }
+                    >
+                      {state?.portal?.state === "ready"
+                        ? "Disconnect"
+                        : "Share…"}
+                    </button>
+                  </div>
+                  {state?.portal?.error && (
+                    <p className="note">{state.portal.error}</p>
+                  )}
+                  <div className="setting-row">
+                    <span className="row-label">
+                      Lock screen and other users
+                    </span>
+                    <span className="row-status">Unavailable</span>
+                  </div>
+                </>
+              )}
+              {mac &&
                 [
                   ["accessibility", "Accessibility"],
                   ["screenRecording", "Screen Recording"],
@@ -319,39 +378,42 @@ function App() {
                     </div>
                   );
                 })}
-              <div className="setting-row">
-                <span
-                  className={
-                    "permission-icon " +
-                    (state?.browser.connected ? "done" : "")
-                  }
-                >
-                  <Command size={15} />
-                </span>
-                <span className="row-label">
-                  Browser extension <span className="optional">(optional)</span>
-                </span>
-                <span className="row-status">
-                  {state?.browser.connected ? "Connected" : "Not connected"}
-                </span>
-                <button
-                  disabled={busy}
-                  onClick={async () => {
-                    try {
-                      await native({ method: "browser.setup" });
-                      setNotice(
-                        "Path copied. In Chrome extensions, enable Developer mode, then Load unpacked.",
-                      );
-                    } catch (e) {
-                      setError(String(e));
+              {state?.browser.available !== false && (
+                <div className="setting-row">
+                  <span
+                    className={
+                      "permission-icon " +
+                      (state?.browser.connected ? "done" : "")
                     }
-                  }}
-                >
-                  Set up
-                </button>
-              </div>
+                  >
+                    <Command size={15} />
+                  </span>
+                  <span className="row-label">
+                    Browser extension{" "}
+                    <span className="optional">(optional)</span>
+                  </span>
+                  <span className="row-status">
+                    {state?.browser.connected ? "Connected" : "Not connected"}
+                  </span>
+                  <button
+                    disabled={busy}
+                    onClick={async () => {
+                      try {
+                        await native({ method: "browser.setup" });
+                        setNotice(
+                          "Path copied. In Chrome extensions, enable Developer mode, then Load unpacked.",
+                        );
+                      } catch (e) {
+                        setError(String(e));
+                      }
+                    }}
+                  >
+                    Set up
+                  </button>
+                </div>
+              )}
             </section>
-            {!windows && (
+            {mac && (
               <div className="restart-row">
                 <p className="note">Restart after changing Screen Recording.</p>
                 <button
@@ -397,8 +459,24 @@ function App() {
         )}
         {page === "settings" && (
           <>
-            {windows && (
+            {(windows || linux) && (
               <section className="group" aria-label="Startup">
+                {linux && (
+                  <label className="setting-row">
+                    <span className="row-label">Stop shortcut</span>
+                    <input
+                      type="checkbox"
+                      checked={!!state?.stopShortcutAvailable}
+                      disabled={busy || !state}
+                      onChange={(e) =>
+                        void act({
+                          method: "shortcut",
+                          enabled: e.target.checked,
+                        })
+                      }
+                    />
+                  </label>
+                )}
                 <label className="setting-row">
                   <span className="row-label">Start at login</span>
                   <input
@@ -472,7 +550,7 @@ function App() {
             </section>
             <p className="note">
               Close hides the window. Quit from the{" "}
-              {windows ? "tray" : "menu bar"}.
+              {windows || linux ? "tray" : "menu bar"}.
             </p>
           </>
         )}

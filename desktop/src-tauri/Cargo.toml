@@ -23,6 +23,9 @@ libc = "0.2"
 tauri-plugin-autostart = "2"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects"] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+tauri-plugin-autostart = "2"
+
 [profile.dev]
 debug = "line-tables-only"
 incremental = false

@@ -64,6 +64,13 @@ compatibility. Record architecture-specific results in the acceptance matrix.
 
 ## Validation and final result
 
-Pending. Portable grant/protocol tests, Linux platform smoke, frontend checks,
+Source-native acceptance passed 45 x64 GNOME VM checks: off/refusal, native
+denial/approval, prompt pause, Stop, generations, portal consent, capture/hash,
+pointer and Unicode file effects, sharing closure, old references, expiry,
+update exclusion, Quit, and endpoint removal. Eight portable grant tests,
+150 common-client tests, frontend build, Linux compile/Clippy, and 33 Linux static
+tests pass. Installed product gates remain.
+
+Portable grant/protocol tests, Linux platform smoke, frontend checks,
 Linux native build/package verification, and claimed installed GNOME acceptance
 are required before recording the corresponding support claim.

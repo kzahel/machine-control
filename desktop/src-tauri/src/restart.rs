@@ -2,7 +2,7 @@
 use tauri::Manager;
 
 pub fn valid_launch_args(args: &[String]) -> bool {
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
     if args == ["--background"] {
         return true;
     }
@@ -52,6 +52,8 @@ exec "$@"
 pub fn request(app: &tauri::AppHandle) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     crate::windows::shutdown();
+    #[cfg(target_os = "linux")]
+    crate::linux::shutdown();
     app.request_restart();
     Ok(())
 }

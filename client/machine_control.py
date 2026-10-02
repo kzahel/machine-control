@@ -54,6 +54,13 @@ DISRUPTIVE_TESTBED_COMMANDS = {
 
 
 def default_host_target(system: str) -> dict[str, Any]:
+    if system == "Linux":
+        return {
+            "platform": "linux", "profile": "linux-host-desktop",
+            "controllerPlatforms": ["linux"], "launcher": "python",
+            "claimPolicy": "required",
+            "command": [str(ROOT / "platforms/linux/host/linuxhost.py")],
+        }
     if system == "Windows":
         return {
             "platform": "windows", "profile": "windows-host-desktop",

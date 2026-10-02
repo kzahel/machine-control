@@ -2,7 +2,8 @@
 
 Topic: `linux-desktop`
 
-Status: implementation in progress; no published Linux desktop package.
+Status: source-native GNOME x64 grant/control acceptance passes; installed app,
+browser, packages, and updates are in progress. No published Linux package.
 
 **Decision:** Extend the shared Tauri settings and tray app with an ordinary-user
 Linux companion. Reuse the owned AT-SPI facade, with compositor-mediated XDG
@@ -28,7 +29,11 @@ there is no Linux-only publication flow.
 acceptance. [Linux resident control](linux-resident-control.md) owns appliance
 behavior; [native distribution](native-distribution.md) owns release policy.
 
-**Open:** Installed portal consent and lifetime, semantic and pixel fixture
-effects, Unicode delivery, native approval protection, tray visibility on GNOME,
+**Current:** The companion passes 45 native GNOME x64 VM checks covering native
+approval/denial, pause, scope enforcement, Stop, expiry, sharing closure, old
+generations/references, capture hashes, and independent semantic, pointer, and
+Unicode effects. Portable grants and native Linux compile/Clippy pass.
+
+**Open:** Installed portal consent and lifetime, native approval protection, tray visibility on GNOME,
 shortcut registration, browser integration, startup, packaged replacement,
 architecture coverage, and compatibility with the appliance runtime.

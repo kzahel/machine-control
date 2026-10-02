@@ -18,6 +18,13 @@ import machine_control  # noqa: E402
 
 
 class ClientTests(unittest.TestCase):
+    def test_linux_local_host_selects_native_adapter(self):
+        target = machine_control.default_host_target("Linux")
+        self.assertEqual(target["platform"], "linux")
+        self.assertEqual(target["profile"], "linux-host-desktop")
+        self.assertEqual(target["launcher"], "python")
+        self.assertEqual(target["claimPolicy"], "required")
+        self.assertTrue(Path(target["command"][0]).is_file())
     def test_windows_local_host_selects_native_adapter(self):
         target = machine_control.default_host_target("Windows")
         self.assertEqual(target["platform"], "windows")
@@ -1205,11 +1212,14 @@ class ClientTests(unittest.TestCase):
 
     def test_default_host_matches_the_controller_platform(self):
         host = machine_control.DEFAULT_TARGETS["host"]
-        windows = machine_control.controller_platform() == "windows"
-        self.assertEqual(host["platform"], "windows" if windows else "macos")
-        self.assertEqual(host["profile"], "windows-host-desktop" if windows else "macos-host-resident")
+        platform = machine_control.controller_platform()
+        expected = {"windows": ("windows", "windows-host-desktop", "platforms/windows/host/winhost.py"),
+                    "linux": ("linux", "linux-host-desktop", "platforms/linux/host/linuxhost.py"),
+                    "darwin": ("macos", "macos-host-resident", "platforms/macos/bin/machost")}[platform]
+        self.assertEqual(host["platform"], expected[0])
+        self.assertEqual(host["profile"], expected[1])
         self.assertEqual(host["claimPolicy"], "required")
-        suffix = "platforms/windows/host/winhost.py" if windows else "platforms/macos/bin/machost"
+        suffix = expected[2]
         self.assertTrue(Path(host["command"][0]).as_posix().endswith(suffix))
 
     def test_grant_request_builds_bounded_resident_request(self):

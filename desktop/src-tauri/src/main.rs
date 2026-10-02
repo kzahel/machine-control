@@ -8,6 +8,8 @@ use tauri::{
     Emitter, Manager,
 };
 use tauri_plugin_updater::UpdaterExt;
+#[cfg(target_os = "linux")]
+mod linux;
 mod restart;
 #[cfg(target_os = "windows")]
 mod windows;
@@ -48,7 +50,11 @@ fn native_command(command: Value) -> Result<Value, String> {
 fn native_command(command: Value) -> Result<Value, String> {
     windows::command(command)
 }
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[cfg(target_os = "linux")]
+fn native_command(command: Value) -> Result<Value, String> {
+    linux::command(command)
+}
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 fn native_command(_: Value) -> Result<Value, String> {
     Err("Desktop workstation control is currently available on macOS; this platform adapter is not installed".into())
 }
@@ -153,6 +159,16 @@ async fn install_update(
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    #[cfg(target_os = "linux")]
+    if args == ["--stop"] {
+        match linux::stop_from_shortcut() {
+            Ok(()) => std::process::exit(0),
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        }
+    }
     #[cfg(target_os = "macos")]
     {
         let input = CString::new(serde_json::to_string(&args).unwrap()).unwrap();
@@ -172,7 +188,7 @@ fn main() {
         String::new()
     };
     let builder = tauri::Builder::default();
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
     let builder = builder.plugin(tauri_plugin_autostart::init(
         tauri_plugin_autostart::MacosLauncher::LaunchAgent,
         Some(vec!["--background"]),
@@ -191,6 +207,15 @@ fn main() {
             restart_application
         ])
         .setup(move |app| {
+            #[cfg(target_os = "linux")]
+            {
+                linux::start(app.handle()).map_err(std::io::Error::other)?;
+                if args == ["--background"] {
+                    if let Some(window) = app.get_webview_window("main") {
+                        window.hide()?;
+                    }
+                }
+            }
             #[cfg(target_os = "windows")]
             {
                 windows::start(app.handle()).map_err(std::io::Error::other)?;
@@ -291,6 +316,8 @@ fn main() {
                         let _ = native_command(json!({"method":"stop"}));
                         #[cfg(target_os = "windows")]
                         windows::shutdown();
+                        #[cfg(target_os = "linux")]
+                        linux::shutdown();
                         app.exit(0);
                     }
                     _ => {}
@@ -311,7 +338,11 @@ fn main() {
             if matches!(event, tauri::RunEvent::Exit) {
                 windows::shutdown();
             }
-            #[cfg(not(target_os = "windows"))]
+            #[cfg(target_os = "linux")]
+            if matches!(event, tauri::RunEvent::Exit) {
+                linux::shutdown();
+            }
+            #[cfg(not(any(target_os = "windows", target_os = "linux")))]
             let _ = event;
         });
 }

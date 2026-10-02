@@ -164,3 +164,9 @@ with grants enforced inside that companion. Its process job owns resident/
 provider children while explicitly excluding user-launched applications.
 The existing YA component and protected appliance remain separate profiles.
 [Windows desktop](topics/windows-desktop.md) owns the standalone workstream.
+
+Linux owns an ordinary-user companion, inherited operator channel, native GTK
+approval process, and a distinct desktop socket. It reuses AT-SPI semantics
+while portal consent owns capture/input; root appliance input stays separate.
+[Linux desktop](topics/linux-desktop.md) owns the workstream, and the shared
+release family owns its eventual packages.

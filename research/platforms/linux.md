@@ -64,6 +64,14 @@ accepted GNOME profile and controller route, not every Linux host or desktop.
 
 ## Remaining profiles
 
+**Current — ordinary-user desktop implementation:** The shared Tauri app has
+a Linux companion and native grants. Source-native x64 GNOME tests prove
+portal capture and pointer input, clipboard-backed Unicode, native approvals,
+Stop, expiry, sharing closure, and stale references without root input. Installed
+Tauri, browser, signing, update, ARM64, and physical acceptance remain separate.
+The [portal dossier](../providers/xdg-desktop-portal.md) owns route facts and
+[Tactical 056](../../docs/tactical/056-linux-desktop.md) owns execution gates.
+
 **Current — credential handoff tooling:** The owned Linux lifecycle route now
 has a claimed credential verifier and factory/common promotion gates. The
 password route uses pinned setup SSH stdin and an in-guest shadow-hash comparison;

@@ -114,5 +114,15 @@ fn main() {
         assert!(revision.len() == 40 && revision.bytes().all(|b| b.is_ascii_hexdigit()));
         println!("cargo:rustc-env=MC_SOURCE_REVISION={revision}");
     }
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux") {
+        let root = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+        let identity = root.join("native/linux-runtime/desktop-runtime.json");
+        println!("cargo:rerun-if-changed={}", identity.display());
+        let value: serde_json::Value =
+            serde_json::from_slice(&fs::read(identity).expect("staged Linux runtime")).unwrap();
+        let revision = value["sourceRevision"].as_str().unwrap();
+        assert!(revision.len() == 40 && revision.bytes().all(|b| b.is_ascii_hexdigit()));
+        println!("cargo:rustc-env=MC_SOURCE_REVISION={revision}");
+    }
     tauri_build::build();
 }
