@@ -67,17 +67,18 @@ reaped, its temporary profile removed, the native access grant revoked and the
 guest-local claim released. A real YA local Codex provider turn reads installed instructions/identity and
 invokes its native image viewer on the retained browser fixture PNG, correctly
 reporting the visible page button. A controller model also confirms fixture
-contents and managed tab-strip presentation. Provider-driven control and
-live/reloaded YA views remain open; do not infer their acceptance from this
-bounded launcher/image smoke.
+contents and managed tab-strip presentation. Subsequent YA full-app media
+acceptance is recorded below; provider-driven control remains open.
 
 The original appliance policy and socket are restored, resident doctor is
 ready, owned candidate/browser/fixture processes are stopped, test files
 removed, and guest shutdown is independently observed. Guest and controller
 claims are released. The canonical login credential remains ready and
 owner-only; no credential changes. Windows/Linux execution and legacy YA
-retirement remain open. The configured Windows appliance is unavailable; no
-private infrastructure or credential locators are recorded here.
+retirement remain open. Windows was initially unavailable from the selected
+controller; a subsequent declared alternate controller supports the Windows
+execution recorded below. No private infrastructure or credential locators are
+recorded here.
 
 Linux ARM64 offline CLI execution passes in an isolated native Ubuntu container
 using the bundled interpreter and physically relocated payload. Network and
@@ -100,3 +101,17 @@ The appliance was ready and unlocked before cleanup; clean guest shutdown is
 confirmed and the target-use claim released. Its canonical login credential
 remains ready and owner-only. No installed product or standing policy was
 replaced by this offline client test.
+
+YA now passes real-provider live/reloaded media acceptance through its production
+app, HTTP routes and browser client on desktop and phone. The model queries the
+signed installed CLI and views the retained native browser fixture PNG. Live
+media bytes match exactly; after provider shutdown and full app/media-store
+replacement, the native transcript reconstructs another exact PNG handle.
+Preservation remains off and the fixture source remains available until cleanup.
+The probe reaps its provider/browser and closes owned services/sockets/listeners,
+then removes its temporary owner-only provider profile, authentication/config,
+fixture and YA data. Nonpersonal captures are presented from ignored artifact
+storage. [YA's current topic](../../../yepanywhere/topics/optional-computer-control.md#installed-launch-and-media-boundary-acceptance)
+owns the repeatable command and details. This closes the fixture media-view gate,
+not provider-driven desktop/browser control, signed Windows/Linux native control,
+installed replacement or legacy retirement.

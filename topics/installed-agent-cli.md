@@ -71,9 +71,12 @@ claimed-appliance evidence, not physical-workstation acceptance. Chrome for Test
 installed CLI with independent page/Chrome effects, browser PNG retrieval,
 release, worker restart and reconnect. A real YA local Codex provider launch
 reads installed instructions/identity and observes the retained browser fixture
-PNG through its native image viewer. Provider-driven control and live/reloaded
-YA views remain separate. Signed installed replacement and per-platform
-evidence remain required before
+PNG through its native image viewer. YA also passes full-app HTTP media and
+real desktop/phone image-viewer acceptance: live output serves exact native PNG
+bytes, and a fresh app/media store reconstructs them from the actual transcript
+after provider shutdown. Preservation stays off and the fixture source remains
+available until cleanup. Provider-driven control remains separate. Signed
+installed replacement and per-platform evidence remain required before
 retiring any legacy YA component. [Tactical 062](../docs/tactical/062-installed-agent-cli.md)
 records implementation; [YA's migration plan](../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md)
 owns consumer cutover.
