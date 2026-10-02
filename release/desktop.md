@@ -14,19 +14,20 @@ published; the acceptance matrix distinguishes packaging from GUI execution.
 3. From a clean main checkout matching origin, run:
 
    ```bash
-   desktop/scripts/release.sh 0.4.8
+   desktop/scripts/release.sh 0.5.0
    ```
 
 The script validates increasing versions and required notes, pushes an immutable
-annotated tag, and dispatches `desktop-release.yml`. Its reusable Mac and Windows
-jobs build all four targets at the same source, version, and workflow attempt.
+annotated tag, and dispatches `desktop-release.yml`. Its reusable Mac, Windows and Linux
+jobs build all six targets at the same source, version, and workflow attempt.
 Protected signing runs only on main. Mac packages are signed, notarized, and
 stapled; Windows app, uninstaller, installer, provider, and runtime catalog are
-signed. Both families authenticate updater signatures and signed versions.
+signed. All families authenticate updater signatures and signed versions.
 
 Publication revalidates every package, receipt, source, version and workflow
-identity. It stages all four installers, Mac update archives, signatures, build
-receipts, Windows installed payload inventories, and one Tauri `latest.json`.
+identity. It stages every installer, Linux Debian/AppImage package, Mac update archive,
+signature, build receipt, installed payload inventory, and one Tauri
+`latest.json`.
 A draft becomes public only after its complete uploaded asset set and GitHub
 SHA-256 digests match. Missing targets fail publication; tags, drafts and
 published assets are never overwritten. It preserves the repository-wide latest
@@ -37,14 +38,14 @@ pointer and the existing product update endpoint.
 Build the entire release matrix without creating a tag or public release:
 
 ```bash
-gh workflow run desktop-release.yml --ref main -f version=0.4.8
+gh workflow run desktop-release.yml --ref main -f version=0.5.0
 ```
 
 Download exact workflow artifacts and run native acceptance through claimed
 Machine Control targets. To publish those same bytes without another build:
 
 ```bash
-desktop/scripts/release.sh 0.4.8 CANDIDATE_RUN_ID
+desktop/scripts/release.sh 0.5.0 CANDIDATE_RUN_ID
 ```
 
 The optional run must be a successful unified dispatch on main at the exact
@@ -65,8 +66,8 @@ publication. Do not recreate it, replace its assets, or move its tag.
 ## Downloads and updates
 
 The website selects the highest published numeric desktop release, excluding
-drafts, prereleases and other package families. Unified releases require the
-complete Mac and Windows set; historical Mac-only releases remain readable.
+drafts, prereleases and other package families. Unified releases from 0.5.0 require the
+complete Mac, Windows and Linux set; historical Mac-only releases remain readable.
 Stable download paths are:
 
 - `/download/macos/arm64` and `/download/macos/x86_64`;
@@ -75,7 +76,8 @@ Stable download paths are:
   corresponding `/deb` paths for Debian packages.
 
 The shared update server consumes the same `latest.json` and product registration
-for `darwin-aarch64`, `darwin-x86_64`, `windows-aarch64`, and `windows-x86_64`.
+for `darwin-aarch64`, `darwin-x86_64`, `windows-aarch64`, `windows-x86_64`,
+`linux-aarch64`, and `linux-x86_64`.
 The website proxies supported target/architecture requests to the existing
 product route. Installation remains explicit and refuses active access or
 pending approvals. Website deployment and installed production-feed acceptance

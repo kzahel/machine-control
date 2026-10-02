@@ -43,5 +43,5 @@ if ! gh workflow run desktop-release.yml --ref main -f "version=$version" -f "re
   echo "Tag pushed. Retry dispatch with: gh workflow run desktop-release.yml --ref main -f version=$version -f release_tag=$tag -f candidate_run=$candidate_run" >&2
   exit 1
 fi
-echo "Dispatched $tag: checks → signed Mac/Windows builds → verified draft → publication."
+echo "Dispatched $tag: checks → signed platform builds → verified draft → publication."
 echo 'Verify the workflow, published assets, and https://machinecontrol.dev/downloads/.'

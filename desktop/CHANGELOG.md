@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [0.5.0]
+
+- Add a Linux desktop preview for Ubuntu GNOME Wayland, with the shared settings
+  and tray, native access approval, timed scopes, Stop, and startup preferences.
+- Use visible portal consent for screen capture and input without the dedicated
+  test appliance's privileged input service. Close access when sharing or the
+  unlocked desktop session ends.
+- Add Linux Chrome integration and Debian/AppImage downloads for x64 and ARM64.
+  Include Linux in the single desktop release and signed AppImage update path.
+
+Linux desktop execution is accepted on an Ubuntu 24.04 GNOME 46 Wayland x64
+VM. ARM64 packages are built natively and authenticated; ARM64 desktop execution,
+other desktops and physical hardware remain untested. Screen and input sharing
+requires visible portal consent. AppImage supports signed in-app replacement;
+Debian updates use the package manager. Protected login/unlock, multiple shared
+screens and file upload are outside this preview. Browser setup is optional.
+
+Mac and Windows include the improvements from 0.4.9 and 0.4.10. Reload the
+unpacked Chrome extension after updating.
+
 ## [0.4.10]
 
 - Show a pointer badge on the favicon of each controlled browser tab.
@@ -15,16 +35,6 @@ This patch includes Mac Apple silicon/Intel and Windows x64/ARM64 packages.
 Browser marker execution is checked in an Apple silicon macOS VM with Chrome
 for Testing. Other architecture execution and Linux publication remain separate
 coverage gates. Reload the unpacked Chrome extension after updating.
-
-## [0.5.0]
-
-- Add a Linux desktop preview for Ubuntu GNOME Wayland, with the shared settings
-  and tray, native access approval, timed scopes, Stop, and startup preferences.
-- Use visible portal consent for screen capture and input without the dedicated
-  test appliance's privileged input service. Close access when sharing or the
-  unlocked desktop session ends.
-- Add Linux Chrome integration and Debian/AppImage candidates for x64 and ARM64.
-  Include Linux in the single desktop release and signed AppImage update path.
 
 ## [0.4.9]
 

@@ -119,3 +119,6 @@ the commits' `Topic:` trailers and register that exact string in
 - [`058-browser-tab-indicators.md`](058-browser-tab-indicators.md) (complete):
   owned browser favicon markers and new-tab groups, lifecycle cleanup, claimed
   Mac VM acceptance, and desktop 0.4.10 publication.
+- [`059-public-linux-desktop.md`](059-public-linux-desktop.md) (active): one
+  public six-architecture desktop release, exact Linux acceptance, downloads
+  and production update metadata.
