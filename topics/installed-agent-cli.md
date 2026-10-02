@@ -8,7 +8,7 @@ publisher verification and notarization; Windows x64/ARM64 installed catalogs
 and Linux x64/ARM64 final packages authenticate. Native Windows ARM64 CI now
 executes that architecture's bundled interpreter. Earlier Mac ARM64 appliance,
 Linux ARM64 container, and Windows x64 appliance evidence retains its own
-scope. Signed Windows x64 CLI control is accepted; Linux GUI control remains separate; Mac installed CLI
+scope. Signed Windows and Linux x64 CLI/core control is accepted; Mac installed CLI
 replacement to public 0.5.3 is accepted. [Tactical 063](../docs/tactical/063-six-platform-desktop-release.md)
 owns exact published package and production delivery verification.
 
@@ -178,3 +178,18 @@ without changing the machine's policy. Temporary installation and staging are
 removed, the pre-existing custom-install registry restored, original power-off
 confirmed, and local and controller claims released. Windows provider-driven
 model control/media, browser and lifecycle parity remain separate gates.
+
+**Current:** Public 0.5.3 Linux x64 Debian bytes, source `d5aa271`, pass
+production YA receipt/full-client/identity/context verification and relocated,
+changed-script and missing-interpreter negatives. A claimed Ubuntu 24.04 GNOME
+46 Wayland appliance passes 46 bounded checks through the installed CLI:
+Off/refusal, native arming/Stop/approval/denial, expiry, visible portal consent,
+capture/artifact hash, independent GTK semantic/pointer/Unicode effects,
+restart revocation and sharing closure, tray/close/Quit and operator loss.
+`tests/desktop/linux-installed.py` optionally consumes a caller-owned local host
+claim and installed command. The actor's state is isolated; temporary package,
+units and staging are removed, original power-off confirmed, and all claims
+released. The broader harness's Stop-shortcut checkbox did not become checked
+in this configuration; the accepted slice excludes startup/shortcut settings
+and does not establish their 0.5.3 parity. Linux model/browser and additional
+lifecycle cells remain separate from this CLI/core desktop evidence.

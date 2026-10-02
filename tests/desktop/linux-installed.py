@@ -20,7 +20,13 @@ parser.add_argument("--output", type=Path, required=True)
 parser.add_argument("--consent-actor", type=Path, required=True)
 parser.add_argument("--revision")
 parser.add_argument("--fixture", type=Path)
+parser.add_argument("--client", type=Path,
+                    help="Use the installed CLI for all resident requests")
+parser.add_argument("--host-claim",
+                    help="Caller-owned local host claim; caller releases it")
 args = parser.parse_args()
+if bool(args.client) != bool(args.host_claim):
+    parser.error("--client and --host-claim must be supplied together")
 sys.path.insert(0, str(args.runtime))
 import linuxui
 from gi.repository import Gio, GLib
@@ -61,6 +67,15 @@ def poll(fn, timeout=20):
 
 
 def call(operation, **params):
+    if args.client:
+        response = subprocess.run(
+            [str(args.client), "--target", "host", "--claim", args.host_claim,
+             "desktop", "raw", json.dumps({"operation": operation, **params})],
+            capture_output=True, text=True,
+            timeout=max(45, min(615, params.get("timeoutSeconds", 120) + 15)))
+        if response.returncode not in (0, 1):
+            raise RuntimeError("Installed CLI request failed: " + response.stderr)
+        return json.loads(response.stdout)
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
         client.settimeout(35)
         client.connect(str(endpoint))
@@ -224,6 +239,14 @@ try:
     import hashlib
     artifact = capture["data"]["artifact"]
     check("installed capture hash", hashlib.sha256(Path(artifact["guestPath"]).read_bytes()).hexdigest() == artifact["sha256"])
+    if args.client:
+        retrieved = args.output.with_suffix(".capture.png")
+        response = subprocess.run(
+            [str(args.client), "--target", "host", "--claim", args.host_claim,
+             "desktop", "artifact", artifact["id"], str(retrieved)],
+            capture_output=True, text=True, timeout=45)
+        check("installed CLI artifact retrieval", response.returncode == 0)
+        check("installed CLI artifact hash", hashlib.sha256(retrieved.read_bytes()).hexdigest() == artifact["sha256"])
     refusal = call("input.key", key="enter")
     print("Own foreground refusal", json.dumps(refusal), file=log, flush=True)
     check("own foreground input protected", not refusal["accepted"] and refusal["errorCode"] in {

@@ -2,7 +2,7 @@
 
 Topic: `linux-desktop`
 
-Status: public desktop 0.5.0 includes signed Debian/AppImage packages for
+Status: public desktop 0.5.3 includes signed Debian/AppImage packages for
 x64 and ARM64. Installed x64 acceptance passes on Ubuntu GNOME Wayland;
 ARM64 desktop execution remains open.
 
@@ -32,6 +32,13 @@ there is no Linux-only publication flow.
 and public six-platform publication.
 [Linux resident control](linux-resident-control.md) owns appliance behavior;
 [native distribution](native-distribution.md) owns release policy.
+
+**Current:** Public 0.5.3 Debian x64 passes production YA verification and the
+installed Python CLI's bounded native grant/portal/GTK effect/capture/restart
+slice. [Installed agent CLI](installed-agent-cli.md) owns its evidence and
+limits. The broader run's Stop-shortcut checkbox did not become checked under
+isolated product state; startup/shortcut 0.5.3 parity is not inferred from the
+accepted core slice or earlier package evidence.
 
 **Current:** Exact signed public 0.5.0 x64 Debian/AppImage bytes pass native UI,
 grant, portal, independent effect, restart, tray, and operator-loss acceptance. Signed

@@ -304,3 +304,31 @@ uninstall registry. Temporary installation and staging are removed, original
 power-off is independently confirmed, and both local CLI claims and the controller
 claim are released. Provider-driven Windows control/media, browser, lifecycle,
 Linux GUI acceptance and YA legacy retirement remain open.
+
+### Public Linux x64 installed CLI core acceptance
+
+**Current (2026-10-03):** Public 0.5.3 Debian x64, source `d5aa271`, is
+independently authenticated with the pinned updater key and signed version.
+YA's production consumer passes receipt signature, complete client dependency
+hashes, identity, instructions, launch context, relocation, changed-script and
+missing-interpreter negatives in an ordinary GNOME 46 Wayland session.
+
+The installed native harness now optionally routes requests through the exact
+bundled client with a caller-owned host claim, including artifact retrieval.
+The bounded slice passes 46 checks: Off/refusal, native arming and Stop,
+approval/denial and expiry, explicit portal consent, capture/artifact hashes,
+independent GTK semantic/pointer/Unicode effects, restart revocation and sharing
+closure, tray/close/Quit, and operator loss while the fixture survives. There is
+no checkout in the test payload, and the client uses its bundled interpreter.
+
+The full run first stopped at the Stop-shortcut checkbox, which did not become
+checked under isolated product state. The accepted slice excludes startup and
+shortcut settings rather than counting the broader run as passing. Native
+resource discovery uses the package's actual `Machine Control` resource directory.
+Product/source behavior is not changed to match guessed resource paths.
+
+The initially absent package is removed, owned units collected/stopped, all
+staging removed, original power-off confirmed, and host/controller claims released.
+The canonical stored credential remains ready and unchanged. Linux provider
+model/browser and further lifecycle cells, Windows model/browser/media and
+legacy migration remain explicit remaining work.
