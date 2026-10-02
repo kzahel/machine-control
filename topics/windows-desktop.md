@@ -35,10 +35,10 @@ Windows support claim.
 
 ## Execution and remaining gates
 
-**Current:** The exact signed 0.4.3 x64 candidate passes installed payload,
+**Current:** The exact signed 0.4.6 x64 candidate passes installed payload,
 native grant, self-interface protection, tray, expiry, emergency Stop, startup,
 restart, failure cleanup, and independent Cua fixture action/capture checks.
-The signed 0.4.2 to 0.4.3 update automatically relaunches with access off,
+The signed browser-open 0.4.4 to 0.4.6 update relaunches with access off,
 invalidates the old generation, and preserves user applications.
 
 **Current:** Local and explicitly selected outside common CLI callers reach the
@@ -53,7 +53,9 @@ stored-credential sign-in. This does not establish in-place unlock acceptance.
 Interactive session selection must follow observed identity after re-logon.
 
 [Tactical 053](../docs/tactical/053-windows-desktop.md) owns implementation and
-acceptance. Existing engine/package evidence is in
+acceptance. [Tactical 054](../docs/tactical/054-windows-browser-and-arm64.md)
+extends that evidence to signed browser control and replacement. Earlier
+engine/package evidence is in
 [Tactical 036](../docs/tactical/036-windows-workstation-distribution.md);
 [native distribution](native-distribution.md) owns shared release decisions.
 

@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.4.7]
+
+- Finish ordinary Windows uninstall with Chrome open by stopping the operator
+  before unregistering the browser host and waiting for its image to close.
+- Refuse incomplete browser cleanup before removing the rest of the payload;
+  preserve Chrome, independent user apps, and separate appliance services.
+
+This internal Windows candidate fixes a live 0.4.6 uninstall race. Public
+Windows downloads and the production update feed remain separate gates.
+
 ## [0.4.6]
 
 - Let Windows updates finish while Chrome remains open by pausing only the

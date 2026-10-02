@@ -27,8 +27,8 @@ immediately. Concrete targets and raw evidence stay in private inventory/storage
 | macOS ARM64, Tart VM | Signed/notarized public 0.3.5 verified | Operator, grants, effects, tray, restart, and installed production update accepted | [052](tactical/052-macos-production-updates.md) |
 | macOS ARM64, physical Mac | Local signed/notarized package verification exists | Full signed Tauri desktop acceptance not recorded; earlier source-native setup/browser evidence below | [051](tactical/051-tauri-macos-desktop.md), [host topic](../topics/host-control.md) |
 | macOS Intel | Signed/notarized public packages verified | Intel execution not recorded | [052](tactical/052-macos-production-updates.md) |
-| Windows x64, Windows VM on Linux/KVM | Exact signed 0.4.4/0.4.5 installer and payload verified | UI/grants/lifecycle accepted on 0.4.4; browser tasks, remote effects/artifacts and real login startup accepted on 0.4.5; browser-open update repair pending | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md) |
-| Windows ARM64, Windows VM | Signed 0.4.5 candidate verified; CI installation checks run on x64 | New Tauri operator execution not recorded; earlier ARM64 component execution below | [053](tactical/053-windows-desktop.md) |
+| Windows x64, Windows VM on Linux/KVM | Exact signed 0.4.6 installer and payload verified | UI/grants/lifecycle, browser-open signed update, lock revocation and real login startup accepted; browser tasks and outside effects/artifacts recorded | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md) |
+| Windows ARM64, Windows VM | Signed 0.4.6 candidate verified; CI installation checks run on x64 | New Tauri operator execution not recorded; earlier ARM64 component execution below | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md) |
 | Windows x64, physical Windows | New candidate package verification does not establish physical execution | New Tauri operator acceptance not recorded; earlier appliance engine evidence below | [physical engine record](evidence/windows-physical-x64.md) |
 | Linux | Standalone Tauri integration/package not implemented | No standalone product acceptance; resident/provider work is separate | [Linux topic](../topics/linux-resident-control.md) |
 
@@ -40,7 +40,7 @@ cell into a physical, architecture, or different package-family cell.
 
 | Behavior | macOS ARM64 Tart | Windows x64 VM |
 | --- | --- | --- |
-| Exact signed installed package | Pass, public 0.3.5 | Pass, CI candidates 0.4.4/0.4.5 |
+| Exact signed installed package | Pass, public 0.3.5 | Pass, CI candidate 0.4.6 |
 | Off-state refusal and native approval/denial | Pass | Pass |
 | Scope narrowing and input pause during approval | Pass | Pass |
 | Request timeout and live bounded grant expiry | Not established by the Tauri live record; native contract coverage exists | Pass |
@@ -49,18 +49,19 @@ cell into a physical, architecture, or different package-family cell.
 | Self-interface and protected-operation refusal | Pass | Pass |
 | Independent fixture action and capture | Fixture action passed; Tauri-specific capture/hash acceptance not claimed by 052 | Action, Cua capture, artifact hashes passed |
 | Capture-superseded Cua token refusal | Not established for this Mac package | Pass, no replay/effect |
-| Common CLI | CLI/doctor work with Tauri resident; explicit outside/local product parity not established | Local and outside generation, effects, and artifact hashes passed |
+| Common CLI | CLI/doctor work with Tauri resident; explicit outside/local product parity not established | Local/outside desktop parity passed on 0.4.3 and browser parity on 0.4.6: shared generation, independent effects, exact artifacts |
 | Tray Open/Settings/Check for Updates/Stop/Quit | Pass | Pass |
 | Platform permissions/status | Accessibility and Screen Recording ready through restart/update | Ordinary unlocked Medium session/integrity availability; no protected service installed |
 | Restart with access revoked | Pass, released 0.3.5 | Pass |
-| Close-to-tray and login-startup registration/removal | Not separately established by 052 | Pass; real cold-boot/stored-credential sign-in starts 0.4.5 in background with access off |
+| Close-to-tray and login-startup registration/removal | Not separately established by 052 | Pass; cold-boot/sign-in starts 0.4.5; actual logoff/sign-in starts 0.4.6 in background with access off |
 | Companion/provider cleanup on operator failure | No separate companion; forced operator-failure acceptance not recorded | Pass; user-launched fixture survives |
 | Lock revokes access, followed by recovery | Live signed Tauri lock/recovery not established by 052 | Lock revocation and logoff/stored-credential sign-in passed |
 | In-place unlock integration | Not part of ordinary desktop acceptance | Not tested with this app; optional broker was absent |
-| In-app signed update | Production-feed installation passed; fixed sender auto-relaunch passed; immutable 0.3.3 sender needs one reopen | 0.4.2 to 0.4.3 and 0.4.3 to 0.4.4 passed; 0.4.4 to 0.4.5 with Chrome open exposed a file-lock blocker, 0.4.6 repair acceptance pending |
+| In-app signed update | Production-feed installation passed; fixed sender auto-relaunch passed; immutable 0.3.3 sender needs one reopen | Pass, including 0.4.4 to 0.4.6 with Chrome open; incoming installer fixes the older 0.4.5 file-lock failure |
 | Update refused while access is active | Pass | Pass |
 | Permissions/access/generation after replacement | Permissions retained, access off, new generation, stale references refused | Access off, exact new source, new generation, stale requests refused |
-| Full extension/browser task | Not rerun on signed Tauri; native-messaging framing passed in 051 | Pass, signed 0.4.5: setup, scopes, effects, PNG/hash, restart and local/outside parity |
+| Full extension/browser task | Not rerun on signed Tauri; native-messaging framing passed in 051 | Pass, signed 0.4.6: setup, scopes, effects, PNG/hash, restart and local/outside parity |
+| Ordinary uninstall with connected browser and user app | Not separately established | 0.4.6 exposed a native-host image-release race; signed 0.4.7 correction acceptance pending |
 | Touch ID/out-of-band approval, away mode, presence guard | Not implemented/accepted in this preview | Not implemented/accepted in this preview |
 | Public download and production update route | Pass for ARM64/Intel packages; execution evidence is ARM64 | Not published/enabled |
 
@@ -88,9 +89,8 @@ has not been exercised. It is not an ordinary desktop-preview prerequisite.
 
 ## Follow-up priorities
 
-**Proposal:** Finish Windows browser-open update repair acceptance, then repeat
-exact signed product tests in ARM64 Windows when a registered target with a
-ready credential handoff is available. No such local target is currently
+**Proposal:** Repeat exact signed product tests in ARM64 Windows when a
+registered target with a ready credential handoff is available. No such local target is currently
 registered. Repeat a full extension task on the signed Mac Tauri package.
 These do not require physical-machine approval or privileged unlock integration.
 

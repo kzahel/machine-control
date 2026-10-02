@@ -2,10 +2,36 @@
 ; installation. Scratch installs must preserve another installation's host.
 !macro NSIS_HOOK_PREUNINSTALL
   ${If} $UpdateMode <> 1
+    ; Tauri normally stops the operator after this hook. Stop it first using
+    ; the same installer policy, so its job closes the resident/provider pipe.
+    !insertmacro CheckIfAppIsRunning "$INSTDIR\${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
     Push $R0
-    IfFileExists "$INSTDIR\runtime\machine-control-windows.exe" 0 +3
+    ${If} ${FileExists} "$INSTDIR\runtime\machine-control-windows.exe"
       nsExec::ExecToLog '"$INSTDIR\runtime\machine-control-windows.exe" browser-unregister'
       Pop $R0
+      ${If} $R0 <> 0
+        Pop $R0
+        SetErrorLevel 1
+        Abort "Browser registration could not be removed."
+      ${EndIf}
+      ; Chrome's host exits asynchronously after the provider pipe closes.
+      ; Retry only our payload image before the other files are removed.
+      ; Never kill Chrome, user apps or appliance/component services.
+      StrCpy $R0 0
+      ${Do}
+        Delete "$INSTDIR\runtime\machine-control-windows.exe"
+        ${IfNot} ${FileExists} "$INSTDIR\runtime\machine-control-windows.exe"
+          ${ExitDo}
+        ${EndIf}
+        ${If} $R0 >= 100
+          Pop $R0
+          SetErrorLevel 1
+          Abort "Browser host is still running. Close Chrome and retry uninstall."
+        ${EndIf}
+        Sleep 100
+        IntOp $R0 $R0 + 1
+      ${Loop}
+    ${EndIf}
     Pop $R0
   ${EndIf}
 !macroend
@@ -20,6 +46,8 @@
     ${OrIf} $R0 == '"$INSTDIR\machine-control.exe" --background'
       DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Machine Control"
     ${EndIf}
+    RMDir "$INSTDIR\runtime"
+    RMDir "$INSTDIR"
     Pop $R0
   ${EndIf}
 !macroend

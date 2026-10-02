@@ -102,6 +102,23 @@ not in-place unlock. Real cold-boot/sign-in startup of 0.4.5 also passed.
 A separate SSH transport failure was
 recovered through the claimed native lifecycle route, without outer UI.
 
+The updated exact signed 0.4.6 package passes all 128 installed UI checks,
+including the real-login background restart path, native approvals, expiry,
+Cua effects/capture, self-interface refusal, tray actions and failure cleanup.
+Its bundled ordinary-user component passes protected-operation refusal,
+independent Cua effects/capture, provider failure/recovery, disclosed fallback
+and interrupted IPC. The final 0.4.6 browser task also passes local/outside
+effects and exact PNG transfer.
+
+Ordinary 0.4.6 uninstall with connected Chrome exposed an asynchronous
+native-host image-release race: registration/startup and other files disappear,
+but the host executable remains despite a successful exit. Candidate 0.4.7
+moves Tauri's path-bound operator stop before unregistering, then retries only
+that owned image before removing the rest of the payload. Failure returns an
+error while the remaining installation is still available for retry. Signed
+acceptance of this correction remains pending. Chrome's extension directory
+watcher can separately retain empty directories after all payload files are gone.
+
 Local inventory presently has no registered Windows target or ready
 credential handoff. The accepted remote x64 target has verified identity and a
 stored credential. Local ARM64 provisioning is a separate target-selection
@@ -114,4 +131,4 @@ Exact candidate identities:
 | --- | --- | --- | --- |
 | 0.4.4 | `9890fbc65eb9ad1ebb2c7340d5cb1816601c9a17` | [36932907245](https://github.com/kzahel/machine-control/actions/runs/36932907245) | x64 installed UI/lifecycle and browser tasks; both architecture packages verified |
 | 0.4.5 | `37608c6e8094a2ee54d56ab0a0a7924bf6fec072` | [36935615977](https://github.com/kzahel/machine-control/actions/runs/36935615977) | x64 browser task, outside/local effects/artifacts and real login startup; both packages verified; browser-open update not accepted |
-| 0.4.6 | `fae55064c042cfc026071880333916a573658bb9` | [36941024448](https://github.com/kzahel/machine-control/actions/runs/36941024448) | Both architecture packages verified; x64 browser-open update, lock revocation and actual sign-in startup pass |
+| 0.4.6 | `fae55064c042cfc026071880333916a573658bb9` | [36941024448](https://github.com/kzahel/machine-control/actions/runs/36941024448) | Both architecture packages verified; x64 installed UI, browser-open update, lock revocation and actual sign-in startup pass |
