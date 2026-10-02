@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -92,7 +93,11 @@ def inventory(directory, target, version, revision, purpose="candidate"):
                 if entry and (entry["byteLength"] != file.stat().st_size or entry["sha256"] != digest(file)):
                     raise ValueError("Runtime source receipt mismatch")
                 files.append({"name": "linux-runtime/" + name, "size": file.stat().st_size, "sha256": digest(file)})
-            cli = runtime.parent / "mc-cli"
+            # linuxdeploy rewrites every ELF under usr/lib, even resource
+            # interpreters. Keep the pinned CLI in usr/share in both formats.
+            cli = root / "usr/share/machine-control/mc-cli"
+            if tuple(map(int, version.split("."))) >= (0, 5, 3) and not cli.is_dir():
+                raise ValueError("Required packaged Python CLI is missing")
             if cli.exists():
                 spec = importlib.util.spec_from_file_location("cli_payload", ROOT / "desktop/scripts/cli-payload.py")
                 helper = importlib.util.module_from_spec(spec)
@@ -100,6 +105,8 @@ def inventory(directory, target, version, revision, purpose="candidate"):
                 identity = helper.verify(cli)
                 if identity.get("sourceRevision") != revision or identity.get("version") != version or identity.get("target") != target:
                     raise ValueError("Packaged CLI identity mismatch")
+                subprocess.run([sys.executable, str(ROOT / "tests/desktop/cli-installed.py"),
+                                "--client", str(cli / "commands/machine-control")], check=True)
                 for file in sorted(cli.rglob("*")):
                     if file.is_file():
                         files.append({"name": "mc-cli/" + file.relative_to(cli).as_posix(),
@@ -198,7 +205,8 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
                 raise ValueError("Invalid Linux payload inventory")
             found.add(name)
         cli_names = {name for name in found if name.startswith("mc-cli/")}
-        if cli_names and not {"mc-cli/client-runtime.json", "mc-cli/files.json", "mc-cli/launch.py",
+        if (cli_names or tuple(map(int, version.split("."))) >= (0, 5, 3)) and not {
+                "mc-cli/client-runtime.json", "mc-cli/files.json", "mc-cli/launch.py",
                               "mc-cli/commands/machine-control", "mc-cli/python/bin/python3"}.issubset(cli_names):
             raise ValueError("Incomplete packaged CLI")
         if found - cli_names != required or record["files"][0]["name"] != "machine-control":

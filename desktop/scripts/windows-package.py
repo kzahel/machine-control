@@ -99,7 +99,8 @@ def verify(directory, *, revision, version, run=None, target=None, tamper=False,
         required.add('runtime/browser-extension/indicators.js')
     if not required.issubset(payload_names):
         raise ValueError('Installed inventory must be relative to the product root')
-    if any(name.startswith('mc-cli/') for name in payload_names) and not {
+    if (tuple(map(int, version.split('.'))) >= (0, 5, 3)
+            or any(name.startswith('mc-cli/') for name in payload_names)) and not {
             'mc-cli/client-runtime.json', 'mc-cli/files.json', 'mc-cli/package.cat',
             'mc-cli/launch.py', 'mc-cli/commands/machine-control.cmd',
             'mc-cli/python/python.exe'}.issubset(payload_names):

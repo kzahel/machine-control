@@ -119,6 +119,25 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed' }
           cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
           if ($LASTEXITCODE -ne 0) { throw 'Rust format failed' }
+      - name: Install x64 .NET runtime for the signing DLL on ARM64
+        if: matrix.runtime == 'win-arm64'
+        run: |
+          # SignTool and Microsoft's signing DLL run as x64 even when the
+          # product and its installed CLI are built and exercised natively.
+          $metadata = Invoke-RestMethod 'https://builds.dotnet.microsoft.com/dotnet/release-metadata/8.0/releases.json'
+          $release = @($metadata.releases | Where-Object { $_.'release-version' -eq $metadata.'latest-release' })
+          if ($release.Count -ne 1) { throw 'Expected one current .NET 8 release' }
+          $runtime = @($release[0].runtime.files | Where-Object { $_.rid -eq 'win-x64' -and $_.url.EndsWith('.exe') })
+          if ($runtime.Count -ne 1) { throw 'Expected one x64 signing runtime installer' }
+          $installer = Join-Path $env:RUNNER_TEMP 'signing-dotnet-runtime-x64.exe'
+          Invoke-WebRequest $runtime[0].url -OutFile $installer
+          if ((Get-FileHash -LiteralPath $installer -Algorithm SHA512).Hash -ine $runtime[0].hash) { throw 'Signing runtime digest mismatch' }
+          $installed = Start-Process -FilePath $installer -ArgumentList '/install','/quiet','/norestart' -Wait -PassThru
+          if ($installed.ExitCode -notin @(0,3010)) { throw 'Signing runtime installation failed' }
+          $x64Root = (Get-ItemProperty 'HKLM:\SOFTWARE\dotnet\Setup\InstalledVersions\x64').InstallLocation
+          $runtimes = & (Join-Path $x64Root 'dotnet.exe') --list-runtimes
+          if ($LASTEXITCODE -ne 0 -or -not ($runtimes -match '^Microsoft.NETCore.App 8\.')) { throw 'x64 signing runtime is unavailable' }
+          "DOTNET_ROOT_X64=$x64Root" >> $env:GITHUB_ENV
       - name: Install pinned signing tool and locate SDK tools
         run: |
           cargo install artifact-signing-cli --version 0.11.0 --locked
@@ -152,7 +171,9 @@ jobs:
         run: |
           python desktop/scripts/prepare-cli.py --target '${{ matrix.target }}' --version $env:CANDIDATE_VERSION --revision $env:GITHUB_SHA
           if ($LASTEXITCODE -ne 0) { throw 'Python CLI staging failed' }
-          New-FileCatalog -Path desktop/src-tauri/native/mc-cli -CatalogFilePath artifacts/catalog/cli.cat -CatalogVersion 2.0
+          # Authenticate the full-byte inventory rather than applying Windows
+          # SIP hashing to upstream stripped Python DLLs it cannot catalog.
+          New-FileCatalog -Path desktop/src-tauri/native/mc-cli/files.json -CatalogFilePath artifacts/catalog/cli.cat -CatalogVersion 2.0
           ./desktop/scripts/sign-windows.ps1 artifacts/catalog/cli.cat
           Copy-Item artifacts/catalog/cli.cat desktop/src-tauri/native/mc-cli/package.cat
       - name: Set version and sign app, uninstaller, and installer

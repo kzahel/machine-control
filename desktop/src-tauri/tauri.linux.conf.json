@@ -1,9 +1,14 @@
 {
   "mainBinaryName": "machine-control",
   "bundle": {
-    "targets": ["deb", "appimage"],
+    "targets": [
+      "deb",
+      "appimage"
+    ],
     "createUpdaterArtifacts": true,
-    "resources": { "native/linux-runtime/": "linux-runtime/" },
+    "resources": {
+      "native/linux-runtime/": "linux-runtime/"
+    },
     "linux": {
       "deb": {
         "depends": [
@@ -19,7 +24,15 @@
           "gstreamer1.0-plugins-good",
           "xdg-desktop-portal",
           "xdg-desktop-portal-gnome"
-        ]
+        ],
+        "files": {
+          "/usr/share/machine-control/mc-cli": "native/mc-cli/"
+        }
+      },
+      "appimage": {
+        "files": {
+          "/usr/share/machine-control/mc-cli": "native/mc-cli/"
+        }
       }
     }
   }

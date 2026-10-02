@@ -252,6 +252,22 @@ class LinuxUnifiedReleaseTests(unittest.TestCase):
                 release.linux_package.verify(self.output, target, VERSION, REVISION,
                                              '123.1', published=True, tamper=True)
 
+    def test_cli_release_refuses_a_completely_omitted_linux_cli(self):
+        target = 'x86_64-unknown-linux-gnu'
+        folder = self.candidates / ('linux-desktop-' + target)
+        path = folder / 'payload.json'
+        payload = json.loads(path.read_text()); payload['version'] = '0.5.3'
+        path.write_text(json.dumps(payload))
+        path = folder / 'build.json'
+        receipt = json.loads(path.read_text()); receipt['version'] = '0.5.3'
+        for item in receipt['artifacts']:
+            item['size'] = (folder / item['name']).stat().st_size
+            item['sha256'] = release.sha256(folder / item['name'])
+        path.write_text(json.dumps(receipt))
+        with patch.object(release.linux_package, 'ROOT', self.root):
+            with self.assertRaisesRegex(ValueError, 'Incomplete packaged CLI'):
+                release.linux_package.verify(folder, target, '0.5.3', REVISION, '123.1')
+
     def test_missing_linux_architecture_aborts_before_output(self):
         shutil.rmtree(self.candidates / 'linux-desktop-aarch64-unknown-linux-gnu')
         with self.assertRaises(FileNotFoundError):

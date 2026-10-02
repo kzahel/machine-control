@@ -87,6 +87,21 @@ class WindowsDesktopTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Installed inventory'):
                 package.verify(self.directory, revision=REVISION, version='0.4.4', run='123.1', target=TARGET)
 
+    def test_cli_release_refuses_a_completely_omitted_cli(self):
+        path = self.directory / 'payload.json'
+        payload = json.loads(path.read_text())
+        payload['version'] = '0.5.3'
+        payload['files'].extend({'name': 'runtime/browser-extension/' + name,
+                                 'size': 1, 'sha256': 'b' * 64}
+                                for name in ('manifest.json', 'service_worker.js', 'indicators.js'))
+        path.write_text(json.dumps(payload))
+        package.evidence(self.directory, target=TARGET, version='0.5.3',
+                         revision=REVISION, run='123.1')
+        with patch.object(package, 'ROOT', self.root):
+            with self.assertRaisesRegex(ValueError, 'Incomplete packaged Python CLI'):
+                package.verify(self.directory, revision=REVISION, version='0.5.3',
+                               run='123.1', target=TARGET)
+
     def test_source_workflow_target_and_version_fences(self):
         path = self.directory / 'build.json'
         original = json.loads(path.read_text())

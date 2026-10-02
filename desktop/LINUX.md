@@ -32,6 +32,19 @@ Stop shortcut refer to that location. GNOME must expose AppIndicator/StatusNotif
 icons for the tray menu; Ubuntu's default desktop provides this integration.
 The app does not install a Shell extension or a privileged input service.
 
+## Installed agent CLI
+
+From desktop 0.5.3, Debian installs provide the bundled Python control client at
+`/usr/share/machine-control/mc-cli/commands/machine-control`. AppImage contains
+the same path beneath its mounted or extracted root. This is separate from the
+`machine-control` GUI executable. It supplies its own Python interpreter;
+the native GTK/AT-SPI resident still uses the system dependencies above.
+
+```bash
+/usr/share/machine-control/mc-cli/commands/machine-control agent identity
+/usr/share/machine-control/mc-cli/commands/machine-control agent instructions
+```
+
 ## Access and sharing
 
 Access starts Off. Enable selected scopes for a bounded duration, or approve a

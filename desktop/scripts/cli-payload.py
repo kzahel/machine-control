@@ -24,7 +24,7 @@ def verify(root):
             raise ValueError("Incomplete CLI payload")
         with path.open("rb") as stream:
             if hashlib.file_digest(stream, "sha256").hexdigest() != item["sha256"]:
-                raise ValueError("CLI payload digest mismatch")
+                raise ValueError("CLI payload digest mismatch: " + name)
     actual = {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()}
     if actual - {"files.json", "package.cat", "files.json.sig"} != names:
         raise ValueError("Unexpected CLI payload")

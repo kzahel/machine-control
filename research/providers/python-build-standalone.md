@@ -35,3 +35,16 @@ covers archive filtering, internal link flattening, runtime isolation and
 whole-payload inventory; it does not establish signed end-user acceptance.
 The [installed CLI topic](../../topics/installed-agent-cli.md) owns adoption and
 remaining acceptance direction.
+
+## Packaging compatibility
+
+**Current:** A Linux native ARM64 container reproduction with the AppImage
+deployer confirms that placing this runtime under `usr/lib` changes its ELF
+bytes and breaks its complete inventory. Placement under `usr/share` preserves
+the same pinned payload and passes relocated offline execution. The first
+six-platform candidate also observes Windows SIP catalog hashing refuse the
+upstream stripped `zlib1.dll`; raw SHA-256 hashing remains available.
+The [installed CLI topic](../../topics/installed-agent-cli.md) owns placement
+and publisher-authenticated inventory decisions, and
+[Tactical 063](../../docs/tactical/063-six-platform-desktop-release.md) owns
+release validation.

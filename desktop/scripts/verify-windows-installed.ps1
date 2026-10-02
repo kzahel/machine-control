@@ -41,9 +41,11 @@ try {
     if ($info.ProductVersion -ne $Version) {throw 'Installed product version mismatch'}
     $cliRoot=Join-Path $installRoot 'mc-cli'
     Signature (Join-Path $cliRoot 'package.cat')
-    if ((Test-FileCatalog -Path $cliRoot -CatalogFilePath (Join-Path $cliRoot 'package.cat') -FilesToSkip 'package.cat') -ne 'Valid') {
-        throw 'Installed Python CLI catalog mismatch'
+    if ((Test-FileCatalog -Path (Join-Path $cliRoot 'files.json') -CatalogFilePath (Join-Path $cliRoot 'package.cat')) -ne 'Valid') {
+        throw 'Installed Python CLI inventory catalog mismatch'
     }
+    python (Join-Path $PSScriptRoot 'cli-payload.py') verify $cliRoot
+    if ($LASTEXITCODE -ne 0) {throw 'Installed Python CLI full-byte inventory mismatch'}
     $cli=Get-Content (Join-Path $cliRoot 'client-runtime.json') -Raw | ConvertFrom-Json
     if ($cli.schema -ne 'machine-control-client-identity/v1' -or $cli.clientProtocol -ne 1 -or
         $cli.sourceRevision -ne $Revision -or $cli.version -ne $Version -or $cli.target -ne $Target) {

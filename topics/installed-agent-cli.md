@@ -27,8 +27,10 @@ than maintaining a second resident installation for the migrated route.
 `mc-cli/commands/machine-control` on macOS/Linux and
 `mc-cli/commands/machine-control.cmd` on Windows. These names are separate from
 the Windows/Linux GUI binary. Mac resources live inside the app bundle;
-Windows resources live under the product root. The launcher uses isolated
-Python, suppresses bytecode writes and propagates its runtime to host/claim
+Windows resources live under the product root. Linux packages put the CLI in
+`/usr/share/machine-control/mc-cli`, outside linuxdeploy's ELF rewriting under
+`usr/lib`; both Debian and AppImage must retain its exact pinned payload.
+The launcher uses isolated Python, suppresses bytecode writes and propagates its runtime to host/claim
 subprocesses. No system Python is needed for the CLI; Linux's native GTK/AT-SPI
 resident retains its documented system dependencies.
 
@@ -44,7 +46,10 @@ There is no implicit sibling checkout/private-inventory lookup in a package.
 [`python-runtime.lock.json`](../desktop/python-runtime.lock.json). Retain upstream
 component license notices. Mac signs nested native libraries before sealing
 the script/runtime inventory in the app signature. Windows authenticates the
-whole CLI directory with its publisher-signed catalog. Linux final packages
+CLI's complete SHA-256 inventory with its publisher-signed catalog, then checks
+every installed byte and refuses unexpected files. Cataloging that inventory
+avoids Windows SIP hashing failures for upstream stripped Python DLLs.
+Linux final packages
 use the existing authenticated package signatures. An unsigned hash receipt is
 integrity evidence only, not publisher authority. The packaging
 [dossier](../research/providers/python-build-standalone.md) owns licensing.

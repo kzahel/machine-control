@@ -60,3 +60,25 @@ publication and preserve its tag too. Build that architecture on GitHub's
 native `windows-11-arm` runner, keeping every catalog, publisher, inventory,
 relocation and execution check required. Build the full 0.5.3 matrix as a
 candidate before creating its release tag. Public verification remains pending.
+
+The first 0.5.3 candidate builds both Linux containers but refuses their CLI
+payload hashes. Upstream linuxdeploy rewrites every ELF beneath `usr/lib`,
+including bundled Python resources. Use its supported custom-file mappings to
+put the CLI under `usr/share/machine-control/mc-cli` in both Debian and AppImage.
+Keep staged hashes, require the installed CLI for this version, and run the
+relocation smoke from each extracted final container before signing evidence.
+Mac and Windows resource locations remain the same.
+
+Windows x64 reaches CLI catalog creation, where Windows SIP hashing cannot
+catalog the upstream stripped `zlib1.dll`. Catalog and publisher-sign the
+complete full-byte SHA-256 inventory instead. Final installed acceptance must
+authenticate that catalog first, verify every inventoried file and refuse
+unexpected files, then execute relocated CLI smoke. This preserves publisher
+trust without changing pinned runtime bytes or excluding native dependencies.
+
+The native Windows ARM64 runner also needs the x64 .NET 8 runtime used by
+Microsoft's x64 signing DLL. Install its official SHA-512-verified runtime
+installer, verify the registered x64 host/runtime, and set only DOTNET_ROOT_X64;
+the native ARM64 build SDK and interpreter remain unchanged. Both Mac signed
+candidates from the first 0.5.3 run pass notarization and CLI relocation.
+A repaired unified candidate must still rebuild every platform at one source.
