@@ -1,10 +1,17 @@
 param([Parameter(Mandatory=$true)][string]$Path)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$route = 'native-authenticode'
+function NativePath([string]$Value) {
+    $resolved = Resolve-Path -LiteralPath $Value
+    if ($resolved.Provider.Name -ne 'FileSystem') { throw 'Bundle signing requires a filesystem path' }
+    return [IO.Path]::GetFullPath($resolved.ProviderPath)
+}
 try {
-    $resolved = (Resolve-Path -LiteralPath $Path).Path
-    $cliRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../src-tauri/native/mc-cli'))
+    $resolved = NativePath $Path
+    $cliRoot = NativePath (Join-Path $PSScriptRoot '../src-tauri/native/mc-cli')
     if ($resolved.StartsWith($cliRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        $route = 'cli-catalog'
         # Tauri signs PE resources automatically. This immutable upstream runtime
         # instead uses the publisher-signed complete SHA-256 inventory: Windows
         # cannot Authenticode-sign every stripped DLL without changing its bytes.
@@ -28,7 +35,7 @@ try {
     # Tauri suppresses failed custom-command output. Keep only the exception
     # message for the workflow to surface; never write signing credentials.
     if ($env:RUNNER_TEMP) {
-        $_.Exception.Message | Add-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'mc-signing-hook-error.txt')
+        "[$route] $($_.Exception.Message)" | Add-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'mc-signing-hook-error.txt')
     }
     throw
 }

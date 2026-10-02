@@ -107,3 +107,10 @@ Both extracted Linux CLI payloads then pass, but the native resident allowlist
 still describes 0.5.0 and rejects the newly shipped updates.py module. Require
 that module for 0.5.3 and newer, retain the exact native payload set, and cover
 both authenticated acceptance and missing-module refusal.
+
+Direct Windows PowerShell publisher/catalog/full-inventory preflight passes
+on both architectures, while the Tauri hook still fails without diagnostics.
+Normalize filesystem provider paths before routing CLI resources, exercise
+absolute, alternate-separator and relative inputs, and retain bounded hook
+exception messages in runner-local diagnostics for CI build failures. These
+checks retain the signed catalog and exact inventory as the required authority.
