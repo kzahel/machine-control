@@ -59,8 +59,13 @@ generation, delivery, effect and uncertainty reporting.
 [`cli-installed.py`](../tests/desktop/cli-installed.py) tests offline discovery,
 isolated runtime use and bundled claim dependencies from an unrelated directory.
 Archive traversal, external links, modified/missing files and unexpected files
-have portable negative tests. Real desktop/browser effects, signed installed
-replacement, actual YA launch and per-platform evidence remain required before
+have portable negative tests. The signed Mac ARM64 assembly passes bounded
+workstation approval/refusal/revocation, an independent AppKit counter effect,
+exact-window capture and artifact retrieval through the installed CLI. This is
+claimed-appliance evidence, not physical-workstation acceptance. Chrome for Testing browser acceptance also passes 21 checks through the
+installed CLI with independent page/Chrome effects, browser PNG retrieval,
+release, worker restart and reconnect. Signed installed replacement, actual YA
+model launch and per-platform evidence remain required before
 retiring any legacy YA component. [Tactical 062](../docs/tactical/062-installed-agent-cli.md)
 records implementation; [YA's migration plan](../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md)
 owns consumer cutover.

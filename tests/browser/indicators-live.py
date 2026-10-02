@@ -28,6 +28,7 @@ p.add_argument("--host-executable", type=Path, required=True)
 p.add_argument("--socket", type=Path, required=True)
 p.add_argument("--cdp-client", type=Path, required=True)
 p.add_argument("--claim", required=True)
+p.add_argument("--client", type=Path, help="Use the installed control CLI for operations")
 p.add_argument("--output", type=Path, required=True)
 args = p.parse_args()
 spec = importlib.util.spec_from_file_location("cdp_client", args.cdp_client)
@@ -56,11 +57,26 @@ def poll(fn, timeout=20):
 
 
 def call(operation, **params):
-    with socket.socket(socket.AF_UNIX) as client:
-        client.settimeout(40)
-        client.connect(str(args.socket))
-        client.sendall(json.dumps({"operation": operation, "claimId": args.claim, **params}).encode() + b"\n")
-        reply = json.loads(client.makefile("rb").readline(32 * 1024 * 1024))
+    if args.client:
+        prefix = [str(args.client), "--target", "host", "--claim", args.claim]
+        if operation in {"browser.tabs", "browser.release", "browser.snapshot", "browser.click", "browser.capture"}:
+            command = [*prefix, "browser", operation.split(".")[1]]
+            for name, flag in [("tabId", "--tab"), ("reference", "--reference")]:
+                if name in params:
+                    command += [flag, str(params[name])]
+        else:
+            command = [*prefix, "desktop", "raw", json.dumps({"operation": operation, **params})]
+        result = subprocess.run(command, env={**os.environ,
+            "MACHINE_CONTROL_HOST_SOCKET": str(args.socket)}, capture_output=True,
+            text=True, timeout=45)
+        assert result.returncode in (0, 1), result.stderr
+        reply = json.loads(result.stdout)
+    else:
+        with socket.socket(socket.AF_UNIX) as client:
+            client.settimeout(40)
+            client.connect(str(args.socket))
+            client.sendall(json.dumps({"operation": operation, "claimId": args.claim, **params}).encode() + b"\n")
+            reply = json.loads(client.makefile("rb").readline(32 * 1024 * 1024))
     if not reply.get("accepted"):
         raise AssertionError((operation, reply.get("errorCode"), reply.get("message")))
     return reply.get("data", {})
@@ -189,6 +205,16 @@ with tempfile.TemporaryDirectory(prefix="mc-indicator-browser-") as scratch:
         poll(lambda: marker("/existing"))
         check("existing user group preserved", tab(existing)["groupId"] == group)
         check("Chrome tab strip receives SVG favicon", tab(existing)["favIconUrl"].startswith("data:image/svg+xml,"))
+        if args.client:
+            image = call("browser.capture", tabId=existing)
+            artifact = Path(image["artifactPath"])
+            fetched = root / "browser.png"
+            command = [str(args.client), "--target", "host", "--claim", args.claim,
+                "desktop", "artifact", str(artifact), str(fetched)]
+            result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+            check("installed CLI retrieves browser PNG", result.returncode == 0 and
+                  json.loads(result.stdout)["accepted"] and fetched.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n")
+            artifact.unlink()
         new = call("browser.navigate", url=url + "/new", newTab=True, active=False)["tab"]["tabId"]
         poll(lambda: marker("/new"))
         managed = js(f"chrome.tabGroups.get({tab(new)['groupId']})")
@@ -270,7 +296,9 @@ with tempfile.TemporaryDirectory(prefix="mc-indicator-browser-") as scratch:
     except BaseException as error:
         import traceback
         failure = repr(error)
-        diagnostic = traceback.format_exc() + "\n" + (root / "chrome.log").read_text()
+        diagnostic = traceback.format_exc()
+        if (root / "chrome.log").exists():
+            diagnostic += "\n" + (root / "chrome.log").read_text()
         try:
             diagnostic += "\nResident tabs: " + json.dumps(call("browser.tabs"))
             if observer:

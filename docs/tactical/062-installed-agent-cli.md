@@ -48,6 +48,22 @@ Mac ARM64 staging, CLI identity, portable packaging negatives, common client
 tests, desktop frontend build and Rust tests pass locally. A Developer ID signed
 Mac assembly passes deep verification and YA authentication, closure checks and
 launch-context composition. Physical CLI relocation and guest execution with
-ambient Python disabled pass. Notarization/publication, real provider/model use
-and Windows/Linux installed execution remain separate gates. Update this record
-with exact source-independent and consumer evidence as validation completes.
+ambient Python disabled pass. The signed ARM64 candidate passes bounded native
+control through the installed CLI under workstation approval: denial, narrowed
+observe-only access, independent AppKit counter effect, exact-window capture
+and artifact PNG bytes, self/protected refusal, prompt pause and Stop/revocation.
+Separate controller and guest-local claims are released by the harness.
+
+The broader tray/updater run did not establish acceptance on the local 0.3.0
+assembly: the second tray opening did not expose `Check for Updates…` to AX.
+The new `--control-only` run passes its declared control slice; it leaves
+updater/tray acceptance open rather than treating the broad run as passing. Notarization/publication, real provider/model use
+and Windows/Linux installed execution remain separate gates. Browser acceptance passes 21 checks with the signed embedded native host and
+extension, Chrome for Testing, an independent HTTP/Chrome oracle, and the
+installed CLI. It exercises enumeration, semantics/click effects, PNG capture
+and bounded artifact retrieval, release/marker cleanup, debugger cancellation,
+worker restart/reconnect and resumed control. The separate test browser is
+reaped, its temporary profile removed, the native access grant revoked and the
+guest-local claim released. Actual YA provider/model launch remains open. A controller model has also
+inspected the retained native browser PNG and confirmed fixture contents and
+managed tab-strip presentation; this is not a YA media-pipeline pass.

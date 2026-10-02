@@ -8,6 +8,14 @@ candidate workstation policy. The test uses native AX input to approve and
 deny; no socket or test-only bypass approves access. Installation, consent,
 signed replacement, power restoration, and claim release belong to the caller.
 Do not run it on a personal workstation.
+
+`--candidate-client` routes candidate operations through the packaged Python
+CLI and acquires/releases a separate guest-local host claim. It also exercises
+the ergonomic capture/artifact commands and independently checks PNG bytes.
+The controller's VM claim remains distinct. Start the fixture before running.
+Use `--control-only` for the bounded approval/action/artifact slice; the default
+still exercises tray navigation and production update discovery separately.
+
 When the candidate occupies the canonical installation, supply a separate
 source-native appliance with `--operator-app` and `--operator-socket`.
 
@@ -181,3 +189,10 @@ contains replay commands, measurements, and the limits of historical attribution
 builder and claimed dedicated-appliance conformance runner. It uses real sudo
 and a native AX secure-field driver, with temporary exact-command password
 policy and canonical secret transport. Never run the driver on a workstation.
+
+`tests/browser/indicators-live.py --client INSTALLED_COMMAND` exercises browser
+operations through the installed CLI instead of direct socket calls, including
+browser PNG capture and artifact retrieval. Its dedicated Chrome for Testing
+profile, native host/extension, independent HTTP/CDP oracles and process cleanup
+remain the same. The caller owns guest-local and controller claims, native
+approval, canonical native-host socket selection and restoration.

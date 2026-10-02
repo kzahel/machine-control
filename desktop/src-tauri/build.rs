@@ -25,6 +25,26 @@ fn main() {
         serde_json::from_slice(&fs::read(root.join("tauri.conf.json")).unwrap()).unwrap();
     println!("cargo:rerun-if-env-changed=GITHUB_SHA");
     println!("cargo:rerun-if-env-changed=PYTHON");
+    let branch = Command::new("git")
+        .args(["symbolic-ref", "-q", "HEAD"])
+        .current_dir(&repository)
+        .output()
+        .expect("Git branch identity");
+    let branch = String::from_utf8(branch.stdout).unwrap();
+    for name in ["HEAD", branch.trim()]
+        .into_iter()
+        .filter(|v| !v.is_empty())
+    {
+        let path = Command::new("git")
+            .args(["rev-parse", "--path-format=absolute", "--git-path", name])
+            .current_dir(&repository)
+            .output()
+            .expect("Git source location");
+        println!(
+            "cargo:rerun-if-changed={}",
+            String::from_utf8(path.stdout).unwrap().trim()
+        );
+    }
     for path in [
         "client",
         "bin/machine-control",
@@ -113,16 +133,6 @@ fn main() {
         fs::create_dir_all(&native).unwrap();
         fs::write(native.join("Info.plist"), format!("<?xml version=\"1.0\"?><plist version=\"1.0\"><dict><key>MCSourceRevision</key><string>{revision}</string><key>MCNativeSudoVersion</key><integer>1</integer><key>MCClientProtocol</key><integer>1</integer></dict></plist>")).unwrap();
         println!("cargo:rerun-if-env-changed=GITHUB_SHA");
-        for name in ["HEAD", "refs/heads/main"] {
-            let path = Command::new("git")
-                .args(["rev-parse", "--git-path", name])
-                .output()
-                .unwrap();
-            println!(
-                "cargo:rerun-if-changed={}",
-                String::from_utf8(path.stdout).unwrap().trim()
-            );
-        }
 
         fs::create_dir_all(&framework).unwrap();
         let arch = if env::var("TARGET").unwrap().starts_with("aarch64") {

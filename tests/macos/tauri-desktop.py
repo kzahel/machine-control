@@ -19,6 +19,8 @@ p.add_argument('--target', required=True)
 p.add_argument('--claim', required=True)
 p.add_argument('--candidate-app', required=True)
 p.add_argument('--candidate-socket', required=True)
+p.add_argument('--control-only', action='store_true', help='Bounded native-control acceptance; updater/tray acceptance remains separate')
+p.add_argument('--candidate-client', help='Installed CLI command on the guest; uses a separate guest-local claim')
 p.add_argument('--operator-app', help='Separate guest appliance app; defaults to installed native app')
 p.add_argument('--operator-socket', help='Separate appliance socket; required with --operator-app')
 args = p.parse_args()
@@ -28,15 +30,27 @@ mc = [str(Path(__file__).resolve().parents[2] / 'bin/machine-control'),
       '--target', args.target, '--claim', args.claim]
 binary = args.candidate_app + '/Contents/MacOS/macui'
 fixture = 'org.machine-control.fixture'
+guest_claim = None
 
 
 def call(*argv):
     return subprocess.check_output(mc + list(argv), text=True, timeout=60)
 
 
+def candidate_arguments(request):
+    if args.candidate_client:
+        return ['os', '--', '/usr/bin/env',
+                'MACHINE_CONTROL_HOST_SOCKET=' + args.candidate_socket,
+                args.candidate_client, '--target', 'host', '--claim', guest_claim,
+                'desktop', 'raw', json.dumps(request)]
+    return ['os', '--', binary, 'request', args.candidate_socket, json.dumps(request)]
+
+
 def candidate(request):
-    return json.loads(call('os', '--', binary, 'request', args.candidate_socket,
-                           json.dumps(request)))
+    result = subprocess.run(mc + candidate_arguments(request), text=True,
+                            capture_output=True, timeout=60)
+    assert result.returncode in (0, 1), result.stderr
+    return json.loads(result.stdout)
 
 
 def base(request):
@@ -51,7 +65,7 @@ def base(request):
 
 
 def accepted(result):
-    assert result['accepted'], result.get('errorCode', result)
+    assert result['accepted'], result
     assert result['hostInterference'] == 'none'
     return result.get('data', {})
 
@@ -92,8 +106,8 @@ def request(scopes):
     payload = dict(operation='grant.request', requestId=str(uuid.uuid4()),
         scopes=scopes, reason='Verify signed desktop candidate',
         durationSeconds=300, timeoutSeconds=120)
-    child = subprocess.Popen(mc + ['os', '--', binary, 'request', args.candidate_socket,
-        json.dumps(payload)], stdout=subprocess.PIPE, text=True)
+    child = subprocess.Popen(mc + candidate_arguments(payload),
+        stdout=subprocess.PIPE, text=True)
     try:
         for _ in range(10):
             if candidate(dict(operation='grant.status'))['data']['pendingRequest']:
@@ -115,80 +129,115 @@ def oracle():
     return json.loads(call('testbed', '--', 'fixture-state'))
 
 
-pending = None
-pid = accepted(candidate(dict(operation='status')))['processId']
-assert accepted(base(dict(operation='status')))['deployment']['policy']['grantMode'] == 'standing'
-assert accepted(candidate(dict(operation='grant.status')))['policy']['grantMode'] == 'approval'
-accepted(base(dict(operation='application.activate', target=str(pid))))
+if args.candidate_client:
+    # The controller claim coordinates the VM; this independent host claim
+    # coordinates guest-local callers. Neither claim grants native access.
+    acquisition = json.loads(call('os', '--', args.candidate_client,
+        '--target', 'host', 'claim', 'acquire', '--duration', '30m',
+        '--claimant-authority', 'mc-conformance', '--claimant-id', 'cli-desktop',
+        '--reason', 'Verify installed desktop client'))
+    assert acquisition['accepted'], acquisition
+    guest_claim = acquisition['data']['claim']['claimId']
+
 try:
-    accepted(candidate(dict(operation='grant.revoke')))
-    assert candidate(dict(operation='snapshot', target=fixture))['errorCode'] == 'approval_required'
-    assert candidate(dict(operation='grant.approve'))['errorCode'] == 'unsupported_operation'
-    press(pid, 'Access')
-    pending = request(['observe', 'control'])
-    press(pid, 'Deny')
-    assert finish(pending)['errorCode'] == 'approval_denied'
     pending = None
-
-    pending = request(['observe', 'control'])
-    press(pid, 'Control apps and input', 'AXCheckBox')
-    press(pid, 'Allow access')
-    assert accepted(finish(pending))['grant']['scopes'] == ['observe']
-    pending = None
-    accepted(candidate(dict(operation='snapshot', target=fixture)))
-    assert not candidate(dict(operation='input.key', target=fixture, key='tab'))['accepted']
-    press(pid, 'Stop access')
-
-    press(pid, 'Enable access')
-    assert candidate(dict(operation='input.key', target=str(pid), key='tab'))['errorCode'] == 'self_target_refused'
-    assert candidate(dict(operation='authorization.begin'))['errorCode'] == 'operation_not_permitted_by_policy'
-    before = oracle()['count']
-    elements = accepted(candidate(dict(operation='snapshot', target=fixture,
-        query='Increment', projection='compact')))['elements']
-    reference = next(e['reference'] for e in elements
-                     if e['role'] == 'AXButton' and e['label'] == 'Increment')
-    accepted(candidate(dict(operation='action', reference=reference, action='press')))
-    assert oracle()['count'] == before + 1
-
-    pending = request(['browser'])
-    assert candidate(dict(operation='input.key', target=fixture, key='tab'))['errorCode'] == 'approval_prompt_visible'
-    press(pid, 'Deny')
-    assert finish(pending)['errorCode'] == 'approval_denied'
-    pending = None
-    press(pid, 'Stop access')
-    assert candidate(dict(operation='snapshot', target=fixture))['errorCode'] == 'approval_required'
-    tray(pid, 'Settings…')
-    # The setting-row button proves the menu navigated to the right page.
-    for _ in range(10):
-        elements = accepted(base(dict(operation='snapshot', target=str(pid),
-            query='Check for updates', projection='compact', maxDepth=30,
-            maxElements=500)))['elements']
-        if any(e['label'] == 'Check for updates' and e['role'] == 'AXButton' for e in elements):
-            break
-        time.sleep(0.2)
-    else:
-        raise AssertionError('Settings tray command did not open Settings')
-    tray(pid, 'Check for Updates…')
-    for _ in range(110):
-        elements = accepted(base(dict(operation='snapshot', target=str(pid),
-            projection='compact', maxDepth=30, maxElements=600)))['elements']
-        if any((e.get('label') or e.get('value')) == 'Up to date.' for e in elements):
-            break
-        time.sleep(0.2)
-    else:
-        raise AssertionError('Tray update check did not report up to date')
-    tray(pid, 'Open Machine Control')
-    press(pid, 'Enable access')
-    tray(pid, 'Stop access')
-    assert accepted(candidate(dict(operation='grant.status')))['grant'] is None
-    print('Tray Settings, production update check, Open, and Stop passed')
-    print('Visible denial, narrowed approval, fixture effect, self/protected refusal, prompt pause, and Stop passed')
-finally:
-    # A failed assertion must not leave an approval waiting or access armed.
-    if candidate(dict(operation='grant.status'))['data']['pendingRequest']:
+    pid = accepted(candidate(dict(operation='status')))['processId']
+    assert accepted(base(dict(operation='status')))['deployment']['policy']['grantMode'] == 'standing'
+    assert accepted(candidate(dict(operation='grant.status')))['policy']['grantMode'] == 'approval'
+    accepted(base(dict(operation='application.activate', target=str(pid))))
+    if args.control_only:
+        # Dismiss an owned menu left by a previous tray acceptance failure.
+        accepted(base(dict(operation='input.key', target=str(pid), key='escape')))
+    try:
+        accepted(candidate(dict(operation='grant.revoke')))
+        assert candidate(dict(operation='snapshot', target=fixture))['errorCode'] == 'approval_required'
+        assert candidate(dict(operation='grant.approve'))['errorCode'] == 'unsupported_operation'
+        press(pid, 'Access')
+        pending = request(['observe', 'control'])
         press(pid, 'Deny')
-    accepted(candidate(dict(operation='grant.revoke')))
-    if pending is not None:
-        if pending.poll() is None:
-            pending.terminate()
-        pending.wait(timeout=10)
+        assert finish(pending)['errorCode'] == 'approval_denied'
+        pending = None
+
+        pending = request(['observe', 'control'])
+        press(pid, 'Control apps and input', 'AXCheckBox')
+        press(pid, 'Allow access')
+        assert accepted(finish(pending))['grant']['scopes'] == ['observe']
+        pending = None
+        accepted(candidate(dict(operation='snapshot', target=fixture)))
+        assert not candidate(dict(operation='input.key', target=fixture, key='tab'))['accepted']
+        press(pid, 'Stop access')
+
+        press(pid, 'Enable access')
+        assert candidate(dict(operation='input.key', target=str(pid), key='tab'))['errorCode'] == 'self_target_refused'
+        assert candidate(dict(operation='authorization.begin'))['errorCode'] == 'operation_not_permitted_by_policy'
+        before = oracle()['count']
+        elements = accepted(candidate(dict(operation='snapshot', target=fixture,
+            query='Increment', projection='compact')))['elements']
+        reference = next(e['reference'] for e in elements
+                         if e['role'] == 'AXButton' and e['label'] == 'Increment')
+        accepted(candidate(dict(operation='action', reference=reference, action='press')))
+        assert oracle()['count'] == before + 1
+        if args.candidate_client:
+            # Use ergonomic commands as well as raw requests; fetch through the
+            # bundled host adapter and check independently that PNG bytes exist.
+            prefix = ['os', '--', '/usr/bin/env',
+                'MACHINE_CONTROL_HOST_SOCKET=' + args.candidate_socket,
+                args.candidate_client, '--target', 'host', '--claim', guest_claim]
+            capture = accepted(json.loads(call(*prefix, 'desktop', 'capture',
+                '--scope', 'window', '--target', fixture)))
+            artifact = json.loads(call(*prefix, 'desktop', 'artifact', capture['artifactPath']))
+            assert artifact['accepted'], artifact
+            probe = call('os', '--', '/usr/bin/xxd', '-l', '8', '-p', artifact['outputPath'])
+            assert probe.strip() == '89504e470d0a1a0a', probe
+            call('os', '--', '/bin/rm', '-f', artifact['outputPath'], capture['artifactPath'])
+            print('Installed CLI capture/artifact dependency and PNG bytes passed')
+
+        pending = request(['browser'])
+        assert candidate(dict(operation='input.key', target=fixture, key='tab'))['errorCode'] == 'approval_prompt_visible'
+        press(pid, 'Deny')
+        assert finish(pending)['errorCode'] == 'approval_denied'
+        pending = None
+        press(pid, 'Stop access')
+        assert candidate(dict(operation='snapshot', target=fixture))['errorCode'] == 'approval_required'
+        if args.control_only:
+            print('Visible denial, narrowed approval, fixture effect, capture, self/protected refusal, prompt pause, and Stop passed')
+            raise SystemExit(0)
+        tray(pid, 'Settings…')
+        # The setting-row button proves the menu navigated to the right page.
+        for _ in range(10):
+            elements = accepted(base(dict(operation='snapshot', target=str(pid),
+                query='Check for updates', projection='compact', maxDepth=30,
+                maxElements=500)))['elements']
+            if any(e['label'] == 'Check for updates' and e['role'] == 'AXButton' for e in elements):
+                break
+            time.sleep(0.2)
+        else:
+            raise AssertionError('Settings tray command did not open Settings')
+        tray(pid, 'Check for Updates…')
+        for _ in range(110):
+            elements = accepted(base(dict(operation='snapshot', target=str(pid),
+                projection='compact', maxDepth=30, maxElements=600)))['elements']
+            if any((e.get('label') or e.get('value')) == 'Up to date.' for e in elements):
+                break
+            time.sleep(0.2)
+        else:
+            raise AssertionError('Tray update check did not report up to date')
+        tray(pid, 'Open Machine Control')
+        press(pid, 'Enable access')
+        tray(pid, 'Stop access')
+        assert accepted(candidate(dict(operation='grant.status')))['grant'] is None
+        print('Tray Settings, production update check, Open, and Stop passed')
+        print('Visible denial, narrowed approval, fixture effect, self/protected refusal, prompt pause, and Stop passed')
+    finally:
+        # A failed assertion must not leave an approval waiting or access armed.
+        if candidate(dict(operation='grant.status'))['data']['pendingRequest']:
+            press(pid, 'Deny')
+        accepted(candidate(dict(operation='grant.revoke')))
+        if pending is not None:
+            if pending.poll() is None:
+                pending.terminate()
+            pending.wait(timeout=10)
+finally:
+    if guest_claim is not None:
+        call('os', '--', args.candidate_client, '--target', 'host',
+             'claim', 'release', guest_claim)
