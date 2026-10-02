@@ -115,3 +115,19 @@ storage. [YA's current topic](../../../yepanywhere/topics/optional-computer-cont
 owns the repeatable command and details. This closes the fixture media-view gate,
 not provider-driven desktop/browser control, signed Windows/Linux native control,
 installed replacement or legacy retirement.
+
+Mac absent-resident acceptance also passes through physically relocated signed
+client bytes, isolated Python configuration and a temporary claim store. Doctor
+reports the missing resident; desktop windows and read-only grant status refuse
+with the existing client-error schema/adapter-failed code and an unavailable
+resident diagnosis. The endpoint remains absent, the local claim is released
+and its state returns to available. The reusable CLI smoke adds an explicit
+Mac-only `--unavailable-resident` cell; other platforms refuse that option.
+
+Target-local provider prerequisites were inspected in a claimed Mac appliance:
+Node and pnpm are available, while Codex was not found on the inspected login
+PATH. No provider installation or model control task was performed. The
+passwordless shutdown command refused; guest-native System Events shutdown
+then succeeded. Power-off is independently confirmed, the controller claim is
+released and the canonical login credential remains ready. This inspection is
+preparation for provider-driven control, not its acceptance.

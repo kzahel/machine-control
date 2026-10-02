@@ -58,6 +58,16 @@ unavailable. The caller receives the existing typed failure and can ask the
 operator to open MC. Mutations and captures retain the shared resident's route,
 generation, delivery, effect and uncertainty reporting.
 
+**Current:** Mac installed-client acceptance includes an explicitly absent
+socket and isolated claim store. Doctor reports `resident: unavailable`, and
+desktop enumeration/read-only grant status refuse with the existing
+`machine-control-client-error/v0` / `adapter_failed` result and resident
+unavailability diagnosis on stderr. The endpoint stays absent and the claim
+returns to available in cleanup. Run `tests/desktop/cli-installed.py --client
+INSTALLED_COMMAND --unavailable-resident` on Mac to reproduce this negative
+cell. The flag refuses on other platforms; it does not establish their native
+resident recovery or any successful control route.
+
 [`cli-installed.py`](../tests/desktop/cli-installed.py) tests offline discovery,
 isolated runtime use and bundled claim dependencies from an unrelated directory.
 Archive traversal, external links, unused terminal-data aliases,
