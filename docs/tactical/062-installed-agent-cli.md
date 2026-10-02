@@ -201,3 +201,28 @@ resident stays ready; temporary app/runtime/auth/data are removed, initial
 power-off restored and claims released. [YA's execution record](../../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md#full-ya-app-close-restart-and-crash-result)
 owns the dependency staging and failed-attempt details. Native grant expiry,
 signed replacement, Windows/Linux parity and legacy retirement remain open.
+
+## Installed Mac native grant expiry result
+
+The new `tests/macos/cli-grant-expiry.py` passes against the source-independent
+signed Mac assembly. The controller owns the exact appliance claim and stages
+the app; the guest owns a separate local-host claim. An independent standing
+observer drives the candidate's visible native approval. The candidate loads a
+temporarily stricter workstation policy, and the trusted file is restored before
+the probe begins. An observe-only request through the installed CLI receives a
+timed 60-second grant and can observe the deployed AppKit fixture.
+
+The probe waits for the real deadline without changing the clock or grant
+state. Native status reports the grant ended as `expired`; another installed
+CLI observation refuses with `approval_required`. The candidate PID remains
+unchanged. Finally, the probe resolves pending approval and revokes access;
+the controller reaps owned candidate/fixture processes, removes staging,
+confirms original resident readiness, restores initial power-off and releases
+claims. No installed application or credential is replaced.
+
+The first attempt failed on harness assumptions: the Tauri approval label is
+`Allow access`, and successful native actions may omit `data`. Its cleanup
+restored power-off and released the controller claim. The corrected fresh run
+passes. Python syntax checks and all 61 release tests pass. This closes the Mac
+native grant expiry cell; signed app replacement, Windows/Linux acceptance,
+public picker approval and legacy retirement remain open.

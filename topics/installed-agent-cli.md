@@ -96,8 +96,19 @@ owned YA process crash preserve the independently started MC resident's exact
 PID, generation and held claim. The orphaned Codex group is checked, reaped and
 observed gone; original resident readiness, initial power-off and released
 claims are confirmed. [YA's tactical result](../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md#full-ya-app-close-restart-and-crash-result)
-owns this probe. Native grant expiry/replacement and Windows/Linux lifecycle
-parity remain separate.
+owns this probe. Signed replacement and Windows/Linux lifecycle parity remain
+separate.
+
+**Current:** `tests/macos/cli-grant-expiry.py` passes through the installed signed
+Mac client with separate controller/host claims. A candidate loads workstation
+approval policy while the independent appliance observer retains standing
+policy; the trusted policy file is restored before the probe. Native visible
+approval issues an observe-only 60-second grant. Fixture observation succeeds,
+then actual elapsed-time expiry reports `expired` and refuses observation with
+`approval_required` while the same candidate process stays alive. No clock or
+grant-state mutation is used. Cleanup disarms access, reaps the owned candidate
+and fixture, removes staging, restores initial power-off and releases claims.
+This closes Mac native grant expiry, separately from signed app replacement.
 
 [`cli-installed.py`](../tests/desktop/cli-installed.py) tests offline discovery,
 isolated runtime use and bundled claim dependencies from an unrelated directory.
