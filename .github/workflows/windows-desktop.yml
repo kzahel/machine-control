@@ -199,7 +199,11 @@ jobs:
           cargo clippy --manifest-path src-tauri/Cargo.toml --target '${{ matrix.target }}' --all-targets --locked -- -D warnings
           if ($LASTEXITCODE -ne 0) { throw 'Windows Rust checks failed' }
           pnpm tauri build --target '${{ matrix.target }}' --bundles nsis --config (Join-Path $env:RUNNER_TEMP 'mc-windows-signing.json')
-          if ($LASTEXITCODE -ne 0) { throw 'Signed desktop build failed' }
+          if ($LASTEXITCODE -ne 0) {
+            $hookError = Join-Path $env:RUNNER_TEMP 'mc-signing-hook-error.txt'
+            if (Test-Path -LiteralPath $hookError) { Get-Content -LiteralPath $hookError }
+            throw 'Signed desktop build failed'
+          }
           New-Item -ItemType Directory '../artifacts/desktop' | Out-Null
           Copy-Item "src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe" '../artifacts/desktop/'
           $installer = (Get-ChildItem '../artifacts/desktop/*-setup.exe').FullName
