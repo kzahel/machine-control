@@ -190,3 +190,14 @@ appliance resident remains ready; the controller restores initial power-off
 and releases its claim. This closes the Mac installed claim/fencing and owned
 resident recovery cell. It does not prove app replacement, native grant expiry,
 YA session close/crash or Windows/Linux lifecycle parity.
+
+YA's subsequent full-app lifecycle probe closes the Mac close/restart/crash
+isolation cell. Two real local Codex turns read only installed instructions and
+identity through the signed assembly. Verified Supervisor abort, full app
+disposal/fresh restart and abrupt loss of a separate YA process each preserve
+the independent MC PID, native generation and held host claim. Codex's separate
+owned group is checked, killed and observed gone. The original appliance
+resident stays ready; temporary app/runtime/auth/data are removed, initial
+power-off restored and claims released. [YA's execution record](../../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md#full-ya-app-close-restart-and-crash-result)
+owns the dependency staging and failed-attempt details. Native grant expiry,
+signed replacement, Windows/Linux parity and legacy retirement remain open.

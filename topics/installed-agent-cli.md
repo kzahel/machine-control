@@ -89,6 +89,16 @@ the controller claim is released and initial power-off is restored. This is
 claim/resident recovery evidence, not app replacement, native grant expiry,
 YA session-close/crash behavior or Windows/Linux lifecycle parity.
 
+**Current:** YA's separate full-app lifecycle probe now also passes in the
+source-independent Mac staging. Real Codex offline instructions/identity turns,
+verified Supervisor session close, full app disposal/fresh restart and an abrupt
+owned YA process crash preserve the independently started MC resident's exact
+PID, generation and held claim. The orphaned Codex group is checked, reaped and
+observed gone; original resident readiness, initial power-off and released
+claims are confirmed. [YA's tactical result](../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md#full-ya-app-close-restart-and-crash-result)
+owns this probe. Native grant expiry/replacement and Windows/Linux lifecycle
+parity remain separate.
+
 [`cli-installed.py`](../tests/desktop/cli-installed.py) tests offline discovery,
 isolated runtime use and bundled claim dependencies from an unrelated directory.
 Archive traversal, external links, unused terminal-data aliases,
