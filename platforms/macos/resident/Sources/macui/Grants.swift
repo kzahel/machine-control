@@ -45,7 +45,8 @@ struct Grant {
     let id: String
     let scopes: Set<GrantScope>
     let issuedAt: Date
-    let expiresAt: Date
+    /// Nil only for access manually armed by the local person until Stop.
+    let expiresAt: Date?
     let reason: String
     let requester: String
     let approver: String
@@ -55,8 +56,9 @@ struct Grant {
             "grantId": id,
             "scopes": scopes.sorted().map(\.rawValue),
             "issuedAt": ISO8601DateFormatter().string(from: issuedAt),
-            "expiresAt": ISO8601DateFormatter().string(from: expiresAt),
-            "remainingSeconds": max(0, Int(expiresAt.timeIntervalSince(now))),
+            "lifetime": expiresAt == nil ? "until_stopped" : "timed",
+            "expiresAt": expiresAt.map { ISO8601DateFormatter().string(from: $0) as Any } ?? NSNull(),
+            "remainingSeconds": expiresAt.map { max(0, Int($0.timeIntervalSince(now))) as Any } ?? NSNull(),
             "reason": reason,
             "requester": requester,
             "approver": approver,
@@ -198,7 +200,7 @@ final class GrantBroker {
 
     /// The live grant, after retiring an expired one.
     var activeGrant: Grant? {
-        if let current = grant, current.expiresAt <= now() {
+        if let expiry = grant?.expiresAt, expiry <= now() {
             end(reason: "expired")
         }
         return grant
@@ -281,6 +283,21 @@ final class GrantBroker {
         let next = Grant(id: UUID().uuidString.lowercased(), scopes: scopes,
                          issuedAt: issued,
                          expiresAt: issued.addingTimeInterval(TimeInterval(clamped)),
+                         reason: reason, requester: requester, approver: approver)
+        grant = next
+        lastEnded = nil
+        notify()
+        return next
+    }
+
+    /// The local operator can explicitly arm access without a timer. Agent
+    /// requests still receive bounded grants through finishPending. This
+    /// grant stays in memory and uses the same Stop/session revocation path.
+    @discardableResult
+    func issueUntilStopped(scopes: Set<GrantScope>, reason: String,
+                           requester: String, approver: String) -> Grant {
+        let next = Grant(id: UUID().uuidString.lowercased(), scopes: scopes,
+                         issuedAt: now(), expiresAt: nil,
                          reason: reason, requester: requester, approver: approver)
         grant = next
         lastEnded = nil

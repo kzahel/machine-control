@@ -97,6 +97,11 @@ operator window keeps the tray and resident running; Quit ends the process.
 Permission changes may require Restart. Browser integration is optional and
 currently uses the bundled unpacked extension, with explicit user setup.
 
+The Mac source now offers **Until I turn it off** for manually enabled access.
+It removes the timer for the selected scopes; Stop, screen lock/session loss,
+Quit, and Restart still end access. Agent-requested approvals remain timed.
+This option is not in public 0.4.8 and has not had signed installed acceptance.
+
 ## Signed releases and candidates
 
 [Mac desktop `0.3.3`](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.3.3)

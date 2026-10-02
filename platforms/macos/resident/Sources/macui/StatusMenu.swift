@@ -68,8 +68,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         }
         button.image = image
         if let grant = broker.activeGrant, approvalMode {
-            let minutes = Int(ceil(grant.expiresAt.timeIntervalSinceNow / 60))
-            button.title = " \(minutes)m"
+            button.title = grant.expiresAt.map { " \(Int(ceil($0.timeIntervalSinceNow / 60)))m" } ?? " On"
         } else {
             button.title = ""
         }
@@ -97,8 +96,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
                 menu.addItem(disabled("Waiting for approval: \(pending.caller.summary)"))
             } else if let grant = broker.activeGrant {
                 let scopes = grant.scopes.sorted().map(\.rawValue).joined(separator: ", ")
-                let minutes = Int(ceil(grant.expiresAt.timeIntervalSinceNow / 60))
-                menu.addItem(disabled("Active: \(scopes) · \(minutes) min left"))
+                let lifetime = grant.expiresAt.map { "\(Int(ceil($0.timeIntervalSinceNow / 60))) min left" } ?? "until you turn it off"
+                menu.addItem(disabled("Active: \(scopes) · \(lifetime)"))
                 menu.addItem(disabled("For: \(grant.requester)"))
                 menu.addItem(disabled("Reason: \(grant.reason)"))
             } else {

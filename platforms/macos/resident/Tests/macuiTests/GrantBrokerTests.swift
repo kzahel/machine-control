@@ -82,6 +82,49 @@ final class GrantBrokerTests: XCTestCase {
         XCTAssertEqual(broker.lastEnded?.reason, "stop")
     }
 
+    func testManualUntilStoppedHasNoTimerAndRetainsScopeChecks() {
+        let broker = broker()
+        let grant = broker.issueUntilStopped(scopes: [.observe], reason: "manual",
+                                            requester: "local operator", approver: "local_tauri")
+        XCTAssertNil(grant.expiresAt)
+        let json = grant.json(now: clock)
+        XCTAssertEqual(json["lifetime"] as? String, "until_stopped")
+        XCTAssertTrue(json["expiresAt"] is NSNull)
+        XCTAssertTrue(json["remainingSeconds"] is NSNull)
+        clock = clock.addingTimeInterval(30 * 24 * 60 * 60)
+        XCTAssertNil(broker.authorize("capture"))
+        XCTAssertEqual(broker.authorize("input.key")?.code, "approval_required")
+        XCTAssertEqual(broker.authorize("session.unlock")?.code, "operation_not_permitted_by_policy")
+        broker.revoke(reason: "stopped_by_person")
+        XCTAssertEqual(broker.authorize("capture")?.code, "approval_required")
+    }
+
+    func testManualUntilStoppedCanBeRevokedAndNewBrokerStartsOff() {
+        let broker = broker()
+        broker.issueUntilStopped(scopes: [.observe, .control], reason: "manual",
+                                 requester: "local operator", approver: "local_tauri")
+        broker.revoke(reason: "desktop_locked")
+        XCTAssertNil(broker.activeGrant)
+        XCTAssertEqual(broker.lastEnded?.reason, "desktop_locked")
+        broker.issueUntilStopped(scopes: [.observe], reason: "manual",
+                                 requester: "local operator", approver: "local_tauri")
+        XCTAssertNil(self.broker().activeGrant)
+    }
+
+    func testAgentRequestCannotCreateUntilStoppedGrant() throws {
+        let broker = broker()
+        let request = try GrantRequest.parse([
+            "scopes": ["observe"], "reason": "test", "lifetime": "until_stopped",
+            "durationSeconds": 0
+        ], caller: CallerIdentity(uid: 0, chain: [])).get()
+        XCTAssertNil(broker.beginPending(request))
+        let grant = broker.finishPending(.approved(scopes: [.observe], durationSeconds: 0),
+                                         approver: "test")
+        XCTAssertEqual(grant?.expiresAt, clock.addingTimeInterval(60))
+        clock = clock.addingTimeInterval(61)
+        XCTAssertEqual(broker.authorize("capture")?.code, "approval_required")
+    }
+
     func testPendingPromptPausesControlButNotObservation() {
         let broker = broker()
         broker.issue(scopes: [.observe, .control], durationSeconds: 600, reason: "r",
@@ -98,7 +141,7 @@ final class GrantBrokerTests: XCTestCase {
         let grant = broker.finishPending(.approved(scopes: [.observe, .control], durationSeconds: 3600),
                                          approver: "test")
         XCTAssertEqual(grant?.scopes, [.observe])
-        XCTAssertEqual(grant.map { Int($0.expiresAt.timeIntervalSince(clock)) }, 300)
+        XCTAssertEqual(grant?.expiresAt.map { Int($0.timeIntervalSince(clock)) }, 300)
         XCTAssertNil(broker.pending)
     }
 

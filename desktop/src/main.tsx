@@ -24,7 +24,8 @@ type State = {
   deployment: {
     policy: { preset: string; grantMode: string };
     grant: null | {
-      remainingSeconds: number;
+      remainingSeconds: number | null;
+      lifetime?: "timed" | "until_stopped";
       scopes: Scope[];
       requester: string;
       reason: string;
@@ -55,6 +56,7 @@ type State = {
   version: string;
   socket: string;
   stopShortcutAvailable: boolean;
+  manualUntilStoppedSupported?: boolean;
   updateInstallSupported?: boolean;
 };
 const labels: Record<Scope, string> = {
@@ -219,8 +221,10 @@ function App() {
                 </h1>
                 {grant && (
                   <p className="grant-detail">
-                    {grant.requester} · {Math.ceil(grant.remainingSeconds / 60)}{" "}
-                    min left
+                    {grant.requester} ·{" "}
+                    {grant.lifetime === "until_stopped"
+                      ? "Until you turn it off"
+                      : `${Math.ceil((grant.remainingSeconds ?? 0) / 60)} min left`}
                   </p>
                 )}
                 {standing && <p className="grant-detail">Appliance policy</p>}
@@ -261,12 +265,22 @@ function App() {
                     <option value={900}>15 minutes</option>
                     <option value={1800}>30 minutes</option>
                     <option value={3600}>1 hour</option>
+                    {state?.manualUntilStoppedSupported && (
+                      <option value={0}>Until I turn it off</option>
+                    )}
                   </select>
                 </label>
                 <button
                   className="primary"
                   disabled={busy || !state || standing || scopes.length === 0}
-                  onClick={() => void act({ method: "arm", scopes, duration })}
+                  onClick={() =>
+                    void act({
+                      method: "arm",
+                      scopes,
+                      duration,
+                      lifetime: duration === 0 ? "until_stopped" : "timed",
+                    })
+                  }
                 >
                   Enable access
                 </button>

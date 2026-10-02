@@ -63,6 +63,16 @@ request|status|revoke`. CLI/doctor work with the signed Tauri resident in Tart.
 A full signed-product desktop task through this adapter on a physical Mac
 has not been established by the current acceptance records.
 
+**Current (2026-10-02):** Public signed/notarized ARM64 `0.4.8` now has a
+bounded physical-Mac smoke test through the common host adapter: visible
+macOS consent, off-state refusal, local Tauri approval, native AX button
+action with an independent counter effect, exact-window Quartz capture,
+and keyboard delivery to the fixture text field. Access was revoked and the
+fixture and target-use claim were cleaned up. Concurrent human input means
+exact text equality was not established. This is partial physical evidence;
+browser, restart/update, lock, emergency Stop, and full product acceptance
+remain open.
+
 **Current:** The optional root unlock broker still authenticates the resident,
 not the original caller; workstation policy does not register protected
 operations, and host installation installs no root helper.
@@ -153,6 +163,16 @@ owns packaging and exact signed-artifact validation.
 ## Workstation grant model
 
 **Current:** In the MVP, the workstation preset is off by default.
+
+**Decision:** The Mac local operator can choose **Until I turn it off** when
+manually enabling selected scopes. That in-memory grant has no timer and
+reports `lifetime: until_stopped` with null expiry and remaining seconds.
+Stop, caller revocation, leaving an unlocked desktop, and resident exit still
+end access. Restart starts with access off. Agent approval requests retain
+bounded durations; they cannot create this lifetime through the public socket.
+The shared UI exposes this choice only when the native operator advertises
+support. The implementation is source-tested, not part of public `0.4.8`;
+signed installed acceptance remains open.
 
 - An agent requests a scope (`observe`, `control`, or `browser`), a duration,
   and a free-text reason with `grant request`. The request blocks until approval, denial, or a

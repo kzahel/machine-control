@@ -152,6 +152,13 @@ public 0.3.3 production-feed installation with one legacy reopen.
 release/update evidence. Physical-host and Intel runtime acceptance remain
 separate gates.
 
+**Current (2026-10-02), `live-tested`, native provider on physical ARM64 macOS:**
+The public signed Tauri `0.4.8` has partial physical smoke evidence for visible
+consent/approval, native semantics and independently observed fixture action,
+window capture, input delivery, and revocation. The
+[host topic](../../topics/host-control.md) owns the bounded result and omissions;
+full physical product acceptance remains open.
+
 ## Owned authorization unlock prototype
 
 **Current (2026-09-10), `built` and `live-tested`:** An original Apple

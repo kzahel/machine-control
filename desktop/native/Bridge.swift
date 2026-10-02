@@ -99,6 +99,7 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                     "permissions": ["accessibility": setup.accessibility, "screenRecording": setup.screen == .allowed],
                     "browser": server.browser.statusJSON, "activity": server.broker.audit.reversed().prefix(30).map(\.json),
                     "stopShortcutAvailable": desktopHotKey != nil,
+                    "manualUntilStoppedSupported": true,
                     "socket": server.socketPath, "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "development"]
                 if let pending = desktopApprover.request {
                     state["pending"] = ["id": pending.id, "reason": pending.reason, "caller": pending.caller.summary,
@@ -113,12 +114,22 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
             case "arm":
                 guard !desktopUpdating, server.broker.policy.grantMode == .approval, server.broker.pending == nil,
                       let names = command["scopes"] as? [String], !names.isEmpty,
-                      names.allSatisfy({ GrantScope(rawValue: $0) != nil }),
-                      let duration = command["duration"] as? Int, GrantRequest.durationRange.contains(duration) else {
+                      names.allSatisfy({ GrantScope(rawValue: $0) != nil }) else {
                     throw MacUIError.usage("Choose access and duration while no approval is pending")
                 }
-                server.broker.issue(scopes: Set(names.compactMap(GrantScope.init(rawValue:))), durationSeconds: duration,
-                    reason: "Manually enabled by the person", requester: "local operator", approver: "local_tauri")
+                let scopes = Set(names.compactMap(GrantScope.init(rawValue:)))
+                let lifetime = command["lifetime"] as? String ?? "timed"
+                if lifetime == "until_stopped" {
+                    server.broker.issueUntilStopped(scopes: scopes,
+                        reason: "Manually enabled by the person", requester: "local operator", approver: "local_tauri")
+                } else {
+                    guard lifetime == "timed", let duration = command["duration"] as? Int,
+                          GrantRequest.durationRange.contains(duration) else {
+                        throw MacUIError.usage("Choose a supported access duration")
+                    }
+                    server.broker.issue(scopes: scopes, durationSeconds: duration,
+                        reason: "Manually enabled by the person", requester: "local operator", approver: "local_tauri")
+                }
             case "prepare_update":
                 guard !desktopUpdating, server.broker.policy.grantMode == .approval,
                       server.broker.grant == nil, server.broker.pending == nil else {

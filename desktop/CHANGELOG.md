@@ -12,6 +12,18 @@
 - Add Linux Chrome integration and Debian/AppImage candidates for x64 and ARM64.
   Include Linux in the single desktop release and signed AppImage update path.
 
+## [0.4.9]
+
+- On Mac, add **Until I turn it off** when manually enabling access for the
+  selected scopes. The active-access status shows this lifetime without a timer.
+- Stop access, screen lock/session loss, Quit, and Restart still end access.
+  Access starts off after restarting the app or Mac.
+- Agent-requested approvals remain time-limited. Windows retains timed access.
+
+This patch includes signed Mac Apple silicon/Intel and Windows x64/ARM64
+packages. Linux packages remain planned for 0.5.0. Full physical-Mac product
+acceptance and Intel/Windows ARM64 execution remain separate coverage gaps.
+
 ## [0.4.8]
 
 - First public Windows desktop preview for x64 and ARM64, alongside Mac.
