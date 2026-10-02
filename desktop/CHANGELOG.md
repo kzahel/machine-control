@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [0.5.1]
+## [0.5.2]
 
 - Check for updates silently five seconds after startup and daily while the
   desktop app runs, independently of its settings window. Show available

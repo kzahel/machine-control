@@ -229,7 +229,7 @@ fn run_inner() -> Result<i32, String> {
         .set_nonblocking(true)
         .map_err(|_| "could not configure private endpoint")?;
     for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
-        unsafe { libc::signal(signal, interrupted as libc::sighandler_t) };
+        unsafe { libc::signal(signal, interrupted as *const () as libc::sighandler_t) };
     }
     let mut child = OwnedSudo(
         Command::new("/usr/bin/sudo")

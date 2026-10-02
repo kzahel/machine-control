@@ -1,4 +1,4 @@
-# 063 — Six-platform desktop 0.5.1 release
+# 063 — Six-platform desktop 0.5.2 release
 
 Status: in progress.
 
@@ -9,7 +9,7 @@ Owning topics: [native distribution](../../topics/native-distribution.md),
 ## Objective and completion conditions
 
 Release a new version on every packaged platform, as requested. Publish desktop
-0.5.1 for Mac Apple silicon/Intel, Windows x64/ARM64, and Linux x64/ARM64.
+0.5.2 for Mac Apple silicon/Intel, Windows x64/ARM64, and Linux x64/ARM64.
 Include native update discovery, the bundled Python CLI, and Mac sudo helpers.
 
 - Require meaningful notes and one exact main source across all six targets.
@@ -49,4 +49,9 @@ restore working edits, and keep execution gaps explicit.
 
 ## Validation and final result
 
-Pending hosted builds and public delivery verification.
+The initial 0.5.1 attempt at `fc10c83` caught a strict Rust lint in the
+new Mac sudo helper: a function item was cast directly to the integer signal
+handler type. Cast through a function pointer without changing delivery or
+authentication behavior. Cancel the doomed workflow; preserve its annotated
+`desktop-v0.5.1` tag and do not publish partial packages. Restart every build
+at one repaired source as 0.5.2. Public delivery verification remains pending.
