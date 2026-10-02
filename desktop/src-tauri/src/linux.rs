@@ -59,6 +59,19 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit());
+    // AppImage libraries belong to the Tauri process. The system Python/GI
+    // companion uses the installed desktop libraries and typelibs instead.
+    for name in [
+        "LD_LIBRARY_PATH",
+        "LD_PRELOAD",
+        "GI_TYPELIB_PATH",
+        "GST_PLUGIN_PATH",
+        "GST_PLUGIN_SYSTEM_PATH",
+        "PYTHONHOME",
+        "PYTHONPATH",
+    ] {
+        command.env_remove(name);
+    }
     // The kernel ends this exact child if its operator dies. Pipe EOF also
     // closes the portal and revokes access; no PID file grants kill authority.
     unsafe {

@@ -71,6 +71,14 @@ update exclusion, Quit, and endpoint removal. Eight portable grant tests,
 150 common-client tests, frontend build, Linux compile/Clippy, and 33 Linux static
 tests pass. Installed product gates remain.
 
+Source-native browser acceptance passes 29 headed Chrome for Testing checks:
+native host registration, scope separation, independent click and Unicode HTTP
+effects, capture/hash, unavailable upload, DevTools evaluation, Stop, stale
+references, and reconnect with Chrome alive through operator replacement.
+The existing Linux appliance live smoke passes with the companion installed as
+a separate ordinary-user profile. Native Linux Clippy passes after the
+supervisor's AppImage environment cleanup and compiled identity additions.
+
 Portable grant/protocol tests, Linux platform smoke, frontend checks,
 Linux native build/package verification, and claimed installed GNOME acceptance
 are required before recording the corresponding support claim.

@@ -2,8 +2,8 @@
 
 Topic: `linux-desktop`
 
-Status: source-native GNOME x64 grant/control acceptance passes; installed app,
-browser, packages, and updates are in progress. No published Linux package.
+Status: source-native GNOME x64 grant/control and browser acceptance passes;
+installed app, packages, and updates are in progress. No published Linux package.
 
 **Decision:** Extend the shared Tauri settings and tray app with an ordinary-user
 Linux companion. Reuse the owned AT-SPI facade, with compositor-mediated XDG
@@ -32,8 +32,11 @@ behavior; [native distribution](native-distribution.md) owns release policy.
 **Current:** The companion passes 45 native GNOME x64 VM checks covering native
 approval/denial, pause, scope enforcement, Stop, expiry, sharing closure, old
 generations/references, capture hashes, and independent semantic, pointer, and
-Unicode effects. Portable grants and native Linux compile/Clippy pass.
+Unicode effects. Another 29 Chrome for Testing checks establish browser scope,
+click and Unicode effects, capture/hash, Stop, stale references, and replacement
+reconnect. Portable grants and native Linux compile/Clippy pass. The existing
+appliance live smoke passes alongside the desktop companion.
 
 **Open:** Installed portal consent and lifetime, native approval protection, tray visibility on GNOME,
-shortcut registration, browser integration, startup, packaged replacement,
+shortcut registration, installed browser integration, startup, packaged replacement,
 architecture coverage, and compatibility with the appliance runtime.

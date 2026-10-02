@@ -32,7 +32,7 @@ fixture_source = args.output.with_suffix(".fixture.py")
 
 def check(name, value):
     results.append({"name": name, "passed": bool(value)})
-    args.output.write_text(json.dumps({"passed": all(v["passed"] for v in results),
+    args.output.write_text(json.dumps({"complete": False, "passed": False,
                                      "checks": results}, indent=2))
     if not value:
         raise AssertionError(name)
@@ -191,6 +191,12 @@ try:
     check("Quit", operator("quit")["ok"])
     child.wait(5)
     check("owned endpoint removed", not endpoint.exists())
+    args.output.write_text(json.dumps({"complete": True, "passed": all(v["passed"] for v in results),
+                                     "checks": results}, indent=2))
+except BaseException as error:
+    args.output.write_text(json.dumps({"complete": True, "passed": False,
+                                     "failure": str(error), "checks": results}, indent=2))
+    raise
 finally:
     if child and child.poll() is None:
         child.stdin.close()

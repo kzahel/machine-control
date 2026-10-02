@@ -27,6 +27,15 @@ class Browser:
         self.host = self.directory / "browser_host.py"
         self.extension = self.directory / "extension"
 
+    def refresh_owned_installation(self):
+        """Refresh an existing opt-in after replacement without opting in again."""
+        config = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+        paths = [config / name / "NativeMessagingHosts" / (HOST_NAME + ".json")
+                 for name in ["google-chrome", "google-chrome-for-testing", "chromium"]]
+        if any(path.exists() and json.loads(path.read_text()).get("path") == str(self.host)
+               for path in paths):
+            self.setup(copy_path=False)
+
     def setup(self, copy_path=True):
         root = Path(__file__).resolve().parent
         self.directory.mkdir(parents=True, mode=0o700, exist_ok=True)

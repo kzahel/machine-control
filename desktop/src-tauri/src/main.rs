@@ -160,6 +160,16 @@ async fn install_update(
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     #[cfg(target_os = "linux")]
+    if args == ["--identity"] {
+        println!(
+            "{}",
+            json!({"schema":"machine-control-desktop-identity/v0",
+            "version":env!("CARGO_PKG_VERSION"), "sourceRevision":env!("MC_SOURCE_REVISION"),
+            "platform":"linux", "arch":std::env::consts::ARCH})
+        );
+        return;
+    }
+    #[cfg(target_os = "linux")]
     if args == ["--stop"] {
         match linux::stop_from_shortcut() {
             Ok(()) => std::process::exit(0),

@@ -16,6 +16,11 @@ import subprocess
 import sys
 import threading
 
+# The resident has no operator window. Exporting its GTK invisible clipboard
+# surface into the AT-SPI bus creates an in-process accessibility recursion.
+# Visible approvals run in their own accessible process below.
+os.environ["NO_AT_BRIDGE"] = "1"
+
 import gi
 
 gi.require_version("Gtk", "3.0")
@@ -87,11 +92,14 @@ class Desktop:
         self.portal = Portal(self.changed)
         self.shortcut = Shortcut(executable)
         self.browser = Browser(self)
+        self.browser.refresh_owned_installation()
         self.dialog = None
         self.dialog_id = None
         self.unlocked = False
         self.stopped = False
         self.directory = runtime_directory()
+        identity = Path(__file__).with_name("desktop-runtime.json")
+        self.identity = json.loads(identity.read_text()) if identity.exists() else {}
         self.endpoint = self.directory / "desktop.sock"
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         # A live socket is never unlinked; Tauri's single-instance gate owns normal launches.
@@ -158,9 +166,11 @@ class Desktop:
             return
         # GTK approval lives separately from the synchronous AT-SPI provider;
         # querying an in-process GTK accessible can deadlock its own main loop.
+        environment = dict(os.environ)
+        environment.pop("NO_AT_BRIDGE", None)
         process = subprocess.Popen(["/usr/bin/python3", str(Path(__file__).with_name("approval.py"))],
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                   stderr=sys.stderr)
+                                   stderr=sys.stderr, env=environment)
         self.dialog = process
         value = {k: pending[k] for k in ["id", "reason", "caller", "duration"]}
         value["parentId"] = os.getpid()
@@ -259,6 +269,7 @@ class Desktop:
             elif operation in {"grant.status", "status"}:
                 result["data"] = {**self.grants.state()["deployment"],
                                   "desktopProduct": True, "ready": self.unlocked,
+                                  "sourceRevision": self.identity.get("sourceRevision"),
                                   "semanticState": "ready" if self.unlocked else "unavailable",
                                   "captureState": "ready" if self.portal.ready else "unavailable",
                                   "inputState": "ready" if self.provider.input_ready() else "unavailable"}
