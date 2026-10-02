@@ -64,8 +64,11 @@ workstation approval/refusal/revocation, an independent AppKit counter effect,
 exact-window capture and artifact retrieval through the installed CLI. This is
 claimed-appliance evidence, not physical-workstation acceptance. Chrome for Testing browser acceptance also passes 21 checks through the
 installed CLI with independent page/Chrome effects, browser PNG retrieval,
-release, worker restart and reconnect. Signed installed replacement, actual YA
-model launch and per-platform evidence remain required before
+release, worker restart and reconnect. A real YA local Codex provider launch
+reads installed instructions/identity and observes the retained browser fixture
+PNG through its native image viewer. Provider-driven control and live/reloaded
+YA views remain separate. Signed installed replacement and per-platform
+evidence remain required before
 retiring any legacy YA component. [Tactical 062](../docs/tactical/062-installed-agent-cli.md)
 records implementation; [YA's migration plan](../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md)
 owns consumer cutover.

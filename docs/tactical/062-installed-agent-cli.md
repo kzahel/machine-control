@@ -64,6 +64,17 @@ installed CLI. It exercises enumeration, semantics/click effects, PNG capture
 and bounded artifact retrieval, release/marker cleanup, debugger cancellation,
 worker restart/reconnect and resumed control. The separate test browser is
 reaped, its temporary profile removed, the native access grant revoked and the
-guest-local claim released. Actual YA provider/model launch remains open. A controller model has also
-inspected the retained native browser PNG and confirmed fixture contents and
-managed tab-strip presentation; this is not a YA media-pipeline pass.
+guest-local claim released. A real YA local Codex provider turn reads installed instructions/identity and
+invokes its native image viewer on the retained browser fixture PNG, correctly
+reporting the visible page button. A controller model also confirms fixture
+contents and managed tab-strip presentation. Provider-driven control and
+live/reloaded YA views remain open; do not infer their acceptance from this
+bounded launcher/image smoke.
+
+The original appliance policy and socket are restored, resident doctor is
+ready, owned candidate/browser/fixture processes are stopped, test files
+removed, and guest shutdown is independently observed. Guest and controller
+claims are released. The canonical login credential remains ready and
+owner-only; no credential changes. Windows/Linux execution and legacy YA
+retirement remain open. The configured Windows appliance is unavailable; no
+private infrastructure or credential locators are recorded here.
