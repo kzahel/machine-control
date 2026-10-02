@@ -175,6 +175,14 @@ jobs:
           New-FileCatalog -Path desktop/src-tauri/native/mc-cli/files.json -CatalogFilePath artifacts/catalog/cli.cat -CatalogVersion 2.0
           ./desktop/scripts/sign-windows.ps1 artifacts/catalog/cli.cat
           Copy-Item artifacts/catalog/cli.cat desktop/src-tauri/native/mc-cli/package.cat
+      - name: Verify catalog-authenticated CLI signing hook before building
+        run: |
+          $resource = Get-ChildItem desktop/src-tauri/native/mc-cli/python -Recurse -File -Filter zlib1.dll | Select-Object -First 1
+          if ($null -eq $resource) { throw 'Expected pinned Python DLL missing' }
+          # Exercise the same Windows PowerShell host Tauri uses, with direct
+          # error output instead of its opaque custom-command build failure.
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File desktop/scripts/sign-windows-bundle.ps1 $resource.FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Python CLI bundle signing hook preflight failed' }
       - name: Set version and sign app, uninstaller, and installer
         working-directory: desktop
         env:
