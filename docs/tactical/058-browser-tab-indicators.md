@@ -1,6 +1,6 @@
 # 058 — Browser tab indicators and desktop 0.4.10
 
-Status: active
+Status: complete
 
 Owning topics: [browser control](../../topics/browser-control.md) and
 [native distribution](../../topics/native-distribution.md).
@@ -65,4 +65,38 @@ A target-native window capture confirms blue groups and pointer favicons.
 The run covers navigation, site icon changes, missing-icon cache cleanup,
 site adoption of the fallback, renamed/user groups, release, debugger-cancel
 expiry, extension reload recovery, native reconnect, and resumed control.
-Exact signed-candidate and publication results remain pending.
+
+Desktop `0.4.10` is published from source
+`2331c5bb963155613745da945edd76e14cbca7a2`:
+
+- [Candidate run 36997242156](https://github.com/kzahel/machine-control/actions/runs/36997242156)
+  builds and authenticates Mac ARM64/Intel and Windows x64/ARM64. All receipts
+  bind workflow attempt `36997242156.1`. Local verification passes both Mac
+  publisher signatures, Gatekeeper, notarization/stapling, signed updater
+  version, and tamper rejection; both Windows installers pass updater
+  signatures, signed version, provenance, inventory, and tamper rejection.
+- The exact signed ARM64 app, embedded resident, and bundled extension pass
+  the same 20 live checks in the Mac VM under its standing appliance policy.
+  Packaged extension bytes match source. A fresh native window capture confirms
+  the pointers and blue group. The runner activates the browser immediately
+  before capture and allows Chrome to repaint after an earlier stale frame.
+- [Promotion run 36999819339](https://github.com/kzahel/machine-control/actions/runs/36999819339)
+  publishes those bytes without rebuilding. All 17 re-downloaded public assets
+  match candidate bytes and GitHub SHA-256 digests; `latest.json` matches
+  apart from its publication timestamp.
+- All four website download redirects select `desktop-v0.4.10`. Production
+  update routes return matching signed metadata and notes for `0.4.9`, and
+  HTTP 204 for current `0.4.10` clients.
+- The original appliance app, policy, and resident are restored and doctor is
+  ready. Owned fixture/candidate state is removed, all test processes are
+  reaped, the initial suspended power state is restored, and the claim is
+  released. The stored login credential remains ready and owner-only; no
+  credential changes. Unrelated working changes are preserved.
+
+[Public release](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.4.10)
+contains all four Mac/Windows targets. This targeted run does not establish
+workstation browser approval UX, live same-scope grant replacement, Intel,
+Windows marker execution, or physical-Mac acceptance. Worker and Swift tests
+cover grant replacement/revocation; prior operator/grant acceptance remains
+separate in the [matrix](../desktop-acceptance.md). Linux publication remains
+with `0.5.0`. No controller desktop input or outer VM UI is used.

@@ -3,14 +3,14 @@
 Topic: `native-distribution`
 
 Status: signed Windows workstation preview and direct YA Node/Codex consumer
-accepted; signed Mac desktop candidates are verified and accepted in ARM64
-Tart. Mac desktop `0.3.5` is published; public packages, latest download routes,
-production feeds, and installed ARM64 public-client acceptance are verified.
-Fixed sender code passes automatic production-feed handoff; legacy 0.3.3/0.3.4
-senders may need one reopen after installation. YA
-download/update code is implemented, while public Windows consumer acceptance
-is open. The shared Windows Tauri candidate passes signed x64 VM acceptance;
-its ARM64 product execution and public feed remain open.
+accepted. Unified Mac/Windows desktop `0.4.10` is published; package signatures,
+public downloads, and production feeds are verified for all four architectures.
+ARM64 Tart has targeted signed browser-indicator evidence; Windows x64 retains
+its earlier installed product acceptance. Intel, Windows ARM64 product execution,
+and full physical product acceptance remain separate. Linux `0.5.0` packages
+remain candidates. Legacy Mac `0.3.3`/`0.3.4` update senders may need one reopen;
+fixed senders pass production-feed handoff. YA public Windows component consumer
+acceptance remains open.
 
 The [desktop acceptance matrix](../docs/desktop-acceptance.md) indexes behavior
 by package family, architecture, and virtual/physical environment.
@@ -191,7 +191,7 @@ nine draft asset hashes/sizes, source identity, changelog and updater metadata,
 then published the same draft by ID without replacing bytes or its tag. Future
 CI publication now resolves and verifies the draft by ID. Both re-downloaded
 public DMGs and archives passed publisher signatures, notarization/stapling,
-updater signature/version and tamper rejection. The live download page selects the unified `0.4.9` release for all four
+updater signature/version and tamper rejection. The live download page selects the unified `0.4.10` release for all four
 architecture routes. Both the shared server and website proxy return signed
 archive metadata with cumulative required changelogs for older clients and 204
 for current clients. Product registration and the website proxy preserve the
@@ -243,3 +243,11 @@ routes select 0.4.9; production metadata returns its signed packages to 0.4.8
 clients and 204 to current clients. Targeted signed ARM64 Tart acceptance proves
 manual until-stopped access, Stop, Restart, and bounded agent approvals.
 [Tactical 057](../docs/tactical/057-macos-until-stopped-release.md) owns the result.
+
+**Current:** [Public desktop 0.4.10](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.4.10)
+promotes exact authenticated Mac/Windows candidates. Targeted signed ARM64
+Tart testing proves owned browser markers, grouping, restoration, and reconnect
+under the standing appliance policy. Public assets, all download redirects,
+and signed production metadata match the accepted candidates.
+[Tactical 058](../docs/tactical/058-browser-tab-indicators.md) owns the result;
+workstation browser approval and unexecuted architecture coverage stay separate.

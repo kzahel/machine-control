@@ -193,7 +193,10 @@ with tempfile.TemporaryDirectory(prefix="mc-indicator-browser-") as scratch:
         poll(lambda: marker("/new"))
         managed = js(f"chrome.tabGroups.get({tab(new)['groupId']})")
         check("new tab named blue group", managed["title"] == "Machine Control" and managed["color"] == "blue")
-        time.sleep(.5)
+        # Re-present Chrome and allow it to paint before reviewing the tab
+        # strip; an earlier activation did not guarantee a fresh window frame.
+        call("application.activate", target=str(browser.pid))
+        time.sleep(3)
         image = call("capture", target=str(browser.pid), scope="window")
         artifact = Path(image["artifactPath"])
         shutil.copyfile(artifact, args.output.with_suffix(".png"))

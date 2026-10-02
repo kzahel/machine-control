@@ -55,7 +55,7 @@ attachment can display Chrome's own indicator.
 
 **Open:** Windows file upload and streamed raw CDP WebSockets; browser-level
 target emulation on all platforms; Linux registration; other Chromium browsers;
-Web Store distribution; full signed Mac extension acceptance. No Windows ARM64
+Web Store distribution; signed Mac workstation browser approval acceptance. No Windows ARM64
 execution is inferred from the x64 browser evidence.
 
 ## Fit and next evidence
@@ -65,7 +65,9 @@ adds blue pointer favicons on controlled tabs and a blue **Machine Control**
 group for newly created agent tabs. Generation-fenced cleanup preserves site
 icon updates and user group edits. Worker recovery restores recorded changes
 without inferring authority. [058](../../docs/tactical/058-browser-tab-indicators.md)
-owns the targeted live evidence and release result. The
+owns the 20-check source and exact signed ARM64 Mac VM evidence, fresh native
+visual capture, and desktop 0.4.10 release result. The signed run uses a standing
+appliance policy; it does not add workstation browser approval evidence. The
 [Codex extension review](codex-browser-extension.md) supplies source-reviewed
 interaction patterns for those indicators; no third-party code was adopted.
 
@@ -76,3 +78,8 @@ local/outside artifact transfer and browser-open updater replacement pass.
 The incoming installer
 pauses only the owning native-host manifest during replacement, preventing
 Chrome retries from locking its executable.
+
+**Open:** In the headed fixture, a trusted CDP mouse dispatch to an inactive tab
+acknowledged delivery without changing the page oracle. Selecting that tab
+before dispatch produced the effect. Browser pointer activation/effect remains
+a separate gap; marker visibility does not establish input effect.

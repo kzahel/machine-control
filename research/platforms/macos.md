@@ -274,6 +274,15 @@ plain Foundation subprocess launch returned EBADF. The
 separates confirmed mechanism from the two historical incidents whose raw
 logs are unavailable, and tracks fixed workload/recovery evidence.
 
+**Current (2026-10-02), `live-tested`, signed ARM64 browser provider in Tart:**
+The exact desktop `0.4.10` package passes controlled-tab favicon/group lifecycle
+and browser fixture effects through its embedded resident under the appliance
+policy. Native capture confirms tab-strip presentation. Workstation browser
+approval UX, physical execution, and Intel execution stay separate.
+[Tactical 058](../../docs/tactical/058-browser-tab-indicators.md) owns the
+bounded evidence and release; the
+[provider dossier](../providers/chrome-extension.md) owns route facts and gaps.
+
 ## Current direction
 
 **Decision:** Preserve Cua as a replaceable common-plane adapter and Peekaboo as
