@@ -59,6 +59,22 @@ fn native_command(_: Value) -> Result<Value, String> {
     Err("Desktop workstation control is currently available on macOS; this platform adapter is not installed".into())
 }
 
+// AT-SPI can call back into this GTK application while the resident handles
+// another application. Never wait for Linux IPC on GTK's event thread.
+fn schedule_native(
+    app: &tauri::AppHandle,
+    task: impl FnOnce() + Send + 'static,
+) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        let _ = app;
+        tauri::async_runtime::spawn_blocking(task);
+        Ok(())
+    }
+    #[cfg(not(target_os = "linux"))]
+    app.run_on_main_thread(task).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 async fn operator_command(
     app: tauri::AppHandle,
@@ -69,7 +85,7 @@ async fn operator_command(
         return Err("Operator window required".into());
     }
     let (send, receive) = std::sync::mpsc::channel();
-    app.run_on_main_thread(move || {
+    schedule_native(&app, move || {
         let _ = send.send(native_command(command));
     })
     .map_err(|e| e.to_string())?;
@@ -88,7 +104,7 @@ async fn restart_application(
     }
     let (send, receive) = std::sync::mpsc::channel();
     let handle = app.clone();
-    app.run_on_main_thread(move || {
+    schedule_native(&app, move || {
         #[cfg(target_os = "windows")]
         let result = {
             let _ = native_command(json!({"method":"stop"}));
@@ -144,7 +160,7 @@ async fn install_update(
         .map_err(|e| e.to_string())?;
     let (send, receive) = std::sync::mpsc::channel();
     let restart = app.clone();
-    app.run_on_main_thread(move || {
+    schedule_native(&app, move || {
         // Check immediately before replacement on the resident's serial
         // main thread. No grant or approval can race bundle replacement.
         let result = native_command(json!({"method":"prepare_update"}))
@@ -253,11 +269,10 @@ fn main() {
                 loop {
                     std::thread::sleep(std::time::Duration::from_secs(1));
                     let (send, receive) = std::sync::mpsc::channel();
-                    if handle
-                        .run_on_main_thread(move || {
-                            let _ = send.send(native_command(json!({"method":"state"})));
-                        })
-                        .is_err()
+                    if schedule_native(&handle, move || {
+                        let _ = send.send(native_command(json!({"method":"state"})));
+                    })
+                    .is_err()
                     {
                         break;
                     }
@@ -324,15 +339,30 @@ fn main() {
                         }
                     }
                     "stop" => {
+                        #[cfg(target_os = "linux")]
+                        tauri::async_runtime::spawn_blocking(|| {
+                            let _ = native_command(json!({"method":"stop"}));
+                        });
+                        #[cfg(not(target_os = "linux"))]
                         let _ = native_command(json!({"method":"stop"}));
                     }
                     "quit" => {
-                        let _ = native_command(json!({"method":"stop"}));
-                        #[cfg(target_os = "windows")]
-                        windows::shutdown();
                         #[cfg(target_os = "linux")]
-                        linux::shutdown();
-                        app.exit(0);
+                        {
+                            let handle = app.clone();
+                            tauri::async_runtime::spawn_blocking(move || {
+                                let _ = native_command(json!({"method":"stop"}));
+                                linux::shutdown();
+                                handle.exit(0);
+                            });
+                        }
+                        #[cfg(not(target_os = "linux"))]
+                        {
+                            let _ = native_command(json!({"method":"stop"}));
+                            #[cfg(target_os = "windows")]
+                            windows::shutdown();
+                            app.exit(0);
+                        }
                     }
                     _ => {}
                 })

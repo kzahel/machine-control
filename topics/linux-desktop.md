@@ -30,14 +30,14 @@ there is no Linux-only publication flow.
 acceptance. [Linux resident control](linux-resident-control.md) owns appliance
 behavior; [native distribution](native-distribution.md) owns release policy.
 
-**Current:** The companion passes 45 native GNOME x64 VM checks covering native
+**Current:** The companion passes 53 native GNOME x64 VM checks covering native
 approval/denial, pause, scope enforcement, Stop, expiry, sharing closure, old
 generations/references, capture hashes, and independent semantic, pointer, and
 Unicode effects. Another 29 Chrome for Testing checks establish browser scope,
 click and Unicode effects, capture/hash, Stop, stale references, and replacement
 reconnect. Portable grants and native Linux compile/Clippy pass. The existing
 appliance live smoke passes alongside the desktop companion. A development
-AppImage passes 43 native UI/lifecycle checks, including the tray, single
+AppImage passes 53 native UI/lifecycle and independent effect checks, including the tray, single
 instance, startup registration, real Stop shortcut, native approval, portal
 capture/hash, Restart, close-to-tray, and Quit. Both architectures' initial CI
 packages pass authentication; final corrected candidate acceptance remains open.

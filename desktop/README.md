@@ -67,6 +67,7 @@ pnpm tauri build --config src-tauri/tauri.linux.conf.json --bundles deb,appimage
 ```
 
 Local packages establish development behavior, not production authentication.
+See the [Linux guide](LINUX.md) for dependencies, sharing, updates, and removal.
 
 On a Linux workstation, `bin/machine-control --target host` reaches the app's
 ordinary-user socket. For a claimed Linux appliance, select the product explicitly

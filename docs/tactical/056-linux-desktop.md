@@ -102,3 +102,10 @@ portal artifact retrieval through both routes. Native acceptance now passes 53
 checks including common reply timing, drag arguments, and foreground targeting.
 The unified 0.5.0 release transaction has 12 portable publication tests covering
 all six architectures, 29 assets, missing Linux refusal, and sender exclusion.
+
+Installed effect testing found a GTK/AT-SPI callback deadlock hidden by the
+source-only resident run. Linux operator IPC and lifecycle waits now run outside
+GTK's event thread; the companion still serializes grant decisions. Development
+installed acceptance passes 53 checks with independent semantic, pointer and
+Unicode effects and operator-loss cleanup while the user fixture survives.
+The earlier signed candidate is not accepted; a corrected build is required.

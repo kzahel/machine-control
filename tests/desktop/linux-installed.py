@@ -19,6 +19,7 @@ parser.add_argument("--runtime", type=Path, required=True)
 parser.add_argument("--output", type=Path, required=True)
 parser.add_argument("--consent-actor", type=Path, required=True)
 parser.add_argument("--revision")
+parser.add_argument("--fixture", type=Path)
 args = parser.parse_args()
 sys.path.insert(0, str(args.runtime))
 import linuxui
@@ -30,6 +31,8 @@ log = args.output.with_suffix(".log").open("w")
 endpoint = Path(os.environ["XDG_RUNTIME_DIR"]) / "machine-control-desktop/desktop.sock"
 bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
 startup = shortcut = False
+fixture_unit = "mc-desktop-installed-fixture.service"
+fixture_owned = False
 
 
 def report(complete=False, failure=None):
@@ -127,11 +130,18 @@ def menu(label):
 
 
 try:
-    check("no predecessor resident", not endpoint.exists())
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as predecessor:
+        try:
+            predecessor.connect(str(endpoint))
+        except (FileNotFoundError, ConnectionRefusedError):
+            alive = False
+        else:
+            alive = True
+    check("no predecessor resident", not alive)
     if args.app.suffix == ".AppImage":
         args.app.chmod(args.app.stat().st_mode | 0o100)
     process = subprocess.Popen([str(args.app)], stdout=log, stderr=log, start_new_session=True)
-    poll(lambda: endpoint.exists())
+    poll(lambda: call("status")["accepted"])
     state = call("status")
     check("installed resident ready", state["accepted"] and state["data"]["ready"])
     if args.revision:
@@ -213,6 +223,39 @@ try:
     print("Own foreground refusal", json.dumps(refusal), file=log, flush=True)
     check("own foreground input protected", not refusal["accepted"] and refusal["errorCode"] in {
         "operator_protected", "foreground_unavailable"})
+    if args.fixture:
+        fixture_state = args.output.with_suffix(".fixture.json")
+        fixture_state.unlink(missing_ok=True)
+        fixture_source = args.output.with_suffix(".fixture.py")
+        fixture_source.write_text(args.fixture.read_text().replace(
+            'Path.home() / ".cache/linuxvm-testbed/fixture/state.json"',
+            "Path(" + repr(str(fixture_state)) + ")"))
+        subprocess.run(["systemd-run", "--user", "--quiet", "--collect", "--unit", fixture_unit,
+                        "/usr/bin/python3", str(fixture_source)], check=True)
+        fixture_owned = True
+        poll(lambda: fixture_state.exists())
+        def fixture():
+            return json.loads(fixture_state.read_text())
+        elements = call("snapshot", target="machine-control-fixture", maxDepth=16)["data"]["elements"]
+        button = next(n for n in elements if n["label"] == "Semantic Increment")
+        before = fixture()["semanticPresses"]
+        check("installed semantic delivery", call("action", reference=button["reference"])["accepted"])
+        poll(lambda: fixture()["semanticPresses"] == before + 1)
+        check("installed independent semantic effect", True)
+        canvas = next(n for n in elements if n["label"] == "Visual Canvas")["bounds"]
+        before = fixture()["visualClicks"]
+        check("installed pointer delivery", call("input.click", x=canvas["x"] + canvas["width"] / 2,
+              y=canvas["y"] + canvas["height"] / 2)["accepted"])
+        poll(lambda: fixture()["visualClicks"] == before + 1)
+        check("installed independent pointer effect", True)
+        entry = next(n for n in elements if n["label"] == "Fixture Text")
+        check("installed semantic focus", call("focus", reference=entry["reference"])["accepted"])
+        check("installed Unicode delivery", call("input.text", text="Installed Linux 世界 café",
+              target="machine-control-fixture")["accepted"])
+        poll(lambda: fixture()["text"] == "Installed Linux 世界 café")
+        check("installed independent Unicode effect", True)
+        menu("Open")
+        poll(lambda: widget("Enable access"))
     old = call("status")["generation"]
     menu("Settings")
     press("Restart")
@@ -237,11 +280,26 @@ try:
     menu("Quit")
     poll(lambda: not endpoint.exists())
     check("Quit removes owned endpoint", True)
+    if fixture_owned:
+        process.wait(10)
+        process = subprocess.Popen([str(args.app)], stdout=log, stderr=log, start_new_session=True)
+        poll(lambda: endpoint.exists())
+        poll(lambda: widget("Enable access"))
+        press("Enable access")
+        poll(lambda: call("status")["data"]["grant"])
+        process.kill()
+        process.wait(10)
+        poll(lambda: not endpoint.exists())
+        check("operator loss removes resident endpoint", True)
+        check("independent fixture survives operator loss", subprocess.run(
+              ["systemctl", "--user", "is-active", "--quiet", fixture_unit]).returncode == 0)
     report(complete=True)
 except BaseException as error:
     report(complete=True, failure=str(error))
     raise
 finally:
+    if fixture_owned:
+        subprocess.run(["systemctl", "--user", "stop", fixture_unit], capture_output=True)
     if endpoint.exists():
         try:
             menu("Stop access")
