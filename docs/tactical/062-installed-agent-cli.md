@@ -87,3 +87,16 @@ Staging now omits that data before extraction, with a regression fixture; all
 57 release tests pass. Platform workflows now run the relocation smoke,
 including actual Windows installer bytes. These checks do not establish native
 Linux approval or capture acceptance.
+
+Windows x64 also passes the relocated smoke in a claimed Windows 11 appliance.
+The existing desktop harness now accepts the installed CLI instead of a source
+checkout for control and artifacts. Native PowerShell syntax passes. The conflicting/missing selection run was
+blocked by the guest's script execution policy; it is not counted as passing. Upload through the command's stdin
+timed out; the owned carrier processes were terminated, and SFTP through the
+claimed MC transport delivered the bounded payload successfully. Test payload
+and harness files are removed. This unsigned staging run proves runtime/client
+execution, not the signed desktop package or native approval route.
+The appliance was ready and unlocked before cleanup; clean guest shutdown is
+confirmed and the target-use claim released. Its canonical login credential
+remains ready and owner-only. No installed product or standing policy was
+replaced by this offline client test.

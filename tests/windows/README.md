@@ -105,3 +105,24 @@ setting `CUA_DRIVER_RS_SESSION_IDLE_TTL_SECS=5` and pass `-IdleSeconds 35`.
 The test requires expiry to occur, refuses an old action, obtains a fresh
 observation, and independently verifies exactly one subsequent action. Restore
 the launch environment afterward; normal product launches retain upstream TTLs.
+
+## Desktop app CLI acceptance
+
+`desktop-cli.ps1` runs in the ordinary interactive user session against an
+explicit desktop installation. Select exactly one `-Client` (the installed
+`mc-cli\commands\machine-control.cmd`) or `-Source` checkout. The installed
+route invokes that command for every operation and artifact retrieval; it does
+not invoke a system Python or read the checkout. Verify the candidate's
+publisher and complete CLI/native inventories before running it.
+
+Without `-Fixture`, the harness proves the local desktop profile and native
+approval refusal. An independently armed fixture run proves semantic action,
+a separate counter marker, capture hash, stale reference refusal and cleanup.
+Both release the local target-use claim in `finally`. This harness does not
+replace signed installation, browser, YA model/media or update acceptance.
+
+`cli-installed.py` under `tests/desktop` separately copies the entire client
+payload to an unrelated path and checks offline discovery, runtime isolation
+and bundled claims. Windows x64 execution passes in a claimed appliance with
+no source checkout mounted into the test. This is CLI execution evidence; it
+does not authenticate an unsigned staging payload.

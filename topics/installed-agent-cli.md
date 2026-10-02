@@ -6,8 +6,9 @@ Status: implemented in source; Mac ARM64 standalone packaging passes local
 smoke, including physical payload relocation and isolated Python configuration.
 A locally assembled Developer ID app passes YA publisher, closure and identity
 verification. Linux ARM64 also passes relocated offline CLI execution in an isolated native
-container. Notarization, publication, Windows execution and Linux desktop
-acceptance remain separate.
+container, and Windows x64 passes the same smoke in a claimed appliance.
+Notarization, publication and signed Windows/Linux desktop acceptance remain
+separate.
 
 ## Contract
 
@@ -76,3 +77,10 @@ evidence remain required before
 retiring any legacy YA component. [Tactical 062](../docs/tactical/062-installed-agent-cli.md)
 records implementation; [YA's migration plan](../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md)
 owns consumer cutover.
+
+**Current:** Windows x64 passes physically relocated offline execution through
+its bundled interpreter in a claimed Windows 11 appliance. The Windows desktop
+harness accepts the installed command as an alternative to a checkout and uses
+it for control and artifact retrieval. Native PowerShell syntax passes; the selection-refusal run was blocked by the
+guest's script execution policy and is not counted as passing. Full signed installed desktop/browser and YA acceptance
+still need the new candidate; this staging smoke does not establish them.
