@@ -49,7 +49,7 @@ class Provider(linuxcontrol.Resident):
         self.protect_node(node)
         return node
 
-    def protect_input(self):
+    def protect_input(self, request):
         if self.owner.grants.pending or self.owner.portal.state == "pending":
             raise linuxcontrol.ControlFailure("approval_prompt_visible", "Finish approval first")
         # Refuse ambiguous foreground identity instead of typing into a dialog.
@@ -63,6 +63,11 @@ class Provider(linuxcontrol.Resident):
         if len(active) != 1:
             raise linuxcontrol.ControlFailure("foreground_unavailable", "Foreground window is uncertain")
         self.protect_node(active[0])
+        if request.get("target"):
+            selected = linuxui.choose_application(linuxui.desktop(), request["target"])
+            foreground = linuxui.safe(active[0].get_application)
+            if not foreground or linuxui.safe(foreground.get_process_id, 0) != linuxui.safe(selected.get_process_id, -1):
+                raise linuxcontrol.ControlFailure("foreground_mismatch", "Selected application is not foreground")
         for node, info in linuxui.walk(active[0], 8, 400):
             if info["role"] == "password text":
                 raise linuxcontrol.ControlFailure("protected_surface", "Authentication dialogs are unavailable")
@@ -94,7 +99,7 @@ class Provider(linuxcontrol.Resident):
         return result
 
     def input(self, request):
-        self.protect_input()
+        self.protect_input(request)
         before = self.owner.portal.deliveries
         try:
             return self.dispatch_input(request)
@@ -114,7 +119,9 @@ class Provider(linuxcontrol.Resident):
         elif operation == "input.click":
             portal.click(float(request["x"]), float(request["y"]), request.get("button", "left"), request.get("count", 1))
         elif operation == "input.drag":
-            portal.drag(*[float(request[name]) for name in ["x1", "y1", "x2", "y2"]])
+            portal.drag(float(request.get("x1", request.get("x"))),
+                        float(request.get("y1", request.get("y"))),
+                        float(request["x2"]), float(request["y2"]))
         elif operation == "input.key":
             portal.key(request["key"])
         elif operation == "input.text":

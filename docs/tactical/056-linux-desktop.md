@@ -95,3 +95,10 @@ the environment fix and are not the final installed acceptance candidates.
 Portable grant/protocol tests, Linux platform smoke, frontend checks,
 Linux native build/package verification, and claimed installed GNOME acceptance
 are required before recording the corresponding support claim.
+
+Common CLI acceptance establishes local and outside status on the same resident
+generation, off-state refusal, independent semantic counter effects, and verified
+portal artifact retrieval through both routes. Native acceptance now passes 53
+checks including common reply timing, drag arguments, and foreground targeting.
+The unified 0.5.0 release transaction has 12 portable publication tests covering
+all six architectures, 29 assets, missing Linux refusal, and sender exclusion.

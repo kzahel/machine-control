@@ -94,6 +94,7 @@ try:
     endpoint = Path(state["socket"])
     check("off by default", state["deployment"]["grant"] is None)
     check("ordinary profile", call("capabilities")["data"]["privilege"] == "ordinary_user")
+    check("common reply timing", type(call("status")["elapsedMs"]) is int)
     check("off refuses observation", call("snapshot")["errorCode"] == "approval_required")
     check("public endpoint cannot approve", not call("decision", allow=True)["accepted"])
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as oversized:
@@ -179,7 +180,7 @@ try:
     poll(lambda: fixture()["visualClicks"] >= before + 2)
     check("independent double-click effect", True)
     releases = fixture()["dragReleases"]
-    check("drag delivery", call("input.drag", x1=center["x"] - 40, y1=center["y"],
+    check("drag delivery", call("input.drag", x=center["x"] - 40, y=center["y"],
                                 x2=center["x"] + 40, y2=center["y"] + 20)["accepted"])
     poll(lambda: fixture()["dragReleases"] > releases)
     check("independent drag effect", True)
@@ -187,10 +188,13 @@ try:
     check("scroll delivery", call("input.scroll", **center, dy=-2)["accepted"])
     poll(lambda: fixture()["scrollY"] != previous_scroll)
     check("independent scroll effect", True)
+    check("selected foreground mismatch refused", call("input.key", key="enter",
+          target="xdg-desktop-portal-gnome")["errorCode"] == "foreground_mismatch")
     entry = next(n for n in nodes if n["label"] == "Fixture Text")
     check("semantic focus", call("focus", reference=entry["reference"])["accepted"])
     check("clear entry", call("input.key", key="ctrl+a")["accepted"])
-    check("Unicode delivery", call("input.text", text="Linux 世界 café")["accepted"])
+    check("Unicode delivery", call("input.text", text="Linux 世界 café",
+          target="machine-control-fixture")["accepted"])
     poll(lambda: fixture()["text"] == "Linux 世界 café")
     check("independent Unicode effect", fixture()["text"] == "Linux 世界 café")
     old = entry["reference"]

@@ -22,7 +22,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: linux-desktop-candidate
+  group: linux-desktop-${{ inputs.update_fixture && 'update-fixture' || 'candidate' }}
   cancel-in-progress: false
 jobs:
   signed:

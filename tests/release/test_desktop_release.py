@@ -177,3 +177,86 @@ class DesktopReleaseTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+@unittest.skipUnless(shutil.which("minisign"), "minisign required")
+class LinuxUnifiedReleaseTests(unittest.TestCase):
+    def setUp(self):
+        version = patch.dict(globals(), VERSION='0.5.0')
+        version.start()
+        self.addCleanup(version.stop)
+        DesktopReleaseTests.setUp(self)
+        for target in release.windows_package.TARGETS:
+            folder = self.candidates / ('windows-desktop-' + target)
+            path = folder / 'payload.json'
+            value = json.loads(path.read_text())
+            value['files'].extend({'name': 'runtime/browser-extension/' + n,
+                                   'size': 1, 'sha256': 'b' * 64}
+                                  for n in ['manifest.json', 'service_worker.js'])
+            path.write_text(json.dumps(value))
+            release.windows_package.evidence(folder, target=target, version=VERSION,
+                                             revision=REVISION, run='123.1')
+        names = ['machine-control', *['linux-runtime/' + name for name in [
+            'desktop-runtime.json', 'desktop.py', 'grants.py', 'portal.py',
+            'provider.py', 'approval.py', 'browser.py', 'browser_host.py',
+            'artifacts.py', 'shortcut.py', 'linuxcontrol.py', 'linuxui.py',
+            'extension/manifest.json', 'extension/service_worker.js']]]
+        for target, (arch, _) in release.linux_package.TARGETS.items():
+            folder = self.candidates / ('linux-desktop-' + target)
+            folder.mkdir()
+            packages = [f'Machine Control_{VERSION}_{arch}{suffix}'
+                        for suffix in ['.AppImage', '.deb']]
+            for name in packages:
+                path = folder / name
+                path.write_bytes(b'authenticated release fixture container')
+                subprocess.run(['minisign', '-S', '-s', str(self.root / 'key'),
+                                '-m', str(path), '-t', 'timestamp:0\tversion:' + VERSION],
+                               check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                Path(str(path) + '.sig').write_bytes(base64.b64encode(
+                    Path(str(path) + '.minisig').read_bytes()))
+            payload = {'schema': 'machine-control-desktop-payload/v0', 'platform': 'linux',
+                       'target': target, 'version': VERSION, 'sourceRevision': REVISION,
+                       'purpose': 'candidate', 'packages': [{'package': name,
+                        'files': [{'name': n, 'size': 1, 'sha256': 'b' * 64} for n in names]}
+                        for name in packages]}
+            (folder / 'payload.json').write_text(json.dumps(payload))
+            files = [*packages, *[n + '.sig' for n in packages], 'payload.json']
+            receipt = {'schema': 'machine-control-desktop-build/v0', 'platform': 'linux',
+                       'target': target, 'arch': arch, 'version': VERSION,
+                       'sourceRevision': REVISION, 'bundleIdentifier': 'org.machine-control.app',
+                       'sourceState': 'ci_checkout', 'workflowRun': '123',
+                       'workflowAttempt': '1', 'purpose': 'candidate',
+                       'artifacts': [{'name': n, 'size': (folder / n).stat().st_size,
+                                      'sha256': release.sha256(folder / n)} for n in files]}
+            (folder / 'build.json').write_text(json.dumps(receipt))
+
+    def stage(self):
+        with patch.object(release.windows_package, 'ROOT', self.root), \
+                patch.object(release.linux_package, 'ROOT', self.root):
+            release.stage(self.candidates, self.output, VERSION, REVISION, '123.1', '- Linux preview')
+
+    def test_one_transaction_has_six_architectures_and_all_assets(self):
+        self.stage()
+        latest = json.loads((self.output / 'latest.json').read_text())
+        self.assertEqual(set(latest['platforms']), {'darwin-aarch64', 'darwin-x86_64',
+                         'windows-aarch64', 'windows-x86_64', 'linux-aarch64', 'linux-x86_64'})
+        self.assertEqual(len(list(self.output.iterdir())), 29)
+        for target in release.linux_package.TARGETS:
+            with patch.object(release.linux_package, 'ROOT', self.root):
+                release.linux_package.verify(self.output, target, VERSION, REVISION,
+                                             '123.1', published=True, tamper=True)
+
+    def test_missing_linux_architecture_aborts_before_output(self):
+        shutil.rmtree(self.candidates / 'linux-desktop-aarch64-unknown-linux-gnu')
+        with self.assertRaises(FileNotFoundError):
+            self.stage()
+        self.assertFalse(self.output.exists())
+
+    def test_sender_fixture_cannot_enter_public_release(self):
+        path = self.candidates / 'linux-desktop-x86_64-unknown-linux-gnu/build.json'
+        receipt = json.loads(path.read_text())
+        receipt['purpose'] = 'update_sender_fixture'
+        path.write_text(json.dumps(receipt))
+        with self.assertRaises(ValueError):
+            self.stage()
+        self.assertFalse(self.output.exists())

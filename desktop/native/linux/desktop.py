@@ -15,6 +15,7 @@ import struct
 import subprocess
 import sys
 import threading
+import time
 
 # The resident has no operator window. Exporting its GTK invisible clipboard
 # surface into the AT-SPI bus creates an in-process accessibility recursion.
@@ -242,11 +243,13 @@ class Desktop:
         return {"ok": True}
 
     def handle(self, request, caller, complete):
+        started = time.monotonic()
         operation = request.get("operation", "")
         result = self.provider.envelope(request, operation)
 
         def finish(value):
             value["generation"] = self.grants.generation
+            value["elapsedMs"] = int((time.monotonic() - started) * 1000)
             self.grants.record(value)
             complete(value)
 
