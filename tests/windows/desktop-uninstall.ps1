@@ -54,7 +54,9 @@ try{
  $browser=@(Get-CimInstance Win32_Process|Where-Object {$_.Name -eq 'chrome.exe' -and $_.CommandLine -like ('*'+(Split-Path $root -Leaf)+'*') -and $_.CommandLine -notmatch '--type='})[0].ProcessId
  $fixtureApp=Start-Process $Fixture -PassThru
  $uninstaller=Start-Process (Join-Path $Install 'uninstall.exe') -ArgumentList '/S' -PassThru
- Assert ($uninstaller.WaitForExit(60000) -and $uninstaller.ExitCode -eq 0) 'Ordinary signed uninstaller completes with connected Chrome'
+ # The NSIS temporary-copy bootstrap's exit alone is not completion evidence.
+ # Independently check payload, registration and process effects below.
+ Assert ($uninstaller.WaitForExit(60000) -and $uninstaller.ExitCode -eq 0) 'Ordinary signed uninstaller process exits with connected Chrome'
  $deadline=[DateTime]::UtcNow.AddSeconds(10)
  do{
   $files=@(if(Test-Path $Install){Get-ChildItem $Install -Recurse -File})
@@ -64,6 +66,16 @@ try{
  # Chrome can keep a directory watcher open for its unpacked extension even
  # after every file is gone. Report that separately from leftover payload.
  $summary.emptyInstallationDirectoriesRemain=Test-Path $Install
+ # The bootstrap can finish before its relocated child reaches POSTUNINSTALL.
+ # Wait for the independent registration/startup/process effects as well.
+ $deadline=[DateTime]::UtcNow.AddSeconds(15)
+ do{
+  $key=$registry.OpenSubKey($keyPath);$registered=$null -ne $key;if($key){$key.Dispose()}
+  $entry=[Microsoft.Win32.Registry]::GetValue('HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run','Machine Control',$null)
+  $running=$null -ne (Get-Process -Id $app.Id -ErrorAction SilentlyContinue)
+  if(-not $registered -and -not(Test-Path $manifest) -and -not(Test-Path ($manifest+'.updating')) -and $null -eq $entry -and -not $running){break}
+  Start-Sleep -Milliseconds 200
+ }while([DateTime]::UtcNow -lt $deadline)
  $key=$registry.OpenSubKey($keyPath)
  try{Assert ($null -eq $key -and -not(Test-Path $manifest) -and -not(Test-Path ($manifest+'.updating'))) 'Ordinary uninstall removes owned browser registration'}finally{if($key){$key.Dispose()}}
  $entry=[Microsoft.Win32.Registry]::GetValue('HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run','Machine Control',$null)

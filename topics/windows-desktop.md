@@ -35,10 +35,10 @@ Windows support claim.
 
 ## Execution and remaining gates
 
-**Current:** The exact signed 0.4.6 x64 candidate passes installed payload,
+**Current:** The exact signed 0.4.7 x64 candidate passes installed payload,
 native grant, self-interface protection, tray, expiry, emergency Stop, startup,
 restart, failure cleanup, and independent Cua fixture action/capture checks.
-The signed browser-open 0.4.4 to 0.4.6 update relaunches with access off,
+The signed browser-open 0.4.4 to 0.4.6 and 0.4.6 to 0.4.7 updates relaunch off,
 invalidates the old generation, and preserves user applications.
 
 **Current:** Local and explicitly selected outside common CLI callers reach the
@@ -73,10 +73,16 @@ owns route details.
 integration and the conditional ARM64 execution slice. Target availability and
 architecture execution are observed separately.
 
-**Current:** Exact signed x64 browser fixture tasks and local/outside parity
+**Current:** Exact signed 0.4.7 x64 browser fixture tasks and local/outside parity
 pass. Signed 0.4.4 to 0.4.6 replacement passes with Chrome open, retaining
 registration and startup while revoking access. The incoming installer pauses
 only the owning manifest during replacement and restores its exact bytes;
-startup also recovers interrupted maintenance. Actual sign-in starts 0.4.6 in
+startup also recovers interrupted maintenance. Actual sign-in starts 0.4.7 in
 background with a fresh generation and access off. This repairs the earlier
 0.4.4 to 0.4.5 native-host file-lock failure.
+
+**Current:** Ordinary signed 0.4.7 uninstall removes payload, owned browser
+registration and startup with Chrome connected, while Chrome and an independent
+app survive. A held image causes bounded refusal with exact payload and startup
+preserved; uninstall succeeds after release. The actor waits for the relocated
+uninstaller's effects rather than treating its bootstrap exit as completion.

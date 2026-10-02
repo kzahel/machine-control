@@ -6,7 +6,8 @@ Status: source-native developer preview accepted with Chrome for Testing in a
 Tart guest and a per-tab CDP bridge exercised against real Chrome on the Mac.
 Windows source-native and exact signed x64 Tauri browser tasks pass, including
 local/outside effects and artifacts. Signed browser-open replacement from
-0.4.4 to 0.4.6 passes, including reconnect and revoked authority. The
+0.4.4 to 0.4.6 and 0.4.6 to 0.4.7 passes, including reconnect and revoked
+authority. Connected-browser uninstall also passes on 0.4.7. The
 [provider dossier](../research/providers/chrome-extension.md)
 owns platform evidence and omissions.
 [Tactical 050](../docs/tactical/050-macos-host-control-mvp.md) owns the first

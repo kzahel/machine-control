@@ -1,6 +1,7 @@
 # 054 — Windows browser integration and ARM64 desktop acceptance
 
-Status: active.
+Status: completed on the available x64 VM. ARM64 execution was not performed;
+no registered target with a verified credential handoff was available.
 
 Owning topics: [Windows desktop](../../topics/windows-desktop.md),
 [browser control](../../topics/browser-control.md), and
@@ -115,9 +116,33 @@ native-host image-release race: registration/startup and other files disappear,
 but the host executable remains despite a successful exit. Candidate 0.4.7
 moves Tauri's path-bound operator stop before unregistering, then retries only
 that owned image before removing the rest of the payload. Failure returns an
-error while the remaining installation is still available for retry. Signed
-acceptance of this correction remains pending. Chrome's extension directory
-watcher can separately retain empty directories after all payload files are gone.
+error in the actual uninstaller while the remaining installation is still
+available for retry. A held-image NSIS fixture proves bounded refusal,
+remaining-payload preservation and retry after release. The temporary-copy
+bootstrap can return zero despite child failure; payload effects remain the
+completion oracle. Both signed 0.4.7 architecture packages pass independent
+version, provenance, updater signature and tamper checks. The actual signed
+0.4.6 to 0.4.7 browser-open update, lock revocation and native logoff/sign-in
+startup pass. Exact signed 0.4.7 then passes all 128 installed UI checks,
+ordinary-user component conformance, the full browser task and local/outside
+effects/artifact transfer. Its actual uninstaller passes 78 held-image refusal
+checks: bounded nonzero failure, exact payload preservation and retained startup.
+After releasing the image, ordinary uninstall with connected Chrome passes
+all 11 checks, including complete payload/registration/startup removal and
+survival of Chrome and an independent appliance fixture app.
+
+The uninstall actor waits for the relocated child's observable cleanup before
+checking completion. A premature startup check initially failed even though
+independent cleanup confirmed removal; the bounded polling correction passes.
+The accepted 0.4.7 run leaves no installation directory. Earlier probes could
+retain empty extension directories while Chrome watched them; this was distinct
+from the real 0.4.6 leftover-image failure.
+
+Owned staging, test browsers, registration, startup and clipboard content are
+cleaned. Temporary trust and hosts bytes are restored, and the controller's
+canonical stored login password verifies. The original appliance remains
+doctor-ready before restoring its original powered-off state and releasing the
+exclusive claim. Concrete targets and raw evidence remain private.
 
 Local inventory presently has no registered Windows target or ready
 credential handoff. The accepted remote x64 target has verified identity and a
@@ -132,3 +157,4 @@ Exact candidate identities:
 | 0.4.4 | `9890fbc65eb9ad1ebb2c7340d5cb1816601c9a17` | [36932907245](https://github.com/kzahel/machine-control/actions/runs/36932907245) | x64 installed UI/lifecycle and browser tasks; both architecture packages verified |
 | 0.4.5 | `37608c6e8094a2ee54d56ab0a0a7924bf6fec072` | [36935615977](https://github.com/kzahel/machine-control/actions/runs/36935615977) | x64 browser task, outside/local effects/artifacts and real login startup; both packages verified; browser-open update not accepted |
 | 0.4.6 | `fae55064c042cfc026071880333916a573658bb9` | [36941024448](https://github.com/kzahel/machine-control/actions/runs/36941024448) | Both architecture packages verified; x64 installed UI, browser-open update, lock revocation and actual sign-in startup pass |
+| 0.4.7 | `10072b9c5f858c48bbeb43915665bf32738db930` | [36945873991](https://github.com/kzahel/machine-control/actions/runs/36945873991) | Both architecture packages verified; x64 installed UI, component/browser conformance, outside parity, browser-open update, lock/sign-in startup, refusal and ordinary uninstall pass |

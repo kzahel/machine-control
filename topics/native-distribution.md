@@ -159,7 +159,8 @@ candidate evidence and bounded omissions live in [tactical 051](../docs/tactical
 **Current:** The shared Windows Tauri candidate passes exact signed
 x64 installation, grants, tray/lifecycle, signed fixture-feed update, and
 local/outside control acceptance. Signed `0.4.4` to `0.4.6` replacement also
-passes with Chrome open, retaining registration and startup while revoking
+passes with Chrome open; `0.4.6` to `0.4.7` and ordinary `0.4.7` uninstall also
+pass. Updates retain registration and startup while revoking
 access. ARM64 artifacts pass signing and byte
 verification, but product execution remains open. [Windows desktop](windows-desktop.md)
 owns the workstream; [Tactical 053](../docs/tactical/053-windows-desktop.md) and
