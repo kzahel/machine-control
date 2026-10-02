@@ -184,7 +184,7 @@ jobs:
           if (-not $env:TAURI_SIGNING_PRIVATE_KEY -or -not $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) { throw 'Product updater signing credentials missing' }
           python scripts/set-version.py $env:CANDIDATE_VERSION
           if ($LASTEXITCODE -ne 0) { throw 'Version validation failed' }
-          $signer = (Resolve-Path scripts/sign-windows.ps1).Path
+          $signer = (Resolve-Path scripts/sign-windows-bundle.ps1).Path
           $config = @{bundle=@{windows=@{signCommand=@{cmd='powershell.exe';args=@('-NoProfile','-ExecutionPolicy','Bypass','-File',$signer,'%1')}}}} | ConvertTo-Json -Compress -Depth 10
           # Use a file, preserving exact structured arguments and Windows paths.
           $config | Set-Content (Join-Path $env:RUNNER_TEMP 'mc-windows-signing.json') -Encoding utf8

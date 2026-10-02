@@ -95,3 +95,10 @@ The ARM64 runner does not expose the expected x64 registry installation
 location after the official installer succeeds. Extract the digest-verified
 runtime archive into a dedicated runner directory and verify that exact host
 before signing, rather than depending on installer registry layout.
+
+Tauri also attempts individual Authenticode signatures on every Python PE
+resource, changing pinned bytes and failing on the same stripped DLL. Its
+bundle-only signing hook now authenticates the CLI catalog, complete inventory
+and publisher before preserving those exact resources. All other native
+resources, the operator, uninstaller and installer retain strict signing.
+Installed acceptance independently verifies the packaged result.
