@@ -273,6 +273,47 @@ class LinuxUnifiedReleaseTests(unittest.TestCase):
         with patch.object(release.linux_package, 'ROOT', self.root):
             release.linux_package.verify(folder, target, VERSION, REVISION, '123.1')
 
+    def test_new_linux_release_requires_native_update_module(self):
+        target = 'x86_64-unknown-linux-gnu'
+        folder = self.candidates / ('linux-desktop-' + target)
+        payload_path = folder / 'payload.json'
+        payload = json.loads(payload_path.read_text())
+        payload['version'] = '0.5.3'
+        names = ['client-runtime.json', 'files.json', 'launch.py',
+                 'commands/machine-control', 'python/bin/python3']
+        for record in payload['packages']:
+            record['package'] = record['package'].replace('0.5.0', '0.5.3')
+            path = folder / record['package']
+            path.write_bytes(b'authenticated release fixture container')
+            subprocess.run(['minisign', '-S', '-s', str(self.root / 'key'),
+                            '-m', str(path), '-t', 'timestamp:0\tversion:0.5.3'],
+                           check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            Path(str(path) + '.sig').write_bytes(base64.b64encode(
+                Path(str(path) + '.minisig').read_bytes()))
+            record['files'].extend({'name': 'mc-cli/' + name, 'size': 1, 'sha256': 'b' * 64}
+                                   for name in names)
+            record['files'].append({'name': 'linux-runtime/updates.py', 'size': 1, 'sha256': 'b' * 64})
+        receipt_path = folder / 'build.json'
+        receipt = json.loads(receipt_path.read_text()); receipt['version'] = '0.5.3'
+        packages = [record['package'] for record in payload['packages']]
+        for include_updates in (True, False):
+            with self.subTest(include_updates=include_updates):
+                if not include_updates:
+                    for record in payload['packages']:
+                        record['files'] = [item for item in record['files']
+                                           if item['name'] != 'linux-runtime/updates.py']
+                payload_path.write_text(json.dumps(payload))
+                receipt['artifacts'] = [{'name': name, 'size': (folder / name).stat().st_size,
+                                         'sha256': release.sha256(folder / name)}
+                                        for name in [*packages, *[n + '.sig' for n in packages], 'payload.json']]
+                receipt_path.write_text(json.dumps(receipt))
+                with patch.object(release.linux_package, 'ROOT', self.root):
+                    if include_updates:
+                        release.linux_package.verify(folder, target, '0.5.3', REVISION, '123.1')
+                    else:
+                        with self.assertRaisesRegex(ValueError, 'missing=.*linux-runtime/updates.py'):
+                            release.linux_package.verify(folder, target, '0.5.3', REVISION, '123.1')
+
     def test_cli_release_refuses_a_completely_omitted_linux_cli(self):
         target = 'x86_64-unknown-linux-gnu'
         folder = self.candidates / ('linux-desktop-' + target)

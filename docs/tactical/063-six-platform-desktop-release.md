@@ -102,3 +102,8 @@ bundle-only signing hook now authenticates the CLI catalog, complete inventory
 and publisher before preserving those exact resources. All other native
 resources, the operator, uninstaller and installer retain strict signing.
 Installed acceptance independently verifies the packaged result.
+
+Both extracted Linux CLI payloads then pass, but the native resident allowlist
+still describes 0.5.0 and rejects the newly shipped updates.py module. Require
+that module for 0.5.3 and newer, retain the exact native payload set, and cover
+both authenticated acceptance and missing-module refusal.

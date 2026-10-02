@@ -196,6 +196,8 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
                 "linux-runtime/artifacts.py", "linux-runtime/shortcut.py", "linux-runtime/startup.py", "linux-runtime/linuxcontrol.py",
                 "linux-runtime/linuxui.py", "linux-runtime/extension/manifest.json",
                 "linux-runtime/extension/service_worker.js", "linux-runtime/extension/indicators.js"}
+    if tuple(map(int, version.split("."))) >= (0, 5, 3):
+        required.add("linux-runtime/updates.py")
     for record in records:
         found = set()
         for item in record.get("files", []):
@@ -211,7 +213,9 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
                               "mc-cli/commands/machine-control", "mc-cli/python/bin/python3"}.issubset(cli_names):
             raise ValueError("Incomplete packaged CLI")
         if found - cli_names != required or record["files"][0]["name"] != "machine-control":
-            raise ValueError("Incomplete or unexpected ordinary-user Linux payload")
+            raise ValueError("Incomplete or unexpected ordinary-user Linux payload: "
+                             f"missing={sorted(required - (found - cli_names))}, "
+                             f"unexpected={sorted((found - cli_names) - required)}")
     with tempfile.TemporaryDirectory(prefix="mc-linux-auth-") as tmp:
         root = Path(tmp)
         config = json.loads((ROOT / "desktop/src-tauri/tauri.conf.json").read_text())
