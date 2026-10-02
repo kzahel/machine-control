@@ -226,3 +226,24 @@ restored power-off and released the controller claim. The corrected fresh run
 passes. Python syntax checks and all 61 release tests pass. This closes the Mac
 native grant expiry cell; signed app replacement, Windows/Linux acceptance,
 public picker approval and legacy retirement remain open.
+
+## Exact notarized Mac candidate verification result
+
+The Mac ARM64 0.5.3 artifacts from successful signing job in workflow
+37054647423 authenticate source `698550b`. Windows/Linux failed that workflow,
+so it has not published a release. The package verifier accepts updater
+signature/version, signed source, complete CLI closure, native publisher
+signatures, Gatekeeper and stapling, and refuses modified archive bytes.
+Physically relocated offline execution and unavailable-resident refusal also
+pass. YA's actual installed consumer and its source-independent bundle both
+pass identity, instructions, launch context, relocated-copy verification and
+wrong-publisher, changed-script and missing-interpreter negatives.
+
+YA corrected the negative fixture construction after macOS App Management
+refused a write in a copied notarized app. Invalid fixture bytes are now built
+before Info.plist is copied; production verification and OS permissions remain
+unchanged. [YA's execution record](../../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md#exact-notarized-mac-candidate-discovery-result)
+owns its full checks and failed-attempt details. This is exact candidate
+discovery evidence; earlier control/model/lifecycle cells used the local signed
+assembly. Signed replacement, publication, other platforms and legacy cutover
+remain separate gates.

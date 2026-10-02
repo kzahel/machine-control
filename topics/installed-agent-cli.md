@@ -110,6 +110,17 @@ grant-state mutation is used. Cleanup disarms access, reaps the owned candidate
 and fixture, removes staging, restores initial power-off and releases claims.
 This closes Mac native grant expiry, separately from signed app replacement.
 
+**Current:** The Mac ARM64 0.5.3 candidate from source `698550b` passes exact
+updater signature/version and source verification, complete CLI closure,
+Developer ID verification, Gatekeeper, stapling and archive-tamper refusal.
+Relocated offline CLI and unavailable-resident checks pass. YA's actual consumer
+also accepts identity, instructions, launch context and a relocated copy, and
+refuses wrong publisher, changed script and missing interpreter. The two Mac
+jobs passed within failed workflow 37054647423; this is notarized candidate
+evidence, not publication or Windows/Linux acceptance. Earlier native/browser,
+model and lifecycle evidence used the local signed assembly. [YA's record](../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md#exact-notarized-mac-candidate-discovery-result)
+owns the consumer probe and its notarized-fixture construction correction.
+
 [`cli-installed.py`](../tests/desktop/cli-installed.py) tests offline discovery,
 isolated runtime use and bundled claim dependencies from an unrelated directory.
 Archive traversal, external links, unused terminal-data aliases,
