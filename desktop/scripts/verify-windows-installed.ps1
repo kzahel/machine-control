@@ -39,6 +39,16 @@ try {
     if ((Get-FileHash -LiteralPath $provider -Algorithm SHA256).Hash.ToLowerInvariant() -ne $runtime.providerDigest) {throw 'Installed provider digest mismatch'}
     $info=(Get-Item (Join-Path $installRoot 'machine-control.exe')).VersionInfo
     if ($info.ProductVersion -ne $Version) {throw 'Installed product version mismatch'}
+    $cliRoot=Join-Path $installRoot 'mc-cli'
+    Signature (Join-Path $cliRoot 'package.cat')
+    if ((Test-FileCatalog -Path $cliRoot -CatalogFilePath (Join-Path $cliRoot 'package.cat') -FilesToSkip 'package.cat') -ne 'Valid') {
+        throw 'Installed Python CLI catalog mismatch'
+    }
+    $cli=Get-Content (Join-Path $cliRoot 'client-runtime.json') -Raw | ConvertFrom-Json
+    if ($cli.schema -ne 'machine-control-client-identity/v1' -or $cli.clientProtocol -ne 1 -or
+        $cli.sourceRevision -ne $Revision -or $cli.version -ne $Version -or $cli.target -ne $Target) {
+        throw 'Installed CLI identity mismatch'
+    }
     # TEMP may use an 8.3 alias while enumeration expands the user's name.
     # Derive the root from the same canonical file representation.
     $payloadRoot=(Get-Item -LiteralPath (Join-Path $installRoot 'machine-control.exe')).DirectoryName

@@ -178,3 +178,13 @@ its desktop packaging, local dialog and system-sudo authentication route.
 YepAnywhere owns opt-in discovery, publisher verification and agent launch
 instructions. This command route does not extend resident grants or the
 Windows protected broker. See [native sudo](topics/native-sudo.md).
+
+## Installed CLI consumers
+
+**Decision:** desktop-app consumers use MC's bundled Python CLI and instructions.
+MC owns product installation, updates, resident lifecycle and native access; YA
+owns verified launch discovery, eligibility, optional adaptation and presentation.
+The existing YA-managed Windows component remains current until accepted
+cutover. [Installed agent CLI](topics/installed-agent-cli.md) and
+[YA Tactical 142](../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md)
+own the implementation and migration gates.

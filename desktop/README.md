@@ -185,3 +185,12 @@ The Mac bundle includes the signed `mc-sudo` and `mc-sudo-askpass` executables
 in `Contents/Resources`. [Native sudo](../platforms/macos/sudo/README.md) owns
 their invocation, local password dialog, per-command authority and tests.
 They are independent of desktop control arming and install no root service.
+
+## Installed Python control CLI
+
+Source builds now bundle the existing Python client and a pinned CPython runtime
+in `mc-cli`. The terminal entry lives under `mc-cli/commands`, separate from
+the Windows/Linux GUI executable. `agent identity` and `agent instructions`
+provide offline discovery and workflow guidance. Released older packages do
+not gain this interface until updated. Packaging, trust and acceptance limits
+are owned by [Installed agent CLI](../topics/installed-agent-cli.md).

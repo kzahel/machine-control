@@ -127,3 +127,5 @@ the commits' `Topic:` trailers and register that exact string in
   CLI discovery through existing resident transports.
 
 - [`061-native-sudo.md`](061-native-sudo.md) (complete for signed ARM64 helper acceptance): bundled native administrator authentication and dedicated Mac appliance acceptance.
+
+- [062-installed-agent-cli.md](062-installed-agent-cli.md) (in progress): package the shared Python client and prove installed desktop consumers.

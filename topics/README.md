@@ -113,3 +113,5 @@ its `Topic:` trailers.
   evidence is what changed the decision.
 - Create a sibling topic rather than broadening an existing one into a
   catch-all.
+
+- [Installed agent CLI](installed-agent-cli.md): Python runtime packaging, agent instructions and consumer trust.

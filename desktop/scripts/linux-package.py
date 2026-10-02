@@ -4,6 +4,7 @@
 import argparse
 import base64
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -91,6 +92,18 @@ def inventory(directory, target, version, revision, purpose="candidate"):
                 if entry and (entry["byteLength"] != file.stat().st_size or entry["sha256"] != digest(file)):
                     raise ValueError("Runtime source receipt mismatch")
                 files.append({"name": "linux-runtime/" + name, "size": file.stat().st_size, "sha256": digest(file)})
+            cli = runtime.parent / "mc-cli"
+            if cli.exists():
+                spec = importlib.util.spec_from_file_location("cli_payload", ROOT / "desktop/scripts/cli-payload.py")
+                helper = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(helper)
+                identity = helper.verify(cli)
+                if identity.get("sourceRevision") != revision or identity.get("version") != version or identity.get("target") != target:
+                    raise ValueError("Packaged CLI identity mismatch")
+                for file in sorted(cli.rglob("*")):
+                    if file.is_file():
+                        files.append({"name": "mc-cli/" + file.relative_to(cli).as_posix(),
+                                      "size": file.stat().st_size, "sha256": digest(file)})
             records.append({"package": package.name, "files": files})
     # Tauri patches the executable's bundle-type marker separately for Debian
     # and AppImage. Native identity is verified in each; resources must match.
@@ -184,7 +197,11 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
                     or not re.fullmatch(r"[0-9a-f]{64}", item.get("sha256", ""))):
                 raise ValueError("Invalid Linux payload inventory")
             found.add(name)
-        if found != required or record["files"][0]["name"] != "machine-control":
+        cli_names = {name for name in found if name.startswith("mc-cli/")}
+        if cli_names and not {"mc-cli/client-runtime.json", "mc-cli/files.json", "mc-cli/launch.py",
+                              "mc-cli/commands/machine-control", "mc-cli/python/bin/python3"}.issubset(cli_names):
+            raise ValueError("Incomplete packaged CLI")
+        if found - cli_names != required or record["files"][0]["name"] != "machine-control":
             raise ValueError("Incomplete or unexpected ordinary-user Linux payload")
     with tempfile.TemporaryDirectory(prefix="mc-linux-auth-") as tmp:
         root = Path(tmp)

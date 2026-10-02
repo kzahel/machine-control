@@ -59,3 +59,5 @@ commits with no expected follow-up do not need a trailer or registry entry.
   native approvals, packages, and installed GNOME acceptance.
 
 - `native-sudo` — native per-command macOS authentication, helper packaging and YA opt-in.
+
+- `installed-agent-cli` — bundled Python client, offline instructions and verified desktop consumers.

@@ -27,6 +27,7 @@
   },
   "bundle": {
     "active": true,
+    "resources": {"native/mc-cli/": "mc-cli/"},
     "targets": ["app", "dmg"],
     "createUpdaterArtifacts": false,
     "icon": ["icons/icon.png", "icons/icon.icns", "icons/icon.ico"],

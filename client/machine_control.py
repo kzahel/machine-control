@@ -32,6 +32,7 @@ CLAIM_RESULT_SCHEMA = "machine-control-claim/v0"
 MAINTENANCE_CAPABILITIES_SCHEMA = "machine-control-maintenance-capabilities/v0"
 MAINTENANCE_RESULT_SCHEMA = "machine-control-maintenance/v0"
 CLIENT_VERSION = "0.3.0"
+CLIENT_PROTOCOL = 1
 CONTROLLER_PLATFORMS = {"darwin", "linux", "windows"}
 LAUNCHERS = {"auto", "direct", "python", "powershell", "bash"}
 WORKSPACE_INTENTS = {"persistent", "isolated", "candidate"}
@@ -441,6 +442,8 @@ def provider_path(path_text: str | None = None) -> Path | None:
         if config[1].get("inventoryProvider") is None:
             return None
         return controller_config_path(config, "inventoryProvider")
+    if (ROOT / "client-runtime.json").is_file():
+        return None
     candidate = ROOT.parent / "dotfiles" / "testbeds" / "testbeds.py"
     return candidate if candidate.is_file() else None
 
@@ -518,7 +521,10 @@ def load_registry(
                 document = provider_registry(inventory_provider)
                 source = "inventory-provider"
 
-    targets = {key: dict(value) for key, value in DEFAULT_TARGETS.items()}
+    defaults = DEFAULT_TARGETS
+    if (ROOT / "client-runtime.json").is_file():
+        defaults = {"host": DEFAULT_TARGETS["host"]}
+    targets = {key: dict(value) for key, value in defaults.items()}
     if path is None and document is None:
         return targets, source
     if path is not None:
@@ -3564,6 +3570,7 @@ def usage() -> str:
                        COMMAND ...
 
 Commands:
+  agent identity|instructions     Read CLI identity or agent workflow (offline)
   inventory list|status|guide|credentials|doctor
                                     Use the private deployment inventory
   targets                         List logical targets without private paths
@@ -3704,6 +3711,16 @@ def main(argv: list[str] | None = None) -> int:
             print(usage(), end="")
             return 0 if known.help else 2
         operation = remainder[0]
+        if operation == "agent":
+            from agent_interface import identity, instructions
+
+            if remainder == ["agent", "identity"]:
+                emit(identity())
+                return 0
+            if remainder == ["agent", "instructions"]:
+                print(instructions(), end="")
+                return 0
+            raise ClientError("usage", "agent requires identity|instructions")
         if operation == "inventory":
             return run_inventory(known.inventory_provider, remainder[1:])
         targets, registry_source = load_registry(
@@ -3736,6 +3753,13 @@ def main(argv: list[str] | None = None) -> int:
                 ),
             },
         }
+        if (ROOT / "client-runtime.json").is_file():
+            target["environment"].update({
+                "MACHINE_CONTROL_HOST_PYTHON": sys.executable,
+                "MACHINE_CONTROL_CLAIMS_PYTHON": sys.executable,
+            })
+            if alias == "host" and target["platform"] == "windows":
+                target["environment"]["MACHINE_CONTROL_DESKTOP_INSTALL_DIR"] = str(ROOT.parent)
         attendance = controller_host_attendance()
         if attendance and not os.environ.get("MACHINE_CONTROL_HOST_ATTENDANCE"):
             target["environment"]["MACHINE_CONTROL_HOST_ATTENDANCE"] = attendance

@@ -7,6 +7,7 @@ from pathlib import Path
 import plistlib
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 
@@ -58,6 +59,12 @@ with tempfile.TemporaryDirectory(prefix='mc-verify-') as tmp:
         for path, identifier in zip(sudo_resources, ['org.machine-control.sudo', 'org.machine-control.sudo.askpass']):
             if not path.is_file():raise SystemExit('Incomplete native sudo helper pair')
             subprocess.run(['codesign','--verify','--strict','-R',f'=anchor apple generic and certificate leaf[subject.OU] = "{args.team_id}" and identifier "{identifier}"',str(path)],check=True)
+    if info.get('MCClientProtocol') == 1:
+        cli = app/'Contents/Resources/mc-cli'
+        subprocess.run([sys.executable, str(Path(__file__).with_name('cli-payload.py')), 'verify', str(cli)], check=True)
+        identity = json.loads((cli/'client-runtime.json').read_text())
+        if identity['sourceRevision'] != manifest['sourceRevision'] or identity['version'] != manifest['version']:
+            raise SystemExit('Packaged CLI identity mismatch')
     for path in [app,app/'Contents/Frameworks/MCResident.framework',app/'Contents/Resources/mc-session-probe']:
         subprocess.run(['codesign','--verify','--strict','-R',f'=anchor apple generic and certificate leaf[subject.OU] = "{args.team_id}"',str(path)],check=True)
     subprocess.run(['codesign','--verify','--deep','--strict',str(app)],check=True)

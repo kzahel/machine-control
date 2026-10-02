@@ -143,6 +143,13 @@ jobs:
           New-FileCatalog -Path desktop/src-tauri/native/runtime -CatalogFilePath artifacts/catalog/package.cat -CatalogVersion 2.0
           ./desktop/scripts/sign-windows.ps1 artifacts/catalog/package.cat
           Copy-Item artifacts/catalog/package.cat desktop/src-tauri/native/runtime/package.cat
+      - name: Stage and authenticate the complete Python CLI
+        run: |
+          python desktop/scripts/prepare-cli.py --target '${{ matrix.target }}' --version $env:CANDIDATE_VERSION --revision $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw 'Python CLI staging failed' }
+          New-FileCatalog -Path desktop/src-tauri/native/mc-cli -CatalogFilePath artifacts/catalog/cli.cat -CatalogVersion 2.0
+          ./desktop/scripts/sign-windows.ps1 artifacts/catalog/cli.cat
+          Copy-Item artifacts/catalog/cli.cat desktop/src-tauri/native/mc-cli/package.cat
       - name: Set version and sign app, uninstaller, and installer
         working-directory: desktop
         env:

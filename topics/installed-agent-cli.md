@@ -1,0 +1,63 @@
+# Installed agent CLI
+
+Topic: `installed-agent-cli`
+
+Status: implemented in source; Mac ARM64 standalone packaging passes local
+smoke. Signed product and Windows/Linux execution acceptance remain separate.
+
+## Contract
+
+**Decision:** Python remains the common CLI implementation. Developers run
+`bin/machine-control` directly; command changes require no Rust toolchain or
+desktop rebuild. Desktop packages bundle the same modules, local host adapters,
+claim helpers and a pinned CPython runtime. YA consumes this interface rather
+than maintaining a second resident installation for the migrated route.
+
+**Current:** Tauri builds stage `mc-cli` resources using
+[`prepare-cli.py`](../desktop/scripts/prepare-cli.py). The terminal entry is
+`mc-cli/commands/machine-control` on macOS/Linux and
+`mc-cli/commands/machine-control.cmd` on Windows. These names are separate from
+the Windows/Linux GUI binary. Mac resources live inside the app bundle;
+Windows resources live under the product root. The launcher uses isolated
+Python, suppresses bytecode writes and propagates its runtime to host/claim
+subprocesses. No system Python is needed for the CLI; Linux's native GTK/AT-SPI
+resident retains its documented system dependencies.
+
+**Current:** `agent identity` returns
+[`machine-control-client-identity/v1`](../contracts/client-identity-v1.schema.json)
+without contacting a resident. `agent instructions` returns the owned workflow
+for doctor, claims, scoped access, semantics, browser control and bounded
+artifacts. Reading either grants no authority. Installed defaults expose only
+`host`; explicit per-user registries/providers can add other installed adapters.
+There is no implicit sibling checkout/private-inventory lookup in a package.
+
+**Decision:** CPython archives are SHA-256 pinned for six desktop targets in
+[`python-runtime.lock.json`](../desktop/python-runtime.lock.json). Retain upstream
+component license notices. Mac signs nested native libraries before sealing
+the script/runtime inventory in the app signature. Windows authenticates the
+whole CLI directory with its publisher-signed catalog. Linux final packages
+use the existing authenticated package signatures. An unsigned hash receipt is
+integrity evidence only, not publisher authority. The packaging
+[dossier](../research/providers/python-build-standalone.md) owns licensing.
+
+## Consumer ownership and acceptance
+
+**Decision:** MC owns installed commands, native access/arming, claims,
+resident lifecycle and updates. YA owns launch eligibility and advertisement,
+optional tool adaptation and media presentation. A session ID is attribution,
+not authority; suppressing advertisement cannot contain same-user shell access.
+Native sudo remains a separate feature with OS authentication.
+
+**Current:** The CLI does not start a replacement resident when the app is
+unavailable. The caller receives the existing typed failure and can ask the
+operator to open MC. Mutations and captures retain the shared resident's route,
+generation, delivery, effect and uncertainty reporting.
+
+[`cli-installed.py`](../tests/desktop/cli-installed.py) tests offline discovery,
+isolated runtime use and bundled claim dependencies from an unrelated directory.
+Archive traversal, external links, modified/missing files and unexpected files
+have portable negative tests. Real desktop/browser effects, signed installed
+replacement, actual YA launch and per-platform evidence remain required before
+retiring any legacy YA component. [Tactical 062](../docs/tactical/062-installed-agent-cli.md)
+records implementation; [YA's migration plan](../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md)
+owns consumer cutover.

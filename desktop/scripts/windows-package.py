@@ -99,6 +99,11 @@ def verify(directory, *, revision, version, run=None, target=None, tamper=False,
         required.add('runtime/browser-extension/indicators.js')
     if not required.issubset(payload_names):
         raise ValueError('Installed inventory must be relative to the product root')
+    if any(name.startswith('mc-cli/') for name in payload_names) and not {
+            'mc-cli/client-runtime.json', 'mc-cli/files.json', 'mc-cli/package.cat',
+            'mc-cli/launch.py', 'mc-cli/commands/machine-control.cmd',
+            'mc-cli/python/python.exe'}.issubset(payload_names):
+        raise ValueError('Incomplete packaged Python CLI inventory')
     with tempfile.TemporaryDirectory(prefix='mc-windows-verify-') as tmp:
         root = Path(tmp)
         config = json.loads((ROOT / 'desktop/src-tauri/tauri.conf.json').read_text(encoding='utf-8-sig'))

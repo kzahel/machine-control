@@ -29,3 +29,5 @@ components remain necessary. Evidence levels are defined in the
 Search-triage projects that do not yet warrant dossiers remain listed in the
 [adjacent-project ledger](../adjacent-projects.md). Promote one when its
 architecture or a measured platform gap justifies source review.
+
+- [python-build-standalone](python-build-standalone.md): relocatable CPython for the installed client, with component licensing.

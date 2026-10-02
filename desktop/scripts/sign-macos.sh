@@ -21,6 +21,21 @@ codesign --force --timestamp --options runtime --sign "$MACOS_SIGNING_IDENTITY" 
     --identifier org.machine-control.sudo "$app/Contents/Resources/mc-sudo"
 codesign --force --timestamp --options runtime --sign "$MACOS_SIGNING_IDENTITY" \
     --identifier org.machine-control.sudo.askpass "$app/Contents/Resources/mc-sudo-askpass"
+# Standalone CPython and its extension libraries are nested native code. Sign
+# each Mach-O before sealing the scripts and byte inventory in the app bundle.
+python3 - "$app/Contents/Resources/mc-cli" <<'PY'
+import os, pathlib, subprocess, sys
+root = pathlib.Path(sys.argv[1])
+for path in sorted(root.rglob('*')):
+    if not path.is_file():
+        continue
+    with path.open('rb') as stream:
+        magic = stream.read(4)
+    if magic in {b'\xcf\xfa\xed\xfe', b'\xfe\xed\xfa\xcf', b'\xca\xfe\xba\xbe', b'\xbe\xba\xfe\xca'}:
+        subprocess.run(['codesign', '--force', '--timestamp', '--options', 'runtime',
+                        '--sign', os.environ['MACOS_SIGNING_IDENTITY'], str(path)], check=True)
+PY
+python3 desktop/scripts/cli-payload.py inventory "$app/Contents/Resources/mc-cli"
 codesign --force --timestamp --options runtime --sign "$MACOS_SIGNING_IDENTITY" "$app"
 codesign --verify --deep --strict "$app"
 codesign --verify --strict -R "=anchor apple generic and certificate leaf[subject.OU] = \"$APPLE_TEAM_ID\" and identifier \"org.machine-control.app\"" "$app"

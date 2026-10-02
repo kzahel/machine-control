@@ -10,6 +10,7 @@ readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$REPO_DIR/../../providers/claims/common.sh"
 
 readonly CLAIM_PROVIDER=macos-host
+readonly HOST_PYTHON="${MACHINE_CONTROL_HOST_PYTHON:-/usr/bin/python3}"
 readonly STATE_DIR="${MACHINE_CONTROL_HOST_STATE_DIR:-$HOME/Library/Application Support/MachineControl/controller}"
 
 usage() {
@@ -39,7 +40,7 @@ command="${1:-help}"
 shift || true
 case "$command" in
     help|-h|--help) usage ;;
-    doctor) exec /usr/bin/python3 "$REPO_DIR/host/machost.py" doctor ;;
+    doctor) exec "$HOST_PYTHON" -B "$REPO_DIR/host/machost.py" doctor ;;
     claim-*)
         claim_adapter_main "$STATE_DIR/claims" "$CLAIM_PROVIDER" \
             "$(host_resource_id)" "$command" "$@"
@@ -47,7 +48,7 @@ case "$command" in
     control|control-local|artifact-fetch)
         claim_require_tools
         claim_require_exact "$STATE_DIR/claims" "$CLAIM_PROVIDER" "$(host_resource_id)"
-        exec /usr/bin/python3 "$REPO_DIR/host/machost.py" "$command" "$@"
+        exec "$HOST_PYTHON" -B "$REPO_DIR/host/machost.py" "$command" "$@"
         ;;
     *)
         printf 'Unknown machost command: %s\n\n' "$command" >&2

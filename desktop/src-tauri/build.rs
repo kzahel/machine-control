@@ -6,6 +6,62 @@ fn run(command: &mut Command) {
     );
 }
 fn main() {
+    let root = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let repository = root.join("../..");
+    let revision = env::var("GITHUB_SHA").unwrap_or_else(|_| {
+        String::from_utf8(
+            Command::new("git")
+                .args(["rev-parse", "HEAD"])
+                .current_dir(&repository)
+                .output()
+                .expect("source identity")
+                .stdout,
+        )
+        .unwrap()
+        .trim()
+        .to_owned()
+    });
+    let config: serde_json::Value =
+        serde_json::from_slice(&fs::read(root.join("tauri.conf.json")).unwrap()).unwrap();
+    println!("cargo:rerun-if-env-changed=GITHUB_SHA");
+    println!("cargo:rerun-if-env-changed=PYTHON");
+    for path in [
+        "client",
+        "bin/machine-control",
+        "providers/claims",
+        "platforms/macos/bin/machost",
+        "platforms/macos/host",
+        "platforms/windows/host",
+        "platforms/linux/host",
+        "desktop/python-runtime.lock.json",
+        "desktop/scripts/prepare-cli.py",
+        "desktop/python-licenses",
+    ] {
+        println!("cargo:rerun-if-changed={}", repository.join(path).display());
+    }
+    let python = env::var_os("PYTHON")
+        .unwrap_or_else(|| if cfg!(windows) { "python" } else { "python3" }.into());
+    let cli = root.join("native/mc-cli");
+    if cli.join("package.cat").is_file() || cli.join("files.json.sig").is_file() {
+        let staged: serde_json::Value =
+            serde_json::from_slice(&fs::read(cli.join("client-runtime.json")).unwrap()).unwrap();
+        assert!(
+            staged["sourceRevision"] == revision
+                && staged["target"] == env::var("TARGET").unwrap()
+                && staged["version"] == config["version"],
+            "Pre-signed CLI identity mismatch; restage and sign the correct payload"
+        );
+        run(Command::new(&python)
+            .arg(repository.join("desktop/scripts/cli-payload.py"))
+            .arg("verify")
+            .arg(cli));
+    } else {
+        run(Command::new(&python)
+            .arg(repository.join("desktop/scripts/prepare-cli.py"))
+            .args(["--target", &env::var("TARGET").unwrap()])
+            .args(["--version", config["version"].as_str().unwrap()])
+            .args(["--revision", &revision]));
+    }
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
         let root = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
         let sources = root.join("../../platforms/macos/resident/Sources/macui");
@@ -55,7 +111,7 @@ fn main() {
         });
         assert!(revision.len() == 40 && revision.bytes().all(|b| b.is_ascii_hexdigit()));
         fs::create_dir_all(&native).unwrap();
-        fs::write(native.join("Info.plist"), format!("<?xml version=\"1.0\"?><plist version=\"1.0\"><dict><key>MCSourceRevision</key><string>{revision}</string><key>MCNativeSudoVersion</key><integer>1</integer></dict></plist>")).unwrap();
+        fs::write(native.join("Info.plist"), format!("<?xml version=\"1.0\"?><plist version=\"1.0\"><dict><key>MCSourceRevision</key><string>{revision}</string><key>MCNativeSudoVersion</key><integer>1</integer><key>MCClientProtocol</key><integer>1</integer></dict></plist>")).unwrap();
         println!("cargo:rerun-if-env-changed=GITHUB_SHA");
         for name in ["HEAD", "refs/heads/main"] {
             let path = Command::new("git")
