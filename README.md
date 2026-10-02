@@ -111,10 +111,10 @@ The project deliberately shares an experience rather than pretending every
 platform has the same implementation.
 
 The optional [Tauri desktop app](desktop/README.md) supplies setup, visible
-approval, activity, and tray controls over the native resident. Public 0.4.8
+approval, activity, and tray controls over the native resident. Public 0.4.9
 includes Mac ARM64/Intel and Windows x64/ARM64. Native execution and production
 updates pass in ARM64 Tart and the Windows x64 VM; Windows ARM64 execution, Linux
-operator integration, and full physical-host product acceptance remain open.
+publication, and full physical-host product acceptance remain open.
 The [desktop acceptance matrix](docs/desktop-acceptance.md) distinguishes
 these product results from earlier native runtime evidence.
 Headless control remains independent.

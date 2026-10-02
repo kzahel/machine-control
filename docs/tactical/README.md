@@ -113,6 +113,6 @@ the commits' `Topic:` trailers and register that exact string in
   production update acceptance.
 - [`056-linux-desktop.md`](056-linux-desktop.md) (complete for x64 preview): ordinary-user GNOME
   Wayland portal control, shared Tauri app, grants, packages, and acceptance.
-- [`057-macos-until-stopped-release.md`](057-macos-until-stopped-release.md) (active):
+- [`057-macos-until-stopped-release.md`](057-macos-until-stopped-release.md) (complete):
   manual Mac access without a timer, signed VM acceptance, and stable 0.4.9
   Mac/Windows publication.

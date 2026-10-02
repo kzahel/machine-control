@@ -191,7 +191,7 @@ nine draft asset hashes/sizes, source identity, changelog and updater metadata,
 then published the same draft by ID without replacing bytes or its tag. Future
 CI publication now resolves and verifies the draft by ID. Both re-downloaded
 public DMGs and archives passed publisher signatures, notarization/stapling,
-updater signature/version and tamper rejection. The live download page selects the unified `0.4.8` release for all four
+updater signature/version and tamper rejection. The live download page selects the unified `0.4.9` release for all four
 architecture routes. Both the shared server and website proxy return signed
 archive metadata with cumulative required changelogs for older clients and 204
 for current clients. Product registration and the website proxy preserve the
@@ -234,3 +234,12 @@ All 17 uploaded assets and public package bytes are verified. Both platform
 families expose signed production updates to older clients and 204 to current
 clients. Available native package and production-update acceptance is recorded
 in [Tactical 055](../docs/tactical/055-unified-desktop-publication.md).
+
+**Current:** [Public desktop 0.4.9](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.4.9)
+promotes the accepted exact-source Mac/Windows candidate without rebuilding.
+All 17 public assets match candidate bytes and GitHub digests; both Mac and
+Windows package families authenticate and reject tampering. All four download
+routes select 0.4.9; production metadata returns its signed packages to 0.4.8
+clients and 204 to current clients. Targeted signed ARM64 Tart acceptance proves
+manual until-stopped access, Stop, Restart, and bounded agent approvals.
+[Tactical 057](../docs/tactical/057-macos-until-stopped-release.md) owns the result.

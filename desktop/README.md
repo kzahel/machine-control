@@ -97,10 +97,11 @@ operator window keeps the tray and resident running; Quit ends the process.
 Permission changes may require Restart. Browser integration is optional and
 currently uses the bundled unpacked extension, with explicit user setup.
 
-The Mac source now offers **Until I turn it off** for manually enabled access.
+Mac 0.4.9 offers **Until I turn it off** for manually enabled access.
 It removes the timer for the selected scopes; Stop, screen lock/session loss,
 Quit, and Restart still end access. Agent-requested approvals remain timed.
-This option is not in public 0.4.8 and has not had signed installed acceptance.
+The exact signed ARM64 package passes targeted Tart acceptance; see
+[Tactical 057](../docs/tactical/057-macos-until-stopped-release.md).
 
 ## Signed releases and candidates
 
@@ -139,7 +140,7 @@ rebuilding its signed bytes. The website resolves the
 latest desktop release separately from Windows component releases. See the
 [release process](../release/desktop.md) and [changelog](CHANGELOG.md).
 
-The latest public release is [0.4.8](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.4.8),
+The latest public release is [0.4.9](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.4.9),
 with Mac and Windows packages and production updates through the existing shared
 service. Manual checks are available in Settings and the tray. ARM64 Tart passes
 public 0.3.5 to 0.4.8 replacement with automatic relaunch and retained permissions;

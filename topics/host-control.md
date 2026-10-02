@@ -171,8 +171,11 @@ Stop, caller revocation, leaving an unlocked desktop, and resident exit still
 end access. Restart starts with access off. Agent approval requests retain
 bounded durations; they cannot create this lifetime through the public socket.
 The shared UI exposes this choice only when the native operator advertises
-support. The implementation is source-tested, not part of public `0.4.8`;
-signed installed acceptance remains open.
+support. Public `0.4.9` passes signed ARM64 Tart checks for visible selection,
+null expiry/countdown, selected scopes, independent fixture effect, Stop,
+Restart with access off and retained permissions, and bounded agent approval.
+[Tactical 057](../docs/tactical/057-macos-until-stopped-release.md) owns this
+targeted acceptance. Signed lock/recovery and full physical acceptance remain open.
 
 - An agent requests a scope (`observe`, `control`, or `browser`), a duration,
   and a free-text reason with `grant request`. The request blocks until approval, denial, or a

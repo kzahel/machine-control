@@ -1,6 +1,6 @@
 # 057 — Mac access until stopped and desktop 0.4.9
 
-Status: active
+Status: complete
 
 Owning topics: [host control](../../topics/host-control.md),
 [native distribution](../../topics/native-distribution.md), and
@@ -61,4 +61,36 @@ capture, keyboard delivery, and caller revocation. Concurrent human input
 prevented exact text equality; full physical product acceptance remains open.
 The [host topic](../../topics/host-control.md) owns that bounded current result.
 
-Signed 0.4.9 acceptance and publication are pending.
+Desktop `0.4.9` is published from source
+`640e44441fe8abfda6e546927e976b1ac232d689`:
+
+- [Candidate run 36984608124](https://github.com/kzahel/machine-control/actions/runs/36984608124)
+  builds and authenticates both Mac and both Windows architectures. Candidate
+  receipts bind workflow attempt `36984608124.1`.
+- The exact signed ARM64 app passes visible **Until I turn it off** selection,
+  null expiry/countdown, selected scopes, independently observed fixture
+  counter effect, visible Stop and dispatch refusal, Permissions Restart with
+  changed generation and retained TCC, and a public agent approval limited to
+  its requested duration. Restart starts with access off.
+- The test uses target-native control under an exclusive claim. It restores
+  the original appliance app/policy and suspended power state, removes owned
+  fixture/candidate state and captures, and releases the claim. The stored
+  login credential remains ready and owner-only; no credential is changed.
+- [Promotion run 36990455215](https://github.com/kzahel/machine-control/actions/runs/36990455215)
+  publishes the accepted bytes without rebuilding. All 17 public assets match
+  candidate bytes and GitHub SHA-256 digests; `latest.json` matches apart from
+  its publication timestamp. Re-downloaded ARM64/Intel Mac packages pass
+  publisher signatures, Gatekeeper, notarization/stapling, authenticated
+  updater version and tamper rejection. Both Windows packages pass signed
+  version, provenance, inventory and tamper rejection.
+- All four website download redirects select `desktop-v0.4.9`. Production
+  update routes return matching signed metadata and notes for `0.4.8`, and
+  HTTP 204 for current `0.4.9` clients.
+
+[Public release](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.4.9)
+contains all four Mac/Windows targets. Linux publication stays with `0.5.0`.
+Swift lifetime/session tests cover lock revocation; this targeted signed run
+does not add live lock/recovery, installed update, Intel, Windows ARM64, or full
+physical-Mac product acceptance. Prior full `0.4.8` acceptance remains separate
+in the [matrix](../desktop-acceptance.md). No physical desktop input is used
+after the user asks to keep using their computer.

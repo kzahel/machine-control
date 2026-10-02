@@ -24,11 +24,11 @@ immediately. Concrete targets and raw evidence stay in private inventory/storage
 
 | Target environment | Package evidence | App execution evidence | Record |
 | --- | --- | --- | --- |
-| macOS ARM64, Tart VM | Signed/notarized public 0.4.8 verified | Operator, grants, effects, tray, restart, and installed production update accepted | [052](tactical/052-macos-production-updates.md), [055](tactical/055-unified-desktop-publication.md) |
+| macOS ARM64, Tart VM | Signed/notarized public 0.4.9 verified | Targeted 0.4.9 until-stopped access, Stop, restart and bounded approval pass; earlier full operator and production-update evidence is 0.4.8 | [052](tactical/052-macos-production-updates.md), [055](tactical/055-unified-desktop-publication.md), [057](tactical/057-macos-until-stopped-release.md) |
 | macOS ARM64, physical Mac | Public signed/notarized 0.4.8 package authenticated | Partial smoke: consent/readiness, off-state refusal, visible approval, independent AX counter effect, exact-window capture, keyboard delivery and revoke; full desktop acceptance remains open | [host topic](../topics/host-control.md) |
-| macOS Intel | Signed/notarized public packages verified | Intel execution not recorded | [052](tactical/052-macos-production-updates.md) |
-| Windows x64, Windows VM on Linux/KVM | Exact signed public 0.4.8 installer and payload verified | Public 0.4.8 UI/grants/lifecycle, browser tasks, production update and uninstall accepted; outside parity, lock/sign-in startup and component compatibility recorded on 0.4.7 | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md), [055](tactical/055-unified-desktop-publication.md) |
-| Windows ARM64, Windows VM | Signed public 0.4.8 verified; CI package checks run on x64 | New Tauri operator execution not recorded; earlier ARM64 component execution below | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md), [055](tactical/055-unified-desktop-publication.md) |
+| macOS Intel | Signed/notarized public 0.4.9 verified | Intel execution not recorded | [052](tactical/052-macos-production-updates.md), [057](tactical/057-macos-until-stopped-release.md) |
+| Windows x64, Windows VM on Linux/KVM | Exact signed public 0.4.9 installer and payload verified | Public 0.4.8 UI/grants/lifecycle, browser tasks, production update and uninstall accepted; outside parity, lock/sign-in startup and component compatibility recorded on 0.4.7 | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md), [055](tactical/055-unified-desktop-publication.md), [057](tactical/057-macos-until-stopped-release.md) |
+| Windows ARM64, Windows VM | Signed public 0.4.9 verified; CI package checks run on x64 | New Tauri operator execution not recorded; earlier ARM64 component execution below | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md), [057](tactical/057-macos-until-stopped-release.md) |
 | Windows x64, physical Windows | New candidate package verification does not establish physical execution | New Tauri operator acceptance not recorded; earlier appliance engine evidence below | [physical engine record](evidence/windows-physical-x64.md) |
 | Linux x64, Ubuntu GNOME Wayland VM | Exact signed 0.5.0 candidate Debian/AppImage signatures and inventories verified | Native UI/grants/effects/lifecycle, signed replacement with browser tasks, lock, reboot/startup and ordinary removal accepted | [056](tactical/056-linux-desktop.md) |
 | Linux ARM64 | Final native Ubuntu CI builds, compiled identity, container inventories/signatures and tamper rejection verified | GNOME desktop execution not established | [056](tactical/056-linux-desktop.md) |
@@ -46,6 +46,7 @@ cell into a physical, architecture, or different package-family cell.
 | Off-state refusal and native approval/denial | Pass | Pass | Pass |
 | Scope narrowing and input pause during approval | Pass | Pass | Installed prompt pause passes; narrowing has contract coverage |
 | Request timeout and live bounded grant expiry | Not established by the Tauri live record; native contract coverage exists | Pass | Installed grant expiry passes; request timeout has contract coverage |
+| Manual until-stopped access | Pass, signed public 0.4.9: null expiry/countdown, scopes, independent effect, Stop and Restart; public agent approvals stay timed | Timed access retained | Timed access retained |
 | Stop and stale-generation refusal | Pass | Pass | Pass |
 | Native emergency Stop shortcut | Pass | Pass | Pass, opt-in GNOME shortcut |
 | Self-interface and protected-operation refusal | Pass | Pass | Operator/approval protected; protected control unavailable |

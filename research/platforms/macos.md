@@ -159,6 +159,16 @@ window capture, input delivery, and revocation. The
 [host topic](../../topics/host-control.md) owns the bounded result and omissions;
 full physical product acceptance remains open.
 
+**Current (2026-10-02), `live-tested`, signed ARM64 operator in Tart:** Public
+`0.4.9` adds manual until-stopped access. Its exact signed package passes visible
+lifetime selection, null expiry/countdown, selected scopes, independent AppKit
+counter effect, visible Stop with dispatch refusal, Permissions Restart with a
+new generation and retained TCC, and bounded public agent approval. The original
+appliance and policy are restored, power is parked, and the claim is released.
+[Tactical 057](../../docs/tactical/057-macos-until-stopped-release.md) owns exact
+package/publication evidence. This does not add signed lock/recovery, Intel, or
+full physical product acceptance.
+
 ## Owned authorization unlock prototype
 
 **Current (2026-09-10), `built` and `live-tested`:** An original Apple
