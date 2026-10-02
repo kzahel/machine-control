@@ -179,16 +179,17 @@ jobs:
         run: |
           $resource = Get-ChildItem desktop/src-tauri/native/mc-cli/python -Recurse -File -Filter zlib1.dll | Select-Object -First 1
           if ($null -eq $resource) { throw 'Expected pinned Python DLL missing' }
-          # Exercise the same Windows PowerShell host Tauri uses, with direct
-          # error output instead of its opaque custom-command build failure.
+          # Use this job's PowerShell 7 host. Legacy Windows PowerShell cannot
+          # load the inherited PS7 security modules through a Node/Rust child.
+          $shell = (Get-Command pwsh.exe).Source
           $hook = (Resolve-Path desktop/scripts/sign-windows-bundle.ps1).ProviderPath
           foreach ($path in @($resource.FullName, $resource.FullName.Replace('\','/'))) {
-            powershell.exe -NoProfile -ExecutionPolicy Bypass -File $hook $path
+            python -c 'import subprocess,sys;raise SystemExit(subprocess.run(sys.argv[1:]).returncode)' $shell -NoProfile -ExecutionPolicy Bypass -File $hook $path
             if ($LASTEXITCODE -ne 0) { throw 'Python CLI bundle signing hook preflight failed' }
           }
           Push-Location desktop/src-tauri
           try {
-            powershell.exe -NoProfile -ExecutionPolicy Bypass -File $hook ./native/mc-cli/python/DLLs/zlib1.dll
+            python -c 'import subprocess,sys;raise SystemExit(subprocess.run(sys.argv[1:]).returncode)' $shell -NoProfile -ExecutionPolicy Bypass -File $hook ./native/mc-cli/python/DLLs/zlib1.dll
             if ($LASTEXITCODE -ne 0) { throw 'Relative Python CLI bundle signing hook preflight failed' }
           } finally { Pop-Location }
       - name: Set version and sign app, uninstaller, and installer
@@ -201,7 +202,8 @@ jobs:
           python scripts/set-version.py $env:CANDIDATE_VERSION
           if ($LASTEXITCODE -ne 0) { throw 'Version validation failed' }
           $signer = (Resolve-Path scripts/sign-windows-bundle.ps1).Path
-          $config = @{bundle=@{windows=@{signCommand=@{cmd='powershell.exe';args=@('-NoProfile','-ExecutionPolicy','Bypass','-File',$signer,'%1')}}}} | ConvertTo-Json -Compress -Depth 10
+          $shell = (Get-Command pwsh.exe).Source
+          $config = @{bundle=@{windows=@{signCommand=@{cmd=$shell;args=@('-NoProfile','-ExecutionPolicy','Bypass','-File',$signer,'%1')}}}} | ConvertTo-Json -Compress -Depth 10
           # Use a file, preserving exact structured arguments and Windows paths.
           $config | Set-Content (Join-Path $env:RUNNER_TEMP 'mc-windows-signing.json') -Encoding utf8
           cargo clippy --manifest-path src-tauri/Cargo.toml --target '${{ matrix.target }}' --all-targets --locked -- -D warnings

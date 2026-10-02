@@ -114,3 +114,12 @@ Normalize filesystem provider paths before routing CLI resources, exercise
 absolute, alternate-separator and relative inputs, and retain bounded hook
 exception messages in runner-local diagnostics for CI build failures. These
 checks retain the signed catalog and exact inventory as the required authority.
+
+The bounded diagnostic identifies the remaining Windows failure: the legacy
+Windows PowerShell host cannot load Microsoft.PowerShell.Security through
+Tauri's inherited PowerShell 7 module path. Direct PowerShell invocation had
+adjusted that environment and hidden the difference. Use the same absolute
+PowerShell 7 executable as CI, and exercise the signing preflight through a
+Python child that preserves the inherited environment. Native signatures,
+catalogs, publisher/timestamp checks and full inventory validation remain
+required; no runtime bytes or trust checks are relaxed.
