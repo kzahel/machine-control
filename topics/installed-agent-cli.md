@@ -95,6 +95,15 @@ retiring any legacy YA component. [Tactical 062](../docs/tactical/062-installed-
 records implementation; [YA's migration plan](../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md)
 owns consumer cutover.
 
+**Current:** A source-independent YA Codex provider inside the claimed Mac
+appliance uses the signed installed CLI for a single semantic fixture increment,
+an exact-window capture and built-in agent image consumption. The independent
+fixture count and reported image count agree. This uses the appliance's
+standing policy, distinct from the earlier workstation approval slice.
+The generated native PNG also passes YA's separate full-app live/reloaded
+HTTP and desktop/phone viewer route. Provider-driven browser control and
+signed Windows/Linux native acceptance remain open.
+
 **Current:** Windows x64 passes physically relocated offline execution through
 its bundled interpreter in a claimed Windows 11 appliance. The Windows desktop
 harness accepts the installed command as an alternative to a checkout and uses

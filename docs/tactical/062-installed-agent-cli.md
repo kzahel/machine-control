@@ -139,3 +139,16 @@ pass. Its trace motivates clearer instructions: reuse a harness-supplied claim,
 show semantic press syntax, and retrieve the unchanged artifact path rather
 than guessing a capture id. The six CLI packaging checks pass. Provider-driven
 acceptance remains open pending the corrected run.
+
+The corrected target-local YA native probe passes with the updated Python
+instructions and a re-signed local app assembly; no Rust rebuild was needed
+for that command-workflow change. A complete Codex runtime and bundled YA probe
+run without source checkouts, use the supplied exact claim, perform one
+semantic fixture increment, fetch the native window artifact and consume it
+through the agent's built-in image tool. Independent count and reported visible
+count agree. The appliance's standing policy is explicit, not workstation
+approval evidence. Matching native artifacts and staged app/profile/runtime
+are removed, claims released and initial power-off independently confirmed.
+The same fixture capture passes YA's live/reloaded HTTP and desktop/phone
+media-view acceptance. Provider-driven browser control, signed Windows/Linux
+native use, lifecycle parity and YA legacy retirement remain open.
