@@ -205,6 +205,8 @@ try{
  if($Lock){
   Grant @('devtools')
   $beforeLock=(Call @{operation='status'}).generation
+  $summary.preLockGeneration=$beforeLock
+  $summary.recoveryStartedUtc=[DateTime]::UtcNow.ToString('o')
   Add-Type -TypeDefinition 'public static class BrowserFixtureLock { [System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool LockWorkStation(); }'
   Assert ([BrowserFixtureLock]::LockWorkStation()) 'Browser lock request delivered'
   $deadline=[DateTime]::UtcNow.AddSeconds(10)

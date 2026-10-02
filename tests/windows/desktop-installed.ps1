@@ -284,6 +284,8 @@ try {
  Assert ($p.Id -ne $priorId) 'Native Restart replaces operator process'
  WaitGrant $false
  Assert ($null -eq (Granted)) 'Restart leaves access off'
+ # A real login-started app preserves --background across Restart.
+ if (-not [DesktopFixtureInput]::IsWindowVisible((MainWindow))) {Tray 'Open Machine Control'}
  Press 'Settings'
  $runtime=@(Get-CimInstance Win32_Process|Where-Object {$_.ExecutablePath -eq $exe -and $_.CommandLine -match ' desktop$'})[0]
  Stop-Process -Id $runtime.ProcessId
@@ -291,6 +293,7 @@ try {
  Press 'Restart'
  WaitGrant $false
  Assert ((Call @{operation='status'}).accepted) 'Restart recovers after companion failure'
+ if (-not [DesktopFixtureInput]::IsWindowVisible((MainWindow))) {Tray 'Open Machine Control'}
  Press 'Enable access';WaitGrant $true
  Tray 'Stop access';WaitGrant $false
  Assert ($null -eq (Granted)) 'Tray Stop revokes access'

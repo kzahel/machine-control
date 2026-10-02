@@ -26,8 +26,7 @@ lock/login, and other users remain outside its ordinary profile.
 
 **Decision:** Reuse the concise Access, Permissions, Activity, and Settings UX.
 Windows permissions report session/integrity availability rather than macOS
-consent controls. Initially expose supported desktop scopes; browser integration
-has a separate acceptance gate.
+consent controls. Expose independently accepted desktop and browser scopes.
 
 **Decision:** Signed ARM64/x64 candidates use the existing publisher signing
 infrastructure and desktop updater key. Every publication requires meaningful
@@ -58,8 +57,8 @@ acceptance. Existing engine/package evidence is in
 [Tactical 036](../docs/tactical/036-windows-workstation-distribution.md);
 [native distribution](native-distribution.md) owns shared release decisions.
 
-**Open:** ARM64 native UI/runtime execution, physical hardware, signed browser
-acceptance, in-place unlock recovery, and production Windows feed publication.
+**Open:** ARM64 native UI/runtime execution, physical hardware, in-place unlock
+integration, and production Windows feed publication.
 ARM64 signing, installation, payload bytes, and updater authentication pass CI;
 they do not establish ARM64 desktop execution.
 
@@ -68,12 +67,14 @@ Source-native fixture effects and enforcement pass on x64. Upload and raw CDP
 WebSockets are explicitly unavailable; the [browser dossier](../research/providers/chrome-extension.md)
 owns route details.
 
-[Tactical 054](../docs/tactical/054-windows-browser-and-arm64.md) owns the next
-browser integration and ARM64 execution slice. Target availability and
+[Tactical 054](../docs/tactical/054-windows-browser-and-arm64.md) owns browser
+integration and the conditional ARM64 execution slice. Target availability and
 architecture execution are observed separately.
 
-**Current:** Exact signed 0.4.4 installed grants, lifecycle, tray and browser
-fixture tasks pass on x64. Browser-open 0.4.4 to 0.4.5 replacement is blocked
-by Chrome reconnecting to the old native-host executable. The 0.4.6 incoming
-installer pauses the owning manifest and restores it after replacement; native
-maintenance conformance passes, signed update acceptance remains pending.
+**Current:** Exact signed x64 browser fixture tasks and local/outside parity
+pass. Signed 0.4.4 to 0.4.6 replacement passes with Chrome open, retaining
+registration and startup while revoking access. The incoming installer pauses
+only the owning manifest during replacement and restores its exact bytes;
+startup also recovers interrupted maintenance. Actual sign-in starts 0.4.6 in
+background with a fresh generation and access off. This repairs the earlier
+0.4.4 to 0.4.5 native-host file-lock failure.

@@ -92,9 +92,14 @@ exact bytes and unchanged registry value after extraction. Startup recovers an
 interrupted maintenance marker. Native ownership, collision, invalid-origin,
 restoration and noninteractive uninstall probes pass. Real Chrome also passes
 maintenance pause, retry suppression, interrupted-state startup recovery and
-reconnection with access off. Signed update acceptance of this fix remains
-pending. Real cold-boot/stored-credential sign-in startup of
-0.4.5 passes with revoked authority. A separate SSH transport failure was
+reconnection with access off. Exact signed 0.4.4 to 0.4.6 replacement now passes
+with Chrome open: installer completion, automatic relaunch, exact payload,
+retained registration/manifest/startup, fresh generation, access off, stale
+reference refusal, provider reconnect and an independent new browser effect.
+Lock then revokes the browser grant and generation. Native logoff followed by
+stored-credential sign-in starts 0.4.6 in background with access off; this is
+not in-place unlock. Real cold-boot/sign-in startup of 0.4.5 also passed.
+A separate SSH transport failure was
 recovered through the claimed native lifecycle route, without outer UI.
 
 Local inventory presently has no registered Windows target or ready
@@ -109,4 +114,4 @@ Exact candidate identities:
 | --- | --- | --- | --- |
 | 0.4.4 | `9890fbc65eb9ad1ebb2c7340d5cb1816601c9a17` | [36932907245](https://github.com/kzahel/machine-control/actions/runs/36932907245) | x64 installed UI/lifecycle and browser tasks; both architecture packages verified |
 | 0.4.5 | `37608c6e8094a2ee54d56ab0a0a7924bf6fec072` | [36935615977](https://github.com/kzahel/machine-control/actions/runs/36935615977) | x64 browser task, outside/local effects/artifacts and real login startup; both packages verified; browser-open update not accepted |
-| 0.4.6 | `fae55064c042cfc026071880333916a573658bb9` | [36941024448](https://github.com/kzahel/machine-control/actions/runs/36941024448) | Build and signed acceptance pending |
+| 0.4.6 | `fae55064c042cfc026071880333916a573658bb9` | [36941024448](https://github.com/kzahel/machine-control/actions/runs/36941024448) | Both architecture packages verified; x64 browser-open update, lock revocation and actual sign-in startup pass |

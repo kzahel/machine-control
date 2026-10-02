@@ -156,12 +156,15 @@ target-wide grants; Intel execution and physical-host acceptance remain open.
 Production-feed acceptance subsequently passed in Tactical 052. Initial
 candidate evidence and bounded omissions live in [tactical 051](../docs/tactical/051-tauri-macos-desktop.md).
 
-**Current:** The shared Windows Tauri `0.4.3` candidate passes exact signed
+**Current:** The shared Windows Tauri candidate passes exact signed
 x64 installation, grants, tray/lifecycle, signed fixture-feed update, and
-local/outside control acceptance. ARM64 artifacts pass signing and byte
+local/outside control acceptance. Signed `0.4.4` to `0.4.6` replacement also
+passes with Chrome open, retaining registration and startup while revoking
+access. ARM64 artifacts pass signing and byte
 verification, but product execution remains open. [Windows desktop](windows-desktop.md)
-owns the workstream and [Tactical 053](../docs/tactical/053-windows-desktop.md)
-the evidence. Physical hardware is later environment coverage; existing
+owns the workstream; [Tactical 053](../docs/tactical/053-windows-desktop.md) and
+[054](../docs/tactical/054-windows-browser-and-arm64.md) own the evidence.
+Physical hardware is later environment coverage; existing
 physical appliance-engine evidence does not establish this new operator app.
 
 **Decision:** Use the shared Tauri UX and Desktop Release Kit update contract
