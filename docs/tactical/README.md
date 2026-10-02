@@ -131,4 +131,4 @@ the commits' `Topic:` trailers and register that exact string in
 - [062-installed-agent-cli.md](062-installed-agent-cli.md) (in progress): package the shared Python client and prove installed desktop consumers.
 
 - [`063-six-platform-desktop-release.md`](063-six-platform-desktop-release.md) (in progress):
-  desktop 0.5.2 publication for all six Mac/Windows/Linux architectures.
+  desktop 0.5.3 publication for all six Mac/Windows/Linux architectures.

@@ -1,4 +1,4 @@
-# 063 — Six-platform desktop 0.5.2 release
+# 063 — Six-platform desktop 0.5.3 release
 
 Status: in progress.
 
@@ -9,7 +9,7 @@ Owning topics: [native distribution](../../topics/native-distribution.md),
 ## Objective and completion conditions
 
 Release a new version on every packaged platform, as requested. Publish desktop
-0.5.2 for Mac Apple silicon/Intel, Windows x64/ARM64, and Linux x64/ARM64.
+0.5.3 for Mac Apple silicon/Intel, Windows x64/ARM64, and Linux x64/ARM64.
 Include native update discovery, the bundled Python CLI, and Mac sudo helpers.
 
 - Require meaningful notes and one exact main source across all six targets.
@@ -54,4 +54,9 @@ new Mac sudo helper: a function item was cast directly to the integer signal
 handler type. Cast through a function pointer without changing delivery or
 authentication behavior. Cancel the doomed workflow; preserve its annotated
 `desktop-v0.5.1` tag and do not publish partial packages. Restart every build
-at one repaired source as 0.5.2. Public delivery verification remains pending.
+at one repaired source as 0.5.3. Source review of the second attempt found that the ARM64 Windows installed
+CLI smoke would execute ARM64 Python on an x64 runner. Cancel 0.5.2 before
+publication and preserve its tag too. Build that architecture on GitHub's
+native `windows-11-arm` runner, keeping every catalog, publisher, inventory,
+relocation and execution check required. Build the full 0.5.3 matrix as a
+candidate before creating its release tag. Public verification remains pending.

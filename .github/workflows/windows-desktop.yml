@@ -61,7 +61,10 @@ jobs:
   signed:
     needs: check
     if: github.ref == 'refs/heads/main'
-    runs-on: windows-2025
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: pwsh
     environment: release
     timeout-minutes: 75
     strategy:
@@ -70,8 +73,10 @@ jobs:
         include:
           - target: x86_64-pc-windows-msvc
             runtime: win-x64
+            runner: windows-2025
           - target: aarch64-pc-windows-msvc
             runtime: win-arm64
+            runner: windows-11-arm
     env:
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
