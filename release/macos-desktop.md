@@ -100,3 +100,12 @@ released 0.3.5 passes automatic Permissions Restart, permission retention,
 revoked access, stale-reference refusal, operator/tray/Stop/Quit acceptance and
 testbed restoration. Tactical 052 owns exact execution and remaining physical
 Mac/Intel runtime limits. Published tags and bytes are immutable.
+
+## Unified releases
+
+Mac now publishes alongside Windows through [the single desktop script](desktop.md).
+Public `0.4.8` preserves both Mac architectures and the existing update endpoint.
+ARM64 Tart passes automatic production `0.3.5` to `0.4.8` replacement with
+permissions retained, access revoked and stale references rejected. The unified
+publication and final native evidence live in
+[Tactical 055](../docs/tactical/055-unified-desktop-publication.md).

@@ -43,7 +43,7 @@ That installer verifies integrity, but it is not a release authenticator. For
 an external package, verify the product updater signature, exact publisher,
 notarization, and final bytes before installation. The manual desktop workflow
 produces CI candidates with an empty release tag. Tagged publication uses
-[the desktop release script](../release/macos-desktop.md).
+[the desktop release script](../release/desktop.md).
 
 ## Approval and control boundaries
 
@@ -51,7 +51,7 @@ Windows uses a separate `desktop` instance and inherited private operator
 channel. Its public pipe enforces grants and cannot approve them. Ordinary
 control does not cross UAC, elevated apps, lock/login, or other user sessions.
 Ctrl+Alt+Shift+Period is the native emergency Stop shortcut. Startup is an
-explicit preference. See [Windows candidates](../release/windows-desktop.md)
+explicit preference. See [Windows packages](../release/windows-desktop.md)
 and [Tactical 053](../docs/tactical/053-windows-desktop.md) for current evidence.
 
 The resident still loads the trusted deployment policy and checks every
@@ -97,19 +97,21 @@ python3 desktop/scripts/verify-package.py ARTIFACT_DIRECTORY \
 ```
 
 The tagged release script creates an annotated `desktop-vX.Y.Z` tag and
-dispatches the main-only workflow. After both Mac packages pass verification,
-CI creates and verifies a draft before publication. The website resolves the
+dispatches the main-only unified workflow. All four Mac/Windows targets must
+pass verification before CI publishes the complete verified draft. An accepted
+unified candidate can be promoted without rebuilding its signed bytes. The website resolves the
 latest desktop release separately from Windows component releases. See the
-[release process](../release/macos-desktop.md) and [changelog](CHANGELOG.md).
+[release process](../release/desktop.md) and [changelog](CHANGELOG.md).
 
-The latest public release is [0.3.5](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.3.5),
-and its update route is deployed through the existing shared service.
-Manual checks are available in Settings and the menu bar. The fixed sender passes automatic production-feed
-handoff, and released 0.3.5 passes native Restart and operator acceptance in
-ARM64 Tart. Public 0.3.3 installs 0.3.5 with one native reopen for its old defect;
-0.3.3/0.3.4 clients may need to reopen after their first update. Exact acceptance
-and physical Mac/Intel omissions are tracked in
-[tactical 052](../docs/tactical/052-macos-production-updates.md).
+The latest public release is [0.4.8](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.4.8),
+with Mac and Windows packages and production updates through the existing shared
+service. Manual checks are available in Settings and the tray. ARM64 Tart passes
+public 0.3.5 to 0.4.8 replacement with automatic relaunch and retained permissions;
+Windows x64 passes 0.4.7 to public 0.4.8 with Chrome open. Mac 0.3.3/0.3.4 clients
+may need to reopen after their first update. Windows ARM64 packages are signed
+and verified; native ARM64 execution remains untested. Exact evidence is in
+[tactical 055](../docs/tactical/055-unified-desktop-publication.md), with earlier
+Mac update history in [052](../docs/tactical/052-macos-production-updates.md).
 No automatic update installation is enabled. Native code rechecks that no
 access or approval is active immediately before bundle replacement and restarts
 with access off.

@@ -177,12 +177,12 @@ gates. [Tactical 051](../docs/tactical/051-tauri-macos-desktop.md) owns the firs
 signed Mac candidate and Tart acceptance. CI candidates do not publish releases
 or deploy the update service.
 
-**Current:** [Tagged desktop publication](../release/macos-desktop.md) uses a
+**Current:** [Tagged desktop publication](../release/desktop.md) uses a
 clean main checkout, explicit changelog notes, and annotated `desktop-v` tags.
-The main-only workflow requires exact tag/source identity, verifies both Mac
+The main-only workflow requires exact tag/source identity, verifies all four Mac/Windows
 packages and GitHub-uploaded hashes, and publishes the complete draft once.
-The website resolves the latest desktop DMGs independently of Windows component
-releases. [Mac desktop 0.3.3](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.3.3)
+The website resolves current Mac and Windows installers independently of
+workstation component releases. [Mac desktop 0.3.3](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.3.3)
 is the first public preview. Both final packages passed
 [CI signing and publication staging](https://github.com/kzahel/machine-control/actions/runs/36820029330).
 The first publication stopped after upload because its by-tag lookup could not
@@ -191,8 +191,8 @@ nine draft asset hashes/sizes, source identity, changelog and updater metadata,
 then published the same draft by ID without replacing bytes or its tag. Future
 CI publication now resolves and verifies the draft by ID. Both re-downloaded
 public DMGs and archives passed publisher signatures, notarization/stapling,
-updater signature/version and tamper rejection. The live download page selects `0.3.5`, and both architecture routes redirect
-to its exact installers. Both the shared server and website proxy return signed
+updater signature/version and tamper rejection. The live download page selects the unified `0.4.8` release for all four
+architecture routes. Both the shared server and website proxy return signed
 archive metadata with cumulative required changelogs for older clients and 204
 for current clients. Product registration and the website proxy preserve the
 endpoint already embedded in 0.3.3.
@@ -227,3 +227,10 @@ Linux will join this matrix when implemented. Windows ARM64 publication is
 explicitly requested while native ARM64 execution remains unverified.
 [The unified process](../release/desktop.md) owns operator guidance;
 [Tactical 055](../docs/tactical/055-unified-desktop-publication.md) owns execution.
+
+**Current:** [Public desktop 0.4.8](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.4.8)
+publishes all four exact authenticated candidates without rebuilding them.
+All 17 uploaded assets and public package bytes are verified. Both platform
+families expose signed production updates to older clients and 204 to current
+clients. Available native package and production-update acceptance is recorded
+in [Tactical 055](../docs/tactical/055-unified-desktop-publication.md).

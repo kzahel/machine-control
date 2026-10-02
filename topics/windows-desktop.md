@@ -2,8 +2,9 @@
 
 Topic: `windows-desktop`
 
-Status: signed x64 preview accepted on a dedicated VM. ARM64 native desktop
-execution, physical hardware, and production publication remain open.
+Status: public 0.4.8 preview published for x64 and ARM64. Signed x64 VM
+execution and production updates are accepted; ARM64 native execution and
+physical hardware remain open.
 
 ## Product and boundaries
 
@@ -60,7 +61,7 @@ engine/package evidence is in
 [native distribution](native-distribution.md) owns shared release decisions.
 
 **Open:** ARM64 native UI/runtime execution, physical hardware, in-place unlock
-integration, and production Windows feed publication.
+integration.
 ARM64 signing, installation, payload bytes, and updater authentication pass CI;
 they do not establish ARM64 desktop execution.
 
@@ -86,3 +87,12 @@ registration and startup with Chrome connected, while Chrome and an independent
 app survive. A held image causes bounded refusal with exact payload and startup
 preserved; uninstall succeeds after release. The actor waits for the relocated
 uninstaller's effects rather than treating its bootstrap exit as completion.
+
+**Current:** Unified public `0.4.8` includes Mac and Windows packages under one
+version, tag, required changelog and release script. Exact x64 installed UI,
+browser, held-image refusal and ordinary uninstall pass. Production `0.4.7`
+to `0.4.8` replacement passes with Chrome open, retaining startup/registration,
+reconnecting, relaunching off and rejecting old references. ARM64 public packages
+pass signing, provenance, payload and updater authentication; native execution
+remains untested. [Tactical 055](../docs/tactical/055-unified-desktop-publication.md)
+owns publication and its final available-VM evidence.

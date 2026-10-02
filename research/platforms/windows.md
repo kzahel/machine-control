@@ -53,7 +53,10 @@ now connects to the ordinary desktop resident through Windows native messaging.
 Source-native and exact signed x64 browser fixture conformance pass, including
 local/outside effects and artifacts. Signed browser-open replacement also
 passes; [Tactical 054](../../docs/tactical/054-windows-browser-and-arm64.md)
-owns the exact package and recovery evidence.
+owns the earlier package and recovery evidence. Unified public 0.4.8 passes
+installed browser tasks, production 0.4.7 to 0.4.8 replacement with Chrome open,
+and ordinary uninstall; [Tactical 055](../../docs/tactical/055-unified-desktop-publication.md)
+owns that publication evidence. Native ARM64 product execution remains open.
 
 ## Candidate matrix
 

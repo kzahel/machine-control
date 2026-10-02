@@ -29,11 +29,12 @@ tab lifecycle APIs. It is not the approval authority.
 | macOS source-native extension/native messaging | `conformance-tested` | Fixture effects, navigation, capture and provider refusal in a Tart guest; predates signed Tauri acceptance |
 | macOS per-tab raw CDP WebSocket | `live-tested` | Reads/actions/events on physical and guest Chrome; browser-level attachment absent |
 | Windows source-native extension/native messaging | `conformance-tested` | Dedicated x64 VM, browser/devtools enforcement, independent fixture effects and PNG/hash checks; exact installed evidence below |
-| Windows signed Tauri extension/native messaging | `conformance-tested` | Exact 0.4.7 x64 VM package; UI setup/approval, independent effects/capture, restart and local/outside parity; browser-open replacement, lock revocation and ordinary uninstall pass |
+| Windows signed Tauri extension/native messaging | `conformance-tested` | Public 0.4.8 x64 VM package: setup/approval, independent effects/capture, restart, production browser-open replacement and ordinary uninstall; local/outside parity and lock revocation recorded on 0.4.7 |
 | Linux and other Chromium browsers | `upstream-claimed` facilities only | Owned registration and product acceptance absent |
 
 [Tactical 050](../../docs/tactical/050-macos-host-control-mvp.md) and
-[Tactical 054](../../docs/tactical/054-windows-browser-and-arm64.md) own execution.
+[Tactical 054](../../docs/tactical/054-windows-browser-and-arm64.md) and
+[055](../../docs/tactical/055-unified-desktop-publication.md) own execution.
 The [desktop matrix](../../docs/desktop-acceptance.md) separates source-native
 and exact installed product evidence.
 

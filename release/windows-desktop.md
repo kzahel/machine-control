@@ -50,8 +50,8 @@ runtime catalog, and payload bytes. Signing/build checks are not desktop
 acceptance. [Tactical 053](../docs/tactical/053-windows-desktop.md) owns native
 approval/effect/Stop/session/tray/lifecycle/update acceptance through claimed VMs.
 
-Exact signed x64 candidate `0.4.7` passes installed UI, browser, updater,
-startup, and uninstall acceptance; [tactical 054](../docs/tactical/054-windows-browser-and-arm64.md)
+Public signed x64 preview `0.4.8` passes installed UI, browser, updater,
+startup, and uninstall acceptance; [tactical 055](../docs/tactical/055-unified-desktop-publication.md)
 records its source and workflow. ARM64 package verification does not establish
 native ARM64 execution.
 
