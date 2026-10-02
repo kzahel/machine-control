@@ -28,6 +28,7 @@ tab lifecycle APIs. It is not the approval authority.
 | --- | --- | --- |
 | macOS source-native extension/native messaging | `conformance-tested` | Fixture effects, navigation, capture and provider refusal in a Tart guest; predates signed Tauri acceptance |
 | macOS per-tab raw CDP WebSocket | `live-tested` | Reads/actions/events on physical and guest Chrome; browser-level attachment absent |
+| macOS signed Tauri, installed Python CLI and YA local Codex | `conformance-tested` | Chrome for Testing 145 in a claimed appliance: independent HTTP counter effect, tab PNG consumed by the built-in agent image tool, plus 21 existing indicator/worker checks; standing policy, not workstation approval |
 | Windows source-native extension/native messaging | `conformance-tested` | Dedicated x64 VM, browser/devtools enforcement, independent fixture effects and PNG/hash checks; exact installed evidence below |
 | Windows signed Tauri extension/native messaging | `conformance-tested` | Public 0.4.8 x64 VM package: setup/approval, independent effects/capture, restart, production browser-open replacement and ordinary uninstall; local/outside parity and lock revocation recorded on 0.4.7 |
 | Linux and other Chromium browsers | `upstream-claimed` facilities only | Owned registration and product acceptance absent |
@@ -70,6 +71,13 @@ visual capture, and desktop 0.4.10 release result. The signed run uses a standin
 appliance policy; it does not add workstation browser approval evidence. The
 [Codex extension review](codex-browser-extension.md) supplies source-reviewed
 interaction patterns for those indicators; no third-party code was adopted.
+
+The source-independent YA consumer additionally passes the bounded browser
+fixture in [062](../../docs/tactical/062-installed-agent-cli.md): one semantic
+click changes the independent HTTP counter once, and the model consumes its
+new tab capture. The optional agent hook in the existing headed harness adds
+two checks to its 21-check installed-client route. This is local signed
+assembly evidence; publication and other platform/provider cells are separate.
 
 **Decision:** Retain this target-native route behind the common facade. A
 remote caller transports the same resident operations; it does not manipulate

@@ -152,3 +152,21 @@ are removed, claims released and initial power-off independently confirmed.
 The same fixture capture passes YA's live/reloaded HTTP and desktop/phone
 media-view acceptance. Provider-driven browser control, signed Windows/Linux
 native use, lifecycle parity and YA legacy retirement remain open.
+
+The browser model cell also passes from the source-independent Mac staging
+with Chrome for Testing 145. The existing headed harness adds an optional
+bounded YA probe and a server-owned counter fixture. Its 21 installed-client
+indicator/worker checks and two new agent/effect checks pass: actual CLI
+instructions/identity, tabs/snapshot, a single semantic click, tab capture,
+unchanged artifact retrieval and built-in image consumption. Counter and
+visible image agree. The first staged attempt carried an older harness and
+refused the new arguments before browser/model startup; it is not passing
+evidence. The corrected handoff verifies the harness hash before execution.
+Eight extension unit checks and Python compilation also pass.
+
+Owned Chrome/profile, native artifacts, staged auth/runtime and candidate are
+cleaned; the canonical native-host socket is restored, claims released and
+initial power-off confirmed. Standing appliance authority remains explicit.
+The generated tab PNG passes YA's separate full-app live/reloaded HTTP and
+desktop/phone viewer checks. Signed Windows/Linux control, lifecycle parity,
+public consumer selection and YA legacy retirement remain open.

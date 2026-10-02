@@ -101,8 +101,10 @@ an exact-window capture and built-in agent image consumption. The independent
 fixture count and reported image count agree. This uses the appliance's
 standing policy, distinct from the earlier workstation approval slice.
 The generated native PNG also passes YA's separate full-app live/reloaded
-HTTP and desktop/phone viewer route. Provider-driven browser control and
-signed Windows/Linux native acceptance remain open.
+HTTP and desktop/phone viewer route. A separate browser model also uses the
+installed CLI to increment an independent HTTP fixture once and consume its
+new tab capture; the headed browser harness passes all 23 checks. Signed
+Windows/Linux native acceptance and lifecycle parity remain open.
 
 **Current:** Windows x64 passes physically relocated offline execution through
 its bundled interpreter in a claimed Windows 11 appliance. The Windows desktop

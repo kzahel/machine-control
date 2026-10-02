@@ -30,13 +30,19 @@ p.add_argument("--cdp-client", type=Path, required=True)
 p.add_argument("--claim", required=True)
 p.add_argument("--client", type=Path, help="Use the installed control CLI for operations")
 p.add_argument("--output", type=Path, required=True)
+p.add_argument("--agent-probe", type=Path, help="Optional bounded YA browser-model probe")
+p.add_argument("--node", type=Path, help="Node executable for --agent-probe")
 args = p.parse_args()
+if bool(args.agent_probe) != bool(args.node):
+    p.error("--agent-probe and --node must be supplied together")
 spec = importlib.util.spec_from_file_location("cdp_client", args.cdp_client)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 checks = []
 oracles = {}
 browser = observer = server = None
+agent_count = 0
+agent_lock = threading.Lock()
 extension_id = "ncbfifkjllmnkkjmomjohinigfgdocjc"
 
 
@@ -102,6 +108,17 @@ class Fixture(BaseHTTPRequestHandler):
         pass
 
     def do_POST(self):
+        global agent_count
+        if urlsplit(self.path).path == "/agent/increment":
+            with agent_lock:
+                agent_count += 1
+                data = json.dumps({"count": agent_count}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         oracles[data["path"]] = data
         self.send_response(204)
@@ -110,7 +127,24 @@ class Fixture(BaseHTTPRequestHandler):
     def do_GET(self):
         print("Fixture GET", self.path, flush=True)
         path = urlsplit(self.path).path
-        if path.endswith(".svg"):
+        if path == "/agent/state":
+            with agent_lock:
+                data = json.dumps({"schema": "machine-control-browser-agent-fixture/v0",
+                                   "count": agent_count}).encode()
+            content_type = "application/json"
+        elif path == "/agent":
+            data = b'''<!doctype html><html><head><title>Browser agent fixture</title>
+<link rel="icon" href="/site.svg"></head><body>
+<h1>Browser agent fixture</h1><button id="increment">Increment browser count</button>
+<p id="count">Count: 0</p><script>
+document.getElementById('increment').addEventListener('click',async()=>{
+ const response=await fetch('/agent/increment',{method:'POST'});
+ const result=await response.json();
+ document.getElementById('count').textContent='Count: '+result.count;
+});
+</script></body></html>'''
+            content_type = "text/html"
+        elif path.endswith(".svg"):
             data = b'<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="orange"/></svg>'
             content_type = "image/svg+xml"
         else:
@@ -293,6 +327,17 @@ with tempfile.TemporaryDirectory(prefix="mc-indicator-browser-") as scratch:
         check("control resumes with current resident authority", True)
         call("browser.release")
         poll(lambda: not marker("/existing"))
+        if args.agent_probe:
+            call("browser.navigate", url=url + "/agent", newTab=True, active=True)
+            result = subprocess.run([str(args.node), str(args.agent_probe)],
+                env={**os.environ, "MC_PROBE_BROWSER_URL": url + "/agent"},
+                timeout=330, capture_output=True, text=True)
+            args.output.with_name(args.output.stem + "-agent.log").write_text(
+                result.stdout + result.stderr)
+            check("YA browser model probe passes", result.returncode == 0)
+            with agent_lock:
+                check("independent HTTP fixture increments exactly once", agent_count == 1)
+            call("browser.release")
     except BaseException as error:
         import traceback
         failure = repr(error)

@@ -22,6 +22,15 @@ and result vocabulary as desktop control. This applies to physical hosts
 
 ## Current
 
+**Current (2026-10-02):** A source-independent YA Codex provider in the Mac
+appliance consumes the signed installed Python CLI for a browser fixture:
+tabs/snapshot, one semantic click, tab capture, artifact fetch and built-in
+agent image consumption. An independent HTTP counter establishes the effect.
+Chrome for Testing 145 passes the 23-check headed harness, including the
+existing indicator/worker checks. This uses standing appliance authority;
+workstation approval and other installed platforms remain separate. See
+[Tactical 062](../docs/tactical/062-installed-agent-cli.md).
+
 **Current:** [`platforms/chromeos/cdp.py`](../platforms/chromeos/cdp.py) is a
 standard-library CDP client. It lists targets, reads a page's full
 accessibility tree, finds nodes, and clicks. It depends on ChromeOS's
