@@ -2713,6 +2713,12 @@ def handle_grant(
     return send_resident_request(alias, target, grant_request(arguments))
 
 
+def update_request(arguments: list[str]) -> dict[str, Any]:
+    if len(arguments) != 1 or arguments[0] not in {"check", "status"}:
+        raise ClientError("usage", "update requires check or status; accepts no arguments")
+    return {"operation": f"update.{arguments[0]}"}
+
+
 def send_resident_request(
     alias: str, target: dict[str, Any], request: dict[str, Any]
 ) -> int:
@@ -3213,7 +3219,7 @@ def operation_requires_claim(operation: str, arguments: list[str]) -> bool:
         return subcommand != "capabilities"
     if operation == "workspace":
         return False
-    return operation in {"desktop", "grant", "browser", "ios", "testbed", "os"}
+    return operation in {"desktop", "grant", "update", "browser", "ios", "testbed", "os"}
 
 
 def operation_required_claim_use_class(
@@ -3573,6 +3579,7 @@ Commands:
   grant request --scope observe|control|browser|devtools... --reason TEXT
         [--duration D] [--timeout D] | grant status | grant revoke
                                     Ask a person at the target for access
+  update check|status             Queue desktop update discovery or read status
   browser tabs|wait|navigate|snapshot|click|type|key|capture|upload|cdp|eval
         |endpoint|release   (browser CMD --help for details)
         [--tab ID] [--url URL] [--new-tab] [--reference R] [--text T]
@@ -3785,6 +3792,8 @@ def main(argv: list[str] | None = None) -> int:
             return handle_desktop(alias, target, remainder[1:])
         if operation == "grant":
             return handle_grant(alias, target, remainder[1:])
+        if operation == "update":
+            return send_resident_request(alias, target, update_request(remainder[1:]))
         if operation == "browser":
             return handle_browser(alias, target, remainder[1:])
         if operation == "ios":

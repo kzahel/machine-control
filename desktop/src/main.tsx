@@ -1,8 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { check } from "@tauri-apps/plugin-updater";
 import {
   Activity,
   ArrowUpRight,
@@ -16,7 +15,17 @@ import {
 import "./style.css";
 
 type Scope = "observe" | "control" | "browser" | "devtools";
+type UpdateState = {
+  phase: string;
+  checking: boolean;
+  installing: boolean;
+  availableVersion: string | null;
+  notes: string | null;
+  reason: string | null;
+  error: string | null;
+};
 type State = {
+  updates?: UpdateState;
   platform?: string;
   supportedScopes?: Scope[];
   stopShortcut?: string;
@@ -81,40 +90,19 @@ function App() {
   const [duration, setDuration] = useState(900);
   const [pendingScopes, setPendingScopes] = useState<Scope[]>([]);
   const [pendingDuration, setPendingDuration] = useState(900);
-  const [update, setUpdate] = useState<Awaited<ReturnType<typeof check>>>(null);
-  const checking = useRef(false);
+  const update = state?.updates;
   const checkUpdates = async () => {
-    if (checking.current) return;
-    checking.current = true;
-    setBusy(true);
-    setError("");
-    setNotice("Checking…");
     try {
-      const candidate = await check({
-        timeout: 20000,
-        headers: { "X-Check-Reason": "manual" },
-      });
-      setUpdate((previous) => {
-        void previous?.close();
-        return candidate;
-      });
-      setNotice(
-        candidate ? `Version ${candidate.version} available.` : "Up to date.",
-      );
-    } catch {
-      setNotice("Couldn’t check for updates. Try again.");
-    } finally {
-      checking.current = false;
-      setBusy(false);
+      await invoke("check_update");
+      await refresh();
+    } catch (e) {
+      setError(String(e));
     }
   };
-  const trayAction = useRef(checkUpdates);
-  trayAction.current = checkUpdates;
   useEffect(() => {
     const listener = listen<string>("tray-command", ({ payload }) => {
       setPage(payload === "open" ? "access" : "settings");
       setNotice("");
-      if (payload === "updates") void trayAction.current();
     });
     return () => {
       void listener.then((unlisten) => unlisten());
@@ -187,6 +175,13 @@ function App() {
             >
               <I size={16} />
               {label as string}
+              {id === "settings" && update?.availableVersion && (
+                <span
+                  className="dot"
+                  aria-hidden="true"
+                  title="Update available"
+                />
+              )}
               {id === "setup" && state && !ready && <span className="dot" />}
             </button>
           );
@@ -521,32 +516,57 @@ function App() {
             <section className="group" aria-label="Updates">
               <div className="setting-row">
                 <span className="row-label">Updates</span>
-                <button disabled={busy} onClick={() => void checkUpdates()}>
+                <button
+                  disabled={busy || update?.checking || update?.installing}
+                  onClick={() => void checkUpdates()}
+                >
                   Check for updates
                 </button>
-                {update && state?.updateInstallSupported !== false && (
-                  <button
-                    disabled={busy || !!grant || standing || !!state?.pending}
-                    onClick={async () => {
-                      setBusy(true);
-                      try {
-                        await invoke("install_update", {
-                          version: update.version,
-                        });
-                      } catch (e) {
-                        setError(String(e));
-                        setBusy(false);
+                {update?.availableVersion &&
+                  state?.updateInstallSupported !== false && (
+                    <button
+                      disabled={
+                        busy ||
+                        update.checking ||
+                        update.installing ||
+                        !!grant ||
+                        standing ||
+                        !!state?.pending
                       }
-                    }}
-                  >
-                    Install and restart
-                  </button>
-                )}
+                      onClick={async () => {
+                        setBusy(true);
+                        try {
+                          await invoke("install_update", {
+                            version: update.availableVersion,
+                          });
+                        } catch (e) {
+                          setError(String(e));
+                          setBusy(false);
+                        }
+                      }}
+                    >
+                      Install and restart
+                    </button>
+                  )}
               </div>
               {linux && state?.updateInstallSupported === false && (
                 <p className="note">
                   Install updates with the package manager.
                 </p>
+              )}
+              {update?.checking && (
+                <p className="note">Checking for updates…</p>
+              )}
+              {update?.availableVersion && (
+                <p className="note">
+                  Version {update.availableVersion} available.
+                </p>
+              )}
+              {update?.phase === "up_to_date" && update.reason === "manual" && (
+                <p className="note">Up to date.</p>
+              )}
+              {update?.phase === "error" && update.error && (
+                <p className="note">{update.error}</p>
               )}
             </section>
             <section className="group details" aria-label="Installation">

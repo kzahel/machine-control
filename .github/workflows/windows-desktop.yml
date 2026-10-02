@@ -55,6 +55,8 @@ jobs:
           cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
           if ($LASTEXITCODE -ne 0) { throw 'Rust format failed' }
           cargo clippy --manifest-path desktop/src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+          if ($LASTEXITCODE -ne 0) { throw 'Windows Rust lint failed' }
+          cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked
           if ($LASTEXITCODE -ne 0) { throw 'Windows Rust checks failed' }
   signed:
     needs: check

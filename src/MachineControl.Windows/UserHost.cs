@@ -7,7 +7,7 @@ using System.Text.Json;
 
 namespace MachineControl.Windows;
 
-internal sealed class UserHost(string instance, DesktopGrants? grants = null, BrowserRelay? browser = null)
+internal sealed class UserHost(string instance, DesktopGrants? grants = null, BrowserRelay? browser = null, DesktopUpdates? updates = null)
 {
     private readonly string _generation = Guid.NewGuid().ToString("n");
     private readonly SemaphoreSlim _providerGate = new(1, 1);
@@ -138,11 +138,27 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
         if (request.ExpectedGeneration is not null && request.ExpectedGeneration != Generation)
             return result with { ErrorCode = "stale_generation", Message = "Runtime generation changed" };
         if (!Operations.Contains(request.Operation, StringComparer.Ordinal) &&
+            !(updates is not null && request.Operation is "update.check" or "update.status") &&
             !(grants is not null && request.Operation is "grant.request" or "grant.status" or "grant.revoke") &&
             !(browser is not null && BrowserWire.Operations.Contains(request.Operation, StringComparer.Ordinal)))
             return result with { ErrorCode = "unsupported_operation", Message = "Operation is unavailable in the workstation profile" };
         if (request.SecretPipe is not null || request.CredentialKind is not null)
             return result with { ErrorCode = "profile_refused", Message = "Workstation mode has no credential transport" };
+        if (updates is not null && request.Operation is "update.check" or "update.status")
+        {
+            try
+            {
+                return result with
+                {
+                    Accepted = true,
+                    Delivery = "confirmed",
+                    Effect = "not_applicable",
+                    Data = updates.Request(request.Operation == "update.check")
+                };
+            }
+            catch (InvalidOperationException ex)
+            { return result with { ErrorCode = "update_unavailable", Message = ex.Message }; }
+        }
         if (grants is not null)
         {
             grants.SetReady(DesktopSafety.Ready());
@@ -191,7 +207,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
                 : new
                 {
                     profile = "workstation",
-                    operations = grants is null ? Operations : [.. Operations, .. BrowserWire.Operations, "grant.request", "grant.status", "grant.revoke"],
+                    operations = grants is null ? Operations : [.. Operations, .. BrowserWire.Operations, "grant.request", "grant.status", "grant.revoke", .. (updates is null ? Array.Empty<string>() : new[] { "update.check", "update.status" })],
                     browser = browser?.State,
                     authorization = grants is null ? "component_owner" : "native_target_wide_grants",
                     providers = ProviderRouter.DescribeUser(),

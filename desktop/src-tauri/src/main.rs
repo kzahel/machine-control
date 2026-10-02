@@ -11,6 +11,7 @@ use tauri_plugin_updater::UpdaterExt;
 #[cfg(target_os = "linux")]
 mod linux;
 mod restart;
+mod updates;
 #[cfg(target_os = "windows")]
 mod windows;
 
@@ -42,21 +43,38 @@ fn decode(pointer: *mut libc::c_char) -> Result<Value, String> {
 }
 
 #[cfg(target_os = "macos")]
-fn native_command(command: Value) -> Result<Value, String> {
+fn platform_command(command: Value) -> Result<Value, String> {
     let input = CString::new(command.to_string()).map_err(|e| e.to_string())?;
     decode(unsafe { mc_desktop_command(input.as_ptr()) })
 }
 #[cfg(target_os = "windows")]
-fn native_command(command: Value) -> Result<Value, String> {
+fn platform_command(command: Value) -> Result<Value, String> {
     windows::command(command)
 }
 #[cfg(target_os = "linux")]
-fn native_command(command: Value) -> Result<Value, String> {
+fn platform_command(command: Value) -> Result<Value, String> {
     linux::command(command)
 }
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
-fn native_command(_: Value) -> Result<Value, String> {
+fn platform_command(_: Value) -> Result<Value, String> {
     Err("Desktop workstation control is currently available on macOS; this platform adapter is not installed".into())
+}
+
+fn native_command(command: Value) -> Result<Value, String> {
+    let state_request = command["method"] == "state";
+    let mut reply = platform_command(command)?;
+    if state_request {
+        reply["state"]["updates"] = updates::status();
+    }
+    Ok(reply)
+}
+
+#[tauri::command]
+fn check_update(app: tauri::AppHandle, window: tauri::WebviewWindow) -> Result<Value, String> {
+    if window.label() != "main" {
+        return Err("Operator window required".into());
+    }
+    updates::check(&app, "manual")
 }
 
 // AT-SPI can call back into this GTK application while the resident handles
@@ -135,7 +153,18 @@ async fn install_update(
     if std::env::var_os("APPIMAGE").is_none() {
         return Err("Install Debian updates with the package manager".into());
     }
-    let updater = app.updater_builder();
+    updates::begin_install(&version)?;
+    let result = perform_install(app, version).await;
+    updates::finish_install(&result);
+    result
+}
+
+async fn perform_install(app: tauri::AppHandle, version: String) -> Result<(), String> {
+    let updater = app
+        .updater_builder()
+        .header("X-Check-Reason", "manual")
+        .map_err(|e| e.to_string())?
+        .timeout(std::time::Duration::from_secs(20));
     #[cfg(target_os = "windows")]
     let updater = {
         let exit = app.clone();
@@ -144,7 +173,7 @@ async fn install_update(
             exit.cleanup_before_exit();
         })
     };
-    let update = updater
+    let mut update = updater
         .build()
         .map_err(|e| e.to_string())?
         .check()
@@ -154,10 +183,12 @@ async fn install_update(
     if update.version != version {
         return Err("Update changed; check again before installing".into());
     }
+    update.timeout = Some(std::time::Duration::from_secs(120));
     let bytes = update
         .download(|_, _| {}, || {})
         .await
         .map_err(|e| e.to_string())?;
+    updates::installing();
     let (send, receive) = std::sync::mpsc::channel();
     let restart = app.clone();
     schedule_native(&app, move || {
@@ -172,9 +203,11 @@ async fn install_update(
         let _ = send.send(result);
     })
     .map_err(|e| e.to_string())?;
-    receive
-        .recv_timeout(std::time::Duration::from_secs(60))
-        .map_err(|e| e.to_string())?
+    // Once replacement is dispatched, retain update exclusion until it finishes.
+    // Timing out the waiter would allow a second install to race that work.
+    tauri::async_runtime::spawn_blocking(move || receive.recv().map_err(|e| e.to_string()))
+        .await
+        .map_err(|e| e.to_string())??
 }
 
 fn main() {
@@ -233,6 +266,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             operator_command,
+            check_update,
             install_update,
             restart_application
         ])
@@ -332,6 +366,9 @@ fn main() {
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" | "settings" | "updates" => {
+                        if event.id.as_ref() == "updates" {
+                            let _ = updates::check(app, "manual");
+                        }
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
@@ -367,6 +404,7 @@ fn main() {
                     _ => {}
                 })
                 .build(app)?;
+            updates::start(app.handle(), updates);
             Ok(())
         })
         .on_window_event(|window, event| {

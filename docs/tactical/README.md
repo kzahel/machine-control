@@ -122,3 +122,6 @@ the commits' `Topic:` trailers and register that exact string in
 - [`059-public-linux-desktop.md`](059-public-linux-desktop.md) (complete): one
   public six-architecture desktop release, exact Linux acceptance, downloads
   and production update metadata.
+- [`060-native-update-discovery.md`](060-native-update-discovery.md) (complete):
+  native silent startup/daily checks, shared Settings/tray state, and metadata-only
+  CLI discovery through existing resident transports.

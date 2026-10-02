@@ -93,6 +93,7 @@ final class ResidentServer {
     let socketPath: String
     let service: ResidentService
     let broker: GrantBroker
+    let updates = DesktopUpdates()
     weak var approver: GrantApprover?
     /// Extra screening for approved control, such as refusing input aimed
     /// at the resident's own interface.
@@ -208,6 +209,15 @@ final class ResidentServer {
         let caller = CallerIdentity.of(socket: client)
         let claimID = request["claimId"] as? String
 
+        if operation == "update.check" || operation == "update.status" {
+            let response = updates.request(check: operation == "update.check")
+                .map { service.acceptance(request, data: $0) }
+                ?? service.refusal(request, code: "unsupported_operation",
+                    message: "Updates require the desktop product")
+            respond(client, request, response, caller: caller, claimID: claimID)
+            return
+        }
+
         if operation == "browser.provider" {
             if let refusal = browser.register(client, request) {
                 respond(client, request, refusal, caller: caller, claimID: claimID)
@@ -293,6 +303,10 @@ final class ResidentServer {
                 var browserStatus = browser.statusJSON
                 browserStatus["devtoolsEndpoint"] = devtools.endpoint ?? NSNull()
                 data["browser"] = browserStatus
+                if updates.request(check: false) != nil {
+                    data["updateDiscovery"] = ["operations": ["update.check", "update.status"],
+                        "route": "desktop.native-updater", "installation": "local_operator_only"]
+                }
                 response["data"] = data
             }
             respond(client, request, response, caller: caller, claimID: claimID)

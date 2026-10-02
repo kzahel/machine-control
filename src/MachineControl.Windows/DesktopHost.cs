@@ -15,6 +15,7 @@ internal static class DesktopHost
             throw new InvalidOperationException("The desktop resident requires its operator transport");
         using var stop = new CancellationTokenSource();
         var broker = new DesktopGrants();
+        var updates = new DesktopUpdates();
         DesktopSafety.Broker = broker;
         RuntimeProfile.ConfigureUser("desktop");
         BrowserInstaller.RecoverOwn();
@@ -29,7 +30,7 @@ internal static class DesktopHost
         using var shortcut = new DesktopStopShortcut(broker);
         var browser = new BrowserRelay(broker);
         var browserTask = browser.RunAsync(stop.Token);
-        var resident = new UserHost("desktop", broker, browser).RunAsync(stop.Token);
+        var resident = new UserHost("desktop", broker, browser, updates).RunAsync(stop.Token);
         var monitor = Task.Run(async () =>
         {
             while (!stop.IsCancellationRequested)
@@ -56,6 +57,9 @@ internal static class DesktopHost
                     var method = command["method"]?.GetValue<string>();
                     switch (method)
                     {
+                        case "update_sync":
+                            reply = new { ok = true, checkRequested = updates.Sync(command["state"]!.AsObject()) };
+                            break;
                         case "state":
                             var state = JsonSerializer.SerializeToNode(broker.State(), Contract.Json)!.AsObject();
                             if (!state.ContainsKey("pending")) state["pending"] = null;

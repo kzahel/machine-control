@@ -93,6 +93,11 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                 throw MacUIError.action("Resident is unavailable")
             }
             switch method {
+            case "update_sync":
+                guard let state = command["state"] as? [String: Any] else {
+                    throw MacUIError.usage("Update state required")
+                }
+                return bridgeJSON(["ok": true, "checkRequested": server.updates.sync(state)])
             case "state":
                 let setup = currentSetupState(browserConnected: server.browser.connected, probeScreen: false)
                 var state: [String: Any] = ["deployment": server.broker.statusJSON,

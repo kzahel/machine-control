@@ -72,6 +72,18 @@ final class ServerTests: XCTestCase {
         XCTAssertEqual((deployment?["policy"] as? [String: Any])?["preset"] as? String, "workstation")
     }
 
+    func testDesktopDiscoveryDoesNotAuthorizeControl() {
+        XCTAssertEqual(call(["operation": "update.status"])["errorCode"] as? String, "unsupported_operation")
+        XCTAssertFalse(server.updates.sync(["phase": "idle", "checking": false, "installing": false]))
+        XCTAssertEqual(call(["operation": "update.check"])["accepted"] as? Bool, true)
+        XCTAssertNil(broker.grant)
+        XCTAssertEqual(call(["operation": "input.key", "key": "a"])["errorCode"] as? String, "approval_required")
+        XCTAssertEqual(call(["operation": "update.install"])["accepted"] as? Bool, false)
+        XCTAssertTrue(server.updates.sync(["phase": "idle", "checking": false, "installing": false]))
+        let data = call(["operation": "update.status"])["data"] as? [String: Any]
+        XCTAssertEqual((data?["update"] as? [String: Any])?["checking"] as? Bool, true)
+    }
+
     func testReplacementCannotInheritResidentListener() throws {
         // Discover the real server endpoint without exposing its private FD.
         let descriptor = try XCTUnwrap((3..<1024).first { fd in

@@ -39,6 +39,19 @@ its authority or silently installing it on personal machines.
 
 ## Current implementation
 
+**Decision:** Adopt Desktop Release Kit's Stable discovery cadence: a silent
+check after five seconds and daily while running, with a bounded timeout and
+deduplication. The native desktop process owns scheduling/results independently
+of its settings WebView. Settings/tray and metadata-only `update.check|status`
+requests use that same controller. Discovery does not focus, download, install,
+restart, approve, or revoke access. Installation stays an explicit local operator
+action behind the resident's access/approval replacement gate.
+
+**Current:** This integration is implemented in source for Mac/Windows/Linux;
+released clients keep their shipped behavior until updated.
+[Tactical 060](../docs/tactical/060-native-update-discovery.md) records validation
+and installed-platform limitations.
+
 **Current:** [Native signing smoke](../release/README.md) defines manual,
 main-only Windows x64, macOS ARM64, and Linux x64 builds, publisher signing and
 notarization, and a minisign-authenticated three-package manifest. The complete

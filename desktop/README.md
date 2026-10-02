@@ -156,6 +156,24 @@ Mac update history in [052](../docs/tactical/052-macos-production-updates.md).
 No automatic update installation is enabled. Native code rechecks that no
 access or approval is active immediately before bundle replacement and restarts
 with access off.
+Source now schedules silent discovery five seconds after startup and every
+24 hours in the native Tauri process, including with the settings window closed.
+Concurrent checks coalesce; manual callers joining silent checks get visible
+feedback. Automatic errors are logged quietly and an available update survives
+later empty responses or failures. Settings and the tray show the available
+version without opening or focusing the window.
+
+`bin/machine-control --target TARGET update check` queues metadata discovery;
+`update status` reads its shared result. Responses contain `data.queued` and
+`data.update`; acceptance means queued/coalesced discovery, not a completed
+network check or installation. Read status until `data.queued` and
+`data.update.checking` are false to observe completion. Existing target-use
+claims apply. Only the desktop product supports these operations; components
+and older packages may refuse them. The public transport exposes no update
+installation or endpoint setting. Linux Debian retains package-manager
+replacement. [Tactical 060](../docs/tactical/060-native-update-discovery.md)
+owns validation; released clients retain their shipped behavior until updated.
+
 Appliances with standing access use their administrator-managed deployment.
 Adopt Desktop Release Kit's update contract when
 publishing; the application owns its lifecycle and native acceptance rather

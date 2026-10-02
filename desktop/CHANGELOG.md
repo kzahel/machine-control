@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Check for updates silently five seconds after startup and daily while the
+  desktop app runs, independently of its settings window. Show available
+  updates in Settings and the tray.
+- Add `machine-control update check|status` through existing resident transports.
+  Discovery never downloads, installs, restarts, or focuses the app. Installation
+  stays explicit and refuses active access or approval.
+
 ## [0.5.0]
 
 - Add a Linux desktop preview for Ubuntu GNOME Wayland, with the shared settings

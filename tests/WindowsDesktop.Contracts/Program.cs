@@ -13,6 +13,26 @@ static void Refuses(Action action, string message)
 static JsonElement State(DesktopGrants broker) => JsonSerializer.SerializeToElement(broker.State(), Contract.Json);
 static string Pending(DesktopGrants broker) => State(broker).GetProperty("pending").GetProperty("id").GetString()!;
 var clock = new TestTime();
+var updates = new DesktopUpdates();
+Refuses(() => updates.Request(true), "Updater not initialized by operator");
+var idleUpdates = System.Text.Json.Nodes.JsonNode.Parse("{\"checking\":false,\"installing\":false}")!.AsObject();
+Assert(!updates.Sync(idleUpdates), "Status sync does not request discovery");
+updates.Request(true);
+updates.Request(true);
+Assert(updates.Sync(idleUpdates), "Requests coalesce and are consumed once");
+Assert(JsonSerializer.SerializeToElement(updates.Request(false), Contract.Json)
+    .GetProperty("update").GetProperty("checking").GetBoolean(),
+    "Consumed request stays busy until authoritative state arrives");
+Assert(!updates.Sync(idleUpdates), "No repeated request");
+var busyUpdates = System.Text.Json.Nodes.JsonNode.Parse("{\"checking\":true,\"installing\":false}")!.AsObject();
+updates.Sync(busyUpdates);
+updates.Request(true);
+Assert(!updates.Sync(idleUpdates), "Check already in progress coalesces");
+busyUpdates["checking"] = false;
+busyUpdates["installing"] = true;
+updates.Sync(busyUpdates);
+updates.Request(true);
+Assert(!updates.Sync(idleUpdates), "Installation excludes discovery");
 var broker = new DesktopGrants(clock);
 broker.SetReady(true);
 Assert(broker.Authorize("snapshot") == "approval_required", "Off by default");

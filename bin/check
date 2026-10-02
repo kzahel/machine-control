@@ -109,6 +109,7 @@ def validate_shell() -> None:
 def portable_checks() -> None:
     suites = [
         ("common coordinator", ROOT, ROOT / "tests" / "client"),
+        ("desktop update mailbox", ROOT, ROOT / "tests" / "desktop"),
         ("shared ADB", ROOT, ROOT / "providers" / "adb" / "tests"),
         (
             "target-use claims",

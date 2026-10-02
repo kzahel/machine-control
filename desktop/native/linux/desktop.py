@@ -34,6 +34,7 @@ from provider import Provider
 from shortcut import Shortcut
 from startup import Startup
 from browser import Browser
+from updates import Updates
 import linuxui
 
 FRAME_LIMIT = 65536
@@ -90,6 +91,7 @@ class Desktop:
         self.loop = GLib.MainLoop()
         self.operator_pid = operator_pid
         self.grants = Grants(self.changed)
+        self.updates = Updates()
         self.provider = Provider(self)
         self.last_portal_state = "off"
         self.portal = Portal(self.changed)
@@ -212,6 +214,8 @@ class Desktop:
 
     def operator(self, command):
         method = command.get("method")
+        if method == "update_sync":
+            return {"ok": True, "checkRequested": self.updates.sync(command.get("state"))}
         if method == "state":
             return {"ok": True, "state": self.state()}
         if method == "arm":
@@ -268,6 +272,10 @@ class Desktop:
 
         try:
             self.monitor()
+            if operation in {"update.check", "update.status"}:
+                result["data"] = self.updates.request(operation == "update.check")
+                finish(result)
+                return
             if operation == "grant.request":
                 self.grants.request(request, caller, grant_reply)
                 return
@@ -284,7 +292,7 @@ class Desktop:
                                   "inputState": "ready" if self.provider.input_ready() else "unavailable"}
             elif operation == "capabilities":
                 result["data"] = {"provider": "linux-desktop", "profile": "gnome_wayland",
-                                  "privilege": "ordinary_user", "operations": sorted(OBSERVE | CONTROL),
+                                  "privilege": "ordinary_user", "operations": sorted(OBSERVE | CONTROL | {"update.check", "update.status"}),
                                   "capture": {"route": "user/linux.portal-pipewire", "scope": "shared_screen",
                                               "state": self.portal.state},
                                   "input": {"route": "user/linux.portal-notify", "authorization": "portal_consent",

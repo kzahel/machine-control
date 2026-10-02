@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../src/MachineControl.Windows/DesktopGrants.cs" Link="DesktopGrants.cs" />
+    <Compile Include="../../src/MachineControl.Windows/DesktopUpdates.cs" Link="DesktopUpdates.cs" />
     <Compile Include="../../src/MachineControl.Windows/BrowserWire.cs" Link="BrowserWire.cs" />
     <Compile Include="../../src/MachineControl.Windows/Contract.cs" Link="Contract.cs" />
   </ItemGroup>

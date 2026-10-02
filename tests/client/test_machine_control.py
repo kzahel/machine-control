@@ -1222,6 +1222,18 @@ class ClientTests(unittest.TestCase):
         suffix = expected[2]
         self.assertTrue(Path(host["command"][0]).as_posix().endswith(suffix))
 
+    def test_update_requests_are_metadata_only_and_use_existing_transport(self):
+        for platform in ("macos", "windows", "linux"):
+            self.write_registry(platform)
+            for command in ("check", "status"):
+                result, value = self.run_cli("--target", "fixture", "update", command)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(value["data"]["request"], {"operation": f"update.{command}"})
+        for arguments in ([], ["install"], ["check", "--endpoint", "https://example.com"], ["status", "extra"]):
+            with self.assertRaises(machine_control.ClientError):
+                machine_control.update_request(arguments)
+        self.assertTrue(machine_control.operation_requires_claim("update", ["check"]))
+
     def test_grant_request_builds_bounded_resident_request(self):
         self.write_registry("macos")
         result, value = self.run_cli(
