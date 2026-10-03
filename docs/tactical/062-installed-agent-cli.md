@@ -3,7 +3,8 @@
 Owning topics: [Installed agent CLI](../../topics/installed-agent-cli.md),
 [Native distribution](../../topics/native-distribution.md).
 
-Status: in progress, 2026-10-02.
+Status: complete, 2026-10-03. Packaging and accepted consumer cutover are
+recorded below; continuing contracts and further platform cells live in topics.
 
 ## Objective
 
@@ -360,3 +361,28 @@ power-off confirmed and local/controller claims released.
 YA's [execution record](../../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md#windows-browser-and-custom-location-result)
 owns model and media/lifecycle cutover gates. This result does not infer those
 remaining gates or Linux browser/model parity.
+
+## Final installed consumer result
+
+Public 0.5.3 ships the authenticated complete Python runtime/client for all six
+desktop targets, with relocated offline execution. Mac/Windows actual YA
+Codex native/browser turns, capture consumption, full-app live/reloaded media
+and close/restart/crash isolation are accepted. Windows built-client desktop
+and phone media serve the exact native PNG; independent MC PID/generation and
+claim survive actual YA lifecycle operations. Linux x64 core desktop/portal
+control is accepted within its bounded 46-check slice. Cleanup restores owned
+processes, installations/state, original power and released claims.
+
+YA's old component installer/updater, resident supervisor, grant UI and deferred
+tool are retired after these gates. Its bounded compatibility/cleanup boundary
+is owned by [YA Tactical 142](../../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md#windows-lifecycle-and-consumer-cutover-result).
+YA advertisement does not grant or revoke MC access: native Stop, expiry or
+MC restart owns revocation. Headless workstation and protected appliance
+profiles remain independent. Python development still runs directly from the
+checkout without Rust; installed users receive commands through MC releases.
+
+Linux model/browser and further lifecycle cells, actual Claude use, other GUI
+architectures and remote/sandbox delivery remain separate from this accepted
+slice. Windows high-level app snapshot resolution and Linux startup/Stop-
+shortcut settings are not established. Existing experimental failure records
+above retain their historical scope rather than claiming broad runs passed.

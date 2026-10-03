@@ -2,8 +2,8 @@
 
 Topic: `native-distribution`
 
-Status: signed Windows workstation preview and direct YA Node/Codex consumer
-accepted. Unified Mac/Windows/Linux desktop `0.5.3` is published; package
+Status: signed Windows headless workstation preview remains available; YA now
+consumes the installed desktop CLI and has retired its component lifecycle. Unified Mac/Windows/Linux desktop `0.5.3` is published; package
 signatures, public downloads, and production metadata are verified for all six
 architectures.
 ARM64 Tart has targeted signed browser-indicator evidence; Windows x64 retains
@@ -11,21 +11,22 @@ its earlier installed product acceptance. Intel, Windows ARM64 product execution
 and full physical product acceptance remain separate. Linux x64 Debian/AppImage
 installed acceptance and signed replacement pass on Ubuntu GNOME Wayland;
 Linux ARM64 desktop execution remains open. Legacy Mac `0.3.3`/`0.3.4` update senders may need one reopen;
-fixed senders pass production-feed handoff. YA public Windows component consumer
-acceptance remains open.
+fixed senders pass production-feed handoff. YA installed Mac/Windows consumer
+model/media/lifecycle use and Linux x64 core control are accepted within
+[their declared scope](../../yepanywhere/topics/optional-computer-control.md).
 
 The [desktop acceptance matrix](../docs/desktop-acceptance.md) indexes behavior
 by package family, architecture, and virtual/physical environment.
 
 ## Direction
 
-**Decision:** Distribute Machine Control as an optional headless native
-component with a stable public entry point and platform-specific helpers.
-Reuse existing residents and provider boundaries. A consumer such as
-YepAnywhere owns install/enable controls, supervision, and agent-tool exposure.
-Machine Control owns artifacts, the desktop contract, capability reporting,
-and providers. The shared Tauri desktop product is an optional operator and distribution
-surface; headless resident/CLI use remains independent.
+**Decision:** distribute the desktop operator app with its bundled Python CLI,
+while keeping headless residents as independent explicitly installed profiles.
+Reuse residents and provider boundaries. For the installed desktop route MC
+owns installation, updates, native access, lifecycle, artifacts and the control
+contract; YA owns verified discovery, launch eligibility and agent/media
+exposure. It does not install or supervise a second resident. Headless CLI and
+appliance use remain independent of YA and the desktop UI.
 
 Reuse Desktop Release Kit's signing and validation patterns. Keep the package
 key independent of consumer updater keys. Native signing/notarization and
@@ -81,8 +82,8 @@ rollback and isolated x64 appliance regression also pass.
 Both final signed architectures also passed idle-session recovery, stale
 references, provider failure and IPC resilience. Fresh observations can reopen
 the owned capture session; expired actions are refused without replay.
-Tactical 036 records the accepted source and CI artifacts. No public release
-has been published.
+Tactical 036 records the accepted source and CI artifacts. No public
+workstation-family release has been published; the desktop family is separate.
 
 **Current:** The Windows package also carries an optional signed unlock setup
 entry. It installs a separate privileged service, starts unarmed, and requires
@@ -90,8 +91,8 @@ UAC plus explicit account/controller/lifetime approval. The
 [protected unlock topic](windows-protected-unlock.md) owns its contract and
 [tactical 037](../docs/tactical/037-windows-unlock-arming.md) its native acceptance.
 
-**Open:** Complete the first public Windows release and packaged YepAnywhere
-acceptance; complete physical Mac and Intel runtime acceptance; extend Linux
+**Open:** Headless workstation-family publication and packaged YA distribution
+acceptance remain separate from the accepted desktop CLI consumer; complete physical Mac and Intel runtime acceptance; extend Linux
 coverage beyond the accepted Ubuntu GNOME Wayland x64 desktop profile. Mac bundle-relative
 providers and signed-upgrade consent have passed ARM64 Tart acceptance.
 Keep actual routes and unsupported capabilities visible.
@@ -104,24 +105,24 @@ effects. No YA provider or resident implementation changes were required.
 The [spike findings](../../machine-control-spike/docs/ya-computer-mcp-findings.md)
 own exact versions, route evidence, latency and remaining acceptance gaps.
 
-**Decision:** Keep agent adapters over the existing typed resident contract.
-YA's requested product path uses direct local IPC and on-demand, session-scoped
-activation; MCP is a proven optional adapter, not a required server registered
-in every session. YA's [computer-control topic](../../yepanywhere/topics/optional-computer-control.md)
-owns consumer mechanics and the Codex/Sky reference. Unlock remains a separate
-native flow.
+**Decision:** keep agent adapters over the existing typed resident contract.
+The installed Python command and native image tools provide YA's ordinary
+agent route; MCP remains an optional adapter rather than a mandatory server
+registered for every session. Unlock retains its separate native flow.
+[YA's topic](../../yepanywhere/topics/optional-computer-control.md) owns current
+consumer configuration, authority and compatibility.
 
-**Current:** YA's Windows Node/Codex preview now installs an authenticated local
-package, exposes default-off settings and explicit session selection, and
-registers a deferred namespaced dynamic tool over the existing provider
-connection. First use launches an ordinary user resident over direct local
-IPC. Native screenshot results reach the model and live/reloaded YA browser
-views. A private YA-owned Windows Job Object reclaims resident/provider
-descendants on consumer failure; the appliance service, common CLI, SSH and
-independent supervisor remain available. No native runtime change was required.
-The YA topic owns [direct consumer acceptance and its limits](../../yepanywhere/topics/optional-computer-control.md#direct-windows-acceptance-2026-09-12).
-This evidence covers the signed ARM64 preview with source-run Node YA and
-Codex, not public release-feed delivery or other consumer platforms.
+**Current:** YA's former Windows Node/Codex workstation component is retired.
+Its signed local installation, deferred tool, session grants, direct IPC and
+private Windows Job Object remain historical evidence in
+[YA Tactical 131](../../yepanywhere/docs/tactical/131-optional-windows-computer-control.md).
+The accepted installed consumer instead authenticates public desktop 0.5.3,
+uses the bundled CLI for actual native/browser model turns and capture/media,
+and leaves the independent resident unchanged through YA close/restart/crash.
+Native Stop/expiry/MC restart owns revocation, not YA session close.
+[Installed agent CLI](installed-agent-cli.md) and
+[YA Tactical 142](../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md)
+own the cutover and explicit platform/provider limits.
 
 The [common desktop](unified-desktop-client.md),
 [Windows](windows-resident-control.md), [macOS](macos-resident-control.md), and
@@ -153,12 +154,12 @@ Machine Control package key authenticates this metadata. The publisher in this
 authenticated manifest is trusted consumer configuration; native signature and
 catalog checks still apply to the package before executing its installer.
 
-YA pins the public package key in its shipped code and owns version selection,
-bounded downloads/staging, per-user installation, health checks, session-aware
-update timing and recovery to the prior package. A release does not update
-appliances or install/arm protected unlock. Incompatible or unverifiable
-releases leave the installed version usable. Component publication does not
-deploy a new YA server or hosted client.
+The old YA consumer pinned this package key and owned downloads, installation
+and session-aware updates. That consumer is now retired; the workstation-family
+release contract remains available for other explicit consumers. Installed
+desktop consumers use the desktop family's authenticated CLI and MC-owned
+updates. Neither release family implicitly updates appliances or installs/
+arms protected unlock, and MC publication does not deploy a YA release.
 
 ## Shared desktop product
 

@@ -8,8 +8,9 @@ publisher verification and notarization; Windows x64/ARM64 installed catalogs
 and Linux x64/ARM64 final packages authenticate. Native Windows ARM64 CI now
 executes that architecture's bundled interpreter. Earlier Mac ARM64 appliance,
 Linux ARM64 container, and Windows x64 appliance evidence retains its own
-scope. Signed Windows and Linux x64 CLI/core control is accepted; Mac installed CLI
-replacement to public 0.5.3 is accepted. [Tactical 063](../docs/tactical/063-six-platform-desktop-release.md)
+scope. Mac/Windows actual YA native/browser model, media and lifecycle use is
+accepted, and YA's old component is retired. Linux x64 CLI/core control and Mac
+replacement to public 0.5.3 are accepted within their declared slices. [Tactical 063](../docs/tactical/063-six-platform-desktop-release.md)
 owns exact published package and production delivery verification.
 
 ## Contract
@@ -159,8 +160,8 @@ standing policy, distinct from the earlier workstation approval slice.
 The generated native PNG also passes YA's separate full-app live/reloaded
 HTTP and desktop/phone viewer route. A separate browser model also uses the
 installed CLI to increment an independent HTTP fixture once and consume its
-new tab capture; the headed browser harness passes all 23 checks. The Windows/Linux evidence below owns their accepted core slices; further
-platform model/browser/lifecycle cells remain separate.
+new tab capture; the headed browser harness passes all 23 checks. The Windows/Linux evidence below owns its declared scope; Linux and other
+platform/provider model/browser/lifecycle cells remain separate.
 
 **Current:** Public desktop 0.5.3 Windows x64 from source `d5aa271` passes
 ordinary interactive installed-CLI acceptance in a claimed Windows 11 appliance.
@@ -182,8 +183,13 @@ provider close, then native Stop revokes access. Windows browser acceptance also
 click/text effects, capture/hash, scope refusal, Stop/stale references, CDP,
 operator restart and extension reconnection through a verified custom install.
 A real YA Codex browser turn increments an independent HTTP counter exactly
-once and consumes the new matching PNG. Full YA media and further lifecycle
-cells remain separate gates until their independent validation completes.
+once and consumes the new matching PNG. Actual full YA live/reloaded HTTP and production desktop/phone image views
+also serve the exact native PNG. Verified Supervisor close, full app disposal/
+restart and abrupt actual YA process death leave the independent MC PID,
+generation and host claim unchanged. Owned provider/process/profile cleanup,
+original registry, initial power-off and released claims are verified. YA's
+old component is now retired; native MC Stop/expiry/restart owns revocation,
+not YA session close.
 
 **Current:** Public 0.5.3 Linux x64 Debian bytes, source `d5aa271`, pass
 production YA receipt/full-client/identity/context verification and relocated,

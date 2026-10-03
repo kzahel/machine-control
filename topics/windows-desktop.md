@@ -20,8 +20,9 @@ dispatch. Approval uses a private operator channel, never the agent endpoint.
 Preview grants apply to callers of the same user; this does not contain an
 agent with an unrestricted same-user shell.
 
-**Decision:** Preserve the explicitly selected YA workstation component and
-protected appliance profiles. The desktop app owns a distinct instance and
+**Decision:** Preserve the headless workstation and protected appliance
+profiles. YA now consumes the installed desktop CLI and has retired its
+separately supervised component. The desktop app owns a distinct instance and
 endpoint. It never installs or arms the protected service. Elevated apps, UAC,
 lock/login, and other users remain outside its ordinary profile.
 
@@ -39,8 +40,9 @@ Windows support claim.
 **Current:** Public 0.5.3 x64 passes the installed Python CLI's ordinary-user
 native approval, refusal, independent Cua counter effect, capture/artifact hash,
 stale-reference and Stop slice, together with actual YA installation verification.
-[Installed agent CLI](installed-agent-cli.md) owns that evidence and its remaining
-model, browser and lifecycle gates. ARM64 offline packaging evidence does not
+[Installed agent CLI](installed-agent-cli.md) owns that evidence, actual YA
+native/browser model turns, exact live/reloaded media and close/restart/crash
+isolation. Remaining provider/platform cells are listed there. ARM64 offline packaging evidence does not
 establish ARM64 interactive desktop execution.
 
 **Current:** The exact signed 0.4.7 x64 candidate passes installed payload,
