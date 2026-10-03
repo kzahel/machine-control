@@ -326,7 +326,10 @@ and sustained-load acceptance remain separate.
 
 **Current:** the [native delegation receiver](../docs/tactical/086-native-desktop-delegation.md)
 composes admitted ordinary-session scopes with the same pause/resource arbiter.
-Fixture Pause retains trust and Resume uses a fresh session; Stop persists
-suspension and rejects reconnect. Native YA launch provenance and its authenticated CLI proxy are implemented in
-source. Signed installed origin/effects and protected-consent composition remain
-open; source fixtures do not close those acceptance gates.
+The full signed YA/CLI/MC operator path now passes bounded ordinary acceptance
+with independently observed AX effects. Native Pause retains trust; Resume
+waits through a fresh notice and accepts new ownership. Stop refuses reconnect
+and remains off after signed resident restart. The owned provider is a protocol
+fixture, not an LLM. Prepared-console consent composition is source implemented
+in Tactical 087; covered tasks and revised genuine physical takeover/resumption
+remain separate acceptance gates.

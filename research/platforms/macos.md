@@ -483,5 +483,7 @@ credentialed session origin and installed signed MC CLI reached a conformance
 receiver forwarding to the actual native AX provider. Independent fixture
 counters proved ordinary effects, unrelated-process refusal, Pause/fresh Resume
 and Stop/reconnect refusal. [Tactical 086](../../docs/tactical/086-native-desktop-delegation.md)
-owns exact revisions and limits. This does not qualify the full signed MC
-operator app, protected composition, hardware takeover or distribution.
+owns exact revisions and limits. A subsequent full signed MC app run proved native checkbox enrollment and
+operator Pause/Resume/Stop through the same live ordinary route. Both runs use
+an owned protocol provider, not an LLM. Protected composition, hardware takeover
+and distribution remain unqualified.

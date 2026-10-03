@@ -218,10 +218,11 @@ Public session attribution never rescues failed peer authentication or falls
 back to ambient access. Native trust presentation and the actual YA private
 server/launch proxy path are implemented, with kernel subprocess, credential
 origin and closure fixtures. The first profile enrolls observation/input scopes
-on the ordinary local unlocked desktop. Signed YA origin and ordinary effects now pass through a bounded conformance
-receiver and independently observed native AX provider. Full signed MC operator
-enrollment, broader negative/failure qualification and protected-consent
-composition remain open; this is not distribution acceptance. Existing target-wide approval stays
+on the ordinary local unlocked desktop. Signed YA origin, the installed CLI and full signed MC operator app now pass
+bounded ordinary native acceptance with independent AX effects, Pause/fresh
+Resume, Stop and unrelated-caller refusal. Broader negative/failure qualification
+and protected-consent composition remain open; this is not distribution
+acceptance. Existing target-wide approval stays
 explicitly cooperative.
 
 Native profile discovery is read-only and reflects current operator trust per

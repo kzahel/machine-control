@@ -1,7 +1,7 @@
 # Native desktop delegation
 
-Status: active; signed YA origin and ordinary effects proved in a bounded
-conformance receiver; full installed and failure qualification remain open.
+Status: active; full signed native ordinary path and operator controls proved;
+additional negative/failure qualification and covered composition remain open.
 Owning topics: [caller authorization](../../topics/caller-authorization.md) and
 [access admission and pause](../../topics/access-admission-and-pause.md).
 Dependency: [trusted Desktop access](071-desktop-caller-authorization.md).
@@ -122,7 +122,27 @@ registration, immutable whole-bundle installation and explicit client
 keepalives were necessary; stale ownership still expired under the unchanged
 five-second watchdog.
 
-**Open:** full signed MC operator enrollment, additional signed negative callers,
+**Current, bounded full signed-app acceptance (2026-10-04):** the checked-in
+[native delegation runner](../../tests/macos/native-delegation/README.md) passes
+with signed YA `158e7a1c9` and signed MC `4cf7881`. The separate appliance
+resident used native AX to enroll trust through the actual signed MC checkbox,
+Pause, Resume and Stop; no positive receiver hook or native setter was injected.
+The candidate itself performed two independently observed AppKit effects. An
+unrelated CLI using the public proxy locator produced no effect. Pause retained
+trust and fenced old work; Resume required a fresh notice/offer/session; Stop
+refused current work and reconnect, including after a signed resident restart.
+No live ownership was restored. Cleanup restored policy, previous YA,
+operator consent/trust files and the original resident socket, and reaped owned
+processes. Real AuthService fixture preparation passes with mode-0600 cookies.
+
+The protocol fixture sends immediate keepalives after effects and waits for a
+fresh offer after Resume. Initial overly sparse polling correctly expired
+ownership; an early accept during the renewed notice correctly refused. The
+owned fixture remains a protocol provider, not an LLM. This qualifies the signed
+ordinary route and native operator controls only, not covered control or release
+distribution.
+
+**Open:** additional signed negative callers,
 lifecycle/restart qualification and prepared-console covered tasks. Keep this
 and the coordinating plan active; bounded conformance is not distribution or
 genuine hardware takeover acceptance.

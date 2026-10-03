@@ -254,6 +254,16 @@ to reuse queue timing. Bound queue, event and audit storage under sustained load
 
 ## Result and next work
 
-Implementation is active. Step 1 establishes contract/state-machine fixtures
-and the compatibility/authority decisions needed for resident enforcement.
-Subsequent slices record their evidence before advertising new capabilities.
+Implementation remains active. The contract, resident pause, waiting queues,
+CLI/SDK lifetime, polite Mac presentation, persistence, guardian cleanup and
+outer resource-composition foundations are implemented in their bounded
+follow-ups. Native signed ordinary integration now passes independent effects,
+operator controls, Stop/reconnect and resident restart in Tactical 086.
+
+Remaining qualification includes prepared-console native composition (087),
+revised genuine physical takeover/quiet resumption, broader signed failure and
+alternate-route coverage, and platform/outer live cells permitted by an exact
+qualified testbed. Fixture or mock success does not close those live gates.
+Windows appliance qualification requires a classified, credential-complete
+candidate; an unknown existing target cannot be repinned or rebuilt by guessing.
+Outer prohibitions remain absolute. This coordinating plan is not complete.
