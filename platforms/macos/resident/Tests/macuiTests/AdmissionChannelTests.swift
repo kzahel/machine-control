@@ -33,6 +33,61 @@ final class AdmissionChannelTests: XCTestCase {
         clients = []; server.stop(); unlink(path)
         server = nil; broker = nil
     }
+    func testSlowSealedVerificationDoesNotBlockDiscoveryAndStopFencesItsReturn() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("mc-slow-seal-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])
+        defer { try? FileManager.default.removeItem(at:directory) }
+        server.callerTrust = DesktopCallerTrust(directory:directory.path)
+        try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture", publisher:"FIXTUREONLY"), scopes:[.observe,.control])
+        let started = expectation(description:"background sealed verification")
+        let release = DispatchSemaphore(value:0)
+        defer { release.signal() }
+        server.callerTrust.peerValid = { _,_ in
+            XCTAssertFalse(Thread.isMainThread)
+            started.fulfill()
+            _ = release.wait(timeout:.now() + 4)
+            return true
+        }
+        server.callerTrust.peerStillValid = { _,_ in true }
+        let fd = try connect()
+        let request: [String:Any] = ["operation":"control.open", "schema":AccessAdmission.schema,
+            "requestId":"slow-verification", "scopes":["observe","control"], "reason":"fixture",
+            "durationSeconds":60, "waitSeconds":120,
+            "desktopDelegation":["schema":"machine-control-desktop-delegation/v1", "sessionId":"fixture", "sessionGeneration":UUID().uuidString]]
+        try writeSocket(fd, data:encodeJSONLine(request))
+        wait(for:[started], timeout:1)
+        let status = exchange(try connect(), ["operation":"desktop.delegation.status", "requestId":"parallel-discovery"])
+        XCTAssertEqual((status["data"] as? [String:Any])?["enabled"] as? Bool,true)
+        server.revoke(reason:"stopped_by_person")
+        release.signal()
+        let done = expectation(description:"verification refuses after Stop")
+        DispatchQueue.global().async {
+            if let bytes = try? readSocket(fd), let reply = (try? JSONSerialization.jsonObject(with:bytes)) as? [String:Any] {
+                XCTAssertEqual(reply["errorCode"] as? String,"desktop_trust_not_enabled")
+            } else { XCTFail("Missing refusal") }
+            done.fulfill()
+        }
+        wait(for:[done], timeout:2)
+        XCTAssertEqual(effects,0)
+    }
+
+    func testDelegationDiscoveryReflectsCurrentOperatorChoiceWithoutCreatingAnIntent() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("mc-profile-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])
+        defer { try? FileManager.default.removeItem(at:directory) }
+        server.callerTrust = DesktopCallerTrust(directory:directory.path)
+        func enabled() throws -> Bool? {
+            let reply = exchange(try connect(), ["operation":"desktop.delegation.status", "requestId":UUID().uuidString])
+            return (reply["data"] as? [String:Any])?["enabled"] as? Bool
+        }
+        XCTAssertEqual(try enabled(), false)
+        try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture", publisher:"FIXTUREONLY"), scopes:[.observe,.control])
+        XCTAssertEqual(try enabled(), true)
+        server.callerTrust.stop()
+        XCTAssertEqual(try enabled(), false)
+        XCTAssertEqual(effects,0)
+    }
+
     func testOperatorMenuAndHotkeyStopSuspendDurableDesktopTrust() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("mc-stop-trust-fixture-" + UUID().uuidString)
         try FileManager.default.createDirectory(at:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])

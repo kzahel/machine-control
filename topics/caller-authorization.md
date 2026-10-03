@@ -222,3 +222,8 @@ on the ordinary local unlocked desktop. Signed installed YA origin/effects,
 negative signed callers and protected-consent composition remain open; receiver
 fixtures are not distribution acceptance. Existing target-wide approval stays
 explicitly cooperative.
+
+Native profile discovery is read-only and reflects current operator trust per
+launch. Pending sealed verification is bounded and leaves the resident queue
+responsive; Stop/revision changes fence its completion. See Tactical 086 for
+source and fixture evidence, distinct from installed qualification.

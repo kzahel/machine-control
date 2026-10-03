@@ -3,7 +3,7 @@ import Foundation
 import Security
 
 /// A public session label selects attribution only. The signed native broker
-/// authenticates the upstream launch over its private inherited channel.
+/// authenticates the upstream launch over its private launch channel.
 struct DesktopDelegation {
     let session: String
     let generation: String
@@ -178,6 +178,14 @@ final class DesktopCallerTrust {
         }
         guard fsync(fd) == 0, renameat(directory, temporary, directory, file) == 0,
               fsync(directory) == 0 else { throw MacUIError.action("desktop_trust_storage_unavailable") }
+    }
+    /// Capture immutable policy on the resident queue, then recheck on return.
+    func verification(scopes requested: Set<GrantScope>) throws -> (String, String, (Int32, String) -> Bool) {
+        if let refusal = refusal(descriptor:-1, revision:revision, scopes:requested, checkPeer:false) {
+            throw MacUIError.permission(refusal)
+        }
+        guard let requirement else { throw MacUIError.permission("desktop_trust_not_enabled") }
+        return (revision, requirement, peerValid)
     }
     func admittedRevision(descriptor: Int32, scopes requested: Set<GrantScope>) throws -> String {
         if let refusal = refusal(descriptor:descriptor, revision:revision, scopes:requested, checkPeer:false) {

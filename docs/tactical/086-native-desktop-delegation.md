@@ -60,7 +60,7 @@ revision. Failed persistence removes old authority and fails closed. Stop keeps
 trust suspended; only operator enrollment enables it again. The setter is on
 the private native operator surface, not the public agent socket.
 
-**Current, fixture evidence:** 137 Swift checks pass without warnings, including
+**Current, fixture evidence:** 139 Swift checks pass without warnings, including
 real socket delegated effects with no ambient grant, foreign-delegate refusal
 despite ambient access, Pause/fresh Resume, protected/outer denial and persistent
 Stop/reconnect. Store fixtures cover links, invalid booleans, restart, reduction
@@ -86,6 +86,21 @@ choice but ends connections. Notices report verified YA assurance only for a
 verified delegated channel. The installed CLI negotiates the optional feature
 and authenticates the YA proxy before transmitting agent bytes. Missing/invalid
 proxy setup refuses before any ambient resident fallback.
+
+**Current, source and fixture evidence:** native launches query the fixed local
+resident's read-only delegation profile each time. Disabled trust, an old
+resident or an unavailable resident preserves the existing independent CLI
+advertisement. Once selected, a delegated authentication failure still has no
+ambient fallback. Discovery does not inspect protected-helper readiness or
+request a grant. YA native profile fixtures exercise current choice, unsupported
+and malformed replies; the server launch fixture verifies disabled trust.
+
+Sealed-bundle admission verification runs outside the resident main queue,
+with at most four outstanding checks, an eight-second admission deadline and a
+duplicated socket pinning the exact peer. Completion rechecks the current trust
+revision and dynamic identity. A slow-verifier regression proves discovery
+remains responsive and Stop prevents late admission. Existing protected
+watchdogs are unchanged.
 
 **Open:** actual signed installed YA origin/effects, negative signed callers,
 lifecycle/restart qualification and the independent protected-consent

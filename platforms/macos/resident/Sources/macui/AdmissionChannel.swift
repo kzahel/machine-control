@@ -49,6 +49,9 @@ final class AdmissionChannel {
     var outer: OuterRecovery?
     private(set) var delegation: DesktopDelegation?
     private var trustRevision = ""
+    private static let verificationSlots = DispatchSemaphore(value:4)
+    private var verificationTimeout: DispatchWorkItem?
+
 
     init(_ descriptor: Int32, caller: CallerIdentity, server: ResidentServer) {
         self.descriptor = descriptor; self.caller = caller; self.server = server
@@ -69,13 +72,50 @@ final class AdmissionChannel {
                 throw MacUIError.permission("desktop_delegation_profile_denied")
             }
             delegation = try DesktopDelegation.parse(request["desktopDelegation"])
-            trustRevision = try server.callerTrust.admittedRevision(descriptor:descriptor, scopes:scopes)
         }
         if request["outerRecovery"] != nil {
             guard scopes == Set([.observe, .control]) else { throw MacUIError.usage("invalid_outer_scopes") }
             let binding = try OuterClaimBinding.parse(request["outerRecovery"])
             outer = server.outerRecoveryFactory(binding)
         }
+        if delegation != nil {
+            let (revision, requirement, verify) = try server.callerTrust.verification(scopes:scopes)
+            guard Self.verificationSlots.wait(timeout:.now()) == .success else { throw MacUIError.action("desktop_verification_busy") }
+            let pinned = dup(descriptor)
+            guard pinned >= 0 else { Self.verificationSlots.signal(); throw MacUIError.action("control_transport_unavailable") }
+            do { try closeOnExec(pinned) }
+            catch { Darwin.close(pinned); Self.verificationSlots.signal(); throw error }
+            // EOF or a premature frame ends pending verification. A duplicate
+            // pins the exact peer even if timeout closes the original socket.
+            let source = DispatchSource.makeReadSource(fileDescriptor:descriptor, queue:.main)
+            source.setEventHandler { [weak self] in self?.close() }
+            source.setCancelHandler { [descriptor] in Darwin.close(descriptor) }
+            self.source = source; source.resume()
+            let timeout = DispatchWorkItem { [weak self] in self?.close() }
+            verificationTimeout = timeout
+            DispatchQueue.main.asyncAfter(deadline:.now() + 8, execute:timeout)
+            DispatchQueue.global(qos:.userInitiated).async { [weak self] in
+                let valid = verify(pinned, requirement)
+                Darwin.close(pinned); Self.verificationSlots.signal()
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, !self.closed, let server = self.server else { return }
+                    self.verificationTimeout?.cancel(); self.verificationTimeout = nil
+                    do {
+                        guard valid else { throw MacUIError.permission("desktop_caller_identity_denied") }
+                        if let refusal = server.callerTrust.refusal(descriptor:self.descriptor, revision:revision, scopes:self.scopes) {
+                            throw MacUIError.permission(refusal)
+                        }
+                        self.trustRevision = revision
+                        try self.completeOpen(request, duration:duration, wait:wait, reason:reason, requestID:requestID)
+                    } catch { self.reply(requestID, error:String(describing:error)); self.close() }
+                }
+            }
+            return
+        }
+        try completeOpen(request, duration:duration, wait:wait, reason:reason, requestID:requestID)
+    }
+    private func completeOpen(_ request: [String:Any], duration:Int, wait:Int, reason:String, requestID:String) throws {
+        guard let server, !closed else { throw MacUIError.action("resident_stopped") }
         let flags = fcntl(descriptor, F_GETFL)
         guard flags >= 0, fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) == 0 else { throw MacUIError.action("control_transport_unavailable") }
         let broker = server.broker
@@ -96,10 +136,14 @@ final class AdmissionChannel {
             },
             notice:server.approvalDesktopUnlocked() ? server.noticeSeconds : 0)
         intentID = view["intentId"] as! String
-        let source = DispatchSource.makeReadSource(fileDescriptor:descriptor, queue:.main)
-        source.setEventHandler { [weak self] in self?.readable() }
-        source.setCancelHandler { [descriptor] in Darwin.close(descriptor) }
-        self.source = source; source.resume()
+        if let source {
+            source.setEventHandler { [weak self] in self?.readable() }
+        } else {
+            let source = DispatchSource.makeReadSource(fileDescriptor:descriptor, queue:.main)
+            source.setEventHandler { [weak self] in self?.readable() }
+            source.setCancelHandler { [descriptor] in Darwin.close(descriptor) }
+            self.source = source; source.resume()
+        }
         reply(requestID, data:view)
     }
     private func readable() {
@@ -253,6 +297,7 @@ final class AdmissionChannel {
     func close() {
         guard !closed else { return }; closed = true
         outer?.invalidate()
+        verificationTimeout?.cancel(); verificationTimeout = nil
         writeSource?.cancel(); writeSource = nil
         writeTimeout?.cancel(); writeTimeout = nil
         outgoing.removeAll()

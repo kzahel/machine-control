@@ -436,6 +436,17 @@ final class ResidentServer {
         }
         let caller = CallerIdentity.of(socket: client)
         let claimID = request["claimId"] as? String
+        // Cheap discovery must not invoke helper readiness, OS observations or
+        // sealed-bundle verification while another owner is controlling.
+        if operation == "desktop.delegation.status" {
+            var data = callerTrust.status
+            data["enabled"] = broker.policy.grantMode == .approval && data["enabled"] as? Bool == true
+            let response = caller.uid == getuid()
+                ? service.acceptance(request, data:data)
+                : service.refusal(request, code:"desktop_caller_identity_denied", message:"Local caller required")
+            respond(client, request, response, caller:caller, claimID:claimID)
+            return
+        }
         if broker.journal?.begin(request, caller: caller) == false, !["grant.revoke", "server.stop", "session.control.end"].contains(operation) {
             respond(client, request, service.refusal(request, code: "audit_storage_unavailable", message: "Audit storage unavailable"), caller: caller, claimID: claimID)
             return
