@@ -33,6 +33,28 @@ final class AdmissionChannelTests: XCTestCase {
         clients = []; server.stop(); unlink(path)
         server = nil; broker = nil
     }
+    func testInputCancellationUsesCurrentLeaseLatchAcrossSessions() {
+        let retired = server.lockedUse.safety
+        retired.arm()
+        server.lockedUse.prepareSessionSafety()
+        let current = server.lockedUse.safety
+        current.arm()
+        XCTAssertTrue(retired.interrupt("retired_guardian"))
+        XCTAssertNil(server.service.inputCancellation())
+        let interrupted = expectation(description:"independent input cancellation")
+        DispatchQueue.global().async {
+            XCTAssertTrue(current.interrupt("physical_presence"))
+            XCTAssertEqual(self.server.service.inputCancellation(), "physical_presence")
+            interrupted.fulfill()
+        }
+        wait(for:[interrupted], timeout:2)
+        server.lockedUse.prepareSessionSafety()
+        XCTAssertNil(server.service.inputCancellation())
+        server.lockedUse.safety.arm()
+        XCTAssertTrue(server.lockedUse.safety.interrupt("guardian_failure"))
+        XCTAssertEqual(server.service.inputCancellation(), "guardian_failure")
+    }
+
     private func connect() throws -> Int32 {
         let fd = try residentSocket()
         var (address, length) = try unixAddress(path)

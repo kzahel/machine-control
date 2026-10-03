@@ -54,3 +54,14 @@ tasks are bounded evidence, not a claim of sustained-load acceptance. Actual
 hardware takeover/local-use resumption and guardian/watchdog failure remain
 separate gates in the parent plan. The opt-in runner never arms or installs
 access and requires an independent native session probe and isolated fixture.
+
+## Fresh-session cancellation follow-up
+
+**Current, source and fixture evidence:** the resident input callback now reads
+the current per-lease safety latch through a synchronized source. Capturing
+the initial latch left later leases unable to report guardian interruption to
+in-flight input. A regression interrupts the current latch from an independent
+thread, verifies a retired guardian cannot interrupt a new lease, and checks
+fresh-session failure cancellation. All 136 Swift checks, source-native guest
+deployment/doctor and platform smoke checks pass. This fixes a source defect;
+it does not substitute for genuine hardware takeover acceptance.

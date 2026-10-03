@@ -259,9 +259,11 @@ final class ResidentServer {
             }
         }
         bindApprovedConsole()
-        let protection = lockedUse.safety
-        service.inputCancellation = { [weak self, weak protection] in
-            protection?.reason ?? self?.activity.interruption
+        // Initialize the lazy coordinator before installing the callback. Each
+        // lease gets a fresh latch; never capture a retired lease's safety.
+        _ = lockedUse.safety
+        service.inputCancellation = { [weak self] in
+            self?.lockedUse.safety.reason ?? self?.activity.interruption
         }
     }
 

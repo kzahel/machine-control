@@ -294,7 +294,18 @@ func captureCoveredDisplay(to url: URL, displayID: CGDirectDisplayID) throws {
 final class MacLockedUse {
     let broker: GrantBroker
     let service: ResidentService
-    private(set) var safety = LockedUseSafety()
+    private let safetyLock = NSLock()
+    private var currentSafety = LockedUseSafety()
+    var safety: LockedUseSafety {
+        safetyLock.lock(); defer { safetyLock.unlock() }
+        return currentSafety
+    }
+    /// A previous guardian must never interrupt a later lease. The input
+    /// thread reads the current latch through the same synchronized source.
+    func prepareSessionSafety() {
+        safetyLock.lock(); defer { safetyLock.unlock() }
+        currentSafety = LockedUseSafety()
+    }
     private var guardian: CoveredGuardianClient?
     private var hiddenOperatorWindows: [NSWindow] = []
     private var coveredScreenLayout: [String] = []
@@ -434,7 +445,7 @@ final class MacLockedUse {
         // Until-stopped access is still capped by a finite active-control lease.
         lease = ControlSessionLease(id: UUID().uuidString.lowercased(), grantID: grant.id,
             session: session, deadline: now + min(Double(duration), remaining), heartbeatDeadline: now + 5)
-        safety = LockedUseSafety()
+        prepareSessionSafety()
         self.owner = owner; ownerRequest = request; endReason = nil; phase = "waiting_for_lock"
         return service.acceptance(request, data: status)
     }
