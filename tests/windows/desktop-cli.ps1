@@ -23,7 +23,8 @@ function InvokeCommon([string[]]$Arguments) {
  # Windows PowerShell 5.1 uses legacy native argument quoting.
  if ($PSVersionTable.PSVersion.Major -lt 7) {$Arguments=@($Arguments|ForEach-Object {if ($_.StartsWith('{')) {$_.Replace('"','\"')} else {$_}})}
  if ($Client) {
-  $raw=& $Client --registry $registry --target host @Arguments
+  # A GUI-subsystem EXE needs a pipeline for Windows PowerShell to wait.
+  $raw=& $Client --registry $registry --target host @Arguments | Out-String
  } else {
   $raw=& python.exe (Join-Path $Source 'bin\machine-control') --registry $registry --target host @Arguments
  }

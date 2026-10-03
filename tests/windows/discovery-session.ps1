@@ -23,7 +23,10 @@ function Press([string]$name) {
   $condition=[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty,$owned.Id)
   $window=[Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children,$condition)
   if($window){
-   $button=$window.FindFirst([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,$name))
+   $buttonCondition=[Windows.Automation.AndCondition]::new(
+    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,$name),
+    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Button))
+   $button=$window.FindFirst([Windows.Automation.TreeScope]::Descendants,$buttonCondition)
    if($button -and $button.Current.IsEnabled -and -not $button.Current.IsOffscreen){
     $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
     Start-Sleep -Milliseconds 500
@@ -37,9 +40,18 @@ function Press([string]$name) {
 try {
  if((Candidate).Count){throw 'Candidate already running; refusing to adopt another process'}
  $attempted=$true
- $raw=& python (Join-Path $Source 'tests/windows/discovery.py') --install $Install --launch 2>&1
- if($LASTEXITCODE){throw ($raw|Out-String)}
- $evidence.discovery=($raw|Out-String)|ConvertFrom-Json
+ $start=[Diagnostics.ProcessStartInfo]::new((Get-Command python).Source)
+ $start.UseShellExecute=$false
+ $start.RedirectStandardOutput=$true
+ $start.RedirectStandardError=$true
+ $start.Arguments='"'+(Join-Path $Source 'tests/windows/discovery.py')+'" --install "'+$Install+'" --launch'
+ $probe=[Diagnostics.Process]::Start($start)
+ $output=$probe.StandardOutput.ReadToEndAsync()
+ $errors=$probe.StandardError.ReadToEndAsync()
+ if(-not $probe.WaitForExit(120000)){$probe.Kill();throw 'Discovery subprocess timed out'}
+ $raw=$output.Result
+ if($probe.ExitCode){throw ($errors.Result+$raw)}
+ $evidence.discovery=$raw|ConvertFrom-Json
  $items=Candidate
  if($items.Count -ne 1){throw 'Expected one detached candidate operator'}
  $owned=$items[0]

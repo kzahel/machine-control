@@ -7,14 +7,15 @@ import sys
 STATE = r"Software\MachineControl\CommandPath"
 
 
-def normalized(value):
-    return ntpath.normcase(ntpath.normpath(ntpath.expandvars(value.strip().strip('"'))))
+def normalized(value, expand=False):
+    value = value.strip().strip('"')
+    return ntpath.normcase(ntpath.normpath(ntpath.expandvars(value) if expand else value))
 
 
-def change(value, directory, enabled, owned):
+def change(value, directory, enabled, owned, *, expand=False):
     """Preserve unrelated entries byte-for-byte and never adopt a user's entry."""
     entries = value.split(";") if value else []
-    matches = [i for i, entry in enumerate(entries) if normalized(entry) == normalized(directory)]
+    matches = [i for i, entry in enumerate(entries) if normalized(entry, expand) == normalized(directory)]
     if enabled:
         if matches:
             return value, owned
@@ -40,6 +41,10 @@ def apply(directory, operation):
             owned = winreg.QueryValueEx(state, "Owned")[0] == 1
         except FileNotFoundError:
             owned = False
+        try:
+            originally_absent = winreg.QueryValueEx(state, "PathWasAbsent")[0] == 1
+        except FileNotFoundError:
+            originally_absent = False
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, "Environment") as environment:
             existed = True
             try:
@@ -48,13 +53,19 @@ def apply(directory, operation):
                 value, kind, existed = "", winreg.REG_EXPAND_SZ, False
             if kind not in (winreg.REG_SZ, winreg.REG_EXPAND_SZ) or not isinstance(value, str):
                 raise ValueError("User PATH has an unsupported registry type")
-            updated, owned = change(value, directory, operation == "enable", owned)
+            was_owned = owned
+            updated, owned = change(value, directory, operation == "enable", owned,
+                                    expand=kind == winreg.REG_EXPAND_SZ)
+            if owned and not was_owned:
+                originally_absent = not existed
             if updated != value:
-                if updated:
+                if updated or not originally_absent:
                     winreg.SetValueEx(environment, "Path", 0, kind, updated)
                 elif existed:
                     winreg.DeleteValue(environment, "Path")
             winreg.SetValueEx(state, "Owned", 0, winreg.REG_DWORD, int(owned))
+            winreg.SetValueEx(state, "PathWasAbsent", 0, winreg.REG_DWORD,
+                             int(originally_absent))
     if operation == "remove":
         winreg.DeleteKey(winreg.HKEY_CURRENT_USER, key_name)
     # Broadcast with a bounded wait; it cannot refresh every existing process.
@@ -63,8 +74,7 @@ def apply(directory, operation):
     notify.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t,
                        ctypes.c_wchar_p, ctypes.c_uint, ctypes.c_uint,
                        ctypes.POINTER(ctypes.c_size_t)]
-    notify(0xffff, 0x001A, 0, "Environment",
-                                           0x0002, 2000, ctypes.byref(result))
+    notify(0xffff, 0x001A, 0, "Environment", 0x0002, 2000, ctypes.byref(result))
 
 
 if __name__ == "__main__":

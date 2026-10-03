@@ -148,10 +148,17 @@ def main():
             evidence["discovery"] = json.loads(run.stdout)
             if args.fixture:
                 console = Path(temporary) / "console.json"
-                console_run = subprocess.run([str(powershell), "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-                                              str(args.source / "tests/windows/discovery-console.ps1"),
-                                              "-Install", str(install), "-EvidencePath", str(console)],
-                                             creationflags=subprocess.CREATE_NEW_CONSOLE, timeout=40)
+                console_arguments = subprocess.list2cmdline([
+                    "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                    str(args.source / "tests/windows/discovery-console.ps1"),
+                    "-Install", str(install), "-EvidencePath", str(console)])
+                # Shell launch supplies a real new console. CREATE_NEW_CONSOLE
+                # alone still inherits Python's redirected log handles.
+                literal = lambda value: "'" + str(value).replace("'", "''") + "'"
+                command = ("$p=Start-Process -FilePath " + literal(powershell) +
+                           " -ArgumentList " + literal(console_arguments) +
+                           " -PassThru -Wait; exit $p.ExitCode")
+                console_run = subprocess.run([str(powershell), "-NoProfile", "-Command", command], timeout=40)
                 if console.exists():
                     evidence["console"] = json.loads(console.read_text(encoding="utf-8-sig"))
                 assert console_run.returncode == 0 and evidence.get("console", {}).get("passed"), "Real-console discovery failed"

@@ -57,6 +57,7 @@ def main():
         # Breakaway must succeed: silently retaining a kill-on-close caller job
         # would claim successful startup while tying the app to the agent task.
         subprocess.Popen([str(executable), "--background"],
+                         cwd=root,
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                          stderr=subprocess.DEVNULL, close_fds=True,
                          creationflags=(subprocess.DETACHED_PROCESS |

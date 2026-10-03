@@ -59,7 +59,9 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(path.change(original, directory, False, True), (original, False))
         with patch.dict(os.environ, {"LOCALAPPDATA": r"C:\Apps"}):
             expanded = r"%LOCALAPPDATA%\Machine Control"
-            self.assertEqual(path.change(expanded, directory, True, False), (expanded, False))
+            self.assertEqual(path.change(expanded, directory, True, False, expand=True), (expanded, False))
+            self.assertEqual(path.change(expanded, directory, True, False),
+                             (expanded + ";" + directory, True))
 
     def test_empty_and_trailing_path_entries(self):
         directory = r"C:\Apps\Machine Control"
@@ -93,6 +95,17 @@ class DiscoveryTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "Another or unidentified"):
                     launch.main()
                 spawn.assert_not_called()
+                image.return_value = resident
+                # Detached startup must not hold the agent's working directory
+                # or output pipes open after the command has returned.
+                launch.probe.side_effect = [None, status, {"data": {}}]
+                flags = {"DETACHED_PROCESS": 8, "CREATE_NEW_PROCESS_GROUP": 512}
+                with patch.multiple(launch.subprocess, create=True, **flags), \
+                        contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(launch.main(), 0)
+                self.assertEqual(spawn.call_args.kwargs["cwd"], root)
+                self.assertEqual(spawn.call_args.kwargs["stdout"], launch.subprocess.DEVNULL)
+                self.assertTrue(spawn.call_args.kwargs["creationflags"] & 0x01000000)
 
     @unittest.skipUnless(os.name == "nt", "Windows registry API required")
     def test_native_registry_long_path_preserves_type_and_other_entries(self):
@@ -117,6 +130,21 @@ class DiscoveryTests(unittest.TestCase):
                 path.apply(directory, "remove")
                 with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key + r"\Environment") as environment:
                     self.assertEqual(winreg.QueryValueEx(environment, "Path"), (original, winreg.REG_SZ))
+                # Empty and missing values are distinct and must round-trip.
+                for empty in (True, False):
+                    with create(winreg.HKEY_CURRENT_USER, key + r"\Environment") as environment:
+                        if empty:
+                            winreg.SetValueEx(environment, "Path", 0, winreg.REG_EXPAND_SZ, "")
+                        else:
+                            winreg.DeleteValue(environment, "Path")
+                    path.apply(directory, "enable")
+                    path.apply(directory, "remove")
+                    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key + r"\Environment") as environment:
+                        if empty:
+                            self.assertEqual(winreg.QueryValueEx(environment, "Path"), ("", winreg.REG_EXPAND_SZ))
+                        else:
+                            with self.assertRaises(FileNotFoundError):
+                                winreg.QueryValueEx(environment, "Path")
         finally:
             def remove_tree(name):
                 try:
