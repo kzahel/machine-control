@@ -149,7 +149,12 @@ def main(arguments: list[str]) -> int:
             return claim([operation, "--provider", "windows-host", "--resource-id", resource_id(), *forwarded]).returncode
         require_claim()
         if command == "channel" and not rest:
-            return subprocess.run([str(installation() / "runtime/machine-control-windows.exe"),
+            state = Path(os.environ.get("MACHINE_CONTROL_HOST_STATE_DIR",
+                str(Path(os.environ["LOCALAPPDATA"]) / "MachineControl/controller")))
+            return subprocess.run([sys.executable, str(ROOT / "providers/claims/channel.py"),
+                "--state-dir", str(state / "claims"), "--provider", "windows-host",
+                "--resource-id", resource_id(), "--claim-id", os.environ["MACHINE_CONTROL_CLAIM_ID"], "--",
+                str(installation() / "runtime/machine-control-windows.exe"),
                 "channel", "--profile", "user", "--instance", "desktop", "--session-id", str(session_id())], check=False).returncode
         if command in {"control", "control-local"} and len(rest) == 1:
             request = json.loads(rest[0])

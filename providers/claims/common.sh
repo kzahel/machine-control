@@ -133,3 +133,18 @@ claim_adapter_main() {
             ;;
     esac
 }
+
+# The adapter resolves the exact resource; the byte transport cannot keep a
+# claimed target alive after expiry, release, replacement, or parent exit.
+claim_guard_channel() {
+    local state_dir="$1" provider="$2" resource_id="$3"
+    shift 3
+    if [[ "${MACHINE_CONTROL_CLAIM_POLICY:-required}" == optional ]]; then
+        exec "$@"
+    fi
+    claim_require_exact "$state_dir" "$provider" "$resource_id" || return
+    exec "$MACHINE_CONTROL_CLAIMS_PYTHON" \
+        "$MACHINE_CONTROL_CLAIMS_ROOT/providers/claims/channel.py" \
+        --state-dir "$state_dir" --provider "$provider" \
+        --resource-id "$resource_id" --claim-id "$MACHINE_CONTROL_CLAIM_ID" -- "$@"
+}

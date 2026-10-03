@@ -48,3 +48,10 @@ a derivation source when necessary, claims the exact returned workspace before
 starting it, and includes the public claim descriptor in the workspace result.
 Release checks the receipt target against the selected claim before any
 retain/discard action and releases the claim only after that action is safe.
+
+Live Mac and Windows admission adapters use [the transport guardian](channel.py)
+to recheck their exact claim before launch and every complete request frame,
+and periodically while connected. Expiry, release/replacement, parent exit or
+input EOF closes the owning transport. It never acquires or renews a claim;
+the resident's independent session watchdog remains the forgotten-owner
+backstop. See [Tactical 080](../../docs/tactical/080-live-claim-channel-enforcement.md).

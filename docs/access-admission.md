@@ -31,7 +31,9 @@ duration=...)` is a context manager over an already resolved common-client
 target. `wait()` accepts a current offer, `status()` observes without renewing,
 `call(request)` dispatches once, and `cancel()` ends only this connection's
 intent. A background keepalive owns liveness and checks the existing selected
-claim. After interruption, inspect status and wait for a **new** session before
+claim. Adapters also check the exact claim before every incoming frame and
+periodically without client polling; expiry/release/replacement closes the
+transport without acquiring or renewing a claim. After interruption, inspect status and wait for a **new** session before
 issuing new work. Closing the context releases promptly; no session or queue
 position is restored after reconnect.
 

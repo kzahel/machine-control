@@ -144,3 +144,5 @@ the commits' `Topic:` trailers and register that exact string in
 - [078 — Live desktop admission channels](078-live-admission-channels.md): owner-bound queues, fenced dispatch, activity monitor and standalone client; native acceptance pending.
 
 - [079 — Consent and control notices](079-consent-and-control-notices.md): Mac consent/pause persistence, native notices and dispatch fencing; physical acceptance pending.
+
+- [080 — Live claim channel enforcement](080-live-claim-channel-enforcement.md): adapter-side exact claim checks, periodic liveness and prompt transport cleanup.

@@ -45,7 +45,11 @@ case "$command" in
         claim_adapter_main "$STATE_DIR/claims" "$CLAIM_PROVIDER" \
             "$(host_resource_id)" "$command" "$@"
         ;;
-    control|control-local|channel|artifact-fetch)
+    channel)
+        claim_guard_channel "$STATE_DIR/claims" "$CLAIM_PROVIDER" "$(host_resource_id)" \
+            "$HOST_PYTHON" -B "$REPO_DIR/host/machost.py" channel
+        ;;
+    control|control-local|artifact-fetch)
         claim_require_tools
         claim_require_exact "$STATE_DIR/claims" "$CLAIM_PROVIDER" "$(host_resource_id)"
         exec "$HOST_PYTHON" -B "$REPO_DIR/host/machost.py" "$command" "$@"

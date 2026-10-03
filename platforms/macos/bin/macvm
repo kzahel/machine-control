@@ -163,7 +163,8 @@ case "$command" in
     remove-java-fixture) exec "$REPO_DIR/scripts/remove-java-fixture.sh" "$@" ;;
     authorize-ui) exec "$REPO_DIR/bin/macui" authorize "$@" ;;
     ui) exec "$REPO_DIR/bin/macui" "$@" ;;
-    channel) exec "$REPO_DIR/bin/macui" channel "$@" ;;
+    channel) claim_guard_channel "$MACVM_CLAIM_STATE_DIR" "$MACVM_CLAIM_PROVIDER" \
+        "$MACVM_EXPECTED_NAME" "$REPO_DIR/bin/macui" channel "$@" ;;
     control) exec "$REPO_DIR/bin/macui" control "$@" ;;
     control-local) exec "$REPO_DIR/bin/macui" control-local "$@" ;;
     authorization-submit) exec "$REPO_DIR/scripts/submit-authorization.sh" "$@" ;;
