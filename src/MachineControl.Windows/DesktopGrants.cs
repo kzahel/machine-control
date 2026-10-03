@@ -4,8 +4,9 @@ internal sealed record GrantReply(bool Accepted, string? ErrorCode = null, objec
 
 /// Authority lives in the resident, not in the WebView or public pipe. All
 /// transitions and dispatch acceptance share Gate; durations are monotonic.
-internal sealed class DesktopGrants(TimeProvider? time = null)
+internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? journal = null)
 {
+    internal DesktopJournal? Journal { get; } = journal;
     internal readonly object Gate = new();
     private readonly TimeProvider _time = time ?? TimeProvider.System;
     private string _generation = Guid.NewGuid().ToString("n");
@@ -48,6 +49,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null)
             Refresh();
             if (expectedGeneration is not null && expectedGeneration != _generation)
                 return "stale_generation";
+            if (Journal?.Available == false) return "audit_storage_unavailable";
             var scope = ScopeFor(operation);
             if (scope is null) return "unsupported_operation";
             if (!_ready) return "desktop_unavailable";
@@ -76,6 +78,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null)
             if (_grant is not null && scopes.IsSubsetOf(_grant.Scopes))
                 return Task.FromResult(new GrantReply(true, Data: DeploymentState()));
             var completion = new TaskCompletionSource<GrantReply>(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (Journal?.Event("access.requested") == false) return Task.FromResult(new GrantReply(false, "audit_storage_unavailable"));
             _pending = new PendingGrant(Guid.NewGuid().ToString("n"), scopes, duration,
                 timeout, request.Reason.Trim(), caller, _time.GetTimestamp(), completion);
             return completion.Task;
@@ -91,6 +94,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null)
             if (pending.Id != id) throw new InvalidOperationException("Approval request changed");
             if (!allow)
             {
+                Journal?.Event("access.denied", false);
                 _pending = null;
                 pending.Completion.TrySetResult(new GrantReply(false, "approval_denied"));
                 return;
@@ -119,6 +123,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null)
 
     private void Issue(HashSet<string> scopes, int duration, string reason, string caller)
     {
+        if (Journal?.Event("access.enabled") == false) throw new InvalidOperationException("Audit storage unavailable");
         _generation = Guid.NewGuid().ToString("n");
         _grant = new LiveGrant(scopes, duration, reason, caller, _time.GetTimestamp());
         _lastEnded = null;
@@ -128,6 +133,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null)
     {
         lock (Gate)
         {
+            Journal?.Event("access." + DesktopJournal.Token(reason));
             _generation = Guid.NewGuid().ToString("n");
             _grant = null;
             _lastEnded = reason;
@@ -157,6 +163,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null)
             if (_grant is not null && Elapsed(_grant.Started) >= _grant.Duration) Stop("expired");
             if (_pending is not null && Elapsed(_pending.Started) >= _pending.Timeout)
             {
+                Journal?.Event("access.approval_timeout", false);
                 _pending.Completion.TrySetResult(new GrantReply(false, "approval_timeout"));
                 _pending = null;
             }
@@ -222,6 +229,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null)
                 },
                 activity = _activity.Reverse().Take(30).ToArray(),
                 supportedScopes = SupportedScopes,
+                logging = Journal?.Health,
             };
         }
     }

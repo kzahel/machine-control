@@ -190,6 +190,7 @@ final class ResidentServer {
                 throw MacUIError.usage("Request must be a JSON object")
             }
             request = object
+            request["requestId"] = request["requestId"] as? String ?? UUID().uuidString.lowercased()
         } catch {
             let response: [String: Any] = [
                 "schema": "machine-control/v0", "operation": "unknown",
@@ -208,6 +209,10 @@ final class ResidentServer {
         }
         let caller = CallerIdentity.of(socket: client)
         let claimID = request["claimId"] as? String
+        if broker.journal?.begin(request, caller: caller) == false, !["grant.revoke", "server.stop", "session.control.end"].contains(operation) {
+            respond(client, request, service.refusal(request, code: "audit_storage_unavailable", message: "Audit storage unavailable"), caller: caller, claimID: claimID)
+            return
+        }
 
         if operation == "update.check" || operation == "update.status" {
             let response = updates.request(check: operation == "update.check")
@@ -222,6 +227,7 @@ final class ResidentServer {
             if let refusal = browser.register(client, request) {
                 respond(client, request, refusal, caller: caller, claimID: claimID)
             } else {
+                broker.journal?.event("browser.connected")
                 keepOpen = true
             }
             return
@@ -277,7 +283,7 @@ final class ResidentServer {
             var response: [String: Any]
             if operation == "authorization.submit" {
                 if let refusal = service.credentialPreflight(request) {
-                    try writeSocket(client, data: encodeJSONLine(refusal))
+                    respond(client, request, refusal, caller: caller, claimID: claimID)
                     return
                 }
                 try writeSocket(client, data: Data([0x06]))
@@ -311,6 +317,7 @@ final class ResidentServer {
             }
             respond(client, request, response, caller: caller, claimID: claimID)
             if operation == "server.stop" {
+                broker.journal?.event("resident.stop")
                 Darwin.close(listener)
                 unlink(socketPath)
                 exit(0)
@@ -416,8 +423,13 @@ final class ResidentServer {
         return service.refusal(request, code: refusal.code, message: refusal.message, data: data)
     }
 
-    private func respond(_ client: Int32, _ request: [String: Any], _ response: [String: Any],
+    private func respond(_ client: Int32, _ request: [String: Any], _ originalResponse: [String: Any],
                          caller: CallerIdentity, claimID: String?) {
+        var response = originalResponse
+        if broker.journal?.record(response) == false {
+            response["accepted"] = false; response["errorCode"] = "audit_storage_unavailable"
+            response["uncertainty"] = "audit_result_not_persisted"; response["retrySafety"] = "unsafe"
+        }
         let operation = request["operation"] as? String ?? "unknown"
         if operationClass(operation) != .discovery && operation != "grant.status" {
             var detail: String?

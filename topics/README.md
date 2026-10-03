@@ -49,6 +49,8 @@ its `Topic:` trailers.
   and target-native validation.
 - [`delegation-and-agent-placement.md`](delegation-and-agent-placement.md): YA
   coordination and the separation between agent placement and control target.
+- [`desktop-audit-and-diagnostics.md`](desktop-audit-and-diagnostics.md): durable
+  desktop history, logging health, privacy and operator diagnostics.
 - [`host-control.md`](host-control.md): physical and personal hosts, deployment
   presets, grant broker and approval, menu bar application, and away mode.
 - [`inner-first-routing.md`](inner-first-routing.md): ordinary resident routes,

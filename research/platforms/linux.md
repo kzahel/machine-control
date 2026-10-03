@@ -90,3 +90,12 @@ nested compositors, and physical Linux hardware. Test exact arbitrary-window
 capture, foreground/background actions, portal lifetime, transient surfaces,
 and effect oracles per profile. GDM, lock, encrypted preboot, and absent-user
 sessions remain separate protected authority planes.
+
+## Desktop audit validation
+
+**Current (2026-10-03), `live-tested`:** source-native desktop audit and
+storage-failure acceptance runs on the platform's dedicated VM. The shared
+[topic](../../topics/desktop-audit-and-diagnostics.md) owns the contract and
+[Tactical 069](../../docs/tactical/069-desktop-audit-and-diagnostics.md) owns
+platform/architecture results. This does not broaden provider privilege or
+signed-package acceptance.

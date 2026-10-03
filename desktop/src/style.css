@@ -321,3 +321,40 @@ select {
   gap: 8px;
   margin-top: 16px;
 }
+
+.history-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+}
+.history-controls input {
+  flex: 1;
+  min-width: 100px;
+}
+.history-entry {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e8ebe9;
+}
+.history-entry summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.history-entry time {
+  margin-left: auto;
+  color: #626e66;
+}
+.history-entry pre,
+.history-export pre {
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 280px;
+  overflow: auto;
+}
+.history-export {
+  padding: 12px;
+}

@@ -12,6 +12,49 @@ static void Refuses(Action action, string message)
 }
 static JsonElement State(DesktopGrants broker) => JsonSerializer.SerializeToElement(broker.State(), Contract.Json);
 static string Pending(DesktopGrants broker) => State(broker).GetProperty("pending").GetProperty("id").GetString()!;
+var journalRoot = Path.Combine(Path.GetTempPath(), "mc-journal-" + Guid.NewGuid().ToString("n"));
+try
+{
+    var journal = new DesktopJournal(journalRoot, segmentBytes: 1000, auditBytes: 5000);
+    Assert(journal.Begin("input.text", "SENTINEL", callerPid: 123), "Durable intent");
+    Assert(journal.Record(new Result { RequestId = "SENTINEL", Operation = "input.text", Accepted = true, Data = "SENTINEL", Message = "SENTINEL" }), "Durable result");
+    var recovered = new DesktopJournal(journalRoot);
+    var preview = JsonSerializer.Serialize(recovered.Preview(), Contract.Json);
+    Assert(!preview.Contains("SENTINEL"), "Payload and raw request ID excluded");
+    Assert(preview.Contains("\"callerPid\":123"), "Observed caller PID retained");
+    Assert(preview.Contains("input.text") && preview.Contains("outcome_pending"), "Restart retains intent and result");
+    Assert(File.Exists(recovered.Export()), "Private export");
+    recovered.Debug(true);
+    Assert(JsonSerializer.Serialize(recovered.Health, Contract.Json).Contains("debugRemainingSeconds"), "Bounded debug mode");
+    var latest = Directory.GetFiles(Path.Combine(journalRoot, "audit")).OrderDescending().First();
+    File.AppendAllText(latest, "{}\n42\n{partial");
+    _ = recovered.Query();
+    Assert(JsonSerializer.Serialize(recovered.Health, Contract.Json).Contains("\"historyGap\":true"), "Partial record detected");
+    var invalid = Path.Combine(journalRoot, "audit", "00000000000000000000-invalid.jsonl");
+    File.WriteAllText(invalid, "42\n");
+    Assert(!JsonSerializer.SerializeToElement(recovered.Query(), Contract.Json).TryGetProperty("earliestAt", out var earliest) || earliest.ValueKind == JsonValueKind.Null, "Invalid earliest row tolerated");
+    File.Delete(invalid);
+    for (var i = 0; i < 100; i++) Assert(journal.Begin("input.key", i.ToString()), "Rotated append");
+    Assert(Directory.GetFiles(Path.Combine(journalRoot, "audit")).Sum(p => new FileInfo(p).Length) <= 5000, "Retention cap");
+    var paged = new DesktopJournal(Path.Combine(journalRoot, "pages"));
+    for (var i = 0; i < 60; i++) paged.Record(new Result { RequestId = i.ToString(), Operation = "input.key", Accepted = i % 2 == 0 });
+    var firstPage = JsonSerializer.SerializeToElement(paged.Query(operation: "input.key"), Contract.Json);
+    var secondPage = JsonSerializer.SerializeToElement(paged.Query(offset: 50, operation: "input.key"), Contract.Json);
+    Assert(firstPage.GetProperty("entries").GetArrayLength() == 50 && firstPage.GetProperty("hasMore").GetBoolean(), "First history page");
+    Assert(secondPage.GetProperty("entries").GetArrayLength() == 10 && !secondPage.GetProperty("hasMore").GetBoolean(), "Last history page");
+    Assert(JsonSerializer.SerializeToElement(paged.Query(operation: "input.key", outcome: "accepted"), Contract.Json).GetProperty("entries").GetArrayLength() == 30, "Outcome filter");
+    var expired = Path.Combine(paged.Root, "audit", "00000000000000000000-expired.jsonl");
+    File.WriteAllText(expired, "{}\n"); File.SetLastWriteTimeUtc(expired, DateTime.UtcNow.AddDays(-31));
+    paged.Event("storage.recovered"); Assert(!File.Exists(expired), "Age retention");
+    var blocked = Path.Combine(journalRoot, "blocked"); File.WriteAllText(blocked, "");
+    var unavailable = new DesktopJournal(blocked);
+    Assert(!unavailable.Begin("click", "x"), "Unavailable storage refuses intent");
+    var gated = new DesktopGrants(journal: unavailable); gated.SetReady(true);
+    Refuses(() => gated.Arm(["control"], 60), "Unlogged grant refused");
+    gated.Stop("stopped_by_person");
+    Assert(!State(gated).GetProperty("deployment").TryGetProperty("grant", out _) || State(gated).GetProperty("deployment").GetProperty("grant").ValueKind == JsonValueKind.Null, "Stop works without logging");
+}
+finally { if (Directory.Exists(journalRoot)) Directory.Delete(journalRoot, true); }
 var clock = new TestTime();
 var updates = new DesktopUpdates();
 Refuses(() => updates.Request(true), "Updater not initialized by operator");

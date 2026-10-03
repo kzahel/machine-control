@@ -203,3 +203,5 @@ Local assembled-app signing can exercise the production nested-code and
 Python inventory order with `python3 desktop/scripts/sign-macos-payload.py APP
 --identity SIGNING_IDENTITY`. This signs and verifies the bundle; notarization,
 stapling, updater signing and publication remain in `sign-macos.sh`.
+
+Desktop Activity now reads durable history. See [history and diagnostics](../docs/desktop-audit.md) for privacy, retention, storage failure, and local export.

@@ -319,3 +319,12 @@ provides the running SCM service PID used to authenticate the pipe peer.
 serializes an input batch without interspersing other keyboard/mouse events,
 but is not proof of credential acceptance or a general UI transaction. The
 implementation separately observes WTS account/lock state and the input desktop.
+
+## Desktop audit validation
+
+**Current (2026-10-03), `live-tested`:** source-native desktop audit and
+storage-failure acceptance runs on the platform's dedicated VM. The shared
+[topic](../../topics/desktop-audit-and-diagnostics.md) owns the contract and
+[Tactical 069](../../docs/tactical/069-desktop-audit-and-diagnostics.md) owns
+platform/architecture results. This does not broaden provider privilege or
+signed-package acceptance.

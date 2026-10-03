@@ -73,3 +73,6 @@ The current dependency-free projection is
 [`bin/machine-control`](../bin/machine-control); its adapter tests and guarded
 three-desktop workflow are documented in
 [`tests/client`](../tests/client/README.md).
+
+- [Desktop event v0](desktop-event-v0.schema.json) defines the private desktop
+  audit and diagnostic metadata format; it is not an agent control endpoint.

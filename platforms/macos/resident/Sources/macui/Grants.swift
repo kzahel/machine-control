@@ -166,6 +166,7 @@ struct AuditEntry {
 /// queue, like the rest of the resident.
 final class GrantBroker {
     let policy: DeploymentPolicy
+    var journal: DesktopJournal?
     var now: () -> Date = Date.init
     private var observers: [() -> Void] = []
 
@@ -255,6 +256,7 @@ final class GrantBroker {
         guard pending == nil else {
             return GrantRefusal("approval_pending", "Another grant request is awaiting a decision")
         }
+        guard journal?.event("access.requested") != false else { return GrantRefusal("audit_storage_unavailable", "Audit storage unavailable") }
         pending = request
         notify()
         return nil
@@ -265,13 +267,17 @@ final class GrantBroker {
         guard let request = pending else { return nil }
         pending = nil
         defer { notify() }
-        guard case let .approved(scopes, duration) = decision else { return nil }
+        guard case let .approved(scopes, duration) = decision else {
+            journal?.event(decision == .timedOut ? "access.approval_timeout" : "access.denied", accepted: false)
+            return nil
+        }
         let narrowed = scopes.intersection(request.scopes)
         guard !narrowed.isEmpty else { return nil }
-        return issue(scopes: narrowed,
+        let issued = issue(scopes: narrowed,
                      durationSeconds: min(duration, request.durationSeconds),
                      reason: request.reason, requester: request.caller.summary,
                      approver: approver)
+        return journal?.errorCode == nil ? issued : nil
     }
 
     @discardableResult
@@ -284,6 +290,9 @@ final class GrantBroker {
                          issuedAt: issued,
                          expiresAt: issued.addingTimeInterval(TimeInterval(clamped)),
                          reason: reason, requester: requester, approver: approver)
+        guard journal?.event("access.enabled") != false else {
+            lastEnded = ("audit_storage_unavailable", now()); notify(); return next
+        }
         grant = next
         lastEnded = nil
         notify()
@@ -299,6 +308,9 @@ final class GrantBroker {
         let next = Grant(id: UUID().uuidString.lowercased(), scopes: scopes,
                          issuedAt: now(), expiresAt: nil,
                          reason: reason, requester: requester, approver: approver)
+        guard journal?.event("access.enabled") != false else {
+            lastEnded = ("audit_storage_unavailable", now()); notify(); return next
+        }
         grant = next
         lastEnded = nil
         notify()
@@ -311,6 +323,7 @@ final class GrantBroker {
     }
 
     private func end(reason: String) {
+        journal?.event("access." + DesktopJournal.token(reason))
         grant = nil
         lastEnded = (reason, now())
         notify()

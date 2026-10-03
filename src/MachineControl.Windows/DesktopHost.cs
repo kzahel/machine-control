@@ -14,7 +14,8 @@ internal static class DesktopHost
         if (!Console.IsInputRedirected || !Console.IsOutputRedirected)
             throw new InvalidOperationException("The desktop resident requires its operator transport");
         using var stop = new CancellationTokenSource();
-        var broker = new DesktopGrants();
+        var journal = new DesktopJournal();
+        var broker = new DesktopGrants(journal: journal);
         var updates = new DesktopUpdates();
         DesktopSafety.Broker = broker;
         RuntimeProfile.ConfigureUser("desktop");
@@ -72,6 +73,15 @@ internal static class DesktopHost
                             state["socket"] = RuntimeProfile.UserPipe("desktop", RuntimeProfile.SessionId);
                             reply = new { ok = true, state };
                             break;
+                        case "logs.query":
+                            reply = new { ok = true, history = journal.Query(command["offset"]?.GetValue<int>() ?? 0, command["operation"]?.GetValue<string>() ?? "", command["outcome"]?.GetValue<string>() ?? "", command["stream"]?.GetValue<string>() ?? "audit") }; break;
+                        case "logs.debug": journal.Debug(command["enabled"]?.GetValue<bool>() == true); reply = new { ok = true }; break;
+                        case "logs.preview": reply = new { ok = true, preview = journal.Preview() }; break;
+                        case "logs.export": reply = new { ok = true, path = journal.Export() }; break;
+                        case "logs.location": reply = new { ok = true, path = journal.Root }; break;
+                        case "logs.diagnostic":
+                            journal.Diagnostic("desktop.supervisor", command["code"]?.GetValue<string>() ?? "unknown");
+                            reply = new { ok = true }; break;
                         case "browser.setup":
                             BrowserRegistration.Install();
                             reply = new { ok = true }; break;
@@ -102,6 +112,7 @@ internal static class DesktopHost
             try { await resident; } catch (OperationCanceledException) { }
             try { await monitor; } catch (OperationCanceledException) { }
             try { await browserTask; } catch (OperationCanceledException) { }
+            journal.Event("resident.stop");
             DesktopSafety.Broker = null;
         }
         return 0;

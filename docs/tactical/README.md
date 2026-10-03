@@ -39,6 +39,7 @@ the commits' `Topic:` trailers and register that exact string in
 
 | Tactical | Status | Scope |
 | --- | --- | --- |
+| [`069-desktop-audit-and-diagnostics.md`](069-desktop-audit-and-diagnostics.md) | complete; source-native VMs accepted | Durable native audit history, private diagnostics, retained Activity, export and storage-failure validation |
 | [`068-windows-agent-discovery.md`](068-windows-agent-discovery.md) | implemented; x64 accepted; release gates open | Main-executable CLI forwarding, bare-launch guidance, user PATH registration and resolved installation identity |
 | [`000-windows-resident-control-vertical-slice.md`](000-windows-resident-control-vertical-slice.md) | complete | Coordinating Windows milestone; full control, reproducible bootstrap, sustained real-app acceptance, and disposable seal verification |
 | [`001-windows-system-shell-acceptance.md`](001-windows-system-shell-acceptance.md) | complete | Cua-first acceptance run across the real Windows system shell; selected a hybrid facade |

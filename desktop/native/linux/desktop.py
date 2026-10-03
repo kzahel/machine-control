@@ -29,6 +29,8 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gio, GLib, Gtk
 
 from grants import Grants, OBSERVE, CONTROL
+from journal import Journal
+import uuid
 from portal import Portal
 from provider import Provider
 from shortcut import Shortcut
@@ -90,7 +92,8 @@ class Desktop:
         Gtk.init([])
         self.loop = GLib.MainLoop()
         self.operator_pid = operator_pid
-        self.grants = Grants(self.changed)
+        self.journal = Journal()
+        self.grants = Grants(self.changed, journal=self.journal)
         self.updates = Updates()
         self.provider = Provider(self)
         self.last_portal_state = "off"
@@ -218,6 +221,20 @@ class Desktop:
             return {"ok": True, "checkRequested": self.updates.sync(command.get("state"))}
         if method == "state":
             return {"ok": True, "state": self.state()}
+        if method == "logs.query":
+            return {"ok": True, "history": self.journal.query(command.get("offset", 0), command.get("operation", ""), command.get("outcome", ""), command.get("stream", "audit"))}
+        if method == "logs.debug":
+            self.journal.debug(command.get("enabled") is True)
+            return {"ok": True}
+        if method == "logs.preview":
+            return {"ok": True, "preview": self.journal.preview()}
+        if method == "logs.export":
+            return {"ok": True, "path": self.journal.export()}
+        if method == "logs.location":
+            return {"ok": True, "path": str(self.journal.root)}
+        if method == "logs.diagnostic":
+            self.journal.diagnostic("desktop.supervisor", command.get("code", "unknown"))
+            return {"ok": True}
         if method == "arm":
             self.grants.arm(command.get("scopes"), command.get("duration", 900))
         elif method == "decision":
@@ -251,14 +268,17 @@ class Desktop:
             raise ValueError("Unknown operator command")
         return {"ok": True}
 
-    def handle(self, request, caller, complete):
+    def handle(self, request, caller, complete, caller_pid=None):
         started = time.monotonic()
+        request["requestId"] = request.get("requestId") or uuid.uuid4().hex
         operation = request.get("operation", "")
         result = self.provider.envelope(request, operation)
 
         def finish(value):
             value["generation"] = self.grants.generation
             value["elapsedMs"] = int((time.monotonic() - started) * 1000)
+            if not self.journal.record(value):
+                value.update(accepted=False, errorCode="audit_storage_unavailable", uncertainty="audit_result_not_persisted", retrySafety="unsafe")
             self.grants.record(value)
             complete(value)
 
@@ -271,6 +291,10 @@ class Desktop:
             finish(value)
 
         try:
+            durable = self.journal.begin(operation, request["requestId"], self.grants.generation, caller_pid)
+            if not durable and operation != "grant.revoke":
+                finish(self.provider.fail(request, operation, "audit_storage_unavailable", "Audit storage unavailable"))
+                return
             self.monitor()
             if operation in {"update.check", "update.status"}:
                 result["data"] = self.updates.request(operation == "update.check")
@@ -312,6 +336,7 @@ class Desktop:
                     result = self.provider.handle(request)
             finish(result)
         except Exception as error:
+            self.journal.diagnostic("provider.request", "operation_failed")
             finish(self.provider.fail(request, operation, "invalid_request", str(error)))
 
     def accept(self):
@@ -341,6 +366,7 @@ class Desktop:
             if request.get("operation") == "browser.register":
                 browser = True
                 def register():
+                    self.journal.event("browser.connected")
                     self.browser.register(client, pid)
                     event.set()
                     return False
@@ -369,7 +395,7 @@ class Desktop:
                 finally:
                     event.set()
 
-            GLib.idle_add(lambda: self.handle(request, f"pid {pid}", complete) or False)
+            GLib.idle_add(lambda: self.handle(request, f"pid {pid}", complete, caller_pid=pid) or False)
             event.wait(610)
         except (OSError, ValueError):
             pass
@@ -404,6 +430,7 @@ class Desktop:
         GLib.idle_add(lambda: self.shutdown() or False)
 
     def shutdown(self):
+        self.journal.event("resident.stop")
         if self.stopped:
             return
         self.stopped = True

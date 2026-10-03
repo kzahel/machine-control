@@ -56,6 +56,7 @@ public func mcDesktopStart(_ path: UnsafePointer<CChar>) -> UnsafeMutablePointer
         try FileManager.default.createDirectory(atPath: (socketPath as NSString).deletingLastPathComponent,
             withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let broker = GrantBroker(policy: DeploymentPolicy.load())
+        broker.journal = DesktopJournal()
         let server = ResidentServer(socketPath: socketPath, service: ResidentService(), broker: broker)
         if broker.policy.grantMode == .approval { server.approver = desktopApprover }
         let pid = getpid()
@@ -103,6 +104,7 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                 var state: [String: Any] = ["deployment": server.broker.statusJSON,
                     "permissions": ["accessibility": setup.accessibility, "screenRecording": setup.screen == .allowed],
                     "browser": server.browser.statusJSON, "activity": server.broker.audit.reversed().prefix(30).map(\.json),
+                    "logging": server.broker.journal?.health ?? [:],
                     "stopShortcutAvailable": desktopHotKey != nil,
                     "manualUntilStoppedSupported": true,
                     "socket": server.socketPath, "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "development"]
@@ -111,12 +113,22 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                         "scopes": pending.scopes.sorted().map(\.rawValue), "duration": pending.durationSeconds]
                 }
                 return bridgeJSON(["ok": true, "state": state])
+            case "logs.query":
+                return bridgeJSON(["ok": true, "history": server.broker.journal?.query(offset: command["offset"] as? Int ?? 0, operation: command["operation"] as? String ?? "", outcome: command["outcome"] as? String ?? "", stream: command["stream"] as? String ?? "audit") ?? [:]])
+            case "logs.debug": server.broker.journal?.debug(command["enabled"] as? Bool == true)
+            case "logs.preview": return bridgeJSON(["ok": true, "preview": server.broker.journal?.preview() ?? [:]])
+            case "logs.export": return bridgeJSON(["ok": true, "path": try server.broker.journal?.export() ?? ""])
+            case "logs.location": return bridgeJSON(["ok": true, "path": server.broker.journal?.root.path ?? ""])
+            case "logs.diagnostic":
+                server.broker.journal?.diagnostic("desktop.supervisor", code: command["code"] as? String ?? "unknown")
             case "stop":
                 stopDesktopAccess()
             case "decision":
+                if command["allow"] as? Bool == true, server.broker.journal?.event("access.approve.intent") == false { throw MacUIError.action("Audit storage unavailable") }
                 try desktopApprover.decide(id: command["id"] as? String ?? "", scopes: command["scopes"] as? [String] ?? [],
                     duration: command["duration"] as? Int ?? 0, allow: command["allow"] as? Bool == true)
             case "arm":
+                guard server.broker.journal?.event("access.arm.intent") != false else { throw MacUIError.action("Audit storage unavailable") }
                 guard !desktopUpdating, server.broker.policy.grantMode == .approval, server.broker.pending == nil,
                       let names = command["scopes"] as? [String], !names.isEmpty,
                       names.allSatisfy({ GrantScope(rawValue: $0) != nil }) else {
@@ -135,6 +147,7 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                     server.broker.issue(scopes: scopes, durationSeconds: duration,
                         reason: "Manually enabled by the person", requester: "local operator", approver: "local_tauri")
                 }
+                guard server.broker.journal?.errorCode == nil else { throw MacUIError.action("Audit storage unavailable") }
             case "prepare_update":
                 guard !desktopUpdating, server.broker.policy.grantMode == .approval,
                       server.broker.grant == nil, server.broker.pending == nil else {

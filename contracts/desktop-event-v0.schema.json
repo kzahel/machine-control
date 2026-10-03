@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machine-control.invalid/contracts/desktop-event-v0.schema.json",
+  "title": "Private local desktop audit and diagnostic event",
+  "type": "object",
+  "required": ["schema", "stream", "eventId", "at", "component", "phase", "operation"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "machine-control-desktop-event/v0"},
+    "stream": {"enum": ["audit", "diagnostics"]},
+    "eventId": {"type": "string", "maxLength": 100},
+    "runtimeId": {"type": "string", "maxLength": 100},
+    "sequence": {"type": "integer", "minimum": 1},
+    "at": {"type": "string", "format": "date-time"},
+    "atUnixMs": {"type": "integer"},
+    "component": {"enum": ["windows.resident", "macos.resident", "linux.resident", "desktop.supervisor"]},
+    "version": {"type": ["string", "null"], "maxLength": 100},
+    "phase": {"enum": ["intent", "result", "event"]},
+    "operation": {"type": "string", "maxLength": 160},
+    "requestId": {"type": "string", "pattern": "^[a-f0-9]{24}$", "description": "SHA-256 prefix of the wire request ID; supplied identifiers are never stored verbatim."},
+    "callerPid": {"type": ["integer", "null"]},
+    "sessionId": {"type": ["integer", "null"]},
+    "generation": {"type": ["string", "null"], "maxLength": 160},
+    "actualRoute": {"type": ["string", "null"], "maxLength": 160},
+    "accepted": {"type": "boolean"},
+    "delivery": {"type": ["string", "null"], "maxLength": 160},
+    "effect": {"type": ["string", "null"], "maxLength": 160},
+    "uncertainty": {"type": ["string", "null"], "maxLength": 160},
+    "errorCode": {"type": ["string", "null"], "maxLength": 160},
+    "elapsedMs": {"type": "integer", "minimum": 0}
+  }
+}

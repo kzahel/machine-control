@@ -130,11 +130,11 @@ pub fn check(app: &tauri::AppHandle, reason: &str) -> Result<Value, String> {
                 Ok(candidate.map(|v| (v.version, v.body)))
             }
             .await;
-            if reason != "manual" {
-                if let Err(error) = &result {
-                    eprintln!("Automatic {reason} update check failed: {error}");
-                }
-            }
+            crate::diagnostics::record(if result.is_ok() {
+                "update.check.ok"
+            } else {
+                "update.check.failed"
+            });
             state().finish_check(result, now());
             let _ = app.emit("update-state", status());
         });
@@ -149,6 +149,11 @@ pub fn installing() {
     state().phase = "installing";
 }
 pub fn finish_install(result: &Result<(), String>) {
+    crate::diagnostics::record(if result.is_ok() {
+        "update.install.ok"
+    } else {
+        "update.install.failed"
+    });
     let mut core = state();
     core.installing = false;
     core.phase = if result.is_ok() { "installed" } else { "error" };

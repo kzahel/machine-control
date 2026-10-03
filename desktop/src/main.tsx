@@ -62,11 +62,36 @@ type State = {
     accepted: boolean;
     errorCode: string | null;
   }[];
+  logging?: {
+    available: boolean;
+    errorCode?: string;
+    debugRemainingSeconds?: number;
+  };
   version: string;
   socket: string;
   stopShortcutAvailable: boolean;
   manualUntilStoppedSupported?: boolean;
   updateInstallSupported?: boolean;
+};
+type AuditEvent = {
+  eventId: string;
+  at: string;
+  phase: string;
+  operation: string;
+  accepted?: boolean;
+  errorCode?: string;
+  delivery?: string;
+  effect?: string;
+  uncertainty?: string;
+  elapsedMs?: number;
+  [key: string]: unknown;
+};
+type History = {
+  entries: AuditEvent[];
+  hasMore: boolean;
+  offset: number;
+  earliestAt?: string;
+  health: { available: boolean; errorCode?: string; historyGap?: boolean };
 };
 const labels: Record<Scope, string> = {
   observe: "View desktop",
@@ -75,7 +100,13 @@ const labels: Record<Scope, string> = {
   devtools: "Browser scripts and DevTools",
 };
 async function native(command: Record<string, unknown>) {
-  return invoke<{ state?: State; extensionPath?: string }>("operator_command", {
+  return invoke<{
+    state?: State;
+    extensionPath?: string;
+    history?: History;
+    preview?: unknown;
+    path?: string;
+  }>("operator_command", {
     command,
   });
 }
@@ -90,6 +121,29 @@ function App() {
   const [duration, setDuration] = useState(900);
   const [pendingScopes, setPendingScopes] = useState<Scope[]>([]);
   const [pendingDuration, setPendingDuration] = useState(900);
+  const [history, setHistory] = useState<History>();
+  const [historyOffset, setHistoryOffset] = useState(0);
+  const [historyOperation, setHistoryOperation] = useState("");
+  const [historyOutcome, setHistoryOutcome] = useState("");
+  const [historyStream, setHistoryStream] = useState("audit");
+  const [exportPreview, setExportPreview] = useState<unknown>();
+  const loadHistory = async () => {
+    try {
+      const r = await native({
+        method: "logs.query",
+        offset: historyOffset,
+        operation: historyOperation,
+        outcome: historyOutcome,
+        stream: historyStream,
+      });
+      setHistory(r.history);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+  useEffect(() => {
+    if (page === "activity") void loadHistory();
+  }, [page, historyOffset, historyOperation, historyOutcome, historyStream]);
   const update = state?.updates;
   const checkUpdates = async () => {
     try {
@@ -446,26 +500,181 @@ function App() {
           </>
         )}
         {page === "activity" && (
-          <section className="group activity-list" aria-label="Recent activity">
-            {!state?.activity.length ? (
-              <p className="empty">No recent activity</p>
-            ) : (
-              state.activity.map((entry, i) => (
-                <div className="activity-row" key={i}>
-                  <span
-                    className={"status-dot " + (entry.accepted ? "on" : "")}
-                  />
-                  <strong>{entry.operation}</strong>
-                  <span className="row-status">
-                    {entry.accepted
-                      ? "Accepted"
-                      : (entry.errorCode ?? "Refused")}
-                  </span>
-                  <time>{new Date(entry.at).toLocaleTimeString()}</time>
-                </div>
-              ))
+          <>
+            <section
+              className="group history-controls"
+              aria-label="Activity filters"
+            >
+              <select
+                aria-label="History type"
+                value={historyStream}
+                onChange={(e) => {
+                  setHistoryStream(e.target.value);
+                  setHistoryOffset(0);
+                }}
+              >
+                <option value="audit">Activity</option>
+                <option value="diagnostics">Diagnostics</option>
+              </select>
+              <input
+                aria-label="Filter operation"
+                placeholder="Filter operation"
+                value={historyOperation}
+                onChange={(e) => {
+                  setHistoryOperation(e.target.value);
+                  setHistoryOffset(0);
+                }}
+              />
+              <select
+                aria-label="Filter outcome"
+                value={historyOutcome}
+                onChange={(e) => {
+                  setHistoryOutcome(e.target.value);
+                  setHistoryOffset(0);
+                }}
+              >
+                <option value="">All outcomes</option>
+                <option value="accepted">Accepted</option>
+                <option value="refused">Refused</option>
+              </select>
+              <button onClick={() => void loadHistory()}>Refresh</button>
+            </section>
+            <p className="row-status">
+              Audit: 30 days / 100 MB. Diagnostics: 7 days / 50 MB. Oldest
+              entries are removed when either limit is reached.
+            </p>
+            {(history?.health.available === false ||
+              state?.logging?.available === false) && (
+              <p role="alert">
+                Logging needs attention:{" "}
+                {history?.health.errorCode ?? state?.logging?.errorCode}. New
+                control is paused; Stop remains available.
+              </p>
             )}
-          </section>
+            {history?.earliestAt && (
+              <p className="row-status">
+                Retained history starts{" "}
+                {new Date(history.earliestAt).toLocaleString()}.
+              </p>
+            )}
+            {history?.health.historyGap && (
+              <p role="status">
+                Some retained history is incomplete. Outcomes without a result
+                remain unknown.
+              </p>
+            )}
+            <section
+              className="group activity-list"
+              aria-label="Retained activity"
+            >
+              {!history?.entries.length ? (
+                <p className="empty">No retained activity</p>
+              ) : (
+                history.entries.map((entry) => (
+                  <details className="history-entry" key={entry.eventId}>
+                    <summary>
+                      <strong>{entry.operation}</strong>
+                      <span>
+                        {entry.phase === "intent"
+                          ? history.entries.some(
+                              (result) =>
+                                result.phase === "result" &&
+                                result.requestId === entry.requestId &&
+                                result.runtimeId === entry.runtimeId,
+                            )
+                            ? "Intent — result recorded"
+                            : "Intent — outcome pending or unknown"
+                          : entry.accepted === true
+                            ? "Accepted"
+                            : (entry.errorCode ?? entry.phase)}
+                      </span>
+                      <time>{new Date(entry.at).toLocaleString()}</time>
+                    </summary>
+                    <p>
+                      Delivery: {entry.delivery ?? "unknown"} · Effect:{" "}
+                      {entry.effect ?? "unknown"}
+                    </p>
+                    <pre>{JSON.stringify(entry, null, 2)}</pre>
+                  </details>
+                ))
+              )}
+            </section>
+            <div className="history-controls">
+              <button
+                disabled={historyOffset === 0}
+                onClick={() =>
+                  setHistoryOffset(Math.max(0, historyOffset - 50))
+                }
+              >
+                Newer
+              </button>
+              <button
+                disabled={!history?.hasMore}
+                onClick={() => setHistoryOffset(historyOffset + 50)}
+              >
+                Older
+              </button>
+              <button
+                onClick={() =>
+                  void native({
+                    method: "logs.debug",
+                    enabled: !state?.logging?.debugRemainingSeconds,
+                  })
+                    .then(() => refresh())
+                    .catch((e) => setError(String(e)))
+                }
+              >
+                {state?.logging?.debugRemainingSeconds
+                  ? "End detailed diagnostics"
+                  : "Detailed diagnostics for 15 minutes"}
+              </button>
+              <button
+                onClick={() =>
+                  void native({ method: "logs.open" }).catch((e) =>
+                    setError(String(e)),
+                  )
+                }
+              >
+                Open log folder
+              </button>
+              <button
+                onClick={() =>
+                  void native({ method: "logs.preview" })
+                    .then((r) => setExportPreview(r.preview))
+                    .catch((e) => setError(String(e)))
+                }
+              >
+                Preview diagnostic export
+              </button>
+            </div>
+            {exportPreview !== undefined && (
+              <section
+                className="group history-export"
+                aria-label="Diagnostic export preview"
+              >
+                <p>
+                  Includes up to 500 recent events from each stream. Saved
+                  locally; nothing is uploaded.
+                </p>
+                <pre>{JSON.stringify(exportPreview, null, 2)}</pre>
+                <button
+                  onClick={() =>
+                    void native({ method: "logs.export" })
+                      .then((r) => {
+                        setNotice(`Diagnostics saved to ${r.path}`);
+                        setExportPreview(undefined);
+                      })
+                      .catch((e) => setError(String(e)))
+                  }
+                >
+                  Save diagnostics
+                </button>
+                <button onClick={() => setExportPreview(undefined)}>
+                  Cancel
+                </button>
+              </section>
+            )}
+          </>
         )}
         {page === "settings" && (
           <>

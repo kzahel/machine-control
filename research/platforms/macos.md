@@ -304,3 +304,12 @@ conformance in a dedicated appliance. The Mac desktop bundles a wrapper over
 [system sudo](../providers/sudo.md), distinct from typed resident desktop
 control. [Native sudo](../../topics/native-sudo.md) owns the decision and
 [Tactical 061](../../docs/tactical/061-native-sudo.md) owns route evidence.
+
+## Desktop audit validation
+
+**Current (2026-10-03), `live-tested`:** source-native desktop audit and
+storage-failure acceptance runs on the platform's dedicated VM. The shared
+[topic](../../topics/desktop-audit-and-diagnostics.md) owns the contract and
+[Tactical 069](../../docs/tactical/069-desktop-audit-and-diagnostics.md) owns
+platform/architecture results. This does not broaden provider privilege or
+signed-package acceptance.

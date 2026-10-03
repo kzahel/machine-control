@@ -20,6 +20,7 @@ struct Runtime {
 impl Runtime {
     fn call(&mut self, command: &Value) -> Result<Value, String> {
         if self.child.try_wait().map_err(|e| e.to_string())?.is_some() {
+            crate::diagnostics::record("companion.exited");
             return Err("Resident stopped; restart Machine Control".into());
         }
         let bytes = serde_json::to_vec(command).map_err(|e| e.to_string())?;
@@ -31,7 +32,10 @@ impl Runtime {
         self.input.flush().map_err(|e| e.to_string())?;
         self.replies
             .recv_timeout(Duration::from_secs(5))
-            .map_err(|_| "Resident did not respond; restart Machine Control".to_owned())?
+            .map_err(|_| {
+                crate::diagnostics::record("companion.timeout");
+                "Resident did not respond; restart Machine Control".to_owned()
+            })?
     }
 }
 
@@ -57,7 +61,7 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
         .env("PYTHONDONTWRITEBYTECODE", "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::inherit());
+        .stderr(Stdio::piped());
     // AppImage libraries belong to the Tauri process. The system Python/GI
     // companion uses the installed desktop libraries and typelibs instead.
     for name in [
@@ -115,6 +119,9 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
         });
     }
     let mut child = command.spawn().map_err(|e| e.to_string())?;
+    if let Some(stderr) = child.stderr.take() {
+        crate::diagnostics::drain(stderr);
+    }
     let input = child.stdin.take().ok_or("Resident input missing")?;
     let output = child.stdout.take().ok_or("Resident output missing")?;
     let (send, replies) = mpsc::channel();
@@ -163,6 +170,7 @@ pub fn command(command: Value) -> Result<Value, String> {
     let mut reply = match runtime.call(&command) {
         Ok(value) => value,
         Err(error) => {
+            crate::diagnostics::record("companion.protocol_error");
             owner.take();
             return Err(error);
         }

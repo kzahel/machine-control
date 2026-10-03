@@ -80,18 +80,27 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
             }
             var request = Contract.ParseRequest(text.ToString());
             Result result;
-            try { result = await ExecuteAsync(request, caller, stop.Token); }
-            catch (ArgumentException ex) { result = Envelope(request) with { ErrorCode = "invalid_request", Message = ex.Message }; }
+            if (grants?.Journal?.Begin(request.Operation, request.RequestId, Generation, GetNamedPipeClientProcessId(server.SafePipeHandle, out var auditPid) ? auditPid : null) == false && request.Operation is not ("grant.revoke" or "runtime.stop"))
+                result = Envelope(request) with { ErrorCode = "audit_storage_unavailable", Delivery = "refused", Effect = "refused" };
+            else
+            {
+                try { result = await ExecuteAsync(request, caller, stop.Token); }
+                catch (ArgumentException ex) { result = Envelope(request) with { ErrorCode = "invalid_request", Message = ex.Message }; }
+            }
+            var stopAfterReply = request.Operation == "runtime.stop" && result.Accepted;
+            if (grants?.Journal?.Record(result) == false)
+                result = result with { Accepted = false, ErrorCode = "audit_storage_unavailable", Uncertainty = "audit_result_not_persisted", RetrySafety = "unsafe" };
             grants?.Record(result);
             using var outputTimeout = CancellationTokenSource.CreateLinkedTokenSource(stop.Token);
             outputTimeout.CancelAfter(TimeSpan.FromSeconds(10));
             await using var writer = new StreamWriter(server, new UTF8Encoding(false), 4096, leaveOpen: true);
             await writer.WriteLineAsync(Contract.Serialize(result).AsMemory(), outputTimeout.Token);
             await writer.FlushAsync(outputTimeout.Token);
-            if (request.Operation == "runtime.stop" && result.Accepted) stop.Cancel();
+            if (stopAfterReply) stop.Cancel();
         }
         catch (Exception ex) when (ex is IOException or JsonException or OperationCanceledException)
         {
+            grants?.Journal?.Diagnostic("transport.request", "invalid_or_disconnected_request");
             // Disconnected, malformed or stalled callers do not kill the
             // resident or cause automatic action retries.
         }

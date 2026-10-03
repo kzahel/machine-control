@@ -8,6 +8,7 @@ use tauri::{
     Emitter, Manager,
 };
 use tauri_plugin_updater::UpdaterExt;
+mod diagnostics;
 #[cfg(target_os = "linux")]
 mod linux;
 mod restart;
@@ -63,6 +64,22 @@ fn platform_command(_: Value) -> Result<Value, String> {
 }
 
 fn native_command(command: Value) -> Result<Value, String> {
+    if command["method"] == "logs.open" {
+        let reply = platform_command(json!({"method":"logs.location"}))?;
+        let path = reply["path"].as_str().ok_or("Log folder unavailable")?;
+        #[cfg(target_os = "macos")]
+        let status = std::process::Command::new("/usr/bin/open")
+            .arg(path)
+            .status();
+        #[cfg(target_os = "windows")]
+        let status = std::process::Command::new("explorer.exe")
+            .arg(path)
+            .status();
+        #[cfg(target_os = "linux")]
+        let status = std::process::Command::new("xdg-open").arg(path).status();
+        status.map_err(|_| "Could not open log folder")?;
+        return Ok(json!({"ok":true}));
+    }
     let state_request = command["method"] == "state";
     let mut reply = platform_command(command)?;
     if state_request {
@@ -283,6 +300,7 @@ fn main() {
             restart_application
         ])
         .setup(move |app| {
+            diagnostics::start();
             #[cfg(target_os = "linux")]
             {
                 linux::start(app.handle()).map_err(std::io::Error::other)?;
@@ -428,6 +446,9 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("Machine Control could not start")
         .run(|_, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                diagnostics::record("supervisor.stop");
+            }
             #[cfg(target_os = "windows")]
             if matches!(event, tauri::RunEvent::Exit) {
                 windows::shutdown();

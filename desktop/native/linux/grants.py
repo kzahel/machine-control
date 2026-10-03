@@ -42,7 +42,8 @@ def duration(value, maximum=3600, minimum=1):
 
 
 class Grants:
-    def __init__(self, changed=lambda: None, clock=time.monotonic):
+    def __init__(self, changed=lambda: None, clock=time.monotonic, journal=None):
+        self.journal = journal
         self.clock = clock
         self.changed = changed
         self.generation = uuid.uuid4().hex
@@ -66,6 +67,8 @@ class Grants:
 
     def authorize(self, operation, expected=None):
         self.refresh()
+        if self.journal and not self.journal.health["available"]:
+            return "audit_storage_unavailable"
         if expected is not None and expected != self.generation:
             return "stale_generation"
         scope = scope_for(operation)
@@ -84,6 +87,8 @@ class Grants:
         return None
 
     def issue(self, selected, seconds, reason, caller):
+        if self.journal and not self.journal.event("access.enabled"):
+            raise ValueError("Audit storage unavailable")
         self.generation = uuid.uuid4().hex
         self.grant = {"scopes": selected, "expires": self.clock() + seconds,
                       "reason": reason, "requester": caller}
@@ -113,6 +118,9 @@ class Grants:
         if self.grant and selected <= self.grant["scopes"]:
             complete(True, None)
             return
+        if self.journal and not self.journal.event("access.requested"):
+            complete(False, "audit_storage_unavailable")
+            return
         self.pending = {"id": uuid.uuid4().hex, "scopes": selected, "duration": seconds,
                         "reason": reason.strip(), "caller": caller,
                         "expires": self.clock() + timeout, "complete": complete}
@@ -121,6 +129,8 @@ class Grants:
     def finish_pending(self, accepted, error=None):
         pending, self.pending = self.pending, None
         if pending:
+            if self.journal:
+                self.journal.event("access.approved" if accepted else "access." + (error or "denied"), accepted)
             pending["complete"](accepted, error)
             self.changed()
 
@@ -143,6 +153,8 @@ class Grants:
         pending["complete"](True, None)
 
     def stop(self, reason="stopped_by_person"):
+        if self.journal:
+            self.journal.event("access." + reason)
         self.generation = uuid.uuid4().hex
         self.grant = None
         self.last_ended = reason
@@ -177,4 +189,4 @@ class Grants:
                 "deployment": {"policy": {"preset": "workstation", "grantMode": "approval"},
                                "grant": grant, "pendingRequest": pending},
                 "pending": pending, "activity": list(reversed(self.activity)),
-                "lastEnded": self.last_ended}
+                "lastEnded": self.last_ended, "logging": self.journal.health if self.journal else None}

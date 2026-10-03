@@ -36,6 +36,7 @@ struct Runtime {
 impl Runtime {
     fn call(&mut self, command: &Value) -> Result<Value, String> {
         if self.child.try_wait().map_err(|e| e.to_string())?.is_some() {
+            crate::diagnostics::record("companion.exited");
             return Err("Resident stopped; restart Machine Control".into());
         }
         let line = serde_json::to_vec(command).map_err(|e| e.to_string())?;
@@ -48,7 +49,10 @@ impl Runtime {
         let reply = self
             .replies
             .recv_timeout(Duration::from_secs(5))
-            .map_err(|_| "Resident did not respond; restart Machine Control".to_string())??;
+            .map_err(|_| {
+                crate::diagnostics::record("companion.timeout");
+                "Resident did not respond; restart Machine Control".to_string()
+            })??;
         Ok(reply)
     }
 }
@@ -94,7 +98,7 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
         .creation_flags(0x08000000) // CREATE_NO_WINDOW; this is an ordinary Medium companion.
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| e.to_string())?;
     // The child waits for our anonymous handshake before starting its agent
@@ -104,6 +108,9 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
         let _ = child.kill();
         let _ = child.wait();
         return Err(error);
+    }
+    if let Some(stderr) = child.stderr.take() {
+        crate::diagnostics::drain(stderr);
     }
     let input = child.stdin.take().ok_or("Resident input missing")?;
     let output = child.stdout.take().ok_or("Resident output missing")?;
@@ -148,6 +155,7 @@ pub fn command(command: Value) -> Result<Value, String> {
     let mut reply = match runtime.call(&command) {
         Ok(value) => value,
         Err(error) => {
+            crate::diagnostics::record("companion.protocol_error");
             // A broken private transport is terminal, never resynchronize or
             // replay mutating requests. Drop the complete owned process job.
             owner.take();
