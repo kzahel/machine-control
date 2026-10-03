@@ -153,3 +153,14 @@ admission or a distributed transaction. Credential input and diagnostic
 Control/Option/Fn chords are unsupported by this bridge. See
 [Tactical 084](tactical/084-native-outer-desktop-admission.md) for the measured
 fixture boundary and outstanding live acceptance.
+
+## Native desktop delegation receiver
+
+The optional `desktopDelegation` open field is authenticated independently of
+its public attribution. The Mac receiver requires explicit standing trust in
+the intended native Desktop executable, actual kernel peer/code validation and
+current trust revision. It does not fall back to target-wide access after a
+delegated authentication failure. Accepted views name the ordinary-local
+profile and verified integration assurance; protected and outer control refuse.
+The actual YA upstream/proxy implementation and installed proof remain pending
+in [Tactical 086](tactical/086-native-desktop-delegation.md).

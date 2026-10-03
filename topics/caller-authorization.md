@@ -210,3 +210,11 @@ owns endpoint enforcement; YA owns session coordination. Stronger separation
 from a hostile same-user shell requires an OS-enforced boundary or authority
 outside that shell's control. Bounded validation is authorized;
 these protections are not yet implemented in the product.
+
+**Current:** [Tactical 086](../docs/tactical/086-native-desktop-delegation.md)
+implements the default-off MC receiver for a specifically authenticated native
+Desktop connection, durable trust/Stop and connection-bound ordinary scopes.
+Public session attribution never rescues failed peer authentication or falls
+back to ambient access. Receiver positives use admitted fixtures; actual YA
+upstream launch proof, automatic trust presentation and installed integration
+remain open. Existing target-wide approval stays explicitly cooperative.

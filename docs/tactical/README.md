@@ -152,3 +152,5 @@ the commits' `Topic:` trailers and register that exact string in
 - [084 — Native outer desktop admission](084-native-outer-desktop-admission.md).
 
 - [085 — Mac admission transport cleanup](085-macos-admission-transport-cleanup.md).
+
+- [086 — Native desktop delegation](086-native-desktop-delegation.md).

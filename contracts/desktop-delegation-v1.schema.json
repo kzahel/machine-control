@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "desktop-delegation-v1.schema.json",
+  "title": "Authenticated native desktop integration attribution",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "sessionId",
+    "sessionGeneration"
+  ],
+  "properties": {
+    "schema": {
+      "const": "machine-control-desktop-delegation/v1"
+    },
+    "sessionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[!-~]+$"
+    },
+    "sessionGeneration": {
+      "type": "string",
+      "format": "uuid"
+    }
+  }
+}

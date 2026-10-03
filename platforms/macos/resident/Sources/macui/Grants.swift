@@ -246,7 +246,7 @@ final class GrantBroker {
         return grant
     }
 
-    func authorize(_ operation: String, controlled: Bool = false) -> GrantRefusal? {
+    func authorize(_ operation: String, controlled: Bool = false, delegatedScopes: Set<GrantScope>? = nil) -> GrantRefusal? {
         switch operationClass(operation) {
         case .discovery, .grantManagement, .lifecycle, .providerRegistration:
             return nil
@@ -277,6 +277,9 @@ final class GrantBroker {
                 return GrantRefusal("approval_prompt_visible",
                     "Control is paused while an approval prompt is visible",
                     requiredScope: scope)
+            }
+            if let delegatedScopes {
+                return delegatedScopes.contains(scope) ? nil : GrantRefusal("desktop_trust_scope_denied", "This session has no authority for the requested scope")
             }
             guard let current = activeGrant else {
                 return GrantRefusal("approval_required",

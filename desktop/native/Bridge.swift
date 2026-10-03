@@ -126,6 +126,7 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                     "admission": server.broker.admission.status,
                     "controlPolicy": ["supported":true, "mode":server.activity.respectRecentActivity ? "when_idle" : "announce", "noticeSeconds":server.noticeSeconds],
                     "physicalActivity": server.activity.status,
+                    "desktopCallerTrust": server.callerTrust.status,
                     "lockedUse": server.lockedUse.status,
                     "socket": server.socketPath, "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "development"]
                 if let pending = desktopApprover.request {
@@ -143,6 +144,25 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                 server.broker.journal?.diagnostic("desktop.supervisor", code: command["code"] as? String ?? "unknown")
             case "stop":
                 stopDesktopAccess()
+            case "desktop_caller_trust":
+                server.service.refreshSession()
+                guard server.broker.policy.grantMode == .approval,
+                      server.service.observedDesktopState == "unlocked",
+                      (server.service.observedConsoleSession["uid"] as? NSNumber)?.uint32Value == getuid(),
+                      let enabled = command["enabled"] as? Bool else {
+                    throw MacUIError.permission("desktop_trust_operator_unavailable")
+                }
+                if enabled {
+                    guard (server.broker.admission.status["active"] as? Int ?? 0) == 0,
+                          let names = command["scopes"] as? [String], !names.isEmpty,
+                          names.allSatisfy({ GrantScope(rawValue:$0) != nil }) else {
+                        throw MacUIError.usage("Choose trusted scopes while no agent is active")
+                    }
+                    try server.callerTrust.enroll(VerifiedDesktopIntegration.yepAnywhere(), scopes:Set(names.compactMap(GrantScope.init(rawValue:))))
+                } else { server.callerTrust.remove() }
+                server.broker.refreshAvailability()
+                server.service.invalidateReferences()
+                server.browser.closeAllSessions(reason:"desktop_trust_changed")
             case "prepare_exit":
                 server.revoke(reason:"operator_quit")
             case "pause":

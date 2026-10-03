@@ -39,6 +39,56 @@ final class AdmissionChannelTests: XCTestCase {
         XCTAssertEqual(withSockAddr(&address, length:length, { Darwin.connect(fd, $0, $1) }), 0)
         clients.append(fd); return fd
     }
+
+    func testDelegatedOwnerDoesNotInheritAmbientGrantAndStopFencesFreshConnections() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("mc-admitted-desktop-fixture-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])
+        defer { try? FileManager.default.removeItem(at:directory) }
+        server.callerTrust = DesktopCallerTrust(directory:directory.path)
+        server.callerTrust.peerValid = { _,_ in false }
+        server.callerTrust.peerStillValid = { _,_ in true }
+        try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture-only",publisher:"FIXTUREONLY"), scopes:[.observe,.control])
+        let delegation: [String:Any] = ["schema":"machine-control-desktop-delegation/v1", "sessionId":"fixture-session", "sessionGeneration":UUID().uuidString]
+        func request(_ fd: Int32, _ id: String) -> [String:Any] {
+            exchange(fd,["operation":"control.open","schema":AccessAdmission.schema,"requestId":id,
+                "scopes":["observe","control"],"reason":"Authenticated fixture session","durationSeconds":60,
+                "waitSeconds":120,"desktopDelegation":delegation])
+        }
+        let foreign = try connect()
+        XCTAssertEqual(request(foreign,"foreign")["errorCode"] as? String,"desktop_caller_identity_denied")
+        XCTAssertEqual(effects,0)
+        // Explicit ambient approval above did not rescue the rejected delegate.
+        broker.revoke(reason:"fixture_reset")
+        server.callerTrust.peerValid = { _,_ in true }
+        let client = try connect(), first = request(client,"trusted")
+        let offered = first["data"] as! [String:Any]
+        XCTAssertEqual(offered["ownerAssurance"] as? String,"verified_desktop_integration")
+        var active = command(client,"control.accept",["offerGeneration":offered["offerGeneration"]!])["data"] as! [String:Any]
+        func dispatch(_ operation: String) -> [String:Any] {
+            command(client,"control.dispatch",["sessionId":active["sessionId"]!,"resourceGenerations":active["resourceGenerations"]!,"request":["operation":operation]])
+        }
+        XCTAssertEqual((dispatch("snapshot")["data"] as? [String:Any])?["accepted"] as? Bool,true)
+        XCTAssertEqual(effects,1)
+        XCTAssertEqual(dispatch("session.unlock")["accepted"] as? Bool,false)
+        XCTAssertEqual(dispatch("outer.prepare")["accepted"] as? Bool,false)
+        XCTAssertEqual(effects,1)
+        let old = active["sessionId"] as? String
+        try broker.pause()
+        XCTAssertEqual(dispatch("snapshot")["accepted"] as? Bool,false)
+        XCTAssertEqual(effects,1)
+        XCTAssertEqual(server.callerTrust.status["enabled"] as? Bool,true)
+        try broker.resume()
+        let next = command(client,"control.status")["data"] as! [String:Any]
+        active = command(client,"control.accept",["offerGeneration":next["offerGeneration"]!])["data"] as! [String:Any]
+        XCTAssertNotEqual(active["sessionId"] as? String,old)
+        XCTAssertEqual((dispatch("snapshot")["data"] as? [String:Any])?["accepted"] as? Bool,true)
+        XCTAssertEqual(effects,2)
+        server.revoke(reason:"stopped_by_person")
+        XCTAssertEqual(dispatch("snapshot")["accepted"] as? Bool,false)
+        let reconnect = try connect()
+        XCTAssertEqual(request(reconnect,"reconnect")["errorCode"] as? String,"desktop_trust_not_enabled")
+        XCTAssertEqual(effects,2)
+    }
     private func exchange(_ fd: Int32, _ request: [String:Any]) -> [String:Any] {
         let done = expectation(description:"channel reply")
         var result: [String:Any] = [:]
@@ -128,8 +178,8 @@ final class AdmissionChannelTests: XCTestCase {
         DispatchQueue.global().async {
             defer { done.fulfill() }
             try? writeSocket(client, data:encodeJSONLine(["operation":"control.heartbeat", "requestId":"replay", "requestSequence":1]))
-            do { XCTAssertTrue(try readSocket(client).isEmpty, "Replay kept connection live") }
-            catch { }
+            let ended = (try? readSocket(client))?.isEmpty ?? true
+            XCTAssertTrue(ended, "Replay kept connection live")
         }
         wait(for:[done], timeout:5)
         let next = try connect()

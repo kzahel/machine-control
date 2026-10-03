@@ -78,8 +78,21 @@
         },
         "outerRecovery": {
           "$ref": "outer-borrow-v1.schema.json"
+        },
+        "desktopDelegation": {
+          "$ref": "desktop-delegation-v1.schema.json"
         }
-      }
+      },
+      "allOf": [
+        {
+          "not": {
+            "required": [
+              "outerRecovery",
+              "desktopDelegation"
+            ]
+          }
+        }
+      ]
     },
     "command": {
       "oneOf": [

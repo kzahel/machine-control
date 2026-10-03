@@ -93,3 +93,7 @@ The [live admission channel schema](access-admission-channel-v1.schema.json) and
 - [Outer borrow v1](outer-borrow-v1.schema.json) describes private adapter-derived
   controller-local VM claim binding. It is not a public target projection or
   authenticated caller credential.
+
+- [Desktop delegation v1](desktop-delegation-v1.schema.json) carries bounded
+  attribution on a separately authenticated native broker channel. Its public
+  fields never confer authority.

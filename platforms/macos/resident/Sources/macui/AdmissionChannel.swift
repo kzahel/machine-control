@@ -47,13 +47,15 @@ final class AdmissionChannel {
     private weak var server: ResidentServer?
     var coveredOwner: Int32 = -1
     var outer: OuterRecovery?
+    private(set) var delegation: DesktopDelegation?
+    private var trustRevision = ""
 
     init(_ descriptor: Int32, caller: CallerIdentity, server: ResidentServer) {
         self.descriptor = descriptor; self.caller = caller; self.server = server
     }
     func open(_ request: [String:Any]) throws {
         guard let server, caller.uid == getuid(), caller.pid > 0,
-              Set(request.keys).isSubset(of:["operation", "schema", "requestId", "reason", "scopes", "durationSeconds", "waitSeconds", "claimId", "requestSequence", "outerRecovery"]),
+              Set(request.keys).isSubset(of:["operation", "schema", "requestId", "reason", "scopes", "durationSeconds", "waitSeconds", "claimId", "requestSequence", "outerRecovery", "desktopDelegation"]),
               request["schema"] as? String == AccessAdmission.schema,
               let names = request["scopes"] as? [String], !names.isEmpty, Set(names).count == names.count,
               names.allSatisfy({ GrantScope(rawValue:$0) != nil }),
@@ -62,6 +64,13 @@ final class AdmissionChannel {
               let reason = request["reason"] as? String,
               let requestID = request["requestId"] as? String, order.accept(request) else { throw MacUIError.usage("invalid_admission_request") }
         scopes = Set(names.compactMap(GrantScope.init(rawValue:)))
+        if request["desktopDelegation"] != nil {
+            guard request["outerRecovery"] == nil, server.broker.policy.grantMode == .approval else {
+                throw MacUIError.permission("desktop_delegation_profile_denied")
+            }
+            delegation = try DesktopDelegation.parse(request["desktopDelegation"])
+            trustRevision = try server.callerTrust.admittedRevision(descriptor:descriptor, scopes:scopes)
+        }
         if request["outerRecovery"] != nil {
             guard scopes == Set([.observe, .control]) else { throw MacUIError.usage("invalid_outer_scopes") }
             let binding = try OuterClaimBinding.parse(request["outerRecovery"])
@@ -74,7 +83,14 @@ final class AdmissionChannel {
             wait:Double(wait), duration:Double(duration), reason:reason,
             authority:{ [weak broker, weak self, scopes] in
                 guard let broker, let self else { return "resident_stopped" }
-                if let refusal = broker.admissionAuthority(scopes:scopes) { return refusal }
+                if self.delegation != nil {
+                    guard let server = self.server else { return "resident_stopped" }
+                    if let refusal = server.callerTrust.refusal(descriptor:self.descriptor, revision:self.trustRevision, scopes:scopes, checkPeer:false) { return refusal }
+                    if broker.journal?.errorCode != nil { return "audit_storage_unavailable" }
+                    if !server.approvalDesktopUnlocked() || (server.grantConsoleObservation()["uid"] as? NSNumber)?.uint32Value != getuid() {
+                        return "desktop_delegation_requires_unlocked_console"
+                    }
+                } else if let refusal = broker.admissionAuthority(scopes:scopes) { return refusal }
                 do { try self.outer?.binding.validate(); return nil }
                 catch { return String(describing:error) }
             },
@@ -116,6 +132,10 @@ final class AdmissionChannel {
             // Revalidate native availability immediately before effects.
             if operation == "control.accept" || operation == "control.dispatch" {
                 server.refreshAdmission()
+                if delegation != nil, let refusal = server.callerTrust.refusal(descriptor:descriptor, revision:trustRevision, scopes:scopes) {
+                    try? server.broker.admission.cancel(owner:owner, id:intentID)
+                    throw MacUIError.permission(refusal)
+                }
             }
             let common: Set<String> = ["operation", "requestId", "requestSequence"]
             let allowed = common.union(operation == "control.accept" ? ["offerGeneration"] :
@@ -132,7 +152,7 @@ final class AdmissionChannel {
                 let view = try outer.map { try $0.binding.transaction(accept) } ?? accept()
                 server.activity.arm(baseline:physicalBaseline)
                 do {
-                    if outer == nil { try server.activateCovered(self, view:view) }
+                    if outer == nil && delegation == nil { try server.activateCovered(self, view:view) }
                     else if !server.approvalDesktopUnlocked() { throw MacUIError.action("outer_requires_unlocked_host") }
                 }
                 catch { try? admission.cancel(owner:owner, id:intentID); throw error }
@@ -150,10 +170,11 @@ final class AdmissionChannel {
                     throw MacUIError.action(refusal)
                 }
                 guard case let .scoped(scope) = operationClass(operation), scopes.contains(scope),
-                      !["session.control", "permissions.request", "browser.endpoint"].contains(operation) else {
+                      !["session.control", "permissions.request", "browser.endpoint"].contains(operation),
+                      !(delegation != nil && operation.hasPrefix("outer.")) else {
                     throw MacUIError.action("operation_not_permitted_by_control_channel")
                 }
-                if let refusal = server.broker.authorize(operation, controlled:true) { throw MacUIError.action(refusal.code) }
+                if let refusal = server.broker.authorize(operation, controlled:true, delegatedScopes:delegation == nil ? nil : scopes) { throw MacUIError.action(refusal.code) }
                 action["requestId"] = id
                 dispatching = true
                 server.dispatchControlled(self, action:action, session:session, generations:generations) { [weak self] result in
@@ -172,6 +193,11 @@ final class AdmissionChannel {
             if data?["schema"] as? String == AccessAdmission.schema {
                 data?["requestSequencing"] = "strict"
                 if outer != nil { data?["outerRecovery"] = "borrowed_exact_claim/v1" }
+                if let delegation {
+                    data?["ownerAssurance"] = "verified_desktop_integration"
+                    data?["desktopSession"] = ["sessionId":delegation.session, "sessionGeneration":delegation.generation]
+                    data?["authorizationProfile"] = "ordinary_local_desktop"
+                }
             }
             let frame = try encodeJSONLine([
                 "schema":Self.schema, "requestId":id, "accepted":error == nil,

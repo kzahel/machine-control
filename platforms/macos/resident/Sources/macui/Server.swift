@@ -93,6 +93,7 @@ final class ResidentServer {
     let socketPath: String
     let service: ResidentService
     let broker: GrantBroker
+    var callerTrust: DesktopCallerTrust
     let updates = DesktopUpdates()
     let activity = PhysicalAvailability()
     var noticeSeconds = 10.0
@@ -230,6 +231,7 @@ final class ResidentServer {
 
     init(socketPath: String, service: ResidentService, broker: GrantBroker) {
         self.socketPath = socketPath
+        callerTrust = DesktopCallerTrust(directory:(socketPath as NSString).deletingLastPathComponent)
         self.service = service
         self.broker = broker
         approvalDesktopUnlocked = { service.observedDesktopState == "unlocked" }
@@ -593,6 +595,7 @@ final class ResidentServer {
             return service.acceptance(request, data: broker.statusJSON)
         case "grant.revoke":
             let had = broker.grant != nil
+            callerTrust.stop()
             broker.revoke(reason: "revoked_by_caller")
             if had { service.invalidateReferences() }
             var data = broker.statusJSON
@@ -642,6 +645,7 @@ final class ResidentServer {
 
     /// Ends the grant from a trusted local surface such as the menu.
     func revoke(reason: String) {
+        if ["stopped_by_person", "revoked_by_caller"].contains(reason) { callerTrust.stop() }
         lockedUse.end(reason)
         broker.revoke(reason: reason)
         service.invalidateReferences()
