@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machine-control.invalid/contracts/claim-capabilities-v1.schema.json",
+  "title": "Machine Control Claim Capabilities v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "mode",
+    "useClasses",
+    "durations",
+    "claimant",
+    "resourceBinding",
+    "queueing",
+    "queue"
+  ],
+  "properties": {
+    "schema": {
+      "const": "machine-control-claim-capabilities/v1"
+    },
+    "mode": {
+      "const": "exclusive"
+    },
+    "useClasses": {
+      "type": "object",
+      "required": [
+        "supported",
+        "default"
+      ],
+      "properties": {
+        "supported": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "ordinary"
+            },
+            {
+              "const": "disruptive"
+            }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "default": {
+          "const": "ordinary"
+        }
+      },
+      "additionalProperties": false
+    },
+    "durations": {
+      "type": "object",
+      "required": [
+        "defaultSeconds",
+        "minimumSeconds",
+        "maximumSeconds",
+        "maximumLifetimeSeconds"
+      ],
+      "properties": {
+        "defaultSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "minimumSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maximumSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maximumLifetimeSeconds": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "claimant": {
+      "type": "object",
+      "required": [
+        "assurance",
+        "maximumMetadataEntries",
+        "maximumMetadataBytes"
+      ],
+      "properties": {
+        "assurance": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "self_asserted"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "maximumMetadataEntries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maximumMetadataBytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "resourceBinding": {
+      "const": "exact_private_identity"
+    },
+    "queueing": {
+      "const": true
+    },
+    "target": {
+      "type": "object"
+    },
+    "adapter": {
+      "type": "object"
+    },
+    "queue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transport",
+        "ownership",
+        "assurance",
+        "maximumEntries",
+        "waitingHeartbeatSeconds",
+        "offerSeconds",
+        "activeHeartbeatSeconds",
+        "maximumWaitSeconds"
+      ],
+      "properties": {
+        "transport": {
+          "const": "live_adapter_channel"
+        },
+        "ownership": {
+          "const": "connection"
+        },
+        "assurance": {
+          "const": "self_asserted"
+        },
+        "maximumEntries": {
+          "const": 256
+        },
+        "waitingHeartbeatSeconds": {
+          "const": 60
+        },
+        "offerSeconds": {
+          "const": 15
+        },
+        "activeHeartbeatSeconds": {
+          "const": 5
+        },
+        "maximumWaitSeconds": {
+          "const": 14400
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

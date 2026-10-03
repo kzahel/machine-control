@@ -279,7 +279,7 @@ case "$command" in
         [[ "${1:-}" == --json ]] || { printf 'Usage: linuxvm factory-stages --json\n' >&2; exit 2; }
         exec "$LINUXVM_REPO_DIR/scripts/factory-stages.py" inspect "$@"
         ;;
-    claim-capabilities|claim-status|claim-acquire|claim-check|claim-renew|claim-release)
+    claim-capabilities|claim-status|claim-acquire|claim-check|claim-renew|claim-release|claim-channel)
         claim_command "$@"
         ;;
     post-update) exec "$LINUXVM_REPO_DIR/scripts/post-update.sh" "$@" ;;

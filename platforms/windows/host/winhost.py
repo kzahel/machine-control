@@ -138,11 +138,17 @@ def main(arguments: list[str]) -> int:
             return doctor()
         if command.startswith("claim-"):
             operation = command.removeprefix("claim-")
+            if operation == "channel" and not rest:
+                state = Path(os.environ.get("MACHINE_CONTROL_HOST_STATE_DIR",
+                    str(Path(os.environ["LOCALAPPDATA"]) / "MachineControl/controller")))
+                return subprocess.run([sys.executable, str(ROOT / "providers/claims/admission_channel.py"),
+                    "--state-dir", str(state / "claims"), "--provider", "windows-host",
+                    "--resource-id", resource_id()], check=False).returncode
             if "--json" not in rest or operation not in {"capabilities", "status", "acquire", "check", "renew", "release"}:
                 return 2
             forwarded = [value for value in rest if value != "--json"]
             if operation == "capabilities":
-                return claim([operation]).returncode if not forwarded else 2
+                return claim([operation, *forwarded]).returncode if forwarded in ([], ["--version", "1"]) else 2
             # Callers must not override the adapter's exact resource binding.
             if any(value.split("=", 1)[0] in {"--provider", "--resource-id", "--state-dir"} for value in forwarded):
                 return 2

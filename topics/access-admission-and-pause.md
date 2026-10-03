@@ -32,14 +32,19 @@ policy.
 **Current:** [Tactical 075](../docs/tactical/075-admission-contract-and-arbiter.md)
 records the common contract/arbiter checks and Windows builds.
 [Tactical 076](../docs/tactical/076-resident-pause-enforcement.md) owns resident
-pause enforcement and its remaining native/platform gates. The legacy
-mechanisms below remain distinct; claim v0 still advertises no queue.
+pause enforcement and its remaining native/platform gates. [Tactical 078](../docs/tactical/078-live-admission-channels.md) records live
+desktop owner channels. [Tactical 079](../docs/tactical/079-consent-and-control-notices.md)
+records Mac persistence and notices, and
+[Tactical 081](../docs/tactical/081-macos-admission-physical-acceptance.md)
+qualifies their bounded physical behavior.
+[Tactical 082](../docs/tactical/082-queued-target-claims.md) adds live exact-target
+claim waiting through explicit v1 negotiation. Claim v0 still advertises no queue.
 
 **Current, source-reviewed:** these are separate mechanisms today:
 
 | Mechanism | Implemented behavior | Gap for this feature |
 | --- | --- | --- |
-| VM target-use claim | Exclusive exact-resource lease; 30-minute default, 60-second minimum, four-hour maximum requested and continuous lifetime; renewal and fencing | No waiting queue; a live holder produces a conflict |
+| VM target-use claim | Exclusive exact-resource lease; legacy fail-fast v0 and opt-in connection-owned v1 waiting, offers and expiry fencing | Cooperative attribution; queued workspaces and shared outer reservation remain open |
 | Mac approval request | One pending native request; default 120-second approval timeout, bounded to 5–600 seconds; a second request receives `approval_pending` | Prompt timeout is not queue liveness or a resumable pause |
 | Mac ordinary access | Target-wide same-user scopes; timed or until-stopped local consent derives fresh grants across the same console/boot after permission checks | Caller isolation remains open; restored consent never restores a queue or active owner |
 | Mac covered control | Connection-owned finite session, five-second heartbeat, covers and watchdog relock; source retains consent and composes physical/local-use pause | Revised queue-driven takeover/quiet resumption still needs native lock qualification |
@@ -299,18 +304,12 @@ classification; distributed multi-resource authority; and which background
 operations warrant an explicitly independent scope. Record measured answers in
 the owning topic/platform report without promoting this proposal to evidence.
 
-**Current (source/fixtures):** [Tactical 078](../docs/tactical/078-live-admission-channels.md)
-and [the API guide](../docs/access-admission.md) describe live Mac and Windows
-desktop channels under the existing same-user target-wide grant profile,
-connection-owned waiting/offers, full resource fencing, parent cleanup and
-standalone CLI/SDK use. Mac initial framing no longer blocks the main queue.
-This is not YA-attested delegation or native distribution acceptance; shared
-outer resource arbitration and operator persistence/presentation remain open.
-
-**Current:** [Tactical 079](../docs/tactical/079-consent-and-control-notices.md)
-adds same-console Mac consent/pause persistence, native resource-level notices,
-shared operator controls and the lower-level Windows dispatch fence. Stop
-clears saved consent before readiness, and timed restoration preserves exact
-remaining lifetime. Remote inner Mac native observation and one independently counted AX action
-passed after normal resident deployment. Physical takeover/restart, native presentation and the
-remaining shared-resource/authenticated-integration acceptance stay open.
+**Current:** standalone CLI/SDK and Mac/Windows desktop transports expose
+connection-owned intents with pause/ownership fencing. Mac inner native effects
+and queued claim handoff have independent counter/stale-reference evidence.
+Bounded physical Mac presentation, pause, persistence and Stop are qualified;
+revised protected takeover/quiet resumption remains a separate gate. Windows
+ordinary approval is still timed and memory-only, and native acceptance remains
+unavailable. Shared outer resource arbitration and authenticated integration
+remain open. The [API guide](../docs/access-admission.md) owns wire/client details;
+linked tacticals own execution evidence.

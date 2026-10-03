@@ -150,7 +150,7 @@ case "$command" in
     bootstrap-stages) exec "$REPO_DIR/scripts/bootstrap-stages.py" "$@" ;;
     appliance-certify) exec "$REPO_DIR/scripts/certify-appliance.sh" "$@" ;;
     candidate-status) exec "$REPO_DIR/scripts/candidate-status.sh" "$@" ;;
-    claim-capabilities|claim-status|claim-acquire|claim-check|claim-renew|claim-release)
+    claim-capabilities|claim-status|claim-acquire|claim-check|claim-renew|claim-release|claim-channel)
         claim_command "$@"
         ;;
     reset-admin-fixture) exec "$REPO_DIR/scripts/reset-admin-fixture.sh" "$@" ;;

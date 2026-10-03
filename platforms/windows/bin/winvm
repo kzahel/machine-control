@@ -184,7 +184,7 @@ case "$command" in
         exec "$REPO_DIR/scripts/doctor.sh" "$@"
         ;;
     candidate-status) exec "$REPO_DIR/scripts/candidate-status.sh" "$@" ;;
-    claim-capabilities|claim-status|claim-acquire|claim-check|claim-renew|claim-release)
+    claim-capabilities|claim-status|claim-acquire|claim-check|claim-renew|claim-release|claim-channel)
         claim_command "$@"
         ;;
     channel) claim_guard_channel "$WINVM_CLAIM_STATE_DIR" "$WINVM_CLAIM_PROVIDER" \

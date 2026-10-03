@@ -39,6 +39,34 @@ position is restored after reconnect.
 
 ## Live wire
 
+Exact target claims have a separate, additive queue. Explicitly inspect
+`claim capabilities --version 1`, then use `run --wait 5m` with the normal
+attribution and a local task. The existing task runner owns child selection,
+explicit claim renewal, cancellation and finally-style cleanup; queued workspace
+derivation is refused. Without `--wait`, runs retain fail-fast v0 acquisition.
+The Python `ClaimSession` context exposes `wait()`, `status()`, `cancel()`,
+explicit `renew()`, and `bound_target()` for ordinary calls or `ControlSession`.
+Never independently acquire another claim for an already-owned valid VM.
+
+The exact-target adapter's `claim-channel` starts with `claim.open` and schema
+`machine-control-claim-admission/v1`. Supply reason, claimantAuthority,
+claimantId, waitSeconds, optional durationSeconds/useClass/metadata/sessionId/
+label, and a bounded requestId. The adapter supplies exact identity. Subsequent
+`claim.status`, `claim.heartbeat`, `claim.accept` (offerGeneration) and
+`claim.cancel` operate only on this connection. Replies use
+`machine-control-claim-channel/v1`; status uses the claim admission schema and
+returns the existing v0 claim descriptor only after active acceptance.
+
+The claim SDK sends strictly increasing requestSequence values in actual write
+order. Sequence replay/gaps close the owner; memory does not grow with a long
+claim. Unsequenced diagnostic clients have a 4096-ID budget. Frames are at most
+64 KiB, byte queues are bounded, and stalled output closes ownership. Waiting
+heartbeat/offer/active heartbeat are 60/15/5 seconds. None renew the underlying
+claim; useful wait and authority expiry remain independent. Self-asserted
+claimant labels authenticate nothing. See [Tactical 082](tactical/082-queued-target-claims.md).
+
+## Desktop wire
+
 An adapter's `channel` command is a byte transport. The client sends one bounded
 JSON line and waits for its reply before sending subsequent frames. The first
 frame has operation `control.open`, schema `machine-control-admission/v1`,

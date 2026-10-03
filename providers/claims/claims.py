@@ -235,6 +235,8 @@ def write_exclusive(path: Path, value: dict[str, Any]) -> None:
         with os.fdopen(descriptor, "w", encoding="utf-8") as output:
             json.dump(value, output, separators=(",", ":"), sort_keys=True)
             output.write("\n")
+            output.flush()
+            os.fsync(output.fileno())
     except BaseException:
         path.unlink(missing_ok=True)
         raise
@@ -248,6 +250,11 @@ def write_record(path: Path, value: dict[str, Any]) -> None:
     os.replace(temporary, path)
     if os.name != "nt":
         path.chmod(0o600)
+        descriptor = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
 
 
 def new_record(provider: str, resource_id: str) -> dict[str, Any]:
@@ -467,7 +474,7 @@ def resource(args: argparse.Namespace) -> tuple[str, str]:
 
 def command_capabilities(args: argparse.Namespace) -> dict[str, Any]:
     validate_policy(args)
-    return {
+    result = {
         "schema": CAPABILITIES_SCHEMA,
         "mode": "exclusive",
         "useClasses": {
@@ -488,6 +495,14 @@ def command_capabilities(args: argparse.Namespace) -> dict[str, Any]:
         "resourceBinding": "exact_private_identity",
         "queueing": False,
     }
+    if getattr(args, "version", 0) == 1:
+        result["schema"] = "machine-control-claim-capabilities/v1"
+        result["queueing"] = True
+        result["queue"] = {"transport": "live_adapter_channel", "ownership": "connection",
+                           "assurance": "self_asserted", "maximumEntries": 256,
+                           "waitingHeartbeatSeconds": 60, "offerSeconds": 15,
+                           "activeHeartbeatSeconds": 5, "maximumWaitSeconds": 14400}
+    return result
 
 
 def command_acquire(args: argparse.Namespace) -> dict[str, Any]:
@@ -516,44 +531,56 @@ def command_acquire(args: argparse.Namespace) -> dict[str, Any]:
         claimant["label"] = private_text(args.label, "label", MAX_LABEL_LENGTH)
     directory = state_directory(args.state_dir)
     with store_lock(directory):
-        now = utc_now()
-        path, record = load_record(directory, provider, resource_id)
-        active = record["active"]
-        if active_is_live(active, now):
-            assert active is not None
-            raise ClaimError(
-                "target_claimed",
-                "The exact target already has an active exclusive claim",
-                data={"state": "held", "claim": public_claim(active, now)},
-            )
-        generation = record["generation"] + 1
-        acquired = now
-        maximum = acquired + timedelta(seconds=args.maximum_lifetime)
-        expires = acquired + timedelta(seconds=duration)
-        active = {
-            "claimId": f"c-{secrets.token_hex(12)}",
-            "mode": "exclusive",
-            "useClass": use_class,
-            "generation": generation,
-            "claimant": claimant,
-            "reason": reason,
-            "acquiredAt": timestamp(acquired),
-            "renewedAt": timestamp(acquired),
-            "expiresAt": timestamp(expires),
-            "maxExpiresAt": timestamp(maximum),
-        }
-        record["generation"] = generation
-        record["active"] = active
-        validate_record(record, provider, resource_id)
-        write_record(path, record)
-    return accepted("acquire", {"state": "held", "claim": public_claim(active, now)})
+        return acquire_locked(args, directory, provider, resource_id, duration, reason, claimant)
 
+
+def acquire_locked(args, directory, provider, resource_id, duration, reason, claimant,
+               queue_owner=None, claim_id=None):
+    # Legacy acquire remains fail-fast. It cannot race past a live offer
+    # from the explicitly negotiated queue on the same exact resource.
+    if queue_owner is None and (directory / "queue.json").exists():
+        import admission
+        admission.before_acquire(directory, provider, resource_id)
+    now = utc_now()
+    path, record = load_record(directory, provider, resource_id)
+    active = record["active"]
+    if active_is_live(active, now):
+        assert active is not None
+        raise ClaimError(
+            "target_claimed",
+            "The exact target already has an active exclusive claim",
+            data={"state": "held", "claim": public_claim(active, now)},
+        )
+    generation = record["generation"] + 1
+    acquired = now
+    maximum = acquired + timedelta(seconds=args.maximum_lifetime)
+    expires = acquired + timedelta(seconds=duration)
+    active = {
+        "claimId": claim_id or f"c-{secrets.token_hex(12)}",
+        "mode": "exclusive",
+        "useClass": args.use_class,
+        "generation": generation,
+        "claimant": claimant,
+        "reason": reason,
+        "acquiredAt": timestamp(acquired),
+        "renewedAt": timestamp(acquired),
+        "expiresAt": timestamp(expires),
+        "maxExpiresAt": timestamp(maximum),
+    }
+    record["generation"] = generation
+    record["active"] = active
+    validate_record(record, provider, resource_id)
+    write_record(path, record)
+    return accepted("acquire", {"state": "held", "claim": public_claim(active, now)})
 
 def command_status(args: argparse.Namespace) -> dict[str, Any]:
     validate_policy(args)
     provider, resource_id = resource(args)
     directory = state_directory(args.state_dir)
     with store_lock(directory):
+        if (directory / "queue.json").exists():
+            import admission
+            admission.sweep(directory)
         now = utc_now()
         _, record = load_record(directory, provider, resource_id)
     active = record["active"]
@@ -594,6 +621,9 @@ def command_check(args: argparse.Namespace) -> dict[str, Any]:
         raise ClaimError("invalid_claim_id", "Target-use claim ID is invalid")
     directory = state_directory(args.state_dir)
     with store_lock(directory):
+        if (directory / "queue.json").exists():
+            import admission
+            admission.sweep(directory)
         now = utc_now()
         _, record = load_record(directory, provider, resource_id)
         active = require_matching_live_claim(record, claim_id, now)
@@ -628,6 +658,9 @@ def command_renew(args: argparse.Namespace) -> dict[str, Any]:
         raise ClaimError("invalid_claim_id", "Target-use claim ID is invalid")
     directory = state_directory(args.state_dir)
     with store_lock(directory):
+        if (directory / "queue.json").exists():
+            import admission
+            admission.sweep(directory)
         now = utc_now()
         path, record = load_record(directory, provider, resource_id)
         active = require_matching_live_claim(record, claim_id, now)
@@ -692,6 +725,7 @@ def parser() -> argparse.ArgumentParser:
     commands = result.add_subparsers(dest="command", required=True)
 
     capabilities = commands.add_parser("capabilities")
+    capabilities.add_argument("--version", type=int, choices=(0, 1), default=0)
     capabilities.set_defaults(function=command_capabilities)
 
     acquire = commands.add_parser("acquire")

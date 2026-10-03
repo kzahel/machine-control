@@ -3115,12 +3115,16 @@ def handle_claim(
         raise ClientError("usage", "claim requires an operation")
     operation, rest = arguments[0], arguments[1:]
     if operation == "capabilities":
-        if rest:
-            raise ClientError("usage", "claim capabilities accepts no arguments")
+        if rest not in ([], ["--version", "1"]):
+            raise ClientError("usage", "claim capabilities accepts --version 1")
         parsed, elapsed_ms = _claim_adapter_call(
-            target, ["claim-capabilities", "--json"]
+            target, ["claim-capabilities", *rest, "--json"]
         )
-        value = validate_claim_capabilities(parsed)
+        if rest:
+            from claim_session import validate_capabilities
+            value = validate_capabilities(parsed)
+        else:
+            value = validate_claim_capabilities(parsed)
     elif operation == "status":
         if rest:
             raise ClientError("usage", "claim status accepts no arguments")
@@ -3626,7 +3630,8 @@ Commands:
 
 
 def claim_usage() -> str:
-    return """Usage: machine-control --target ALIAS claim capabilities|status
+    return """Usage: machine-control --target ALIAS claim capabilities [--version 1]
+       machine-control --target ALIAS claim status
        machine-control --target ALIAS claim acquire [--duration DURATION]
            [--disruptive]
            --reason TEXT --claimant-authority NAMESPACE --claimant-id ID
@@ -3641,6 +3646,8 @@ Carry the returned claim ID with global --claim, renew during active work, and
 release from cleanup. Accepted VM use is exclusive.
 Ordinary is the default use class. --disruptive is required for host-visible
 VM capture and host-injected pointer or keyboard recovery.
+For cancellable queued use, choose run --wait DURATION with a local task.
+Version 1 explicitly reports connection-owned waiting; v0 remains fail-fast.
 """
 
 

@@ -81,6 +81,17 @@ claim_require_disruptive_exact() {
 claim_adapter_main() {
     local state_dir="$1" provider="$2" resource_id="$3" command="$4"
     shift 4
+    if [[ "$command" == claim-channel ]]; then
+        [[ $# == 0 && -n "$resource_id" ]] || return 2
+        claim_require_tools || return
+        exec "$MACHINE_CONTROL_CLAIMS_PYTHON" \
+            "$MACHINE_CONTROL_CLAIMS_ROOT/providers/claims/admission_channel.py" \
+            --state-dir "$state_dir" --provider "$provider" --resource-id "$resource_id" \
+            --minimum-duration "${MACHINE_CONTROL_CLAIM_MINIMUM_DURATION:-60}" \
+            --default-duration "${MACHINE_CONTROL_CLAIM_DEFAULT_DURATION:-1800}" \
+            --maximum-duration "${MACHINE_CONTROL_CLAIM_MAXIMUM_DURATION:-14400}" \
+            --maximum-lifetime "${MACHINE_CONTROL_CLAIM_MAXIMUM_LIFETIME:-14400}"
+    fi
     local json=false argument
     local -a forwarded=()
     for argument in "$@"; do
@@ -103,8 +114,8 @@ claim_adapter_main() {
     fi
     case "$command" in
         claim-capabilities)
-            (( ${#forwarded[@]} == 0 )) || return 2
-            claim_store "$state_dir" capabilities
+            [[ ${#forwarded[@]} == 0 || "${forwarded[*]}" == '--version 1' ]] || return 2
+            claim_store "$state_dir" capabilities "${forwarded[@]}"
             ;;
         claim-status)
             (( ${#forwarded[@]} == 0 )) || return 2

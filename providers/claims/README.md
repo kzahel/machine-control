@@ -55,3 +55,20 @@ and periodically while connected. Expiry, release/replacement, parent exit or
 input EOF closes the owning transport. It never acquires or renews a claim;
 the resident's independent session watchdog remains the forgotten-owner
 backstop. See [Tactical 080](../../docs/tactical/080-live-claim-channel-enforcement.md).
+
+Explicit v1 waiting uses [the queue authority](admission.py) under that same
+store lock. `claim capabilities --version 1` negotiates it; v0 continues to
+report no queue and acquire fails immediately on contention. The adapter's
+`claim-channel` owns one bounded intent and derives its exact resource privately.
+Waiting/status cannot create or renew authority. A live owner accepts a short
+offer; its heartbeat fences active ownership without extending the claim's
+expiry. EOF, cancellation, parent loss or missed heartbeat releases only its
+matching claim. An interrupted activation record lets subsequent checks recover
+the exact abandoned reservation, preserving any replacement owner.
+
+Use `machine-control --target TARGET run --wait 5m` with the usual reason,
+claimant and local program, or the Python `ClaimSession` context. Existing runs
+remain fail-fast; queued workspace derivation is explicitly unsupported. See
+[the API guide](../../docs/access-admission.md) and
+[Tactical 082](../../docs/tactical/082-queued-target-claims.md). This is not an
+authenticated integration principal or permission to use an outer route.

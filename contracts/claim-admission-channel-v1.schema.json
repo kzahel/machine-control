@@ -1,0 +1,300 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machine-control.invalid/contracts/claim-admission-channel-v1.schema.json",
+  "title": "Connection-owned cooperative target claim queue",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/open"
+    },
+    {
+      "$ref": "#/$defs/command"
+    },
+    {
+      "$ref": "#/$defs/accept"
+    },
+    {
+      "$ref": "#/$defs/reply"
+    }
+  ],
+  "$defs": {
+    "open": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "schema",
+        "requestId",
+        "reason",
+        "claimantAuthority",
+        "claimantId",
+        "waitSeconds"
+      ],
+      "properties": {
+        "operation": {
+          "const": "claim.open"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "requestSequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "schema": {
+          "const": "machine-control-claim-admission/v1"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "claimantAuthority": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "claimantId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "waitSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 14400
+        },
+        "durationSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "useClass": {
+          "enum": [
+            "ordinary",
+            "disruptive"
+          ]
+        },
+        "metadata": {
+          "type": "object",
+          "maxProperties": 16,
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 256
+          }
+        },
+        "sessionId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 256
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "requestId"
+      ],
+      "properties": {
+        "operation": {
+          "enum": [
+            "claim.status",
+            "claim.heartbeat",
+            "claim.cancel"
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "requestSequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        }
+      }
+    },
+    "accept": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "requestId",
+        "offerGeneration"
+      ],
+      "properties": {
+        "operation": {
+          "const": "claim.accept"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "requestSequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9223372036854775807
+        },
+        "offerGeneration": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "reply": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "requestId",
+        "accepted"
+      ],
+      "properties": {
+        "schema": {
+          "const": "machine-control-claim-channel/v1"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "accepted": {
+          "type": "boolean"
+        },
+        "data": {
+          "$ref": "#/$defs/view"
+        },
+        "errorCode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "accepted": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "data"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "accepted": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "errorCode"
+            ]
+          }
+        }
+      ]
+    },
+    "view": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "state",
+        "revision",
+        "offerGeneration",
+        "assurance",
+        "terminalReason",
+        "waitRemainingSeconds",
+        "heartbeatRemainingSeconds",
+        "offerRemainingSeconds"
+      ],
+      "properties": {
+        "schema": {
+          "const": "machine-control-claim-admission/v1"
+        },
+        "state": {
+          "enum": [
+            "waiting_for_resource",
+            "offered",
+            "active",
+            "ended"
+          ]
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "offerGeneration": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "assurance": {
+          "const": "self_asserted"
+        },
+        "terminalReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "waitRemainingSeconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "heartbeatRemainingSeconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "offerRemainingSeconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "claim": {
+          "$ref": "claim-result-v0.schema.json#/$defs/claim"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "active"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "claim"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

@@ -147,3 +147,4 @@ the commits' `Topic:` trailers and register that exact string in
 
 - [080 — Live claim channel enforcement](080-live-claim-channel-enforcement.md): adapter-side exact claim checks, periodic liveness and prompt transport cleanup.
 - [081 — Mac admission presentation and consent acceptance](081-macos-admission-physical-acceptance.md).
+- [082 — Live queued target-use claims](082-queued-target-claims.md).

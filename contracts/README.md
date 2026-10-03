@@ -83,3 +83,9 @@ three-desktop workflow are documented in
   audit and diagnostic metadata format; it is not an agent control endpoint.
 
 The [live admission channel schema](access-admission-channel-v1.schema.json) and [API guide](../docs/access-admission.md) define connection-owned waiting, explicit activation and fenced dispatch under a negotiated profile.
+
+- [Claim capabilities v1](claim-capabilities-v1.schema.json) explicitly negotiates
+  the cooperative live queue while preserving v0 fail-fast behavior.
+- [Claim admission channel v1](claim-admission-channel-v1.schema.json) defines
+  connection-owned waits, short offers, exact claim activation and cancellation.
+  Its claimant assurance remains self-asserted; it does not grant desktop access.

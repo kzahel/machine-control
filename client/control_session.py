@@ -47,12 +47,32 @@ class ControlSession:
                 or any(scope not in {"observe", "control", "browser", "devtools"} for scope in scopes):
             raise mc.ClientError("invalid_admission_request", "Invalid control admission options")
         mc.require_selected_claim(target)
+        self._start_transport(target, "channel", CHANNEL_SCHEMA, "control.cancel")
+        try:
+            request = dict(operation="control.open", schema=SCHEMA, reason=reason, scopes=list(scopes),
+                           waitSeconds=wait, durationSeconds=duration)
+            if target.get("_claimId"):
+                request["claimId"] = target["_claimId"]
+            self.view = validate_view(self._rpc(request, timeout=10))
+        except BaseException:
+            self.close(cancel=False)
+            raise
+        self.deadline = time.monotonic() + wait
+        self.heartbeat = threading.Thread(target=self._keepalive, daemon=True)
+        self.heartbeat.start()
+
+    def _start_transport(self, target, operation, response_schema, cancel_operation):
+        """Shared bounded byte transport; subclasses retain their own authority."""
         self.target = {**target}
+        self.response_schema = response_schema
+        self.cancel_operation = cancel_operation
+        self.sequenced = False
+        self.request_sequence = 0
         command = mc.resolved_adapter_command(target)
         if command is None:
             raise mc.ClientError("adapter_unavailable", "Control adapter unavailable")
         try:
-            self.process = subprocess.Popen([*command, "channel"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            self.process = subprocess.Popen([*command, operation], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL, env={**os.environ, **target.get("environment", {})})
         except OSError:
             raise mc.ClientError("control_transport_unavailable", "Control transport unavailable")
@@ -63,20 +83,8 @@ class ControlSession:
         self.failure = None
         self.view = None
         self.parent = os.getppid()
-        self.deadline = time.monotonic() + wait
         self.reader = threading.Thread(target=self._read, daemon=True)
         self.reader.start()
-        try:
-            request = dict(operation="control.open", schema=SCHEMA, reason=reason, scopes=list(scopes),
-                           waitSeconds=wait, durationSeconds=duration)
-            if target.get("_claimId"):
-                request["claimId"] = target["_claimId"]
-            self.view = validate_view(self._rpc(request, timeout=10))
-        except BaseException:
-            self.close(cancel=False)
-            raise
-        self.heartbeat = threading.Thread(target=self._keepalive, daemon=True)
-        self.heartbeat.start()
 
     def _fail(self, error):
         with self.lock:
@@ -94,7 +102,7 @@ class ControlSession:
                 if not line or not line.endswith(b"\n") or len(line) > 4 * 1024 * 1024:
                     raise mc.ClientError("control_transport_closed", "Control transport closed or exceeded its frame limit")
                 value = json.loads(line)
-                if not isinstance(value, dict) or value.get("schema") != CHANNEL_SCHEMA \
+                if not isinstance(value, dict) or value.get("schema") != self.response_schema \
                         or type(value.get("accepted")) is not bool or not isinstance(value.get("requestId"), str):
                     raise mc.ClientError("admission_unsupported", "This route does not expose a compatible admission channel")
                 with self.lock:
@@ -115,13 +123,17 @@ class ControlSession:
                 raise mc.ClientError("control_session_closed", "Control session is closed")
             self.pending[identifier] = response
         value = dict(request, requestId=identifier)
-        encoded = json.dumps(value, separators=(",", ":")).encode() + b"\n"
-        if len(encoded) > 65536:
-            with self.lock:
-                self.pending.pop(identifier, None)
-            raise mc.ClientError("invalid_control_request", "Control request exceeds 64 KiB")
         try:
             with self.writes:
+                if self.sequenced:
+                    value["requestSequence"] = self.request_sequence + 1
+                encoded = json.dumps(value, separators=(",", ":")).encode() + b"\n"
+                if len(encoded) > 65536:
+                    with self.lock:
+                        self.pending.pop(identifier, None)
+                    raise mc.ClientError("invalid_control_request", "Control request exceeds 64 KiB")
+                if self.sequenced:
+                    self.request_sequence += 1
                 self.process.stdin.write(encoded)
                 self.process.stdin.flush()
             reply = response.get(timeout=timeout)
@@ -194,7 +206,7 @@ class ControlSession:
             return
         if cancel and self.view is not None and self.failure is None:
             try:
-                self._rpc({"operation":"control.cancel"}, timeout=1)
+                self._rpc({"operation":self.cancel_operation}, timeout=1)
             except mc.ClientError:
                 pass
         self.stopped.set()

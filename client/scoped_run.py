@@ -54,12 +54,13 @@ def usage():
     return """Usage: machine-control --target ALIAS run [OPTIONS] -- PROGRAM ARG...
 
 Required: --reason TEXT --claimant-authority NAME --claimant-id ID
-Optional: --duration 30m --disruptive --session-id ID --label TEXT
+Optional: --duration 30m --wait 5m --disruptive --session-id ID --label TEXT
           --metadata KEY=VALUE (repeatable) --intent persistent|isolated|candidate
 
 Runs a local program with inherited stdin/stdout/stderr and scoped common-client
 target selection. Doctor and exact-identity claim status precede acquisition.
 The runner renews the claim and releases it after task/process-tree cleanup.
+--wait explicitly negotiates the live v1 queue; it cannot combine with --intent.
 --intent acquires a workspace and releases its returned handle under its claim.
 Workspace scopes currently accept ordinary use only. Plain scopes do not stop
 the target: put any lifecycle cleanup required by your task in the task itself.
@@ -76,11 +77,25 @@ def parse_options(arguments):
     if not command:
         raise mc.ClientError("usage", "run requires a local program")
     intent = None
+    wait = None
     rest = []
     index = 0
     while index < len(flags):
         flag = flags[index]
-        if flag == "--intent" or flag.startswith("--intent="):
+        if flag == "--wait" or flag.startswith("--wait="):
+            if wait is not None:
+                raise mc.ClientError("usage", "Supply --wait only once")
+            if flag == "--wait":
+                index += 1
+                if index == len(flags):
+                    raise mc.ClientError("usage", "--wait requires a value")
+                value = flags[index]
+            else:
+                value = flag.partition("=")[2]
+            wait = mc.parse_duration_seconds(value)
+            if not 1 <= wait <= 14400:
+                raise mc.ClientError("invalid_claim_request", "Claim wait must be 1..14400 seconds")
+        elif flag == "--intent" or flag.startswith("--intent="):
             if intent is not None:
                 raise mc.ClientError("usage", "Supply --intent only once")
             if flag == "--intent":
@@ -94,6 +109,9 @@ def parse_options(arguments):
             rest.append(flag)
         index += 1
     options = mc.claim_acquire_options(rest)
+    options.wait = wait
+    if wait is not None and intent is not None:
+        raise mc.ClientError("workspace_queue_unsupported", "Queued workspace acquisition is not supported")
     if intent is not None and intent not in mc.WORKSPACE_INTENTS:
         raise mc.ClientError("invalid_workspace_intent", "Unsupported workspace intent")
     if intent is not None and options.disruptive:
@@ -115,6 +133,7 @@ class Run:
         self.target = {**target, "_adapterTimeout": 120}
         self.options, self.intent = options, intent
         self.claim = None
+        self.admission = None
         self.handle = None
         self.signal = None
         self.child = None
@@ -205,7 +224,18 @@ class Run:
             self.workspace_cleanup = "unresolved"
         self.claim_cleanup = "unresolved"
         started = time.monotonic()
-        data = self.call(kind, "acquire", args)
+        if getattr(self.options, "wait", None) is not None:
+            from claim_session import ClaimSession
+            self.admission = ClaimSession(self.target, reason=self.options.reason,
+                claimant_authority=self.options.claimant_authority, claimant_id=self.options.claimant_id,
+                wait=self.options.wait, duration=self.options.duration, disruptive=self.options.disruptive,
+                metadata=mc.parse_claim_metadata(self.options.metadata),
+                session_id=self.options.session_id, label=self.options.label)
+            self.audit("waiting")
+            data = self.admission.wait(cancelled=lambda:self.signal is not None)
+            started = time.monotonic()
+        else:
+            data = self.call(kind, "acquire", args)
         if self.intent and data["requestedIntent"] != self.intent:
             raise mc.ClientError("workspace_intent_mismatch", "Workspace intent changed", 1)
         if "claim" not in data:
@@ -255,10 +285,17 @@ class Run:
                 self.child.stop(self.signal or signal.SIGTERM)
             except (OSError, subprocess.TimeoutExpired):
                 # Do not release authority while a workload may still be alive.
+                # A queued connection must stop renewing its liveness even
+                # when process cleanup is uncertain; guarded routes fence it.
+                if self.admission:
+                    self.admission.close(cancel=False)
                 return "run_child_cleanup_failed"
             finally:
                 self.child.close()
         if not self.claim:
+            if self.admission:
+                self.admission.close()
+                self.claim_cleanup = "not_acquired"
             return None
         try:
             if self.intent:
@@ -281,6 +318,9 @@ class Run:
             self.claim_cleanup = "released"
         except mc.ClientError as error:
             return error.code
+        finally:
+            if self.admission:
+                self.admission.close()
         return None
 
 
@@ -323,6 +363,9 @@ def handle_run(alias, target, arguments):
                 child_exit = run.child.process.poll()
                 if run.signal or child_exit is not None:
                     break
+                if run.admission and (run.admission.failure or run.admission.view["state"] != "active"):
+                    outcome = "claim_ended"
+                    raise mc.ClientError("run_claim_admission_ended", "Queued target ownership ended", 1)
                 if time.monotonic() >= run.renew_at:
                     outcome = "renewal_failed"
                     run.renew()
@@ -331,7 +374,8 @@ def handle_run(alias, target, arguments):
         if child_exit not in (None, 0) and outcome == "completed":
             outcome = "child_failed"
     except mc.ClientError as error:
-        error_code = error.code
+        if not (run.signal and error.code == "cancelled"):
+            error_code = error.code
     except (OSError, ValueError):
         error_code = "run_execution_failed"
     finally:

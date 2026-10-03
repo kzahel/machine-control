@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import select
 import subprocess
 import tempfile
 import unittest
@@ -69,6 +70,38 @@ class VmClaimAdapterTests(unittest.TestCase):
                 "MACHINE_CONTROL_CLAIM_POLICY": "required",
             },
         )
+
+    def test_explicit_v1_queue_routes_and_preserves_exact_identity(self):
+        for executable, environment, _, _ in self.adapters():
+            with self.subTest(adapter=executable.parent.parent.name):
+                result = self.run_adapter(executable, environment, "claim-capabilities", "--version", "1", "--json")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertTrue(json.loads(result.stdout)["queueing"])
+                process = subprocess.Popen([BASH, str(executable), "claim-channel"],
+                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    env={**os.environ, **environment, "MACHINE_CONTROL_CLAIM_POLICY":"required"})
+                try:
+                    def request(sequence, operation, **fields):
+                        process.stdin.write(json.dumps(dict(operation=operation, requestId=str(sequence),
+                            requestSequence=sequence, **fields)).encode()+b"\n")
+                        process.stdin.flush()
+                        self.assertTrue(select.select([process.stdout], [], [], 5)[0])
+                        return json.loads(process.stdout.readline())
+                    offer = request(1,"claim.open",schema="machine-control-claim-admission/v1",
+                        reason="Validate adapter queue",claimantAuthority="fixture",claimantId="caller",waitSeconds=30)
+                    self.assertTrue(offer["accepted"])
+                    active = request(2,"claim.accept",offerGeneration=offer["data"]["offerGeneration"])
+                    self.assertTrue(active["accepted"])
+                    checked = self.run_adapter(executable, environment, "claim-check", "--claim-id",
+                        active["data"]["claim"]["claimId"], "--json")
+                    self.assertEqual(checked.returncode, 0, checked.stderr)
+                    process.stdin.close();process.stdin=None
+                    process.wait(timeout=3)
+                    status = self.run_adapter(executable, environment, "claim-status", "--json")
+                    self.assertEqual(json.loads(status.stdout)["data"]["state"], "available")
+                finally:
+                    if process.poll() is None: process.terminate()
+                    process.communicate(timeout=3)
 
     def test_vm_adapters_expose_claims_and_gate_effectful_use(self) -> None:
         for executable, environment, effectful, disruptive in self.adapters():
