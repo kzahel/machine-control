@@ -114,4 +114,6 @@ its `Topic:` trailers.
 - Create a sibling topic rather than broadening an existing one into a
   catch-all.
 
-- [Installed agent CLI](installed-agent-cli.md): Python runtime packaging, agent instructions and consumer trust.
+- [Installed agent CLI](installed-agent-cli.md): Python runtime packaging,
+  agent instructions, consumer trust and desktop discovery; Windows first,
+  with explicit macOS and Linux implementation follow-ups.

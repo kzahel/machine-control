@@ -57,6 +57,50 @@ use the existing authenticated package signatures. An unsigned hash receipt is
 integrity evidence only, not publisher authority. The packaging
 [dossier](../research/providers/python-build-standalone.md) owns licensing.
 
+## Agent discovery across desktop platforms
+
+**Decision:** Improve unfamiliar-agent discovery on Windows first, then extend
+the experience to macOS and Linux. Windows is the first implementation slice,
+not the completion of the cross-platform work. Windows implementation and incremental commits are now authorized;
+macOS/Linux implementation and release publication remain separate.
+
+**Proposal:** Provide one obvious public command that reaches the bundled
+Python client without GUI initialization for ordinary CLI operations. Explicit
+help, agent instructions and client identity stay offline. A bare terminal or
+captured launch ensures the app is running, returns short status/instruction
+pointers, and finishes independently of the operator process. Normal graphical
+launch remains natural for a person. Offer platform-appropriate command
+discovery, nearby guidance and resolved installation identity, preserving
+access approval, claims and existing installed consumers.
+
+**Decision:** Share the agent-facing vocabulary and workflow across platforms;
+choose executable routing, command registration and app startup using each
+platform's packaging and process model. Windows PATH/NSIS mechanics do not
+prescribe macOS or Linux installation behavior. PATH makes command lookup
+possible; it does not automatically advertise a tool to an agent.
+
+| Platform | Discovery work status | Next implementation scope |
+| --- | --- | --- |
+| Windows | Implementation active; acceptance pending | Main EXE forwarding, bounded bare launch, user PATH option, README pointers and resolved identity in [Tactical 068](../docs/tactical/068-windows-agent-discovery.md). |
+| macOS | Open follow-up after Windows; not implemented by this plan | Public command discovery from a signed app bundle, terminal versus graphical launch, offline guidance/identity, detached startup and install/update/removal behavior. Preserve existing native command modes and signing. |
+| Linux | Open follow-up after Windows; not implemented by this plan | Public command discovery for Debian and AppImage, GUI/CLI executable routing, offline guidance/identity, detached startup and install/update/removal behavior. Preserve package-manager ownership and AppImage relocation. |
+
+**Open:** Mac and Linux need their own bounded implementation tacticals after
+the Windows evidence is available. Select their exact command-registration
+mechanisms then; do not automatically edit shell startup files or global agent
+instructions. Apply lessons from Windows console/pipe handling, process
+lifetime, identity compatibility and measured forwarding overhead without
+assuming identical OS behavior.
+
+**Decision:** Closing the Windows tactical must update this platform tracker
+with its actual acceptance and leave macOS/Linux explicitly open, with their
+next actions recorded. Existing packaged CLI acceptance is not evidence that
+these new discovery behaviors exist. Regression checks on shared Python or
+launcher code protect current Mac/Linux behavior; they do not complete the
+follow-up implementations. The overall discovery work remains open until each
+platform's implementation and installed acceptance are recorded or its scope
+is explicitly reconsidered.
+
 ## Consumer ownership and acceptance
 
 **Decision:** MC owns installed commands, native access/arming, claims,
