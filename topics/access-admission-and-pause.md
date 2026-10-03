@@ -2,10 +2,10 @@
 
 Topic: `access-admission-and-pause`
 
-Status: product direction recorded; common contract and implementation are
-proposed. Queueing, resumable access pauses and polite activation are not
-implemented by this plan. Existing platform behavior remains authoritative
-until a bounded implementation slice passes its acceptance gates.
+Status: implementation active. Versioned admission contract and deterministic
+arbiter checks pass; Windows source exposes operator pause/resume. Production
+waiting channels, Mac pause/resumption, polite notices and native acceptance
+remain in progress. Capabilities are qualified separately before release.
 
 ## Scope and motivation
 
@@ -26,6 +26,12 @@ waiting, interruption, resume and their composition. It does not replace
 policy.
 
 ## Current foundation
+
+**Current:** [Tactical 075](../docs/tactical/075-admission-contract-and-arbiter.md)
+records the common contract/arbiter checks and Windows builds.
+[Tactical 076](../docs/tactical/076-resident-pause-enforcement.md) owns resident
+pause enforcement and its remaining native/platform gates. The legacy
+mechanisms below remain distinct; claim v0 still advertises no queue.
 
 **Current, source-reviewed:** these are separate mechanisms today:
 

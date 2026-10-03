@@ -16,6 +16,21 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     private bool _updating;
     private string? _lastEnded;
     private readonly Queue<object> _activity = new();
+    private AccessAdmission? _admission;
+    internal AccessAdmission Admission
+    {
+        get
+        {
+            lock (Gate)
+            {
+                if (_admission is not null) return _admission;
+                _admission = new AccessAdmission(_time, Gate);
+                _admission.Register("desktop", _ready);
+                _admission.SessionEnded += (_, _, _) => _generation = Guid.NewGuid().ToString("n");
+                return _admission;
+            }
+        }
+    }
 
     internal static readonly string[] SupportedScopes = ["observe", "control", "browser", "devtools"];
     internal string Generation { get { lock (Gate) { Refresh(); return _generation; } } }
@@ -37,8 +52,17 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         lock (Gate)
         {
             Refresh();
-            if (_ready && !ready) Stop("desktop_unavailable");
+            if (_ready != ready)
+            {
+                _generation = Guid.NewGuid().ToString("n");
+                if (!ready)
+                {
+                    _pending?.Completion.TrySetResult(new GrantReply(false, "desktop_unavailable"));
+                    _pending = null;
+                }
+            }
             _ready = ready;
+            Admission.SetReady("desktop", ready);
         }
     }
 
@@ -54,6 +78,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             if (scope is null) return "unsupported_operation";
             if (!_ready) return "desktop_unavailable";
             if (_updating) return "update_in_progress";
+            if (Admission.Blocks("desktop").Length > 0) return "access_paused";
             if (_pending is not null && (scope is "control" or "devtools" ||
                 scope == "browser" && !BrowserWire.Observes(operation))) return "approval_prompt_visible";
             if (_grant is null || !(_grant.Scopes.Contains(scope) ||
@@ -121,6 +146,26 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         }
     }
 
+    internal void Pause(int? seconds = null)
+    {
+        lock (Gate)
+        {
+            if (seconds is < 1 or > 28800) throw new ArgumentException("Invalid pause duration");
+            _generation = Guid.NewGuid().ToString("n");
+            Admission.Pause("desktop", "manual", seconds);
+            Journal?.Event("access.paused");
+        }
+    }
+
+    internal void Resume()
+    {
+        lock (Gate)
+        {
+            Admission.Resume("desktop", "manual");
+            Journal?.Event("access.resumed");
+        }
+    }
+
     private void Issue(HashSet<string> scopes, int duration, string reason, string caller)
     {
         if (Journal?.Event("access.enabled") == false) throw new InvalidOperationException("Audit storage unavailable");
@@ -139,6 +184,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             _lastEnded = reason;
             _pending?.Completion.TrySetResult(new GrantReply(false, reason));
             _pending = null;
+            _admission?.Stop(reason);
         }
     }
 
@@ -167,6 +213,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
                 _pending.Completion.TrySetResult(new GrantReply(false, "approval_timeout"));
                 _pending = null;
             }
+            _admission?.Refresh();
         }
     }
 
@@ -205,7 +252,8 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
                 policy = new { preset = "workstation", grantMode = "approval", operationSet = "ordinary" },
                 grant = GrantState(),
                 pendingRequest = _pending?.Id,
-                lastEnded = _lastEnded
+                lastEnded = _lastEnded,
+                availability = new { paused = Admission.Blocks("desktop").Length > 0, blockingReasons = Admission.Blocks("desktop") },
             };
         }
     }
@@ -230,6 +278,8 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
                 activity = _activity.Reverse().Take(30).ToArray(),
                 supportedScopes = SupportedScopes,
                 logging = Journal?.Health,
+                admission = Admission.Status(),
+                pauseSupported = true,
             };
         }
     }

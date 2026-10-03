@@ -93,6 +93,8 @@ internal static class DesktopHost
                                 command["scopes"]?.Deserialize<string[]>(), command["duration"]?.GetValue<int>() ?? 0);
                             reply = new { ok = true }; break;
                         case "stop": broker.Stop("stopped_by_person"); reply = new { ok = true }; break;
+                        case "pause": broker.Pause(command["duration"]?.GetValue<int>()); reply = new { ok = true }; break;
+                        case "resume": broker.Resume(); reply = new { ok = true }; break;
                         case "prepare_update": broker.PrepareUpdate(); reply = new { ok = true }; break;
                         case "cancel_update": broker.CancelUpdate(); reply = new { ok = true }; break;
                         case "quit": broker.Stop("operator_quit"); reply = new { ok = true }; stop.Cancel(); break;

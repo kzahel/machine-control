@@ -40,6 +40,7 @@ type State = {
       reason: string;
     };
     pendingRequest: unknown;
+    availability?: { paused: boolean; blockingReasons: string[] };
   };
   permissions: { accessibility: boolean; screenRecording: boolean };
   portal?: {
@@ -71,6 +72,7 @@ type State = {
   socket: string;
   stopShortcutAvailable: boolean;
   manualUntilStoppedSupported?: boolean;
+  pauseSupported?: boolean;
   updateInstallSupported?: boolean;
 };
 type AuditEvent = {
@@ -118,6 +120,7 @@ function App() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [scopes, setScopes] = useState<Scope[]>(["observe", "control"]);
+  const [pauseDuration, setPauseDuration] = useState(60);
   const [duration, setDuration] = useState(900);
   const [pendingScopes, setPendingScopes] = useState<Scope[]>([]);
   const [pendingDuration, setPendingDuration] = useState(900);
@@ -206,6 +209,10 @@ function App() {
     state?.supportedScopes ?? (Object.keys(labels) as Scope[]);
   const grant = state?.deployment.grant;
   const standing = state?.deployment.policy.grantMode === "standing";
+  const availability = state?.deployment.availability;
+  const manuallyPaused = availability?.blockingReasons.some((reason) =>
+    ["manual", "local_use_episode"].includes(reason),
+  );
   const ready =
     state?.permissions.accessibility && state?.permissions.screenRecording;
   const selected = (values: Scope[], setter: (v: Scope[]) => void, s: Scope) =>
@@ -265,7 +272,9 @@ function App() {
                     : standing
                       ? "Standing access"
                       : grant
-                        ? "Access active"
+                        ? availability?.paused
+                          ? "Access paused"
+                          : "Access active"
                         : "Access off"}
                 </h1>
                 {grant && (
@@ -288,6 +297,53 @@ function App() {
                 </button>
               )}
             </div>
+            {state?.pauseSupported && (
+              <section className="group" aria-label="Pause agent access">
+                <div className="group-footer">
+                  <label className="duration">
+                    Pause for
+                    <select
+                      aria-label="Pause duration"
+                      value={pauseDuration}
+                      onChange={(event) =>
+                        setPauseDuration(Number(event.target.value))
+                      }
+                    >
+                      <option value={60}>1 minute</option>
+                      <option value={300}>5 minutes</option>
+                      <option value={0}>Until I resume</option>
+                    </select>
+                  </label>
+                  {manuallyPaused ? (
+                    <button
+                      disabled={busy}
+                      onClick={() => void act({ method: "resume" })}
+                    >
+                      Resume access
+                    </button>
+                  ) : (
+                    <button
+                      disabled={busy}
+                      onClick={() =>
+                        void act({
+                          method: "pause",
+                          ...(pauseDuration > 0
+                            ? { duration: pauseDuration }
+                            : {}),
+                        })
+                      }
+                    >
+                      Pause access
+                    </button>
+                  )}
+                </div>
+                <p className="note">
+                  {availability?.paused
+                    ? `Waiting: ${availability.blockingReasons.map((reason) => reason.replaceAll("_", " ")).join(", ")}.`
+                    : "Pause keeps your access approval. Stop access turns it off."}
+                </p>
+              </section>
+            )}
             <section className="group" aria-label="Access scopes">
               <div className="scope-list">
                 {availableScopes.map((s) => (
