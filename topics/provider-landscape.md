@@ -88,6 +88,52 @@ that the same provider pair fits every platform.
 The [provider index](../research/providers/README.md) records the wider set,
 license posture, and actual evidence level.
 
+## Optional Sky provider and agent-facing compatibility
+
+**Current:** the [Sky dossier](../research/providers/sky-computer-use.md) records
+an external MCP host successfully driving a user-authorized TextEdit workflow
+through the installed proprietary runtime, with an independent saved-file
+oracle. MC was not part of the route. This is a candidate optional provider;
+it does not replace the owned target-native foundation or establish YA
+integration, fresh-install readiness, isolation or performance superiority.
+
+**Proposal:** evaluate two independent options:
+
+- YA discovers and uses an already installed, compatible Sky MCP runtime as an
+  explicitly selected alternate local provider. Validate the native service,
+  signed runtime and module set, Codex app-server dependency, host app approvals,
+  output handling and lifecycle. Package presence alone is not readiness.
+- MC offers an independently implemented, similarly ergonomic model-facing
+  facade: persistent code execution, app/target handles, compact semantic
+  observations and diffs, optional scoped images, and batched actions followed
+  by fresh observations. Preserve MC's authenticated grants, generation-bound
+  references and truthful provider/effect reporting beneath that facade.
+
+**Decision:** measure similarity at the interface seen by the model. Sky's
+private native wire protocol is below that interface; matching it does not
+prove training compatibility or efficiency. Compare task success, token use,
+round trips, latency, stale-reference failures and independently observed
+application effects before adopting a compatibility layer. Public
+[OpenAI computer-use guidance](https://developers.openai.com/api/docs/guides/tools-computer-use)
+also permits custom code-execution and UI/MCP tools; it does not require Sky.
+No model comparison has been run in this project.
+
+**Decision:** keep proprietary runtime discovery optional and respect its
+actual installation/consent requirements. Do not copy its implementation or
+assume redistribution rights. Report Sky explicitly as the chosen provider.
+An availability fallback must not turn denial, native Stop or missing authority
+into permission to try another provider. YA owns agent-session integration;
+MC owns any adopted provider adapter and contract enforcement. Existing YA
+behavior still leaves MC startup to the operator. A proposed MC recovery
+launcher should first evaluate deterministic OS application launch rather
+than requiring UI automation merely to start the app.
+
+**Open:** YA's reviewed Codex request adapter lacks an explicit MCP elicitation
+case. Source-level gaps and exact versions are recorded in the external-host
+spike; approval forwarding and all supported agent-provider modes need real
+YA acceptance before adding a provider setting. No integration was enabled by
+this research.
+
 ## Public comparison
 
 **Decision:** The public [comparison guide](https://machinecontrol.dev/compare/)

@@ -63,6 +63,15 @@ MC's independent grant. See [installed agent CLI](installed-agent-cli.md).
    operations, production sandboxing and post-admission policy remain open.
    Use this as measured design evidence, not a claim of security parity.
 
+**Current, follow-up:** an external MCP host subsequently drove user-authorized
+TextEdit through the installed Sky runtime and normal policy wrapper, with an
+independent saved-file effect check. This demonstrates actual app operations
+outside a Codex agent session, not merely version negotiation. The test host
+accepted only TextEdit approvals; it did not test direct-native approval bypass.
+The [Sky dossier](../research/providers/sky-computer-use.md#mcp-surface-and-external-use)
+owns this evidence and the newly observed native-service app-server dependency.
+The same broker-ingress and per-operation authorization requirements still apply.
+
 ## Provisional Desktop-first plan
 
 **Decision:** Start with YepAnywhere Desktop; defer unsigned npm CLI automatic

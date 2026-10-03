@@ -40,7 +40,11 @@ a chain of signed Node interpreters running owned scripts receives a version
 reply even below a detached controller without a Codex ancestor. This does
 not establish desktop-action permission, session binding or comprehensive
 isolation. No short-lived client credential exchange was found in the
-inspected admission path. The dossier and linked spike own the details.
+inspected admission path. A later external MCP host passed the normal app-policy
+workflow and verified TextEdit menu/input effects from a saved file after
+resolving a native-service Codex CLI launch dependency. This uses existing
+consent; native approval-bypass resistance and fresh installation remain open.
+The dossier and linked spike own the details.
 [Caller authorization](../../topics/caller-authorization.md) owns the
 high-priority investigation and required evidence.
 
@@ -68,7 +72,7 @@ YA session delegation, grants or hostile same-user containment; [Tactical
 | [agent-desktop](../providers/agent-desktop.md) | `source-reviewed` | Strong compact contract and implemented macOS adapter | Contract reference |
 | [native-devtools-mcp](../providers/native-devtools-mcp.md) | `source-reviewed` | Exact capture, AX refs/actions, OCR, CDP | Capture/AX reference |
 | Existing macVM helper | `adopted` for the ordinary resident plane | Persistent AX/Workspace/Quartz/CoreGraphics facade with stable TCC identity | Current native default and recovery-aware testbed integration |
-| [Sky Computer Use](../providers/sky-computer-use.md) | JS/native static review; bounded live runtime/admission probes | Socket transport, process identity and separate app approvals; full isolation unverified | Supplement/benchmark only |
+| [Sky Computer Use](../providers/sky-computer-use.md) | JS/native static review; bounded live admission and TextEdit input | Socket transport, process identity and separate app approvals; full isolation unverified | Supplement/benchmark only |
 | Appium Mac2 Driver | `upstream-claimed` with exact pin | XCTest/Appium automation | Adjacent platform candidate pending focused review |
 
 ## Completed evidence
