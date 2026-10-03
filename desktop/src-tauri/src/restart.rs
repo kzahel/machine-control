@@ -2,6 +2,10 @@
 use tauri::Manager;
 
 pub fn valid_launch_args(args: &[String]) -> bool {
+    #[cfg(target_os = "windows")]
+    if args == ["--gui"] {
+        return true;
+    }
     #[cfg(any(target_os = "windows", target_os = "linux"))]
     if args == ["--background"] {
         return true;

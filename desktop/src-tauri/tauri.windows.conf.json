@@ -3,6 +3,7 @@
     "targets": ["nsis"],
     "resources": {
       "native/mc-cli/": "mc-cli/",
+      "../native/windows-README.txt": "README.txt",
       "native/runtime/": "runtime/"
     },
     "windows": {

@@ -3571,6 +3571,7 @@ def usage() -> str:
 
 Commands:
   agent identity|instructions     Read CLI identity or agent workflow (offline)
+                                    identity --paths includes resolved locations
   inventory list|status|guide|credentials|doctor
                                     Use the private deployment inventory
   targets                         List logical targets without private paths
@@ -3714,13 +3715,13 @@ def main(argv: list[str] | None = None) -> int:
         if operation == "agent":
             from agent_interface import identity, instructions
 
-            if remainder == ["agent", "identity"]:
-                emit(identity())
+            if remainder in (["agent", "identity"], ["agent", "identity", "--paths"]):
+                emit(identity(paths="--paths" in remainder))
                 return 0
             if remainder == ["agent", "instructions"]:
                 print(instructions(), end="")
                 return 0
-            raise ClientError("usage", "agent requires identity|instructions")
+            raise ClientError("usage", "agent requires identity [--paths]|instructions")
         if operation == "inventory":
             return run_inventory(known.inventory_provider, remainder[1:])
         targets, registry_source = load_registry(

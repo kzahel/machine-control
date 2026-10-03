@@ -25,25 +25,31 @@ fn main() {
         serde_json::from_slice(&fs::read(root.join("tauri.conf.json")).unwrap()).unwrap();
     println!("cargo:rerun-if-env-changed=GITHUB_SHA");
     println!("cargo:rerun-if-env-changed=PYTHON");
-    let branch = Command::new("git")
+    // Exported source builds can supply GITHUB_SHA without installing Git.
+    // When Git is available, retain precise rebuild tracking for local commits.
+    if let Ok(branch) = Command::new("git")
         .args(["symbolic-ref", "-q", "HEAD"])
         .current_dir(&repository)
         .output()
-        .expect("Git branch identity");
-    let branch = String::from_utf8(branch.stdout).unwrap();
-    for name in ["HEAD", branch.trim()]
-        .into_iter()
-        .filter(|v| !v.is_empty())
     {
-        let path = Command::new("git")
-            .args(["rev-parse", "--path-format=absolute", "--git-path", name])
-            .current_dir(&repository)
-            .output()
-            .expect("Git source location");
-        println!(
-            "cargo:rerun-if-changed={}",
-            String::from_utf8(path.stdout).unwrap().trim()
-        );
+        let branch = String::from_utf8(branch.stdout).unwrap();
+        for name in ["HEAD", branch.trim()]
+            .into_iter()
+            .filter(|v| !v.is_empty())
+        {
+            if let Ok(path) = Command::new("git")
+                .args(["rev-parse", "--path-format=absolute", "--git-path", name])
+                .current_dir(&repository)
+                .output()
+            {
+                if path.status.success() {
+                    println!(
+                        "cargo:rerun-if-changed={}",
+                        String::from_utf8(path.stdout).unwrap().trim()
+                    );
+                }
+            }
+        }
     }
     for path in [
         "client",
@@ -55,6 +61,8 @@ fn main() {
         "platforms/linux/host",
         "desktop/python-runtime.lock.json",
         "desktop/scripts/prepare-cli.py",
+        "desktop/native/windows-launch.py",
+        "desktop/native/windows-path.py",
         "desktop/python-licenses",
     ] {
         println!("cargo:rerun-if-changed={}", repository.join(path).display());

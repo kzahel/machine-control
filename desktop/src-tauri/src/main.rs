@@ -14,6 +14,8 @@ mod restart;
 mod updates;
 #[cfg(target_os = "windows")]
 mod windows;
+#[cfg(target_os = "windows")]
+mod windows_cli;
 
 #[cfg(target_os = "macos")]
 extern "C" {
@@ -211,6 +213,10 @@ async fn perform_install(app: tauri::AppHandle, version: String) -> Result<(), S
 }
 
 fn main() {
+    #[cfg(target_os = "windows")]
+    if let Some(code) = windows_cli::dispatch(&std::env::args_os().skip(1).collect::<Vec<_>>()) {
+        std::process::exit(code);
+    }
     let args: Vec<String> = std::env::args().skip(1).collect();
     #[cfg(target_os = "linux")]
     if args == ["--identity"] {
@@ -257,7 +263,13 @@ fn main() {
         Some(vec!["--background"]),
     ));
     builder
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            #[cfg(target_os = "windows")]
+            if args.iter().any(|arg| arg == "--background") {
+                return;
+            }
+            #[cfg(not(target_os = "windows"))]
+            let _ = args;
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.set_focus();

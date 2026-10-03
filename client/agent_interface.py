@@ -3,28 +3,59 @@
 import json
 from pathlib import Path
 import platform
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "machine-control-client-identity/v1"
 
 
-def identity():
+def identity(*, paths=False):
     receipt = ROOT / "client-runtime.json"
     if receipt.is_file():
         value = json.loads(receipt.read_text(encoding="utf-8"))
         if value.get("schema") != SCHEMA or value.get("clientProtocol") != 1:
             raise ValueError("Incompatible installed CLI identity")
+        if paths:
+            value["paths"] = resolved_paths(value)
         return value
-    return {
+    value = {
         "schema": SCHEMA, "clientProtocol": 1, "residentProtocol": "machine-control/v0",
         "version": "0.3.0", "distribution": "source", "platform": platform.system().lower(),
         "features": ["agent.instructions", "host.desktop", "host.browser", "host.claims"],
     }
+    if paths:
+        value["paths"] = resolved_paths(value)
+    return value
+
+
+def resolved_paths(value):
+    """Runtime diagnostics, deliberately absent from the signed static receipt."""
+    installed = value["distribution"] == "desktop"
+    command = ROOT / (value["command"] if installed else "bin/machine-control")
+    result = {"cliRoot": str(ROOT), "cliEntry": str(command.resolve()),
+              "interpreter": str(Path(sys.executable).resolve())}
+    if installed and value["platform"] == "windows":
+        result.update(installationRoot=str(ROOT.parent),
+                      launcher=str((ROOT.parent / "machine-control.exe").resolve()),
+                      bundledResident=str((ROOT.parent / "runtime/machine-control-windows.exe").resolve()))
+    else:
+        result["launcher"] = str(command.resolve())
+    return result
 
 
 def instructions():
-    return """Machine Control: target-native desktop and browser control
+    launch = ""
+    if platform.system() == "Windows" and (ROOT / "windows-launch.py").is_file():
+        launch = """Windows desktop entry: machine-control.exe
+Run the bare executable (or --start) in an interactive user session to start
+the installed app and print next steps. Use --gui to open the operator window.
+Help and agent commands work offline; other commands do not start the app.
+Use `agent identity --paths` to identify this client installation. A new PATH
+registration may require restarting your terminal or agent host application.
+
+"""
+    return launch + """Machine Control: target-native desktop and browser control
 
 Use the installed command path provided by your launcher if PATH differs.
 `host` means the computer executing this CLI, not the operator's browser host.

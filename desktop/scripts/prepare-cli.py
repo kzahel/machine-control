@@ -106,6 +106,8 @@ import runpy
 import sys
 
 root = Path(__file__).resolve().parent
+if sys.platform == "win32":
+    os.environ["MACHINE_CONTROL_DESKTOP_INSTALL_DIR"] = str(root.parent)
 os.environ.pop("PYTHONHOME", None)
 os.environ.pop("PYTHONPATH", None)
 os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
@@ -116,6 +118,9 @@ runpy.run_path(sys.argv[0], run_name="__main__")
         commands = output / "commands"
         commands.mkdir()
         windows = "windows" in target
+        if windows:
+            shutil.copy2(ROOT / "desktop/native/windows-launch.py", output / "windows-launch.py")
+            shutil.copy2(ROOT / "desktop/native/windows-path.py", output / "windows-path.py")
         command = commands / ("machine-control.cmd" if windows else "machine-control")
         if windows:
             command.write_text('@echo off\r\n"%~dp0..\\python\\python.exe" -I -B "%~dp0..\\launch.py" %*\r\n')

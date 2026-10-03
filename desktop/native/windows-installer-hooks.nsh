@@ -32,6 +32,14 @@
         IntOp $R0 $R0 + 1
       ${Loop}
     ${EndIf}
+    ${If} ${FileExists} "$INSTDIR\mc-cli\windows-path.py"
+      nsExec::ExecToLog '"$INSTDIR\mc-cli\python\python.exe" -I -B "$INSTDIR\mc-cli\windows-path.py" remove "$INSTDIR"'
+      Pop $R0
+      ${If} $R0 <> 0
+        Pop $R0
+        Abort "Command PATH could not be removed. Retry uninstall."
+      ${EndIf}
+    ${EndIf}
     Pop $R0
   ${EndIf}
 !macroend
@@ -57,6 +65,40 @@
 ; also fixes updates sent by previews that do not know this protocol.
 !define MC_BROWSER_HELPER_SOURCE "${__FILEDIR__}\..\src-tauri\native\runtime\machine-control-windows.exe"
 !macro NSIS_HOOK_PREINSTALL
+  Push $R0
+  Push $R1
+  ReadRegDWORD $McAddToPath HKCU "Software\MachineControl\Installer" "AddToPath"
+  ${If} $McAddToPath == ""
+    StrCpy $McAddToPath 1
+  ${EndIf}
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "/ADDTOPATH=" $R1
+  ${IfNot} ${Errors}
+    ${If} $R1 != "0"
+    ${AndIf} $R1 != "1"
+      Abort "/ADDTOPATH must be 0 or 1."
+    ${EndIf}
+    StrCpy $McAddToPath $R1
+  ${Else}
+    ${If} $UpdateMode <> 1
+    ${AndIf} $PassiveMode <> 1
+      IfSilent mc_path_chosen
+      ${If} $McAddToPath == 1
+        MessageBox MB_YESNO "Add Machine Control to your user PATH? New terminals and agent hosts can then run machine-control." IDYES mc_path_yes IDNO mc_path_no
+      ${Else}
+        MessageBox MB_YESNO|MB_DEFBUTTON2 "Add Machine Control to your user PATH? New terminals and agent hosts can then run machine-control." IDYES mc_path_yes IDNO mc_path_no
+      ${EndIf}
+      mc_path_yes:
+        StrCpy $McAddToPath 1
+        Goto mc_path_chosen
+      mc_path_no:
+        StrCpy $McAddToPath 0
+      mc_path_chosen:
+    ${EndIf}
+  ${EndIf}
+  Pop $R1
+  Pop $R0
   ${If} $UpdateMode = 1
     Push $R0
     Push $OUTDIR
@@ -78,6 +120,20 @@
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
+  Push $R0
+  ${If} $McAddToPath == 1
+    StrCpy $R0 "enable"
+  ${Else}
+    StrCpy $R0 "disable"
+  ${EndIf}
+  nsExec::ExecToLog '"$INSTDIR\mc-cli\python\python.exe" -I -B "$INSTDIR\mc-cli\windows-path.py" $R0 "$INSTDIR"'
+  Pop $R0
+  ${If} $R0 <> 0
+    Pop $R0
+    Abort "Command PATH could not be registered. Retry setup or use /ADDTOPATH=0."
+  ${EndIf}
+  WriteRegDWORD HKCU "Software\MachineControl\Installer" "AddToPath" $McAddToPath
+  Pop $R0
   ${If} $UpdateMode = 1
     Push $R0
     nsExec::ExecToLog '"$PLUGINSDIR\machine-control-install.exe" browser-install-finish "$INSTDIR"'
@@ -89,3 +145,6 @@
     Pop $R0
   ${EndIf}
 !macroend
+; Use Python's Unicode registry API for PATH; NSIS strings can truncate a long
+; existing value. This variable contains only the selected preference.
+Var McAddToPath
