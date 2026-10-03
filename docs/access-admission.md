@@ -115,3 +115,17 @@ approval remains timed and memory-only. Shared host/VM outer resource admission,
 YA-attested integration and further signed native acceptance remain parts of
 [Tactical 074](tactical/074-access-admission-and-pause.md). Current source/fixture
 capabilities are not release or physical acceptance.
+
+### Long-lived frame ordering
+
+A native desktop channel advertises `requestSequencing: "strict"` in its intent
+views when it supports ordered frames. After reading the opening reply, new
+SDK clients send `requestSequence` starting at one and increment it for each
+complete frame. Sequence replay, a gap, overflow or an unsequenced frame after
+switching ends the connection and its ownership. Repeated request labels are
+safe in ordered mode because the live sequence distinguishes frames. This
+uses constant replay memory throughout a bounded four-hour wait.
+
+Older providers omit this field and newer clients retain their legacy framing.
+Older unsequenced clients keep the bounded 4,096-ID connection budget. Ordered
+framing does not renew authority, extend useful deadlines or replay an action.

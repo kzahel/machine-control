@@ -36,6 +36,8 @@ def validate_view(value):
         raise mc.ClientError("invalid_admission_status", "Invalid resource generations")
     if value["state"] == "active" and (not isinstance(value.get("sessionId"), str) or not value["sessionId"] or not generations):
         raise mc.ClientError("invalid_admission_status", "Active admission has no fence")
+    if value.get("requestSequencing") not in (None, "strict"):
+        raise mc.ClientError("admission_unsupported", "Unsupported admission request ordering")
     return value
 
 
@@ -54,6 +56,7 @@ class ControlSession:
             if target.get("_claimId"):
                 request["claimId"] = target["_claimId"]
             self.view = validate_view(self._rpc(request, timeout=10))
+            self.sequenced = self.view.get("requestSequencing") == "strict"
         except BaseException:
             self.close(cancel=False)
             raise

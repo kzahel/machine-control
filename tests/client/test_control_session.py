@@ -40,6 +40,15 @@ class ControlSessionTests(unittest.TestCase):
         self.assertIn("EOF", events)
         self.assertIsNotNone(process.poll())
 
+    def test_negotiated_ordered_wait_exceeds_legacy_budget(self):
+        with self.session("sequenced", wait=14400) as session:
+            self.assertTrue(session.sequenced)
+            for _ in range(4200):
+                self.assertEqual(session.status()["state"], "offered")
+            session.wait()
+            self.assertTrue(session.call({"operation":"snapshot"})["accepted"])
+        self.assertEqual(self.record.read_text().splitlines().count("effect"), 1)
+
     def test_uncertain_effect_is_returned_without_replay(self):
         with self.session("uncertain") as session:
             session.wait()

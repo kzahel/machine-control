@@ -6,6 +6,7 @@ import sys
 
 schema = "machine-control-admission/v1"
 state = "offered"
+sequence = 0
 mode = os.environ.get("MC_ADMISSION_FIXTURE", "ready")
 record = Path(os.environ["MC_ADMISSION_RECORD"])
 
@@ -21,6 +22,10 @@ def view():
 for line in sys.stdin.buffer:
     request = json.loads(line)
     operation = request["operation"]
+    if mode == "sequenced" and operation != "control.open":
+        if request.get("requestSequence") != sequence + 1:
+            break
+        sequence += 1
     event(operation)
     if mode == "malformed":
         print('{"schema":"obsolete"}', flush=True)
@@ -32,6 +37,7 @@ for line in sys.stdin.buffer:
     elif operation == "control.cancel":
         state = "ended"
     data = view()
+    if mode == "sequenced": data["requestSequencing"] = "strict"
     if operation == "control.dispatch":
         event("effect")
         data = dict(schema="machine-control/v0", accepted=mode != "uncertain",

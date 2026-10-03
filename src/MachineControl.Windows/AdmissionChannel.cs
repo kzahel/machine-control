@@ -21,7 +21,7 @@ internal static class AdmissionChannel
         using var writes = new SemaphoreSlim(1, 1);
         await using var writer = new StreamWriter(stream, new UTF8Encoding(false), 4096, leaveOpen: true);
         Task? action = null;
-        var seen = new HashSet<string>();
+        var order = new AdmissionRequestOrder();
         async Task Reply(string id, object? data = null, string? error = null)
         {
             await writes.WaitAsync(lifetime.Token);
@@ -29,6 +29,15 @@ internal static class AdmissionChannel
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
                 timeout.CancelAfter(TimeSpan.FromSeconds(5));
+                if (data is not null)
+                {
+                    var projection = JsonSerializer.SerializeToNode(data, Contract.Json)?.AsObject();
+                    if (projection?["schema"]?.GetValue<string>() == AccessAdmission.Schema)
+                    {
+                        projection["requestSequencing"] = "strict";
+                        data = projection;
+                    }
+                }
                 await writer.WriteLineAsync(Contract.Serialize(new { schema = Schema, requestId = id, accepted = error is null, errorCode = error, data }).AsMemory(), timeout.Token);
                 await writer.FlushAsync(timeout.Token);
             }
@@ -36,7 +45,8 @@ internal static class AdmissionChannel
         }
         try
         {
-            Keys(open, ["operation", "schema", "requestId", "reason", "scopes", "durationSeconds", "waitSeconds", "claimId"]);
+            Keys(open, ["operation", "schema", "requestId", "reason", "scopes", "durationSeconds", "waitSeconds", "claimId", "requestSequence"]);
+            if (!order.Accept(open)) throw new ArgumentException("invalid_admission_request_order");
             if (open["schema"]?.GetValue<string>() != AccessAdmission.Schema) throw new ArgumentException("unsupported_admission_schema");
             var scopes = open["scopes"]?.Deserialize<string[]>() ?? [];
             if (scopes.Length == 0 || scopes.Distinct().Count() != scopes.Length || scopes.Any(s => !DesktopGrants.SupportedScopes.Contains(s))) throw new ArgumentException("invalid_admission_scopes");
@@ -53,12 +63,12 @@ internal static class AdmissionChannel
                 if (line is null) break;
                 var request = JsonNode.Parse(line)?.AsObject() ?? throw new ArgumentException("invalid_admission_request");
                 var id = request["requestId"]?.GetValue<string>() ?? "";
-                if (id.Length is < 1 or > 80 || seen.Count >= 4096 || !seen.Add(id)) throw new ArgumentException("invalid_admission_request_id");
+                if (!order.Accept(request)) throw new ArgumentException("invalid_admission_request_id");
                 try
                 {
                     var operation = request["operation"]?.GetValue<string>() ?? "";
-                    Keys(request, operation == "control.accept" ? ["operation", "requestId", "offerGeneration"] :
-                        operation == "control.dispatch" ? ["operation", "requestId", "sessionId", "resourceGenerations", "request"] : ["operation", "requestId"]);
+                    Keys(request, operation == "control.accept" ? ["operation", "requestId", "offerGeneration", "requestSequence"] :
+                        operation == "control.dispatch" ? ["operation", "requestId", "sessionId", "resourceGenerations", "request", "requestSequence"] : ["operation", "requestId", "requestSequence"]);
                     switch (operation)
                     {
                         case "control.status":
@@ -120,5 +130,23 @@ internal static class AdmissionChannel
         }
         if (text.Length != 0) throw new InvalidDataException("Incomplete admission frame");
         return null;
+    }
+}
+
+/// Strict ordered mode uses constant memory for the entire bounded connection.
+internal sealed class AdmissionRequestOrder
+{
+    private long? _sequence;
+    private readonly HashSet<string> _seen = [];
+    internal bool Accept(JsonObject request)
+    {
+        if (request["requestId"] is not JsonValue identifier || !identifier.TryGetValue<string>(out var id) || id.Length is < 1 or > 80) return false;
+        if (_sequence is not null || request.ContainsKey("requestSequence"))
+        {
+            if (request["requestSequence"] is not JsonValue number || !number.TryGetValue<long>(out var supplied) ||
+                supplied <= 0 || _sequence == long.MaxValue || supplied != (_sequence ?? 0) + 1) return false;
+            _sequence = supplied; _seen.Clear(); return true;
+        }
+        return _seen.Count < 4096 && _seen.Add(id);
     }
 }

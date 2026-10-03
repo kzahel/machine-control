@@ -7,6 +7,23 @@ func admissionInteger(_ value: Any?) -> Int? {
     return value.intValue
 }
 
+/// Ordered frames avoid a lifetime-sized replay cache. Once negotiated, a
+/// connection cannot downgrade, skip a frame or replay an accepted sequence.
+struct AdmissionRequestOrder {
+    private var sequence: Int?
+    private var seen = Set<String>()
+    mutating func accept(_ request: [String:Any]) -> Bool {
+        guard let id = request["requestId"] as? String, !id.isEmpty, id.count <= 80 else { return false }
+        if sequence != nil || request["requestSequence"] != nil {
+            guard let supplied = admissionInteger(request["requestSequence"]), supplied > 0,
+                  (sequence ?? 0) < Int.max, supplied == (sequence ?? 0) + 1 else { return false }
+            sequence = supplied; seen.removeAll(keepingCapacity:false)
+            return true
+        }
+        return seen.count < 4096 && seen.insert(id).inserted
+    }
+}
+
 /// One live same-user transport owns one intent. Labels and public identifiers
 /// cannot select another connection's owner. This profile coordinates callers;
 /// it does not isolate hostile processes sharing the user's shell authority.
@@ -24,7 +41,7 @@ final class AdmissionChannel {
     private var writeSource: DispatchSourceTimer?
     private var writeTimeout: DispatchWorkItem?
 
-    private var seen = Set<String>()
+    private var order = AdmissionRequestOrder()
     private var closed = false
     private var dispatching = false
     private weak var server: ResidentServer?
@@ -35,14 +52,14 @@ final class AdmissionChannel {
     }
     func open(_ request: [String:Any]) throws {
         guard let server, caller.uid == getuid(), caller.pid > 0,
-              Set(request.keys).isSubset(of:["operation", "schema", "requestId", "reason", "scopes", "durationSeconds", "waitSeconds", "claimId"]),
+              Set(request.keys).isSubset(of:["operation", "schema", "requestId", "reason", "scopes", "durationSeconds", "waitSeconds", "claimId", "requestSequence"]),
               request["schema"] as? String == AccessAdmission.schema,
               let names = request["scopes"] as? [String], !names.isEmpty, Set(names).count == names.count,
               names.allSatisfy({ GrantScope(rawValue:$0) != nil }),
               let duration = admissionInteger(request["durationSeconds"]),
               let wait = admissionInteger(request["waitSeconds"]),
               let reason = request["reason"] as? String,
-              let requestID = request["requestId"] as? String else { throw MacUIError.usage("invalid_admission_request") }
+              let requestID = request["requestId"] as? String, order.accept(request) else { throw MacUIError.usage("invalid_admission_request") }
         scopes = Set(names.compactMap(GrantScope.init(rawValue:)))
         let flags = fcntl(descriptor, F_GETFL)
         guard flags >= 0, fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) == 0 else { throw MacUIError.action("control_transport_unavailable") }
@@ -83,12 +100,11 @@ final class AdmissionChannel {
         }
     }
     private func process(_ request: [String:Any]) {
-        guard let server, let id = request["requestId"] as? String, !id.isEmpty, id.count <= 80,
-              seen.count < 4096, seen.insert(id).inserted else { close(); return }
+        guard let server, let id = request["requestId"] as? String, order.accept(request) else { close(); return }
         do {
             server.refreshAdmission()
             let operation = request["operation"] as? String ?? ""
-            let common: Set<String> = ["operation", "requestId"]
+            let common: Set<String> = ["operation", "requestId", "requestSequence"]
             let allowed = common.union(operation == "control.accept" ? ["offerGeneration"] :
                 operation == "control.dispatch" ? ["sessionId", "resourceGenerations", "request"] : [])
             guard Set(request.keys).isSubset(of:allowed) else { throw MacUIError.usage("invalid_admission_request") }
@@ -135,6 +151,8 @@ final class AdmissionChannel {
     func reply(_ id: String, data: [String:Any]? = nil, error: String? = nil) {
         guard !closed else { return }
         do {
+            var data = data
+            if data?["schema"] as? String == AccessAdmission.schema { data?["requestSequencing"] = "strict" }
             let frame = try encodeJSONLine([
                 "schema":Self.schema, "requestId":id, "accepted":error == nil,
                 "errorCode":error as Any? ?? NSNull(), "data":data as Any? ?? NSNull()])

@@ -9,6 +9,15 @@ internal static class AdmissionChannelFixtures
 {
     internal static async Task RunAsync()
     {
+        var order = new AdmissionRequestOrder();
+        Require(order.Accept(new() { ["requestId"] = "open" }), "Legacy opening accepted");
+        for (var sequence = 1; sequence <= 72000; sequence++)
+            Require(order.Accept(new() { ["requestId"] = "bounded-label", ["requestSequence"] = (long)sequence }), "Ordered wait exceeds legacy budget");
+        Require(!order.Accept(new() { ["requestId"] = "replay", ["requestSequence"] = 72000L }), "Replay refused");
+        Require(!order.Accept(new() { ["requestId"] = "gap", ["requestSequence"] = 72002L }), "Gap refused");
+        Require(!order.Accept(new() { ["requestId"] = "downgrade" }), "Downgrade refused");
+        Require(!order.Accept(new() { ["requestId"] = "boolean", ["requestSequence"] = true }), "Boolean refused");
+        Require(order.Accept(new() { ["requestId"] = "next", ["requestSequence"] = 72001L }), "Next frame remains valid");
         var clock = new TestTime();
         var grants = new DesktopGrants(clock); grants.SetReady(true); grants.Arm(["observe", "control"], 900);
         var effects = 0;
@@ -58,6 +67,7 @@ internal static class AdmissionChannelFixtures
         try
         {
             var a = await Open("first"); var b = await Open("second");
+            Require(a.View["requestSequencing"]!.GetValue<string>() == "strict", "Ordered capability negotiated");
             Require(a.View["state"]!.GetValue<string>() == "offered", "First owner offered");
             Require(b.View["state"]!.GetValue<string>() == "waiting_for_resource", "Second owner waits");
             var active = (await Call(a, "control.accept", new() { ["offerGeneration"] = a.View["offerGeneration"]!.DeepClone() }))["data"]!.AsObject();

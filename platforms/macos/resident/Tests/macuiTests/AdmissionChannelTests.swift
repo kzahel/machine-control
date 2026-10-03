@@ -101,6 +101,41 @@ final class AdmissionChannelTests: XCTestCase {
         try broker.pause()
         XCTAssertEqual((command(client, "control.status")["data"] as? [String:Any])?["state"] as? String, "paused")
     }
+    func testOrderedFramesOutliveLegacyBudgetAndCannotDowngrade() {
+        var order = AdmissionRequestOrder()
+        XCTAssertTrue(order.accept(["requestId":"opening"]))
+        for sequence in 1...72000 {
+            XCTAssertTrue(order.accept(["requestId":"bounded-label", "requestSequence":sequence]))
+        }
+        XCTAssertFalse(order.accept(["requestId":"replay", "requestSequence":72000]))
+        XCTAssertFalse(order.accept(["requestId":"gap", "requestSequence":72002]))
+        XCTAssertFalse(order.accept(["requestId":"downgrade"]))
+        XCTAssertFalse(order.accept(["requestId":"boolean", "requestSequence":true]))
+        XCTAssertTrue(order.accept(["requestId":"next", "requestSequence":72001]))
+        var legacy = AdmissionRequestOrder()
+        XCTAssertTrue(legacy.accept(["requestId":"unique"]))
+        XCTAssertFalse(legacy.accept(["requestId":"unique"]))
+        for number in 1..<4096 { XCTAssertTrue(legacy.accept(["requestId":String(number)])) }
+        XCTAssertFalse(legacy.accept(["requestId":"over-budget"]))
+    }
+    func testConnectionAdvertisesOrderingAndEndsOnReplay() throws {
+        let client = try connect()
+        let first = open(client, "ordered")
+        XCTAssertEqual(first["requestSequencing"] as? String, "strict")
+        let active = command(client, "control.accept", ["offerGeneration":first["offerGeneration"]!, "requestSequence":1])["data"] as! [String:Any]
+        XCTAssertEqual(active["state"] as? String, "active")
+        let done = expectation(description:"replay disconnect")
+        DispatchQueue.global().async {
+            defer { done.fulfill() }
+            try? writeSocket(client, data:encodeJSONLine(["operation":"control.heartbeat", "requestId":"replay", "requestSequence":1]))
+            do { XCTAssertTrue(try readSocket(client).isEmpty, "Replay kept connection live") }
+            catch { }
+        }
+        wait(for:[done], timeout:5)
+        let next = try connect()
+        XCTAssertEqual(open(next, "successor")["state"] as? String, "offered")
+        XCTAssertEqual(effects, 0)
+    }
     func testWireNumbersCannotBeBooleanOrFractional() {
         XCTAssertNil(admissionInteger(true))
         XCTAssertNil(admissionInteger(1.5))
