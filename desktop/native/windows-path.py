@@ -8,7 +8,7 @@ STATE = r"Software\MachineControl\CommandPath"
 
 
 def normalized(value):
-    return ntpath.normcase(ntpath.normpath(value.strip().strip('"')))
+    return ntpath.normcase(ntpath.normpath(ntpath.expandvars(value.strip().strip('"'))))
 
 
 def change(value, directory, enabled, owned):

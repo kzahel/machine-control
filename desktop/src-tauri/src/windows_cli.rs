@@ -4,8 +4,8 @@ use windows_sys::Win32::{
     Foundation::{GetLastError, HANDLE, INVALID_HANDLE_VALUE},
     Storage::FileSystem::GetFileType,
     System::Console::{
-        AttachConsole, GetStdHandle, SetStdHandle, ATTACH_PARENT_PROCESS, STD_ERROR_HANDLE,
-        STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+        AttachConsole, GetConsoleCP, GetStdHandle, SetStdHandle, ATTACH_PARENT_PROCESS,
+        STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
     },
 };
 
@@ -64,7 +64,13 @@ fn run(args: &[OsString]) -> io::Result<i32> {
     let status = command
         .env("MACHINE_CONTROL_CLI_LAUNCHER", &executable)
         .env("MACHINE_CONTROL_DESKTOP_INSTALL_DIR", root)
-        .creation_flags(0x08000000) // CREATE_NO_WINDOW, preserving inherited streams.
+        // Keep a real calling console when attached. Without one, suppress a
+        // Python console window while preserving the caller's redirected pipes.
+        .creation_flags(if unsafe { GetConsoleCP() } == 0 {
+            0x08000000 // CREATE_NO_WINDOW
+        } else {
+            0
+        })
         .status()?;
     if status.success() && (args == ["--help"] || args == ["-h"]) {
         println!("\nWindows desktop: bare command or --start starts the app and prints guidance.\nUse --gui to open the operator window. agent identity --paths shows this installation.");
