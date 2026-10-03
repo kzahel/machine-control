@@ -51,19 +51,17 @@ MC's independent grant. See [installed agent CLI](installed-agent-cli.md).
    clients to request approval, with truthful caller identification and bounded
    prompt handling. Separate feature visibility, CLI advertisement, approval
    requests, standing trust and actual authorization.
-5. **Current / Open — comparison evidence:** the initial
-   [Sky Computer Use review](../research/providers/sky-computer-use.md) traces
-   a Unix-socket transport and finds native audit-token, code-identity and
-   ancestry authorization machinery, separately from per-app approval. A
-   user-authorized live follow-up passed supported discovery while same-user
-   Python and separately launched signed Node were rejected at the native
-   socket, including before request bytes. This establishes a bounded caller
-   check, not comprehensive isolation. Static follow-up reconstructs a native
-   runtime broker, peer publisher gate and immediate-parent/relay ancestry
-   policy; no short-lived credential exchange was found in that admission
-   flow. Independently test those branches and session binding next.
-   A prompt-free experience alone is not evidence
-   of either unrestricted local access or an authenticated caller boundary.
+5. **Current / Open — comparison evidence:** the
+   [Sky Computer Use review](../research/providers/sky-computer-use.md) identifies
+   an ordinary-worker/trusted-service/native-supervisor topology and kernel
+   peer-signing/parent checks. An owned-endpoint test confirms that the native
+   supervisor owns socket connections. Bounded live probes also show a limit:
+   two bundled signed Node processes running owned scripts obtain a version
+   reply even when launched below a detached controller, without a Codex
+   ancestor. A single signed Node with an ordinary parent is rejected. This
+   authenticates an executable chain, not an official agent session. Desktop
+   operations, production sandboxing and post-admission policy remain open.
+   Use this as measured design evidence, not a claim of security parity.
 
 ## Provisional Desktop-first plan
 
@@ -120,7 +118,12 @@ change or a claim that Sky implements the session-grant portion.
    consent or the calling agent session. Avoid treating a shared signed CLI,
    arbitrary signed interpreter, process name or distant ancestor as authority.
    Review every upstream interface of the broker so unrelated processes cannot
-   ask it to reuse a session's access.
+   ask it to reuse a session's access. The live Sky signed-interpreter result
+   makes this a required negative test, not a hypothetical concern. Bundling
+   YA and MC together or signing them with the same publisher does not establish
+   upstream session provenance. Validate the native peer against the intended
+   executable requirement and actual code validity; constrain its resource
+   loading and request ingress separately.
 3. **Bind authority to the approved session.** Prefer a private inherited IPC
    channel to the broker; where a credential is necessary, evaluate a random,
    short-lived capability delivered through a dedicated secret-safe channel.
@@ -152,6 +155,33 @@ components must be protected by a separate OS identity, sandbox or external
 authorization service. Prove the broker's own admission and delegation rules,
 not merely its outbound signature. Windows, Linux and remote transports need
 equivalent authenticated principals, not a literal port of Mac ancestry rules.
+
+## Next bounded broker proof
+
+**Decision:** Keep the next slice focused on the actual YA native Desktop
+process as the MC peer. Its desktop-owned server receives a private inherited
+bidirectional channel; the native process retains the MC connection. Prove
+that typed requests originate through that channel from an eligible session,
+with explicit delegation and lifecycle state. Do not accept a localhost HTTP
+request, public session label, signed Bun process or trusted ancestor as
+substitute authority. Existing permissive YA server modes must not silently
+qualify for automatic MC trust.
+
+**Proposal:** Test with an owned MC fixture before desktop effects: the intended
+native Desktop path passes; another process running the same signed runtime
+and scripts fails; an unregistered session fails; closing the session or broker
+invalidates its authority. Then move to the fresh-install acceptance matrix.
+A broker must not expose arbitrary evaluation, host-chosen executable loading
+from an untrusted request, or an unrestricted forwarding API. A cryptographic
+channel credential can authenticate possession but cannot rescue an upstream
+interface that gives it to unrelated callers.
+
+**Open:** This is a practical application/session boundary, not a demonstrated
+sandbox against an unrestricted same-user attacker. Protecting trust policy,
+loaded code and credentials from that attacker may require OS isolation or an
+authorization component outside its authority. The npm client may reuse the
+MC principal/grant protocol later, but needs its own authenticated enrollment
+and launch model; merely shipping the same signed broker is insufficient.
 
 ## Completion evidence and constraints
 

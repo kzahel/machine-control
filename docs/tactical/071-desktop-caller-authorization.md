@@ -247,6 +247,11 @@ trust must fail closed when the integration cannot establish its upstream
 authentication boundary, including permissive local-server configurations.
 Do not silently change YA's ordinary authentication settings. Validate resource
 loading and request provenance before adding automatic grants or the trust UI.
+The follow-up [Sky topology/admission review](../../research/providers/sky-computer-use.md#runtime-and-launch-provenance)
+measured a signed-interpreter chain receiving version replies without a Codex
+ancestor. Include that shape in the owned fixture's negative cases; exact
+native identity plus authenticated upstream delegation is the intended proof,
+not publisher/ancestor matching or common-package membership.
 
 **Limits:** the live positive client was a signed test fixture, not YA's actual
 native executable. This completes the OS-primitive experiment, not step 2's

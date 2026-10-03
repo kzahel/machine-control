@@ -22,16 +22,15 @@ not a new hostile-caller conformance test.
 
 **Open:** compare authenticated IPC, kernel peer/code identity, connection-bound
 grants and minimal credential checks, including their same-user limitations.
-The [Sky Computer Use review](../providers/sky-computer-use.md) now establishes
-the distributed JS socket transport and finds native audit-token,
-code-identity and ancestry authorization machinery. A user-authorized live
-follow-up passed supported discovery and observed native socket rejection of
-same-user Python and separately launched signed Node, including closure before
-any request bytes. Static native follow-up reconstructs the runtime broker and
-peer-publisher plus parent/relay admission policy; comprehensive isolation and
-session binding remain unverified. No short-lived client credential exchange
-was found in that admission flow; prompt behavior alone does not establish
-these boundaries.
+The [Sky Computer Use review](../providers/sky-computer-use.md) reconstructs
+native peer-signing/parent checks and a separate trusted-service worker behind
+the native runtime broker. Owned-endpoint testing confirms the socket owner.
+Live rejection of ordinary callers coexists with a measured admission limit:
+a chain of signed Node interpreters running owned scripts receives a version
+reply even below a detached controller without a Codex ancestor. This does
+not establish desktop-action permission, session binding or comprehensive
+isolation. No short-lived client credential exchange was found in the
+inspected admission path. The dossier and linked spike own the details.
 [Caller authorization](../../topics/caller-authorization.md) owns the
 high-priority investigation and required evidence.
 
@@ -59,7 +58,7 @@ YA session delegation, grants or hostile same-user containment; [Tactical
 | [agent-desktop](../providers/agent-desktop.md) | `source-reviewed` | Strong compact contract and implemented macOS adapter | Contract reference |
 | [native-devtools-mcp](../providers/native-devtools-mcp.md) | `source-reviewed` | Exact capture, AX refs/actions, OCR, CDP | Capture/AX reference |
 | Existing macVM helper | `adopted` for the ordinary resident plane | Persistent AX/Workspace/Quartz/CoreGraphics facade with stable TCC identity | Current native default and recovery-aware testbed integration |
-| [Sky Computer Use](../providers/sky-computer-use.md) | JS/native static review; bounded live caller rejection | Socket transport, process identity and separate app approvals; full isolation unverified | Supplement/benchmark only |
+| [Sky Computer Use](../providers/sky-computer-use.md) | JS/native static review; bounded live runtime/admission probes | Socket transport, process identity and separate app approvals; full isolation unverified | Supplement/benchmark only |
 | Appium Mac2 Driver | `upstream-claimed` with exact pin | XCTest/Appium automation | Adjacent platform candidate pending focused review |
 
 ## Completed evidence

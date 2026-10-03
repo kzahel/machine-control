@@ -17,9 +17,9 @@ artifact hashes and inspection paths live in the
 
 **Current (2026-10-03):** `source-reviewed` for the distributed Mac JavaScript
 transport and approval wrapper, supplemented by static native control-flow reconstruction.
-Bounded native discovery and connection rejection are now `live-tested` on a
-physical Mac with explicit user authorization. Full caller isolation and
-desktop effects are not conformance-tested here.
+Bounded native discovery, runtime bridge placement and both rejected and
+admitted version-ping callers are `live-tested` on a physical Mac with explicit
+user authorization. Full caller isolation and desktop effects are not conformance-tested here.
 [Official documentation](https://learn.chatgpt.com/docs/computer-use) describes
 macOS and Windows support; this authorization review covers only macOS.
 
@@ -27,7 +27,8 @@ macOS and Windows support; this authorization review covers only macOS.
 | --- | --- | --- |
 | Local transport | Host-provided native-pipe bridge to a Unix-domain socket; framed JSON-RPC with version negotiation, deadlines and turn metadata | Direct distributed-JS inspection; no password/token in the inspected request envelope |
 | Native caller identity | Socket admission reads OS peer audit token, checks signing publisher, then parent/relay ancestry; live Python connections close before request bytes | Predicate reconstructed from pinned native binary; bounded live rejection, not comprehensive isolation |
-| Runtime provenance | NativePipeBroker owns native connect/write/close; signed Node launched under the agent shell fails admission | Direct native connect statically traced; immediate-parent restrictions explain why an arbitrary signed ancestor is insufficient |
+| Runtime topology | Ordinary worker uses named RPC; trusted service worker uses native bridge; socket peer is the native supervisor | Embedded-JS review and owned-endpoint live test; production sandbox not audited |
+| Admission limit | Signed Node with an ordinary parent fails; signed Node with another signed Node parent receives a version reply | Repeated with a detached controller under launchd; desktop-action authorization remains untested |
 | App approval | JS obtains app policy and requests host approval with session/always persistence | Source-reviewed; official docs describe saved per-app approval separately from OS consent |
 | Open-source integration | Codex includes feature/configuration, app policy and MCP integration | Native Sky transport/authentication implementation was not located in the inspected Rust checkout |
 
@@ -44,8 +45,10 @@ cleanup detail; private inventory and raw logs are not retained.
 
 **Current, static native review:** the normal path is JS tool → native runtime
 broker → Unix socket → service admission. The broker is a runtime component;
-its Mac connect routine opens the socket directly. A separate broker daemon or
-per-connection helper launch was not found in that routine.
+its Mac connect routine opens the socket directly. An owned-endpoint probe
+confirmed the OS-reported socket peer is the native `node_repl` supervisor,
+not the trusted JavaScript worker. A separate per-connection helper was not
+found in that routine.
 
 The service obtains peer identity from the OS rather than trusting a PID or
 session name in request JSON. It first checks the peer's signing publisher.
@@ -69,6 +72,33 @@ runtime, other transports and a hostile same-user shell remains unverified.
 Neither the inspected admission routine nor live discovery establishes
 session-specific cryptographic authority or revocation behavior.
 
+### Runtime and launch provenance
+
+**Current, source-reviewed / bounded live-tested:** the host launches the native
+runtime through inherited MCP stdio and configures named trusted services.
+Submitted JavaScript runs in an ordinary worker with named RPC, while a
+separate trusted worker loads configured handlers and receives the native
+bridge. File imports are restricted to canonical configured roots. A temporary
+standalone MCP client could select an owned handler and prove the bridge's
+socket owner without credentials or a production agent session. This measures
+host-configured service loading, not control of an existing session; production
+sandbox settings and all alternate ingress routes remain unreviewed.
+
+**Current, bounded live-tested:** the publisher/parent rule has a concrete
+limit. An owned script running in the bundled signed Node was rejected when
+launched by Python. Adding a signed Node parent running an owned launcher
+produced a valid service version reply. The same negative/positive pair held
+with the Python controller detached under launchd, without a Codex/ChatGPT
+ancestor in its ordinary process tree. This matches the reconstructed default
+trusted-parent publisher rule. Responsible-process attribution was not tested.
+
+This uses authentic executable identities; it is not signature forgery. It
+also shows that this socket admission check does not establish an official
+Codex session or the provenance of interpreted scripts. Only version pings were
+sent: desktop requests, app-policy enforcement and full same-user isolation
+remain untested. No backend-issued session token was needed for these replies.
+The spike owns exact process topology, artifact pins, probe method and cleanup.
+
 ## Fit and next evidence
 
 **Decision:** Use the separation between native caller authentication,
@@ -79,7 +109,8 @@ goal. [Caller authorization](../../topics/caller-authorization.md) owns the
 high-priority design investigation.
 
 **Open:** In an isolated authorized test environment, independently test the
-reconstructed admission branches, supported runtime launch provenance, reconnect,
-process replacement and revocation. Audit the trusted bridge as a potential
-confused deputy and establish whether native authorization is bound to a session.
+remaining admission branches, production sandbox configuration, post-admission
+desktop authorization, reconnect, process replacement and revocation. Audit
+the trusted bridge as a potential confused deputy and establish whether native
+authorization is bound to a session.
 Fresh-install and full desktop-action evidence remain absent from this review.
