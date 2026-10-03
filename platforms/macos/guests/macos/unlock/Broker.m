@@ -1,6 +1,7 @@
 #import <Security/Security.h>
 #import "Session.h"
 #import "Relock.h"
+#import "QuietResume.h"
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/poll.h>
@@ -226,15 +227,22 @@ static void requestRelock(NSString *reason) {
     unlink(GRANT_PATH);
     relocking = YES;
     endReason = reason;
-    // Any unexpected end suspends automatic unlock until a real manual unlock.
-    // A caller cannot clear this latch by restarting the resident.
+    // Faults require recovery. Physical takeover instead permits locked quiet
+    // resumption; the marker survives resident restarts and cannot be cleared
+    // through the ordinary agent control socket.
     if (![reason isEqual:@"completed"] && ![reason isEqual:@"duration_expired"]) {
         paused = YES; pausedSawLock = NO;
-        persistState(@PAUSE_PATH, coveredState);
+        NSMutableDictionary *marker = [coveredState mutableCopy];
+        marker[@"pauseReason"] = reason; marker[@"pausedUptime"] = @(monotonicNow());
+        persistState(@PAUSE_PATH, marker);
     }
     if (sameSession(sessionState(), coveredState)) lockConsole();
 }
+static void clearPause(void) {
+    paused = NO; pausedSawLock = NO; unlink(PAUSE_PATH); unlink(WATCH_PATH);
+}
 static void finishCovered(BOOL locked) {
+    if (paused && locked) pausedSawLock = YES;
     if (coveredFD >= 0) {
         sendJSON(coveredFD, @{@"ended":@YES, @"reason":endReason ?: @"session_changed", @"lockObserved":@(locked)});
         close(coveredFD);
@@ -272,11 +280,24 @@ static void tickCovered(void) {
     if (paused && !coveredState) {
         NSDictionary *initial = readPlist(@PAUSE_PATH);
         if (sameSession(initial, current) && [current[@"locked"] boolValue]) pausedSawLock = YES;
-        // Session replacement invalidates the old pause scope; ordinary setup,
-        // active approval, and exact identity checks are still required.
-        if ((pausedSawLock && sameSession(initial, current) && [current[@"desktopState"] isEqual:@"unlocked"]) ||
-            (current && !sameSession(initial, current))) {
-            paused = NO; pausedSawLock = NO; unlink(PAUSE_PATH); unlink(WATCH_PATH);
+        NSString *reason = initial[@"pauseReason"];
+        if (resumablePause(reason) && sameSession(initial, current)) {
+            if (pausedSawLock && [current[@"desktopState"] isEqual:@"unlocked"] &&
+                ![reason isEqual:@"local_use_episode"]) {
+                NSMutableDictionary *marker = [initial mutableCopy];
+                marker[@"pauseReason"] = @"local_use_episode";
+                persistState(@PAUSE_PATH, marker);
+            }
+            if (!installationIssue(readPlist(@RECEIPT_PATH)) &&
+                quietResumeEligible(YES, [current[@"locked"] boolValue],
+                    [initial[@"pausedUptime"] isKindOfClass:NSNumber.class] ? [initial[@"pausedUptime"] doubleValue] : NAN,
+                    monotonicNow(), physicalIdleSeconds())) clearPause();
+        } else if ((pausedSawLock && sameSession(initial, current) &&
+                    [current[@"desktopState"] isEqual:@"unlocked"]) ||
+                   (initial && current && !sameSession(initial, current))) {
+            // Fault recovery retains its previous independently observed unlock
+            // requirement. A changed console must obtain fresh ordinary access.
+            clearPause();
         }
     }
 }
@@ -299,20 +320,38 @@ static BOOL handle(int fd) {
             @"helperGeneration": epoch, @"helperDesktopGeneration": desktopEpoch,
             @"profile":profile, @"lockedUsePaused":@(paused), @"relockAvailable":@(lockConsoleAvailable()),
             @"coveredSession":@(coveredState != nil),
+            @"lockedUsePauseReason":paused ? (readPlist(@PAUSE_PATH)[@"pauseReason"] ?: @"safety_fault") : @"",
             @"errorCode": issue ?: (allowed ? @"" : @"unlock_caller_denied")});
         return NO;
     }
     BOOL covered = [op isEqual:@"covered_unlock"];
+    BOOL resume = [op isEqual:@"covered.resume"];
     NSMutableSet *keys = [NSMutableSet setWithArray:@[@"operation", @"requestId", @"helperGeneration", @"helperDesktopGeneration"]];
     if (covered) [keys addObjectsFromArray:@[@"durationSeconds", @"coversReady", @"controlDeadlineUptime"]];
     if (![[NSSet setWithArray:request.allKeys] isSubsetOfSet:keys]) {
         sendJSON(fd, @{@"errorCode":@"invalid_request"}); return NO;
     }
-    if (![op isEqual:@"unlock"] && !covered) { sendJSON(fd, @{@"errorCode": @"unsupported_operation"}); return NO; }
+    if (![op isEqual:@"unlock"] && !covered && !resume) { sendJSON(fd, @{@"errorCode": @"unsupported_operation"}); return NO; }
     if (!allowed || issue) { sendJSON(fd, @{@"errorCode": issue ?: @"unlock_caller_denied"}); return NO; }
     if (coveredState) { sendJSON(fd, @{@"errorCode": @"covered_session_busy"}); return NO; }
-    if ((covered && ![profile isEqual:@"locked_use"]) || (!covered && ![profile isEqual:@"appliance"])) {
+    if (((covered || resume) && ![profile isEqual:@"locked_use"]) || (!covered && !resume && ![profile isEqual:@"appliance"])) {
         sendJSON(fd, @{@"errorCode": @"unlock_profile_mismatch"}); return NO;
+    }
+    if (resume) {
+        NSString *requestID = request[@"requestId"];
+        if (request.count != 4 || ![requestID isKindOfClass:NSString.class] ||
+            requestID.length < 1 || requestID.length > 128 || requests.count >= 4096 ||
+            [requests containsObject:requestID]) {
+            sendJSON(fd, @{@"errorCode":@"invalid_request"}); return NO;
+        }
+        [requests addObject:requestID];
+        NSDictionary *marker = readPlist(@PAUSE_PATH);
+        if (![request[@"helperGeneration"] isEqual:epoch] ||
+            ![request[@"helperDesktopGeneration"] isEqual:desktopEpoch] ||
+            (paused && (!resumablePause(marker[@"pauseReason"]) || !sameSession(marker, state)))) {
+            sendJSON(fd, @{@"errorCode":@"pause_recovery_required"}); return NO;
+        }
+        clearPause(); sendJSON(fd, @{@"resumed":@YES}); return NO;
     }
     id duration = request[@"durationSeconds"];
     id controlDeadline = request[@"controlDeadlineUptime"];

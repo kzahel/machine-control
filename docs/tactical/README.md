@@ -138,3 +138,5 @@ the commits' `Topic:` trailers and register that exact string in
 
 - [`063-six-platform-desktop-release.md`](063-six-platform-desktop-release.md) (complete):
   desktop 0.5.3 publication for all six Mac/Windows/Linux architectures.
+
+- [077 — Mac locked quiet resumption](077-mac-quiet-resumption.md): root pause reasons, locked quiet eligibility and operator Resume; physical acceptance pending.

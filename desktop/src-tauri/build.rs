@@ -154,6 +154,7 @@ fn main() {
             "Broker.m",
             "Plugin.m",
             "Session.h",
+            "QuietResume.h",
             "Relock.h",
             "Installer.swift",
             "Probe.m",

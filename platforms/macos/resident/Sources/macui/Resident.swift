@@ -650,6 +650,21 @@ final class ResidentService {
             keyboardAuthorized: CGPreflightPostEventAccess())
     }
 
+    /// Operator bridge only; this method is absent from the public JSON router.
+    func resumeCoveredAvailability() throws {
+        let status = unlockStatus()
+        guard status["lockedUsePaused"] as? Bool == true else { return }
+        let fd = try connectUnlockBroker(); defer { Darwin.close(fd) }
+        try writeSocket(fd, data: encodeJSONLine([
+            "operation": "covered.resume", "requestId": UUID().uuidString,
+            "helperGeneration": status["helperGeneration"] ?? NSNull(),
+            "helperDesktopGeneration": status["helperDesktopGeneration"] ?? NSNull()]))
+        let reply = try brokerReply(fd)
+        guard reply["resumed"] as? Bool == true else {
+            throw MacUIError.action(reply["errorCode"] as? String ?? "pause_recovery_required")
+        }
+    }
+
     func unlockStatus() -> [String: Any] {
         var status: [String: Any] = [
             "support": "experimental", "scope": "existing_console_session",
@@ -667,7 +682,7 @@ final class ResidentService {
             try writeSocket(fd, data: encodeJSONLine(["operation": "status"]))
             let reply = try brokerReply(fd)
             for key in ["installation", "policy", "callerEligibility", "helperGeneration", "helperDesktopGeneration",
-                        "profile", "lockedUsePaused", "relockAvailable", "coveredSession"] {
+                        "profile", "lockedUsePaused", "lockedUsePauseReason", "relockAvailable", "coveredSession"] {
                 if let value = reply[key] { status[key] = value }
             }
             issue = reply["errorCode"] as? String ?? "unlock_helper_invalid_response"

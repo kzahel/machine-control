@@ -130,6 +130,7 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
             case "pause":
                 try server.broker.pause(seconds: command["duration"] as? Int)
             case "resume":
+                try server.service.resumeCoveredAvailability()
                 server.broker.resume()
             case "locked_use":
                 guard !desktopUpdating, let enabled = command["enabled"] as? Bool else {

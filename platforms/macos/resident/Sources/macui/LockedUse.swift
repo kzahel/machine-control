@@ -61,10 +61,10 @@ struct GrantConsoleBinding {
 }
 
 func retainLockedUseAccess(enabled: Bool, paused: Bool, phase: String,
-                           interruption: String?, endReason: String?) -> Bool {
+                           interruption: String?, endReason: String?, pauseReason: String? = nil) -> Bool {
     guard enabled else { return false }
-    let resumable = ["physical_presence", "operator_paused", "paused", "cancelled"]
-    if paused && !resumable.contains(endReason ?? interruption ?? "") { return false }
+    let resumable = ["physical_presence", "local_use_episode", "operator_paused", "paused", "cancelled"]
+    if paused && !resumable.contains(pauseReason ?? endReason ?? interruption ?? "") { return false }
     if phase == "relocking" {
         return ["completed", "duration_expired"].contains(endReason ?? "") || resumable.contains(endReason ?? "")
     }
@@ -378,7 +378,9 @@ final class MacLockedUse {
             "permissionReady":permission.ready, "helperApproval":permission.approvalState,
             "setupState":setupState, "setupError":setupError.map { $0 as Any } ?? NSNull(),
             "helperHealthy":helper["installation"] as? String == "healthy" && helper["callerEligibility"] as? String == "allowed",
-            "pausedUntilManualUnlock":helper["lockedUsePaused"] as? Bool ?? false,
+            "pauseReason":helper["lockedUsePauseReason"] ?? NSNull(),
+            "pausedUntilManualUnlock":helper["lockedUsePaused"] as? Bool == true &&
+                !["physical_presence", "local_use_episode"].contains(helper["lockedUsePauseReason"] as? String ?? ""),
             "controlSessionId":lease.map { $0.id as Any } ?? NSNull(),
             "remainingSeconds":lease.map { max(0, Int($0.deadline - ProcessInfo.processInfo.systemUptime)) as Any } ?? NSNull(),
             "coveredDisplays":coveredWindowIDs.count, "closedLidSupported":false,
@@ -556,9 +558,11 @@ final class MacLockedUse {
     var preservesGrantAcrossLock: Bool {
         // A prepared opt-in also covers idle locks and clean task completion.
         // Unlock authority still requires a separate finite connection lease.
-        retainLockedUseAccess(enabled:enabled,
-            paused:service.unlockStatus()["lockedUsePaused"] as? Bool ?? true,
-            phase:phase, interruption:safety.reason, endReason:endReason)
+        let helper = service.unlockStatus()
+        return retainLockedUseAccess(enabled:enabled,
+            paused:helper["lockedUsePaused"] as? Bool ?? true,
+            phase:phase, interruption:safety.reason, endReason:endReason,
+            pauseReason:helper["lockedUsePauseReason"] as? String)
     }
     func refusal(_ request: [String: Any]) -> GrantRefusal? {
         guard lease != nil else { return nil }

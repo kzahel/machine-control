@@ -146,3 +146,9 @@ approved-helper update maintenance, choice preservation and ordinary relaunch.
 
 [Tactical 073](../docs/tactical/073-macos-locked-display-wake.md) owns bounded
 display wake for authorized task startup after idle lock.
+
+**Current (source/policy fixtures):** [Tactical 077](../docs/tactical/077-mac-quiet-resumption.md)
+replaces the physical takeover root latch with a durable physical/local-use
+pause. The same locked console may resume after 30 seconds of trustworthy HID
+idle and pause age; owner-unlocked work stays paused. Helper faults retain
+separate recovery. This has not yet replaced the prior signed physical result.
