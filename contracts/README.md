@@ -34,6 +34,11 @@ than a frozen cross-device wire protocol.
 - [`claim-result-v0.schema.json`](claim-result-v0.schema.json) describes claim
   acquisition, use class, status, validation, renewal, release, and typed
   conflicts without exposing the concrete provider identity.
+- [`access-admission-v1.schema.json`](access-admission-v1.schema.json) separates
+  resource availability, live waiting intents, finite activation offers and
+  generation-bound control sessions. Mutation authority belongs to the live
+  admitted channel; IDs remain selectors. This extension does not change
+  legacy claim v0 or advertise production queue support by itself.
 - [`run-result-v0.schema.json`](run-result-v0.schema.json) describes scoped-task
   stderr audit records, including independent task outcome and cleanup status.
 - [`workspace-capabilities-v0.schema.json`](workspace-capabilities-v0.schema.json)

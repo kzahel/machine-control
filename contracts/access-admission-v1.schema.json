@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machinecontrol.dev/contracts/access-admission-v1.schema.json",
+  "title": "Machine Control access admission v1",
+  "description": "Typed controller admission state. Intent and session IDs are selectors; owner authority comes from the admitted live channel. Resource labels are public logical projections, never private provider identities.",
+  "oneOf": [{ "$ref": "#/$defs/intent" }, { "$ref": "#/$defs/status" }],
+  "$defs": {
+    "schema": { "const": "machine-control-admission/v1" },
+    "reasons": { "type": "array", "maxItems": 32, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 80 } },
+    "seconds": { "type": "number", "minimum": 0 },
+    "optionalSeconds": { "oneOf": [{ "$ref": "#/$defs/seconds" }, { "type": "null" }] },
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "revision", "intentId", "state", "offerGeneration", "resourceGenerations", "blockingReasons", "waitRemainingSeconds", "leaseRemainingSeconds", "reason"],
+      "properties": {
+        "schema": { "$ref": "#/$defs/schema" },
+        "revision": { "type": "integer", "minimum": 0 },
+        "intentId": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "state": { "enum": ["waiting_for_approval", "waiting_for_resource", "waiting_for_user_idle", "paused", "announcing", "offered", "active", "ended"] },
+        "terminalReason": { "type": ["string", "null"], "maxLength": 80 },
+        "offerGeneration": { "type": "integer", "minimum": 0 },
+        "sessionId": { "type": ["string", "null"], "maxLength": 80 },
+        "resourceGenerations": { "type": "object", "maxProperties": 8, "additionalProperties": { "type": "integer", "minimum": 1 } },
+        "blockingReasons": { "$ref": "#/$defs/reasons" },
+        "waitRemainingSeconds": { "$ref": "#/$defs/seconds" },
+        "leaseRemainingSeconds": { "$ref": "#/$defs/seconds" },
+        "offerRemainingSeconds": { "$ref": "#/$defs/optionalSeconds" },
+        "noticeRemainingSeconds": { "$ref": "#/$defs/optionalSeconds" },
+        "activeRemainingSeconds": { "$ref": "#/$defs/optionalSeconds" },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 240 }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "revision", "ownerBinding", "resources", "waiting", "active", "events", "requests"],
+      "properties": {
+        "schema": { "$ref": "#/$defs/schema" },
+        "revision": { "type": "integer", "minimum": 0 },
+        "ownerBinding": { "const": "admitted_channel" },
+        "resources": {
+          "type": "array", "maxItems": 64,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["resource", "generation", "blockingReasons", "held"],
+            "properties": {
+              "resource": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "generation": { "type": "integer", "minimum": 0 },
+              "blockingReasons": { "$ref": "#/$defs/reasons" },
+              "held": { "type": "boolean" }
+            }
+          }
+        },
+        "waiting": { "type": "integer", "minimum": 0, "maximum": 256 },
+        "active": { "type": "integer", "minimum": 0, "maximum": 64 },
+        "requests": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/intent" } },
+        "events": {
+          "type": "array", "maxItems": 128,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["revision", "kind"],
+            "properties": {
+              "revision": { "type": "integer", "minimum": 1 },
+              "kind": { "type": "string", "minLength": 1, "maxLength": 100 },
+              "intentId": { "type": ["string", "null"], "maxLength": 80 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

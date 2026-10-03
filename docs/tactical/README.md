@@ -39,6 +39,7 @@ the commits' `Topic:` trailers and register that exact string in
 
 | Tactical | Status | Scope |
 | --- | --- | --- |
+| [`075-admission-contract-and-arbiter.md`](075-admission-contract-and-arbiter.md) | complete (contract slice) | Versioned intents/status, composed pause, complete resource sets, offers, owner fencing and deterministic deadline/race checks |
 | [`074-access-admission-and-pause.md`](074-access-admission-and-pause.md) | active | Coordinating plan for resumable access pauses, polite admission, queue liveness, fencing and shared physical/VM desktop resources |
 | [`071-desktop-caller-authorization.md`](071-desktop-caller-authorization.md) | active; identity primitive validated | Opt-in automatic grants for trusted YA Desktop, authenticated session authority, revocation and fresh Mac installation acceptance; npm CLI trust next |
 | [`069-desktop-audit-and-diagnostics.md`](069-desktop-audit-and-diagnostics.md) | complete; source-native VMs accepted | Durable native audit history, private diagnostics, retained Activity, export and storage-failure validation |
