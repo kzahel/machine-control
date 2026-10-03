@@ -245,7 +245,7 @@ final class ResidentServer {
         broker.admission.sessionEnded = { [weak self] owner, _, reason in
             self?.channels.values.first(where:{ $0.owner == owner })?.outer?.invalidate()
             self?.activity.disarm()
-            self?.lockedUse.end(reason == "paused" ? "operator_paused" : reason)
+            self?.lockedUse.end(coveredAdmissionEnding(reason))
         }
         broker.availabilityChanged = { [weak self] in
             guard let self else { return }

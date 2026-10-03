@@ -141,6 +141,19 @@ final class LockedUseTests: XCTestCase {
         }
     }
 
+    func testAgentTransportLossIsCleanOnlyThroughHealthyAdmissionOwner() {
+        let ending = coveredAdmissionEnding("owner_disconnected")
+        XCTAssertEqual(ending, "client_disconnected")
+        XCTAssertTrue(cleanCoveredEnding(ending))
+        XCTAssertTrue(retainLockedUseAccess(enabled:true, paused:false, phase:"relocking",
+            interruption:ending, endReason:ending))
+        // An independently detected guardian/resident failure never takes this path.
+        XCTAssertFalse(cleanCoveredEnding("owner_disconnected"))
+        XCTAssertFalse(cleanCoveredEnding("watchdog_interrupted"))
+        XCTAssertEqual(coveredAdmissionEnding("watchdog_interrupted"), "watchdog_interrupted")
+        XCTAssertEqual(coveredAdmissionEnding("paused"), "operator_paused")
+    }
+
     func testRetainedGrantIsBoundToTheApprovingConsole() throws {
         let observation: [String:Any] = ["desktopState":"unlocked", "uuid":"console-a", "boot":123, "uid":getuid()]
         let binding = try XCTUnwrap(GrantConsoleBinding(grantID:"grant-a", observation:observation))

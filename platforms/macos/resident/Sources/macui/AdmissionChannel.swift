@@ -110,8 +110,13 @@ final class AdmissionChannel {
     private func process(_ request: [String:Any]) {
         guard let server, let id = request["requestId"] as? String, order.accept(request) else { close(); return }
         do {
-            server.refreshAdmission()
             let operation = request["operation"] as? String ?? ""
+            // Clock/authority expiry is checked by inspect/cancel themselves.
+            // Polls must not multiply OS/helper probes by the waiter count.
+            // Revalidate native availability immediately before effects.
+            if operation == "control.accept" || operation == "control.dispatch" {
+                server.refreshAdmission()
+            }
             let common: Set<String> = ["operation", "requestId", "requestSequence"]
             let allowed = common.union(operation == "control.accept" ? ["offerGeneration"] :
                 operation == "control.dispatch" ? ["sessionId", "resourceGenerations", "request"] : [])

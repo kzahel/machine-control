@@ -315,5 +315,10 @@ claim-store operation lock and the host desktop fence; socket fixtures cover
 two VM contenders, physical contention and stale input refusal. Actual Tart/UTM
 effect acceptance remains pending in [Tactical 084](../docs/tactical/084-native-outer-desktop-admission.md).
 Authenticated integration
-remain open. The [API guide](../docs/access-admission.md) owns wire/client details;
+remains open. The [API guide](../docs/access-admission.md) owns wire/client details;
 linked tacticals own execution evidence.
+
+**Current:** [Tactical 085](../docs/tactical/085-macos-admission-transport-cleanup.md)
+distinguishes a healthy resident cancelling a lost agent from guardian failure,
+bounds queue polling and releases interrupted pointer presses. Its protected
+physical acceptance is pending.

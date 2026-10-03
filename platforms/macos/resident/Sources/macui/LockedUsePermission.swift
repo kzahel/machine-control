@@ -9,9 +9,14 @@ protocol LockedUsePermissionManaging: AnyObject {
     var approvalState: String { get }
     var setupState: String { get }
     var setupError: String? { get }
+    func ready(helper: [String:Any], approval: String) -> Bool
     func request() throws
     func remove() throws
     func tick()
+}
+
+extension LockedUsePermissionManaging {
+    func ready(helper: [String:Any], approval: String) -> Bool { ready }
 }
 
 /// Only the native operator's preparation path owns this lifecycle. Waiting for
@@ -115,12 +120,14 @@ final class MacLockedUsePermission: LockedUsePermissionManaging {
         }
     }
     var ready: Bool {
-        guard #available(macOS 14.0, *), setupState == "idle", approvalState == "granted",
+        ready(helper:service.unlockStatus(), approval:approvalState)
+    }
+    func ready(helper: [String:Any], approval: String) -> Bool {
+        guard #available(macOS 14.0, *), setupState == "idle", approval == "granted",
               preferences.bool(forKey:"lockedUseCapturePrepared"),
               CGPreflightScreenCaptureAccess(), AXIsProcessTrusted(), CGPreflightPostEventAccess() else { return false }
-        let state = service.unlockStatus()
-        return state["profile"] as? String == "locked_use" && state["policy"] as? String == "enabled" &&
-            state["installation"] as? String == "healthy" && state["callerEligibility"] as? String == "allowed"
+        return helper["profile"] as? String == "locked_use" && helper["policy"] as? String == "enabled" &&
+            helper["installation"] as? String == "healthy" && helper["callerEligibility"] as? String == "allowed"
     }
     func request() throws {
         if preparing {

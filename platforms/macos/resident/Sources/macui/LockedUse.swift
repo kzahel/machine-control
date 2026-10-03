@@ -63,7 +63,7 @@ struct GrantConsoleBinding {
 func retainLockedUseAccess(enabled: Bool, paused: Bool, phase: String,
                            interruption: String?, endReason: String?, pauseReason: String? = nil) -> Bool {
     guard enabled else { return false }
-    let resumable = ["physical_presence", "local_use_episode", "operator_paused", "paused", "cancelled", "operator_quit", "resident_stopping"]
+    let resumable = ["physical_presence", "local_use_episode", "operator_paused", "paused", "cancelled", "client_disconnected", "operator_quit", "resident_stopping"]
     if paused && !resumable.contains(pauseReason ?? endReason ?? interruption ?? "") { return false }
     if phase == "relocking" {
         return ["completed", "duration_expired"].contains(endReason ?? "") || resumable.contains(endReason ?? "")
@@ -73,7 +73,17 @@ func retainLockedUseAccess(enabled: Bool, paused: Bool, phase: String,
 
 /// Expected endings still relock, but need no fault acknowledgement in root.
 func cleanCoveredEnding(_ reason: String) -> Bool {
-    ["completed", "duration_expired", "operator_paused", "paused", "cancelled", "operator_quit", "resident_stopping"].contains(reason)
+    ["completed", "duration_expired", "operator_paused", "paused", "cancelled", "client_disconnected", "operator_quit", "resident_stopping"].contains(reason)
+}
+
+/// Only the healthy resident's admission callback may make this distinction.
+/// Guardian EOF and missing resident heartbeats remain owner-disconnection faults.
+func coveredAdmissionEnding(_ reason: String) -> String {
+    switch reason {
+    case "owner_disconnected": return "client_disconnected"
+    case "paused": return "operator_paused"
+    default: return reason
+    }
 }
 
 /// Private, measured OS lock primitive; success is always checked via IOKit.
@@ -372,12 +382,14 @@ final class MacLockedUse {
     }
     var status: [String: Any] {
         let helper = service.unlockStatus()
-        let enabled = !locallyDisabled && permission.ready && helper["profile"] as? String == "locked_use" && helper["policy"] as? String == "enabled"
+        let approval = permission.approvalState
+        let ready = permission.ready(helper:helper, approval:approval)
+        let enabled = !locallyDisabled && ready && helper["profile"] as? String == "locked_use" && helper["policy"] as? String == "enabled"
         let available: Bool
         if #available(macOS 14.0, *) { available = ConsoleRelock.available } else { available = false }
         return ["supported":available, "enabled":enabled,
             "phase": lease == nil && !isCovered ? (helper["lockedUsePaused"] as? Bool == true ? "paused" : enabled ? "ready" : "off") : phase,
-            "permissionReady":permission.ready, "helperApproval":permission.approvalState,
+            "permissionReady":ready, "helperApproval":approval,
             "setupState":setupState, "setupError":setupError.map { $0 as Any } ?? NSNull(),
             "helperHealthy":helper["installation"] as? String == "healthy" && helper["callerEligibility"] as? String == "allowed",
             "pauseReason":helper["lockedUsePauseReason"] ?? NSNull(),

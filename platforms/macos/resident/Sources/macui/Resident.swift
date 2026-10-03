@@ -2491,36 +2491,36 @@ final class ResidentService {
                             inputData["x2"] = x2
                             inputData["y2"] = y2
                         }
+                        // Allocate the entire sequence before pressing. Always
+                        // release our own button, including interrupted drags.
                         guard let down = CGEvent(mouseEventSource: nil,
                             mouseType: downType, mouseCursorPosition: point,
+                            mouseButton: button),
+                              let up = CGEvent(mouseEventSource: nil,
+                            mouseType: upType, mouseCursorPosition: point,
                             mouseButton: button) else {
                             throw MacUIError.action("Unable to create pointer event")
                         }
-                        if let reason = inputCancellation() { throw MacUIError.action(reason) }
-                        down.post(tap: .cghidEventTap)
                         if let end = dragEnd {
                             let dragType: CGEventType = button == .left ?
                                 .leftMouseDragged : (button == .right ?
                                     .rightMouseDragged : .otherMouseDragged)
                             guard let drag = CGEvent(mouseEventSource: nil,
                                 mouseType: dragType, mouseCursorPosition: end,
-                                mouseButton: button),
-                                  let up = CGEvent(mouseEventSource: nil,
-                                mouseType: upType, mouseCursorPosition: end,
                                 mouseButton: button) else {
                                 throw MacUIError.action("Unable to create drag event")
                             }
+                            if let reason = inputCancellation() { throw MacUIError.action(reason) }
+                            down.post(tap: .cghidEventTap)
+                            defer { up.post(tap: .cghidEventTap) }
                             usleep(80_000)
                             if let reason = inputCancellation() { throw MacUIError.action(reason) }
                             drag.post(tap: .cghidEventTap)
+                            up.location = end
                             usleep(80_000)
-                            up.post(tap: .cghidEventTap)
                         } else {
-                            guard let up = CGEvent(mouseEventSource: nil,
-                                mouseType: upType, mouseCursorPosition: point,
-                                mouseButton: button) else {
-                                throw MacUIError.action("Unable to create pointer event")
-                            }
+                            if let reason = inputCancellation() { throw MacUIError.action(reason) }
+                            down.post(tap: .cghidEventTap)
                             up.post(tap: .cghidEventTap)
                         }
                         inputData["button"] = requestString(request, "button") ?? "left"
