@@ -187,7 +187,7 @@ def channel() -> int:
             raise ValueError("Invalid native desktop proxy locator")
         # Only the bundled native client can authenticate the YA kernel peer.
         # Never fall back to ambient access when delegation is configured.
-        native = Path(__file__).resolve().parents[5] / "MacOS" / "machine-control"
+        native = Path(__file__).resolve().parents[5] / "MacOS" / "macui"
         if not native.is_file():
             raise OSError("Installed native desktop proxy client unavailable")
         os.execv(str(native), [str(native), "delegated-channel", delegated])

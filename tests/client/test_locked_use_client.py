@@ -15,6 +15,23 @@ spec.loader.exec_module(machost)
 
 
 class LockedUseConnectionTests(unittest.TestCase):
+    def test_delegated_proxy_uses_shipped_native_bundle_executable(self):
+        with tempfile.TemporaryDirectory(prefix="mc-packaged-proxy-") as directory:
+            contents = Path(directory) / "Machine Control.app/Contents"
+            native = contents / "MacOS/macui"
+            native.parent.mkdir(parents=True)
+            native.touch()
+            module = contents / "Resources/mc-cli/platforms/macos/host/machost.py"
+            proxy = "/tmp/ya-mc-fixture/control.sock"
+            with patch.object(machost, "__file__", str(module)), \
+                    patch.dict(machost.os.environ, {"MACHINE_CONTROL_DESKTOP_PROXY":proxy}), \
+                    patch.object(machost.os, "execv", side_effect=RuntimeError("exec transferred")) as execute, \
+                    patch.object(machost.socket, "socket") as resident:
+                with self.assertRaisesRegex(RuntimeError, "exec transferred"):
+                    machost.channel()
+                execute.assert_called_once_with(str(native.resolve()), [str(native.resolve()), "delegated-channel", proxy])
+                resident.assert_not_called()
+
     def test_delegated_proxy_never_falls_back_to_ambient_resident(self):
         with patch.dict(machost.os.environ, {"MACHINE_CONTROL_DESKTOP_PROXY":"/tmp/ya-mc-fixture/control.sock"}), \
                 patch.object(machost.Path, "is_file", return_value=False), \
