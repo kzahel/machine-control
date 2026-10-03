@@ -19,6 +19,11 @@ final class AdmissionChannel {
     var scopes: Set<GrantScope> = []
     private var source: DispatchSourceRead?
     private var buffer = Data()
+    private var outgoing = Data()
+    private var outgoingOffset = 0
+    private var writeSource: DispatchSourceTimer?
+    private var writeTimeout: DispatchWorkItem?
+
     private var seen = Set<String>()
     private var closed = false
     private var dispatching = false
@@ -50,11 +55,11 @@ final class AdmissionChannel {
             },
             notice:server.approvalDesktopUnlocked() ? server.noticeSeconds : 0)
         intentID = view["intentId"] as! String
-        reply(requestID, data:view)
         let source = DispatchSource.makeReadSource(fileDescriptor:descriptor, queue:.main)
         source.setEventHandler { [weak self] in self?.readable() }
         source.setCancelHandler { [descriptor] in Darwin.close(descriptor) }
         self.source = source; source.resume()
+        reply(requestID, data:view)
     }
     private func readable() {
         guard !closed else { return }
@@ -129,11 +134,51 @@ final class AdmissionChannel {
     deinit { close() }
     func reply(_ id: String, data: [String:Any]? = nil, error: String? = nil) {
         guard !closed else { return }
-        do { try writeSocket(descriptor, data:encodeJSONLine([
-            "schema":Self.schema, "requestId":id, "accepted":error == nil,
-            "errorCode":error as Any? ?? NSNull(), "data":data as Any? ?? NSNull()])) }
-        catch { close() }
+        do {
+            let frame = try encodeJSONLine([
+                "schema":Self.schema, "requestId":id, "accepted":error == nil,
+                "errorCode":error as Any? ?? NSNull(), "data":data as Any? ?? NSNull()])
+            guard frame.count <= 4 * 1024 * 1024, outgoing.count - outgoingOffset + frame.count <= 8 * 1024 * 1024 else { close(); return }
+            if outgoingOffset > 0 { outgoing.removeFirst(outgoingOffset); outgoingOffset = 0 }
+            outgoing.append(frame)
+            if writeTimeout == nil {
+                let timeout = DispatchWorkItem { [weak self] in self?.close() }
+                writeTimeout = timeout
+                DispatchQueue.main.asyncAfter(deadline:.now() + 5, execute:timeout)
+            }
+            flushReplies()
+        } catch { close() }
     }
+    /// Slow readers cannot block the operator/main queue or truncate a large
+    /// snapshot on EAGAIN. Both buffered bytes and write time are bounded.
+    private func flushReplies() {
+        guard !closed else { return }
+        while outgoingOffset < outgoing.count {
+            let written = outgoing.withUnsafeBytes { bytes in
+                Darwin.write(descriptor, bytes.baseAddress!.advanced(by:outgoingOffset), outgoing.count - outgoingOffset)
+            }
+            if written > 0 { outgoingOffset += written; continue }
+            if written < 0 && errno == EINTR { continue }
+            if written < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) {
+                if writeSource == nil {
+                    let source = DispatchSource.makeTimerSource(queue:.main)
+                    // Darwin Unix-socket write readiness can remain below its
+                    // low-water mark with a small peer buffer. Retry without
+                    // blocking the main queue; the absolute timeout still caps
+                    // a stalled reader.
+                    source.schedule(deadline:.now() + .milliseconds(25), repeating:.milliseconds(25))
+                    source.setEventHandler { [weak self] in self?.flushReplies() }
+                    writeSource = source; source.resume()
+                }
+                return
+            }
+            close(); return
+        }
+        outgoing.removeAll(keepingCapacity:false); outgoingOffset = 0
+        writeSource?.cancel(); writeSource = nil
+        writeTimeout?.cancel(); writeTimeout = nil
+    }
+
     func tick() {
         if coveredOwner >= 0 {
             var input = pollfd(fd:coveredOwner, events:Int16(POLLIN | POLLHUP), revents:0)
@@ -143,6 +188,9 @@ final class AdmissionChannel {
     }
     func close() {
         guard !closed else { return }; closed = true
+        writeSource?.cancel(); writeSource = nil
+        writeTimeout?.cancel(); writeTimeout = nil
+        outgoing.removeAll()
         server?.broker.admission.disconnect(owner)
         if coveredOwner >= 0 { Darwin.close(coveredOwner); coveredOwner = -1 }
         if let source { source.cancel() } else { Darwin.close(descriptor) }

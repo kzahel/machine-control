@@ -11,6 +11,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     let approval: ApprovalPanelController
     let setup: SetupWindowController
     var onRevoke: ((String) -> Void)?
+    var onResume: (() throws -> Void)?
+    var onArm: ((Int?) throws -> Void)?
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let menu = NSMenu()
@@ -107,12 +109,12 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             let stop = NSMenuItem(title: "Stop Access (\(Self.stopShortcut))",
                                   action: #selector(stopAccess), keyEquivalent: "")
             stop.target = self
-            stop.isEnabled = broker.activeGrant != nil
+            stop.isEnabled = true
             menu.addItem(stop)
             let arm = NSMenuItem(title: "Allow Full Access (Including DevTools) For", action: nil,
                                  keyEquivalent: "")
             let durations = NSMenu()
-            for (title, seconds) in [("15 Minutes", 900), ("1 Hour", 3600), ("4 Hours", 14_400)] {
+            for (title, seconds) in [("15 Minutes", 900), ("1 Hour", 3600), ("4 Hours", 14_400), ("Until I Turn It Off", 0)] {
                 let item = NSMenuItem(title: title, action: #selector(armManually(_:)),
                                       keyEquivalent: "")
                 item.target = self
@@ -123,6 +125,20 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             arm.isEnabled = broker.pending == nil
             menu.addItem(arm)
         }
+        let blocks = broker.admission.blocks("desktop")
+        let state = broker.admission.status
+        menu.addItem(disabled("Agent control: \(state["active"] ?? 0) active · \(state["waiting"] ?? 0) waiting"))
+        if !blocks.isEmpty { menu.addItem(disabled("Paused: " + blocks.joined(separator:", "))) }
+        let pauses = NSMenuItem(title:"Pause Agent Access", action:nil, keyEquivalent:"")
+        let choices = NSMenu()
+        for (title, seconds) in [("1 Minute",60), ("5 Minutes",300), ("Until I Resume",0)] {
+            let item = NSMenuItem(title:title, action:#selector(pauseAccess(_:)), keyEquivalent:"")
+            item.target = self; item.tag = seconds; choices.addItem(item)
+        }
+        pauses.submenu = choices; menu.addItem(pauses)
+        let resume = NSMenuItem(title:"Resume Agent Access", action:#selector(resumeAccess), keyEquivalent:"")
+        resume.target = self; resume.isEnabled = blocks.contains("manual") || blocks.contains("operator_deferral") || blocks.contains("local_use_episode")
+        menu.addItem(resume)
         menu.addItem(.separator())
         let activity = NSMenuItem(title: "Recent Activity", action: nil, keyEquivalent: "")
         let entries = NSMenu()
@@ -167,16 +183,25 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     }
 
     @objc private func armManually(_ sender: NSMenuItem) {
-        broker.issue(scopes: Set(GrantScope.allCases), durationSeconds: sender.tag,
-                     reason: "Armed from the menu bar", requester: "person at this Mac",
-                     approver: "menu")
+        do { try onArm?(sender.tag == 0 ? nil : sender.tag) }
+        catch { broker.journal?.diagnostic("operator.arm", code:"consent_unavailable") }
+
     }
 
+    @objc private func pauseAccess(_ sender: NSMenuItem) {
+        do { try broker.pause(seconds:sender.tag == 0 ? nil : sender.tag) }
+        catch { broker.journal?.diagnostic("operator.pause", code:"pause_storage_unavailable") }
+    }
+    @objc private func resumeAccess() {
+        do { try onResume?() }
+        catch { broker.journal?.diagnostic("operator.resume", code:"pause_recovery_required") }
+    }
     @objc private func showSetup() {
         setup.show()
     }
 
     @objc private func quit() {
+        onRevoke?("operator_quit")
         NSApp.terminate(nil)
     }
 

@@ -65,4 +65,23 @@ final class AccessAdmissionTests: XCTestCase {
         XCTAssertThrowsError(try admission.accept(owner: "a", id: notice["intentId"] as! String, generation: notice["offerGeneration"] as! Int))
         XCTAssertThrowsError(try admission.pause("desktop", reason: "bad", seconds: .nan))
     }
+    func testNoticeChangesFenceOffersAndNeverReplaceActiveControl() throws {
+        var clock = 0.0
+        let arbiter = AccessAdmission(); arbiter.now = { clock }; arbiter.register("desktop")
+        let intent = try arbiter.submit(owner:"a", requestID:"notice", resources:["desktop"],
+            wait:100, duration:60, reason:"Fixture", authority:{ nil }, notice:10)
+        let id = intent["intentId"] as! String
+        clock = 9
+        arbiter.reconfigureNotice(30)
+        XCTAssertEqual(try arbiter.inspect(owner:"a", id:id)["noticeRemainingSeconds"] as? Double, 30)
+        arbiter.reconfigureNotice(0)
+        let offer = try arbiter.inspect(owner:"a", id:id)
+        _ = try arbiter.accept(owner:"a", id:id, generation:offer["offerGeneration"] as! Int)
+        XCTAssertThrowsError(try arbiter.startNow(id))
+        arbiter.reconfigureNotice(10)
+        XCTAssertEqual(try arbiter.inspect(owner:"a", id:id)["state"] as? String, "active")
+        XCTAssertEqual(try arbiter.submit(owner:"a", requestID:"notice", resources:["desktop"],
+            wait:100, duration:60, reason:"Fixture", authority:{ nil }, notice:10)["intentId"] as? String, id)
+    }
+
 }

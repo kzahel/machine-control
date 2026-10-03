@@ -39,11 +39,15 @@ internal static class Contract
         ?? throw new InvalidDataException("Result JSON was null");
 }
 
+internal sealed record ControlOwnership(string Owner, string Intent, string Session, Dictionary<string, long> Generations);
+
 internal sealed record Request
 {
     // Trusted in-process context only. Never deserialized from any facade.
     [JsonIgnore]
     public UnlockAttempt? UnlockAttempt { get; init; }
+    [JsonIgnore]
+    public ControlOwnership? ControlOwnership { get; init; }
     public string? RequestId { get; init; }
     public required string Operation { get; init; }
     public string? Scope { get; init; }

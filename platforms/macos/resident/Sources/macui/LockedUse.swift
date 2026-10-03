@@ -49,8 +49,8 @@ func consoleSessionReplaced(_ initial: [String:Any], _ current: [String:Any]) ->
 struct GrantConsoleBinding {
     let grantID: String
     let session: [String:Any]
-    init?(grantID: String, observation: [String:Any]) {
-        guard observation["desktopState"] as? String == "unlocked",
+    init?(grantID: String, observation: [String:Any], restoring: Bool = false) {
+        guard (observation["desktopState"] as? String == "unlocked" || (restoring && observation["desktopState"] as? String == "locked")),
               (observation["uid"] as? NSNumber)?.uint32Value == getuid(),
               sameConsoleSession(observation, observation) else { return nil }
         self.grantID = grantID; session = observation
@@ -63,7 +63,7 @@ struct GrantConsoleBinding {
 func retainLockedUseAccess(enabled: Bool, paused: Bool, phase: String,
                            interruption: String?, endReason: String?, pauseReason: String? = nil) -> Bool {
     guard enabled else { return false }
-    let resumable = ["physical_presence", "local_use_episode", "operator_paused", "paused", "cancelled"]
+    let resumable = ["physical_presence", "local_use_episode", "operator_paused", "paused", "cancelled", "operator_quit", "resident_stopping"]
     if paused && !resumable.contains(pauseReason ?? endReason ?? interruption ?? "") { return false }
     if phase == "relocking" {
         return ["completed", "duration_expired"].contains(endReason ?? "") || resumable.contains(endReason ?? "")
@@ -73,7 +73,7 @@ func retainLockedUseAccess(enabled: Bool, paused: Bool, phase: String,
 
 /// Expected endings still relock, but need no fault acknowledgement in root.
 func cleanCoveredEnding(_ reason: String) -> Bool {
-    ["completed", "duration_expired", "operator_paused", "paused", "cancelled"].contains(reason)
+    ["completed", "duration_expired", "operator_paused", "paused", "cancelled", "operator_quit", "resident_stopping"].contains(reason)
 }
 
 /// Private, measured OS lock primitive; success is always checked via IOKit.

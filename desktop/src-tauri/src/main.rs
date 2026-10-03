@@ -119,7 +119,19 @@ async fn operator_command(
     command: Value,
 ) -> Result<Value, String> {
     if window.label() != "main" {
-        return Err("Operator window required".into());
+        let method = command["method"].as_str().unwrap_or("");
+        if window.label() != "control-notice"
+            || ![
+                "state",
+                "start_control",
+                "defer_control",
+                "pause",
+                "cancel_control",
+            ]
+            .contains(&method)
+        {
+            return Err("Operator window required".into());
+        }
     }
     let (send, receive) = std::sync::mpsc::channel();
     schedule_native(&app, move || {
@@ -144,12 +156,15 @@ async fn restart_application(
     schedule_native(&app, move || {
         #[cfg(target_os = "windows")]
         let result = {
-            let _ = native_command(json!({"method":"stop"}));
+            let _ = native_command(json!({"method":"prepare_exit"}));
             restart::request(&handle)
         };
-        #[cfg(not(target_os = "windows"))]
+        #[cfg(target_os = "linux")]
         let result =
             native_command(json!({"method":"stop"})).and_then(|_| restart::request(&handle));
+        #[cfg(target_os = "macos")]
+        let result = native_command(json!({"method":"prepare_exit"}))
+            .and_then(|_| restart::request(&handle));
         let _ = send.send(result);
     })
     .map_err(|e| e.to_string())?;
@@ -353,6 +368,14 @@ fn main() {
                         value["state"]["deployment"]["policy"]["grantMode"] == "standing";
                     let show = !pending.is_empty() && pending != previous_pending;
                     previous_pending = pending;
+                    #[cfg(target_os = "windows")]
+                    let announcing = value["state"]["admission"]["requests"]
+                        .as_array()
+                        .is_some_and(|requests| {
+                            requests
+                                .iter()
+                                .any(|request| request["state"] == "announcing")
+                        });
                     let ui = handle.clone();
                     let _ = handle.run_on_main_thread(move || {
                         if let Some(tray) = ui.tray_by_id("control") {
@@ -370,6 +393,29 @@ fn main() {
                                 } else {
                                     ""
                                 }));
+                            }
+                        }
+                        #[cfg(target_os = "windows")]
+                        {
+                            if announcing {
+                                if let Some(window) = ui.get_webview_window("control-notice") {
+                                    let _ = window.show();
+                                } else {
+                                    let _ = tauri::WebviewWindowBuilder::new(
+                                        &ui,
+                                        "control-notice",
+                                        tauri::WebviewUrl::App("index.html?control-notice".into()),
+                                    )
+                                    .title("Machine Control")
+                                    .inner_size(470.0, 270.0)
+                                    .resizable(false)
+                                    .focused(false)
+                                    .skip_taskbar(true)
+                                    .always_on_top(true)
+                                    .build();
+                                }
+                            } else if let Some(window) = ui.get_webview_window("control-notice") {
+                                let _ = window.hide();
                             }
                         }
                         if show {
@@ -425,7 +471,7 @@ fn main() {
                         }
                         #[cfg(not(target_os = "linux"))]
                         {
-                            let _ = native_command(json!({"method":"stop"}));
+                            let _ = native_command(json!({"method":"prepare_exit"}));
                             #[cfg(target_os = "windows")]
                             windows::shutdown();
                             app.exit(0);
@@ -441,6 +487,12 @@ fn main() {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let _ = window.hide();
+                if window.label() == "control-notice" {
+                    let app = window.app_handle().clone();
+                    let _ = schedule_native(&app, || {
+                        let _ = native_command(json!({"method":"defer_control"}));
+                    });
+                }
             }
         })
         .build(tauri::generate_context!())

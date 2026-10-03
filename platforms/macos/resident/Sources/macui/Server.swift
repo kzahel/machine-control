@@ -99,7 +99,19 @@ final class ResidentServer {
     var coveredActivation: ((AdmissionChannel, [String:Any]) throws -> Void)?
     var controlledProvider: (([String:Any]) -> [String:Any])?
     private var channels: [Int32:AdmissionChannel] = [:]
+    private var noticePolicyState = ""
+    var notice: AdmissionNotice?
     private var handshakes: [Int32:RequestHandshake] = [:]
+    func callerSummary(for intent: String) -> String { channels.values.first(where:{ $0.intentID == intent })?.caller.summary ?? "Local process" }
+    func startNow(_ intent: String) throws {
+        try broker.admission.startNow(intent)
+        activity.acknowledgeCurrentActivity()
+        refreshAdmission()
+    }
+    func cancelFromOperator(_ intent: String) throws {
+        guard let channel = channels.values.first(where:{ $0.intentID == intent }) else { throw MacUIError.action("stale_activation_notice") }
+        try broker.admission.cancel(owner:channel.owner, id:intent)
+    }
     func removeChannel(_ descriptor: Int32) { channels.removeValue(forKey:descriptor) }
     func refreshAdmission() { tick() }
     func activateCovered(_ channel: AdmissionChannel, view: [String:Any]) throws {
@@ -216,6 +228,22 @@ final class ResidentServer {
     }
     deinit { stop() }
 
+    func restoreOperatorConsent() {
+        guard broker.policy.grantMode == .approval, broker.grant == nil, broker.pending == nil,
+              let store = broker.consentStore, broker.consentStorageError == nil, broker.journal?.errorCode == nil else { return }
+        service.refreshSession()
+        let observation = grantConsoleObservation()
+        guard let (scopes, duration) = store.consent(console:observation) else { return }
+        let helper = service.unlockStatus()
+        if helper["lockedUsePaused"] as? Bool == true &&
+            !["physical_presence", "local_use_episode"].contains(helper["lockedUsePauseReason"] as? String ?? "") { return }
+        if observation["desktopState"] as? String == "locked" && !lockedUse.enabled { return }
+        guard ["unlocked", "locked"].contains(observation["desktopState"] as? String ?? ""),
+              AXIsProcessTrusted(), CGPreflightScreenCaptureAccess(), CGPreflightPostEventAccess() else { return }
+        guard let fresh = broker.restoreConsent(scopes:scopes, remainingSeconds:duration) else { return }
+        grantConsoleBinding = GrantConsoleBinding(grantID:fresh.id, observation:observation, restoring:true)
+    }
+
     private func bindApprovedConsole() {
         let id = broker.grant?.id
         guard observedGrantID != id else { return }
@@ -255,8 +283,14 @@ final class ResidentServer {
 
     private func tick() {
         autoreleasepool { service.refreshSession() }
+        restoreOperatorConsent()
         let observation = grantConsoleObservation()
         let state = observation["desktopState"] as? String ?? "unknown"
+        let noticeState = "\(state):\(lockedUse.isCovered):\(noticeSeconds)"
+        if noticeState != noticePolicyState {
+            noticePolicyState = noticeState
+            broker.admission.reconfigureNotice(state == "locked" || lockedUse.isCovered ? 0 : noticeSeconds)
+        }
         if broker.policy.grantMode == .approval, let grant = broker.activeGrant {
             let reason: String?
             if grantConsoleBinding?.matches(grantID:grant.id, observation:observation) != true {
@@ -275,6 +309,7 @@ final class ResidentServer {
         if activity.enabled { activity.tick(broker, helper:service.unlockStatus()) }
         broker.refreshAvailability()
         for channel in Array(channels.values) { channel.tick() }
+        notice?.update()
     }
 
     private func acceptPending() {
@@ -345,8 +380,12 @@ final class ResidentServer {
                 respond(client, request, service.refusal(request, code:"admission_queue_full", message:"Admission channel limit reached"), caller:caller, claimID:claimID); return
             }
             let channel = AdmissionChannel(client, caller:caller, server:self)
-            do { try channel.open(request); channels[client] = channel; keepOpen = true }
-            catch { respond(client, request, service.refusal(request, code:String(describing:error), message:"Cannot open admission channel"), caller:caller, claimID:claimID) }
+            // Transfer descriptor ownership before opening: an immediately
+            // disconnected peer must not leave a resurrected channel or cause
+            // both the server defer and source cancellation to close this fd.
+            channels[client] = channel; keepOpen = true
+            do { try channel.open(request) }
+            catch { channel.reply(request["requestId"] as? String ?? "", error:String(describing:error)); channel.close() }
             return
         }
 
@@ -558,7 +597,6 @@ final class ResidentServer {
     /// Ends the grant from a trusted local surface such as the menu.
     func revoke(reason: String) {
         lockedUse.end(reason)
-        guard broker.grant != nil else { return }
         broker.revoke(reason: reason)
         service.invalidateReferences()
     }
@@ -693,17 +731,40 @@ func runResident(socketPath: String) throws -> Never {
     // A server never wants a stray write to a closed peer to kill it.
     signal(SIGPIPE, SIG_IGN)
     let broker = GrantBroker(policy: DeploymentPolicy.load())
+    broker.journal = DesktopJournal()
+    try FileManager.default.createDirectory(atPath:(socketPath as NSString).deletingLastPathComponent,
+        withIntermediateDirectories:true, attributes:[.posixPermissions:0o700])
+    if broker.policy.grantMode == .approval { attachOperatorConsent(broker, socketPath:socketPath) }
     let server = ResidentServer(socketPath: socketPath, service: ResidentService(),
                                 broker: broker)
     try server.start()
     server.devtools.start()
     let application = NSApplication.shared
     application.setActivationPolicy(.accessory)
+    server.notice = AdmissionNotice(server:server)
+    // Inner appliance input does not reserve or observe the controller desktop.
+    if broker.policy.grantMode == .approval { server.activity.enable() }
     let approval = ApprovalPanelController()
     let setup = SetupWindowController()
     setup.browserConnected = { [weak server] in server?.browser.connected == true }
     let menu = StatusMenuController(broker: broker, approval: approval, setup: setup)
     menu.onRevoke = { [weak server] reason in server?.revoke(reason: reason) }
+    menu.onResume = { [weak server] in
+        try server?.service.resumeCoveredAvailability()
+        try server?.broker.resume()
+    }
+    menu.onArm = { [weak server] duration in
+        guard let server else { return }
+        guard server.broker.consentStorageError == nil else { throw MacUIError.action("consent_storage_unavailable") }
+        try server.broker.consentStore?.enable(scopes:Set(GrantScope.allCases), duration:duration,
+            console:server.grantConsoleObservation())
+        if let duration { server.broker.issue(scopes:Set(GrantScope.allCases), durationSeconds:duration,
+            reason:"Armed from the menu bar", requester:"local operator", approver:"menu") }
+        else { server.broker.issueUntilStopped(scopes:Set(GrantScope.allCases),
+            reason:"Armed from the menu bar", requester:"local operator", approver:"menu") }
+        if server.broker.journal?.errorCode != nil { server.revoke(reason:"audit_storage_unavailable") }
+    }
+
     broker.observe { [weak menu] in menu?.updateIcon() }
     approval.onChange = { [weak menu] in menu?.updateIcon() }
     if broker.policy.grantMode == .approval {

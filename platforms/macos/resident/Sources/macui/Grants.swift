@@ -180,6 +180,8 @@ final class GrantBroker {
     private(set) var lastEnded: (reason: String, at: Date)?
     private(set) var audit: [AuditEntry] = []
     private let auditLimit = 100
+    var consentStore: OperatorConsentStore?
+    var consentStorageError: String?
     var availabilityChanged: (() -> Void)?
     private var availabilityRevision = 0
     lazy var admission: AccessAdmission = {
@@ -199,12 +201,15 @@ final class GrantBroker {
 
     /// Called only by trusted native/operator surfaces or internal monitors.
     func pause(reason: String = "manual", seconds: Int? = nil) throws {
+        if reason == "manual" || reason == "operator_deferral" { try consentStore?.pause(seconds:seconds, deferral:reason == "operator_deferral") }
         try admission.pause("desktop", reason: reason, seconds: seconds.map(Double.init))
         journal?.event("access.paused")
     }
 
-    func resume() {
+    func resume() throws {
+        try consentStore?.resume()
         admission.resume("desktop", reason: "manual")
+        admission.resume("desktop", reason: "operator_deferral")
         admission.resume("desktop", reason: "local_use_episode")
         journal?.event("access.resumed")
     }
@@ -367,14 +372,30 @@ final class GrantBroker {
         return next
     }
 
+    /// Restore only the remaining consent lifetime; never clamp it up to the
+    /// minimum duration of a new approval request.
+    @discardableResult
+    func restoreConsent(scopes: Set<GrantScope>, remainingSeconds: Int?) -> Grant? {
+        guard !scopes.isEmpty, remainingSeconds == nil || (1...28800).contains(remainingSeconds!) else { return nil }
+        let issued = now()
+        let next = Grant(id: UUID().uuidString.lowercased(), scopes:scopes, issuedAt:issued,
+            expiresAt:remainingSeconds.map { issued.addingTimeInterval(Double($0)) },
+            reason:"Restored local operator consent", requester:"local operator", approver:"local_consent")
+        guard journal?.event("access.restored") != false else { return nil }
+        grant = next; lastEnded = nil; notify()
+        return next
+    }
+
     func revoke(reason: String) {
-        guard grant != nil else { return }
         end(reason: reason)
     }
 
     private func end(reason: String) {
         journal?.event("access." + DesktopJournal.token(reason))
         grant = nil
+        if !["operator_quit", "operator_disconnected", "resident_stopping", "desktop_locked", "watchdog_interrupted", "helper_stopping", "helper_restarted", "system_sleep", "display_sleep", "display_changed", "owner_disconnected", "input_guard_unavailable"].contains(reason) {
+            do { try consentStore?.disable() } catch { consentStorageError = String(describing:error) }
+        }
         admission.stop(reason)
         lastEnded = (reason, now())
         notify()
@@ -403,6 +424,7 @@ final class GrantBroker {
                 ["reason": ended.reason,
                  "at": ISO8601DateFormatter().string(from: ended.at)]
             } ?? NSNull(),
+            "consentStorageError":consentStorageError as Any? ?? NSNull(),
             "availability": ["paused": !admission.blocks("desktop").isEmpty,
                 "blockingReasons": admission.blocks("desktop")],
         ]

@@ -27,6 +27,7 @@
         "leaseRemainingSeconds": { "$ref": "#/$defs/seconds" },
         "offerRemainingSeconds": { "$ref": "#/$defs/optionalSeconds" },
         "noticeRemainingSeconds": { "$ref": "#/$defs/optionalSeconds" },
+        "maximumDurationSeconds": { "type": "number", "minimum": 1, "maximum": 900 },
         "activeRemainingSeconds": { "$ref": "#/$defs/optionalSeconds" },
         "reason": { "type": "string", "minLength": 1, "maxLength": 240 }
       }

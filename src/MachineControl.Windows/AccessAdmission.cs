@@ -95,7 +95,7 @@ internal sealed class AccessAdmission(TimeProvider? time = null, object? gate = 
             if (existing is not null)
             {
                 if (!existing.Resources.SequenceEqual(normalized) || existing.Duration != durationSeconds ||
-                    existing.WaitSeconds != waitSeconds || existing.Reason != reason || existing.Notice != noticeSeconds)
+                    existing.WaitSeconds != waitSeconds || existing.Reason != reason || existing.RequestedNotice != noticeSeconds)
                     throw new ArgumentException("Idempotency key reused with different intent");
                 return View(existing);
             }
@@ -115,6 +115,7 @@ internal sealed class AccessAdmission(TimeProvider? time = null, object? gate = 
                 Reason = reason,
                 Authority = authority,
                 Notice = noticeSeconds,
+                RequestedNotice = noticeSeconds,
             };
             _intents.Add(intent);
             Change("intent.submitted", intent);
@@ -206,13 +207,25 @@ internal sealed class AccessAdmission(TimeProvider? time = null, object? gate = 
         }
     }
 
+    internal void CancelFromOperator(string id)
+    {
+        lock (Gate)
+        {
+            Refresh();
+            var intent = _intents.FirstOrDefault(i => i.Id == id)
+                ?? throw new InvalidOperationException("stale_activation_notice");
+            if (intent.Terminal is null) Finish(intent, "cancelled_by_person");
+            Refresh();
+        }
+    }
+
     /// Local operator only; does not clear activity, readiness or authority.
     internal void StartNow(string id)
     {
         lock (Gate)
         {
             Refresh();
-            var intent = _intents.FirstOrDefault(i => i.Id == id && i.Terminal is null)
+            var intent = _intents.FirstOrDefault(i => i.Id == id && i.Terminal is null && i.Session is null)
                 ?? throw new InvalidOperationException("stale_activation_notice");
             intent.Notice = 0;
             intent.State = "waiting_for_resource";
@@ -372,6 +385,7 @@ internal sealed class AccessAdmission(TimeProvider? time = null, object? gate = 
         noticeRemainingSeconds = intent.State == "announcing" ? Math.Max(0, intent.NoticeDeadline - Now) : (double?)null,
         activeRemainingSeconds = intent.Session is null ? (double?)null : Math.Max(0, intent.ActiveDeadline - Now),
         reason = intent.Reason,
+        maximumDurationSeconds = intent.Duration,
     };
     private sealed class Resource
     {
@@ -385,7 +399,7 @@ internal sealed class AccessAdmission(TimeProvider? time = null, object? gate = 
         internal required string Id, Owner, RequestId, Reason;
         internal required string[] Resources;
         internal required Func<string?> Authority;
-        internal double Deadline, WaitSeconds, Heartbeat, Duration, Notice, NoticeDeadline, OfferDeadline, ActiveDeadline;
+        internal double Deadline, WaitSeconds, Heartbeat, Duration, Notice, RequestedNotice, NoticeDeadline, OfferDeadline, ActiveDeadline;
         internal long OfferGeneration;
         internal string State = "waiting_for_resource";
         internal string? Terminal, Session, AuthorizationBlock;

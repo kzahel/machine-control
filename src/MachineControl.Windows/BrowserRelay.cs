@@ -153,7 +153,7 @@ internal sealed class BrowserRelay(DesktopGrants grants)
             FocusConsequence = "browser_tab_may_activate",
             CursorConsequence = "unchanged_expected"
         };
-        var refusal = grants.Authorize(request.Operation, request.ExpectedGeneration, controlled);
+        var refusal = grants.Authorize(request, request.ExpectedGeneration);
         if (refusal is not null) return result with { ErrorCode = refusal };
         if (!Connected) return result with { ErrorCode = "browser_provider_unavailable" };
         var parameters = JsonSerializer.SerializeToNode(request, Contract.Json)!.AsObject();
@@ -172,7 +172,7 @@ internal sealed class BrowserRelay(DesktopGrants grants)
         try
         {
             // Recheck after asynchronous scheduling and before dispatch.
-            refusal = grants.Authorize(request.Operation, generation, controlled);
+            refusal = grants.Authorize(request, generation);
             if (refusal is not null) return result with { ErrorCode = refusal };
             await SendAsync(new JsonObject
             {
@@ -184,7 +184,7 @@ internal sealed class BrowserRelay(DesktopGrants grants)
             }, cancellation, controlled);
             dispatched = true;
             var response = await completion.Task.WaitAsync(TimeSpan.FromMilliseconds(request.TimeoutMs ?? 45000), cancellation);
-            refusal = grants.Authorize(request.Operation, generation, controlled);
+            refusal = grants.Authorize(request, generation);
             if (refusal is not null || providerGeneration != _providerGeneration)
                 return Uncertain(result, refusal ?? "browser_provider_changed");
             if (response["ok"]?.GetValue<bool>() != true)

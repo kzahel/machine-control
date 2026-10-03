@@ -5,8 +5,6 @@ using System.Text.Json.Nodes;
 
 namespace MachineControl.Windows;
 
-internal sealed record ControlOwnership(string Owner, string Intent, string Session, Dictionary<string, long> Generations);
-
 /// Connection ownership under the existing same-user workstation grant profile.
 /// No public owner label, session identifier or request ID supplies authority.
 internal static class AdmissionChannel

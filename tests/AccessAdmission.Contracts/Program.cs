@@ -89,6 +89,15 @@ Refuses(() => approval.Submit("owner", "nan", ["host"], double.NaN, 60, "Invalid
 Refuses(() => approval.Pause("host", "invalid", double.NaN), "Non-finite pause refused");
 approval.Pause("host", "manual"); approval.StartNow(awaiting);
 Assert(Json(approval.Inspect("owner", awaiting)).GetProperty("state").GetString() == "paused", "Start now cannot bypass pause");
+approval.Resume("host", "manual");
+var begun = Json(approval.Accept("owner", awaiting,
+    Json(approval.Inspect("owner", awaiting)).GetProperty("offerGeneration").GetInt64()));
+Refuses(() => approval.StartNow(awaiting), "Start now cannot replace an active session");
+approval.CancelFromOperator(awaiting);
+Assert(Json(approval.Inspect("owner", awaiting)).GetProperty("terminalReason").GetString() == "cancelled_by_person", "Operator cancellation is terminal");
+var idempotent = Id(approval.Submit("operator", "notice", ["host"], 100, 60, "Notice", () => null, 10));
+approval.StartNow(idempotent);
+Assert(Id(approval.Submit("operator", "notice", ["host"], 100, 60, "Notice", () => null, 10)) == idempotent, "Start now preserves submission idempotence");
 Console.WriteLine("Access admission contract checks passed");
 
 sealed class Clock : TimeProvider

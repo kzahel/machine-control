@@ -28,7 +28,7 @@ final class AccessAdmission {
         let id = UUID().uuidString.lowercased()
         let owner, requestID, reason: String
         let resources: [String]
-        let duration, waitSeconds, deadline: Double
+        let duration, waitSeconds, deadline, requestedNotice: Double
         let authority: () -> String?
         var heartbeat, notice: Double
         var noticeDeadline = 0.0, offerDeadline = 0.0, activeDeadline = 0.0
@@ -41,7 +41,7 @@ final class AccessAdmission {
              notice: Double, now: Double, lease: Double) {
             self.owner = owner; self.requestID = requestID; self.resources = resources
             self.waitSeconds = wait; self.duration = duration; self.reason = reason
-            self.authority = authority; self.notice = notice
+            self.authority = authority; self.notice = notice; self.requestedNotice = notice
             deadline = now + wait; heartbeat = now + lease
         }
     }
@@ -85,7 +85,7 @@ final class AccessAdmission {
         let normalized = names.sorted()
         if let existing = intents.first(where: { $0.owner == owner && $0.requestID == requestID }) {
             guard existing.resources == normalized, existing.duration == duration,
-                  existing.waitSeconds == wait, existing.reason == reason, existing.notice == notice else {
+                  existing.waitSeconds == wait, existing.reason == reason, existing.requestedNotice == notice else {
                 throw MacUIError.usage("admission_idempotency_conflict")
             }
             return view(existing)
@@ -141,10 +141,19 @@ final class AccessAdmission {
         for intent in intents.filter({ $0.terminal == nil }) { finish(intent, reason) }
         changed?()
     }
+    func reconfigureNotice(_ seconds: Double) {
+        precondition(seconds.isFinite && (0...60).contains(seconds))
+        for intent in intents where intent.terminal == nil && intent.session == nil {
+            intent.notice = seconds; intent.state = "waiting_for_resource"; intent.offerGeneration = 0
+            change("intent.notice_changed", intent)
+        }
+        refresh(); changed?()
+    }
+
     /// Operator-only. Activity and faults still block admission.
     func startNow(_ id: String) throws {
         refresh()
-        guard let intent = intents.first(where: { $0.id == id && $0.terminal == nil }) else {
+        guard let intent = intents.first(where: { $0.id == id && $0.terminal == nil && $0.session == nil }) else {
             throw MacUIError.action("stale_activation_notice")
         }
         intent.notice = 0; intent.state = "waiting_for_resource"; refresh(); changed?()
@@ -257,6 +266,6 @@ final class AccessAdmission {
             "offerRemainingSeconds": intent.state == "offered" ? max(0, intent.offerDeadline - now()) as Any : NSNull(),
             "noticeRemainingSeconds": intent.state == "announcing" ? max(0, intent.noticeDeadline - now()) as Any : NSNull(),
             "activeRemainingSeconds": intent.session == nil ? NSNull() : max(0, intent.activeDeadline - now()) as Any,
-            "reason": intent.reason]
+            "reason": intent.reason, "maximumDurationSeconds": intent.duration]
     }
 }

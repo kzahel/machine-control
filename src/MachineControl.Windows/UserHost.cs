@@ -151,6 +151,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
 
     private async Task<Result> ExecuteAsync(Request request, string caller, CancellationToken cancellationToken, ControlOwnership? ownership = null)
     {
+        request = request with { ControlOwnership = ownership };
         var result = Envelope(request);
         string? OwnershipRefusal() => ownership is null ? null : grants!.Admission.Authorize(ownership.Owner, ownership.Intent, ownership.Session, ownership.Generations);
         if (OwnershipRefusal() is { } ownerDenied) return result with { ErrorCode = ownerDenied };
@@ -261,7 +262,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
                 Message = "Desktop access refused before dispatch",
                 Data = new { requiredScope = DesktopGrants.ScopeFor(request.Operation), requestOperation = "grant.request" }
             };
-            return await ProviderRouter.ExecuteAsync(request, generation, cancellationToken);
+            return await ProviderRouter.ExecuteAsync(request with { ControlOwnership = ownership }, generation, cancellationToken);
         }
         finally { _providerGate.Release(); }
     }

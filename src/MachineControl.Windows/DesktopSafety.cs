@@ -24,7 +24,7 @@ internal static class DesktopSafety
     {
         if (Broker is not { } broker) return null;
         broker.SetReady(Ready());
-        var refusal = broker.Authorize(request.Operation, generation);
+        var refusal = broker.Authorize(request, generation);
         if (refusal is not null) return refusal;
         if (DesktopGrants.ScopeFor(request.Operation) != "control") return null;
         if (OwnProcess(resolvedProcess ?? request.ProcessId) || OwnWindow(new IntPtr(request.Hwnd ?? 0)))

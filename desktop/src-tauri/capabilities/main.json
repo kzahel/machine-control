@@ -1,6 +1,11 @@
 {
   "identifier": "main",
   "description": "Local operator window; no remote content or general shell access.",
-  "windows": ["main"],
-  "permissions": ["core:default"]
+  "windows": [
+    "main",
+    "control-notice"
+  ],
+  "permissions": [
+    "core:default"
+  ]
 }

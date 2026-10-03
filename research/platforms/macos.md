@@ -21,6 +21,21 @@ actions, and target-local input. Stable application identity and TCC consent
 are deployment requirements. Login window, FileVault/preboot, credentials, and
 some protected surfaces are separate authority domains.
 
+## Resumable admission
+
+**Current, `built` and bounded `live-tested`:** the owned admission channel
+queues live same-user owners, uses finite offers and sessions, and fences
+scoped actions. Consent/manual pause persistence and nonactivating notice
+presentation compile in both Mac app shells. A normally deployed Tart resident
+passed doctor, remote inner window observation and one native AX fixture action
+whose independent counter increased exactly once. A large snapshot exposed
+socket backpressure; bounded asynchronous replies passed the regression fixture
+and the repeated native effect trial. [Tactical 079](../../docs/tactical/079-consent-and-control-notices.md)
+owns this slice; [access admission](../../topics/access-admission-and-pause.md)
+owns current direction. Physical locked-quiet/restart, notice focus and assisted
+navigation acceptance remain open. Caller assurance is cooperative same-user,
+not authenticated YA session delegation.
+
 ## Caller authentication gap
 
 **Current, `source-reviewed`:** the owned resident's ordinary local socket is

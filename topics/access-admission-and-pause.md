@@ -304,3 +304,11 @@ connection-owned waiting/offers, full resource fencing, parent cleanup and
 standalone CLI/SDK use. Mac initial framing no longer blocks the main queue.
 This is not YA-attested delegation or native distribution acceptance; shared
 outer resource arbitration and operator persistence/presentation remain open.
+
+**Current:** [Tactical 079](../docs/tactical/079-consent-and-control-notices.md)
+adds same-console Mac consent/pause persistence, native resource-level notices,
+shared operator controls and the lower-level Windows dispatch fence. Stop
+clears saved consent before readiness, and timed restoration preserves exact
+remaining lifetime. Remote inner Mac native observation and one independently counted AX action
+passed after normal resident deployment. Physical takeover/restart, native presentation and the
+remaining shared-resource/authenticated-integration acceptance stay open.

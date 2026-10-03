@@ -142,3 +142,5 @@ the commits' `Topic:` trailers and register that exact string in
 - [077 — Mac locked quiet resumption](077-mac-quiet-resumption.md): root pause reasons, locked quiet eligibility and operator Resume; physical acceptance pending.
 
 - [078 — Live desktop admission channels](078-live-admission-channels.md): owner-bound queues, fenced dispatch, activity monitor and standalone client; native acceptance pending.
+
+- [079 — Consent and control notices](079-consent-and-control-notices.md): Mac consent/pause persistence, native notices and dispatch fencing; physical acceptance pending.

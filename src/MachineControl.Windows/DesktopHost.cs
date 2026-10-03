@@ -95,6 +95,10 @@ internal static class DesktopHost
                         case "stop": broker.Stop("stopped_by_person"); reply = new { ok = true }; break;
                         case "pause": broker.Pause(command["duration"]?.GetValue<int>()); reply = new { ok = true }; break;
                         case "resume": broker.Resume(); reply = new { ok = true }; break;
+                        case "start_control": broker.Admission.StartNow(command["intentId"]!.GetValue<string>()); reply = new { ok = true }; break;
+                        case "defer_control": broker.Admission.Pause("desktop", "operator_deferral", 60); reply = new { ok = true }; break;
+                        case "cancel_control": broker.Admission.CancelFromOperator(command["intentId"]!.GetValue<string>()); reply = new { ok = true }; break;
+                        case "prepare_exit": broker.Stop("operator_quit"); reply = new { ok = true }; break;
                         case "prepare_update": broker.PrepareUpdate(); reply = new { ok = true }; break;
                         case "cancel_update": broker.CancelUpdate(); reply = new { ok = true }; break;
                         case "quit": broker.Stop("operator_quit"); reply = new { ok = true }; stop.Cancel(); break;

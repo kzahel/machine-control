@@ -15,6 +15,7 @@ final class PhysicalAvailability {
     var now: () -> Double = { ProcessInfo.processInfo.systemUptime }
     var idleObservation: () -> Double? = PhysicalAvailability.hidIdle
     private(set) var enabled = false
+    var respectRecentActivity = true
     private var publishedActivity: Double?
     private var publishedReason: String?
 
@@ -33,6 +34,12 @@ final class PhysicalAvailability {
         lock.lock(); lastPhysical = now(); lock.unlock()
     }
     func arm(baseline: Double?) { lock.lock(); activeBaseline = baseline; active = true; lock.unlock() }
+    /// Explicit Start now acknowledges only the observed activity episode.
+    /// A later hardware event immediately interrupts again; unknown cannot clear.
+    func acknowledgeCurrentActivity() {
+        guard healthy else { return }
+        lock.lock(); lastPhysical = now() - 30; lock.unlock()
+    }
     func disarm() { lock.lock(); active = false; activeBaseline = nil; lock.unlock() }
     var interruption: String? {
         guard enabled else { return nil }
@@ -68,7 +75,8 @@ final class PhysicalAvailability {
             }
         }
         let activity = physicalAt
-        let reason = Self.reason(healthy:healthy, physicalAt:activity, now:time)
+        var reason = Self.reason(healthy:healthy, physicalAt:activity, now:time)
+        if !respectRecentActivity && reason == "physical_activity" && interruption == nil { reason = nil }
         if publishedReason != reason || (reason == "physical_activity" && publishedActivity != activity) {
             if let reason { try? broker.admission.pause("desktop", reason:reason,
                 seconds:reason == "physical_activity" ? max(0.001, (activity ?? time) + 30 - time) : nil) }

@@ -37,7 +37,7 @@ internal static class AdmissionChannelFixtures
                 using (var reader = new StreamReader(resident.GetStream(), Encoding.UTF8, false, 4096, leaveOpen: true))
                     await AdmissionChannel.RunAsync(resident.GetStream(), reader, opening, grants, (request, fence, cancellation) =>
                     {
-                        var denied = grants.Admission.Authorize(fence.Owner, fence.Intent, fence.Session, fence.Generations);
+                        var denied = grants.Authorize(request with { ControlOwnership = fence });
                         if (denied is not null) return Task.FromResult(new Result { Operation = request.Operation, RequestId = request.RequestId!, ErrorCode = denied });
                         Interlocked.Increment(ref effects);
                         return Task.FromResult(new Result { Operation = request.Operation, RequestId = request.RequestId!, Accepted = true, Delivery = "confirmed", Effect = "observed" });
@@ -70,6 +70,8 @@ internal static class AdmissionChannelFixtures
             Require(!(await Call(b, "control.dispatch", Action()))["accepted"]!.GetValue<bool>() && effects == 0, "Other owner cannot borrow fence");
             Require((await Call(a, "control.dispatch", Action()))["accepted"]!.GetValue<bool>() && effects == 1, "Owned effect observed");
             Require(grants.Authorize("type") == "control_session_required", "Legacy callers cannot borrow holder");
+            var forged = Contract.ParseRequest("{\"operation\":\"type\",\"controlOwnership\":{\"owner\":\"forged\"}}");
+            Require(forged.ControlOwnership is null && grants.Authorize(forged) == "control_session_required", "JSON cannot supply native owner context");
             grants.Pause();
             Require(!(await Call(a, "control.dispatch", Action()))["accepted"]!.GetValue<bool>() && effects == 1, "Paused effect refused");
             grants.Resume();

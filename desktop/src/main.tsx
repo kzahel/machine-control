@@ -25,6 +25,22 @@ type UpdateState = {
   error: string | null;
 };
 type State = {
+  controlPolicy?: {
+    supported: boolean;
+    mode: "when_idle" | "announce";
+    noticeSeconds: number;
+  };
+  admission?: {
+    active: number;
+    waiting: number;
+    requests: {
+      intentId: string;
+      state: string;
+      reason: string;
+      noticeRemainingSeconds: number | null;
+      maximumDurationSeconds: number;
+    }[];
+  };
   updates?: UpdateState;
   platform?: string;
   supportedScopes?: Scope[];
@@ -223,12 +239,51 @@ function App() {
   const standing = state?.deployment.policy.grantMode === "standing";
   const availability = state?.deployment.availability;
   const manuallyPaused = availability?.blockingReasons.some((reason) =>
-    ["manual", "local_use_episode"].includes(reason),
+    ["manual", "local_use_episode", "operator_deferral"].includes(reason),
   );
   const ready =
     state?.permissions.accessibility && state?.permissions.screenRecording;
   const selected = (values: Scope[], setter: (v: Scope[]) => void, s: Scope) =>
     setter(values.includes(s) ? values.filter((v) => v !== s) : [...values, s]);
+  if (new URLSearchParams(window.location.search).has("control-notice")) {
+    const request = state?.admission?.requests.find(
+      (value) => value.state === "announcing",
+    );
+    return (
+      <main className="control-notice" aria-live="polite">
+        <h2>Computer control is about to start</h2>
+        <p>{request?.reason ?? "Waiting for the current request…"}</p>
+        <p className="note">Same-user caller; identity unverified.</p>
+        {request && (
+          <p>
+            Starts in {Math.ceil(request.noticeRemainingSeconds ?? 0)}s ·
+            Maximum control time {request.maximumDurationSeconds}s
+          </p>
+        )}
+        <div className="group-footer">
+          <button
+            disabled={busy || !request}
+            onClick={() =>
+              request &&
+              void act({ method: "start_control", intentId: request.intentId })
+            }
+          >
+            Start now
+          </button>
+          <button
+            disabled={busy}
+            onClick={() => void act({ method: "defer_control" })}
+          >
+            Wait 1 minute
+          </button>
+          <button disabled={busy} onClick={() => void act({ method: "pause" })}>
+            Pause until I resume
+          </button>
+        </div>
+        {error && <p role="alert">{error}</p>}
+      </main>
+    );
+  }
   return (
     <div className="shell">
       <nav aria-label="Sections" inert={!!state?.pending}>
@@ -309,6 +364,111 @@ function App() {
                 </button>
               )}
             </div>
+            {state?.admission && state.admission.requests.length > 0 && (
+              <section className="group" aria-label="Agent computer use">
+                <h2>Agent computer use</h2>
+                <p className="note">
+                  {state.admission.active
+                    ? "An agent is using the computer."
+                    : `${state.admission.waiting} request${state.admission.waiting === 1 ? "" : "s"} waiting.`}
+                </p>
+                {state.admission.requests.slice(0, 4).map((request) => (
+                  <div className="control-request" key={request.intentId}>
+                    <p>{request.reason}</p>
+                    <p className="note">
+                      {request.state.replaceAll("_", " ")}
+                      {request.state === "announcing"
+                        ? ` · starts in ${Math.ceil(request.noticeRemainingSeconds ?? 0)}s`
+                        : ""}{" "}
+                      · Maximum {request.maximumDurationSeconds}s
+                    </p>
+                    <div className="group-footer">
+                      {request.state === "announcing" && (
+                        <button
+                          disabled={busy}
+                          onClick={() =>
+                            void act({
+                              method: "start_control",
+                              intentId: request.intentId,
+                            })
+                          }
+                        >
+                          Start now
+                        </button>
+                      )}
+                      <button
+                        disabled={busy}
+                        onClick={() => void act({ method: "defer_control" })}
+                      >
+                        Wait 1 minute
+                      </button>
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          void act({
+                            method: "cancel_control",
+                            intentId: request.intentId,
+                          })
+                        }
+                      >
+                        Cancel request
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </section>
+            )}
+            {state?.controlPolicy?.supported && (
+              <section className="group" aria-label="Polite computer control">
+                <h2>Before an agent takes control</h2>
+                <label className="duration">
+                  Takeover policy
+                  <select
+                    aria-label="Takeover policy"
+                    value={state.controlPolicy.mode}
+                    disabled={busy || !!state.admission?.active}
+                    onChange={(event) =>
+                      void act({
+                        method: "control_policy",
+                        mode: event.target.value,
+                        noticeSeconds: state.controlPolicy?.noticeSeconds ?? 10,
+                      })
+                    }
+                  >
+                    <option value="when_idle">
+                      Wait for quiet, then announce
+                    </option>
+                    <option value="announce">
+                      Announce even when I’m using the computer
+                    </option>
+                  </select>
+                </label>
+                <label className="duration">
+                  Notice countdown
+                  <select
+                    aria-label="Notice countdown"
+                    value={state.controlPolicy.noticeSeconds}
+                    disabled={busy || !!state.admission?.active}
+                    onChange={(event) =>
+                      void act({
+                        method: "control_policy",
+                        mode: state.controlPolicy?.mode ?? "when_idle",
+                        noticeSeconds: Number(event.target.value),
+                      })
+                    }
+                  >
+                    <option value={5}>5 seconds</option>
+                    <option value={10}>10 seconds</option>
+                    <option value={30}>30 seconds</option>
+                    <option value={60}>1 minute</option>
+                  </select>
+                </label>
+                <p className="note">
+                  Local input interrupts active control. Prepared locked use can
+                  start unattended after the computer is quiet.
+                </p>
+              </section>
+            )}
             {state?.pauseSupported && (
               <section className="group" aria-label="Pause agent access">
                 <div className="group-footer">

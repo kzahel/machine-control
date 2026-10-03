@@ -358,3 +358,14 @@ select {
 .history-export {
   padding: 12px;
 }
+
+.control-notice {
+  padding: 20px;
+}
+.control-notice h2 {
+  margin-top: 0;
+}
+.control-request + .control-request {
+  border-top: 1px solid #d6dbd8;
+  padding-top: 12px;
+}

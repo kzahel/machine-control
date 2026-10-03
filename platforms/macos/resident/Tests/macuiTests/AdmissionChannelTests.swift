@@ -77,7 +77,7 @@ final class AdmissionChannelTests: XCTestCase {
         try broker.pause()
         XCTAssertEqual(command(a, "control.dispatch", action)["accepted"] as? Bool, false)
         XCTAssertEqual(effects, 1); XCTAssertEqual(broker.grant!.id, grant)
-        broker.resume()
+        try broker.resume()
         let next = command(b, "control.status")["data"] as! [String:Any]
         XCTAssertEqual(next["state"] as? String, "offered")
         XCTAssertEqual(command(a, "control.dispatch", action)["accepted"] as? Bool, false)
@@ -86,6 +86,20 @@ final class AdmissionChannelTests: XCTestCase {
         let fresh = command(a, "control.accept", ["offerGeneration":offered["offerGeneration"]!])["data"] as! [String:Any]
         XCTAssertNotEqual(accepted["sessionId"] as? String, fresh["sessionId"] as? String)
         XCTAssertEqual(effects, 1)
+    }
+    func testLargeReplySurvivesSocketBackpressureWithoutBlockingOperator() throws {
+        let client = try connect()
+        var capacity: Int32 = 1024
+        XCTAssertEqual(setsockopt(client, SOL_SOCKET, SO_RCVBUF, &capacity, socklen_t(MemoryLayout<Int32>.size)), 0)
+        let first = open(client, "large")
+        let active = command(client, "control.accept", ["offerGeneration":first["offerGeneration"]!])["data"] as! [String:Any]
+        server.controlledProvider = { _ in ["accepted":true, "data":["payload":String(repeating:"x", count:512 * 1024)]] }
+        let reply = command(client, "control.dispatch", ["sessionId":active["sessionId"]!, "resourceGenerations":active["resourceGenerations"]!, "request":["operation":"snapshot"]])
+        XCTAssertEqual(reply["accepted"] as? Bool, true)
+        let result = reply["data"] as? [String:Any]
+        XCTAssertEqual(((result?["data"] as? [String:Any])?["payload"] as? String)?.count, 512 * 1024)
+        try broker.pause()
+        XCTAssertEqual((command(client, "control.status")["data"] as? [String:Any])?["state"] as? String, "paused")
     }
     func testWireNumbersCannotBeBooleanOrFractional() {
         XCTAssertNil(admissionInteger(true))

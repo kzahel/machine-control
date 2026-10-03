@@ -59,6 +59,7 @@ public func mcDesktopStart(_ path: UnsafePointer<CChar>) -> UnsafeMutablePointer
             withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let broker = GrantBroker(policy: DeploymentPolicy.load())
         broker.journal = DesktopJournal()
+        attachOperatorConsent(broker, socketPath:socketPath)
         let server = ResidentServer(socketPath: socketPath, service: ResidentService(), broker: broker)
         if broker.policy.grantMode == .approval { server.approver = desktopApprover }
         let pid = getpid()
@@ -70,6 +71,10 @@ public func mcDesktopStart(_ path: UnsafePointer<CChar>) -> UnsafeMutablePointer
             let reference = (request["reference"] as? String).flatMap { server?.service.referencedProcess($0) }
             return selfTargetRefusal(request, own: own, referencedProcess: reference)
         }
+        server.activity.respectRecentActivity = UserDefaults.standard.string(forKey:"machineControl.admissionPolicy") != "announce"
+        let notice = UserDefaults.standard.integer(forKey:"machineControl.admissionNoticeSeconds")
+        server.noticeSeconds = (5...60).contains(notice) ? Double(notice) : 10
+        server.notice = AdmissionNotice(server:server)
         server.activity.enable()
         try server.start()
         server.devtools.start()
@@ -112,6 +117,7 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                     "manualUntilStoppedSupported": true,
                     "pauseSupported": true,
                     "admission": server.broker.admission.status,
+                    "controlPolicy": ["supported":true, "mode":server.activity.respectRecentActivity ? "when_idle" : "announce", "noticeSeconds":server.noticeSeconds],
                     "physicalActivity": server.activity.status,
                     "lockedUse": server.lockedUse.status,
                     "socket": server.socketPath, "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "development"]
@@ -130,11 +136,26 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                 server.broker.journal?.diagnostic("desktop.supervisor", code: command["code"] as? String ?? "unknown")
             case "stop":
                 stopDesktopAccess()
+            case "prepare_exit":
+                server.revoke(reason:"operator_quit")
             case "pause":
                 try server.broker.pause(seconds: command["duration"] as? Int)
             case "resume":
                 try server.service.resumeCoveredAvailability()
-                server.broker.resume()
+                try server.broker.resume()
+            case "control_policy":
+                guard let mode = command["mode"] as? String, ["when_idle", "announce"].contains(mode),
+                      let notice = command["noticeSeconds"] as? Int, (5...60).contains(notice),
+                      (server.broker.admission.status["active"] as? Int ?? 0) == 0 else { throw MacUIError.usage("Choose a supported control policy while no agent is active") }
+                UserDefaults.standard.set(mode, forKey:"machineControl.admissionPolicy")
+                UserDefaults.standard.set(notice, forKey:"machineControl.admissionNoticeSeconds")
+                server.activity.respectRecentActivity = mode == "when_idle"; server.noticeSeconds = Double(notice)
+            case "start_control":
+                try server.startNow(command["intentId"] as? String ?? "")
+            case "defer_control":
+                try server.broker.pause(reason:"operator_deferral", seconds:60)
+            case "cancel_control":
+                try server.cancelFromOperator(command["intentId"] as? String ?? "")
             case "locked_use":
                 guard !desktopUpdating, let enabled = command["enabled"] as? Bool else {
                     throw MacUIError.usage("Choose whether locked use is enabled")
@@ -165,6 +186,12 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                         reason: "Manually enabled by the person", requester: "local operator", approver: "local_tauri")
                 }
                 guard server.broker.journal?.errorCode == nil else { throw MacUIError.action("Audit storage unavailable") }
+                do {
+                    guard server.broker.consentStorageError == nil else { throw MacUIError.action("consent_storage_unavailable") }
+                    try server.broker.consentStore?.enable(scopes:scopes,
+                        duration:lifetime == "until_stopped" ? nil : command["duration"] as? Int,
+                        console:server.service.observedConsoleSession)
+                } catch { server.revoke(reason:"consent_storage_unavailable"); throw error }
             case "prepare_update":
                 guard !desktopUpdating, server.broker.policy.grantMode == .approval,
                       server.broker.grant == nil, server.broker.pending == nil,

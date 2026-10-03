@@ -77,7 +77,11 @@ Do not infer support from an ordinary v0 control endpoint. Mac physical activity
 uses existing input permission, waits for 30 seconds of quiet and fails closed
 on unknown observations; its covered guardian/root relock remain independent.
 
-Operator notice UI, persistent consent, shared host/VM outer resource admission,
-YA-attested integration and signed native acceptance are subsequent parts of
+Mac native notices and shared desktop pause controls are implemented. Mac local
+consent and manual pause/deferral persist within the same console session and
+boot; live grants, queue positions and sessions never do. Stop clears consent,
+and restoration rechecks identity, existing permissions and readiness. Windows
+approval remains timed and memory-only. Shared host/VM outer resource admission,
+YA-attested integration and further signed native acceptance remain parts of
 [Tactical 074](tactical/074-access-admission-and-pause.md). Current source/fixture
 capabilities are not release or physical acceptance.

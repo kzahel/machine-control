@@ -67,6 +67,17 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         }
     }
 
+    internal string? Authorize(Request request, string? expectedGeneration = null)
+    {
+        lock (Gate)
+        {
+            var ownership = request.ControlOwnership;
+            if (ownership is not null && Admission.Authorize(ownership.Owner, ownership.Intent,
+                ownership.Session, ownership.Generations) is { } denied) return denied;
+            return Authorize(request.Operation, expectedGeneration, ownership is not null);
+        }
+    }
+
     internal string? Authorize(string operation, string? expectedGeneration = null, bool controlled = false)
     {
         lock (Gate)
@@ -174,6 +185,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         lock (Gate)
         {
             Admission.Resume("desktop", "manual");
+            Admission.Resume("desktop", "operator_deferral");
             Journal?.Event("access.resumed");
         }
     }
