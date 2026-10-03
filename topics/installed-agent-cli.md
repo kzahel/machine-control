@@ -147,9 +147,7 @@ PNG through its native image viewer. YA also passes full-app HTTP media and
 real desktop/phone image-viewer acceptance: live output serves exact native PNG
 bytes, and a fresh app/media store reconstructs them from the actual transcript
 after provider shutdown. Preservation stays off and the fixture source remains
-available until cleanup. This media-view cell is separate from provider-driven control. Windows/Linux
-per-platform evidence remains required before
-retiring any legacy YA component. [Tactical 062](../docs/tactical/062-installed-agent-cli.md)
+available until cleanup. This media-view cell is separate from provider-driven control. Windows consumer cutover remains governed by its separate migration gates. [Tactical 062](../docs/tactical/062-installed-agent-cli.md)
 records implementation; [YA's migration plan](../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md)
 owns consumer cutover.
 
@@ -180,8 +178,12 @@ confirmed, and local and controller claims released. A real Windows
 YA Codex 0.159 provider now also uses the installed native JSON command route
 for exactly one semantic increment and new capture retrieval/image consumption.
 Independent fixture count and model image count agree. MC remains usable after
-provider close, then native Stop revokes access. Full YA media, Windows browser
-and further lifecycle cells remain separate gates.
+provider close, then native Stop revokes access. Windows browser acceptance also passes native host setup, independent page
+click/text effects, capture/hash, scope refusal, Stop/stale references, CDP,
+operator restart and extension reconnection through a verified custom install.
+A real YA Codex browser turn increments an independent HTTP counter exactly
+once and consumes the new matching PNG. Full YA media and further lifecycle
+cells remain separate gates until their independent validation completes.
 
 **Current:** Public 0.5.3 Linux x64 Debian bytes, source `d5aa271`, pass
 production YA receipt/full-client/identity/context verification and relocated,

@@ -343,3 +343,20 @@ because PowerShell cannot hash the active executable directly. Provider close
 leaves MC usable; native Stop revokes access before owned cleanup. Original
 installation registry/power are restored and all claims released. Windows browser,
 full-app media and further lifecycle gates remain open.
+
+## Windows installed browser result
+
+Exact public desktop 0.5.3 x64 passes the existing Windows installed-browser
+harness using bundled Python and Chrome for Testing 145.0.7632.117 in an owned
+profile. Native grant/deny, independent semantic click/text effects, PNG/hash,
+browser-only evaluation refusal, Stop/stale references, DevTools/CDP and
+operator restart/reconnection pass. An actual YA Codex 0.159.0 turn through
+the verified custom product directory performs one independent fixture click
+and consumes its new matching image. No primary browser or source checkout
+is used. The original native-host registry/manifest and uninstall registry
+are restored, owned processes/product/profile/staging removed, original
+power-off confirmed and local/controller claims released.
+
+YA's [execution record](../../../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md#windows-browser-and-custom-location-result)
+owns model and media/lifecycle cutover gates. This result does not infer those
+remaining gates or Linux browser/model parity.
