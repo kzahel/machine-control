@@ -22,7 +22,8 @@ def identity(*, paths=False):
     value = {
         "schema": SCHEMA, "clientProtocol": 1, "residentProtocol": "machine-control/v0",
         "version": "0.3.0", "distribution": "source", "platform": platform.system().lower(),
-        "features": ["agent.instructions", "host.desktop", "host.browser", "host.claims"],
+        "features": ["agent.instructions", "host.desktop", "host.browser", "host.claims"] +
+            (["desktop.delegation.v1"] if platform.system() == "Darwin" else []),
     }
     if paths:
         value["paths"] = resolved_paths(value)
@@ -140,6 +141,14 @@ For a Mac capture this is `data.artifactPath`, including its full path; do not
 substitute a basename or capture id. Then use your harness's image viewer.
 A JSON pathname alone is not an image observation.
 Release browser debugger sessions when finished with `browser release`.
+
+A trusted native desktop integration can bind a local control channel to
+its selected live agent process. The installed identity negotiates this
+capability; a proxy pathname or session label alone grants nothing. Use
+`control call` or the ControlSession SDK for delegated ordinary desktop work.
+Pause preserves consent but ends current control; wait for a fresh session
+before new work and never replay an uncertain mutation. Closing the agent
+ends its delegated tasks, while separately approved MC access remains valid.
 
 MC access/arming never implies administrator authority. Native sudo is a
 separately advertised helper with OS authentication. Never request or pass a

@@ -15,6 +15,19 @@ spec.loader.exec_module(machost)
 
 
 class LockedUseConnectionTests(unittest.TestCase):
+    def test_delegated_proxy_never_falls_back_to_ambient_resident(self):
+        with patch.dict(machost.os.environ, {"MACHINE_CONTROL_DESKTOP_PROXY":"/tmp/ya-mc-fixture/control.sock"}), \
+                patch.object(machost.Path, "is_file", return_value=False), \
+                patch.object(machost.socket, "socket") as resident:
+            with self.assertRaisesRegex(OSError, "Installed native desktop proxy client unavailable"):
+                machost.channel()
+            resident.assert_not_called()
+        with patch.dict(machost.os.environ, {"MACHINE_CONTROL_DESKTOP_PROXY":"foreign"}), \
+                patch.object(machost.socket, "socket") as resident:
+            with self.assertRaises(ValueError):
+                machost.channel()
+            resident.assert_not_called()
+
     def test_connection_stays_open_and_heartbeats_until_task_end(self):
         with tempfile.TemporaryDirectory(prefix="mc-session-") as directory:
             path = str(Path(directory) / "control.sock")

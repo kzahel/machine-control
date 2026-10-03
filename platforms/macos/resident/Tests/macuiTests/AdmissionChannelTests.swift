@@ -33,6 +33,22 @@ final class AdmissionChannelTests: XCTestCase {
         clients = []; server.stop(); unlink(path)
         server = nil; broker = nil
     }
+    func testOperatorMenuAndHotkeyStopSuspendDurableDesktopTrust() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("mc-stop-trust-fixture-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])
+        defer { try? FileManager.default.removeItem(at:directory) }
+        server.callerTrust = DesktopCallerTrust(directory:directory.path)
+        for reason in ["stopped_by_person", "stopped_from_menu", "stopped_by_hotkey", "revoked_by_caller"] {
+            try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture", publisher:"FIXTUREONLY"), scopes:[.observe,.control])
+            server.revoke(reason:reason)
+            XCTAssertEqual(server.callerTrust.status["enabled"] as? Bool,false)
+            XCTAssertTrue(DesktopCallerTrust(directory:directory.path).suspended)
+        }
+        try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture", publisher:"FIXTUREONLY"), scopes:[.observe,.control])
+        server.revoke(reason:"operator_quit")
+        XCTAssertEqual(server.callerTrust.status["enabled"] as? Bool,true)
+    }
+
     func testInputCancellationUsesCurrentLeaseLatchAcrossSessions() {
         let retired = server.lockedUse.safety
         retired.arm()

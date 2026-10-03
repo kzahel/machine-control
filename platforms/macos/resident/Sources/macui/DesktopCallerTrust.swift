@@ -73,6 +73,10 @@ struct VerifiedDesktopIntegration {
         var bundle: SecStaticCode?
         guard app.pathExtension == "app", SecStaticCodeCreateWithPath(app as CFURL, [], &bundle) == errSecSuccess,
               let bundle else { return false }
+        var bundleInfo: CFDictionary?
+        guard SecCodeCopySigningInformation(bundle, SecCSFlags(rawValue:kSecCSSigningInformation), &bundleInfo) == errSecSuccess,
+              let values = bundleInfo as? [String:Any], let plist = values[kSecCodeInfoPList as String] as? [String:Any],
+              admissionInteger(plist["MCDesktopDelegationProtocol"]) == 1 else { return false }
         return SecStaticCodeCheckValidity(bundle, SecCSFlags(rawValue:kSecCSStrictValidate | kSecCSCheckNestedCode), expected) == errSecSuccess
     }
 }
@@ -113,7 +117,7 @@ final class DesktopCallerTrust {
               raw["schema"] as? String == "machine-control-desktop-trust/v1",
               let requirement = raw["requirement"] as? String, !requirement.isEmpty, requirement.utf8.count <= 4096,
               let names = raw["scopes"] as? [String], !names.isEmpty, Set(names).count == names.count,
-              names.allSatisfy({ GrantScope(rawValue:$0) != nil }),
+              names.allSatisfy({ [.observe, .control].contains(GrantScope(rawValue:$0)) }),
               let suspended = raw["suspended"] as? NSNumber,
               CFGetTypeID(suspended) == CFBooleanGetTypeID() else {
             storageInvalid = true; return
@@ -130,7 +134,7 @@ final class DesktopCallerTrust {
          "protectedControl":false, "outerRecovery":false]
     }
     func enroll(_ integration: VerifiedDesktopIntegration, scopes: Set<GrantScope>) throws {
-        guard !scopes.isEmpty, integration.requirement.utf8.count <= 4096,
+        guard !scopes.isEmpty, scopes.isSubset(of:[.observe,.control]), integration.requirement.utf8.count <= 4096,
               !integration.requirement.isEmpty else { throw MacUIError.usage("invalid_desktop_trust") }
         self.requirement = integration.requirement; self.scopes = scopes
         suspended = false; storageInvalid = false; revision = UUID().uuidString

@@ -2,8 +2,8 @@
 
 Topic: `caller-authorization`
 
-Status: Desktop-first validation active; native identity experiment passed,
-real Desktop broker and session-grant implementation pending.
+Status: native Mac broker/provenance/proxy source implemented; signed installed
+session-origin and effect qualification active.
 
 ## Motivation and current boundary
 
@@ -209,12 +209,16 @@ session or signed YA binary must not become mandatory for every client. MC
 owns endpoint enforcement; YA owns session coordination. Stronger separation
 from a hostile same-user shell requires an OS-enforced boundary or authority
 outside that shell's control. Bounded validation is authorized;
-these protections are not yet implemented in the product.
+the source implementation remains under installed qualification.
 
 **Current:** [Tactical 086](../docs/tactical/086-native-desktop-delegation.md)
 implements the default-off MC receiver for a specifically authenticated native
 Desktop connection, durable trust/Stop and connection-bound ordinary scopes.
 Public session attribution never rescues failed peer authentication or falls
-back to ambient access. Receiver positives use admitted fixtures; actual YA
-upstream launch proof, automatic trust presentation and installed integration
-remain open. Existing target-wide approval stays explicitly cooperative.
+back to ambient access. Native trust presentation and the actual YA private
+server/launch proxy path are implemented, with kernel subprocess, credential
+origin and closure fixtures. The first profile enrolls observation/input scopes
+on the ordinary local unlocked desktop. Signed installed YA origin/effects,
+negative signed callers and protected-consent composition remain open; receiver
+fixtures are not distribution acceptance. Existing target-wide approval stays
+explicitly cooperative.

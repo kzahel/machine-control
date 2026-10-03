@@ -48,8 +48,9 @@ final class ServerTests: XCTestCase {
             defer { done.fulfill() }
             let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
             defer { Darwin.close(descriptor) }
-            guard var (address, length) = try? unixAddress(path),
-                  withSockAddr(&address, length: length, { Darwin.connect(descriptor, $0, $1) }) == 0,
+            guard let destination = try? unixAddress(path) else { return  }
+            var address = destination.0
+            guard withSockAddr(&address, length: destination.1, { Darwin.connect(descriptor, $0, $1) }) == 0,
                   let line = try? encodeJSONLine(request),
                   (try? writeSocket(descriptor, data: line)) != nil else { return }
             _ = Darwin.shutdown(descriptor, SHUT_WR)

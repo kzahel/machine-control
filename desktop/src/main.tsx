@@ -39,7 +39,15 @@ type State = {
       reason: string;
       noticeRemainingSeconds: number | null;
       maximumDurationSeconds: number;
+      ownerAssurance?: string;
+      caller?: string;
     }[];
+  };
+  desktopCallerTrust?: {
+    supported: boolean;
+    enabled: boolean;
+    suspended: boolean;
+    storageInvalid: boolean;
   };
   updates?: UpdateState;
   platform?: string;
@@ -237,6 +245,7 @@ function App() {
     state?.supportedScopes ?? (Object.keys(labels) as Scope[]);
   const grant = state?.deployment.grant;
   const standing = state?.deployment.policy.grantMode === "standing";
+  const trustedAccess = state?.desktopCallerTrust?.enabled === true;
   const availability = state?.deployment.availability;
   const manuallyPaused = availability?.blockingReasons.some((reason) =>
     ["manual", "local_use_episode", "operator_deferral"].includes(reason),
@@ -253,7 +262,11 @@ function App() {
       <main className="control-notice" aria-live="polite">
         <h2>Computer control is about to start</h2>
         <p>{request?.reason ?? "Waiting for the current request…"}</p>
-        <p className="note">Same-user caller; identity unverified.</p>
+        <p className="note">
+          {request?.ownerAssurance === "verified_desktop_integration"
+            ? "Verified YepAnywhere session"
+            : "Same-user caller; identity unverified."}
+        </p>
         {request && (
           <p>
             Starts in {Math.ceil(request.noticeRemainingSeconds ?? 0)}s ·
@@ -332,16 +345,21 @@ function App() {
               <div>
                 <h1>
                   <span
-                    className={"status-dot " + (grant || standing ? "on" : "")}
+                    className={
+                      "status-dot " +
+                      (grant || standing || trustedAccess ? "on" : "")
+                    }
                   />
                   {!state
                     ? "Connecting…"
                     : standing
                       ? "Standing access"
-                      : grant
+                      : grant || trustedAccess
                         ? availability?.paused
                           ? "Access paused"
-                          : "Access active"
+                          : (state.admission?.active ?? 0) > 0
+                            ? "Agent controlling screen"
+                            : "Access allowed"
                         : "Access off"}
                 </h1>
                 {grant && (
@@ -354,7 +372,7 @@ function App() {
                 )}
                 {standing && <p className="grant-detail">Appliance policy</p>}
               </div>
-              {grant && (
+              {(grant || trustedAccess) && (
                 <button
                   className="danger"
                   disabled={busy}
@@ -514,6 +532,41 @@ function App() {
                     ? `Waiting: ${availability.blockingReasons.map((reason) => reason.replaceAll("_", " ")).join(", ")}.`
                     : "Pause keeps your access approval. Stop access turns it off."}
                 </p>
+              </section>
+            )}
+            {mac && !standing && state?.desktopCallerTrust?.supported && (
+              <section
+                className="group"
+                aria-label="Trusted desktop integration"
+              >
+                <label className="setting-row">
+                  <span className="row-label">
+                    Allow selected YepAnywhere sessions
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={state.desktopCallerTrust.enabled}
+                    disabled={busy || !!state.admission?.active}
+                    onChange={(event) =>
+                      void act({
+                        method: "desktop_caller_trust",
+                        enabled: event.target.checked,
+                        scopes: ["observe", "control"],
+                      })
+                    }
+                  />
+                </label>
+                <p className="note">
+                  Until you turn this off: screen observation and input for
+                  authenticated local sessions on the unlocked desktop. Requires
+                  a compatible signed YepAnywhere app. Pause keeps this choice;
+                  Stop suspends it.
+                </p>
+                {state.desktopCallerTrust.storageInvalid && (
+                  <p className="note">
+                    Trust storage needs attention. Access is blocked.
+                  </p>
+                )}
               </section>
             )}
             <section className="group" aria-label="Access scopes">

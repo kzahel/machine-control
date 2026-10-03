@@ -38,6 +38,13 @@ not authenticated YA session delegation.
 
 ## Caller authentication gap
 
+**Current, source/fixture level:** native MC trust, a specifically authenticated
+native YA peer and the actual private YA server/launch proxy are implemented.
+Signed installed session-origin/effect and protected-consent qualification remain
+open. See [caller authorization](../../topics/caller-authorization.md) and
+[Tactical 086](../../docs/tactical/086-native-desktop-delegation.md); a signed
+interpreter or public session label still provides no origin authority.
+
 **Current, `source-reviewed`:** the owned resident's ordinary local socket is
 mode `0600`; [grant dispatch](../../platforms/macos/resident/Sources/macui/Grants.swift)
 checks active scopes rather than binding them to a requester. Grants report

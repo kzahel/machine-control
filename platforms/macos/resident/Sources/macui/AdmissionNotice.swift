@@ -24,7 +24,7 @@ final class AdmissionNotice: NSObject {
         if panel == nil { makePanel() }
         let seconds = max(0, Int(ceil(request["noticeRemainingSeconds"] as? Double ?? 0)))
         let maximum = Int(request["maximumDurationSeconds"] as? Double ?? 0)
-        detail.stringValue = "\(server.callerSummary(for:id))\nSame-user caller; identity unverified.\n\(request["reason"] as? String ?? "")"
+        detail.stringValue = "\(server.callerSummary(for:id))\n\(server.callerAssurance(for:id))\n\(request["reason"] as? String ?? "")"
         countdown.stringValue = "Starts in \(seconds)s · Maximum control time \(maximum)s"
         if let panel, !panel.isVisible { panel.orderFrontRegardless() }
     }

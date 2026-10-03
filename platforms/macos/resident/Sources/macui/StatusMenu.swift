@@ -12,6 +12,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     let setup: SetupWindowController
     var onRevoke: ((String) -> Void)?
     var onResume: (() throws -> Void)?
+    var trustedAccess: () -> Bool = { false }
     var onArm: ((Int?) throws -> Void)?
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -53,7 +54,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         } else if broker.pending != nil {
             symbol = "questionmark.circle.fill"
             tint = .systemOrange
-        } else if broker.activeGrant != nil {
+        } else if broker.activeGrant != nil || trustedAccess() {
             symbol = "cursorarrow.motionlines"
             tint = .systemRed
         } else {
@@ -72,7 +73,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         if let grant = broker.activeGrant, approvalMode {
             button.title = grant.expiresAt.map { " \(Int(ceil($0.timeIntervalSinceNow / 60)))m" } ?? " On"
         } else {
-            button.title = ""
+            button.title = trustedAccess() ? " On" : ""
         }
     }
 

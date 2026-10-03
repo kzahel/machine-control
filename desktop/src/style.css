@@ -369,3 +369,8 @@ select {
   border-top: 1px solid #d6dbd8;
   padding-top: 12px;
 }
+
+.trusted-integration > .note {
+  margin: 0;
+  padding: 0 12px 12px;
+}

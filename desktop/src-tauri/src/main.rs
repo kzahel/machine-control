@@ -365,7 +365,8 @@ fn main() {
                         .as_str()
                         .unwrap_or("")
                         .to_owned();
-                    let active = !value["state"]["deployment"]["grant"].is_null();
+                    let active = !value["state"]["deployment"]["grant"].is_null()
+                        || value["state"]["desktopCallerTrust"]["enabled"] == true;
                     let standing =
                         value["state"]["deployment"]["policy"]["grantMode"] == "standing";
                     let show = !pending.is_empty() && pending != previous_pending;
@@ -382,7 +383,7 @@ fn main() {
                     let _ = handle.run_on_main_thread(move || {
                         if let Some(tray) = ui.tray_by_id("control") {
                             let _ = tray.set_tooltip(Some(if active {
-                                "Machine Control — access active"
+                                "Machine Control — access allowed"
                             } else if standing {
                                 "Machine Control — standing access"
                             } else {

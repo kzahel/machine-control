@@ -327,4 +327,6 @@ and sustained-load acceptance remain separate.
 **Current:** the [native delegation receiver](../docs/tactical/086-native-desktop-delegation.md)
 composes admitted ordinary-session scopes with the same pause/resource arbiter.
 Fixture Pause retains trust and Resume uses a fresh session; Stop persists
-suspension and rejects reconnect. Actual YA launch authentication remains open.
+suspension and rejects reconnect. Native YA launch provenance and its authenticated CLI proxy are implemented in
+source. Signed installed origin/effects and protected-consent composition remain
+open; source fixtures do not close those acceptance gates.

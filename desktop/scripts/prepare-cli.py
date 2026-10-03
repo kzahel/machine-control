@@ -140,7 +140,8 @@ exec "$directory/python/bin/python3" -I -B "$directory/launch.py" "$@"
             "platform": platform, "pythonVersion": pins["pythonVersion"],
             "pythonArchiveSha256": pins["targets"][target]["sha256"],
             "command": "commands/" + command.name,
-            "features": ["agent.instructions", "host.desktop", "host.browser", "host.claims"],
+            "features": ["agent.instructions", "host.desktop", "host.browser", "host.claims"] +
+                (["desktop.delegation.v1"] if platform == "macos" else []),
         }
         (output / "client-runtime.json").write_text(json.dumps(identity, indent=2) + "\n")
         # The platform signs/authenticates the receipt as part of the product.

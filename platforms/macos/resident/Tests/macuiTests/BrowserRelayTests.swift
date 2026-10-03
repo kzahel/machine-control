@@ -9,8 +9,9 @@ private final class FakeProvider {
 
     init?(socketPath: String) {
         descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard var (address, length) = try? unixAddress(socketPath),
-              withSockAddr(&address, length: length, { Darwin.connect(descriptor, $0, $1) }) == 0 else {
+        guard let destination = try? unixAddress(socketPath) else { return nil }
+        var address = destination.0
+        guard withSockAddr(&address, length: destination.1, { Darwin.connect(descriptor, $0, $1) }) == 0 else {
             return nil
         }
         var timeout = timeval(tv_sec: 5, tv_usec: 0)
@@ -74,8 +75,9 @@ final class BrowserRelayTests: XCTestCase {
         return onBackground {
             let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
             defer { Darwin.close(descriptor) }
-            guard var (address, length) = try? unixAddress(path),
-                  withSockAddr(&address, length: length, { Darwin.connect(descriptor, $0, $1) }) == 0,
+            guard let destination = try? unixAddress(path) else { return [:] }
+            var address = destination.0
+            guard withSockAddr(&address, length: destination.1, { Darwin.connect(descriptor, $0, $1) }) == 0,
                   (try? writeSocket(descriptor, data: encodeJSONLine(request))) != nil else { return [:] }
             _ = Darwin.shutdown(descriptor, SHUT_WR)
             guard let data = try? readSocket(descriptor),

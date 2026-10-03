@@ -106,7 +106,26 @@ final class ResidentServer {
     private var noticePolicyState = ""
     var notice: AdmissionNotice?
     private var handshakes: [Int32:RequestHandshake] = [:]
-    func callerSummary(for intent: String) -> String { channels.values.first(where:{ $0.intentID == intent })?.caller.summary ?? "Local process" }
+    func callerSummary(for intent: String) -> String {
+        guard let channel = channels.values.first(where:{ $0.intentID == intent }) else { return "Local process" }
+        return channel.delegation.map { "YepAnywhere session " + $0.session } ?? channel.caller.summary
+    }
+    func callerAssurance(for intent: String) -> String {
+        channels.values.first(where:{ $0.intentID == intent })?.delegation == nil ? "Same-user caller; identity unverified." : "Verified YepAnywhere session"
+    }
+    var admissionPresentation: [String:Any] {
+        var status = broker.admission.status
+        if let requests = status["requests"] as? [[String:Any]] {
+            status["requests"] = requests.map { request -> [String:Any] in
+                var result = request
+                let id = request["intentId"] as? String ?? ""
+                result["caller"] = callerSummary(for:id)
+                result["ownerAssurance"] = channels.values.first(where:{ $0.intentID == id })?.delegation == nil ? "cooperative_same_user" : "verified_desktop_integration"
+                return result
+            }
+        }
+        return status
+    }
     func startNow(_ intent: String) throws {
         try broker.admission.startNow(intent)
         activity.acknowledgeCurrentActivity()
@@ -647,7 +666,7 @@ final class ResidentServer {
 
     /// Ends the grant from a trusted local surface such as the menu.
     func revoke(reason: String) {
-        if ["stopped_by_person", "revoked_by_caller"].contains(reason) { callerTrust.stop() }
+        if ["stopped_by_person", "stopped_from_menu", "stopped_by_hotkey", "revoked_by_caller"].contains(reason) { callerTrust.stop() }
         lockedUse.end(reason)
         broker.revoke(reason: reason)
         service.invalidateReferences()
@@ -800,6 +819,7 @@ func runResident(socketPath: String) throws -> Never {
     let setup = SetupWindowController()
     setup.browserConnected = { [weak server] in server?.browser.connected == true }
     let menu = StatusMenuController(broker: broker, approval: approval, setup: setup)
+    menu.trustedAccess = { [weak server] in server?.callerTrust.status["enabled"] as? Bool == true }
     menu.onRevoke = { [weak server] reason in server?.revoke(reason: reason) }
     menu.onResume = { [weak server] in
         try server?.service.resumeCoveredAvailability()
@@ -874,12 +894,18 @@ func ownWindowFrames(_ processID: pid_t, extra: [NSWindow] = [], excluding: Set<
 
 /// Byte transport only. Liveness and activation belong to the client runtime;
 /// EOF on either direction promptly closes the owning resident connection.
-func runAdmissionProxy(socketPath: String) throws {
+func runAdmissionProxy(socketPath: String, trustedDesktop: Bool = false) throws {
     let fd = try residentSocket(); defer { Darwin.close(fd) }
     var (address, length) = try unixAddress(socketPath)
     guard withSockAddr(&address, length:length, { Darwin.connect(fd, $0, $1) }) == 0 else { throw MacUIError.action("resident_unavailable") }
     var uid: uid_t = 0, gid: gid_t = 0
     guard getpeereid(fd, &uid, &gid) == 0, uid == getuid(), uid != 0 else { throw MacUIError.permission("same_user_resident_required") }
+    if trustedDesktop {
+        let integration = try VerifiedDesktopIntegration.yepAnywhere()
+        guard VerifiedDesktopIntegration.peer(fd, matches:integration.requirement) else {
+            throw MacUIError.permission("desktop_proxy_identity_denied")
+        }
+    }
     var timeout = timeval(tv_sec:5, tv_usec:0)
     setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout.size(ofValue:timeout)))
     let parent = getppid()

@@ -181,6 +181,16 @@ def artifact_fetch(arguments: list[str]) -> int:
 
 def channel() -> int:
     """Relay a live SDK channel; EOF or parent loss ends ownership."""
+    delegated = os.environ.get("MACHINE_CONTROL_DESKTOP_PROXY")
+    if delegated is not None:
+        if not delegated.startswith("/tmp/ya-mc-") or len(delegated.encode()) > 103:
+            raise ValueError("Invalid native desktop proxy locator")
+        # Only the bundled native client can authenticate the YA kernel peer.
+        # Never fall back to ambient access when delegation is configured.
+        native = Path(__file__).resolve().parents[5] / "MacOS" / "machine-control"
+        if not native.is_file():
+            raise OSError("Installed native desktop proxy client unavailable")
+        os.execv(str(native), [str(native), "delegated-channel", delegated])
     parent = os.getppid()
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
         client.connect(socket_path())

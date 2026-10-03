@@ -35,13 +35,14 @@ guard let command = arguments.first else {
     fail(MacUIError.usage(usage()), status: 2)
 }
 
-if command == "serve" || command == "request" || command == "credential" || command == "channel" {
+if command == "serve" || command == "request" || command == "credential" || command == "channel" || command == "delegated-channel" {
     do {
         guard arguments.count >= 2 else {
             throw MacUIError.usage("Usage: macui \(command) SOCKET [JSON]")
         }
         let socketPath = arguments[1]
         if command == "channel" { try runAdmissionProxy(socketPath:socketPath); exit(0) }
+        if command == "delegated-channel" { try runAdmissionProxy(socketPath:socketPath, trustedDesktop:true); exit(0) }
         if command == "serve" {
             try runResident(socketPath: socketPath)
         }
