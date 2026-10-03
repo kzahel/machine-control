@@ -68,15 +68,19 @@ SSH autostart, writable-rootfs configuration, and the power-policy guard.
 After profile sign-in all eleven smoke checks passed, including semantics,
 capture, keyboard, isolated touch, and restoration of the original UI. A later
 proof reboot returned SSH automatically on a changed boot with all runtime
-maintenance checks healthy; no VT2 recovery was needed.
+maintenance checks healthy; no VT2 recovery was needed. After signing in on
+that new boot, common doctor reported every check passing and `ready: true`,
+the full maintenance audit passed, and all eleven desktop smoke checks passed
+again with the original UI restored. Activation verification is complete.
 
 **Current — live-observed:** A Chrome restart with the debugging flag present
 left its listener unavailable while signed out; signing in made the listener
 and desktop semantics available. The subsequent normal proof boot had the
 listener available even before profile sign-in.
 
-**Current — fixture-tested:** Activation now reports a signed-out profile as pending desktop verification instead of failing system
-preparation or repeatedly restarting Chrome. The native audit's `bootReady`
+**Current — fixture-tested:** Activation now reports a signed-out profile as
+pending desktop verification instead of failing system preparation or
+repeatedly restarting Chrome. The native audit's `bootReady`
 and explicit `--verify-reboot --boot-only` separate startup proof from full
 runtime and desktop readiness. HUP survival during a console-affecting Chrome
 restart is fixture-tested; the exact signal that interrupted the initial VT2
