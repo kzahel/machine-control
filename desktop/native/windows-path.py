@@ -31,10 +31,12 @@ def change(value, directory, enabled, owned, *, expand=False):
 
 
 def apply(directory, operation):
-    import winreg
     directory = ntpath.abspath(directory)
     if ";" in directory:
-        raise ValueError("Installation paths containing semicolons cannot be registered in PATH")
+        if operation == "enable":
+            raise ValueError("Installation paths containing semicolons cannot be registered in PATH")
+        return  # Explicit opt-out and uninstall must still work at this path.
+    import winreg
     key_name = STATE + "\\" + hashlib.sha256(normalized(directory).encode()).hexdigest()
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_name) as state:
         try:

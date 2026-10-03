@@ -4,6 +4,7 @@ Run with a harness Python in the interactive session for --launch. Offline mode
 also works in session 0. All artifacts are confined to a temporary directory.
 """
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import ctypes
 import json
 import os
@@ -94,9 +95,11 @@ def main():
             timing[name] = {"firstMs": samples[0], "warmMedianMs": statistics.median(samples[1:]),
                             "samplesMs": samples}
         if args.launch:
-            first = run([str(exe)])
-            assert "Machine Control is running" in first.stdout
-            assert "agent instructions" in first.stdout
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                launches = list(pool.map(lambda _: run([str(exe)]), range(2)))
+            for first in launches:
+                assert "Machine Control is running" in first.stdout
+                assert "agent instructions" in first.stdout
             foreground = ctypes.windll.user32.GetForegroundWindow
             foreground.restype = ctypes.c_void_p
             before = foreground()

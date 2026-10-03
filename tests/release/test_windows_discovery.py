@@ -70,6 +70,13 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(path.change("C:\\tools;", directory, True, False),
                          ("C:\\tools;;" + directory, True))
 
+    def test_path_delimiter_can_be_opted_out_and_uninstalled(self):
+        directory = r"C:\Apps;local\Machine Control"
+        with self.assertRaisesRegex(ValueError, "semicolons"):
+            path.apply(directory, "enable")
+        path.apply(directory, "disable")
+        path.apply(directory, "remove")
+
     def test_existing_resident_is_verified_and_never_replaced(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()
@@ -106,6 +113,16 @@ class DiscoveryTests(unittest.TestCase):
                 self.assertEqual(spawn.call_args.kwargs["cwd"], root)
                 self.assertEqual(spawn.call_args.kwargs["stdout"], launch.subprocess.DEVNULL)
                 self.assertTrue(spawn.call_args.kwargs["creationflags"] & 0x01000000)
+                launch.probe.side_effect = None
+                launch.probe.return_value = None
+                with patch.multiple(launch.subprocess, create=True, **flags), \
+                        patch.object(launch.time, "monotonic", side_effect=[0, 16]):
+                    with self.assertRaisesRegex(RuntimeError, "readiness was not confirmed"):
+                        launch.main()
+                spawn.side_effect = PermissionError("Job does not permit breakaway")
+                with patch.multiple(launch.subprocess, create=True, **flags):
+                    with self.assertRaises(PermissionError):
+                        launch.main()
 
     @unittest.skipUnless(os.name == "nt", "Windows registry API required")
     def test_native_registry_long_path_preserves_type_and_other_entries(self):

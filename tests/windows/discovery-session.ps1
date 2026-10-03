@@ -44,7 +44,7 @@ try {
  $start.UseShellExecute=$false
  $start.RedirectStandardOutput=$true
  $start.RedirectStandardError=$true
- $start.Arguments='"'+(Join-Path $Source 'tests/windows/discovery.py')+'" --install "'+$Install+'" --launch'
+ $start.Arguments='"'+(Join-Path $Source 'tests/windows/discovery-job.py')+'" --install "'+$Install+'" --launch'
  $probe=[Diagnostics.Process]::Start($start)
  $output=$probe.StandardOutput.ReadToEndAsync()
  $errors=$probe.StandardError.ReadToEndAsync()
@@ -59,6 +59,7 @@ try {
  # The Python actor and all command launchers have exited; the app stays alive.
  Start-Sleep -Seconds 1
  if($owned.HasExited){throw 'Operator ended with the launching command'}
+ $evidence.survivedCallerJobCleanup=$true
  $off=Join-Path (Split-Path $EvidencePath) 'discovery-off.json'
  & (Join-Path $Source 'tests/windows/desktop-cli.ps1') -Install $Install -Client $exe -EvidencePath $off
  if(-not (Get-Content $off -Raw|ConvertFrom-Json).passed){throw 'Off-state CLI failed'}

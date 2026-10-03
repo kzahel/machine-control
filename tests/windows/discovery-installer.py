@@ -4,6 +4,8 @@ An optional metadata-preservation mode leaves an existing inactive installation
 in place. Restores registry state in finally; never prints private PATH values.
 """
 import argparse
+import ctypes
+from ctypes import wintypes
 import json
 import os
 from pathlib import Path
@@ -17,6 +19,47 @@ PREFERENCE = r"Software\MachineControl\Installer"
 UNINSTALL = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Machine Control"
 PRODUCT = r"Software\machine-control\Machine Control"
 RUN = r"Software\Microsoft\Windows\CurrentVersion\Run"
+
+
+def real_console(command):
+    """Create an owned console without propagating this runner's log handles."""
+    class Startup(ctypes.Structure):
+        _fields_ = [("size", wintypes.DWORD), ("reserved", wintypes.LPWSTR),
+                    ("desktop", wintypes.LPWSTR), ("title", wintypes.LPWSTR),
+                    ("geometry", wintypes.DWORD * 7), ("flags", wintypes.DWORD),
+                    ("show", wintypes.WORD), ("reservedSize", wintypes.WORD),
+                    ("reservedBytes", ctypes.c_void_p), ("input", wintypes.HANDLE),
+                    ("output", wintypes.HANDLE), ("error", wintypes.HANDLE)]
+    class Process(ctypes.Structure):
+        _fields_ = [("process", wintypes.HANDLE), ("thread", wintypes.HANDLE),
+                    ("pid", wintypes.DWORD), ("tid", wintypes.DWORD)]
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.CreateProcessW.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR,
+        ctypes.c_void_p, ctypes.c_void_p, wintypes.BOOL, wintypes.DWORD,
+        ctypes.c_void_p, wintypes.LPCWSTR, ctypes.POINTER(Startup), ctypes.POINTER(Process)]
+    kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+    kernel.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    startup, process = Startup(), Process()
+    startup.size = ctypes.sizeof(startup)
+    # CREATE_NEW_CONSOLE, no STARTF_USESTDHANDLES and no handle inheritance.
+    if not kernel.CreateProcessW(str(command[0]), ctypes.create_unicode_buffer(subprocess.list2cmdline(command)),
+                                 None, None, False, 0x10, None, None,
+                                 ctypes.byref(startup), ctypes.byref(process)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        if kernel.WaitForSingleObject(process.process, 40000) != 0:
+            kernel.TerminateProcess(process.process, 1)
+            kernel.WaitForSingleObject(process.process, 5000)
+            raise RuntimeError("Real-console test timed out")
+        code = wintypes.DWORD()
+        if not kernel.GetExitCodeProcess(process.process, ctypes.byref(code)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return code.value
+    finally:
+        kernel.CloseHandle(process.thread)
+        kernel.CloseHandle(process.process)
 
 
 def tree(key):
@@ -148,20 +191,13 @@ def main():
             evidence["discovery"] = json.loads(run.stdout)
             if args.fixture:
                 console = Path(temporary) / "console.json"
-                console_arguments = subprocess.list2cmdline([
+                console_run = real_console([str(powershell),
                     "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
                     str(args.source / "tests/windows/discovery-console.ps1"),
                     "-Install", str(install), "-EvidencePath", str(console)])
-                # Shell launch supplies a real new console. CREATE_NEW_CONSOLE
-                # alone still inherits Python's redirected log handles.
-                literal = lambda value: "'" + str(value).replace("'", "''") + "'"
-                command = ("$p=Start-Process -FilePath " + literal(powershell) +
-                           " -ArgumentList " + literal(console_arguments) +
-                           " -PassThru -Wait; exit $p.ExitCode")
-                console_run = subprocess.run([str(powershell), "-NoProfile", "-Command", command], timeout=40)
                 if console.exists():
                     evidence["console"] = json.loads(console.read_text(encoding="utf-8-sig"))
-                assert console_run.returncode == 0 and evidence.get("console", {}).get("passed"), "Real-console discovery failed"
+                assert console_run == 0 and evidence.get("console", {}).get("passed"), "Real-console discovery failed"
                 session = Path(temporary) / "session.json"
                 powershell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
                 session_run = subprocess.run([str(powershell), "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
