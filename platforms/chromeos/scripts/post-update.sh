@@ -12,7 +12,7 @@ MODE=audit
 MODE_SELECTED=false
 AUTO_YES=false
 REMOTE_SSH_DIR=/mnt/stateful_partition/etc/ssh
-STAGED_BOOTSTRAP="$REMOTE_SSH_DIR/post-update-bootstrap.sh"
+STAGED_BOOTSTRAP="$REMOTE_SSH_DIR/activate.sh"
 REPAIR_MARKER="$REMOTE_SSH_DIR/post-update-repair.pending"
 
 usage() {
@@ -432,8 +432,9 @@ confirm_reboot() {
 }
 
 stage_bootstrap() {
-    scp -q "$REPO_DIR/scripts/bootstrap.sh" "$SSH_HOST:$STAGED_BOOTSTRAP"
-    ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; chmod 700 '$STAGED_BOOTSTRAP'; \
+    scp -q "$REPO_DIR/scripts/activate.sh" "$SSH_HOST:$STAGED_BOOTSTRAP.next" || return 1
+    ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; chmod 700 '$STAGED_BOOTSTRAP.next' && \
+bash -n '$STAGED_BOOTSTRAP.next' && mv '$STAGED_BOOTSTRAP.next' '$STAGED_BOOTSTRAP' && \
 printf 'release=%s boot_id=%s staged_at=%s\n' '$RELEASE' '$BOOT_ID' \"\$(date -Is)\" > '$REPAIR_MARKER'"
 }
 
@@ -533,7 +534,8 @@ ROOTDEV=\$(rootdev -s); PARTNUM=\${ROOTDEV##*p}; echo \$((PARTNUM - 1))" 2>/dev/
           "$POWER_POLICY_CONFIGURED" != yes ||
           "$POWER_POLICY_BOOT_EVIDENCE" != applied ]]; then
         echo "Installing the current SSH autostart and DevTools configuration..."
-        if ! ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; bash -s -- --repair-only" < "$REPO_DIR/scripts/bootstrap.sh"; then
+        stage_bootstrap || return 1
+        if ! ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; bash '$STAGED_BOOTSTRAP' --repair-only"; then
             echo "[FAIL] Bootstrap did not complete." >&2
             return 1
         fi
@@ -541,7 +543,7 @@ ROOTDEV=\$(rootdev -s); PARTNUM=\${ROOTDEV##*p}; echo \$((PARTNUM - 1))" 2>/dev/
 
     # The bootstrap adds the flag but intentionally does not restart Chrome.
     "$SCRIPT_DIR/fix-devtools.sh" -y || true
-    ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; rm -f '$STAGED_BOOTSTRAP' '$REPAIR_MARKER'" 2>/dev/null || true
+    ssh "$SSH_HOST" "$REMOTE_PATH_SETUP; rm -f '$REPAIR_MARKER'" 2>/dev/null || true
 
     load_snapshot || return 1
     evaluate_snapshot

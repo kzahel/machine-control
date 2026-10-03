@@ -165,7 +165,7 @@ class PassiveDoctorTests(unittest.TestCase):
             self.assertNotIn("adb connect", invocations)
 
     def test_bootstrap_installs_and_reapplies_required_power_policy(self):
-        source = (REPO_DIR / "scripts" / "bootstrap.sh").read_text(
+        source = (REPO_DIR / "scripts" / "activate.sh").read_text(
             encoding="utf-8"
         )
 

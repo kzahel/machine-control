@@ -288,13 +288,25 @@ lifecycle set and does not make Android or Quest inherit XCTest semantics.
 ChromeOS platform-specific desktop/login/recovery verbs and all Steam Deck
 operations remain behind the explicit `testbed --` escape.
 
-**Current:** ChromeOS has an explicit resumable `testbed -- setup` workflow.
+**Current:** ChromeOS has an explicit resumable `testbed -- activate` workflow
+(`setup` remains an alias).
 The GitHub-hosted bootstrap reuses locally supplied SSH public keys, records
 appliance approval, and prepares the active rootfs with a staged reboot when
 needed. The controller command finishes deployment, verifies automatic SSH,
 and checks desktop accessibility and UI behavior. Read-only `network-check`
 distinguishes controller routing failures from target SSH health. See the
 [ChromeOS setup guide](../platforms/chromeos/README.md#initial-setup-on-a-new-chromebook).
+
+**Decision:** Full ChromeOS activation is the recommended opt-in path for both
+setup and post-update recovery. The self-contained `activate.sh` offers
+`--ssh-only`, and declining full approval selects that limited mode. Minimal
+SSH preserves rootfs verification and does not reboot or install the full
+appliance configuration. `start_sshd.sh` remains the minimal recovery entry;
+it never escalates into full activation. Limited access remains distinct from
+full appliance readiness. A required root-image reboot saves approval and
+progress, but currently needs the same activation command rerun from VT2;
+automatic continuation across a replaced root image remains open.
+
 
 ## Failure behavior
 

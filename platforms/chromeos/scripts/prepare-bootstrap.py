@@ -24,7 +24,7 @@ def prepare(public_key: Path, output: Path, report_url: str | None = None) -> No
         ["ssh-keygen", "-l", "-f", str(public_key)],
         check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
     )
-    source = Path(__file__).with_name("bootstrap.sh").read_text()
+    source = Path(__file__).with_name("activate.sh").read_text()
     bundle = (
         "#!/bin/bash\n"
         "# Generated locally; contains a controller PUBLIC key. Do not commit.\n"

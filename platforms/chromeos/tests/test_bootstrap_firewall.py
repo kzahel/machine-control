@@ -10,7 +10,7 @@ import tempfile
 import unittest
 
 
-SOURCE = (Path(__file__).resolve().parents[1] / "scripts/bootstrap.sh").read_text()
+SOURCE = (Path(__file__).resolve().parents[1] / "scripts/activate.sh").read_text()
 ALLOW = ["-p", "tcp", "--dport", "2223", "-j", "ACCEPT"]
 DENY = ["-j", "REJECT"]
 FAKE = r'''

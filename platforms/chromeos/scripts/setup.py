@@ -18,10 +18,11 @@ NETWORK = runpy.run_path(str(SCRIPTS / 'network-check.py'))
 
 
 class Setup:
-    def __init__(self, host, yes=False, wait_timeout=180):
+    def __init__(self, host, yes=False, wait_timeout=180, ssh_only=False):
         self.host = host
         self.yes = yes
         self.wait_timeout = wait_timeout
+        self.ssh_only = ssh_only
 
     def remote(self, command, capture=False, timeout=300, source=None):
         return subprocess.run(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5',
@@ -44,7 +45,7 @@ class Setup:
             if predicate():
                 return True
             if time.monotonic() >= deadline:
-                print('Setup is paused. Resolve the indicated step, then rerun the same chromeos setup command.', flush=True)
+                print('Setup is paused. Resolve the indicated step, then rerun the same chromeos activate command.', flush=True)
                 return False
             time.sleep(2)
 
@@ -65,7 +66,7 @@ class Setup:
         return result['ok']
 
     def approve(self):
-        if self.yes or self.read(f'cat {REMOTE}/setup-approved 2>/dev/null') == 'dedicated-appliance-v1':
+        if self.ssh_only or self.yes or self.read(f'cat {REMOTE}/setup-approved 2>/dev/null') == 'dedicated-appliance-v1':
             return True
         print('Setup configures root SSH, developer Python, DevTools, always-awake operation,')
         print('and Select-to-speak in the active profile. It can disable rootfs verification,')
@@ -73,7 +74,9 @@ class Setup:
         if not sys.stdin.isatty():
             print('Run interactively or supply --yes for an already-authorized setup.')
             return False
-        return input('Proceed with dedicated-appliance setup? [y/N] ').lower() in ('y', 'yes')
+        if input('Proceed with full activation? [y/N; N starts SSH only] ').lower() not in ('y', 'yes'):
+            self.ssh_only = True
+        return True
 
     def execute(self):
         if not self.preflight():
@@ -81,23 +84,31 @@ class Setup:
         if not self.approve():
             return 1
         # Bootstrap validates ChromeOS/Developer Mode before touching boot state.
-        staged = f'{REMOTE}/setup-bootstrap.sh'
-        result = subprocess.run(['scp', '-q', str(SCRIPTS / 'bootstrap.sh'), f'{self.host}:{staged}'], timeout=30)
+        staged = f'{REMOTE}/activate.sh'
+        result = subprocess.run(['scp', '-q', str(SCRIPTS / 'activate.sh'), f'{self.host}:{staged}.next'], timeout=30)
         if result.returncode:
             return result.returncode
+        if self.remote(f'chmod 700 {staged}.next && bash -n {staged}.next && mv {staged}.next {staged}').returncode:
+            return 1
+        if self.ssh_only:
+            result = self.remote(f'bash {staged} --ssh-only', timeout=60)
+            if result.returncode:
+                return result.returncode
+            print('SSH-only activation finished; full appliance readiness was not requested.', flush=True)
+            return 0
         for _ in range(3):  # Pending update, rootfs transition, writable-image installation.
             old_boot = self.read('cat /proc/sys/kernel/random/boot_id')
             if not old_boot:
                 return 1
-            print('Installing/resuming the saved bootstrap. If it reboots, return to VT2 as root and run:', flush=True)
-            print(f'  bash {REMOTE}/start_sshd.sh', flush=True)
+            print('Installing/resuming activation. If it reboots, return to VT2 as root and run:', flush=True)
+            print(f'  bash {REMOTE}/activate.sh', flush=True)
             result = self.remote(f'bash {staged} --yes', timeout=600)
             if result.returncode == 0:
                 break
             if result.returncode not in (2, 255):
                 return result.returncode
             if not self.wait(lambda: bool((boot := self.read('cat /proc/sys/kernel/random/boot_id')) and boot != old_boot),
-                             'Waiting for SSH on the new boot. start_sshd.sh restores access; this command will finish setup.'):
+                             'Waiting for SSH on the new boot. Run activate.sh from VT2; this command will finish verification.'):
                 return 2
         else:
             print('Too many image transitions; inspect chromeos post-update before resuming.')
@@ -132,6 +143,7 @@ class Setup:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--yes', '-y', action='store_true', help='Approve setup and accept new SSH host keys (never changed keys)')
+    parser.add_argument('--ssh-only', action='store_true', help='Start SSH only; preserve rootfs verification and do not reboot')
     parser.add_argument('--wait-timeout', type=int, default=180, help='Seconds to wait at each physical recovery/sign-in step')
     args = parser.parse_args()
     if args.wait_timeout < 1:
@@ -140,9 +152,9 @@ def main():
     if host.startswith('-'):
         parser.error('Invalid SSH host')
     try:
-        return Setup(host, args.yes, args.wait_timeout).execute()
+        return Setup(host, args.yes, args.wait_timeout, args.ssh_only).execute()
     except (OSError, subprocess.TimeoutExpired, EOFError) as exc:
-        print(f'Setup stopped: {exc}. Rerun chromeos setup to resume.', file=sys.stderr)
+        print(f'Setup stopped: {exc}. Rerun chromeos activate to resume.', file=sys.stderr)
         return 1
 
 

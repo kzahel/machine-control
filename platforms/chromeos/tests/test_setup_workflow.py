@@ -8,7 +8,7 @@ import unittest
 from unittest import mock
 
 SCRIPTS = Path(__file__).resolve().parents[1] / 'scripts'
-SOURCE = (SCRIPTS / 'bootstrap.sh').read_text()
+SOURCE = (SCRIPTS / 'activate.sh').read_text()
 WORKFLOW = SOURCE.split('# BEGIN setup workflow\n')[1].split('# END setup workflow')[0]
 spec = importlib.util.spec_from_file_location('chromeos_setup', SCRIPTS / 'setup.py')
 setup = importlib.util.module_from_spec(spec)
@@ -74,7 +74,8 @@ printf 'REBOOT=%s\n' "$BOOTSTRAP_REBOOT"
             script = WORKFLOW + '\nSSH_DIR="$FIXTURE_DIR"\napprove_setup\n'
             p = subprocess.run(['bash', '-ec', script], input='n\n', text=True,
                                env=dict(os.environ, FIXTURE_DIR=directory), capture_output=True)
-            self.assertNotEqual(p.returncode, 0)
+            self.assertEqual(p.returncode, 0)
+            self.assertIn("SSH-only mode", p.stdout)
             self.assertFalse(Path(directory, 'setup-approved').exists())
 
 
@@ -149,6 +150,16 @@ class FakeSetup(setup.Setup):
 
 
 class ControllerSetupTests(unittest.TestCase):
+    @mock.patch.object(setup.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0))
+    def test_ssh_only_never_deploys_or_runs_full_setup(self, run):
+        runner = FakeSetup()
+        runner.ssh_only = True
+        self.assertEqual(runner.execute(), 0)
+        self.assertIn('bash /mnt/stateful_partition/etc/ssh/activate.sh --ssh-only', runner.calls)
+        self.assertNotIn(('deploy',), runner.calls)
+        self.assertNotIn(('post-update', '--verify-reboot', '-y'), runner.calls)
+        self.assertNotIn(('smoke-test',), runner.calls)
+
     @mock.patch.object(setup.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0))
     def test_completed_flow_and_resumed_boot(self, run):
         for codes in [(0,), (2, 0), (255, 0)]:

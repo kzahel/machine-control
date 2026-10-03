@@ -26,7 +26,7 @@ class PrepareBootstrapTests(unittest.TestCase):
             output = root / "bootstrap.sh"
             module.prepare(key.with_suffix(".pub"), output)
             bundle = output.read_text()
-            self.assertTrue(bundle.endswith(SCRIPT.with_name("bootstrap.sh").read_text()))
+            self.assertTrue(bundle.endswith(SCRIPT.with_name("activate.sh").read_text()))
             self.assertNotIn("PRIVATE KEY", bundle)
             self.assertNotIn("should-not-exist", bundle)
             subprocess.run(["bash", "-n", str(output)], check=True)

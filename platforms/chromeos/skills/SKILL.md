@@ -14,7 +14,9 @@ CLI tools for bootstrapping, troubleshooting, and controlling a ChromeOS Chromeb
 ```bash
 machine-control --target chromeos target doctor  # Common minimized readiness
 machine-control --target chromeos maintenance audit --profile runtime
-chromeos setup               # Complete/resume first-time appliance setup
+chromeos activate            # Recommended full activation/resume
+chromeos activate --ssh-only # Preserve rootfs verification; no reboot
+chromeos setup               # Compatibility alias for activate
 chromeos network-check       # Read-only controller route + SSH preflight
 chromeos doctor              # Routine health check; never probes ADB
 chromeos post-update         # Read-only focused audit after a ChromeOS update
@@ -115,8 +117,15 @@ restore future automatic startup.
 ### Post-Update Recovery
 
 ChromeOS updates can remove SSH autostart, re-enable rootfs verification, and
-reset chrome_dev.conf. The focused audit is read-only; repair and proof reboots
-are explicit.
+reset chrome_dev.conf. The recommended VT2 command as root is
+`bash /mnt/stateful_partition/etc/ssh/activate.sh`. Full activation asks once
+before changing verification/rebooting; declining selects SSH-only mode.
+`--ssh-only` explicitly preserves verification and never reboots. The minimal
+`start_sshd.sh` remains available and never invokes full activation implicitly.
+After a required root-image reboot, run the same `activate.sh` command again;
+automatic continuation is not installed. Then `chromeos activate` on the
+controller finishes deployment and verifies reboot persistence and desktop
+readiness. The focused audit is read-only; repair and proof reboots are explicit.
 
 ```bash
 chromeos post-update                    # See what the new image lost
@@ -320,11 +329,12 @@ if needed, and saves progress
 before rebooting. `--yes` is for already-authorized unattended setup.
 
 After a preparation reboot, the familiar `start_sshd.sh` is enough to restore
-access. The controller's `chromeos setup` command resumes preparation, deploys
+access. The controller's `chromeos activate` command resumes preparation, deploys
 the runtime, waits for DevTools and profile sign-in, enables Select-to-speak
 when needed, proves automatic SSH, and runs doctor plus smoke tests. The saved
-approval covers this setup until completion; do not ask for the same consent
-again on resume. `bootstrap.sh --repair-only` retains maintenance's no-reboot
+approval covers local preparation reboots and is cleared after local activation.
+The controller separately approves its remaining deployment and verification;
+an already-authorized task can use `--yes` without asking again. `activate.sh --repair-only` retains maintenance's no-reboot
 behavior. Setup does not collect passwords or PINs.
 
 Always select additional devices with `CHROMEBOOK_HOST=<ssh-alias>` or an

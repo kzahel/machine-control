@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 import unittest
 
-SOURCE = (Path(__file__).resolve().parents[1] / "scripts/bootstrap.sh").read_text()
+SOURCE = (Path(__file__).resolve().parents[1] / "scripts/activate.sh").read_text()
 FUNCTION = SOURCE.split('# BEGIN bootstrap diagnostics\n')[1].split('# END bootstrap diagnostics')[0]
 
 

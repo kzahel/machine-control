@@ -4,7 +4,8 @@
 # Usage: chromeos [--json] <command> [args...]
 #
 # Commands:
-#   setup [--yes]       Complete/resume first-time appliance setup
+#   activate [--yes|--ssh-only]  Activate/resume the recommended appliance setup
+#   setup [--yes]       Compatibility alias for activate
 #   network-check       Read-only controller route and SSH preflight
 #   doctor              Check connectivity, devtools, client.py, etc.
 #   common-doctor       Emit the minimized machine-control doctor projection
@@ -1608,7 +1609,7 @@ cmd="${1:-help}"
 shift 2>/dev/null || true
 
 case "$cmd" in
-    setup)        if json_mode; then echo "setup uses interactive text output" >&2; exit 1; fi; exec python3 "$REPO_DIR/scripts/setup.py" "$@" ;;
+    activate|setup) if json_mode; then echo "setup uses interactive text output" >&2; exit 1; fi; exec python3 "$REPO_DIR/scripts/setup.py" "$@" ;;
     network-check) if json_mode; then set -- --json "$@"; fi; exec python3 "$REPO_DIR/scripts/network-check.py" "$@" ;;
     doctor)       cmd_doctor "$@" ;;
     common-doctor) cmd_common_doctor "$@" ;;

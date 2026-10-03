@@ -49,6 +49,30 @@ reachability, while explicit setup provisions Python and verifies desktop
 accessibility. The UI smoke test distinguishes a newly opened Quick Settings
 gear from a preexisting pinned Settings button using baseline observations.
 
+## Activation and post-update recovery
+
+**Current — fixture-tested:** The recommended standalone `activate.sh` reuses
+existing SSH keys and resumes full appliance preparation with the same command
+across required reboots. Explicit `--ssh-only`, or declining full activation,
+preserves rootfs verification and avoids reboot, root startup-job installation,
+DevTools configuration, and Python installation. The original `start_sshd.sh`
+remains a minimal entry. Existing appliance SSH paths may still reapply their
+previously installed availability policy; limited mode does not undo it.
+
+**Current — live-tested:** SSH-only activation on an updated physical device
+returned authenticated SSH while common doctor still reported rootfs
+verification enabled and the full runtime unprepared. Full activation then
+prepared the active image and reached its announced reboot with the activation
+script and progress retained on the stateful partition. Post-reboot completion
+of this entry point is awaiting live verification.
+
+**Open:** Activation saves progress on the stateful partition but has no proven
+automatic continuation hook after an update replaces the root image. Required
+preparation reboots still need the same command rerun from VT2. Full activation,
+boot persistence, and unlocked-profile desktop readiness are distinct results.
+The controller performs the final deployment and verification. See the
+[activation guide](../../platforms/chromeos/README.md#after-a-chromeos-update).
+
 ## Closed-lid backlight behavior
 
 **Current — live-tested:** Always-awake policy forces the reported lid open;

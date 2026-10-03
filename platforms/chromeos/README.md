@@ -36,8 +36,8 @@ on that device; the bootstrap does not change console passwords.
 From the root shell, these commands work verbatim:
 
 ```bash
-curl -fSL https://raw.githubusercontent.com/kzahel/machine-control/main/platforms/chromeos/scripts/bootstrap.sh -o /mnt/stateful_partition/bootstrap.sh
-bash /mnt/stateful_partition/bootstrap.sh
+curl -fSL https://raw.githubusercontent.com/kzahel/machine-control/main/platforms/chromeos/scripts/activate.sh -o /mnt/stateful_partition/activate.sh
+bash /mnt/stateful_partition/activate.sh
 ```
 
 Only run the second command after a successful download. GitHub hosts only
@@ -50,9 +50,14 @@ with `scripts/prepare-bootstrap.py` (see the local development workflow below).
 The plain GitHub download does not contain your laptop's key and stops with
 a clear message if none is installed. Never supply or upload a private key.
 
-The script prompts for approval of the dedicated-appliance configuration.
+`activate.sh` is the recommended full-configuration entry point for both
+initial setup and post-update recovery. It prompts for approval of the
+dedicated-appliance configuration. Declining selects SSH-only mode; it does not
+disable rootfs verification or reboot. Explicit `--ssh-only` selects that mode
+without the full-configuration prompt. Full activation may restart Chrome.
+Neither mode enables Developer Mode or changes login passwords.
 For an already-authorized unattended installation with a key installed, use
-`bash /mnt/stateful_partition/bootstrap.sh --yes`.
+`bash /mnt/stateful_partition/activate.sh --yes`.
 GitHub's `main` URL follows the latest source; replace `main` with a reviewed
 commit SHA to pin a version.
 
@@ -68,17 +73,19 @@ Mode or powerwashes the device. The final result block reports the current
 phase and next step; a required reboot is a resumable phase, not a completed
 installation.
 
-### 2. Restore SSH after the preparation reboot, if needed
+### 2. Resume activation after the preparation reboot
 
-Return to VT2, log in as `chronos`, run `sudo -i`, then use the familiar command:
+Return to VT2, log in as `chronos`, run `sudo -i`, then run the saved activation script:
 
 ```bash
-bash /mnt/stateful_partition/etc/ssh/start_sshd.sh
+bash /mnt/stateful_partition/etc/ssh/activate.sh
 ```
 
-This restores the connection. It does not have to finish installation itself.
-The controller resumes the saved setup in the next step. You can also rerun
-`bash /mnt/stateful_partition/bootstrap.sh`; both paths are supported.
+The same command resumes the saved approval, restores SSH autostart and the
+appliance policy, and activates DevTools. Preparation announces a three-second
+reboot countdown; Ctrl+C cancels that reboot without losing saved progress.
+The read-only root-image transition does **not** yet resume automatically at
+boot. A pending OS update can require an additional preparation reboot.
 Ordinary reboots after completed setup require neither command.
 
 ### 3. Finish from the controller
@@ -99,14 +106,14 @@ Select that alias and run the setup command from the repository root:
 
 ```bash
 export CHROMEBOOK_HOST=my-chromebook
-./platforms/chromeos/bin/chromeos setup
+./platforms/chromeos/bin/chromeos activate
 ```
 
 Setup first checks the controller route and authenticated SSH. SSH may ask you
-to trust the new device's host key. Approval recorded by the VT2 setup is reused
-until installation completes, so a reboot or interrupted connection does not
-require approving the same setup again. For unattended controllers,
-`setup --yes` approves setup and accepts previously unknown host keys; changed
+to trust the new device's host key. Approval recorded by VT2 activation is reused
+through its preparation reboots. After local activation completes, the controller
+asks separately to finish deployment, reboot proof, and desktop verification. For unattended controllers,
+`activate --yes` approves setup and accepts previously unknown host keys; changed
 host keys are still refused.
 
 This command stages the current bootstrap, resumes image preparation if
@@ -115,14 +122,16 @@ enables and verifies desktop accessibility, and runs doctor plus the UI smoke
 test. Sign in normally on the Chromebook when asked. It waits up to 180 seconds
 at each physical recovery/sign-in step; use `--wait-timeout SECONDS` to change
 that. On timeout it exits with status 2 and a resume instruction. Rerun the
-same `chromeos setup` command after completing the requested physical step.
+same `chromeos activate` command after completing the requested physical step.
 Passwords and PINs are never collected by setup.
 
 `SETUP COMPLETE` means the final checks passed. Status is saved in
-`/mnt/stateful_partition/etc/ssh/setup-state`; the approval receipt is removed
-on completion. Device identity and SSH aliases belong in your private inventory.
+`/mnt/stateful_partition/etc/ssh/setup-state`; the local approval receipt is
+removed after local activation. The running controller retains approval through
+its remaining verification steps. Device identity and SSH aliases belong in
+your private inventory.
 For registered targets, the equivalent common entry is
-`machine-control --target YOUR_TARGET testbed -- setup`.
+`machine-control --target YOUR_TARGET testbed -- activate`.
 
 ### Controller routing and VPNs
 
@@ -163,7 +172,7 @@ an explicit controller-owned HTTP(S) POST endpoint. A normal
 `python3 -m http.server` does not accept that POST. No report upload occurs by
 default; never put generated bundles, reports, or private endpoints in Git.
 
-`bootstrap.sh --repair-only` is for the existing maintenance workflow. It
+`activate.sh --repair-only` is for the existing maintenance workflow. It
 installs what the active image permits and never disables verification or
 reboots. First-time users should use the default guided setup instead.
 
@@ -211,35 +220,51 @@ Updates replace the active root image. They can remove SSH autostart, re-enable
 rootfs verification, and reset `/etc/chrome_dev.conf`. The stateful fallback,
 keys, configuration, client, and post-update repair staging survive.
 
-1. If SSH did not return, start the stateful fallback from VT2 as described
-   above.
-2. Run the focused, read-only audit:
+The recommended device-local command, from VT2 as root, is:
 
-   ```bash
-   bin/chromeos post-update
-   ```
+```bash
+bash /mnt/stateful_partition/etc/ssh/activate.sh
+```
 
-3. Run the guided repair. It stages the checkout's current bootstrap before
-   changing boot state:
+It starts SSH and repairs the full appliance configuration after approval. If
+verification must be disabled, it saves progress and announces a reboot; after
+boot, run the **same command** from VT2 to finish. It never reports that reboot
+preparation is a completed activation. Finish deployment and remote verification
+from the controller with:
 
-   ```bash
-   bin/chromeos post-update --repair
-   ```
+```bash
+bin/chromeos activate
+```
 
-   If rootfs verification is enabled, the command asks before disabling it and
-   rebooting. It stages the current bootstrap on the update-persistent stateful
-   partition first. Run that staged bootstrap from VT2 after the reboot, then
-   run `post-update --repair` again to activate and audit DevTools.
+Devices installed before `activate.sh` was introduced can download the current
+standalone script using the initial-setup command above, or start the existing
+SSH fallback and run `chromeos activate` from the controller to stage it.
 
-4. Prove the repair with a second, explicit reboot:
+For minimal access, keep using the existing command:
 
-   ```bash
-   bin/chromeos post-update --verify-reboot
-   ```
+```bash
+bash /mnt/stateful_partition/etc/ssh/start_sshd.sh
+# Or, with the new script installed:
+bash /mnt/stateful_partition/etc/ssh/activate.sh --ssh-only
+```
 
-   Success requires a new boot ID and a current-boot `shill-connected` entry in
-   the stateful SSH startup log. This distinguishes real boot persistence from
-   a listener that was only started manually.
+Minimal access preserves rootfs verification and does not reboot, install root
+startup jobs, configure DevTools, or install Python. An existing appliance's
+SSH startup path still reapplies its already-installed power policy. SSH-only
+mode does not undo a previous full activation or re-enable verification, and it
+does not satisfy the full dedicated-appliance doctor's readiness requirements.
+
+The focused maintenance commands remain available:
+
+```bash
+bin/chromeos post-update                 # Read-only audit
+bin/chromeos post-update --repair        # Guided repair
+bin/chromeos post-update --verify-reboot  # Explicit automatic-startup proof
+```
+
+Proof requires a changed boot ID and a current-boot `shill-connected` entry;
+manual SSH reachability alone is not evidence of boot persistence. Profile
+sign-in and desktop accessibility are checked separately by the controller.
 
 Ordinary `doctor` also warns when ChromeOS reports an update waiting for
 reboot, so physical VT2 access can be planned before the root image changes.
@@ -282,6 +307,8 @@ and battery safeguard, so keep the appliance ventilated and preferably on AC.
 ## Usage
 
 ```bash
+bin/chromeos activate            # Recommended full activation/resume
+bin/chromeos activate --ssh-only # Minimal access, no rootfs change or reboot
 bin/chromeos doctor              # Check routine health without probing ADB
 bin/chromeos post-update         # Audit/repair/prove state after an OS update
 bin/chromeos smoke-test          # Exercise input, screenshots, and desktop UI
@@ -472,7 +499,8 @@ For ChromeOS device management, see
 bin/chromeos               Main CLI (subcommand dispatcher)
 client.py                  evdev input driver (deployed to Chromebook)
 scripts/
-  bootstrap.sh             One-time SSH + devtools setup (curl from VT2)
+  activate.sh              Resumable full activation or SSH-only setup from VT2
+  bootstrap.sh             Compatibility loader for activate.sh
   common.sh                Shared variables and helpers
   diagnostics.sh           Read-only diagnostic bundle
   doctor.sh                Health check
@@ -483,3 +511,13 @@ scripts/
   smoke-test.sh            Restoring end-to-end verification
 skills/SKILL.md            Claude Code skill definition
 ```
+
+### Compatibility and source selection
+
+`chromeos setup` remains an alias for `chromeos activate`. The historical
+`bootstrap.sh` URL is a compatibility loader: in a checkout it uses the adjacent
+`activate.sh`; when downloaded alone it fetches the current canonical script
+from `main` over HTTPS and checks shell syntax before running it. For an exact
+revision, download that revision's self-contained `activate.sh` directly.
+`prepare-bootstrap.py` also packages that self-contained implementation with a
+locally supplied public key.

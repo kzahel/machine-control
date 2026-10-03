@@ -10,7 +10,7 @@ The skill definition is at `skills/SKILL.md`. Other projects can reference it fo
 
 `bin/chromeos <command>` — run `bin/chromeos help` for usage.
 
-Key commands: `setup`, `network-check`, `doctor`, `post-update`, `smoke-test`, `diagnostics`, `fix-ssh`,
+Key commands: `activate` (`setup` alias), `network-check`, `doctor`, `post-update`, `smoke-test`, `diagnostics`, `fix-ssh`,
 `fix-devtools`, `screenshot`, `desktop-tap`, `desktop-wait`, `adb-status`,
 `adb-connect`, `tap`, `type`, `shortcut`, `vt2`, `gui`, `info`, `deploy`,
 `power-status`, `keep-awake`, `shell`.
@@ -26,7 +26,7 @@ request to make the appliance sleep-capable.
 ## Prerequisites
 
 - SSH host `chromeos-testbed` configured in `~/.ssh/config` (port 2223, root user)
-- Chromebook in developer mode with SSH bootstrapped (see `scripts/bootstrap.sh`)
+- Chromebook in developer mode with SSH bootstrapped (see `scripts/activate.sh`)
 
 ## SSH to Chromebook
 
