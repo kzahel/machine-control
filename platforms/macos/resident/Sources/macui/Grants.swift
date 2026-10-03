@@ -180,6 +180,34 @@ final class GrantBroker {
     private(set) var lastEnded: (reason: String, at: Date)?
     private(set) var audit: [AuditEntry] = []
     private let auditLimit = 100
+    var availabilityChanged: (() -> Void)?
+    private var availabilityRevision = 0
+    lazy var admission: AccessAdmission = {
+        let value = AccessAdmission()
+        value.register("desktop")
+        value.changed = { [weak self] in self?.refreshAvailability() }
+        return value
+    }()
+
+    func refreshAvailability() {
+        admission.refresh()
+        guard availabilityRevision != admission.revision else { return }
+        availabilityRevision = admission.revision
+        availabilityChanged?()
+        notify()
+    }
+
+    /// Called only by trusted native/operator surfaces or internal monitors.
+    func pause(reason: String = "manual", seconds: Int? = nil) throws {
+        try admission.pause("desktop", reason: reason, seconds: seconds.map(Double.init))
+        journal?.event("access.paused")
+    }
+
+    func resume() {
+        admission.resume("desktop", reason: "manual")
+        admission.resume("desktop", reason: "local_use_episode")
+        journal?.event("access.resumed")
+    }
 
     init(policy: DeploymentPolicy) {
         self.policy = policy
@@ -201,7 +229,8 @@ final class GrantBroker {
     var devtoolsAllowed: Bool { allows(.devtools) }
 
     private func allows(_ scope: GrantScope) -> Bool {
-        policy.grantMode == .standing || activeGrant?.scopes.contains(scope) == true
+        admission.blocks("desktop").isEmpty &&
+            (policy.grantMode == .standing || activeGrant?.scopes.contains(scope) == true)
     }
 
     /// The live grant, after retiring an expired one.
@@ -225,8 +254,14 @@ final class GrantBroker {
                 return GrantRefusal("operation_not_permitted_by_policy",
                     "Protected operations require a standing deployment policy")
             }
+            if !admission.blocks("desktop").isEmpty {
+                return GrantRefusal("access_paused", "Computer access is temporarily paused")
+            }
             return nil
         case let .scoped(scope):
+            if !admission.blocks("desktop").isEmpty {
+                return GrantRefusal("access_paused", "Computer access is temporarily paused; inspect grant.status", requiredScope: scope)
+            }
             if policy.grantMode == .standing { return nil }
             // A controlled session must not be able to act on its own
             // approval prompt, so control waits while one is visible.
@@ -330,6 +365,7 @@ final class GrantBroker {
     private func end(reason: String) {
         journal?.event("access." + DesktopJournal.token(reason))
         grant = nil
+        admission.stop(reason)
         lastEnded = (reason, now())
         notify()
     }
@@ -357,6 +393,8 @@ final class GrantBroker {
                 ["reason": ended.reason,
                  "at": ISO8601DateFormatter().string(from: ended.at)]
             } ?? NSNull(),
+            "availability": ["paused": !admission.blocks("desktop").isEmpty,
+                "blockingReasons": admission.blocks("desktop")],
         ]
         if policy.grantMode == .standing {
             value["standingScopes"] = GrantScope.allCases.map(\.rawValue)

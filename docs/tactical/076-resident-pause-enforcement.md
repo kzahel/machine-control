@@ -1,7 +1,7 @@
 # Resident pause enforcement
 
-Status: active; Windows source and contract integration passed, Mac integration
-and native acceptance remain in progress.
+Status: active; Windows and Mac pause source/contract integration passed;
+native acceptance and automatic physical resumption remain in progress.
 
 Owning topic: [access admission and pause](../../topics/access-admission-and-pause.md).
 Parent: [Tactical 074](074-access-admission-and-pause.md), step 2.
@@ -37,6 +37,13 @@ execution and established browser-session acceptance remain future gates.
 **Current:** the Mac arbiter port passes three deterministic suites for composed
 pauses, complete resource sets, fresh sessions, deadlines and notice interruption.
 It is not yet wired into production admission in this record.
+
+**Current:** Mac operator Pause/Resume now gates every ordinary scope, retains
+valid access, closes DevTools authority and invalidates resident references.
+Expected manual/physical interruption preserves access while covered control
+still relocks. The 99-test Swift suite passes, relevant socket/browser suites
+pass after the final coordinator edit, and the Intel resident builds. Root
+physical quiet/resumption and new signed physical acceptance remain later work.
 
 The existing covered-use foundation passes all 95 Swift tests in an isolated
 scratch build. Further Mac behavior changes require new acceptance evidence;

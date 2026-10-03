@@ -2,6 +2,30 @@ import XCTest
 @testable import macui
 
 final class GrantBrokerTests: XCTestCase {
+    func testPausePreservesApprovalAndGatesEveryScope() throws {
+        let broker = broker()
+        let grant = broker.issueUntilStopped(scopes: Set(GrantScope.allCases), reason: "manual",
+            requester: "operator", approver: "test")
+        var uptime = 0.0; broker.admission.now = { uptime }
+        try broker.pause()
+        for operation in ["snapshot", "capture", "input.text", "browser.tabs", "browser.eval", "app.launch"] {
+            XCTAssertEqual(broker.authorize(operation)?.code, "access_paused")
+        }
+        XCTAssertFalse(broker.browserAllowed); XCTAssertFalse(broker.devtoolsAllowed)
+        XCTAssertNil(broker.authorize("status")); XCTAssertNil(broker.authorize("grant.revoke"))
+        XCTAssertEqual(broker.activeGrant?.id, grant.id)
+        try broker.pause(reason: "safety_fault")
+        broker.resume()
+        XCTAssertEqual(broker.authorize("snapshot")?.code, "access_paused")
+        broker.admission.resume("desktop", reason: "safety_fault")
+        XCTAssertNil(broker.authorize("snapshot"))
+        try broker.pause(seconds: 1); uptime = 1; broker.refreshAvailability()
+        XCTAssertNil(broker.authorize("snapshot"))
+        broker.issue(scopes: [.observe], durationSeconds: 60, reason: "timed", requester: "operator", approver: "test")
+        try broker.pause(); clock = clock.addingTimeInterval(60); broker.resume()
+        XCTAssertEqual(broker.authorize("snapshot")?.code, "approval_required")
+        XCTAssertThrowsError(try broker.pause(seconds: 0))
+    }
     private var clock = Date(timeIntervalSince1970: 1_000_000)
 
     private func broker(_ policy: DeploymentPolicy = .workstation(issue: nil)) -> GrantBroker {

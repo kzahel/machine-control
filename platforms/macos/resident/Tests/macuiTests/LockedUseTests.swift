@@ -127,7 +127,7 @@ final class LockedUseTests: XCTestCase {
     }
 
     func testInterruptionOrMissingOptInCannotRetainAccess() {
-        for reason in ["physical_presence", "owner_disconnected", "display_changed", "system_sleep", "disabled"] {
+        for reason in ["owner_disconnected", "display_changed", "system_sleep", "disabled"] {
             XCTAssertFalse(retainLockedUseAccess(enabled:true, paused:false, phase:"active",
                 interruption:reason, endReason:nil))
             XCTAssertFalse(retainLockedUseAccess(enabled:true, paused:false, phase:"relocking",
@@ -135,6 +135,10 @@ final class LockedUseTests: XCTestCase {
         }
         XCTAssertFalse(retainLockedUseAccess(enabled:false, paused:false, phase:"ready", interruption:nil, endReason:nil))
         XCTAssertFalse(retainLockedUseAccess(enabled:true, paused:true, phase:"ready", interruption:nil, endReason:nil))
+        for reason in ["physical_presence", "operator_paused"] {
+            XCTAssertTrue(retainLockedUseAccess(enabled:true, paused:true, phase:"relocking", interruption:reason, endReason:reason))
+            XCTAssertTrue(retainLockedUseAccess(enabled:true, paused:true, phase:"ready", interruption:nil, endReason:reason))
+        }
     }
 
     func testRetainedGrantIsBoundToTheApprovingConsole() throws {

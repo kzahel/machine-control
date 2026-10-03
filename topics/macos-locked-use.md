@@ -22,9 +22,11 @@ This follows the documented [OpenAI locked-use flow](https://learn.chatgpt.com/d
 Product wording and task-end relock are Machine Control decisions, rather than
 claims about undocumented OpenAI UI or implementation details.
 
-**Current implementation:** physical keyboard/pointer activity cancels control,
-requests immediate relock, and suspends automatic unlock until independently
-observed manual unlock.
+**Current source:** physical keyboard/pointer activity cancels control and
+requests immediate relock while preserving otherwise valid ordinary access.
+Manual Pause gates observations/actions and ends covered control without
+revoking that access. Root automatic-unlock inhibition still needs the new
+quiet/resume integration; physical acceptance of this source is pending.
 Display changes, sleep, session changes, expired access, Stop, disconnect,
 process failure, and disabling the setting end temporary unlock. Covers remain
 until lock is independently observed. A root watchdog owns failure relock;
@@ -34,7 +36,8 @@ ordinary provider calls remain grant checked and generation bound.
 across idle locks
 and clean task completion, within the approving console and approval lifetime.
 Every subsequent task still acquires a finite owner connection. Changing console
-identity, unknown state, interruption, missing preparation or expiry ends access.
+identity, unknown state, safety failure, missing preparation or expiry ends
+access. Ordinary manual/physical pauses retain valid access.
 
 **Decision — next direction:** ordinary physical takeover should pause access
 and preserve otherwise valid standing authorization. Fresh covered control may
@@ -43,7 +46,9 @@ protected by a local-use pause. Explicit Pause, Resume and Stop have distinct
 effects. The cross-platform
 [access admission and pause topic](access-admission-and-pause.md) owns this
 successor contract and its proposed implementation plan. These semantics are
-not yet implemented and do not change the current evidence recorded here.
+partly implemented in source; unattended resumption and physical acceptance
+remain open. Earlier physical evidence retains the behavior of its tested
+revision rather than inheriting these new semantics.
 
 ## Boundaries
 

@@ -62,9 +62,18 @@ struct GrantConsoleBinding {
 
 func retainLockedUseAccess(enabled: Bool, paused: Bool, phase: String,
                            interruption: String?, endReason: String?) -> Bool {
-    guard enabled, !paused else { return false }
-    if phase == "relocking" { return ["completed", "duration_expired"].contains(endReason ?? "") }
-    return interruption == nil
+    guard enabled else { return false }
+    let resumable = ["physical_presence", "operator_paused", "paused", "cancelled"]
+    if paused && !resumable.contains(endReason ?? interruption ?? "") { return false }
+    if phase == "relocking" {
+        return ["completed", "duration_expired"].contains(endReason ?? "") || resumable.contains(endReason ?? "")
+    }
+    return interruption == nil || resumable.contains(interruption ?? "")
+}
+
+/// Expected endings still relock, but need no fault acknowledgement in root.
+func cleanCoveredEnding(_ reason: String) -> Bool {
+    ["completed", "duration_expired", "operator_paused", "paused", "cancelled"].contains(reason)
 }
 
 /// Private, measured OS lock primitive; success is always checked via IOKit.
@@ -287,7 +296,7 @@ final class MacLockedUse {
     private(set) var phase = "off"
     private var relockFallbackDeadline: TimeInterval = 0
     private var shouldForceRelock: Bool {
-        guardian == nil || !["completed", "duration_expired"].contains(endReason ?? "") ||
+        guardian == nil || !cleanCoveredEnding(endReason ?? "") ||
             ProcessInfo.processInfo.systemUptime >= relockFallbackDeadline
     }
     private let preferences: UserDefaults
@@ -517,7 +526,10 @@ final class MacLockedUse {
             // Its independent heartbeat/deadline guards still bound failure.
             if shouldForceRelock { ConsoleRelock.request(for:lease?.session) }
         } else { finishAfterLock() }
-        if !["completed", "duration_expired"].contains(reason) {
+        if reason == "physical_presence" {
+            try? broker.pause(reason: "physical_activity", seconds: 30)
+        }
+        if !cleanCoveredEnding(reason) && reason != "physical_presence" {
             broker.revoke(reason: reason == "physical_presence" ? "interrupted_by_physical_presence" : reason)
             service.invalidateReferences()
         }
@@ -533,7 +545,7 @@ final class MacLockedUse {
                 "lockObserved":nativeSessionObservation()["desktopState"] as? String == "locked"])
             if endReason == "physical_presence" {
                 response = service.refusal(ownerRequest, code:"interrupted_by_physical_presence",
-                    message:"Unlock the Mac manually before continuing")
+                    message:"Physical input paused control; inspect availability before starting a fresh session")
             }
             try? writeSocket(owner, data: encodeJSONLine(response)); Darwin.close(owner)
         }

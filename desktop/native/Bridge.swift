@@ -108,6 +108,8 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                     "logging": server.broker.journal?.health ?? [:],
                     "stopShortcutAvailable": desktopHotKey != nil,
                     "manualUntilStoppedSupported": true,
+                    "pauseSupported": true,
+                    "admission": server.broker.admission.status,
                     "lockedUse": server.lockedUse.status,
                     "socket": server.socketPath, "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "development"]
                 if let pending = desktopApprover.request {
@@ -125,6 +127,10 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                 server.broker.journal?.diagnostic("desktop.supervisor", code: command["code"] as? String ?? "unknown")
             case "stop":
                 stopDesktopAccess()
+            case "pause":
+                try server.broker.pause(seconds: command["duration"] as? Int)
+            case "resume":
+                server.broker.resume()
             case "locked_use":
                 guard !desktopUpdating, let enabled = command["enabled"] as? Bool else {
                     throw MacUIError.usage("Choose whether locked use is enabled")

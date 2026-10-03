@@ -129,6 +129,14 @@ final class ResidentServer {
         // Bind synchronously when approval is issued, including a lock that
         // follows before the next timer tick. Never adopt an unbound grant later.
         broker.observe { [weak self] in self?.bindApprovedConsole() }
+        broker.availabilityChanged = { [weak self] in
+            guard let self else { return }
+            self.service.invalidateReferences()
+            let reasons = self.broker.admission.blocks("desktop")
+            if !reasons.isEmpty {
+                self.lockedUse.end(reasons.contains("physical_activity") ? "physical_presence" : "operator_paused")
+            }
+        }
         bindApprovedConsole()
     }
 
@@ -188,6 +196,7 @@ final class ResidentServer {
             grantConsoleBinding = nil
         }
         lockedUse.tick()
+        broker.refreshAvailability()
     }
 
     private func acceptPending() {

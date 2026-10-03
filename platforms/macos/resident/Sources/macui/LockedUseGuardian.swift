@@ -170,7 +170,7 @@ private final class CoveredGuardian {
             try? writeSocket(STDOUT_FILENO, data:encodeJSONLine(["phase":"interrupted", "reason":reason]))
             if helper >= 0 {
                 try? writeSocket(helper, data:encodeJSONLine([
-                    "operation":["completed", "duration_expired"].contains(reason) ? "complete" : "cancel", "reason":reason]))
+                    "operation":cleanCoveredEnding(reason) ? "complete" : "cancel", "reason":reason]))
                 Darwin.close(helper); helper = -1
             }
         }
