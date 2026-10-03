@@ -11,6 +11,42 @@ actions, and target-local input. Stable application identity and TCC consent
 are deployment requirements. Login window, FileVault/preboot, credentials, and
 some protected surfaces are separate authority domains.
 
+## Caller authentication gap
+
+**Current, `source-reviewed`:** the owned resident's ordinary local socket is
+mode `0600`; [grant dispatch](../../platforms/macos/resident/Sources/macui/Grants.swift)
+checks active scopes rather than binding them to a requester. Grants report
+`target_wide`. YA's verification of the installed MC package does not
+authenticate the original caller to this resident. This is source evidence,
+not a new hostile-caller conformance test.
+
+**Open:** compare authenticated IPC, kernel peer/code identity, connection-bound
+grants and minimal credential checks, including their same-user limitations.
+The [Sky Computer Use review](../providers/sky-computer-use.md) now establishes
+the distributed JS socket transport and finds native audit-token,
+code-identity and ancestry authorization machinery. A user-authorized live
+follow-up passed supported discovery and observed native socket rejection of
+same-user Python and separately launched signed Node, including closure before
+any request bytes. Static native follow-up reconstructs the runtime broker and
+peer-publisher plus parent/relay admission policy; comprehensive isolation and
+session binding remain unverified. No short-lived client credential exchange
+was found in that admission flow; prompt behavior alone does not establish
+these boundaries.
+[Caller authorization](../../topics/caller-authorization.md) owns the
+high-priority investigation and required evidence.
+
+**Current, bounded `live-tested`:** the owned
+[caller identity experiment](../../tests/macos/caller-authorization/README.md)
+checks kernel peer audit tokens and strict code validity against a designated
+requirement. A publisher-signed native fixture passed; different identifiers,
+ordinary Python and an ad-hoc identity impostor were refused. YA's signed Bun
+running an unrelated script passed a publisher-only policy and failed the
+native Desktop identity requirement. This supports a specific native broker
+identity rather than blanket publisher admission. It does not establish real
+YA session delegation, grants or hostile same-user containment; [Tactical
+071](../../docs/tactical/071-desktop-caller-authorization.md) owns the result.
+
+
 ## Candidate matrix
 
 | Candidate | Evidence | Depth | Current use |
@@ -23,7 +59,7 @@ some protected surfaces are separate authority domains.
 | [agent-desktop](../providers/agent-desktop.md) | `source-reviewed` | Strong compact contract and implemented macOS adapter | Contract reference |
 | [native-devtools-mcp](../providers/native-devtools-mcp.md) | `source-reviewed` | Exact capture, AX refs/actions, OCR, CDP | Capture/AX reference |
 | Existing macVM helper | `adopted` for the ordinary resident plane | Persistent AX/Workspace/Quartz/CoreGraphics facade with stable TCC identity | Current native default and recovery-aware testbed integration |
-| Computer Use | optional installed-provider route | Strong agent ergonomics | Supplement/benchmark only |
+| [Sky Computer Use](../providers/sky-computer-use.md) | JS/native static review; bounded live caller rejection | Socket transport, process identity and separate app approvals; full isolation unverified | Supplement/benchmark only |
 | Appium Mac2 Driver | `upstream-claimed` with exact pin | XCTest/Appium automation | Adjacent platform candidate pending focused review |
 
 ## Completed evidence

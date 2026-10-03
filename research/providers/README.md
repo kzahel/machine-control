@@ -7,6 +7,7 @@ components remain necessary. Evidence levels are defined in the
 
 | Provider | Declared top-level license | Platform reach under review | Strongest evidence here |
 | --- | --- | --- | --- |
+| [Sky Computer Use](sky-computer-use.md) | Proprietary plugin/service; separate Codex source Apache-2.0 | macOS caller authorization; Windows unreviewed | JS/native static review; bounded live discovery and rejection of Python/signed-Node socket callers |
 | [Machine Control Chrome extension](chrome-extension.md) | MIT; browser distributor terms remain separate | macOS, Windows; Linux integration open | Source-native browser conformance; signed Windows acceptance pending |
 | [Codex / ChatGPT browser extension](codex-browser-extension.md) | No top-level source license found in reviewed package; proprietary reference | Chromium browser indicators; platform behavior untested here | Source-reviewed tab groups, favicons, and cursor overlay |
 | [Cua Driver](cua-driver.md) | MIT; published skill copies have separate MIT-0 terms | Windows, macOS, Linux | Adopted by the Windows runtime; Windows/macOS conformance-tested |

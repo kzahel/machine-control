@@ -64,3 +64,6 @@ commits with no expected follow-up do not need a trailer or registry entry.
 
 - `desktop-audit-and-diagnostics` — durable desktop history, private diagnostics,
   failure handling, operator inspection, and cross-platform validation.
+
+- `caller-authorization` — authenticated callers, trusted integration grants,
+  session revocation and native identity validation.

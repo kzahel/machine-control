@@ -443,6 +443,12 @@ powerful. Read [SECURITY.md](SECURITY.md) before installing or arming protected
 operations. The deeper routing and authorization policy is in
 [inner-first routing](topics/inner-first-routing.md).
 
+**High-priority validation:** [caller authorization](topics/caller-authorization.md).
+Desktop preview grants currently arm access for same-user callers, rather than
+an individual YA session. The Desktop-first plan has passed a bounded native
+identity experiment; authenticated session delegation and automatic grants
+remain pending. Publisher trust alone does not establish caller isolation.
+
 ## Project structure
 
 | Path | Purpose |

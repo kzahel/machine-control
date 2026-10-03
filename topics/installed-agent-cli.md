@@ -114,6 +114,14 @@ is explicitly reconsidered.
 
 ## Consumer ownership and acceptance
 
+**Proposal — high priority:** [Caller authorization](caller-authorization.md)
+owns the Desktop-first plan for authenticated clients and automatic scoped
+grants. [Tactical 071](../docs/tactical/071-desktop-caller-authorization.md)
+records the feasibility proof and installed acceptance; unsigned npm YA CLI
+authentication is the next follow-up.
+Installed-package verification and launch advertisement do not provide that
+boundary today.
+
 **Decision:** MC owns installed commands, native access/arming, claims,
 resident lifecycle and updates. YA owns launch eligibility and advertisement,
 optional tool adaptation and media presentation. A session ID is attribution,

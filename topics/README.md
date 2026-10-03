@@ -34,6 +34,10 @@ its `Topic:` trailers.
 
 ## Current topics
 
+- **High-priority validation in progress:**
+  [`caller-authorization.md`](caller-authorization.md): authenticated local
+  callers, automatic grants for trusted YA Desktop and session revocation,
+  preserving native approval requests; npm CLI authentication follows next.
 - [`architecture.md`](architecture.md): target-native component, provisional
   provider composition, fork/replacement gates, trust, deployment-profile,
   facade, and failure-boundary decisions.

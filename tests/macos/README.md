@@ -196,3 +196,11 @@ browser PNG capture and artifact retrieval. Its dedicated Chrome for Testing
 profile, native host/extension, independent HTTP/CDP oracles and process cleanup
 remain the same. The caller owns guest-local and controller claims, native
 approval, canonical native-host socket selection and restoration.
+
+## Caller identity experiment
+
+[caller-authorization/README.md](caller-authorization/README.md) describes a
+standalone native Unix-socket gate with audit-token and strict code-identity
+checks. It uses temporary signed fixtures and installed YA's Bun to compare
+specific executable trust with overly broad publisher trust. It performs no
+desktop actions and does not exercise production grants or session delegation.

@@ -196,10 +196,11 @@ targeted acceptance. Signed lock/recovery and full physical acceptance remain op
 **Open:** An MVP grant arms the whole target, not only the requester. While it
 is active, any same-user process can use it. The CLI opens a new connection
 per request, so the caller shown in the prompt informs the approver and the
-audit log but does not bind the grant. The intended fix is a durable
-connection: the agent's client (for example an MCP or YepAnywhere adapter)
-holds one socket open, the grant attaches to that connection, and it ends when
-the connection closes.
+audit log but does not bind the grant. [Caller authorization](caller-authorization.md)
+owns the Desktop-first plan for automatically granting bounded access to a
+trusted integration. Native executable identity has a bounded validation
+result; the real broker, authenticated session channel and revocation remain
+pending. No target-wide grant becomes session-bound through advertisement.
 
 **Open:** Other same-user programs with Accessibility permission can still
 click a click-approval prompt. Touch ID approval (LocalAuthentication) removes
@@ -256,12 +257,17 @@ avoids two tools owning `pmset disablesleep`.
 
 ## Next direction
 
+**High priority:** investigate [caller authorization](caller-authorization.md)
+before treating target-wide arming as suitable for isolating agent sessions.
+This promotes the previously deferred connection-bound grant concern; the
+linked topic owns the investigation and acceptance requirements.
+
 1. Finish [Tactical 050](../docs/tactical/050-macos-host-control-mvp.md):
    install on the development Mac with the person granting macOS consent,
    approving prompts, and loading the unpacked extension.
 2. The `unattended` preset on a dedicated physical machine.
 3. Away mode: curtain, presence guard, relock, then closed lid.
-4. Touch ID and out-of-band approvers; connection-bound grants.
+4. Touch ID and out-of-band approvers.
 5. Remote callers of a physical host over SSH or YepAnywhere, with prompts that
    identify remote callers.
 6. Shared Tauri desktop UX, Developer ID signing, notarization, and the
