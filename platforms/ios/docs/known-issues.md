@@ -49,6 +49,20 @@ while commands execute. Runner snapshots and screenshots still show the real
 underlying target UI. End the session and use `normal-launch` when a human needs
 the normal on-device presentation.
 
+## Physical Settings relaunch
+
+An ordinary Settings launch and subsequent Bluetooth-row press were verified
+on a physical phone, including screenshot readback. The command
+`launch Settings --relaunch` instead failed with `APP_NOT_INSTALLED` for
+`com.apple.Preferences`: the provider's pre-launch termination path requires an
+installed-app inventory record that was absent. Use ordinary launch for this
+system application; the refusal does not mean Settings is missing or signing
+has expired.
+
+The Bluetooth page retained a navigation-bar label of `Settings` in its
+semantic tree. Verify page-specific content or a capture rather than assuming
+the navigation-bar label alone identifies the current page.
+
 ## Keyboard dismissal
 
 iOS does not have a safe app-agnostic keyboard blur action. `keyboard dismiss`
