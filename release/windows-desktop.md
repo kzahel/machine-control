@@ -74,6 +74,54 @@ cleans up the companion and Tauri before installation.
 
 ## Common CLI
 
+### Agent discovery in the next desktop package
+
+The Windows desktop executable now forwards CLI commands to its bundled Python
+runtime before starting the GUI. This is checked-in implementation; public
+0.5.3 retains its original nested-command entry until updated.
+
+```powershell
+machine-control --help
+machine-control agent instructions
+machine-control agent identity --paths
+```
+
+Explicit help and agent discovery are offline. Bare terminal/captured launch,
+or `--start`, starts the app if needed, reports bounded readiness and returns
+instruction pointers. Use `--gui` to open the operator window. Ordinary commands
+produce their existing output without a banner and do not start a resident.
+Starting the app leaves native access approval and target-use claims unchanged.
+An interactive Windows user session is required to start the desktop product;
+offline discovery also works from noninteractive shells.
+The EXE retains the Windows GUI subsystem for graphical launch. In PowerShell
+scripts, pipe output (for example, `machine-control agent identity | Out-String`)
+or use `Start-Process -Wait` to wait reliably and inspect completion. Interactive
+shells can display their next prompt before an unpiped GUI command finishes.
+
+The installer offers **Add to user PATH**, with the previous preference retained
+for repair and passive updates. Silent callers can set `/ADDTOPATH=1` or
+`/ADDTOPATH=0`; the first-install default is on. The installer appends only its
+directory, preserves registry value types, and removes only an entry it owns.
+Existing terminals/agent hosts may need restarting to inherit the new PATH;
+absolute-path invocation works immediately. The root `README.txt` and runtime
+pointer explain this discovery path. No global agent instructions are edited.
+
+`agent identity` remains the exact static receipt for existing consumers.
+`agent identity --paths` adds resolved launcher, interpreter, CLI and bundled
+resident locations. These are client diagnostics, not authenticated live
+resident identity. Bare launch verifies the answering resident image before
+claiming this installation is running; a different installation is not replaced.
+
+Tests: `tests/windows/discovery.py` exercises offline EXE and shell/pipe behavior;
+`discovery-console.ps1` checks a real console buffer; `discovery-session.ps1`
+checks startup and a claimed fixture effect; `discovery-installer.py` exercises
+the installer lifecycle with finally-style registry restoration. Run session
+and installer tests only in an exclusively claimed dedicated appliance. Exact
+acceptance and remaining coverage live in
+[Tactical 068](../docs/tactical/068-windows-agent-discovery.md).
+
+### Target selection and access
+
 On Windows, `python bin/machine-control --target host target doctor` selects
 the installed desktop product in the current interactive user session.
 Acquire a common target-use claim before `grant request|status|revoke` or

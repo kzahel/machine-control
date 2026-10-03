@@ -61,10 +61,11 @@ integrity evidence only, not publisher authority. The packaging
 
 **Decision:** Improve unfamiliar-agent discovery on Windows first, then extend
 the experience to macOS and Linux. Windows is the first implementation slice,
-not the completion of the cross-platform work. Windows implementation and incremental commits are now authorized;
-macOS/Linux implementation and release publication remain separate.
+not the completion of the cross-platform work. Windows implementation and
+x64 developer acceptance are complete; macOS/Linux implementation and release
+publication remain separate.
 
-**Proposal:** Provide one obvious public command that reaches the bundled
+**Decision:** Provide one obvious public command that reaches the bundled
 Python client without GUI initialization for ordinary CLI operations. Explicit
 help, agent instructions and client identity stay offline. A bare terminal or
 captured launch ensures the app is running, returns short status/instruction
@@ -72,6 +73,16 @@ pointers, and finishes independently of the operator process. Normal graphical
 launch remains natural for a person. Offer platform-appropriate command
 discovery, nearby guidance and resolved installation identity, preserving
 access approval, claims and existing installed consumers.
+
+**Current — Windows implementation:** The desktop EXE forwards explicit CLI
+commands before GUI initialization, and bare captured/terminal launch performs
+bounded startup and prints guidance. Installer PATH registration and README
+pointers are implemented. `agent identity --paths` exposes resolved locations;
+the unqualified command deliberately retains the exact signed receipt shape
+required by existing strict consumers. Native x64 installer, caller-job lifetime
+and claimed fixture acceptance passed; remaining release and ARM64 cells are
+recorded in [Tactical 068](../docs/tactical/068-windows-agent-discovery.md).
+These changes are not present in the already published 0.5.3 packages.
 
 **Decision:** Share the agent-facing vocabulary and workflow across platforms;
 choose executable routing, command registration and app startup using each
@@ -81,7 +92,7 @@ possible; it does not automatically advertise a tool to an agent.
 
 | Platform | Discovery work status | Next implementation scope |
 | --- | --- | --- |
-| Windows | Implementation active; acceptance pending | Main EXE forwarding, bounded bare launch, user PATH option, README pointers and resolved identity in [Tactical 068](../docs/tactical/068-windows-agent-discovery.md). |
+| Windows | Implemented; native x64 developer acceptance passed | Signed release/update and full ARM64 installed acceptance remain open in [Tactical 068](../docs/tactical/068-windows-agent-discovery.md). Main EXE, bare launch, PATH, nearby guidance and resolved identity are implemented. |
 | macOS | Open follow-up after Windows; not implemented by this plan | Public command discovery from a signed app bundle, terminal versus graphical launch, offline guidance/identity, detached startup and install/update/removal behavior. Preserve existing native command modes and signing. |
 | Linux | Open follow-up after Windows; not implemented by this plan | Public command discovery for Debian and AppImage, GUI/CLI executable routing, offline guidance/identity, detached startup and install/update/removal behavior. Preserve package-manager ownership and AppImage relocation. |
 

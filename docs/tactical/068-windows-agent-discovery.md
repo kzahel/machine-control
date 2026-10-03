@@ -1,7 +1,7 @@
 # Make the Windows desktop executable discoverable to agents
 
-Status: active. Windows implementation and incremental commits authorized;
-publication remains separate.
+Status: implemented; native Windows x64 developer acceptance passed.
+Signed release acceptance and ARM64 installed acceptance remain open.
 
 Owning topic: [Installed agent CLI](../../topics/installed-agent-cli.md).
 Related: [Native distribution](../../topics/native-distribution.md),
@@ -16,16 +16,16 @@ obvious automation entry point, PATH discovery, and useful output even when
 the agent simply launches the application. Preserve Python as the command
 implementation and normal double-click use as a desktop application.
 
-**Current — source review:** The Windows GUI executable does not forward CLI
-commands. Its argument rejection prints Mac-oriented usage. The installed
-terminal entry is `mc-cli/commands/machine-control.cmd`; installer hooks do
-not register a PATH command. Offline identity reads package metadata without
-resolved installation paths. This is source evidence, not a fresh inspection
-of the reporting user's installed machine.
+**Baseline — source review before implementation:** The Windows GUI executable
+did not forward CLI commands and its argument rejection printed Mac-oriented
+usage. The installed terminal entry was `mc-cli/commands/machine-control.cmd`;
+installer hooks did not register a PATH command. Offline identity read package
+metadata without resolved installation paths. This was source evidence, not an
+inspection of the reporting user's installed machine.
 
-## Proposed user contract
+## Implemented Windows user contract
 
-**Proposal:** Make `machine-control.exe` the public Windows entry point for
+**Decision:** Make `machine-control.exe` the public Windows entry point for
 both desktop launch and automation. Retain the existing bundled command for
 compatibility and direct Python development.
 
@@ -35,7 +35,7 @@ compatibility and direct Python development.
 | Bare `machine-control` from a shell or captured agent subprocess | Ensure the desktop app is running, print a short introduction and observed readiness/access status, then return. Do not focus an already-running app for this automation invocation. |
 | `machine-control --help` | Print command help and exit without starting, focusing, or contacting the resident. Include the agent-instructions entry. |
 | `machine-control agent instructions` | Print the full owned workflow and exit offline. |
-| `machine-control agent identity` | Print machine-readable offline client identity and resolved installation details, then exit. |
+| `machine-control agent identity` | Print the existing machine-readable offline client receipt, then exit. Add `--paths` for resolved installation details. |
 | Other CLI commands | Forward to the bundled Python implementation, preserving arguments, streams and exit status. Do not add a banner or implicitly start the app. |
 | Existing internal launch modes | Preserve startup, update, restart and background semantics; do not send their arguments to Python. |
 
@@ -46,7 +46,7 @@ Machine Control is running. Desktop access is off.
 
 Agent instructions: machine-control agent instructions
 Available commands: machine-control --help
-Installation details: machine-control agent identity
+Installation details: machine-control agent identity --paths
 ```
 
 Use unknown/unavailable wording when access or readiness cannot be observed.
@@ -57,14 +57,14 @@ claim. Existing claims and approval rules continue to govern target operations.
 The bare-launch probe must stay within unclaimed read-only discovery; if richer
 status requires a claim, omit that status and point to the claimed workflow.
 
-**Proposal:** Offer an installer option, initially selected, to add the desktop
+**Decision:** Offer an installer option, initially selected, to add the desktop
 installation directory to the current user's PATH. The main executable is the
 command; avoid adding both it and the nested command directory. Preserve the
 choice across upgrades, including passive updates. Silent installation must
-have documented enable/disable behavior. Confirm the default during
-implementation review rather than treating it as shipped policy.
+have documented enable/disable behavior. Implementation uses a first-install
+default of on, with `/ADDTOPATH=0|1` and the previous preference retained.
 
-**Proposal:** Include a short README beside the executable and a pointer in
+**Decision:** Include a short README beside the executable and a pointer in
 `runtime`. Lead with `machine-control.exe agent instructions`, explain that
 Python is bundled, and provide an absolute-path invocation example for stale
 PATH environments. Explain the desktop launcher versus the resident companion.
@@ -155,6 +155,11 @@ choosing an additive compatible representation or a versioned change. Resolved
 paths are diagnostics, not publisher verification or proof of a live resident.
 Use the existing live doctor/status route for observed resident identity and
 report ambiguity honestly. Keep concrete paths out of committed evidence.
+
+**Decision from consumer review:** Existing consumers parse the receipt strictly
+and compare the offline response to it exactly. Keep default `agent identity`
+unchanged and expose the additional diagnostics with `agent identity --paths`.
+The public launcher and adjacent guidance advertise that explicit form.
 
 Package the two README pointers with the appropriate payload inventories and
 signatures. Refresh agent guidance for explicit bare-launch startup while
@@ -248,6 +253,72 @@ native tests must establish the complete launcher/pipe behavior.
 
 ## Result
 
-Planning only. No launcher, installer, identity schema or package behavior has
-changed through this tactical. Console-mode detection, caller-job lifetime,
-measured overhead and identity compatibility remain implementation gates.
+**Current — implemented and native-tested on Windows x64:** The main EXE is
+an early CLI dispatcher over the pinned bundled interpreter. It preserves
+command streams, arguments and exit status without initializing Tauri for CLI
+commands. Bare terminal/captured launch and `--start` ensure the same installed
+app is running, print bounded guidance and leave access approval unchanged.
+Graphical launch remains available through `--gui`; internal background launch
+does not focus an existing instance. Installer PATH choice, ownership-aware
+registration, adjacent README pointers and opt-in resolved identity are present.
+
+The native candidate is an unsigned developer NSIS package built from the
+implementation commit `83797eb`. It is not the published 0.5.3 package. No
+release, signing, channel promotion or public deployment was performed.
+
+### Acceptance recorded
+
+| Surface | Evidence and scope |
+| --- | --- |
+| Native build | Full x64 desktop and NSIS build; native `cargo fmt --check`, Clippy with warnings denied, and all four Rust tests passed. Resident and medium fixture x64 publishes succeeded; resident source was unchanged. |
+| Offline EXE | Help, instructions and exact receipt identity passed with the operator stopped; no system Python on child PATH, unrelated working directory, invalid Python environment variables, relocated Unicode bundle and missing-interpreter refusal were covered. |
+| Streams and shells | Captured stdout/stderr, piped PowerShell, cmd batch, redirected file, Unicode/quoted/empty/trailing-backslash arguments, stdin and exit status 37 passed. An owned real console independently observed help in its buffer. |
+| Startup and lifetime | Two concurrent bare launches, repeated launch and `--start` passed. The operator survived normal actor exit and closure of a kill-on-close job allowing explicit breakaway. Repeated automation discovery preserved foreground focus. The launcher uses its installation as the app working directory so it cannot pin an agent's temporary directory. |
+| Native control | Exact local doctor and a separate local claim preceded access-off refusal and granted fixture control through the main EXE. The fixture's independent counter and captured-artifact SHA-256 confirmed effects; claims were released and access stopped. `--gui` exercised the existing single-instance operator window. |
+| Installed lifecycle | Custom directory with spaces/Unicode, PATH opt-in/out, repair preference retention, no duplicate entry, fresh environment resolution, deliberately stale parent environment, and uninstall restoring the original PATH passed. Original product registration was restored. |
+| PATH edge cases | Native isolated-registry tests covered long values, registry type, unrelated/user-owned equivalents, and empty versus absent PATH. A directory containing a PATH delimiter refuses registration while allowing explicit opt-out and uninstall. |
+| Failure contracts | Relocated missing interpreter and another resident image refusal were covered. Deterministic tests cover readiness deadline failure and a caller job refusing breakaway; the latter is not a live restrictive-job acceptance claim. |
+| Compatibility | Default identity remains exactly the static receipt required by existing strict consumers. `--paths` adds runtime diagnostics only when requested. 151 common client tests and 68 release/packaging tests passed (one Windows registry test skipped on the Mac runner and separately passed natively); Mac and Linux relocated installed-CLI offline smoke passed. |
+
+Ten sequential identity calls per route in the final full acceptance sample
+measured EXE first/warm-median **278.38/278.15 ms**, versus legacy command
+**288.31/284.59 ms**. Nine calls after the first supplied each median; EXE warm
+samples ranged 273.80–294.02 ms, legacy 279.72–298.10 ms. Earlier idle runs
+varied by a few milliseconds in either direction. This establishes no material
+forwarding regression for this VM and operation; it is not a cold-cache,
+help-command or resident-operation benchmark, or a latency guarantee.
+
+The acceptance scripts live under `tests/windows/discovery*`. The installer
+runner restores registry state in `finally`, waits for the real NSIS uninstall
+process (not its temporary launcher), and retains private recovery metadata.
+Native console creation avoids inherited log handles and reserves sufficient
+scrollback for the oracle. The original installation's file hashes and count
+were independently checked after lifecycle testing. All 2,373 original files
+matched, original registration was restored, task artifacts and candidate
+processes were removed, the canonical credential locator remained ready, and
+the appliance returned to its original powered-off state. The exclusive
+controller claim was released. Machine-specific evidence and registry backups
+stay outside this public repository.
+
+### Remaining release gates and follow-ups
+
+- Full ARM64 desktop/package build and native ARM64 installed acceptance remain
+  open. The new launcher module type-checked for x64 and ARM64; that does not
+  establish full ARM64 packaging or execution.
+- Signed installer/catalog verification and a real passive updater cycle must
+  run in the next release. The native lifecycle evidence here covers a developer
+  installer and silent repair; it does not establish signed upgrade acceptance.
+- Explorer double-click, logon startup, tray and restart/update UI need the
+  existing release regression pass. This slice exercised explicit graphical
+  single-instance opening and background startup, not every lifecycle trigger.
+- Windows GUI-subsystem commands can return an interactive shell prompt before
+  finishing. Scripted PowerShell callers should pipe output or use a waiting
+  process API. Bare context detection cannot infer intent when a launcher hides
+  all handles; `--start` and `--gui` select the desired behavior explicitly.
+- A host job that forbids process breakaway receives startup failure. Supporting
+  such a host requires its process-lifetime policy to permit independent apps;
+  silently claiming successful detached startup is not acceptable.
+- Mac/Linux offline bundled-CLI regressions passed. Full native GUI/lifecycle
+  and claimed-control regressions on those platforms were not run in this
+  Windows slice. Their new discovery implementations remain open in the
+  [topic tracker](../../topics/installed-agent-cli.md#agent-discovery-across-desktop-platforms).
