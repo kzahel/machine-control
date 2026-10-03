@@ -296,12 +296,9 @@ fn main() {
     ));
     builder
         .plugin(tauri_plugin_single_instance::init(|app, args, _| {
-            #[cfg(target_os = "windows")]
             if args.iter().any(|arg| arg == "--background") {
                 return;
             }
-            #[cfg(not(target_os = "windows"))]
-            let _ = args;
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.set_focus();
@@ -339,6 +336,11 @@ fn main() {
                 let path = CString::new(socket.clone())?;
                 decode(unsafe { mc_desktop_start(path.as_ptr()) })
                     .map_err(std::io::Error::other)?;
+                if args == ["--background"] {
+                    if let Some(window) = app.get_webview_window("main") {
+                        window.hide()?;
+                    }
+                }
             }
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -498,6 +500,13 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("Machine Control could not start")
         .run(|_, event| {
+            // The native application menu and Cmd-Q bypass the tray handler.
+            // Finish volatile control while the event loop and native broker
+            // still exist, preserving only the operator's durable choices.
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            if matches!(event, tauri::RunEvent::ExitRequested { .. }) {
+                let _ = native_command(json!({"method":"prepare_exit"}));
+            }
             if matches!(event, tauri::RunEvent::Exit) {
                 diagnostics::record("supervisor.stop");
             }

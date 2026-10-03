@@ -458,3 +458,13 @@ storage-failure acceptance runs on the platform's dedicated VM. The shared
 [Tactical 069](../../docs/tactical/069-desktop-audit-and-diagnostics.md) owns
 platform/architecture results. This does not broaden provider privilege or
 signed-package acceptance.
+
+**Current, bounded physical ARM64 evidence:** the unlocked admission notice
+retained independently observed fixture application/key/field focus; one native
+AX effect changed the fixture counter once. Two owners serialized, manual pause
+fenced both, consent and indefinite manual pause survived restart, and Stop
+remained off after restart. The signed candidate retained its existing healthy
+helper without Repair or another OS permission. Native menu Quit recorded clean
+operator cleanup before its active owner channel closed. See
+[Tactical 081](../../docs/tactical/081-macos-admission-physical-acceptance.md);
+this does not qualify the revised locked takeover/resumption path.

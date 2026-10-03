@@ -181,9 +181,11 @@ final class FixtureController: NSObject, NSApplicationDelegate, NSTextFieldDeleg
         }
         stateTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) {
             [weak self] _ in
-            guard let self, self.text != self.textField.stringValue else { return }
-            self.text = self.textField.stringValue
-            self.textLabel.stringValue = "Text: \(self.text)"
+            guard let self else { return }
+            if self.text != self.textField.stringValue {
+                self.text = self.textField.stringValue
+                self.textLabel.stringValue = "Text: \(self.text)"
+            }
             self.persist()
         }
         persist()
@@ -376,6 +378,9 @@ final class FixtureController: NSObject, NSApplicationDelegate, NSTextFieldDeleg
     private func persist() {
         let object: [String: Any] = [
             "schema": "machine-control-macos-fixture/v0",
+            "applicationActive": NSApp.isActive,
+            "keyWindow": fixtureWindow?.isKeyWindow ?? false,
+            "textFocused": fixtureWindow?.firstResponder === textField.currentEditor(),
             "count": count,
             "enabled": enabled,
             "text": text,

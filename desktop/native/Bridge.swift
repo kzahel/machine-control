@@ -79,6 +79,13 @@ public func mcDesktopStart(_ path: UnsafePointer<CChar>) -> UnsafeMutablePointer
         try server.start()
         server.devtools.start()
         desktopServer = server
+        // AppKit's standard application-menu termination can finish before the
+        // Tauri exit-request callback. End protected control in the native
+        // lifecycle notification as well, before the process disappears.
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification,
+            object:nil, queue:.main) { [weak server] _ in
+                server?.revoke(reason:"operator_quit")
+            }
         NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: .main) { _ in desktopMenuTracking = true }
         NotificationCenter.default.addObserver(forName: NSMenu.didEndTrackingNotification, object: nil, queue: .main) { _ in desktopMenuTracking = false }
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))

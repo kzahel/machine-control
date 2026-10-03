@@ -2,10 +2,12 @@
 
 Topic: `access-admission-and-pause`
 
-Status: implementation active. Versioned admission contract and deterministic
-arbiter checks pass; Windows source exposes operator pause/resume. Production
-waiting channels, Mac pause/resumption, polite notices and native acceptance
-remain in progress. Capabilities are qualified separately before release.
+Status: implementation active. Common arbiters and live owner-bound channels
+pass deterministic checks. Mac physical notice focus, independent AX effect,
+composed operator pause, consent/pause restart and persistent Stop have bounded
+live evidence. Protected quiet resumption, shared outer reservations,
+authenticated integration and Windows native acceptance remain open.
+Capabilities are qualified separately before release.
 
 ## Scope and motivation
 
@@ -39,8 +41,8 @@ mechanisms below remain distinct; claim v0 still advertises no queue.
 | --- | --- | --- |
 | VM target-use claim | Exclusive exact-resource lease; 30-minute default, 60-second minimum, four-hour maximum requested and continuous lifetime; renewal and fencing | No waiting queue; a live holder produces a conflict |
 | Mac approval request | One pending native request; default 120-second approval timeout, bounded to 5–600 seconds; a second request receives `approval_pending` | Prompt timeout is not queue liveness or a resumable pause |
-| Mac ordinary access | Target-wide same-user scopes; timed grants or locally chosen until-stopped access | In memory; app restart clears access; caller isolation remains open |
-| Mac covered control | Connection-owned session, at most 900 seconds, five-second heartbeat deadline; covers and watchdog relock | Physical takeover currently revokes Access and inhibits automatic unlock until manual recovery |
+| Mac ordinary access | Target-wide same-user scopes; timed or until-stopped local consent derives fresh grants across the same console/boot after permission checks | Caller isolation remains open; restored consent never restores a queue or active owner |
+| Mac covered control | Connection-owned finite session, five-second heartbeat, covers and watchdog relock; source retains consent and composes physical/local-use pause | Revised queue-driven takeover/quiet resumption still needs native lock qualification |
 
 The sources are the [claim authority](../providers/claims/claims.py),
 [Mac grant broker](../platforms/macos/resident/Sources/macui/Grants.swift) and

@@ -6,7 +6,6 @@ pub fn valid_launch_args(args: &[String]) -> bool {
     if args == ["--gui"] {
         return true;
     }
-    #[cfg(any(target_os = "windows", target_os = "linux"))]
     if args == ["--background"] {
         return true;
     }
