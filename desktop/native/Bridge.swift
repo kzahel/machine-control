@@ -27,6 +27,7 @@ private func bridgeJSON(_ value: [String: Any]) -> UnsafeMutablePointer<CChar>? 
 public func mcDesktopMode(_ input: UnsafePointer<CChar>) -> Int32 {
     guard let args = try? JSONSerialization.jsonObject(with: Data(String(cString: input).utf8)) as? [String] else { return 0 }
     do {
+        if args == ["locked-use-guardian"] { try runLockedUseGuardian() }
         if args == ["screen-capture-preflight"] { print(CGPreflightScreenCaptureAccess()); return 1 }
         if let origin = args.first, origin.hasPrefix("chrome-extension://") { runBrowserHost(origin: origin) }
         if args.first == "request", (2...3).contains(args.count) {
@@ -63,7 +64,7 @@ public func mcDesktopStart(_ path: UnsafePointer<CChar>) -> UnsafeMutablePointer
         let identifiers = Set([Bundle.main.bundleIdentifier, "Machine Control", "macui"].compactMap { $0?.lowercased() })
         server.guardRequest = { [weak server] request in
             let own = OwnInterface(processID: pid, identifiers: identifiers,
-                windowFrames: ownWindowFrames(pid), hasKeyWindow: NSApp.keyWindow != nil,
+                windowFrames: ownWindowFrames(pid, excluding:server?.lockedUse.coveredWindowIDs ?? []), hasKeyWindow: NSApp.keyWindow != nil,
                 menuOpen: desktopMenuTracking, pointer: CGEvent(source: nil)?.location)
             let reference = (request["reference"] as? String).flatMap { server?.service.referencedProcess($0) }
             return selfTargetRefusal(request, own: own, referencedProcess: reference)
@@ -107,6 +108,7 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                     "logging": server.broker.journal?.health ?? [:],
                     "stopShortcutAvailable": desktopHotKey != nil,
                     "manualUntilStoppedSupported": true,
+                    "lockedUse": server.lockedUse.status,
                     "socket": server.socketPath, "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "development"]
                 if let pending = desktopApprover.request {
                     state["pending"] = ["id": pending.id, "reason": pending.reason, "caller": pending.caller.summary,
@@ -123,6 +125,11 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                 server.broker.journal?.diagnostic("desktop.supervisor", code: command["code"] as? String ?? "unknown")
             case "stop":
                 stopDesktopAccess()
+            case "locked_use":
+                guard !desktopUpdating, let enabled = command["enabled"] as? Bool else {
+                    throw MacUIError.usage("Choose whether locked use is enabled")
+                }
+                try server.lockedUse.configure(enabled:enabled)
             case "decision":
                 if command["allow"] as? Bool == true, server.broker.journal?.event("access.approve.intent") == false { throw MacUIError.action("Audit storage unavailable") }
                 try desktopApprover.decide(id: command["id"] as? String ?? "", scopes: command["scopes"] as? [String] ?? [],
@@ -150,17 +157,32 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                 guard server.broker.journal?.errorCode == nil else { throw MacUIError.action("Audit storage unavailable") }
             case "prepare_update":
                 guard !desktopUpdating, server.broker.policy.grantMode == .approval,
-                      server.broker.grant == nil, server.broker.pending == nil else {
+                      server.broker.grant == nil, server.broker.pending == nil,
+                      server.lockedUse.setupState == "idle", !server.lockedUse.isCovered,
+                      server.lockedUse.lease == nil else {
                     throw MacUIError.action("Stop access and finish any approval before installing an update")
                 }
                 desktopUpdating = true
             case "cancel_update": desktopUpdating = false
             case "permission":
+                if command["permission"] as? String == "lockedUse" {
+                    guard !desktopUpdating else { throw MacUIError.action("Finish updating before changing permissions") }
+                    try server.lockedUse.preparePermission()
+                    break
+                }
+                guard ["screenRecording", "accessibility"].contains(command["permission"] as? String ?? "") else {
+                    throw MacUIError.usage("Choose a supported permission")
+                }
                 let screen = command["permission"] as? String == "screenRecording"
                 if screen { _ = CGRequestScreenCaptureAccess() }
                 else { _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) }
                 let pane = screen ? "Privacy_ScreenCapture" : "Privacy_Accessibility"
                 NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!)
+            case "permission.remove":
+                guard !desktopUpdating, command["permission"] as? String == "lockedUse" else {
+                    throw MacUIError.usage("Choose a supported helper permission")
+                }
+                try server.lockedUse.removePermission()
             case "browser.setup":
                 let origin = "chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/"
                 let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Google/Chrome/NativeMessagingHosts")

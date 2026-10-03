@@ -17,6 +17,11 @@ remain unchanged; screen covering was explicitly deferred for that prototype.
 subsequently proved the plug-in with SIP, authenticated-root protection, and
 Gatekeeper enabled, using normal guest consent and no outer desktop control.
 
+[Tactical 064](../../../docs/tactical/064-macos-locked-use.md) subsequently
+implements a separate covered workstation profile. Its
+[current guide](locked-use.md) owns setup, task lifetime, takeover, and failure
+behavior; the earlier investigations below retain their original scope.
+
 ## Scope and method
 
 The user requested a VM experiment to understand a Mac controlling its own

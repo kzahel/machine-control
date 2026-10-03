@@ -5,6 +5,7 @@ output="${1:?Usage: build.sh OUTPUT_DIRECTORY}"
 mkdir -p "$output"
 output="$(cd "$output" && pwd)"
 flags=(-fobjc-arc -Wall -Wextra -Werror -Wno-unused-function)
+if [[ -n "${MC_UNLOCK_ARCH:-}" ]]; then flags+=(-target "$MC_UNLOCK_ARCH-apple-macos13.0"); fi
 frameworks=(-framework Foundation -framework Security -framework IOKit)
 xcrun clang "${flags[@]}" "$source_dir/Probe.m" "${frameworks[@]}" -o "$output/mc-session-probe"
 if [[ "${2:-}" == --probe-only ]]; then exit 0; fi
@@ -12,7 +13,9 @@ bundle="$output/MCUnlock.bundle"
 mkdir -p "$bundle/Contents/MacOS"
 xcrun clang "${flags[@]}" -bundle "$source_dir/Plugin.m" "${frameworks[@]}" -o "$bundle/Contents/MacOS/MCUnlock"
 xcrun clang "${flags[@]}" "$source_dir/Broker.m" "${frameworks[@]}" -o "$output/mc-unlock-broker"
-xcrun swiftc -O "$source_dir/Installer.swift" -o "$output/mc-unlock-install"
+swift_flags=(-O)
+if [[ -n "${MC_UNLOCK_ARCH:-}" ]]; then swift_flags+=(-target "$MC_UNLOCK_ARCH-apple-macos13.0"); fi
+xcrun swiftc "${swift_flags[@]}" "$source_dir/Installer.swift" -o "$output/mc-unlock-install"
 cat > "$bundle/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

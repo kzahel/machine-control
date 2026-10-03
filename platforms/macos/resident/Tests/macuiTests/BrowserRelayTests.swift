@@ -48,6 +48,9 @@ final class BrowserRelayTests: XCTestCase {
         socketPath = "/tmp/mc-browser-\(getpid())-\(Int.random(in: 0..<100_000)).sock"
         broker = GrantBroker(policy: .workstation(issue: nil))
         server = ResidentServer(socketPath: socketPath, service: ResidentService(), broker: broker)
+        server.grantConsoleObservation = {
+            ["desktopState":"unlocked", "uuid":"test-console", "boot":123, "uid":getuid()]
+        }
         try server.start()
     }
 

@@ -70,3 +70,6 @@ commits with no expected follow-up do not need a trailer or registry entry.
 
 - `access-admission-and-pause` — resumable pauses, polite activation, live
   waiting queues, cancellation, fencing and shared desktop resources.
+
+- `macos-locked-use` — opt-in covered Mac control, native helper preparation,
+  finite watchdog sessions, physical takeover and verified relock.

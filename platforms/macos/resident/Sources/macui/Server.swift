@@ -105,20 +105,40 @@ final class ResidentServer {
     private var pendingClient: Int32 = -1
     private var pendingRequest: [String: Any]?
     private var pendingTimeout: DispatchWorkItem?
-    private var lastDesktopState: String?
+    private var grantConsoleBinding: GrantConsoleBinding?
+    private var observedGrantID: String?
 
     let browser: BrowserRelay
     let devtools: BrowserDevToolsBridge
+    lazy var lockedUse = MacLockedUse(broker: broker, service: service)
+    // Tests provide a desktop observation without relying on host lock state.
+    var approvalDesktopUnlocked: () -> Bool
+    var grantConsoleObservation: () -> [String:Any]
 
     init(socketPath: String, service: ResidentService, broker: GrantBroker) {
         self.socketPath = socketPath
         self.service = service
         self.broker = broker
+        approvalDesktopUnlocked = { service.observedDesktopState == "unlocked" }
+        grantConsoleObservation = { service.observedConsoleSession }
         browser = BrowserRelay(service: service, broker: broker)
         devtools = BrowserDevToolsBridge(broker: broker, relay: browser)
         browser.respond = { [weak self] client, request, response, caller, claimID in
             self?.respond(client, request, response, caller: caller, claimID: claimID)
         }
+        // Bind synchronously when approval is issued, including a lock that
+        // follows before the next timer tick. Never adopt an unbound grant later.
+        broker.observe { [weak self] in self?.bindApprovedConsole() }
+        bindApprovedConsole()
+    }
+
+    private func bindApprovedConsole() {
+        let id = broker.grant?.id
+        guard observedGrantID != id else { return }
+        observedGrantID = id; grantConsoleBinding = nil
+        guard broker.policy.grantMode == .approval, let id else { return }
+        service.refreshSession()
+        grantConsoleBinding = GrantConsoleBinding(grantID:id, observation:grantConsoleObservation())
     }
 
     func start() throws {
@@ -151,16 +171,23 @@ final class ResidentServer {
 
     private func tick() {
         autoreleasepool { service.refreshSession() }
-        let state = service.observedDesktopState
-        // Leaving an unlocked desktop ends an approved grant: the person
-        // who approved it may no longer be present.
-        if lastDesktopState == "unlocked", state != "unlocked",
-           broker.policy.grantMode == .approval, broker.grant != nil {
-            broker.revoke(reason: "desktop_\(state)")
-            service.invalidateReferences()
+        let observation = grantConsoleObservation()
+        let state = observation["desktopState"] as? String ?? "unknown"
+        if broker.policy.grantMode == .approval, let grant = broker.activeGrant {
+            let reason: String?
+            if grantConsoleBinding?.matches(grantID:grant.id, observation:observation) != true {
+                reason = "console_session_changed"
+            } else if state != "unlocked" && !(state == "locked" && lockedUse.preservesGrantAcrossLock) {
+                reason = "desktop_\(state)"
+            } else { reason = nil }
+            if let reason {
+                broker.revoke(reason:reason); grantConsoleBinding = nil
+                service.invalidateReferences()
+            }
+        } else {
+            grantConsoleBinding = nil
         }
-        lastDesktopState = state
-        _ = broker.activeGrant
+        lockedUse.tick()
     }
 
     private func acceptPending() {
@@ -213,6 +240,20 @@ final class ResidentServer {
             respond(client, request, service.refusal(request, code: "audit_storage_unavailable", message: "Audit storage unavailable"), caller: caller, claimID: claimID)
             return
         }
+        // Observe transitions before authorization, rather than leaving a
+        // quarter-second gap in the timer's lock-revocation policy.
+        tick()
+
+        if operation == "session.control.end" {
+            guard let id = request["controlSessionId"] as? String, id == lockedUse.lease?.id else {
+                respond(client, request, service.refusal(request, code:"stale_control_session",
+                    message:"Observe the current control session before ending it"), caller:caller, claimID:claimID)
+                return
+            }
+            lockedUse.end("completed")
+            respond(client, request, service.acceptance(request, data:lockedUse.status), caller:caller, claimID:claimID)
+            return
+        }
 
         if operation == "update.check" || operation == "update.status" {
             let response = updates.request(check: operation == "update.check")
@@ -243,6 +284,25 @@ final class ResidentServer {
         }
         if let refusal = broker.authorize(operation) {
             respond(client, request, refused(request, refusal), caller: caller, claimID: claimID)
+            return
+        }
+        if operation == "session.control" {
+            do {
+                let response = try lockedUse.begin(request, owner:client)
+                respond(client, request, response, caller:caller, claimID:claimID)
+                keepOpen = true
+            } catch {
+                respond(client, request, service.refusal(request, code:String(describing:error),
+                    message:"Cannot start locked use; inspect lockedUse status and existing access"), caller:caller, claimID:claimID)
+            }
+            return
+        }
+        if lockedUse.isCovered, request["provider"] == nil,
+           !operation.hasPrefix("browser.") && !operation.hasPrefix("devtools.") {
+            request["provider"] = "macos-native"
+        }
+        if case .scoped = operationClass(operation), let refusal = lockedUse.refusal(request) {
+            respond(client, request, refused(request, refusal), caller:caller, claimID:claimID)
             return
         }
         if broker.policy.grantMode == .approval, case let .scoped(scope) = operationClass(operation),
@@ -306,6 +366,7 @@ final class ResidentServer {
             if operation == "status" || operation == "capabilities",
                var data = response["data"] as? [String: Any] {
                 data["deployment"] = broker.statusJSON
+                data["lockedUse"] = lockedUse.status
                 var browserStatus = browser.statusJSON
                 browserStatus["devtoolsEndpoint"] = devtools.endpoint ?? NSNull()
                 data["browser"] = browserStatus
@@ -318,6 +379,7 @@ final class ResidentServer {
             respond(client, request, response, caller: caller, claimID: claimID)
             if operation == "server.stop" {
                 broker.journal?.event("resident.stop")
+                lockedUse.end("resident_stopping")
                 Darwin.close(listener)
                 unlink(socketPath)
                 exit(0)
@@ -361,6 +423,10 @@ final class ResidentServer {
                 data["grant"] = current.json(now: broker.now())
                 return service.acceptance(request, data: data)
             }
+            if lockedUse.isCovered || !approvalDesktopUnlocked() {
+                return refused(request, GrantRefusal("approval_unavailable_while_locked",
+                    "Unlock manually before approving additional access"))
+            }
             guard let approver else {
                 return refused(request, GrantRefusal("approval_unavailable",
                     "No approval surface is running for this resident"))
@@ -382,6 +448,7 @@ final class ResidentServer {
 
     /// Ends the grant from a trusted local surface such as the menu.
     func revoke(reason: String) {
+        lockedUse.end(reason)
         guard broker.grant != nil else { return }
         broker.revoke(reason: reason)
         service.invalidateReferences()
@@ -539,7 +606,8 @@ func runResident(socketPath: String) throws -> Never {
     server.guardRequest = { [weak server, weak menu] request in
         let own = OwnInterface(processID: processID, identifiers: identifiers,
                                windowFrames: ownWindowFrames(processID,
-                                                             extra: menu?.interfaceWindows ?? []),
+                                                             extra: menu?.interfaceWindows ?? [],
+                                                             excluding: server?.lockedUse.coveredWindowIDs ?? []),
                                hasKeyWindow: NSApp.keyWindow != nil,
                                menuOpen: menu?.menuOpen == true,
                                pointer: CGEvent(source: nil)?.location)
@@ -565,15 +633,16 @@ func runResident(socketPath: String) throws -> Never {
 /// On-screen windows owned by this process, in global display points. The
 /// window server list can omit some system-hosted windows such as status
 /// items, so AppKit's own windows are included as well.
-func ownWindowFrames(_ processID: pid_t, extra: [NSWindow] = []) -> [CGRect] {
+func ownWindowFrames(_ processID: pid_t, extra: [NSWindow] = [], excluding: Set<Int> = []) -> [CGRect] {
     let listed = (CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID)
         as? [[String: Any]] ?? []).compactMap { window -> CGRect? in
         guard (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == processID,
+              !excluding.contains((window[kCGWindowNumber as String] as? NSNumber)?.intValue ?? -1),
               let bounds = window[kCGWindowBounds as String] as? NSDictionary else { return nil }
         return CGRect(dictionaryRepresentation: bounds)
     }
     let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
-    let drawn = (NSApp.windows + extra).filter(\.isVisible).map { window -> CGRect in
+    let drawn = (NSApp.windows + extra).filter { $0.isVisible && !excluding.contains($0.windowNumber) }.map { window -> CGRect in
         let frame = window.frame
         return CGRect(x: frame.minX, y: primaryHeight - frame.maxY,
                       width: frame.width, height: frame.height)
@@ -590,9 +659,38 @@ func runResidentClient(socketPath: String, requestData: Data) throws {
     }) == 0 else {
         throw MacUIError.action("Resident service is unavailable")
     }
+    var uid: uid_t = 0; var gid: gid_t = 0
+    guard getpeereid(descriptor, &uid, &gid) == 0, uid == getuid(), uid != 0 else {
+        // Generic CLI JSON must never become a proxy through the pinned
+        // resident executable into its root protected broker.
+        throw MacUIError.permission("The client requires a same-user resident endpoint")
+    }
     var line = requestData
     if line.last != 0x0a { line.append(0x0a) }
     try writeSocket(descriptor, data: line)
+    let request = (try? JSONSerialization.jsonObject(with:requestData)) as? [String:Any]
+    if request?["operation"] as? String == "session.control" {
+        let initial = try readSocket(descriptor)
+        let response = (try? JSONSerialization.jsonObject(with:initial)) as? [String:Any]
+        guard response?["accepted"] as? Bool == true else {
+            FileHandle.standardOutput.write(initial); return
+        }
+        let parent = getppid()
+        while getppid() == parent {
+            var connection = pollfd(fd:descriptor, events:Int16(POLLIN | POLLHUP), revents:0)
+            if poll(&connection, 1, 1000) > 0 {
+                let final = try readSocket(descriptor)
+                if !final.isEmpty { FileHandle.standardOutput.write(final) }
+                return
+            }
+            // A dropped transport must not leave a guest-side heartbeat owner.
+            var output = pollfd(fd:STDOUT_FILENO, events:Int16(POLLOUT), revents:0)
+            _ = poll(&output, 1, 0)
+            if output.revents & Int16(POLLHUP | POLLERR | POLLNVAL) != 0 { return }
+            try writeSocket(descriptor, data:encodeJSONLine(["operation":"heartbeat"]))
+        }
+        return
+    }
     _ = Darwin.shutdown(descriptor, SHUT_WR)
     let response = try readSocket(descriptor)
     FileHandle.standardOutput.write(response)

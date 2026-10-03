@@ -2,8 +2,8 @@ import Foundation
 import Security
 import Darwin
 
-// This executable is an explicit administrator tool, never a setuid program
-// or broker operation. Only fixed owned destinations and policy names mutate.
+// Explicit administrator tool, or fixed child of the OS-approved helper.
+// Never setuid. Only owned destinations and policy names mutate.
 let state = "/var/db/machine-control-unlock"
 let bundle = "/Library/Security/SecurityAgentPlugins/MCUnlock.bundle"
 let label = "org.machine-control.unlock"
@@ -32,7 +32,9 @@ func save(_ object: [String: Any], _ path: String, mode: mode_t = 0o600) throws 
     try data.write(to: URL(fileURLWithPath: path), options: .atomic)
     guard chmod(path, mode) == 0, chown(path, 0, 0) == 0 else { throw Failure(code: "ownership_failed") }
     if path == state + "/receipt.plist" {
-        try save(["enabled": object["enabled"] as? Bool ?? false, "version": 1], publicStatus, mode: 0o644)
+        try save(["enabled": object["enabled"] as? Bool ?? false, "version": 2,
+                  "profile": object["profile"] as? String ?? "appliance",
+                  "management": object["management"] as? String ?? "legacy"], publicStatus, mode: 0o644)
     }
 }
 func policy(_ name: String) throws -> [String: Any] {
@@ -64,9 +66,10 @@ func cdhash(_ path: String) throws -> Data {
 }
 func stop() throws {
     unlink(state + "/grant.plist")
+    if serviceManaged { return }
     _ = try run("/bin/launchctl", ["bootout", "system/" + label], allowFailure: true)
 }
-func start() throws { _ = try run("/bin/launchctl", ["bootstrap", "system", daemon]) }
+func start() throws { if !serviceManaged { _ = try run("/bin/launchctl", ["bootstrap", "system", daemon]) } }
 func restore(_ receipt: [String: Any]) throws {
     guard let original = receipt["originalPolicy"] as? [String: Any],
           let installed = receipt["installedPolicy"] as? [String: Any] else { throw Failure(code: "invalid_receipt") }
@@ -74,7 +77,9 @@ func restore(_ receipt: [String: Any]) throws {
     guard equal(current, original) || equal(current, installed) else { throw Failure(code: "unlock_policy_conflict") }
     try writePolicy("system.login.screensaver", original)
 }
-let args = Array(CommandLine.arguments.dropFirst())
+let inputArguments = Array(CommandLine.arguments.dropFirst())
+let serviceManaged = inputArguments.last == "--service-managed"
+let args = serviceManaged ? Array(inputArguments.dropLast()) : inputArguments
 do {
     guard geteuid() == 0 else { throw Failure(code: "root_required") }
     guard let operation = args.first, ["install", "inspect", "disable", "uninstall"].contains(operation) else { throw Failure(code: "usage") }
@@ -99,6 +104,7 @@ do {
         if !present { print("{\"installation\":\"missing\"}"); exit(0) }
         try secureDirectory(state)
         var receipt = try load(receiptPath)
+        guard !serviceManaged || receipt["management"] as? String == "service_managed" else { throw Failure(code:"unlock_management_conflict") }
         // Refuse conflicts before modifying policy. Disable the grant path even
         // if external policy drift prevents completing removal.
         receipt["enabled"] = false; try save(receipt, receiptPath)
@@ -109,12 +115,18 @@ do {
                 guard equal(current, dedicated) else { throw Failure(code: "unlock_policy_conflict") }
                 _ = try run("/usr/bin/security", ["authorizationdb", "remove", rightName])
             }
-            for path in [bundle, daemon, publicStatus, state, "/var/run/machine-control-unlock"] where fm.fileExists(atPath: path) { try fm.removeItem(atPath: path) }
+            let paths = serviceManaged
+                ? [bundle, publicStatus, receiptPath, state + "/broker", state + "/decisions.log", state + "/locked-use-paused.plist", state + "/covered-session.plist"]
+                : [bundle, daemon, publicStatus, state, "/var/run/machine-control-unlock"]
+            for path in paths where fm.fileExists(atPath:path) { try fm.removeItem(atPath:path) }
         }
         print("{\"completed\":true}"); exit(0)
     }
-    guard args.count == 4, args[1] == "--appliance-uid", let uid = UInt32(args[2]), uid > 0,
-          args[3].hasPrefix("/") else { throw Failure(code: "usage_install_requires_appliance_uid_and_resident_binary") }
+    guard args.count == 4, ["--appliance-uid", "--locked-use-uid"].contains(args[1]),
+          let uid = UInt32(args[2]), uid > 0,
+          args[3].hasPrefix("/") else { throw Failure(code: "usage_install_requires_profile_uid_and_resident_binary") }
+    let profile = args[1] == "--locked-use-uid" ? "locked_use" : "appliance"
+    guard !serviceManaged || profile == "locked_use" else { throw Failure(code:"unlock_profile_mismatch") }
     let resident = args[3]
     let hash = try cdhash(resident)
     let source = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
@@ -123,6 +135,7 @@ do {
     let pluginHash = try cdhash(sourceBundle); let brokerHash = try cdhash(sourceBroker)
     try secureDirectory(state)
     let previous = present ? try load(receiptPath) : nil
+    if serviceManaged, previous != nil, previous?["management"] as? String != "service_managed" { throw Failure(code:"unlock_management_conflict") }
     let current = try policy("system.login.screensaver")
     var original = current
     if let previous {
@@ -140,7 +153,7 @@ do {
     let dedicated: [String: Any] = ["class":"evaluate-mechanisms", "mechanisms":["MCUnlock:unlock,privileged"], "shared":false, "tries":1, "version":0,
         "identifier":"com.apple.security", "requirement":"identifier \"com.apple.security\" and anchor apple"]
     if let existing = try? policy(rightName), !equal(existing, dedicated) { throw Failure(code: "unlock_policy_conflict") }
-    var receipt: [String: Any] = ["version":1, "enabled":false, "allowedUID":uid, "residentCDHash":hash,
+    var receipt: [String: Any] = ["version":2, "profile":profile, "management":serviceManaged ? "service_managed" : "legacy", "enabled":false, "allowedUID":uid, "residentCDHash":hash,
         "originalPolicy":original, "installedPolicy":installed, "dedicatedPolicy":dedicated,
         "pluginCDHash":pluginHash, "brokerCDHash":brokerHash]
     // The receipt precedes all policy writes, so interrupted setup can be removed.
@@ -160,8 +173,10 @@ do {
         try brokerData.write(to: URL(fileURLWithPath: state + "/broker"), options: .atomic)
         guard chmod(state + "/broker", 0o700) == 0 else { throw Failure(code: "ownership_failed") }
         _ = try cdhash(state + "/broker")
-        try save(["Label":label, "ProgramArguments":[state + "/broker"], "RunAtLoad":true, "KeepAlive":true,
-                  "ProcessType":"Background", "ThrottleInterval":2], daemon, mode: 0o644)
+        if !serviceManaged {
+            try save(["Label":label, "ProgramArguments":[state + "/broker"], "RunAtLoad":true, "KeepAlive":true,
+                      "ProcessType":"Background", "ThrottleInterval":2], daemon, mode: 0o644)
+        }
         try writePolicy(rightName, dedicated)
         try start()
         try writePolicy("system.login.screensaver", installed)
@@ -171,7 +186,7 @@ do {
         try? stop(); try? restore(receipt)
         throw error
     }
-    print("{\"completed\":true,\"profile\":\"opted_in_appliance\"}")
+    print("{\"completed\":true,\"profile\":\"\(profile)\"}")
 } catch {
     let code = (error as? Failure)?.code ?? "installer_failed"
     print("{\"errorCode\":\"\(code)\"}"); exit(1)

@@ -28,6 +28,9 @@ if arguments == ["screen-capture-preflight"] {
     print(CGPreflightScreenCaptureAccess())
     exit(0)
 }
+if arguments == ["locked-use-guardian"] {
+    do { try runLockedUseGuardian() } catch { fail(error) }
+}
 guard let command = arguments.first else {
     fail(MacUIError.usage(usage()), status: 2)
 }

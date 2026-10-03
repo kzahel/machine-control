@@ -2294,8 +2294,17 @@ def desktop_request(arguments: list[str]) -> tuple[dict[str, Any], bool]:
             )
         return {"operation": command}, False
     if command == "session":
+        if rest and rest[0] == "control":
+            options = parse_options(rest[1:], [(("--duration",), {"default":"5m", "type":parse_duration_seconds})])
+            duration = options.duration
+            if not 1 <= duration <= 900:
+                raise ClientError("usage", "Control-session duration must be 1s through 15m")
+            return {"operation":"session.control", "durationSeconds":duration}, False
+        if rest and rest[0] == "end":
+            options = parse_options(rest[1:], [(("--session-id",), {"required":True})])
+            return {"operation":"session.control.end", "controlSessionId":options.session_id}, False
         if not rest or rest[0] != "unlock":
-            raise ClientError("usage", "desktop session requires unlock")
+            raise ClientError("usage", "desktop session requires control, end, or unlock")
         options = parse_options(rest[1:], [
             (("--expected-desktop-generation",), {"required": True}),
             (("--expected-helper-generation",), {}),
@@ -3596,6 +3605,8 @@ Commands:
   desktop status|capabilities|applications|windows|snapshot|action|capture
   desktop input text|key|click|move|drag|scroll
   desktop session unlock --expected-desktop-generation ID --expected-helper-generation ID --request-id ID
+  desktop session control [--duration 5m]  Hold a bounded Mac locked-use session
+  desktop session end --session-id ID     Complete it and restore screen lock
   desktop application launch|activate|terminate
   desktop call|call-local JSON     Translate a common resident request
   desktop raw|raw-local JSON       Send a provider-native resident request

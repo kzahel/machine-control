@@ -61,6 +61,18 @@ class UnlockStatusTests(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(mc.ClientError):
             mc.desktop_request(["session", "unlock"])
 
+    def test_control_session_commands_are_bounded_and_end_is_exact(self):
+        request, local = mc.desktop_request(["session", "control", "--duration", "2m"])
+        self.assertFalse(local)
+        self.assertEqual(request, {"operation":"session.control", "durationSeconds":120})
+        for duration in ["0s", "16m", "-1s"]:
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(mc.ClientError):
+                mc.desktop_request(["session", "control", "--duration", duration])
+        self.assertEqual(mc.desktop_request(["session", "end", "--session-id", "current"])[0],
+            {"operation":"session.control.end", "controlSessionId":"current"})
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(mc.ClientError):
+            mc.desktop_request(["session", "end"])
+
 
 if __name__ == "__main__":
     unittest.main()

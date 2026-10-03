@@ -109,6 +109,20 @@ navigation or restart. Never retarget or replay an uncertain mutation. Request
 acceptance, delivery, observed effect and uncertainty are different facts;
 verify the intended application effect independently.
 
+Mac locked use, when enabled by the operator in Settings:
+  machine-control --target host --claim CLAIM_ID desktop session control --duration 5m
+Keep this bounded owner command alive concurrently with the actual task. It
+requires ordinary observe/control approval and returns only when the session
+ends; heartbeats do not extend its deadline. Poll desktop status for
+data.lockedUse.controlSessionId and phase. In task finally cleanup, before
+releasing the claim:
+  machine-control --target host --claim CLAIM_ID desktop session end --session-id SESSION_ID
+Use macos-native while covered. The Mac must stay awake with its lid open.
+Physical takeover revokes access and pauses automatic unlock until manual
+unlock; report interrupted_by_physical_presence and do not rearm automatically.
+The setting alone grants no access. Expiry/disconnect/failure relocks. Never
+replace this task-owned lifecycle with ordinary appliance session.unlock.
+
 Browser workflow (requires the installed extension and a browser scope):
   machine-control --target host --claim CLAIM_ID grant request \\
     --scope browser --reason 'describe the browser task' --duration 10m

@@ -245,6 +245,12 @@ independent of Retina scale and the host Tart title bar.
 
 ## Control Layers
 
+The desktop app also has an experimental, default-off
+[covered locked-use profile](docs/locked-use.md) for approved bounded tasks on
+macOS 14 or later. It requires an awake, open-lid existing console session;
+native setup, capture, takeover, watchdogs, and removal are documented there.
+The explicit appliance unlock profile remains separate.
+
 ```text
 Host agent
   |

@@ -74,6 +74,18 @@ type State = {
   manualUntilStoppedSupported?: boolean;
   pauseSupported?: boolean;
   updateInstallSupported?: boolean;
+  lockedUse?: {
+    permissionReady: boolean;
+    helperApproval: string;
+    supported: boolean;
+    enabled: boolean;
+    phase: string;
+    setupState: string;
+    setupError: string | null;
+    helperHealthy: boolean;
+    pausedUntilManualUnlock: boolean;
+    controlSessionId: string | null;
+  };
 };
 type AuditEvent = {
   eventId: string;
@@ -498,6 +510,94 @@ function App() {
                     </div>
                   );
                 })}
+              {mac &&
+                state?.lockedUse?.supported &&
+                state.deployment.policy.grantMode === "approval" && (
+                  <>
+                    <div className="setting-row">
+                      <span
+                        className={
+                          "permission-icon " +
+                          (state.lockedUse.permissionReady ? "done" : "")
+                        }
+                      >
+                        {state.lockedUse.permissionReady ? (
+                          <Check size={15} />
+                        ) : (
+                          <ShieldCheck size={15} />
+                        )}
+                      </span>
+                      <span className="row-label">Machine Control helper</span>
+                      <span className="row-status">
+                        {state.lockedUse.permissionReady
+                          ? "Granted"
+                          : state.lockedUse.setupState === "approval"
+                            ? "Awaiting approval"
+                            : state.lockedUse.setupState !== "idle"
+                              ? "Preparing"
+                              : "Required for locked use"}
+                      </span>
+                      <button
+                        disabled={
+                          busy ||
+                          !!state.lockedUse.controlSessionId ||
+                          !!state.pending ||
+                          !["idle", "approval"].includes(
+                            state.lockedUse.setupState,
+                          )
+                        }
+                        onClick={() =>
+                          void act({
+                            method: "permission",
+                            permission: "lockedUse",
+                          })
+                        }
+                      >
+                        {state.lockedUse.setupState === "approval"
+                          ? "Open Settings"
+                          : state.lockedUse.permissionReady
+                            ? "Repair"
+                            : "Set up"}
+                      </button>
+                      {["granted", "requires_approval"].includes(
+                        state.lockedUse.helperApproval,
+                      ) && (
+                        <button
+                          disabled={
+                            busy ||
+                            !!state.lockedUse.controlSessionId ||
+                            !!state.pending ||
+                            !["idle", "approval"].includes(
+                              state.lockedUse.setupState,
+                            )
+                          }
+                          onClick={() =>
+                            void act({
+                              method: "permission.remove",
+                              permission: "lockedUse",
+                            })
+                          }
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <p className="note">
+                      Required to continue approved tasks while locked. Approve
+                      Machine Control in macOS Login Items &amp; Extensions.
+                      This leaves locked use off.
+                    </p>
+                    {state.lockedUse.setupState === "capture" && (
+                      <p className="note">
+                        Preparing screen capture… Approve any macOS capture
+                        prompt.
+                      </p>
+                    )}
+                    {state.lockedUse.setupError && (
+                      <p className="note">{state.lockedUse.setupError}</p>
+                    )}
+                  </>
+                )}
               {state?.browser.available !== false && (
                 <div className="setting-row">
                   <span
@@ -734,6 +834,57 @@ function App() {
         )}
         {page === "settings" && (
           <>
+            {state?.lockedUse &&
+              state.deployment.policy.grantMode === "approval" && (
+                <section className="group" aria-label="Locked use">
+                  <label className="setting-row">
+                    <span className="row-label">
+                      Allow Machine Control while screen is locked
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={state.lockedUse.enabled}
+                      disabled={
+                        busy ||
+                        !state.lockedUse.supported ||
+                        (!state.lockedUse.enabled &&
+                          (!state.lockedUse.permissionReady ||
+                            state.lockedUse.setupState !== "idle")) ||
+                        !!state.pending
+                      }
+                      onChange={(e) =>
+                        void act({
+                          method: "locked_use",
+                          enabled: e.target.checked,
+                        })
+                      }
+                    />
+                  </label>
+                  <p className="note">
+                    Approved tasks can continue while your Mac is locked.
+                    Displays stay covered. Using the keyboard or mouse pauses
+                    control.
+                  </p>
+                  <p className="note">Keep your Mac awake with the lid open.</p>
+                  {!state.lockedUse.supported && (
+                    <p className="note">Requires macOS 14 or later.</p>
+                  )}
+                  {!state.lockedUse.permissionReady &&
+                    state.lockedUse.supported && (
+                      <button
+                        className="text-button"
+                        onClick={() => navigate("setup")}
+                      >
+                        Finish setup in Permissions <ArrowUpRight size={13} />
+                      </button>
+                    )}
+                  {state.lockedUse.pausedUntilManualUnlock && (
+                    <p className="note">
+                      Paused. Unlock your Mac manually before continuing.
+                    </p>
+                  )}
+                </section>
+              )}
             {(windows || linux) && (
               <section className="group" aria-label="Startup">
                 {linux && (

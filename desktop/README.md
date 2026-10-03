@@ -93,6 +93,14 @@ request ID and may only narrow scope and lifetime. Native self-interface
 screening, input pausing during prompts, expiry, lock revocation, and a native
 Control–Option–Command–Period Stop shortcut remain in force.
 
+Mac Settings additionally offers **Allow Machine Control while screen is
+locked**, initially off. The experimental macOS 14+ profile uses native
+helper approval in Permissions, a bounded task connection, covered displays, native
+capture underneath, physical takeover, and failure relock. Keep the Mac awake
+with its lid open. Turning it off immediately revokes temporary use; no login
+password is stored. See the [Mac locked-use guide](../platforms/macos/docs/locked-use.md)
+for setup, agent lifecycle, removal, and the precise VM/physical acceptance scope.
+
 Preview grants remain target-wide for same-user callers. This app is not a
 sandbox for an agent with unrestricted same-user shell access. Closing the
 operator window keeps the tray and resident running; Quit ends the process.

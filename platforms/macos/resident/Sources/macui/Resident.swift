@@ -539,6 +539,8 @@ final class ResidentService {
     private var desktopGeneration = UUID().uuidString.lowercased()
     private var observedSession: [String: Any] = [:]
     private var usedUnlockRequests = Set<String>()
+    var coveredWindowIDs: () -> Set<Int> = { [] }
+    var inputCancellation: () -> String? = { nil }
 
     func refreshSession() {
         let next = nativeSessionObservation()
@@ -561,6 +563,7 @@ final class ResidentService {
     var observedDesktopState: String {
         observedSession["desktopState"] as? String ?? "unknown"
     }
+    var observedConsoleSession: [String:Any] { observedSession }
 
     func invalidateReferences() {
         desktopGeneration = UUID().uuidString.lowercased()
@@ -619,6 +622,26 @@ final class ResidentService {
         return value
     }
 
+    /// Fixed native preparation after observed Service Management approval,
+    /// or maintenance of an existing approved installation after a signed
+    /// update. No agent socket dispatch or caller-supplied path/UID/command.
+    func prepareUnlockPermission() throws {
+        try manageUnlockPermission("permission.prepare")
+    }
+    func removeUnlockPermission() throws {
+        try manageUnlockPermission("permission.remove")
+    }
+    private func manageUnlockPermission(_ operation: String) throws {
+        let fd = try connectUnlockBroker(); defer { Darwin.close(fd) }
+        var timeout = timeval(tv_sec:25, tv_usec:0)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout.size(ofValue:timeout)))
+        try writeSocket(fd, data:encodeJSONLine(["operation":operation]))
+        let reply = try brokerReply(fd)
+        guard reply["completed"] as? Bool == true else {
+            throw MacUIError.action(reply["errorCode"] as? String ?? "helper_setup_failed")
+        }
+    }
+
     private func lockScreenStatus() -> [String: Any] {
         lockScreenProjection(screen: observedSession["desktopState"] as? String ?? "unknown",
             displayActive: !activeDisplayJSON().isEmpty,
@@ -627,7 +650,7 @@ final class ResidentService {
             keyboardAuthorized: CGPreflightPostEventAccess())
     }
 
-    private func unlockStatus() -> [String: Any] {
+    func unlockStatus() -> [String: Any] {
         var status: [String: Any] = [
             "support": "experimental", "scope": "existing_console_session",
             "installation": "unknown", "policy": "unknown",
@@ -643,7 +666,8 @@ final class ResidentService {
             let fd = try connectUnlockBroker(); defer { Darwin.close(fd) }
             try writeSocket(fd, data: encodeJSONLine(["operation": "status"]))
             let reply = try brokerReply(fd)
-            for key in ["installation", "policy", "callerEligibility", "helperGeneration", "helperDesktopGeneration"] {
+            for key in ["installation", "policy", "callerEligibility", "helperGeneration", "helperDesktopGeneration",
+                        "profile", "lockedUsePaused", "relockAvailable", "coveredSession"] {
                 if let value = reply[key] { status[key] = value }
             }
             issue = reply["errorCode"] as? String ?? "unlock_helper_invalid_response"
@@ -652,7 +676,9 @@ final class ResidentService {
             var info = stat()
             let trusted = lstat(path, &info) == 0 && info.st_uid == 0 && info.st_mode & 0o022 == 0 && info.st_mode & S_IFMT == S_IFREG
             let config = trusted ? NSDictionary(contentsOfFile: path) : nil
-            let exists = FileManager.default.fileExists(atPath: "/Library/LaunchDaemons/org.machine-control.unlock.plist")
+            if let profile = config?["profile"] as? String { status["profile"] = profile }
+            let exists = config?["management"] as? String == "service_managed" ||
+                FileManager.default.fileExists(atPath: "/Library/LaunchDaemons/org.machine-control.unlock.plist")
             status["installation"] = exists ? "unknown" : "missing"
             if config?["enabled"] as? Bool == false {
                 status["policy"] = "disabled"; issue = "unlock_disabled"
@@ -661,6 +687,12 @@ final class ResidentService {
             }
         }
         let screen = observedSession["desktopState"] as? String ?? "unknown"
+        if status["profile"] as? String == "locked_use" {
+            status["authorizationScope"] = "approved_covered_control_session"
+            status["desktopExposedAfterUnlock"] = false
+            status["automaticRelock"] = true
+            status["entrypoint"] = "session.control"
+        }
         if screen == "unlocked" {
             status["readiness"] = "not_needed"
         } else if screen == "unknown" {
@@ -680,6 +712,50 @@ final class ResidentService {
         }
         status["reasons"] = issue.isEmpty ? [] : [issue]
         return status
+    }
+
+    /// Only the native covered-session coordinator calls this. Its returned
+    /// connection must remain alive and heartbeating until relock.
+    func beginCoveredUnlock(duration: Int, deadline: TimeInterval) throws -> Int32 {
+        refreshSession()
+        let initial = nativeSessionObservation()
+        let status = unlockStatus()
+        guard status["profile"] as? String == "locked_use", status["readiness"] as? String == "ready",
+              !coveredWindowIDs().isEmpty, inputCancellation() == nil else {
+            throw MacUIError.action((status["reasons"] as? [String])?.first ?? "covered_unlock_unavailable")
+        }
+        let trigger = try ConsoleUnlockTrigger.resolve()
+        let fd = try connectUnlockBroker()
+        do {
+            try writeSocket(fd, data: encodeJSONLine([
+                "operation":"covered_unlock", "requestId":UUID().uuidString.lowercased(),
+                "helperGeneration":status["helperGeneration"] ?? "",
+                "helperDesktopGeneration":status["helperDesktopGeneration"] ?? "",
+                "durationSeconds":duration, "coversReady":true,
+                "controlDeadlineUptime":deadline,
+            ]))
+            let acceptance = try brokerReply(fd)
+            guard acceptance["armed"] as? Bool == true else {
+                throw MacUIError.action(acceptance["errorCode"] as? String ?? "covered_unlock_refused")
+            }
+            guard NSDictionary(dictionary:nativeSessionObservation()).isEqual(to:initial), inputCancellation() == nil else {
+                throw MacUIError.action("covered_unlock_interrupted")
+            }
+            try trigger.submit(initial:initial, cancelled:inputCancellation)
+            let outcome = try brokerReply(fd)
+            refreshSession()
+            guard outcome["unlockedObserved"] as? Bool == true,
+                  observedDesktopState == "unlocked", sameConsoleSession(initial, nativeSessionObservation()),
+                  inputCancellation() == nil else {
+                throw MacUIError.action("covered_unlock_not_observed")
+            }
+            return fd
+        } catch {
+            try? writeSocket(fd, data: encodeJSONLine(["operation":"cancel"]))
+            Darwin.close(fd)
+            ConsoleRelock.request(for:initial)
+            throw error
+        }
     }
 
     private func unlockSession(_ request: [String: Any]) -> [String: Any] {
@@ -1182,9 +1258,11 @@ final class ResidentService {
         down.flags = flags
         up.flags = flags
         if let processID {
+            if let reason = inputCancellation() { throw MacUIError.action(reason) }
             down.postToPid(processID)
             up.postToPid(processID)
         } else {
+            if let reason = inputCancellation() { throw MacUIError.action(reason) }
             down.post(tap: .cghidEventTap)
             up.post(tap: .cghidEventTap)
         }
@@ -1192,6 +1270,7 @@ final class ResidentService {
 
     private func sendText(_ text: String) throws {
         for character in text {
+            if let reason = inputCancellation() { throw MacUIError.action(reason) }
             let units = Array(String(character).utf16)
             guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 0,
                                      keyDown: true),
@@ -1205,6 +1284,7 @@ final class ResidentService {
                 up.keyboardSetUnicodeString(stringLength: units.count,
                                             unicodeString: buffer.baseAddress!)
             }
+            if let reason = inputCancellation() { throw MacUIError.action(reason) }
             down.post(tap: .cghidEventTap)
             up.post(tap: .cghidEventTap)
         }
@@ -1562,9 +1642,11 @@ final class ResidentService {
             down.flags = flags
             up.flags = flags
             if sheet.usesSessionKeyboard {
+                if let reason = inputCancellation() { throw MacUIError.action(reason) }
                 down.post(tap: .cghidEventTap)
                 up.post(tap: .cghidEventTap)
             } else {
+                if let reason = inputCancellation() { throw MacUIError.action(reason) }
                 down.postToPid(sheet.processID)
                 up.postToPid(sheet.processID)
             }
@@ -1692,6 +1774,10 @@ final class ResidentService {
         refreshSession()
         let started = DispatchTime.now().uptimeNanoseconds
         let operation = requestString(request, "operation") ?? ""
+        if let reason = inputCancellation(), case .scoped = operationClass(operation) {
+            return refused(request, code: reason == "physical_presence" ? "interrupted_by_physical_presence" : "locked_use_interrupted",
+                message: "Covered control was interrupted before provider dispatch")
+        }
         if operation.hasPrefix("input.") || ["action", "authorization.begin", "authorization.cancel", "application.activate", "window.close"].contains(operation) {
             guard observedSession["desktopState"] as? String == "unlocked" else {
                 return refused(request, code: "desktop_not_unlocked", message: "Ordinary UI mutation requires an observed unlocked desktop")
@@ -2350,6 +2436,7 @@ final class ResidentService {
                         wheel1: Int32(deltaY), wheel2: Int32(deltaX), wheel3: 0) else {
                         throw MacUIError.action("Unable to create scroll event")
                     }
+                    if let reason = inputCancellation() { throw MacUIError.action(reason) }
                     event.post(tap: .cghidEventTap)
                     inputData["deltaX"] = deltaX
                     inputData["deltaY"] = deltaY
@@ -2370,6 +2457,7 @@ final class ResidentService {
                             mouseButton: .left) else {
                             throw MacUIError.action("Unable to create pointer event")
                         }
+                        if let reason = inputCancellation() { throw MacUIError.action(reason) }
                         move.post(tap: .cghidEventTap)
                     } else {
                         let (button, downType, upType) = try pointerButton(
@@ -2393,6 +2481,7 @@ final class ResidentService {
                             mouseButton: button) else {
                             throw MacUIError.action("Unable to create pointer event")
                         }
+                        if let reason = inputCancellation() { throw MacUIError.action(reason) }
                         down.post(tap: .cghidEventTap)
                         if let end = dragEnd {
                             let dragType: CGEventType = button == .left ?
@@ -2407,6 +2496,7 @@ final class ResidentService {
                                 throw MacUIError.action("Unable to create drag event")
                             }
                             usleep(80_000)
+                            if let reason = inputCancellation() { throw MacUIError.action(reason) }
                             drag.post(tap: .cghidEventTap)
                             usleep(80_000)
                             up.post(tap: .cghidEventTap)
@@ -2467,6 +2557,22 @@ final class ResidentService {
                         break
                     }
                     let url = try artifactURL()
+                    if !coveredWindowIDs().isEmpty {
+                        guard #available(macOS 14.0, *),
+                              let identifier = main["displayId"] as? NSNumber else {
+                            result = refused(request, code:"provider_unsupported", message:"Covered display capture requires ScreenCaptureKit on macOS 14 or later")
+                            break
+                        }
+                        try captureCoveredDisplay(to:url, displayID:identifier.uint32Value)
+                        let attributes = try FileManager.default.attributesOfItem(atPath:url.path)
+                        result = base(request, route:"guest.user/macos.screencapturekit")
+                        result["delivery"] = "confirmed"; result["effect"] = "confirmed"
+                        result["fidelity"] = "full_display_excluding_resident"
+                        result["coordinateSpace"] = "display_pixels"
+                        result["data"] = ["artifactPath":url.path, "bytes":attributes[.size] ?? 0,
+                            "display":main, "inputCoordinateSpace":"global_display_points", "coversExcluded":true]
+                        break
+                    }
                     let process = Process()
                     process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
                     process.arguments = ["-x", "-D", "1", url.path]

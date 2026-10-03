@@ -30,7 +30,7 @@ contents="$app/Contents"
 
 /usr/bin/xcrun swiftc -O -target "$arch-apple-macos13.0" \
     -framework AppKit -framework ApplicationServices -framework CoreGraphics \
-    -framework SystemConfiguration -framework Carbon \
+    -framework SystemConfiguration -framework Carbon -framework ScreenCaptureKit -framework ServiceManagement \
     -o "$contents/MacOS/macui" "$PACKAGE_DIR"/Sources/macui/*.swift
 /usr/bin/xcrun clang -O2 -target "$arch-apple-macos13.0" -fobjc-arc \
     -Wno-unused-function -framework Foundation -framework IOKit \
@@ -39,6 +39,9 @@ contents="$app/Contents"
 /bin/cp "$PACKAGE_DIR/app/Info.plist" "$contents/Info.plist"
 /bin/cp "$PACKAGE_DIR/app/org.machine-control.resident.plist.in" "$contents/Resources/"
 /bin/cp -R "$PACKAGE_DIR/policies" "$contents/Resources/policies"
+MC_UNLOCK_ARCH="$arch" "$MACOS_DIR/guests/macos/unlock/build.sh" "$contents/Resources/unlock" >/dev/null
+/bin/mkdir -p "$contents/Library/LaunchDaemons"
+/bin/cp "$MACOS_DIR/guests/macos/unlock/org.machine-control.unlock.plist" "$contents/Library/LaunchDaemons/"
 # Development builds remember their checkout so setup can point at the
 # unpacked Chrome extension.
 /usr/bin/plutil -replace MCSourceCheckout -string "$(cd "$MACOS_DIR/../.." && pwd)" \

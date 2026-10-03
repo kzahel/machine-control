@@ -1,5 +1,41 @@
 # macOS conformance
 
+`locked-use-live.py` exercises an explicitly installed and enabled covered
+workstation candidate under an existing claim and ordinary native approval.
+It checks covered capture plus an independent fixture effect, then one chosen
+completion, expiry, disconnect, resident stall/crash, or guardian crash cell.
+Supply guest `--executable` and `--socket` for an isolated candidate. Each cell
+leaves the VM locked; the caller owns native setup, manual unlock, policy/power
+restoration, and claim release. It never reads a password or installs on the
+controller. Physical takeover and visible cover inspection are separate
+explicitly authorized tests. See the [locked-use guide](../../platforms/macos/docs/locked-use.md).
+
+For explicitly requested physical-Mac acceptance, use `--local --target host`
+with `--registry` when needed and `--session-probe` pointing to the candidate's
+bundled `mc-session-probe`. Launch the native fixture locally first. This mode
+reads its local file oracle, checks AX, pointer, and keyboard effects, fetches
+capture through the common artifact interface, and verifies relock with the
+independent native probe. Native setup, access approval, and manual unlock
+belong to the person at the Mac. `--case physical_presence` waits for their
+hardware takeover after printing its readiness message.
+Use `--manual-lock` to wait for a normal operator lock instead of assuming a
+synthetic shortcut will lock the physical Mac. An ended session reports its
+termination reason immediately while waiting for covered activation.
+Alternatively compile `session-lock.m` with Foundation and IOKit and pass its
+executable as `--session-lock` in local mode. This explicit runner uses the
+watchdog's native lock primitive, binds the current user's console, and verifies
+lock through IOKit; it does not authorize or perform unlock. It requires the
+literal `--lock` argument when invoked outside the live runner.
+Process-failure cells remain dedicated-testbed only. Physical qualification requires observed live
+results; availability of this runner is not acceptance evidence.
+
+The runner requires exactly one native fixture and ties its semantic PID to the
+independent file oracle. For successive unattended-task acceptance, use
+`--start-locked` without a starting lock action and `--expect-retained-access`
+on completion or lease-expiry cells. The latter checks that the original grant
+ID survives clean relock; neither option creates approval or clears a failure
+pause.
+
 `tauri-desktop.py` exercises an already installed signed Tauri candidate in a
 claimed dedicated testbed. Supply the logical target, current exclusive claim,
 guest candidate app path, and socket. Keep the standing appliance resident

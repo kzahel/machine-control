@@ -12,6 +12,8 @@ def sign(app, identity):
               (resources / "mc-session-probe", None),
               (resources / "mc-sudo", "org.machine-control.sudo"),
               (resources / "mc-sudo-askpass", "org.machine-control.sudo.askpass")]
+    nested.extend((resources / "unlock" / name, None) for name in
+                  ("mc-unlock-broker", "mc-unlock-install", "mc-session-probe", "MCUnlock.bundle"))
     for path in sorted((resources / "mc-cli").rglob("*")):
         if not path.is_file():
             continue

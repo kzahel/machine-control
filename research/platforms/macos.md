@@ -5,6 +5,16 @@ live-tested in a prepared Tart appliance; login and preboot planes remain open.
 
 ## Native foundation
 
+**Current (2026-10-03), `built` and bounded `live-tested`:** the owned resident
+now has a separate experimental covered locked-use workstation profile. Native
+operator setup, short authorization grants, a signed cover/input companion,
+root watchdog, filtered ScreenCaptureKit capture, and typed task ownership
+are implemented. [Tactical 064](../../docs/tactical/064-macos-locked-use.md)
+owns the exact acceptance matrix; the [current topic](../../topics/macos-locked-use.md)
+owns direction. One SIP-enabled physical completion cell is also live-tested
+below. This does not broaden Cua's locked-session evidence, qualify multiple
+displays or distribution, or add sleep/closed-lid/preboot support.
+
 The ordinary target-native plane combines Accessibility (`AXUIElement`),
 WindowServer/ScreenCaptureKit capture, application/window APIs, semantic
 actions, and target-local input. Stable application identity and TCC consent
@@ -165,6 +175,87 @@ session-wide authority rather than an agent-authenticated token, and the policy
 composition and OS observer are version-sensitive. Locally ad-hoc-signed VM
 acceptance is separate from physical hardware and notarized distribution.
 No proprietary Computer Use implementation or AsyncVNC code is a dependency.
+
+**Current (2026-10-03), `live-tested`, native workstation helper setup in Tart:**
+[Tactical 065](../../docs/tactical/065-macos-helper-permission.md) exercises the
+app-bundled SMAppService daemon, native Login Items approval, typed root setup,
+preference toggles without a new grant, covered completion, and conflict-aware
+Permissions removal. Existing Accessibility/Screen Recording grants were reused;
+helper approval was handled by macOS. This one-display macOS 26.6.2 run had SIP
+disabled. Physical and SIP-enabled covered acceptance remain open; the earlier
+appliance acceptance above has its separate protection profile and evidence.
+
+**Current (2026-10-03), negative `live-tested` evidence, native workstation
+provider on physical ARM64 macOS 26.6.2 with SIP enabled:**
+[Tactical 066](../../docs/tactical/066-macos-physical-locked-use.md) records
+successful native helper preparation and preference enablement, followed by a
+manually established lock and failed automatic covered unlock
+(`covered_unlock_not_observed`). The session ended with no remaining covers or
+control owner, ordinary access revoked, and manual-unlock pause set. Manual
+recovery cleared the pause. OS logs showed authorization plug-in evaluation
+during manual recovery, but none was observed during the automatic attempt.
+The log difference did not prove the cause. That initial trial did not reach
+covered effects, capture, completion relock or hardware takeover; it does not
+promote VM evidence to physical conformance.
+
+**Current (2026-10-03), bounded native diagnostic `live-tested` evidence on the
+same physical protection profile:**
+[Tactical 067](../../docs/tactical/067-macos-physical-unlock-trigger.md) records
+programmatic lock and a process-targeted trigger that revealed the password
+panel, invoked the installed plug-in, and produced an OS unlock notification.
+The existing guardian then ended with `display_changed` and relocked before
+application/capture checks. Kernel-bound input and actual display-layout checks
+were then integrated into a signed candidate.
+
+**Current (2026-10-03), bounded integrated `live-tested` evidence on that same
+physical profile:** native helper repair succeeded after correcting its
+re-registration lifecycle. The product then passed programmatic lock, automatic
+covered unlock, independently recorded fixture AX/pointer/keyboard effects,
+filtered PNG capture, and IOKit-confirmed completion relock without a pause.
+This completion cell is separate from the earlier external diagnostic trigger.
+Fixture cleanup found duplicate task-owned processes, so the next runner requires
+one fixture with explicit PID/oracle agreement before conformance promotion.
+Ordinary approval was lost in that initial completion; [Tactical
+070](../../docs/tactical/070-macos-locked-access-retention.md) owns the subsequent
+retention revision and stronger physical acceptance below. Multiple displays,
+other OS revisions, Intel execution and distribution remain unqualified.
+
+**Current — bounded physical maintenance evidence:** after a signed test update,
+the native app refreshed its existing OS-approved managed helper without a Repair
+click. Caller eligibility and readiness recovered, the helper generation changed,
+the stored checkbox value remained unchanged, and no ordinary access was granted.
+A same-build relaunch kept the helper generation unchanged and returned ready
+without Repair. [Tactical
+072](../../docs/tactical/072-macos-helper-update-maintenance.md) owns the exact
+boundaries and result. This does not prove initial consent, revoked-permission
+recovery, additional OS versions or distribution qualification.
+
+**Current — bounded physical `live-tested` retention and display wake:** the
+installed revision passed idle-lock retention, two consecutive already-locked
+tasks and a bounded task-expiry cell with the original approval unchanged.
+Inactive-display startup reached covered control using the guardian's temporary
+native assertion, without an external wake command. Each cell required one
+fixture, semantic PID/file-oracle agreement, independent AX/pointer/keyboard
+effects, native capture and IOKit relock with no remaining covers or pause.
+Private capture inspection confirmed the underlying fixture was visible to the
+agent. No manual unlock or new approval occurred between cells. [Tactical
+070](../../docs/tactical/070-macos-locked-access-retention.md) owns retention and
+the takeover evidence below; [Tactical
+073](../../docs/tactical/073-macos-locked-display-wake.md) owns the earlier
+readiness failure and bounded guardian-startup wake fix. This evidence does not
+extend to full system sleep, additional OS versions, multiple displays or
+notarized distribution.
+
+**Current — bounded physical `live-tested` takeover/recovery:** physical input
+raced the runner's stable-active startup check, but IOKit-backed resident status
+recorded `physical_presence`, lock, Access revocation, zero remaining covers or
+owner, and a manual-unlock pause. The operator confirmed takeover worked. A
+subsequent native probe observed the console already unlocked; fresh status
+showed the pause cleared and Access still absent, and a new control request
+refused with `approval_required`. The full scripted takeover cell is unpassed:
+its external probe missed the locked interval, and its extra fixture/capture
+checks were not reached in that trial. Tactical 070 records the timing caveat;
+the earlier completion/expiry cells supply independent effects and lock readback.
 
 ## Operator desktop packaging
 

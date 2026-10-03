@@ -2,6 +2,11 @@
 
 Topic: `macos-resident-control`
 
+**Current:** the experimental workstation
+[locked-use implementation](macos-locked-use.md) adds covered temporary unlock
+and native takeover to approved bounded tasks. Its evidence and limitations
+are separate from the earlier exposed one-shot appliance unlock below.
+
 Status: full logged-in Aqua software-testing milestone accepted for Tart,
 including Java Swing and Electron;
 existing-session unlock accepted on a SIP-enabled disposable Tart appliance;

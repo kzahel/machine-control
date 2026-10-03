@@ -28,6 +28,11 @@ func operationClass(_ operation: String) -> OperationClass {
         return .scoped(.devtools)
     case "server.stop":
         return .lifecycle
+    case "session.control.end":
+        // A stop-only operation creates no authority.
+        return .lifecycle
+    case "session.control":
+        return .scoped(.control)
     case "applications", "windows", "snapshot", "capture":
         return .scoped(.observe)
     case "session.unlock", "authorization.begin", "authorization.cancel",

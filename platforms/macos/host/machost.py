@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import select
 import socket
 import sys
 import tempfile
@@ -34,7 +35,9 @@ def call(request: dict[str, Any]) -> dict[str, Any]:
         client.settimeout(timeout)
         client.connect(socket_path())
         client.sendall(json.dumps(request, separators=(",", ":")).encode() + b"\n")
-        client.shutdown(socket.SHUT_WR)
+        session = request.get("operation") == "session.control"
+        if not session:
+            client.shutdown(socket.SHUT_WR)
         chunks = []
         while True:
             chunk = client.recv(65536)
@@ -43,6 +46,25 @@ def call(request: dict[str, Any]) -> dict[str, Any]:
             chunks.append(chunk)
             if chunk.endswith(b"\n"):
                 break
+        if session:
+            initial = json.loads(b"".join(chunks))
+            if initial.get("accepted") is not True:
+                return initial
+            parent = os.getppid()
+            while os.getppid() == parent:
+                readable, _, _ = select.select([client], [], [], 1)
+                if readable:
+                    final = bytearray()
+                    while b"\n" not in final:
+                        chunk = client.recv(65536)
+                        if not chunk:
+                            raise OSError("Control-session connection ended")
+                        final.extend(chunk)
+                        if len(final) > 1048576:
+                            raise ValueError("Control-session response is too large")
+                    return json.loads(final)
+                client.sendall(b'{"operation":"heartbeat"}\n')
+            raise OSError("Control-session owner exited")
     value = json.loads(b"".join(chunks))
     if not isinstance(value, dict):
         raise ValueError("resident returned a non-object result")

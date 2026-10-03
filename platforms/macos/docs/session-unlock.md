@@ -5,6 +5,11 @@ installed password-free unlock route for an existing console session. Normal
 application interaction resumes after unlock. The desktop becomes visible and
 stays unlocked; no screen cover or automatic relock is provided.
 
+That is the explicit **appliance** profile. The separate
+[covered locked-use profile](locked-use.md) provides the desktop operator's
+default-off setting, bounded task lifecycle, covers, takeover, and automatic
+relock. Its root broker refuses ordinary `session.unlock`; use `session.control`.
+
 ## Observe first
 
 ```bash

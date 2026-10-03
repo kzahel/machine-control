@@ -13,6 +13,8 @@ let package = Package(
                 .linkedFramework("ApplicationServices"),
                 .linkedFramework("CoreGraphics"),
                 .linkedFramework("SystemConfiguration"),
+                .linkedFramework("ScreenCaptureKit"),
+                .linkedFramework("ServiceManagement"),
             ]),
         .testTarget(
             name: "macuiTests",

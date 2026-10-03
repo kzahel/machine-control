@@ -149,6 +149,23 @@ fn main() {
             "x86_64"
         };
         let target = format!("{arch}-apple-macos13.0");
+        let unlock = root.join("../../platforms/macos/guests/macos/unlock");
+        for file in [
+            "Broker.m",
+            "Plugin.m",
+            "Session.h",
+            "Relock.h",
+            "Installer.swift",
+            "Probe.m",
+            "build.sh",
+            "org.machine-control.unlock.plist",
+        ] {
+            println!("cargo:rerun-if-changed={}", unlock.join(file).display());
+        }
+        run(Command::new("/bin/bash")
+            .arg(unlock.join("build.sh"))
+            .arg(native.join("unlock"))
+            .env("MC_UNLOCK_ARCH", arch));
         let mut swift = Command::new("xcrun");
         swift
             .args([

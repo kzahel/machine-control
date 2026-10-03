@@ -29,6 +29,10 @@ final class ServerTests: XCTestCase {
         socketPath = "/tmp/mc-test-\(getpid())-\(Int.random(in: 0..<100_000)).sock"
         broker = GrantBroker(policy: .workstation(issue: nil))
         server = ResidentServer(socketPath: socketPath, service: ResidentService(), broker: broker)
+        server.approvalDesktopUnlocked = { true }
+        server.grantConsoleObservation = {
+            ["desktopState":"unlocked", "uuid":"test-console", "boot":123, "uid":getuid()]
+        }
         try server.start()
     }
 
@@ -117,6 +121,17 @@ final class ServerTests: XCTestCase {
         XCTAssertEqual(result["errorCode"] as? String, "approval_unavailable")
     }
 
+    func testLockedDesktopCannotPresentAdditionalApproval() {
+        let approver = ScriptedApprover(.approved(scopes: [.control], durationSeconds: 60))
+        server.approver = approver
+        server.approvalDesktopUnlocked = { false }
+        XCTAssertEqual(call(["operation":"grant.request", "scopes":["control"],
+                             "reason":"t"])["errorCode"] as? String,
+                       "approval_unavailable_while_locked")
+        XCTAssertTrue(approver.presented.isEmpty)
+        XCTAssertNil(broker.grant)
+    }
+
     func testApprovedGrantAllowsScopeUntilRevoked() {
         let approver = ScriptedApprover(.approved(scopes: [.observe], durationSeconds: 600))
         server.approver = approver
@@ -159,6 +174,34 @@ final class ServerTests: XCTestCase {
         clock = clock.addingTimeInterval(61)
         XCTAssertEqual(call(["operation": "applications"])["errorCode"] as? String,
                        "approval_required")
+    }
+
+    func testConsoleReplacementRevokesExistingApprovalWhileUnlocked() {
+        broker.issueUntilStopped(scopes:[.observe], reason:"r", requester:"local", approver:"test")
+        server.grantConsoleObservation = {
+            ["desktopState":"unlocked", "uuid":"replacement-console", "boot":123, "uid":getuid()]
+        }
+        XCTAssertEqual(call(["operation":"applications"])["errorCode"] as? String,"approval_required")
+        XCTAssertEqual(broker.lastEnded?.reason,"console_session_changed")
+    }
+
+    func testUnknownConsoleCannotRetainApproval() {
+        broker.issueUntilStopped(scopes:[.observe], reason:"r", requester:"local", approver:"test")
+        server.grantConsoleObservation = { [:] }
+        XCTAssertEqual(call(["operation":"applications"])["errorCode"] as? String,"approval_required")
+        XCTAssertNil(broker.grant)
+    }
+
+    func testGrantIssuedWithoutUnlockedConsoleCannotBindOnLaterUnlock() {
+        server.grantConsoleObservation = {
+            ["desktopState":"locked", "uuid":"test-console", "boot":123, "uid":getuid()]
+        }
+        broker.issueUntilStopped(scopes:[.observe], reason:"r", requester:"local", approver:"test")
+        server.grantConsoleObservation = {
+            ["desktopState":"unlocked", "uuid":"test-console", "boot":123, "uid":getuid()]
+        }
+        XCTAssertEqual(call(["operation":"applications"])["errorCode"] as? String,"approval_required")
+        XCTAssertNil(broker.grant)
     }
 }
 
