@@ -81,8 +81,11 @@ Return to VT2, log in as `chronos`, run `sudo -i`, then run the saved activation
 bash /mnt/stateful_partition/etc/ssh/activate.sh
 ```
 
-The same command resumes the saved approval, restores SSH autostart and the
-appliance policy, and activates DevTools. Preparation announces a three-second
+The same command resumes the saved approval and restores SSH autostart, the
+appliance policy, and DevTools configuration. If the profile is signed out,
+activation reports that desktop verification awaits sign-in rather than
+restarting Chrome or treating the missing debugging listener as an install
+failure. Preparation announces a three-second
 reboot countdown; Ctrl+C cancels that reboot without losing saved progress.
 The read-only root-image transition does **not** yet resume automatically at
 boot. A pending OS update can require an additional preparation reboot.
@@ -263,8 +266,20 @@ bin/chromeos post-update --verify-reboot  # Explicit automatic-startup proof
 ```
 
 Proof requires a changed boot ID and a current-boot `shill-connected` entry;
-manual SSH reachability alone is not evidence of boot persistence. Profile
-sign-in and desktop accessibility are checked separately by the controller.
+manual SSH reachability alone is not evidence of boot persistence. The native
+JSON audit's `bootReady` reports installed system configuration and current-boot
+startup evidence independently of its full-runtime `ok` result.
+
+The controller uses `post-update --verify-reboot --boot-only` to prove SSH,
+rootfs preparation, and the power policy without requiring profile sign-in or
+claiming a working DevTools listener. It then waits for sign-in before checking
+DevTools and desktop accessibility. On the exercised device, a Chrome restart
+left the configured listener
+unavailable until sign-in, while a subsequent normal boot started it before
+sign-in. Neither behavior should be inferred from the profile state alone. Resuming
+activation while locked must not keep rebooting a device whose `bootReady`
+evidence already passes. The ordinary `--verify-reboot` mode still checks the
+DevTools listener as part of its full runtime audit.
 
 Ordinary `doctor` also warns when ChromeOS reports an update waiting for
 reboot, so physical VT2 access can be planned before the root image changes.

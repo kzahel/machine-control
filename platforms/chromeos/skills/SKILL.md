@@ -125,7 +125,12 @@ before changing verification/rebooting; declining selects SSH-only mode.
 After a required root-image reboot, run the same `activate.sh` command again;
 automatic continuation is not installed. Then `chromeos activate` on the
 controller finishes deployment and verifies reboot persistence and desktop
-readiness. The focused audit is read-only; repair and proof reboots are explicit.
+readiness. A configured DevTools listener can remain unavailable until profile
+sign-in. Local activation reports this as pending desktop verification; the
+controller proves startup with `post-update --verify-reboot --boot-only`, then
+waits for sign-in. Native audit `bootReady` can pass while full-runtime `ok`
+remains false. Do not repeatedly restart Chrome or reboot a boot-proven device
+just because its profile is signed out. The focused audit is read-only; repair and proof reboots are explicit.
 
 ```bash
 chromeos post-update                    # See what the new image lost

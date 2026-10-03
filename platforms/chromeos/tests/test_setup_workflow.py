@@ -146,7 +146,7 @@ class FakeSetup(setup.Setup):
     def platform(self, *args, **kwargs):
         self.calls.append(args)
         code = 1 if args[0] == self.fail_stage else 0
-        return subprocess.CompletedProcess([], code, '{"ok":true}', '')
+        return subprocess.CompletedProcess([], code, '{"ok":true,"bootReady":true}', '')
 
 
 class ControllerSetupTests(unittest.TestCase):
@@ -157,7 +157,7 @@ class ControllerSetupTests(unittest.TestCase):
         self.assertEqual(runner.execute(), 0)
         self.assertIn('bash /mnt/stateful_partition/etc/ssh/activate.sh --ssh-only', runner.calls)
         self.assertNotIn(('deploy',), runner.calls)
-        self.assertNotIn(('post-update', '--verify-reboot', '-y'), runner.calls)
+        self.assertNotIn(('post-update', '--verify-reboot', '--boot-only', '-y'), runner.calls)
         self.assertNotIn(('smoke-test',), runner.calls)
 
     @mock.patch.object(setup.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0))
@@ -181,6 +181,20 @@ class ControllerSetupTests(unittest.TestCase):
         runner = FakeSetup(locked=True)
         self.assertEqual(runner.execute(), 2)
         self.assertNotIn(('smoke-test',), runner.calls)
+        self.assertNotIn(('fix-devtools', '-y'), runner.calls)
+
+    @mock.patch.object(setup.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0))
+    def test_locked_audit_with_boot_proof_does_not_reboot_again(self, run):
+        runner = FakeSetup(locked=True)
+        original = runner.platform
+        def platform(*args, **kwargs):
+            result = original(*args, **kwargs)
+            if args == ('--json', 'post-update'):
+                return subprocess.CompletedProcess([], 1, '{"ok":false,"bootReady":true}', '')
+            return result
+        runner.platform = platform
+        self.assertEqual(runner.execute(), 2)
+        self.assertNotIn(('post-update', '--verify-reboot', '--boot-only', '-y'), runner.calls)
 
     @mock.patch.object(setup.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0))
     def test_failed_smoke_is_not_completion(self, run):

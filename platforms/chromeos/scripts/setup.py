@@ -116,18 +116,20 @@ class Setup:
 
         if self.platform('deploy').returncode:
             return 1
-        if self.platform('fix-devtools', '-y').returncode:
-            return 1
         audit = self.platform('--json', 'post-update', capture=True)
         try:
-            proven = audit.returncode == 0 and json.loads(audit.stdout).get('ok') is True
+            # An audit can fail solely because DevTools awaits profile sign-in
+            # while its independent, current-boot system proof remains valid.
+            proven = json.loads(audit.stdout).get('bootReady') is True
         except (ValueError, TypeError):
             proven = False
-        if not proven and self.platform('post-update', '--verify-reboot', '-y').returncode:
+        if not proven and self.platform('post-update', '--verify-reboot', '--boot-only', '-y').returncode:
             return 1
         if not self.wait(lambda: self.read("mount | grep -q ' /home/chronos/user ' && echo active") == 'active',
                          'Sign in normally on the Chromebook if needed. Setup will continue when the profile is unlocked.'):
             return 2
+        if self.platform('fix-devtools', '-y').returncode:
+            return 1
         client_dir = str(Path(os.environ.get('CHROMEOS_CLIENT_PATH', '/mnt/stateful_partition/c2/client.py')).parent)
         command = f'PYTHONPATH={shlex.quote(client_dir)} LD_LIBRARY_PATH=/usr/local/lib64 python3 -'
         if self.remote(command, source=(SCRIPTS / 'setup-accessibility.py').read_text()).returncode:

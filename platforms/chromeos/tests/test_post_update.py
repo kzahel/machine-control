@@ -70,6 +70,7 @@ class PostUpdateAuditTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         payload = json.loads(result.stdout)
         self.assertTrue(payload["ok"])
+        self.assertTrue(payload["bootReady"])
         self.assertEqual("ready", payload["status"])
 
     def test_updated_read_only_image_requires_repair(self):
@@ -95,6 +96,7 @@ class PostUpdateAuditTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertFalse(payload["ok"])
         self.assertEqual("repair_required", payload["status"])
+        self.assertFalse(payload["bootReady"])
         failed = {item["name"] for item in payload["checks"]
                   if item["status"] == "fail"}
         self.assertIn("SSH autostart job is missing", failed)
@@ -178,6 +180,78 @@ class PostUpdateAuditTests(unittest.TestCase):
 
         self.assertEqual(1, result.returncode)
         self.assertIn("read-only post-update audit", result.stderr)
+
+
+@unittest.skipIf(BASH is None or os.name == "nt", "Requires POSIX Bash")
+class BootProofTests(unittest.TestCase):
+    def prove(self, boot_only=True, automatic=True, changed=True, prepared=True):
+        source = (REPO_DIR / 'scripts/post-update.sh').read_text()
+        ready = source.split('boot_ready() {', 1)[1].split('\nemit_audit()', 1)[0]
+        verify = source.split('verify_reboot() {', 1)[1].rsplit('\ncase "$MODE" in', 1)[0]
+        script = 'boot_ready() {' + ready + '\nverify_reboot() {' + verify + '''
+RELEASE=fixture
+UPDATE_OPERATION=UPDATE_STATUS_IDLE
+ROOTFS_WRITABLE=yes
+AUTOSTART=running
+FALLBACK=yes
+PREPARED_RELEASE="$PREPARED"
+DEVTOOLS_CONFIGURED=yes
+DEVTOOLS_LISTENING=no
+POWER_POLICY_HELPER=yes
+POWER_POLICY_GUARD=yes
+POWER_POLICY_CONFIGURED=yes
+POWER_POLICY_BOOT_EVIDENCE=applied
+BOOT_ID=old
+BOOT_EVIDENCE="$EVIDENCE"
+STATUS=repair_required
+SSH_HOST=fixture
+REMOTE_PATH_SETUP=:
+require_ssh() { return 0; }
+load_snapshot() { return 0; }
+evaluate_snapshot() { return 0; }
+emit_audit() { echo "FULL_RUNTIME_STATUS=$STATUS"; }
+confirm_reboot() { return 0; }
+print_vt2_ssh_instructions() { echo 'VT2 fallback'; }
+sleep() { SECONDS=$((SECONDS + 100)); }
+ssh() {
+    case "$*" in
+        *reboot*) echo REBOOT_REQUESTED ;;
+        *) echo "$NEXT_BOOT" ;;
+    esac
+}
+verify_reboot
+'''
+        env = dict(os.environ, BOOT_ONLY='true' if boot_only else 'false',
+                   EVIDENCE='automatic' if automatic else 'manual',
+                   NEXT_BOOT='new' if changed else 'old',
+                   PREPARED='fixture' if prepared else 'old-release')
+        env.pop('BASH_ENV', None)
+        return subprocess.run([BASH, '-c', script], env=env, text=True, capture_output=True, timeout=5)
+
+    def test_explicit_boot_proof_can_succeed_without_claiming_devtools_readiness(self):
+        result = self.prove()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('FULL_RUNTIME_STATUS=repair_required', result.stdout)
+        self.assertIn('still require separate verification', result.stdout)
+
+    def test_default_proof_still_requires_devtools(self):
+        self.assertNotEqual(self.prove(boot_only=False).returncode, 0)
+
+    def test_boot_proof_requires_new_boot_and_automatic_evidence(self):
+        for kwargs in [{'automatic': False}, {'changed': False}]:
+            with self.subTest(kwargs=kwargs):
+                self.assertNotEqual(self.prove(**kwargs).returncode, 0)
+
+    def test_unprepared_image_is_refused_before_reboot(self):
+        result = self.prove(prepared=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('REBOOT_REQUESTED', result.stdout)
+
+    def test_boot_only_cannot_be_used_for_an_audit(self):
+        result = subprocess.run([BASH, str(CLI), 'post-update', '--boot-only'],
+                                text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('requires --verify-reboot', result.stderr)
 
 
 if __name__ == "__main__":

@@ -20,6 +20,10 @@ case "$name" in
   update_engine_client) echo "CURRENT_OP=${FIXTURE_UPDATE:-UPDATE_STATUS_IDLE}" ;;
   make_dev_fixture) exit "${FIXTURE_SIGNING_STATUS:-0}" ;;
   flock) exit "${FIXTURE_LOCK_STATUS:-0}" ;;
+  mount)
+    if [ "${FIXTURE_PROFILE:-active}" = active ] && [ ! -f "$FIXTURE_ROOT/profile-locked" ]; then
+      echo 'fixture on /home/chronos/user type ext4 (rw)'
+    fi ;;
   touch)
     if [[ "$*" == *testbed-probe* && "$FIXTURE_WRITABLE" != yes ]]; then exit 1; fi
     exec /usr/bin/touch "$@" ;;
@@ -29,7 +33,14 @@ case "$name" in
   iptables|ip6tables) [[ " $* " != *' -D '* ]] ;;
   python3|dev_install) exit "${FIXTURE_PYTHON_STATUS:-0}" ;;
   restart)
-    if [ "$1" = ui ]; then echo '0: 0100007F:2406 0:0 0A' > "$FIXTURE_ROOT/proc/net/tcp"; fi ;;
+    if [ "$1" = ui ]; then
+      if [ "${FIXTURE_RESTART_HUP:-no}" = yes ]; then kill -HUP "$PPID"; fi
+      if [ "${FIXTURE_RESTART_LOCKS:-no}" = yes ]; then
+        /usr/bin/touch "$FIXTURE_ROOT/profile-locked"
+      else
+        echo '0: 0100007F:2406 0:0 0A' > "$FIXTURE_ROOT/proc/net/tcp"
+      fi
+    fi ;;
   sleep) exit "${FIXTURE_SLEEP_STATUS:-0}" ;;
 esac
 '''
@@ -61,7 +72,7 @@ class ActivationTests(unittest.TestCase):
         for name in ["id", "crossystem", "rootdev", "update_engine_client", "make_dev_fixture",
                      "touch", "ip", "ss", "ssh-keyscan", "sshd", "status", "iptables",
                      "ip6tables", "python3", "dev_install", "restart", "start", "stop",
-                     "initctl", "ectool", "pkill", "sleep", "sync", "reboot", "flock"]:
+                     "initctl", "ectool", "pkill", "sleep", "sync", "reboot", "flock", "mount"]:
             executable = self.root / "bin" / name
             executable.write_text(FAKE)
             executable.chmod(0o755)
@@ -137,6 +148,25 @@ class ActivationTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertNotIn("reboot ", self.calls())
                 self.assertFalse((self.ssh / "prepared-release").exists())
+
+    def test_signed_out_profile_does_not_restart_chrome_or_fail_preparation(self):
+        result = self.run_activation("--yes", writable="yes", FIXTURE_PROFILE="locked")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('DESKTOP: waiting for profile sign-in', result.stdout)
+        self.assertNotIn('restart ui', self.calls())
+        self.assertTrue((self.ssh / 'prepared-release').exists())
+
+    def test_chrome_restart_signout_is_a_profile_gate_not_installation_failure(self):
+        result = self.run_activation("--yes", writable="yes", FIXTURE_RESTART_LOCKS="yes")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('DESKTOP: waiting for profile sign-in', result.stdout)
+        self.assertIn('restart ui', self.calls())
+        self.assertTrue((self.ssh / 'prepared-release').exists())
+
+    def test_activation_survives_console_hangup_during_chrome_restart(self):
+        result = self.run_activation("--yes", writable="yes", FIXTURE_RESTART_HUP="yes")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue((self.ssh / 'prepared-release').exists())
 
     def test_cancelled_countdown_does_not_reboot(self):
         result = self.run_activation("--yes", FIXTURE_SLEEP_STATUS="1")

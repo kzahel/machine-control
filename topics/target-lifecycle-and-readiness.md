@@ -307,6 +307,16 @@ full appliance readiness. A required root-image reboot saves approval and
 progress, but currently needs the same activation command rerun from VT2;
 automatic continuation across a replaced root image remains open.
 
+**Current:** ChromeOS activation separates a prepared system from an unlocked
+profile. A signed-out profile can withhold the configured DevTools listener;
+local installation records this as pending desktop verification. The native
+audit exposes independent `bootReady` evidence. The controller explicitly uses
+`--verify-reboot --boot-only`, then waits for profile sign-in and verifies the
+desktop. Missing DevTools alone cannot trigger another proof reboot when
+current-boot system evidence is already valid. Default maintenance audits and
+full-runtime proof retain their stricter readiness result.
+
+
 
 ## Failure behavior
 

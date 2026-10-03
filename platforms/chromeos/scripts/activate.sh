@@ -243,6 +243,9 @@ bootstrap_diagnostics() {
     echo "ROOTFS WRITABLE: ${ROOTFS_WRITABLE:-unknown}"
     echo "POWER: applied=${POWER_POLICY_READY:-unknown} guard=${POWER_POLICY_GUARD_READY:-unknown}"
     echo "PYTHON RUNTIME: ${PYTHON_READY:-not checked}"
+    if [ "${DEVTOOLS_PENDING_SIGNIN:-no}" = yes ]; then
+        echo 'DESKTOP: waiting for profile sign-in; DevTools is configured, not yet verified'
+    fi
     if [ "${ROOTFS_WRITABLE:-unknown}" = no ]; then
         echo "PERSISTENCE: pending writable-rootfs setup"
     fi
@@ -621,15 +624,28 @@ else
 fi
 
 # Activate the new Chrome flags locally; a root-image transition boots them later.
+DEVTOOLS_PENDING_SIGNIN=no
 if [ "$REPAIR_ONLY" != yes ] && [ "$ROOTFS_WRITABLE" = yes ]; then
     if ! awk '$2 ~ /:2406$/ && $4 == "0A" { found=1 } END { exit !found }' /proc/net/tcp; then
-        echo 'Restarting Chrome to activate DevTools (the profile may need unlocking)...'
-        restart ui
-        deadline=$((SECONDS + 30))
-        until awk '$2 ~ /:2406$/ && $4 == "0A" { found=1 } END { exit !found }' /proc/net/tcp; do
-            [ "$SECONDS" -lt "$deadline" ] || { echo '[FAIL] DevTools did not start.'; exit 1; }
-            sleep 1
-        done
+        if ! mount | grep -q ' /home/chronos/user '; then
+            DEVTOOLS_PENDING_SIGNIN=yes
+        else
+            echo 'Restarting Chrome to activate DevTools (the profile may need unlocking)...'
+            # ChromeOS UI shutdown kills the chronos console parent. Keep the
+            # root activation alive if that closes the VT2 login session.
+            trap '' HUP
+            restart ui
+            deadline=$((SECONDS + 30))
+            until awk '$2 ~ /:2406$/ && $4 == "0A" { found=1 } END { exit !found }' /proc/net/tcp; do
+                if ! mount | grep -q ' /home/chronos/user '; then
+                    DEVTOOLS_PENDING_SIGNIN=yes
+                    break
+                fi
+                [ "$SECONDS" -lt "$deadline" ] || { echo '[FAIL] DevTools did not start.'; exit 1; }
+                sleep 1
+            done
+            trap - HUP
+        fi
     fi
 fi
 

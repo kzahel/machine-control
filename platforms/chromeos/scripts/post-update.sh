@@ -11,6 +11,7 @@ OUTPUT_FORMAT="${CHROMEOS_OUTPUT:-text}"
 MODE=audit
 MODE_SELECTED=false
 AUTO_YES=false
+BOOT_ONLY=false
 REMOTE_SSH_DIR=/mnt/stateful_partition/etc/ssh
 STAGED_BOOTSTRAP="$REMOTE_SSH_DIR/activate.sh"
 REPAIR_MARKER="$REMOTE_SSH_DIR/post-update-repair.pending"
@@ -25,6 +26,8 @@ Without options, performs a read-only focused post-update audit.
                    enabled, stages the current bootstrap, disables verification,
                    and reboots. Recover SSH from VT2, then run --repair again.
   --verify-reboot  Reboot and prove SSH returned automatically on the new boot.
+  --boot-only     With --verify-reboot, prove system startup independently of
+                  profile sign-in and DevTools; does not claim desktop readiness.
   -y, --yes        Confirm the reboot required by --repair or --verify-reboot.
 EOF
 }
@@ -48,11 +51,17 @@ while [[ $# -gt 0 ]]; do
             MODE_SELECTED=true
             ;;
         -y|--yes) AUTO_YES=true ;;
+        --boot-only) BOOT_ONLY=true ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
     esac
     shift
 done
+
+if [[ "$BOOT_ONLY" == true && "$MODE" != verify-reboot ]]; then
+    echo '--boot-only requires --verify-reboot.' >&2
+    exit 1
+fi
 
 if [[ "$OUTPUT_FORMAT" == json && "$MODE" != audit ]]; then
     echo "Structured output is available for the read-only post-update audit only." >&2
@@ -373,8 +382,19 @@ evaluate_snapshot() {
     fi
 }
 
+boot_ready() {
+    [[ "$RELEASE" != unknown && "$UPDATE_OPERATION" != unknown &&
+       "$UPDATE_OPERATION" != UPDATE_STATUS_UPDATED_NEED_REBOOT &&
+       "$ROOTFS_WRITABLE" == yes && "$AUTOSTART" == running &&
+       "$FALLBACK" == yes && "$PREPARED_RELEASE" == "$RELEASE" &&
+       "$BOOT_EVIDENCE" == automatic && "$DEVTOOLS_CONFIGURED" == yes &&
+       "$POWER_POLICY_HELPER" == yes && "$POWER_POLICY_GUARD" == yes &&
+       "$POWER_POLICY_CONFIGURED" == yes && "$POWER_POLICY_BOOT_EVIDENCE" == applied ]]
+}
+
 emit_audit() {
-    local i
+    local i boot_ready_value=false
+    boot_ready && boot_ready_value=true
     if text_mode; then
         echo "ChromeOS post-update audit ($SSH_HOST)"
         echo "Release: $RELEASE"
@@ -390,17 +410,19 @@ emit_audit() {
         done
         echo
         echo "Status: $STATUS"
+        echo "System boot ready: $boot_ready_value (desktop readiness is separate)"
         return
     fi
 
     python3 - "$SSH_HOST" "$RELEASE" "$BOOT_ID" "$UPDATE_OPERATION" \
-        "$STATUS" "$FAIL_COUNT" "$WARN_COUNT" "${CHECKS[@]}" <<'PY'
+        "$STATUS" "$FAIL_COUNT" "$WARN_COUNT" "$boot_ready_value" "${CHECKS[@]}" <<'PY'
 import json
 import sys
 
 host, release, boot_id, update_operation, status = sys.argv[1:6]
 failed, warned = map(int, sys.argv[6:8])
-fields = sys.argv[8:]
+boot_ready = sys.argv[8] == "true"
+fields = sys.argv[9:]
 checks = []
 for i in range(0, len(fields), 4):
     check_status, name, detail, fix = fields[i:i + 4]
@@ -412,6 +434,7 @@ for i in range(0, len(fields), 4):
     checks.append(item)
 print(json.dumps({
     "ok": status == "ready",
+    "bootReady": boot_ready,
     "host": host,
     "release": release,
     "boot_id": boot_id,
@@ -606,10 +629,7 @@ verify_reboot() {
     while [[ "$SECONDS" -lt "$deadline" ]]; do
         load_snapshot || return 1
         evaluate_snapshot
-        if [[ "$BOOT_EVIDENCE" == automatic &&
-              "$AUTOSTART" == running &&
-              "$DEVTOOLS_LISTENING" == yes &&
-              "$POWER_POLICY_BOOT_EVIDENCE" == applied ]]; then
+        if boot_ready && [[ "$BOOT_ONLY" == true || "$DEVTOOLS_LISTENING" == yes ]]; then
             break
         fi
         sleep 2
@@ -619,7 +639,13 @@ verify_reboot() {
         echo "[FAIL] SSH returned, but the stateful log does not prove automatic startup." >&2
         return 1
     fi
-    [[ "$STATUS" == ready ]]
+    if [[ "$BOOT_ONLY" == true ]]; then
+        boot_ready || return 1
+        echo '[OK] New-boot automatic SSH and system configuration verified.'
+        echo 'Profile sign-in, DevTools, and desktop control still require separate verification.'
+        return 0
+    fi
+    boot_ready && [[ "$STATUS" == ready ]]
 }
 
 case "$MODE" in

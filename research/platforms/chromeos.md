@@ -63,8 +63,24 @@ previously installed availability policy; limited mode does not undo it.
 returned authenticated SSH while common doctor still reported rootfs
 verification enabled and the full runtime unprepared. Full activation then
 prepared the active image and reached its announced reboot with the activation
-script and progress retained on the stateful partition. Post-reboot completion
-of this entry point is awaiting live verification.
+script and progress retained on the stateful partition. VT2 resume restored
+SSH autostart, writable-rootfs configuration, and the power-policy guard.
+After profile sign-in all eleven smoke checks passed, including semantics,
+capture, keyboard, isolated touch, and restoration of the original UI. A later
+proof reboot returned SSH automatically on a changed boot with all runtime
+maintenance checks healthy; no VT2 recovery was needed.
+
+**Current — live-observed:** A Chrome restart with the debugging flag present
+left its listener unavailable while signed out; signing in made the listener
+and desktop semantics available. The subsequent normal proof boot had the
+listener available even before profile sign-in.
+
+**Current — fixture-tested:** Activation now reports a signed-out profile as pending desktop verification instead of failing system
+preparation or repeatedly restarting Chrome. The native audit's `bootReady`
+and explicit `--verify-reboot --boot-only` separate startup proof from full
+runtime and desktop readiness. HUP survival during a console-affecting Chrome
+restart is fixture-tested; the exact signal that interrupted the initial VT2
+run was not observed.
 
 **Open:** Activation saves progress on the stateful partition but has no proven
 automatic continuation hook after an update replaces the root image. Required
