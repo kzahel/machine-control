@@ -475,3 +475,13 @@ helper without Repair or another OS permission. Native menu Quit recorded clean
 operator cleanup before its active owner channel closed. See
 [Tactical 081](../../docs/tactical/081-macos-admission-physical-acceptance.md);
 this does not qualify the revised locked takeover/resumption path.
+
+## Native delegated ordinary control
+
+**Current (2026-10-04), bounded `live-tested`:** a signed YA native launch,
+credentialed session origin and installed signed MC CLI reached a conformance
+receiver forwarding to the actual native AX provider. Independent fixture
+counters proved ordinary effects, unrelated-process refusal, Pause/fresh Resume
+and Stop/reconnect refusal. [Tactical 086](../../docs/tactical/086-native-desktop-delegation.md)
+owns exact revisions and limits. This does not qualify the full signed MC
+operator app, protected composition, hardware takeover or distribution.

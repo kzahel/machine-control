@@ -1,6 +1,7 @@
 # Native desktop delegation
 
-Status: active; MC receiver foundation implemented, upstream YA proof pending.
+Status: active; signed YA origin and ordinary effects proved in a bounded
+conformance receiver; full installed and failure qualification remain open.
 Owning topics: [caller authorization](../../topics/caller-authorization.md) and
 [access admission and pause](../../topics/access-admission-and-pause.md).
 Dependency: [trusted Desktop access](071-desktop-caller-authorization.md).
@@ -102,11 +103,29 @@ revision and dynamic identity. A slow-verifier regression proves discovery
 remains responsive and Stop prevents late admission. Existing protected
 watchdogs are unchanged.
 
-**Open:** actual signed installed YA origin/effects, negative signed callers,
-lifecycle/restart qualification and the independent protected-consent
-composition needed for unattended locked tasks. Keep this tactical and the
-coordinating plan active; source/socket fixtures are not distribution or genuine
-hardware takeover acceptance.
+**Current, bounded live conformance (2026-10-04):** exact signed YA revision
+`158e7a1c9` launched an owned protocol fixture through its actual native shell,
+credentialed server session and provider adapter. The installed signed MC CLI
+at `97148e0` authenticated that registered launch. A conformance receiver built
+from `8068a1f` forwarded ordinary operations to the separately running native
+AX provider. An independent AppKit counter observed one effect, no effect from
+an unrelated same-user CLI, then exactly one fresh effect after Pause/Resume.
+Pause retained trust; Stop refused old work and a fresh delegated connection.
+The runner restored the previous socket/application and reaped its processes;
+the existing resident doctor remained ready.
+
+This proves signed YA origin and native CLI routing, not the full signed MC
+operator application: the receiver used fixture operator enrollment and was
+not the shipping app. The provider was an owned protocol fixture, not an LLM
+session. No protected control or genuine hardware input occurred. Lazy provider
+registration, immutable whole-bundle installation and explicit client
+keepalives were necessary; stale ownership still expired under the unchanged
+five-second watchdog.
+
+**Open:** full signed MC operator enrollment, additional signed negative callers,
+lifecycle/restart qualification and prepared-console covered tasks. Keep this
+and the coordinating plan active; bounded conformance is not distribution or
+genuine hardware takeover acceptance.
 
 The separately typed composition with existing prepared-console consent is
 owned by [Tactical 087](087-prepared-console-delegation.md). It must not widen
