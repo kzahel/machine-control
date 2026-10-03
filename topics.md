@@ -67,3 +67,6 @@ commits with no expected follow-up do not need a trailer or registry entry.
 
 - `caller-authorization` — authenticated callers, trusted integration grants,
   session revocation and native identity validation.
+
+- `access-admission-and-pause` — resumable pauses, polite activation, live
+  waiting queues, cancellation, fencing and shared desktop resources.

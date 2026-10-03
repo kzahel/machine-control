@@ -39,6 +39,7 @@ the commits' `Topic:` trailers and register that exact string in
 
 | Tactical | Status | Scope |
 | --- | --- | --- |
+| [`074-access-admission-and-pause.md`](074-access-admission-and-pause.md) | active | Coordinating plan for resumable access pauses, polite admission, queue liveness, fencing and shared physical/VM desktop resources |
 | [`071-desktop-caller-authorization.md`](071-desktop-caller-authorization.md) | active; identity primitive validated | Opt-in automatic grants for trusted YA Desktop, authenticated session authority, revocation and fresh Mac installation acceptance; npm CLI trust next |
 | [`069-desktop-audit-and-diagnostics.md`](069-desktop-audit-and-diagnostics.md) | complete; source-native VMs accepted | Durable native audit history, private diagnostics, retained Activity, export and storage-failure validation |
 | [`068-windows-agent-discovery.md`](068-windows-agent-discovery.md) | implemented; x64 accepted; release gates open | Main-executable CLI forwarding, bare-launch guidance, user PATH registration and resolved installation identity |

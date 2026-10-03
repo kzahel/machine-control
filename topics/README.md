@@ -34,6 +34,9 @@ its `Topic:` trailers.
 
 ## Current topics
 
+- [`access-admission-and-pause.md`](access-admission-and-pause.md): proposed
+  resumable pauses, polite activation, live waiting queues, cancellation and
+  physical/VM resource arbitration without revoking standing authorization.
 - **High-priority validation in progress:**
   [`caller-authorization.md`](caller-authorization.md): authenticated local
   callers, automatic grants for trusted YA Desktop and session revocation,
