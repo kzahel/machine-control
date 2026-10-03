@@ -1,0 +1,9 @@
+{
+  "id": "machine-control",
+  "displayName": "Machine Control",
+  "hostnames": ["updates.graehlarts.com"],
+  "pathPrefix": "/machine-control",
+  "githubRepo": "kzahel/machine-control",
+  "tagPrefix": "desktop-v",
+  "tauriUpdates": true
+}

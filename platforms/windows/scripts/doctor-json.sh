@@ -8,7 +8,7 @@ source "$SCRIPT_DIR/common.sh"
 source "$SCRIPT_DIR/resident-profile.sh"
 resident_configuration="$(resident_profile_powershell)" || exit $?
 protected_authority=dedicated_test_appliance
-if [[ "${WINVM_RESIDENT_PROFILE:-appliance}" == user ]]; then
+if [[ "${WINVM_RESIDENT_PROFILE:-appliance}" != appliance ]]; then
     protected_authority=unavailable_in_workstation_profile
     resident_configuration+=$'\n$callArguments += @(\'--timeout-ms\', \'3000\')'
 fi

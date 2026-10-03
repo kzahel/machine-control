@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Machine Control",
+  "mainBinaryName": "macui",
+  "version": "0.3.0",
+  "identifier": "org.machine-control.app",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Machine Control",
+        "width": 640,
+        "height": 440,
+        "minWidth": 580,
+        "minHeight": 400
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: data:; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "resources": {},
+    "targets": ["app", "dmg"],
+    "createUpdaterArtifacts": false,
+    "icon": ["icons/icon.png", "icons/icon.icns", "icons/icon.ico"],
+    "category": "DeveloperTool",
+    "shortDescription": "Native computer control with visible, revocable access."
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIwNkE4NjlDRTc4NDYxMzQKUldRMFlZVG5uSVpxc0J0enI3dys5YVI4QkVKTlZRcGExcFBNOTdMaEMxWTVtU2FrN1JuV3hKdXMK",
+      "endpoints": [
+        "https://machinecontrol.dev/updates/tauri/{{target}}/{{arch}}/{{current_version}}"
+      ],
+      "requireSignedVersion": true
+    }
+  }
+}

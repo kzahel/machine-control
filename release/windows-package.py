@@ -66,28 +66,35 @@ def inventory(directory):
     return files
 
 
-def build(directory, rid, revision, provider_digest=None):
+def build(directory, rid, revision, provider_digest=None, desktop_companion=False):
     if directory.exists():
         raise ValueError('Build output must not already exist')
     if not re.fullmatch('[0-9a-f]{40}', revision):
         raise ValueError('Full source revision required')
     directory.mkdir(parents=True)
     command = ['dotnet', 'publish', str(ROOT / 'src/MachineControl.Windows/MachineControl.Windows.csproj'),
-               '-c', 'Release', '-r', rid, '--self-contained', 'true', '-o', str(directory)]
+               '-c', 'Release', '-r', rid, '--self-contained', 'true', '-o', str(directory), '-t:Rebuild']
     if provider_digest:
         if not re.fullmatch('[0-9a-f]{64}', provider_digest):
             raise ValueError('Invalid signed provider digest')
         command.append('-p:CuaExecutableSha256=' + provider_digest)
     subprocess.run(command, check=True)
+    companions = {'PenImc_cor3.dll',
+                  'PresentationNative_cor3.dll', 'vcruntime140_cor3.dll', 'wpfgfx_cor3.dll'}
+    if rid == 'win-x64':
+        companions.add('D3DCompiler_47_cor3.dll')
+    if not all((directory / name).is_file() for name in companions):
+        raise ValueError('Self-contained Windows publish is missing native WPF companions')
     # Default build keeps the exact pinned provider bytes. Signing builds replace
     # this directory with the separately verified/signed copy before finalizing.
     fetch_provider(directory, rid)
-    subprocess.run(['python', str(ROOT / 'release/build-unlock-setup.py'),
-                    '--runtime', rid, '--output', str(directory / 'unlock-setup.exe')], check=True)
-    shutil.copyfile(ROOT / 'release/workstation.ps1', directory / 'workstation.ps1')
-    shutil.copyfile(ROOT / 'release/windows-workstation.md', directory / 'README.md')
-    shutil.copyfile(ROOT / 'release/windows-unlock.md', directory / 'unlock.md')
-    shutil.copyfile(ROOT / 'release/unlock-controller.py', directory / 'unlock-controller.py')
+    if not desktop_companion:
+        subprocess.run(['python', str(ROOT / 'release/build-unlock-setup.py'),
+                        '--runtime', rid, '--output', str(directory / 'unlock-setup.exe')], check=True)
+        shutil.copyfile(ROOT / 'release/workstation.ps1', directory / 'workstation.ps1')
+        shutil.copyfile(ROOT / 'release/windows-workstation.md', directory / 'README.md')
+        shutil.copyfile(ROOT / 'release/windows-unlock.md', directory / 'unlock.md')
+        shutil.copyfile(ROOT / 'release/unlock-controller.py', directory / 'unlock-controller.py')
     shutil.copyfile(ROOT / 'LICENSE', directory / 'LICENSE')
     assets = json.loads((ROOT / 'src/MachineControl.Windows/obj/project.assets.json').read_text())
     dependencies = {name: item['path'] for name, item in assets['libraries'].items()
@@ -117,7 +124,8 @@ def build(directory, rid, revision, provider_digest=None):
     for path in directory.glob('*.pdb'):
         path.unlink()
     (directory / 'build.json').write_text(json.dumps({
-        'schema': 'machine-control-windows-build/v0', 'profile': 'workstation',
+        'schema': 'machine-control-windows-build/v0',
+        'profile': 'desktop_companion' if desktop_companion else 'workstation',
         'protocol': 'machine-control/v0', 'runtime': rid, 'sourceRevision': revision,
         'sdkVersion': subprocess.check_output(['dotnet', '--version'], text=True).strip(),
         'sourceDirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT).strip()),
@@ -127,6 +135,8 @@ def build(directory, rid, revision, provider_digest=None):
 
 def finalize(directory):
     build_info = json.loads((directory / 'build.json').read_text())
+    if build_info.get('profile') != 'workstation':
+        raise ValueError('Only complete workstation payloads can become component packages')
     if digest(directory / 'providers/cua/cua-driver.exe') != build_info['providerDigest']:
         raise ValueError('Provider bytes differ from the compiled build identity')
     files = inventory(directory)
@@ -163,12 +173,14 @@ if __name__ == '__main__':
     parser.add_argument('--runtime', choices=['win-arm64', 'win-x64'])
     parser.add_argument('--revision')
     parser.add_argument('--provider-digest')
+    parser.add_argument('--desktop-companion', action='store_true',
+                        help='Build only the desktop companion, excluding component/setup tools')
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
     if args.command == 'build':
         if not args.runtime or not args.revision:
             parser.error('build requires --runtime and --revision')
-        build(args.directory.resolve(), args.runtime, args.revision, args.provider_digest)
+        build(args.directory.resolve(), args.runtime, args.revision, args.provider_digest, args.desktop_companion)
     elif args.command == 'fetch-provider':
         if not args.runtime:
             parser.error('fetch-provider requires --runtime')

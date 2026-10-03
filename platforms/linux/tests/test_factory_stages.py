@@ -233,6 +233,7 @@ class FactoryStagesTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "completion_required"):
                 MODULE.attest_cloud_init("00000000-0000-0000-0000-000000000000")
 
+    @unittest.skipUnless(os.name == "posix", "UTM receipt permissions require POSIX file modes")
     def test_utm_completion_receipt_is_private_and_exact(self):
         identifier = "00000000-0000-0000-0000-000000000000"
         identity = {"schema": "machine-control-candidate-assertion/v0",
@@ -277,8 +278,9 @@ class FactoryStagesTests(unittest.TestCase):
              mock.patch.object(MODULE, "cloud_observation", return_value=(
                  "done", "00000000-0000-0000-0000-000000000000", True)):
             current = stages(MODULE.utm_candidate("00000000-0000-0000-0000-000000000000"))
-        self.assertEqual(current["resident"]["state"], "human_required")
-        self.assertIsNone(current["resident"]["nextCommand"])
+        self.assertEqual(current["resident"]["state"], "action_required")
+        self.assertEqual(current["resident"]["nextCommand"],
+                         ["../../bin/machine-control", "inventory", "credentials", "TARGET"])
 
     def test_running_candidate_waits_for_agent_without_bootstrap(self):
         identity = {"schema": "machine-control-candidate-assertion/v0",
@@ -354,6 +356,38 @@ class FactoryStagesTests(unittest.TestCase):
         self.assertEqual(current["cloud-init"]["evidence"],
                          "prior_nocloud_completion_on_disk")
         self.assertEqual(current["final-stop"]["state"], "action_required")
+
+    def test_stopped_factory_never_promotes_without_credential_handoff(self):
+        identity = {"schema": "machine-control-candidate-assertion/v0",
+                    "identityPin": "verified", "role": "candidate", "powerState": "off"}
+
+        for provider in ("libvirt-linux", "utm-macos"):
+            for ready in (False, True):
+                def report(*args, **_kwargs):
+                    if "candidate-status" in args:
+                        return identity
+                    if "factory-media-status" in args:
+                        return {"schema": "linuxvm-factory-media-status/v0", "stage": "detached"}
+                    if "credential" in args:
+                        return {"schema": "linuxvm-credential-handoff/v0", "ready": ready,
+                                "profile": "password", "evidence": "guest_password_hash_verified"}
+                    return {}
+
+                with self.subTest(provider=provider, ready=ready), \
+                     mock.patch.object(MODULE, "document", side_effect=report), \
+                     mock.patch.object(MODULE, "attested", return_value=True):
+                    current = stages(MODULE.candidate() if provider == "libvirt-linux" else
+                                     MODULE.utm_candidate("00000000-0000-0000-0000-000000000000"))
+                self.assertEqual(current["final-stop"]["state"], "complete")
+                self.assertEqual(current["promotion"]["state"], "complete" if ready else "blocked")
+
+    def test_password_file_readiness_is_not_guest_verification(self):
+        with mock.patch.object(MODULE, "document", return_value={
+                "schema": "linuxvm-credential-handoff/v0", "ready": True,
+                "profile": "password", "evidence": "file_ready"}):
+            result = MODULE.credential_stage("running")
+        self.assertEqual(result["state"], "blocked")
+        self.assertEqual(result["nextCommand"], ["bin/linuxvm", "credential", "verify", "--json"])
 
 
 if __name__ == "__main__":

@@ -69,6 +69,13 @@ bounded create-only artifact outside the public repository. See the
 The composed iOS adapter now uses libimobiledevice for system logs rather than
 expanding Agent Device beyond its actual physical-device console scope.
 
+**Current — live-tested system-app limitation:** Ordinary Settings launch,
+semantic Bluetooth-row input, and screenshot readback passed. Settings
+`--relaunch` failed in the provider's CoreDevice inventory-dependent termination
+path, and the Bluetooth page's semantic navigation-bar label remained
+`Settings`. See the [known issues](../../platforms/ios/docs/known-issues.md#physical-settings-relaunch)
+for the bounded workaround and observation requirement.
+
 **Open:** Determine whether its Android route should wrap or complement the
 project's ADB/UIAutomator adapter and whether simulator and physical-device
 identities share one device-family facade.

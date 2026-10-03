@@ -70,6 +70,17 @@ internal sealed record Request
     public string? SecretPipe { get; init; }
     public string? ExpectedGeneration { get; init; }
     public bool AllowVisualFallback { get; init; }
+    public string[]? Scopes { get; init; }
+    public int? DurationSeconds { get; init; }
+    public int? TimeoutSeconds { get; init; }
+    public string? Reason { get; init; }
+    public int? TabId { get; init; }
+    public string? Url { get; init; }
+    public bool? NewTab { get; init; }
+    public bool? InteractiveOnly { get; init; }
+    public string? Method { get; init; }
+    public JsonElement? Params { get; init; }
+    public string? Expression { get; init; }
 }
 
 internal sealed record Result

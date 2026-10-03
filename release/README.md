@@ -1,5 +1,9 @@
 # Native signing smoke
 
+The Mac Tauri desktop has its own [tagged release process](macos-desktop.md),
+`desktop/scripts/release.sh VERSION`, and two-architecture publication workflow.
+An empty release-tag input still produces signed CI candidates only.
+
 The real Windows workstation preview is implemented separately in
 [windows-workstation.md](windows-workstation.md) and
 [Tactical 036](../docs/tactical/036-windows-workstation-distribution.md).
@@ -14,6 +18,12 @@ Native interactive acceptance remains a separate gate.
 ```bash
 gh workflow run windows-workstation.yml --ref main -f version=0.1.0
 ```
+
+Every publication requires a checked-in version section with meaningful change
+bullets: [desktop changelog](../desktop/CHANGELOG.md) or
+[Windows workstation changelog](WORKSTATION_CHANGELOG.md). CI refuses missing,
+empty, duplicate, or placeholder notes before signing and rechecks them before
+publication. The version section supplies the GitHub release notes.
 
 Use a new semantic version for every publication. Never replace published bytes.
 The ZIPs, `release.json`, and `release.json.minisig` are published together on
@@ -142,3 +152,7 @@ Tests use disposable keys and reject modified manifests, wrong keys, modified
 payloads, missing platforms, and wrong source/run identity. Native builds run
 on matching hosts. A passing smoke does not establish resident functionality,
 permissions, installation, upgrades, Intel macOS, or ARM64 Windows/Linux.
+
+The standalone Tauri product uses [one desktop release script](desktop.md) for
+all packaged platforms. Platform guides describe package details and evidence;
+they are not independent public release entry points.

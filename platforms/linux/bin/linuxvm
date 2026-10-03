@@ -2,12 +2,14 @@
 
 set -euo pipefail
 
-readonly BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly BIN_DIR
 # shellcheck source=../scripts/common.sh
 source "$BIN_DIR/../scripts/common.sh"
 # shellcheck source=../../../providers/claims/common.sh
 source "$LINUXVM_REPO_DIR/../../providers/claims/common.sh"
-readonly PROVIDER="$(linuxvm_provider_path)"
+PROVIDER="$(linuxvm_provider_path)"
+readonly PROVIDER
 readonly LINUXVM_CLAIM_PROVIDER="$LINUXVM_PROVIDER-linux"
 
 usage() {
@@ -21,6 +23,8 @@ Lifecycle and transport:
   claim-renew | claim-release       Coordinate exact-target exclusive use
   guard-status | host-state      Inspect acceptance safety without guest pixels
   candidate-status --json       Emit a minimized exact-candidate assertion
+  credential status|verify [--json]
+                                 Check stored login handoff; verify via SSH stdin
   exec -- COMMAND [ARG...]       Run a root command with reliable completion
   user-exec -- COMMAND [ARG...]  Run in the active Wayland desktop session
   gui-launch -- COMMAND [ARG...] Launch through the desktop user systemd manager
@@ -129,7 +133,11 @@ artifact() {
     home="$("$PROVIDER" exec /usr/bin/getent passwd "$user" |
         /usr/bin/awk -F: '{print $6}')"
     [[ -n "$home" ]] || { printf 'Desktop home not found\n' >&2; return 1; }
-    remote="$home/.cache/linuxvm-testbed/artifacts/$artifact_id.png"
+    if [[ "$MACHINE_CONTROL_LINUX_INSTANCE" == desktop ]]; then
+        remote="$home/.cache/machine-control/desktop/artifacts/$artifact_id.png"
+    else
+        remote="$home/.cache/linuxvm-testbed/artifacts/$artifact_id.png"
+    fi
     if [[ -z "$output" ]]; then
         output="$LINUXVM_REPO_DIR/.artifacts/resident/$artifact_id.png"
     fi
@@ -236,7 +244,14 @@ case "$command" in
     desktop-user) desktop_user ;;
     ui) exec "$BIN_DIR/linuxui" "$@" ;;
     control|control-local)
-        user_exec /usr/local/bin/machine-control "$@"
+        if [[ "$MACHINE_CONTROL_LINUX_INSTANCE" == desktop ]]; then
+            user="$(desktop_user)"
+            uid="$("$PROVIDER" exec /usr/bin/id -u "$user")"
+            user_exec /usr/bin/python3 /usr/local/libexec/linuxvm-testbed/linuxcontrol.py \
+                call --socket "/run/user/$uid/machine-control-desktop/desktop.sock" "$@"
+        else
+            user_exec /usr/local/bin/machine-control "$@"
+        fi
         ;;
     artifact) artifact "$@" ;;
     fixture) fixture "$@" ;;
@@ -253,6 +268,10 @@ case "$command" in
         exec "$LINUXVM_REPO_DIR/scripts/doctor.sh"
         ;;
     candidate-status) exec "$LINUXVM_REPO_DIR/scripts/candidate-status.sh" "$@" ;;
+    credential)
+        linuxvm_assert_mutation_target
+        exec python3 "$LINUXVM_REPO_DIR/scripts/credential.py" "$@"
+        ;;
     factory-stages)
         if [[ "${1:-}" == preflight || "${1:-}" == attest-cloud-init ]]; then
             exec "$LINUXVM_REPO_DIR/scripts/factory-stages.py" "$@"

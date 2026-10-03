@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Machine Control CLI identity",
+  "type": "object",
+  "required": ["schema", "clientProtocol", "residentProtocol", "distribution", "version", "platform", "features"],
+  "properties": {
+    "schema": {"const": "machine-control-client-identity/v1"},
+    "clientProtocol": {"const": 1},
+    "residentProtocol": {"const": "machine-control/v0"},
+    "distribution": {"enum": ["source", "desktop"]},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "platform": {"enum": ["macos", "darwin", "windows", "linux"]},
+    "features": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "sourceRevision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "target": {"type": "string"},
+    "command": {"type": "string"},
+    "pythonVersion": {"type": "string"},
+    "pythonArchiveSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "allOf": [{"if": {"properties": {"distribution": {"const": "desktop"}}},
+             "then": {"required": ["sourceRevision", "target", "command", "pythonVersion", "pythonArchiveSha256"]}}],
+  "additionalProperties": false
+}

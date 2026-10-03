@@ -57,6 +57,12 @@ linked implementation and exit evidence.
 
 ## Suggested implementation path
 
+**Current:** Linux now adds a required credential handoff to L1's factory
+completion and P1's common promotion preparation. See
+[Tactical 049](../docs/tactical/049-linux-credential-promotion-gate.md).
+This closes the missing-password completion gap without completing P1's
+private-inventory role update or claiming live acceptance of the new verifier.
+
 1. **Use W1's accepted stages for later factory runs.** Preserve the
    exact-candidate first-logon receipt, installer-before-seed detach order,
    credential boundary, and claimed inspector. Keep the

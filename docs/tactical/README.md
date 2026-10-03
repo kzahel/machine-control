@@ -86,7 +86,52 @@ the commits' `Topic:` trailers and register that exact string in
 | [`044-macos-tart-bootstrap-stages.md`](044-macos-tart-bootstrap-stages.md) | complete | Fresh prepared and Apple IPSW paths reached all stages complete and ready doctor |
 | [`045-macos-tart-outer-keyboard.md`](045-macos-tart-outer-keyboard.md) | complete | Guest-oracle diagnosis and correction of Tart Shift/Command delivery; untested modifiers remain guarded |
 | [`046-scoped-target-tasks.md`](046-scoped-target-tasks.md) | complete | Scoped claim/workspace runner, failure fixtures, and live Mac renewal/release; native Windows and live workspace acceptance unverified |
+| [047-macos-resident-resource-reliability.md](047-macos-resident-resource-reliability.md) | complete | Idle probe descriptor ownership, readiness diagnostics, bounded regressions, and live workload/recovery evidence |
 
-| [`047-windows-exact-semantic-references.md`](047-windows-exact-semantic-references.md) | complete | Exact UIA reference resolution and duplicate-label refusal regression |
+- [`048-linux-rebuild-credential-handoff.md`](048-linux-rebuild-credential-handoff.md):
+  disposable Linux recreation, stored-password handoff and installed readiness.
+- [`049-linux-credential-promotion-gate.md`](049-linux-credential-promotion-gate.md):
+  enforced Linux credential verification and factory/promotion completion gate.
+- [`050-macos-host-control-mvp.md`](050-macos-host-control-mvp.md) (active):
+  shared resident package, grant broker, menu bar approval, local host target,
+  and unpacked browser extension; host installation remains.
+- [`051-tauri-macos-desktop.md`](051-tauri-macos-desktop.md) (active):
+  shared Tauri desktop UX, embedded native Mac resident, signed CI artifacts,
+  and exact-artifact Tart acceptance.
+- [`052-macos-production-updates.md`](052-macos-production-updates.md) (complete):
+  production update routing, menu-bar commands, signed 0.3.5 publication,
+  automatic repair-fixture handoff, and legacy public-client Tart acceptance.
+- [`053-windows-desktop.md`](053-windows-desktop.md) (complete for x64 VM preview):
+  native Windows desktop grants, shared Tauri operator, supervised companion,
+  signed installers, and installed VM acceptance.
+- [`054-windows-browser-and-arm64.md`](054-windows-browser-and-arm64.md) (active):
+  Windows native browser integration, signed VM acceptance, and separately
+  observed ARM64 product execution.
 
-- [048-linux-rebuild-credential-handoff.md](048-linux-rebuild-credential-handoff.md): disposable Linux recreation and stored-password handoff.
+- [`055-unified-desktop-publication.md`](055-unified-desktop-publication.md) (complete):
+  one Mac/Windows release script, complete signed publication, downloads, and
+  production update acceptance.
+- [`056-linux-desktop.md`](056-linux-desktop.md) (complete for x64 preview): ordinary-user GNOME
+  Wayland portal control, shared Tauri app, grants, packages, and acceptance.
+- [`057-macos-until-stopped-release.md`](057-macos-until-stopped-release.md) (complete):
+  manual Mac access without a timer, signed VM acceptance, and stable 0.4.9
+  Mac/Windows publication.
+- [`058-browser-tab-indicators.md`](058-browser-tab-indicators.md) (complete):
+  owned browser favicon markers and new-tab groups, lifecycle cleanup, claimed
+  Mac VM acceptance, and desktop 0.4.10 publication.
+- [`059-public-linux-desktop.md`](059-public-linux-desktop.md) (complete): one
+  public six-architecture desktop release, exact Linux acceptance, downloads
+  and production update metadata.
+- [`060-native-update-discovery.md`](060-native-update-discovery.md) (complete):
+  native silent startup/daily checks, shared Settings/tray state, and metadata-only
+  CLI discovery through existing resident transports.
+
+- [`061-native-sudo.md`](061-native-sudo.md) (complete for signed ARM64 helper acceptance): bundled native administrator authentication and dedicated Mac appliance acceptance.
+
+- [062-installed-agent-cli.md](062-installed-agent-cli.md) (completed): package the shared Python client and prove installed desktop consumers.
+
+- [`063-six-platform-desktop-release.md`](063-six-platform-desktop-release.md) (complete):
+  desktop 0.5.3 publication for all six Mac/Windows/Linux architectures.
+
+- [`064-windows-exact-semantic-references.md`](064-windows-exact-semantic-references.md) (complete):
+  exact native UIA reference resolution and duplicate-label regression coverage.

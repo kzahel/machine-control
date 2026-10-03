@@ -8,6 +8,11 @@ than a frozen cross-device wire protocol.
   request envelope and currently exercised desktop fields.
 - [`result-v0.schema.json`](result-v0.schema.json) describes the truthful
   result envelope shared by the Windows, macOS, and Linux slices.
+- [`update-status-v0.schema.json`](update-status-v0.schema.json) describes the
+  native desktop discovery snapshot returned as `data.update` by `update.check`
+  and `update.status`. `data.queued` reports pending discovery; acceptance is
+  not network completion or installation. Only existing desktop product
+  transports expose it. There is no public update install or endpoint method.
 - [`doctor-v0.schema.json`](doctor-v0.schema.json) describes the minimized,
   independent readiness dimensions emitted by authoritative testbeds. Desktop
   targets report desktop/resident state; device targets report connection,

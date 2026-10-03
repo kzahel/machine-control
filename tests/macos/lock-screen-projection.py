@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 
 root = Path(__file__).resolve().parents[2]
-source = (root / "platforms/macos/guests/macos/ui/macui.swift").read_text()
+source = (root / "platforms/macos/resident/Sources/macui/Resident.swift").read_text()
 projection = source[source.index("func lockScreenProjection("):source.index("final class ResidentService {")]
 fixture = r'''
 let locked = lockScreenProjection(screen: "locked", displayActive: true,

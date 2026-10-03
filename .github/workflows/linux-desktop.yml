@@ -1,0 +1,126 @@
+name: Linux desktop
+run-name: Linux desktop ${{ inputs.version }}
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Signed desktop candidate version (required changelog)'
+        required: true
+        type: string
+      update_fixture:
+        description: 'Private acceptance sender with an HTTPS localhost feed; never publish'
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      update_fixture:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: linux-desktop-${{ inputs.update_fixture && 'update-fixture' || 'candidate' }}
+  cancel-in-progress: false
+jobs:
+  signed:
+    if: github.ref == 'refs/heads/main'
+    environment: release
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-24.04
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: desktop/package.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Install build and ordinary-user runtime dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev build-essential libfuse2 minisign python3-gi gir1.2-gtk-3.0 gir1.2-atspi-2.0 gir1.2-gst-plugins-base-1.0 gstreamer1.0-pipewire gstreamer1.0-plugins-good wl-clipboard xdg-desktop-portal xdg-desktop-portal-gnome
+      - name: Check and stage exact source
+        env:
+          CANDIDATE_VERSION: ${{ inputs.version }}
+          UPDATE_FIXTURE: ${{ inputs.update_fixture }}
+        run: |
+          set -euo pipefail
+          python3 release/changelog.py desktop/CHANGELOG.md "$CANDIDATE_VERSION"
+          python3 tests/desktop/linux-grants.py
+          python3 tests/desktop/linux-startup.py
+          platforms/linux/tests/smoke.sh --static
+          pnpm --dir desktop install --frozen-lockfile
+          python3 desktop/scripts/prepare-linux.py --revision "$GITHUB_SHA"
+          if [ "$UPDATE_FIXTURE" = true ]; then
+            python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path('desktop/src-tauri/native/linux-runtime/desktop-runtime.json')
+          value = json.loads(path.read_text())
+          value['purpose'] = 'update_sender_fixture'
+          path.write_text(json.dumps(value, indent=2) + '\n')
+          config = {'plugins': {'updater': {'endpoints': ['https://localhost:42467/updates/tauri/{{target}}/{{arch}}/{{current_version}}']}}}
+          (Path(os.environ['RUNNER_TEMP']) / 'linux-update-fixture.json').write_text(json.dumps(config))
+          PY
+          fi
+          python3 desktop/scripts/set-version.py "$CANDIDATE_VERSION"
+          pnpm --dir desktop build
+          cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
+          TAURI_CONFIG="$(cat desktop/src-tauri/tauri.linux.conf.json)" cargo clippy --manifest-path desktop/src-tauri/Cargo.toml --all-targets --locked --features tauri/custom-protocol -- -D warnings
+          TAURI_CONFIG="$(cat desktop/src-tauri/tauri.linux.conf.json)" cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked --features tauri/custom-protocol
+          python3 tests/desktop/cli-installed.py --client desktop/src-tauri/native/mc-cli/commands/machine-control
+          python3 -m unittest discover -s tests/desktop -p 'test_update*.py' -v
+      - name: Build and sign final Debian and AppImage bytes
+        working-directory: desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          CANDIDATE_VERSION: ${{ inputs.version }}
+          NO_STRIP: 'true'
+          UPDATE_FIXTURE: ${{ inputs.update_fixture }}
+        run: |
+          set -euo pipefail
+          test -n "$TAURI_SIGNING_PRIVATE_KEY"
+          test -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+          pnpm tauri signer sign --app-version "$CANDIDATE_VERSION" src-tauri/native/mc-cli/files.json
+          config=src-tauri/tauri.linux.conf.json
+          if [ "$UPDATE_FIXTURE" = true ]; then config="$RUNNER_TEMP/linux-update-fixture.json"; fi
+          pnpm tauri build --config "$config" --bundles deb,appimage
+          mkdir -p ../artifacts/desktop
+          cp src-tauri/target/release/bundle/deb/*.deb src-tauri/target/release/bundle/appimage/*.AppImage ../artifacts/desktop/
+          for file in ../artifacts/desktop/*.AppImage ../artifacts/desktop/*.deb; do
+            pnpm tauri signer sign --app-version "$CANDIDATE_VERSION" "$file"
+          done
+      - name: Inventory final containers and authenticate both signatures
+        env:
+          CANDIDATE_VERSION: ${{ inputs.version }}
+          CANDIDATE_TARGET: ${{ matrix.target }}
+          UPDATE_FIXTURE: ${{ inputs.update_fixture }}
+        run: |
+          set -euo pipefail
+          purpose=candidate
+          if [ "$UPDATE_FIXTURE" = true ]; then purpose=update_sender_fixture; fi
+          python3 desktop/scripts/linux-package.py evidence artifacts/desktop --version "$CANDIDATE_VERSION" --revision "$GITHUB_SHA" --run "$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT" --target "$CANDIDATE_TARGET" --purpose "$purpose"
+          python3 desktop/scripts/linux-package.py verify artifacts/desktop --version "$CANDIDATE_VERSION" --revision "$GITHUB_SHA" --run "$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT" --target "$CANDIDATE_TARGET" --purpose "$purpose" --test-tampering
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ${{ inputs.update_fixture && 'linux-update-sender' || 'linux-desktop' }}-${{ matrix.target }}
+          path: artifacts/desktop/*
+          if-no-files-found: error
+          retention-days: 30

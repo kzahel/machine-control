@@ -18,6 +18,21 @@ import machine_control  # noqa: E402
 
 
 class ClientTests(unittest.TestCase):
+    def test_linux_local_host_selects_native_adapter(self):
+        target = machine_control.default_host_target("Linux")
+        self.assertEqual(target["platform"], "linux")
+        self.assertEqual(target["profile"], "linux-host-desktop")
+        self.assertEqual(target["launcher"], "python")
+        self.assertEqual(target["claimPolicy"], "required")
+        self.assertTrue(Path(target["command"][0]).is_file())
+    def test_windows_local_host_selects_native_adapter(self):
+        target = machine_control.default_host_target("Windows")
+        self.assertEqual(target["platform"], "windows")
+        self.assertEqual(target["launcher"], "python")
+        self.assertEqual(target["claimPolicy"], "required")
+        self.assertTrue(Path(target["command"][0]).is_file())
+        self.assertEqual(machine_control.default_host_target("Darwin")["profile"], "macos-host-resident")
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.directory = Path(self.temporary.name)
@@ -980,6 +995,40 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(value["data"]["powerState"], "running")
         self.assertNotIn("private-adapter-detail", result.stdout)
 
+    def test_linux_promotion_refuses_missing_handoff_before_shutdown(self):
+        state = self.directory / "power-state"
+        state.write_text("running", encoding="utf-8")
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "prepare-promotion",
+            extra_env={"MACHINE_CONTROL_MOCK_STATE_FILE": str(state),
+                       "MACHINE_CONTROL_MOCK_CREDENTIAL_FAIL": "verify"},
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("credential_handoff_required", result.stdout)
+        self.assertNotIn("eligibleForPrivatePromotion", result.stdout)
+        self.assertEqual(state.read_text(), "running")
+
+    def test_linux_promotion_rechecks_credential_receipt_after_shutdown(self):
+        state = self.directory / "power-state"
+        state.write_text("running", encoding="utf-8")
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "prepare-promotion",
+            extra_env={"MACHINE_CONTROL_MOCK_STATE_FILE": str(state),
+                       "MACHINE_CONTROL_MOCK_CREDENTIAL_FAIL": "status"},
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("credential_handoff_required", result.stdout)
+        self.assertNotIn("eligibleForPrivatePromotion", result.stdout)
+        self.assertEqual(state.read_text(), "off")
+
+    def test_candidate_validation_does_not_require_completed_credentials(self):
+        result, value = self.run_cli(
+            "--target", "fixture", "target", "validate-candidate",
+            extra_env={"MACHINE_CONTROL_MOCK_CREDENTIAL_FAIL": "verify"},
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertFalse(value["data"]["eligibleForPrivatePromotion"])
+
     def test_workspace_capabilities_are_validated_and_projected(self):
         result, value = self.run_cli(
             "--target", "fixture", "workspace", "capabilities"
@@ -1167,6 +1216,166 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertEqual(value["operation"], "set_value")
         self.assertEqual(value["data"]["request"]["value"], "Hello, 世界")
+
+    def test_default_host_matches_the_controller_platform(self):
+        host = machine_control.DEFAULT_TARGETS["host"]
+        platform = machine_control.controller_platform()
+        expected = {"windows": ("windows", "windows-host-desktop", "platforms/windows/host/winhost.py"),
+                    "linux": ("linux", "linux-host-desktop", "platforms/linux/host/linuxhost.py"),
+                    "darwin": ("macos", "macos-host-resident", "platforms/macos/bin/machost")}[platform]
+        self.assertEqual(host["platform"], expected[0])
+        self.assertEqual(host["profile"], expected[1])
+        self.assertEqual(host["claimPolicy"], "required")
+        suffix = expected[2]
+        self.assertTrue(Path(host["command"][0]).as_posix().endswith(suffix))
+
+    def test_update_requests_are_metadata_only_and_use_existing_transport(self):
+        for platform in ("macos", "windows", "linux"):
+            self.write_registry(platform)
+            for command in ("check", "status"):
+                result, value = self.run_cli("--target", "fixture", "update", command)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(value["data"]["request"], {"operation": f"update.{command}"})
+        for arguments in ([], ["install"], ["check", "--endpoint", "https://example.com"], ["status", "extra"]):
+            with self.assertRaises(machine_control.ClientError):
+                machine_control.update_request(arguments)
+        self.assertTrue(machine_control.operation_requires_claim("update", ["check"]))
+
+    def test_grant_request_builds_bounded_resident_request(self):
+        self.write_registry("macos")
+        result, value = self.run_cli(
+            "--target", "fixture", "grant", "request", "--scope", "control",
+            "--scope", "observe", "--scope", "control", "--duration", "15m",
+            "--timeout", "90", "--reason", " Fix the build ",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["data"]["request"], {
+            "operation": "grant.request", "scopes": ["control", "observe"],
+            "durationSeconds": 900, "timeoutSeconds": 90,
+            "reason": "Fix the build",
+        })
+        result, value = self.run_cli("--target", "fixture", "grant", "revoke")
+        self.assertEqual(value["data"]["request"], {"operation": "grant.revoke"})
+
+    def test_grant_request_requires_scope_and_reason(self):
+        self.write_registry("macos")
+        for arguments in (["--scope", "observe"], ["--reason", "x"],
+                          ["--scope", "root", "--reason", "x"],
+                          ["--scope", "observe", "--reason", "x", "--duration", "soon"]):
+            result, value = self.run_cli(
+                "--target", "fixture", "grant", "request", *arguments)
+            self.assertEqual(result.returncode, 2, arguments)
+            self.assertEqual(value["errorCode"], "usage")
+
+    def test_browser_requests_are_typed(self):
+        self.write_registry("macos")
+        result, value = self.run_cli(
+            "--target", "fixture", "browser", "navigate", "--url",
+            "https://example.com/", "--new-tab",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["data"]["request"], {
+            "operation": "browser.navigate", "url": "https://example.com/",
+            "newTab": True,
+        })
+        result, value = self.run_cli(
+            "--target", "fixture", "browser", "snapshot", "--tab", "4",
+            "--max", "50", "--interactive",
+        )
+        self.assertEqual(value["data"]["request"], {
+            "operation": "browser.snapshot", "tabId": 4, "maxElements": 50,
+            "interactiveOnly": True,
+        })
+        result, value = self.run_cli("--target", "fixture", "browser", "click")
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(value["errorCode"], "usage")
+
+    def test_browser_upload_requires_reference_and_absolute_files(self):
+        self.write_registry("macos")
+        result, value = self.run_cli(
+            "--target", "fixture", "browser", "upload", "--reference", "1:2:3",
+            "--file", "/tmp/a.png", "--file", "/tmp/b.png",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["data"]["request"], {
+            "operation": "browser.upload", "reference": "1:2:3",
+            "files": ["/tmp/a.png", "/tmp/b.png"],
+        })
+        for arguments in (["--reference", "1:2:3"], ["--file", "/tmp/a.png"],
+                          ["--reference", "1:2:3", "--file", "a.png"]):
+            result, value = self.run_cli(
+                "--target", "fixture", "browser", "upload", *arguments)
+            self.assertEqual(value["errorCode"], "usage", arguments)
+
+    def test_browser_upload_uses_the_targets_path_syntax(self):
+        self.write_registry("windows")
+        result, value = self.run_cli("--target", "fixture", "browser", "upload",
+                                     "--reference", "fixture", "--file", "C:/Temp/upload.png")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["data"]["request"]["files"], ["C:/Temp/upload.png"])
+        for path in ("/tmp/upload.png", "C:upload.png", "upload.png"):
+            result, value = self.run_cli("--target", "fixture", "browser", "upload",
+                                         "--reference", "fixture", "--file", path)
+            self.assertEqual(value["errorCode"], "usage")
+
+    def test_browser_help_and_wait(self):
+        self.write_registry("macos")
+        result, value = self.run_cli("--target", "fixture", "browser", "key", "--help")
+        self.assertEqual(value["errorCode"], "usage")
+        self.assertIn("Enter", value["message"])
+        result, value = self.run_cli(
+            "--target", "fixture", "browser", "wait", "--tab", "5", "--timeout", "10")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["data"]["request"],
+                         {"operation": "browser.wait", "tabId": 5, "timeoutMs": 10000})
+
+    def test_browser_cdp_and_eval_requests(self):
+        self.write_registry("macos")
+        result, value = self.run_cli(
+            "--target", "fixture", "browser", "cdp", "--tab", "3", "--method",
+            "Page.reload", "--params", '{"ignoreCache":true}',
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["data"]["request"], {
+            "operation": "browser.cdp", "tabId": 3, "method": "Page.reload",
+            "params": {"ignoreCache": True},
+        })
+        result, value = self.run_cli(
+            "--target", "fixture", "browser", "eval", "--expression", "document.title")
+        self.assertEqual(value["data"]["request"], {
+            "operation": "browser.eval", "expression": "document.title"})
+        for arguments in (["cdp"], ["cdp", "--method", "X.y", "--params", "[1]"], ["eval"]):
+            result, value = self.run_cli("--target", "fixture", "browser", *arguments)
+            self.assertEqual(value["errorCode"], "usage", arguments)
+        result, value = self.run_cli(
+            "--target", "fixture", "grant", "request", "--scope", "devtools",
+            "--reason", "debug")
+        self.assertEqual(value["data"]["request"]["scopes"], ["devtools"])
+
+    def test_desktop_input_key_help_and_target(self):
+        self.write_registry("macos")
+        result, value = self.run_cli(
+            "--target", "fixture", "desktop", "input", "key", "--help")
+        self.assertEqual(value["errorCode"], "usage")
+        self.assertIn("cmd+shift+g", value["message"])
+        result, value = self.run_cli(
+            "--target", "fixture", "desktop", "input", "text", "hello",
+            "--target", "com.apple.TextEdit",
+        )
+        self.assertEqual(value["data"]["request"], {
+            "operation": "input.text", "text": "hello",
+            "target": "com.apple.TextEdit",
+        })
+
+    def test_approval_required_adds_grant_remediation(self):
+        self.write_registry("macos")
+        result, value = self.run_cli(
+            "--target", "fixture", "desktop", "status",
+            extra_env={"MACHINE_CONTROL_MOCK_RESIDENT_REFUSAL": "approval_required"},
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(value["client"]["remediation"]["command"][:4],
+                         ["grant", "request", "--scope", "control"])
 
     def test_desktop_target_does_not_replace_machine_target(self):
         result, value = self.run_cli(

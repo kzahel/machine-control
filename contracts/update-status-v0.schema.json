@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machine-control.invalid/contracts/update-status-v0.schema.json",
+  "title": "Desktop Update Discovery Status v0",
+  "type": "object",
+  "required": ["schema", "currentVersion", "phase", "checking", "installing", "reason", "availableVersion", "notes", "lastCheckedAt", "error", "startupDelaySeconds", "periodicIntervalSeconds"],
+  "properties": {
+    "schema": {"const": "machine-control-update-status/v0"},
+    "currentVersion": {"type": "string"},
+    "phase": {"enum": ["idle", "checking", "up_to_date", "available", "downloading", "installing", "installed", "error"]},
+    "checking": {"type": "boolean"},
+    "installing": {"type": "boolean"},
+    "reason": {"enum": [null, "startup", "periodic", "manual"]},
+    "availableVersion": {"type": ["string", "null"]},
+    "notes": {"type": ["string", "null"]},
+    "lastCheckedAt": {"type": ["integer", "null"], "minimum": 0, "description": "Unix seconds for the latest completed check, including failure."},
+    "error": {"type": ["string", "null"]},
+    "startupDelaySeconds": {"const": 5},
+    "periodicIntervalSeconds": {"const": 86400}
+  },
+  "additionalProperties": true
+}

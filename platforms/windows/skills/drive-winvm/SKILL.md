@@ -50,9 +50,9 @@ Read the result before acting:
   `docs/bootstrap.md` and use the bounded maintenance audit before considering
   recovery. An outer-UI prohibition remains absolute.
 - If SSH works but the UI relay fails, check whether Explorer has an
-  interactive session. Wait for configured auto-logon or ask the user to log
-  into Windows after a cold boot; then run `winvm deploy-ui` if the relay
-  remains unavailable.
+  interactive session. Wait for configured auto-logon or use the stored-login
+  command below for an observed sign-in surface; then run `winvm deploy-ui`
+  if the relay remains unavailable.
 - If all checks pass, use SSH for system work and semantic UI automation for
   desktop work.
 
@@ -82,13 +82,14 @@ password bytes in an untracked controller-local file. With a live target-use
 claim in `claim_id`, use the inventory-aware testbed login operation:
 
 ```bash
+bin/machine-control inventory credentials winvm --json
 bin/machine-control --target windows --claim "$claim_id" testbed -- login
 ```
 
-The adapter resolves the configured guest account and dedicated one-shot secret
-transport. Do not call the low-level SSH login helper with a guessed alias:
-the controller's ordinary SSH alias may select a different account from private
-inventory, failing before the resident is reached.
+The platform command resolves the canonical credential file and configured SSH
+transport from the selected inventory. Do not pass the logical target or
+inventory ID to `scripts/login-windows.sh`: that lower-level helper expects an
+actual SSH destination, and those names need not be configured SSH aliases.
 
 Use this only for a confirmed Windows credential surface. The protected login
 route refuses before secret submission when provider or field discovery is

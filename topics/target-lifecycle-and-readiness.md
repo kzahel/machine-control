@@ -189,6 +189,15 @@ requests a clean shutdown, and requires a second exact assertion in the off
 state. Only that stopped result is eligible for a subsequent private-inventory
 role update. A `--workspace` handle is rejected for promotion preparation.
 
+**Current:** Linux promotion preparation additionally requires its
+[credential handoff](../platforms/linux/docs/bootstrap.md#required-credential-handoff-before-promotion)
+before shutdown and a still-valid receipt afterward. The default password
+profile verifies the canonical private file against the exact guest account;
+an intentionally password-free profile must explicitly prove a locked password
+entry. A missing locator is never sufficient to select that alternative.
+Ordinary readiness and candidate validation do not require this completed
+provisioning handoff. Windows and macOS promotion behavior is unchanged.
+
 ## Current implementation
 
 [`bin/machine-control`](../bin/machine-control) selects a logical target from

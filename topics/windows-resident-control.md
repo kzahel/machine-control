@@ -217,6 +217,11 @@ console session at Medium integrity; RDP, elevated applications and protected
 sessions are explicit omissions. Distribution and migration acceptance live in
 [Tactical 036](../docs/tactical/036-windows-workstation-distribution.md).
 
+**Current:** The shared Tauri desktop product bundles this engine with native
+grants and a supervised lifetime. Its signed x64 VM acceptance and remaining
+architecture/publication gates belong to [Windows desktop](windows-desktop.md).
+The distinct component and appliance profiles remain available.
+
 The optional [protected unlock component](windows-protected-unlock.md) owns a
 separate grant-bound service and signed administrator setup. It supports an
 already logged-in local console account through explicit controller approval;
@@ -375,8 +380,10 @@ provenance.
   VMs are represented.
 - Which physical Windows machines warrant BMC, power, or hardware-KVM support.
 
-**Current — exact native reference actions:** Tactical 047 fixes the native
-UIA duplicate-label defect exposed by a real application's Start button.
+**Current — exact native reference actions:**
+[Tactical 064](../docs/tactical/064-windows-exact-semantic-references.md) fixes
+the native UIA duplicate-label defect exposed by a real application's Start
+button.
 Reference invoke/set.value resolve only the observed process and opaque UIA
 runtime ID; missing identities refuse without label fallback. Fresh reference
 tokens do not overwrite older observations. Duplicate-control effects,

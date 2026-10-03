@@ -44,6 +44,17 @@ class WindowsProfileTests(unittest.TestCase):
     def test_refuses_ambiguous_or_injectable_selection(self):
         for profile, instance, session in [('wrong', 'default', '1'), ('user', 'default', ''),
                                             ('user', 'default', '0'), ('user', "a';exit", '1'),
-                                            ('user', '../other', '1'), ('user', 'default', '1;exit')]:
+                                            ('user', '../other', '1'), ('user', 'default', '1;exit'),
+                                            ('desktop', 'default', ''), ('desktop', 'default', '0')]:
             with self.subTest(profile=profile, instance=instance, session=session):
                 self.assertNotEqual(self.render(profile, instance, session).returncode, 0)
+
+    def test_desktop_is_a_distinct_installed_product(self):
+        result = self.render('desktop', 'other', '2')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('ordinary_user_desktop', result.stdout)
+        self.assertIn('runtime/machine-control-windows.exe', result.stdout)
+        self.assertIn('MachineControl/workstation/desktop/session-2/artifacts', result.stdout)
+        self.assertIn("'--instance', 'desktop'", result.stdout)
+        self.assertNotIn('active.json', result.stdout)
+        self.assertNotIn('$env:ProgramData', result.stdout)

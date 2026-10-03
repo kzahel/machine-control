@@ -10,6 +10,16 @@ LINUXVM_UTM_NAME=Linux
 # LINUXVM_LIBVIRT_NVRAM_DIRECTORY=/var/lib/libvirt/qemu/nvram
 # LINUXVM_LIBVIRT_NVRAM_TEMPLATE=/usr/share/OVMF/OVMF_VARS_4M.ms.fd
 LINUXVM_DESKTOP_USER=
+# Credential locators refer to canonical controller-local private files.
+# Set the password locator from inventory credentials; never put values here.
+# Password verification uses the retained setup key and independently pinned
+# guest ED25519 host key. SSH password authentication remains disabled.
+LINUXVM_CREDENTIAL_PROFILE=password
+LINUXVM_LOGIN_SECRET_FILE=
+LINUXVM_SETUP_SSH_KEY_FILE=
+LINUXVM_SETUP_SSH_KNOWN_HOSTS_FILE=
+# An explicitly password-free appliance instead sets profile=password-free;
+# verification requires a locked password entry in the exact guest account.
 LINUXVM_DISPLAY_WIDTH=1280
 LINUXVM_DISPLAY_HEIGHT=800
 LINUXVM_BOOT_TIMEOUT=120

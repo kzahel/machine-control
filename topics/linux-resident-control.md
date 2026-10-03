@@ -94,6 +94,19 @@ RTC-scheduled suspend-to-idle experiment failed to return; guarded forced-stop
 and readiness recover it, without qualifying native sleep/wake. GUI password
 submission remains a distinct provider gap.
 
+**Current:** [Tactical 049](../docs/tactical/049-linux-credential-promotion-gate.md)
+adds a private credential verifier and a required factory/promotion handoff.
+Password verification uses pinned setup SSH stdin and guest shadow-hash
+comparison; explicitly password-free profiles instead prove a locked entry.
+Both factory routes require current exact-target evidence before reporting
+promotion complete, and common promotion preparation verifies before shutdown
+and rechecks the receipt afterward. Operational readiness remains independent.
+Deterministic regression coverage is recorded in the tactical. The live command
+verifies the canonical stored password on an x64 appliance before and after
+reboot in [Tactical 056](../docs/tactical/056-linux-desktop.md); full factory
+promotion remains a separate acceptance case. This is not a GUI unlock
+implementation.
+
 ## Current goal
 
 **Decision:** Keep this accepted GNOME Wayland profile stable while extending
@@ -140,8 +153,10 @@ capability, result, and reference vocabulary.
 The native capture route supports the display and exact active window, not an
 arbitrary hidden window. Cua can supply arbitrary target-window capture when
 its GNOME Shell helper is deliberately installed. Portal/libei input is a
-viable bounded workstation route, but its consent/session lifetime and latency
-need a separate non-appliance profile.
+viable bounded workstation route. The separate ordinary-user
+[Linux desktop profile](linux-desktop.md) now has signed x64 GNOME consent,
+sharing-lifetime, effect and lifecycle acceptance; it never selects the
+appliance input broker.
 
 GDM, lock screen, encrypted preboot, absent-user sessions, other compositors,
 and physical hardware remain separate authority and compatibility profiles.

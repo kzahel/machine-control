@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Deploy the shared Machine Control.app into the guest: the same bundle,
+# per-user LaunchAgent, and socket used on a physical host, with the
+# appliance deployment policy. A guest still running the pre-shared
+# testbed resident is migrated once the new identity holds its consent.
 
 set -euo pipefail
 
@@ -23,133 +27,116 @@ case "${1:-}" in
         ;;
 esac
 
-source_file="$MACVM_REPO_DIR/guests/macos/ui/macui.swift"
-probe_source="$MACVM_REPO_DIR/guests/macos/unlock/Probe.m"
-session_header="$MACVM_REPO_DIR/guests/macos/unlock/Session.h"
-source_digest="$(cat "$source_file" "$probe_source" "$session_header" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')"
-info_file="$MACVM_REPO_DIR/guests/macos/ui/Info.plist"
-control_cli_file="$MACVM_REPO_DIR/guests/macos/ui/machine-control"
-resident_plist_template="$MACVM_REPO_DIR/guests/macos/ui/com.kzahel.macvm-testbed.resident.plist.in"
-remote_directory="$(macvm_remote_ui_dir)"
-remote_source="$remote_directory/macui.swift"
-remote_app="$(macvm_remote_ui_app)"
-remote_contents="$remote_app/Contents"
-remote_binary="$(macvm_remote_ui_binary)"
-remote_control_cli="$(macvm_remote_control_cli)"
-remote_socket="$(macvm_remote_control_socket)"
-remote_resident_plist="$(macvm_remote_resident_plist)"
-remote_resident_log="$remote_directory/resident.log"
-
-escape_sed_replacement() {
-    printf '%s' "$1" | /usr/bin/sed -e 's/[\\&|]/\\&/g'
-}
-
-local_resident_plist="$(mktemp "${TMPDIR:-/tmp}/macvm-resident.XXXXXX")"
-trap '/bin/rm -f -- "$local_resident_plist"' EXIT
-/usr/bin/sed \
-    -e "s|__MACVM_RESIDENT_BINARY__|$(escape_sed_replacement "$remote_binary")|g" \
-    -e "s|__MACVM_RESIDENT_SOCKET__|$(escape_sed_replacement "$remote_socket")|g" \
-    -e "s|__MACVM_RESIDENT_LOG__|$(escape_sed_replacement "$remote_resident_log")|g" \
-    "$resident_plist_template" >"$local_resident_plist"
-/usr/bin/plutil -lint "$local_resident_plist" >/dev/null
+readonly package_dir="$MACVM_REPO_DIR/resident"
+readonly remote_directory="$(macvm_remote_ui_dir)"
+readonly remote_app="$(macvm_remote_ui_app)"
+readonly remote_control_cli="$(macvm_remote_control_cli)"
+readonly remote_staging="$remote_directory/staging"
+readonly remote_installer="$remote_directory/install-user.sh"
+readonly legacy_app="$(macvm_remote_legacy_ui_app)"
+readonly legacy_label="$(macvm_remote_legacy_resident_label)"
+readonly control_cli_file="$MACVM_REPO_DIR/guests/macos/ui/machine-control"
 
 if ! macvm_exec /usr/bin/true; then
     printf 'Guest command transport is unavailable; read docs/bootstrap.md\n' >&2
     exit 1
 fi
 
-if ! macvm_exec /usr/bin/xcrun --find swiftc >/dev/null; then
-    printf 'Guest Xcode Command Line Tools are required to compile macui\n' >&2
-    exit 1
+# The resident reads its deployment policy from a root-owned file and treats
+# anything absent or untrusted as a personal workstation. Tart guests are
+# disposable appliances, so install the standing policy before the resident.
+policy_file="$package_dir/policies/appliance.json"
+remote_policy_dir='/Library/Application Support/MachineControl'
+remote_policy="$remote_policy_dir/policy.json"
+local_policy_hash="$(/usr/bin/shasum -a 256 "$policy_file" | /usr/bin/awk '{print $1}')"
+remote_policy_hash="$(macvm_exec /usr/bin/shasum -a 256 "$remote_policy" 2>/dev/null |
+    /usr/bin/awk '{print $1}' || true)"
+policy_owner="$(macvm_exec /usr/bin/stat -f '%Su:%Sg:%Lp' "$remote_policy" 2>/dev/null || true)"
+policy_changed=false
+if [[ "$local_policy_hash" != "$remote_policy_hash" || "$policy_owner" != 'root:wheel:644' ]]; then
+    macvm_exec /usr/bin/sudo -n /usr/bin/install -d -o root -g wheel -m 755 \
+        "$remote_policy_dir"
+    macvm_exec -i /usr/bin/sudo -n /usr/bin/tee "$remote_policy.new" \
+        < "$policy_file" >/dev/null
+    macvm_exec /usr/bin/sudo -n /usr/sbin/chown root:wheel "$remote_policy.new"
+    macvm_exec /usr/bin/sudo -n /bin/chmod 644 "$remote_policy.new"
+    macvm_exec /usr/bin/sudo -n /bin/mv -f "$remote_policy.new" "$remote_policy"
+    printf 'Installed appliance deployment policy at %s\n' "$remote_policy"
+    policy_changed=true
 fi
 
-binary_current=false
-plist_current=false
-if (( ! force )) &&
-        macvm_exec /bin/test -x "$remote_binary" >/dev/null 2>&1 &&
-        macvm_exec /bin/test -f "$remote_source" >/dev/null 2>&1 &&
-        macvm_exec /bin/test -f "$remote_contents/Info.plist" \
-            >/dev/null 2>&1; then
-    local_source_hash="$source_digest"
-    local_info_hash="$(/usr/bin/shasum -a 256 "$info_file" | /usr/bin/awk '{print $1}')"
-    remote_source_hash="$(macvm_exec /bin/cat "$remote_directory/source-digest" 2>/dev/null || true)"
-    remote_info_hash="$(
-        macvm_exec /usr/bin/shasum -a 256 \
-            "$remote_contents/Info.plist" | /usr/bin/awk '{print $1}'
-    )"
-    if [[ "$local_source_hash" == "$remote_source_hash" \
-            && "$local_info_hash" == "$remote_info_hash" ]]; then
-        binary_current=true
+source_digest="$(
+    cd "$MACVM_REPO_DIR"
+    for file in resident/Sources/macui/*.swift resident/app/* \
+            resident/policies/*.json resident/scripts/build-app.sh \
+            resident/scripts/install-user.sh guests/macos/unlock/Probe.m \
+            guests/macos/unlock/Session.h guests/macos/ui/machine-control; do
+        printf '%s\n' "$file"
+        /bin/cat "$file"
+    done | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}'
+)"
+remote_digest="$(macvm_exec /bin/cat "$remote_directory/bundle-digest" 2>/dev/null || true)"
+bundle_current=false
+if (( ! force )) && [[ "$source_digest" == "$remote_digest" ]] &&
+        macvm_exec /usr/bin/codesign --verify --strict "$remote_app" >/dev/null 2>&1 &&
+        macvm_exec /bin/test -f "$(macvm_remote_resident_plist)" >/dev/null 2>&1; then
+    bundle_current=true
+fi
+
+if [[ "$bundle_current" == true ]]; then
+    printf 'Machine Control is already current at %s\n' "$remote_app"
+    if [[ "$policy_changed" == true ]]; then
+        "$MACVM_REPO_DIR/bin/macui" resident-stop >/dev/null 2>&1 || true
+    fi
+    "$MACVM_REPO_DIR/bin/macui" resident-start >/dev/null
+else
+    guest_arch="$(macvm_exec /usr/bin/uname -m)"
+    build_dir="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/macvm-app.XXXXXX")"
+    trap '/bin/rm -rf -- "$build_dir"' EXIT
+    "$package_dir/scripts/build-app.sh" --output "$build_dir" --arch "$guest_arch" >/dev/null
+    macvm_exec /bin/rm -rf "$remote_staging"
+    macvm_exec /bin/mkdir -p "$remote_staging" "$(/usr/bin/dirname "$remote_control_cli")"
+    /usr/bin/tar -C "$build_dir" -cf - 'Machine Control.app' |
+        macvm_exec -i /usr/bin/tar -xf - -C "$remote_staging"
+    macvm_exec -i /usr/bin/tee "$remote_installer" \
+        < "$package_dir/scripts/install-user.sh" >/dev/null
+    macvm_exec /bin/bash "$remote_installer" --app "$remote_staging/Machine Control.app"
+    macvm_exec /bin/rm -rf "$remote_staging"
+    macvm_exec -i /usr/bin/tee "$remote_control_cli" < "$control_cli_file" >/dev/null
+    macvm_exec /bin/chmod 755 "$remote_control_cli"
+    printf '%s\n' "$source_digest" |
+        macvm_exec -i /usr/bin/tee "$remote_directory/bundle-digest" >/dev/null
+    printf 'Deployed %s\n' "$remote_app"
+fi
+
+consent_ready() {
+    local status
+    status="$(macvm_resident_request '{"operation":"status"}' 2>/dev/null || true)"
+    [[ "$(/usr/bin/jq -r '.data.semanticAuthorizationState // empty' <<<"$status")" == ready &&
+       "$(/usr/bin/jq -r '.data.captureAuthorizationState // empty' <<<"$status")" == ready ]]
+}
+
+if macvm_exec /bin/test -d "$legacy_app" >/dev/null 2>&1; then
+    if ! consent_ready; then
+        printf 'Granting the shared application consent through the testbed resident\n'
+        if "$SCRIPT_DIR/grant-resident-consent.sh"; then
+            # A new Screen Recording grant is visible only to a new process.
+            "$MACVM_REPO_DIR/bin/macui" resident-restart >/dev/null
+        fi
+    fi
+    if consent_ready; then
+        macvm_exec /bin/launchctl bootout \
+            "gui/$(macvm_exec /usr/bin/id -u)/$legacy_label" >/dev/null 2>&1 || true
+        macvm_exec /bin/rm -f "/Users/$MACVM_GUEST_USER/Library/LaunchAgents/$legacy_label.plist" \
+            "$(macvm_remote_legacy_control_socket)"
+        macvm_exec /bin/rm -rf "$legacy_app" "$remote_directory/src" \
+            "$remote_directory/macui.swift" "$remote_directory/source-digest" \
+            "$remote_directory/Probe.m" "$remote_directory/Session.h" \
+            "$remote_directory/resident.log"
+        printf 'Retired the testbed resident %s\n' "$legacy_app"
+    else
+        printf 'The testbed resident remains until Machine Control has Accessibility and Screen Recording\n' >&2
     fi
 fi
-if [[ "$binary_current" == true ]] &&
-        macvm_exec /bin/test -f "$remote_resident_plist" \
-            >/dev/null 2>&1; then
-    local_plist_hash="$(/usr/bin/shasum -a 256 "$local_resident_plist" | \
-        /usr/bin/awk '{print $1}')"
-    remote_plist_hash="$(macvm_exec /usr/bin/shasum -a 256 \
-        "$remote_resident_plist" | /usr/bin/awk '{print $1}')"
-    if [[ "$local_plist_hash" == "$remote_plist_hash" ]]; then
-        plist_current=true
-    fi
-fi
-if [[ "$binary_current" == true && "$plist_current" == true ]]; then
-    printf 'MacVM UI is already current at %s\n' "$remote_app"
-    "$MACVM_REPO_DIR/bin/macui" resident-start >/dev/null
-    "$MACVM_REPO_DIR/bin/macui" control '{"operation":"status"}'
-    exit 0
-fi
 
-if [[ "$binary_current" == true ]]; then
-    "$MACVM_REPO_DIR/bin/macui" resident-stop >/dev/null 2>&1 || true
-    macvm_exec /bin/mkdir -p \
-        "$remote_directory" "$(/usr/bin/dirname "$remote_resident_plist")"
-    macvm_exec -i /usr/bin/tee "$remote_resident_plist" \
-        < "$local_resident_plist" >/dev/null
-    macvm_exec /bin/chmod 600 "$remote_resident_plist"
-    macvm_exec /usr/bin/plutil -lint "$remote_resident_plist" >/dev/null
-    printf 'Installed resident LaunchAgent for current %s\n' "$remote_app"
-    "$MACVM_REPO_DIR/bin/macui" resident-start >/dev/null
-    "$MACVM_REPO_DIR/bin/macui" control '{"operation":"status"}'
-    exit 0
-fi
-
-# A prior resident may still have the old executable mapped. Ask it to stop
-# before replacement; an absent or older service is harmless here.
-"$MACVM_REPO_DIR/bin/macui" resident-stop >/dev/null 2>&1 || true
-
-macvm_exec /bin/mkdir -p \
-    "$remote_directory" "$remote_contents/MacOS" "$remote_contents/Resources" \
-    "$(/usr/bin/dirname "$remote_resident_plist")"
-macvm_exec -i /usr/bin/tee "$remote_source" \
-    < "$source_file" >/dev/null
-macvm_exec -i /usr/bin/tee "$remote_contents/Info.plist" \
-    < "$info_file" >/dev/null
-macvm_exec /bin/mkdir -p \
-    "$(/usr/bin/dirname "$remote_control_cli")"
-macvm_exec -i /usr/bin/tee "$remote_control_cli" \
-    < "$control_cli_file" >/dev/null
-macvm_exec -i /usr/bin/tee "$remote_resident_plist" \
-    < "$local_resident_plist" >/dev/null
-macvm_exec -i /usr/bin/tee "$remote_directory/Probe.m" < "$probe_source" >/dev/null
-macvm_exec -i /usr/bin/tee "$remote_directory/Session.h" < "$session_header" >/dev/null
-macvm_guest_xcrun clang -fobjc-arc -Wno-unused-function \
-    -framework Foundation -framework IOKit -o "$remote_contents/Resources/mc-session-probe" \
-    "$remote_directory/Probe.m"
-macvm_guest_xcrun swiftc -O \
-    -framework AppKit -framework ApplicationServices -framework CoreGraphics \
-    -framework SystemConfiguration \
-    -o "$remote_binary" "$remote_source"
-macvm_exec /bin/chmod 755 "$remote_binary"
-macvm_exec /bin/chmod 755 "$remote_control_cli"
-macvm_exec /bin/chmod 600 "$remote_resident_plist"
-macvm_exec /usr/bin/plutil -lint "$remote_resident_plist" >/dev/null
-macvm_exec /usr/bin/codesign --force --deep \
-    --sign - --identifier com.kzahel.macvm-testbed.ui \
-    --requirements '=designated => identifier "com.kzahel.macvm-testbed.ui"' \
-    "$remote_app"
-
-printf '%s\n' "$source_digest" | macvm_exec -i /usr/bin/tee "$remote_directory/source-digest" >/dev/null
-printf 'Deployed %s\n' "$remote_app"
-"$MACVM_REPO_DIR/bin/macui" resident-start >/dev/null
-"$MACVM_REPO_DIR/bin/macui" control '{"operation":"status"}'
+macvm_resident_request '{"operation":"status"}'

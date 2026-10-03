@@ -40,5 +40,12 @@ not a blanket requirement for human authentication. Never commit credentials,
 private keys, portal tokens or machine-specific identifiers. Keep `config.local`,
 generated captures and command artifacts untracked.
 
+Before accepting or promoting a newly provisioned appliance, follow the
+[credential handoff](docs/bootstrap.md#required-credential-handoff-before-promotion)
+and run `bin/linuxvm credential verify --json` under its exact-target claim.
+An operationally ready desktop or existing secret file is insufficient; require
+the factory's `credential-handoff` and `promotion` evidence. Password-free
+profiles are explicit and verified, never inferred from absent metadata.
+
 Run `tests/smoke.sh` before committing behavior changes. Shell, Python, and
 Swift checks must be warning-free.

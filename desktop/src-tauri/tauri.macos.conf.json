@@ -1,0 +1,17 @@
+{
+  "bundle": {
+    "resources": {
+      "native/mc-cli/": "mc-cli/",
+      "native/mc-sudo": "mc-sudo",
+      "native/mc-sudo-askpass": "mc-sudo-askpass",
+      "native/mc-session-probe": "mc-session-probe",
+      "../../platforms/macos/resident/app/org.machine-control.resident.plist.in": "org.machine-control.resident.plist.in",
+      "../../providers/chrome-extension/": "chrome-extension/"
+    },
+    "macOS": {
+      "minimumSystemVersion": "13.0",
+      "frameworks": ["native/MCResident.framework"],
+      "infoPlist": "native/Info.plist"
+    }
+  }
+}

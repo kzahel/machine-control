@@ -101,6 +101,13 @@ succeeded. The settled press had no semantic diff, so its own effect remained
 runner profile was observed as valid and long-lived. The capability result did
 not emit the provider's device descriptor.
 
+**Current — subsequent physical control check:** Explicit matching-cache runner
+refresh built and health-checked successfully. Ordinary Settings launch,
+semantic Bluetooth-row input, and screenshot readback verified control without
+a blocking signing or Xcode approval prompt. System-app relaunch and
+navigation-bar labeling have the provider limitations recorded in the
+[provider dossier](../research/providers/agent-device.md#current-disposition).
+
 **Current — live-tested application diagnostics:** The platform wrapper and
 common facade listed development applications, delivered an HTTPS payload
 directly to the installed TomConnect development bundle, captured a bounded

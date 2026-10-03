@@ -422,17 +422,83 @@ struct AuthorizationLease {
 }
 
 // Shared native observer also used by the privileged mechanism and doctor.
-func nativeSessionObservation() -> [String: Any] {
-    let probe = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
-        .deletingLastPathComponent().appendingPathComponent("Resources/mc-session-probe")
-    let process = Process(); process.executableURL = probe
-    let pipe = Pipe(); process.standardOutput = pipe; process.standardError = FileHandle.nullDevice
-    do {
-        try process.run()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile(); process.waitUntilExit()
-        if process.terminationStatus == 0, let result = try JSONSerialization.jsonObject(with: data) as? [String: Any] { return result }
-    } catch {}
-    return ["desktopState": "unknown"]
+// This runs during idle polling as well as requests. Own an autorelease pool
+// here: Foundation's autoreleased pipe read handles otherwise survive the
+// server's request-only pool and consume one descriptor on every idle poll.
+func nativeSessionObservation(probeURL: URL? = nil,
+                              timeout: TimeInterval = 2,
+                              cancelled: () -> Bool = { false }) -> [String: Any] {
+    autoreleasepool {
+        func unavailable(_ reason: String, code: Int? = nil) -> [String: Any] {
+            var result: [String: Any] = ["desktopState": "unknown", "probeFailure": reason]
+            if let code { result["probeErrorCode"] = code }
+            return result
+        }
+        let probe = probeURL ?? URL(fileURLWithPath: CommandLine.arguments[0])
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Resources/mc-session-probe")
+        if cancelled() { return unavailable("cancelled") }
+        let process = Process()
+        let pipe = Pipe()
+        // A private handle permits explicit close without relying on the
+        // lifetime of Foundation's autoreleased nullDevice object.
+        guard let errors = FileHandle(forWritingAtPath: "/dev/null") else {
+            return unavailable("stderr_unavailable", code: Int(errno))
+        }
+        defer {
+            try? pipe.fileHandleForReading.close()
+            try? pipe.fileHandleForWriting.close()
+            try? errors.close()
+        }
+        process.executableURL = probe
+        process.standardOutput = pipe
+        process.standardError = errors
+        do { try process.run() }
+        catch { return unavailable("launch_failed", code: (error as NSError).code) }
+        // The known probe has no descendants. Always reap it, including on
+        // timeout/cancellation/output refusal. Never cache the last good state.
+        defer {
+            if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
+            process.waitUntilExit()
+        }
+        try? pipe.fileHandleForWriting.close()
+        let fd = pipe.fileHandleForReading.fileDescriptor
+        let deadline = ProcessInfo.processInfo.systemUptime + timeout
+        var data = Data()
+        var eof = false
+        while !eof || process.isRunning {
+            if cancelled() { return unavailable("cancelled") }
+            if ProcessInfo.processInfo.systemUptime >= deadline {
+                return unavailable("timeout")
+            }
+            if eof { usleep(1_000); continue }
+            var pending = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+            let ready = poll(&pending, 1, 10)
+            if ready < 0 {
+                if errno == EINTR { continue }
+                return unavailable("read_failed", code: Int(errno))
+            }
+            if ready == 0 { continue }
+            var buffer = [UInt8](repeating: 0, count: 4096)
+            let count = Darwin.read(fd, &buffer, buffer.count)
+            if count < 0 {
+                if errno == EINTR { continue }
+                return unavailable("read_failed", code: Int(errno))
+            }
+            if count == 0 { eof = true; continue }
+            data.append(buffer, count: count)
+            if data.count > 16_384 { return unavailable("output_limit") }
+        }
+        guard process.terminationStatus == 0 else {
+            return unavailable("nonzero_exit", code: Int(process.terminationStatus))
+        }
+        guard let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let state = result["desktopState"] as? String,
+              ["unlocked", "locked", "no_session", "unknown"].contains(state) else {
+            return unavailable("invalid_response")
+        }
+        return result
+    }
 }
 
 // Pure projection: permission/preflight evidence is not an observed UI effect.
@@ -490,6 +556,40 @@ final class ResidentService {
         }
     }
 
+    // Grant-broker integration: the server gates dispatch but reuses the
+    // resident's result shape and reference invalidation.
+    var observedDesktopState: String {
+        observedSession["desktopState"] as? String ?? "unknown"
+    }
+
+    func invalidateReferences() {
+        desktopGeneration = UUID().uuidString.lowercased()
+        references.removeAll(); cuaReferences.removeAll()
+        referenceOrder.removeAll(); authorizationLeases.removeAll()
+    }
+
+    /// The process owning an element reference, when it is a native one.
+    func referencedProcess(_ reference: String) -> pid_t? {
+        guard let element = references[reference] else { return nil }
+        var pid: pid_t = 0
+        return AXUIElementGetPid(element, &pid) == .success ? pid : nil
+    }
+
+    func refusal(_ request: [String: Any], code: String, message: String,
+                 data: [String: Any]? = nil) -> [String: Any] {
+        var result = refused(request, code: code, message: message)
+        if let data { result["data"] = data }
+        return result
+    }
+
+    func acceptance(_ request: [String: Any], data: [String: Any]) -> [String: Any] {
+        var result = base(request)
+        result["delivery"] = "not_applicable"
+        result["effect"] = "not_applicable"
+        result["data"] = data
+        return result
+    }
+
     private func connectUnlockBroker() throws -> Int32 {
         let path = "/var/run/machine-control-unlock/control.sock"
         var info = stat()
@@ -497,8 +597,7 @@ final class ResidentService {
               info.st_mode & S_IFMT == S_IFSOCK else {
             throw MacUIError.permission("unlock_not_installed")
         }
-        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else { throw MacUIError.action("unlock_helper_unreachable") }
+        let fd = try residentSocket()
         var (address, length) = try unixAddress(path)
         guard withSockAddr(&address, length: length, { Darwin.connect(fd, $0, $1) }) == 0 else {
             Darwin.close(fd); throw MacUIError.action("unlock_helper_unreachable")
@@ -1059,7 +1158,10 @@ final class ResidentService {
     private func sendKey(_ chord: String, processID: pid_t? = nil) throws {
         let parts = chord.lowercased().split(separator: "-").map(String.init)
         guard let keyName = parts.last, let code = keyCode(keyName) else {
-            throw MacUIError.usage("Unsupported key chord: \(chord)")
+            throw MacUIError.usage("Unsupported key chord: \(chord). Join modifiers "
+                + "(cmd, shift, option, ctrl) and one key with - or +, for example "
+                + "cmd-shift-g; keys are letters, digits, punctuation, return, tab, space, "
+                + "delete, escape, and arrow names")
         }
         var flags: CGEventFlags = []
         for modifier in parts.dropLast() {
@@ -1161,7 +1263,7 @@ final class ResidentService {
         throw MacUIError.application("Application did not become observable: \(query)")
     }
 
-    private func artifactURL() throws -> URL {
+    func artifactURL() throws -> URL {
         let root = FileManager.default.urls(for: .cachesDirectory,
                                              in: .userDomainMask)[0]
             .appendingPathComponent("machine-control/artifacts", isDirectory: true)
@@ -1677,6 +1779,10 @@ final class ResidentService {
                     "desktopState": observedSession["desktopState"] ?? "unknown",
                     "desktopGeneration": desktopGeneration,
                     "observationSource": "iokit.console-session",
+                    "sessionProbe": [
+                        "failure": observedSession["probeFailure"] ?? NSNull(),
+                        "errorCode": observedSession["probeErrorCode"] ?? NSNull(),
+                    ],
                     "observedAt": ISO8601DateFormatter().string(from: Date()),
                     "displayState": displayState(),
                     "unlock": unlockStatus(),
@@ -1685,6 +1791,8 @@ final class ResidentService {
                         (CGPreflightPostEventAccess() || cuaAccessibility) ? "ready" : "unavailable",
                     "semanticState": observedSession["desktopState"] as? String == "unlocked" && (AXIsProcessTrusted() || cuaAccessibility) ?
                         "ready" : "unavailable",
+                    "semanticAuthorizationState": AXIsProcessTrusted() || cuaAccessibility ? "ready" : "unavailable",
+                    "captureAuthorizationState": CGPreflightScreenCaptureAccess() || cuaCapture ? "ready" : "unavailable",
                     "nativeSemanticState": AXIsProcessTrusted() ? "ready" : "unavailable",
                     "captureState": !activeDisplayJSON().isEmpty && (CGPreflightScreenCaptureAccess() || cuaCapture) ?
                         "ready" : "unavailable",
@@ -2474,359 +2582,4 @@ final class ResidentService {
         result["elapsedMs"] = Int((DispatchTime.now().uptimeNanoseconds - started) / 1_000_000)
         return result
     }
-}
-
-func encodeJSONLine(_ object: [String: Any]) throws -> Data {
-    var data = try JSONSerialization.data(withJSONObject: object,
-                                           options: [.sortedKeys])
-    data.append(0x0a)
-    return data
-}
-
-func unixAddress(_ path: String) throws -> (sockaddr_un, socklen_t) {
-    let bytes = Array(path.utf8CString)
-    var address = sockaddr_un()
-    guard bytes.count <= MemoryLayout.size(ofValue: address.sun_path) else {
-        throw MacUIError.usage("Unix socket path is too long")
-    }
-    address.sun_family = sa_family_t(AF_UNIX)
-    withUnsafeMutableBytes(of: &address.sun_path) { destination in
-        bytes.withUnsafeBytes { source in
-            destination.copyBytes(from: source)
-        }
-    }
-    let length = socklen_t(MemoryLayout<sa_family_t>.size + bytes.count)
-    return (address, length)
-}
-
-func withSockAddr<T>(_ address: inout sockaddr_un, length: socklen_t,
-                     _ body: (UnsafePointer<sockaddr>, socklen_t) throws -> T) rethrows -> T {
-    try withUnsafePointer(to: &address) {
-        try $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-            try body($0, length)
-        }
-    }
-}
-
-func readSocket(_ descriptor: Int32, limit: Int = 1_048_576) throws -> Data {
-    var result = Data()
-    var buffer = [UInt8](repeating: 0, count: 16_384)
-    while result.count < limit {
-        let count = Darwin.read(descriptor, &buffer, buffer.count)
-        if count == 0 { break }
-        if count < 0 {
-            if errno == EINTR { continue }
-            throw MacUIError.action("Socket read failed: \(String(cString: strerror(errno)))")
-        }
-        result.append(buffer, count: count)
-        if result.last == 0x0a { break }
-    }
-    guard result.count < limit else {
-        throw MacUIError.usage("Request exceeded \(limit) bytes")
-    }
-    return result
-}
-
-func writeSocket(_ descriptor: Int32, data: Data) throws {
-    try data.withUnsafeBytes { rawBuffer in
-        guard var pointer = rawBuffer.baseAddress else { return }
-        var remaining = rawBuffer.count
-        while remaining > 0 {
-            let count = Darwin.write(descriptor, pointer, remaining)
-            if count < 0 {
-                if errno == EINTR { continue }
-                throw MacUIError.action("Socket write failed: \(String(cString: strerror(errno)))")
-            }
-            remaining -= count
-            pointer = pointer.advanced(by: count)
-        }
-    }
-}
-
-func runResidentServer(socketPath: String) throws -> Never {
-    let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
-    guard descriptor >= 0 else { throw MacUIError.action("Unable to create Unix socket") }
-    unlink(socketPath)
-    var (address, length) = try unixAddress(socketPath)
-    guard withSockAddr(&address, length: length, {
-        Darwin.bind(descriptor, $0, $1)
-    }) == 0 else {
-        throw MacUIError.action("Unable to bind Unix socket: \(String(cString: strerror(errno)))")
-    }
-    guard chmod(socketPath, S_IRUSR | S_IWUSR) == 0,
-          listen(descriptor, 8) == 0 else {
-        throw MacUIError.action("Unable to listen on Unix socket")
-    }
-    let service = ResidentService()
-    while true {
-        service.refreshSession()
-        var pending = pollfd(fd: descriptor, events: Int16(POLLIN), revents: 0)
-        if poll(&pending, 1, 250) <= 0 { continue }
-        let client = accept(descriptor, nil, nil)
-        if client < 0 {
-            if errno == EINTR { continue }
-            throw MacUIError.action("Socket accept failed: \(String(cString: strerror(errno)))")
-        }
-        autoreleasepool {
-            defer { Darwin.close(client) }
-            do {
-                let data = try readSocket(client)
-                let object = try JSONSerialization.jsonObject(with: data)
-                guard let request = object as? [String: Any] else {
-                    throw MacUIError.usage("Request must be a JSON object")
-                }
-                let response: [String: Any]
-                if request["operation"] as? String == "authorization.submit" {
-                    if let refusal = service.credentialPreflight(request) {
-                        try writeSocket(client, data: encodeJSONLine(refusal))
-                        return
-                    }
-                    try writeSocket(client, data: Data([0x06]))
-                    var credential = try readSocket(client, limit: 257)
-                    defer {
-                        credential.resetBytes(in: 0..<credential.count)
-                        credential.removeAll(keepingCapacity: false)
-                    }
-                    response = service.handleCredential(
-                        request, credential: credential)
-                } else {
-                    response = service.handle(request)
-                }
-                try writeSocket(client, data: encodeJSONLine(response))
-                if request["operation"] as? String == "server.stop" {
-                    Darwin.close(descriptor)
-                    unlink(socketPath)
-                    exit(0)
-                }
-            } catch {
-                let response: [String: Any] = [
-                    "schema": "machine-control/v0", "operation": "unknown",
-                    "requestId": UUID().uuidString.lowercased(), "accepted": false,
-                    "actualRoute": "guest.user/macos.resident",
-                    "delivery": "refused", "effect": "refused",
-                    "uncertainty": "none", "errorCode": "invalid_request",
-                    "message": String(describing: error), "elapsedMs": 0,
-                ]
-                try? writeSocket(client, data: encodeJSONLine(response))
-            }
-        }
-    }
-}
-
-func runResidentClient(socketPath: String, requestData: Data) throws {
-    let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
-    guard descriptor >= 0 else { throw MacUIError.action("Unable to create Unix socket") }
-    defer { Darwin.close(descriptor) }
-    var (address, length) = try unixAddress(socketPath)
-    guard withSockAddr(&address, length: length, {
-        Darwin.connect(descriptor, $0, $1)
-    }) == 0 else {
-        throw MacUIError.action("Resident service is unavailable")
-    }
-    var line = requestData
-    if line.last != 0x0a { line.append(0x0a) }
-    try writeSocket(descriptor, data: line)
-    _ = Darwin.shutdown(descriptor, SHUT_WR)
-    let response = try readSocket(descriptor)
-    FileHandle.standardOutput.write(response)
-}
-
-func runCredentialClient(socketPath: String, leaseID: String) throws {
-    var credential = FileHandle.standardInput.readDataToEndOfFile()
-    defer {
-        credential.resetBytes(in: 0..<credential.count)
-        credential.removeAll(keepingCapacity: false)
-    }
-    while credential.last == 0x0a || credential.last == 0x0d {
-        credential.removeLast()
-    }
-    guard !credential.isEmpty, credential.count <= 256 else {
-        throw MacUIError.usage("Credential must contain 1 through 256 bytes")
-    }
-
-    let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
-    guard descriptor >= 0 else {
-        throw MacUIError.action("Unable to create Unix socket")
-    }
-    defer { Darwin.close(descriptor) }
-    var (address, length) = try unixAddress(socketPath)
-    guard withSockAddr(&address, length: length, {
-        Darwin.connect(descriptor, $0, $1)
-    }) == 0 else {
-        throw MacUIError.action("Resident service is unavailable")
-    }
-    let request: [String: Any] = [
-        "schema": "machine-control/v0",
-        "requestId": UUID().uuidString.lowercased(),
-        "operation": "authorization.submit",
-        "leaseId": leaseID,
-    ]
-    try writeSocket(descriptor, data: encodeJSONLine(request))
-    var acknowledgment: UInt8 = 0
-    var count: Int
-    repeat {
-        count = Darwin.read(descriptor, &acknowledgment, 1)
-    } while count < 0 && errno == EINTR
-    guard count == 1, acknowledgment == 0x06 else {
-        throw MacUIError.action(
-            "Resident did not accept the credential channel handshake")
-    }
-    try writeSocket(descriptor, data: credential)
-    _ = Darwin.shutdown(descriptor, SHUT_WR)
-    let response = try readSocket(descriptor)
-    FileHandle.standardOutput.write(response)
-}
-
-var arguments = Array(CommandLine.arguments.dropFirst())
-if arguments.count >= 4, arguments[0] == "--output",
-   arguments[2] == "--status" {
-    let outputPath = arguments[1]
-    macUIStatusPath = arguments[3]
-    removeStaleCommandDirectories(currentOutputPath: outputPath)
-    guard freopen(outputPath, "w", stdout) != nil,
-          freopen(outputPath, "a", stderr) != nil else {
-        fail(MacUIError.action("Unable to open MacVM UI command output"))
-    }
-    atexit(writeMacUIExitStatus)
-    arguments.removeFirst(4)
-}
-guard let command = arguments.first else {
-    fail(MacUIError.usage(usage()), status: 2)
-}
-
-if command == "serve" || command == "request" || command == "credential" {
-    do {
-        guard arguments.count >= 2 else {
-            throw MacUIError.usage("Usage: macui \(command) SOCKET [JSON]")
-        }
-        let socketPath = arguments[1]
-        if command == "serve" {
-            try runResidentServer(socketPath: socketPath)
-        }
-        if command == "credential" {
-            guard arguments.count == 3 else {
-                throw MacUIError.usage(
-                    "Usage: macui credential SOCKET LEASE_ID")
-            }
-            try runCredentialClient(
-                socketPath: socketPath, leaseID: arguments[2])
-            exit(0)
-        }
-        let requestData: Data
-        if arguments.count >= 3 {
-            requestData = Data(arguments[2].utf8)
-        } else {
-            requestData = FileHandle.standardInput.readDataToEndOfFile()
-        }
-        try runResidentClient(socketPath: socketPath, requestData: requestData)
-        exit(0)
-    } catch {
-        fail(error)
-    }
-}
-
-do {
-    let options = try parseOptions(Array(arguments.dropFirst()))
-    switch command {
-    case "help", "-h", "--help":
-        print(usage())
-    case "session-state":
-        let state = nativeSessionObservation()
-        print(String(decoding: try JSONSerialization.data(withJSONObject: [
-            "desktopState": state["desktopState"] ?? "unknown",
-            "observationSource": "iokit.console-session"
-        ]), as: UTF8.self))
-    case "health":
-        let frontmost = NSWorkspace.shared.frontmostApplication
-        let payload: [String: Any] = [
-            "accessibilityTrusted": AXIsProcessTrusted(),
-            "frontmostApplication": frontmost?.localizedName ?? NSNull(),
-            "frontmostPID": frontmost?.processIdentifier ?? 0,
-            "user": NSUserName(),
-        ]
-        let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
-        print(String(decoding: data, as: UTF8.self))
-    case "authorize":
-        let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-        let trusted = AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
-        if trusted {
-            print("Accessibility access is granted.")
-        } else {
-            throw MacUIError.permission(
-                "Accessibility access is pending. Use the Tart screenshot/input path " +
-                "to enable MacVM UI in System Settings, then retry."
-            )
-        }
-    case "apps":
-        for app in runningApplications() {
-            let active = app.isActive ? " active" : ""
-            let hidden = app.isHidden ? " hidden" : ""
-            print("\(app.processIdentifier)\t\(app.localizedName ?? "?")\t" +
-                  "\(app.bundleIdentifier ?? "-")\(active)\(hidden)")
-        }
-    case "windows":
-        try requireAccessibility()
-        let app = try resolveApplication(options.app)
-        let root = AXUIElementCreateApplication(app.processIdentifier)
-        let windows = (attribute(root, kAXWindowsAttribute as CFString) as? [AXUIElement]) ?? []
-        for (index, window) in windows.enumerated() {
-            print(formatted(record(window, reference: index, depth: 0)))
-        }
-    case "tree":
-        for item in try records(for: options)
-            where !options.interactiveOnly || isInteractive(item) {
-            print(formatted(item))
-        }
-    case "find":
-        guard options.positionals.count == 1 else {
-            throw MacUIError.usage("Usage: macui find QUERY [OPTIONS]")
-        }
-        let found = try matchingRecords(for: options, query: options.positionals[0])
-        for item in found { print(formatted(item)) }
-        if found.isEmpty { throw MacUIError.element("No matching elements") }
-    case "actions":
-        guard options.positionals.count == 1 else {
-            throw MacUIError.usage("Usage: macui actions QUERY [OPTIONS]")
-        }
-        let item = try selectedRecord(for: options, query: options.positionals[0])
-        print(formatted(item))
-        for action in item.actions { print(action) }
-    case "press":
-        guard options.positionals.count == 1 else {
-            throw MacUIError.usage("Usage: macui press QUERY [OPTIONS]")
-        }
-        try perform(kAXPressAction as CFString,
-                    on: selectedRecord(for: options, query: options.positionals[0]))
-    case "focus":
-        guard options.positionals.count == 1 else {
-            throw MacUIError.usage("Usage: macui focus QUERY [OPTIONS]")
-        }
-        let item = try selectedRecord(for: options, query: options.positionals[0])
-        let result = AXUIElementSetAttributeValue(
-            item.element, kAXFocusedAttribute as CFString, kCFBooleanTrue
-        )
-        guard result == .success else {
-            throw MacUIError.action("Focus failed with AX error \(result.rawValue)")
-        }
-    case "set-value":
-        guard options.positionals.count == 2 else {
-            throw MacUIError.usage("Usage: macui set-value QUERY VALUE [OPTIONS]")
-        }
-        let item = try selectedRecord(for: options, query: options.positionals[0])
-        let result = AXUIElementSetAttributeValue(
-            item.element, kAXValueAttribute as CFString,
-            options.positionals[1] as CFString
-        )
-        guard result == .success else {
-            throw MacUIError.action("Set-value failed with AX error \(result.rawValue)")
-        }
-    default:
-        throw MacUIError.usage("Unknown command: \(command)\n\n\(usage())")
-    }
-} catch let error as MacUIError {
-    let status: Int32
-    if case .usage = error { status = 2 } else { status = 1 }
-    fail(error, status: status)
-} catch {
-    fail(error)
 }

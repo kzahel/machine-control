@@ -27,7 +27,7 @@ $mc --target windows target doctor
 claim="$($mc --target windows claim acquire --duration 30m \
   --reason 'exercise the application workflow' \
   --claimant-authority example-agent --claimant-id session-42)"
-claim_id="$(jq -r '.data.claim.claimId' <<<"$claim")"
+claim_id="$(jq -er 'select(.accepted == true) | .data.claim.claimId' <<<"$claim")" || exit 1
 $mc --target windows --claim "$claim_id" desktop applications
 $mc --target windows claim release "$claim_id"
 ```
@@ -109,6 +109,19 @@ still executes entirely on the target.
 
 The project deliberately shares an experience rather than pretending every
 platform has the same implementation.
+
+The optional [Tauri desktop app](desktop/README.md) supplies setup, visible
+approval, activity, and tray controls over the native resident. Public 0.5.3
+includes Mac ARM64/Intel, Windows x64/ARM64, and Linux x64/ARM64 packages, plus
+the bundled Python CLI, native update discovery, and Mac sudo helpers. All six
+packages and production update routes are authenticated. Version-specific GUI
+execution evidence covers ARM64 Tart, Windows x64, and Linux x64 GNOME VMs;
+Intel/Windows ARM64/Linux ARM64 GUI and full physical-host acceptance remain open.
+The [desktop acceptance matrix](docs/desktop-acceptance.md) distinguishes
+these product results from earlier native runtime evidence.
+Headless control remains independent.
+The [desktop release process](release/desktop.md) owns one tagged publication flow
+and [latest Mac, Windows, and Linux downloads](https://machinecontrol.dev/downloads/).
 
 | Platform | Current control surface | Maturity |
 | --- | --- | --- |

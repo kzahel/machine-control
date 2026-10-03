@@ -49,3 +49,15 @@ commits with no expected follow-up do not need a trailer or registry entry.
   administrator arming, controller authorization and credential transport.
 - `operational-workflow-automation` — staged agent-driven setup, recovery,
   claims, validation, and release workflows that replace prose-only decisions.
+- `host-control` — physical and personal hosts, deployment presets, grant
+  broker and approvers, menu bar application, and attended-away operation.
+- `browser-control` — user-browser control through a Machine Control
+  extension, native messaging, and grant-scoped CDP.
+- `windows-desktop` — shared Tauri Windows operator, resident grants,
+  companion supervision, signed installers, and installed acceptance.
+- `linux-desktop` — ordinary-user Linux Tauri app, portal consent, grants,
+  native approvals, packages, and installed GNOME acceptance.
+
+- `native-sudo` — native per-command macOS authentication, helper packaging and YA opt-in.
+
+- `installed-agent-cli` — bundled Python client, offline instructions and verified desktop consumers.

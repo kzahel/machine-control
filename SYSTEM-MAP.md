@@ -61,13 +61,15 @@ not flatten their platform semantics into one generic implementation.
 **Current:** The optional Windows workstation host is another deployment of
 Machine Control's shared ordinary providers. It runs under the interactive user;
 the existing appliance broker remains a separate privileged deployment profile.
-YepAnywhere's Windows Node/Codex preview supervises a separate user instance
-with signed local installation, session grants, deferred tools and direct IPC.
-YA owns the private process job and result presentation; Machine Control still
-owns the providers and native contract. YA is not a prerequisite for the common
-CLI or appliance service. Consumer acceptance and remaining release scope live
-in [YA's topic](../yepanywhere/topics/optional-computer-control.md); native
-migration acceptance remains in
+YepAnywhere consumes the installed desktop app's authenticated Python CLI,
+with default-off eligible session advertisement and media presentation. MC owns
+installation, updates, native access and resident lifecycle. YA's former
+workstation installer, grants, deferred tool and private process job are retired;
+it does not stop the independent desktop on session close or crash. The headless
+workstation profile and protected appliance remain independently available.
+Consumer acceptance and its limits live in
+[YA's topic](../yepanywhere/topics/optional-computer-control.md); historical
+headless native acceptance remains in
 [Tactical 036](docs/tactical/036-windows-workstation-distribution.md).
 
 **Current:** Optional workstation unlock has an independent privileged service,
@@ -144,3 +146,48 @@ When adding a capability:
 
 Do not add the same operation independently to all five layers. Choose one
 owner and expose it through adapters.
+
+## Desktop product and release infrastructure
+
+Machine Control owns the optional Tauri desktop operator application, its native
+resident/providers, grant enforcement, product updater key/configuration, and
+artifact acceptance. Desktop Release Kit owns the shared update contract and
+release validation reference; simple-app-update-server owns metadata routing
+over GitHub Releases. The Machine Control website owns the public desktop
+download page and resolves versioned installer links from the desktop release
+family; it does not implement the updater protocol. Dotfiles owns private
+signing credential locators and service deployment. YepAnywhere connects as a
+consumer rather than owning a
+second copy of the desktop application's grant UI or updater.
+
+The Mac desktop embeds the Swift resident in its native process. Windows owns
+a distinct ordinary-user desktop companion and inherited operator transport,
+with grants enforced inside that companion. Its process job owns resident/
+provider children while explicitly excluding user-launched applications.
+The headless workstation package and protected appliance remain separate profiles.
+[Windows desktop](topics/windows-desktop.md) owns the standalone workstream.
+
+Linux owns an ordinary-user companion, inherited operator channel, native GTK
+approval process, and a distinct desktop socket. It reuses AT-SPI semantics
+while portal consent owns capture/input; root appliance input stays separate.
+[Linux desktop](topics/linux-desktop.md) owns the workstream, and the shared
+release family owns its eventual packages.
+
+## Native command authentication
+
+**Current:** Machine Control owns the Mac `mc-sudo`/`mc-sudo-askpass` pair,
+its desktop packaging, local dialog and system-sudo authentication route.
+YepAnywhere owns opt-in discovery, publisher verification and agent launch
+instructions. This command route does not extend resident grants or the
+Windows protected broker. See [native sudo](topics/native-sudo.md).
+
+## Installed CLI consumers
+
+**Current:** desktop-app consumers use MC's bundled Python CLI and instructions.
+MC owns product installation, updates, resident lifecycle and native access; YA
+owns verified launch discovery, eligibility, optional adaptation and presentation.
+YA's old Windows component is retired after accepted installed native/browser,
+model, media and lifecycle checks. Session advertisement grants no access and
+closing YA does not revoke MC grants; native Stop, expiry and MC restart do. [Installed agent CLI](topics/installed-agent-cli.md) and
+[YA Tactical 142](../yepanywhere/docs/tactical/142-machine-control-desktop-consumer.md)
+own the implementation and migration gates.

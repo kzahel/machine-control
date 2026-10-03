@@ -1,5 +1,9 @@
 # Topics
 
+- [Windows desktop](windows-desktop.md): shared Tauri operator, native Windows
+  grants, companion packaging, and signed x64 VM acceptance; ARM64 execution
+  and publication remain open.
+
 Focused, living records of continuing machine-control concerns live here.
 
 Prefer the smallest coherent topic whose status, decisions, evidence, gaps, and
@@ -36,6 +40,8 @@ its `Topic:` trailers.
 - [`android-family-control.md`](android-family-control.md): shared ADB provider
   primitives, distinct Android-handheld and Quest profiles, protected phone
   unlock, evidence, and remaining semantic/profile work.
+- [`browser-control.md`](browser-control.md): user-browser control through a
+  Machine Control extension, native messaging, and grant-scoped CDP.
 - [`capabilities-and-results.md`](capabilities-and-results.md): common
   capability, observation, action, uncertainty, and conformance vocabulary.
 - [`cross-platform-coordinator.md`](cross-platform-coordinator.md): portable
@@ -43,6 +49,8 @@ its `Topic:` trailers.
   and target-native validation.
 - [`delegation-and-agent-placement.md`](delegation-and-agent-placement.md): YA
   coordination and the separation between agent placement and control target.
+- [`host-control.md`](host-control.md): physical and personal hosts, deployment
+  presets, grant broker and approval, menu bar application, and away mode.
 - [`inner-first-routing.md`](inner-first-routing.md): ordinary resident routes,
   explicit outer recovery, and host-interference policy.
 - [`ios-device-control.md`](ios-device-control.md): adopted CoreDevice/XCTest
@@ -85,7 +93,12 @@ its `Topic:` trailers.
   proving-ground decisions, unresolved boundaries, and next implementation
   direction.
 
+- [`native-sudo.md`](native-sudo.md): one-command native Mac administrator authentication and bundled helper authority.
+
 ## Update policy
+
+- [`linux-desktop.md`](linux-desktop.md): ordinary-user Linux Tauri settings,
+  portal consent, grants, native approvals, packaging, and installed acceptance.
 
 - Read the relevant topic before changing the concern it governs.
 - Update it when work changes current status, a decision, evidence, validation,
@@ -100,3 +113,5 @@ its `Topic:` trailers.
   evidence is what changed the decision.
 - Create a sibling topic rather than broadening an existing one into a
   catch-all.
+
+- [Installed agent CLI](installed-agent-cli.md): Python runtime packaging, agent instructions and consumer trust.

@@ -2,7 +2,8 @@
 
 This original MIT implementation adds an explicit alternate authorization path
 for unlocking an already logged-in console session. It uses an Authorization
-Services plug-in, a root LaunchDaemon, and the ordinary MacVM UI resident.
+Services plug-in, a root LaunchDaemon, and the ordinary Machine Control
+resident.
 The accepted profile is an explicitly opted-in disposable appliance. The API
 continues to identify the provider as experimental because its loginwindow
 policy composition and IOKit session signals are version-sensitive.
@@ -16,7 +17,7 @@ owns implementation acceptance. The earlier experiment remains in
 
 - `Session.h` reads console lock/session evidence and validates one-use grants.
   `Probe.m` exposes the same observer without privileged installation or TCC.
-  It is packaged inside MacVM UI, and doctor can call the app's read-only
+  It is packaged inside Machine Control.app, and doctor can call the app's read-only
   `session-state` command even while the resident is stopped.
 - `Broker.m` runs as root through launchd. Its fixed local socket implements
   only status and an existing-session unlock transaction. Kernel peer UID/PID

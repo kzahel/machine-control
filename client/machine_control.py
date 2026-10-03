@@ -7,7 +7,7 @@ import argparse
 from datetime import datetime
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import platform as host_platform
 import re
 import shutil
@@ -32,6 +32,7 @@ CLAIM_RESULT_SCHEMA = "machine-control-claim/v0"
 MAINTENANCE_CAPABILITIES_SCHEMA = "machine-control-maintenance-capabilities/v0"
 MAINTENANCE_RESULT_SCHEMA = "machine-control-maintenance/v0"
 CLIENT_VERSION = "0.3.0"
+CLIENT_PROTOCOL = 1
 CONTROLLER_PLATFORMS = {"darwin", "linux", "windows"}
 LAUNCHERS = {"auto", "direct", "python", "powershell", "bash"}
 WORKSPACE_INTENTS = {"persistent", "isolated", "candidate"}
@@ -52,6 +53,30 @@ DISRUPTIVE_TESTBED_COMMANDS = {
     "macos": {"screenshot", "click", "drag", "type", "key"},
 }
 
+
+def default_host_target(system: str) -> dict[str, Any]:
+    if system == "Linux":
+        return {
+            "platform": "linux", "profile": "linux-host-desktop",
+            "controllerPlatforms": ["linux"], "launcher": "python",
+            "claimPolicy": "required",
+            "command": [str(ROOT / "platforms/linux/host/linuxhost.py")],
+        }
+    if system == "Windows":
+        return {
+            "platform": "windows", "profile": "windows-host-desktop",
+            "controllerPlatforms": ["windows"], "launcher": "python",
+            "claimPolicy": "required",
+            "command": [str(ROOT / "platforms/windows/host/winhost.py")],
+        }
+    return {
+        "platform": "macos", "profile": "macos-host-resident",
+        "controllerPlatforms": ["darwin"], "launcher": "direct",
+        "claimPolicy": "required",
+        "command": [str(ROOT / "platforms/macos/bin/machost")],
+    }
+
+
 DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
     "windows": {
         "platform": "windows",
@@ -71,6 +96,7 @@ DEFAULT_TARGETS: dict[str, dict[str, Any]] = {
         "workspaceDefaultIntent": "persistent",
         "command": [str(ROOT / "platforms" / "macos" / "bin" / "macvm")],
     },
+    "host": default_host_target(host_platform.system()),
     "linux": {
         "platform": "linux",
         "profile": "ubuntu-gnome-wayland",
@@ -416,6 +442,8 @@ def provider_path(path_text: str | None = None) -> Path | None:
         if config[1].get("inventoryProvider") is None:
             return None
         return controller_config_path(config, "inventoryProvider")
+    if (ROOT / "client-runtime.json").is_file():
+        return None
     candidate = ROOT.parent / "dotfiles" / "testbeds" / "testbeds.py"
     return candidate if candidate.is_file() else None
 
@@ -493,7 +521,10 @@ def load_registry(
                 document = provider_registry(inventory_provider)
                 source = "inventory-provider"
 
-    targets = {key: dict(value) for key, value in DEFAULT_TARGETS.items()}
+    defaults = DEFAULT_TARGETS
+    if (ROOT / "client-runtime.json").is_file():
+        defaults = {"host": DEFAULT_TARGETS["host"]}
+    targets = {key: dict(value) for key, value in defaults.items()}
     if path is None and document is None:
         return targets, source
     if path is not None:
@@ -1596,6 +1627,8 @@ def handle_candidate(
         ))
         return 0
 
+    if target["platform"] == "linux":
+        elapsed_ms += require_linux_credential_handoff(target, "verify")
     _, _, shutdown_ms = run_adapter(target, ["shutdown"])
     stopped, stopped_ms = candidate_assertion(target)
     elapsed_ms += shutdown_ms + stopped_ms
@@ -1605,6 +1638,8 @@ def handle_candidate(
             "Candidate did not reach the required stopped handoff state",
             1,
         )
+    if target["platform"] == "linux":
+        elapsed_ms += require_linux_credential_handoff(target, "status")
     actions = [{
         "id": "clean-shutdown",
         "adapterOperation": "shutdown",
@@ -1614,6 +1649,25 @@ def handle_candidate(
         alias, target, operation, stopped, readiness, actions, elapsed_ms, True
     ))
     return 0
+
+
+def require_linux_credential_handoff(target: dict[str, Any], operation: str) -> int:
+    completed, observation, elapsed_ms = run_adapter(
+        target, ["credential", operation, "--json"], accept_json_failure=True
+    )
+    if (completed.returncode != 0 or not isinstance(observation, dict)
+            or set(observation) != {"schema", "ready", "profile", "evidence"}
+            or observation.get("schema") != "linuxvm-credential-handoff/v0"
+            or observation.get("ready") is not True
+            or (observation.get("profile"), observation.get("evidence")) not in (
+                ("password", "guest_password_hash_verified"),
+                ("password-free", "explicit_locked_password_profile_verified"))):
+        raise ClientError(
+            "credential_handoff_required",
+            "Linux promotion requires a verified canonical stored password "
+            "or an explicitly verified password-free appliance profile", 1,
+        )
+    return elapsed_ms
 
 
 def doctor(alias: str, target: dict[str, Any]) -> tuple[dict[str, Any], int]:
@@ -2338,8 +2392,21 @@ def desktop_request(arguments: list[str]) -> tuple[dict[str, Any], bool]:
         if not rest:
             raise ClientError("usage", "desktop input requires a kind")
         kind, values = rest[0], rest[1:]
-        if kind in {"text", "key"} and len(values) == 1:
-            return {"operation": f"input.{kind}", kind: values[0]}, False
+        if kind in {"text", "key"}:
+            if values[:1] in (["--help"], ["-h"]) or not values:
+                raise ClientError(
+                    "usage",
+                    f"desktop input {kind} VALUE [--target APP]. Keys join modifiers "
+                    "(cmd, shift, option, ctrl) and one key with - or +, for example "
+                    "cmd+shift+g. Without --target, keystrokes go to whatever has focus; "
+                    "the result names it in data.keyboardReceiver.",
+                )
+            request = {"operation": f"input.{kind}", kind: values[0]}
+            if len(values) == 3 and values[1] == "--target":
+                request["target"] = values[2]
+            elif len(values) != 1:
+                raise ClientError("usage", f"desktop input {kind} VALUE [--target APP]")
+            return request, False
         if kind in {"click", "move"} and len(values) in {2, 3}:
             request = {
                 "operation": f"input.{kind}",
@@ -2483,7 +2550,203 @@ def add_client_projection(
             "_clientCompatibilityFields", []
         ),
     }
+    data = value.get("data") if isinstance(value.get("data"), dict) else {}
+    if value.get("errorCode") == "approval_required" and isinstance(
+        data.get("requiredScope"), str
+    ):
+        value["client"]["remediation"] = {
+            "command": [
+                "grant", "request", "--scope", data["requiredScope"],
+                "--reason", "REASON",
+            ],
+            "note": "A person at the target must approve the request.",
+        }
     return value
+
+
+GRANT_SCOPES = {"observe", "control", "browser", "devtools"}
+
+
+def grant_request(arguments: list[str]) -> dict[str, Any]:
+    if not arguments or arguments[0] not in {"request", "status", "revoke"}:
+        raise ClientError("usage", "grant requires request, status, or revoke")
+    command, rest = arguments[0], arguments[1:]
+    if command != "request":
+        if rest:
+            raise ClientError("usage", f"grant {command} accepts no arguments")
+        return {"operation": f"grant.{command}"}
+    parser = argparse.ArgumentParser(add_help=False, exit_on_error=False)
+    parser.add_argument("--scope", action="append", choices=sorted(GRANT_SCOPES))
+    parser.add_argument("--duration")
+    parser.add_argument("--timeout")
+    parser.add_argument("--reason")
+    try:
+        options = parser.parse_args(rest)
+    except (argparse.ArgumentError, SystemExit) as error:
+        raise ClientError("usage", "grant request accepts --scope, --duration, "
+                          "--timeout, and --reason") from error
+    if not options.scope or not options.reason or not options.reason.strip():
+        raise ClientError(
+            "usage", "grant request requires at least one --scope and --reason"
+        )
+    request: dict[str, Any] = {
+        "operation": "grant.request",
+        "scopes": sorted(set(options.scope)),
+        "reason": options.reason.strip(),
+    }
+    try:
+        if options.duration is not None:
+            request["durationSeconds"] = parse_duration_seconds(options.duration)
+        if options.timeout is not None:
+            request["timeoutSeconds"] = parse_duration_seconds(options.timeout)
+    except argparse.ArgumentTypeError as error:
+        raise ClientError("usage", str(error)) from error
+    return request
+
+
+BROWSER_COMMANDS = {
+    "tabs", "navigate", "snapshot", "click", "type", "key", "capture", "upload",
+    "cdp", "eval", "endpoint", "wait", "release",
+}
+
+BROWSER_USAGE = {
+    "tabs": "browser tabs — list open tabs (tabId, url, title, status, discarded)",
+    "wait": "browser wait [--tab ID] [--timeout D] — wait until the tab finishes loading",
+    "navigate": "browser navigate --url URL [--tab ID] [--new-tab] — open http/https/about:blank",
+    "snapshot": "browser snapshot [--tab ID] [--max N] [--interactive] — compact accessibility tree",
+    "click": "browser click --reference R [--tab ID] — click an element from a snapshot",
+    "type": "browser type --text T [--reference R] [--tab ID] — insert text (focus R first)",
+    "key": "browser key --key NAME [--tab ID] — press a named key: Enter, Tab, Escape, "
+           "Backspace, Delete, Home, End, PageUp, PageDown, ArrowUp/Down/Left/Right "
+           "(aliases like return, esc, up work). Use browser type for characters.",
+    "capture": "browser capture [--tab ID] — viewport PNG artifact",
+    "upload": "browser upload --reference R --file PATH [--file PATH]... — attach files "
+              "to a file input or upload button, without the OS dialog",
+    "cdp": "browser cdp --method Domain.method [--params JSON] [--tab ID] — one raw "
+           "DevTools call (devtools grant)",
+    "eval": "browser eval --expression JS [--tab ID] — evaluate JavaScript (devtools grant)",
+    "endpoint": "browser endpoint — the DevTools WebSocket URL for a live session (devtools grant)",
+    "release": "browser release — detach all debugger sessions",
+}
+
+
+def browser_request(arguments: list[str], target_platform: str | None = None) -> dict[str, Any]:
+    if not arguments or arguments[0] not in BROWSER_COMMANDS:
+        raise ClientError(
+            "usage", "browser requires " + "|".join(sorted(BROWSER_COMMANDS))
+        )
+    command, rest = arguments[0], arguments[1:]
+    if any(flag in rest for flag in ("--help", "-h")):
+        raise ClientError("usage", BROWSER_USAGE.get(command, "browser " + command))
+    parser = argparse.ArgumentParser(add_help=False, exit_on_error=False)
+    parser.add_argument("--tab", type=int)
+    parser.add_argument("--url")
+    parser.add_argument("--new-tab", action="store_true")
+    parser.add_argument("--reference")
+    parser.add_argument("--text")
+    parser.add_argument("--key")
+    parser.add_argument("--max", type=int)
+    parser.add_argument("--interactive", action="store_true")
+    parser.add_argument("--file", action="append")
+    parser.add_argument("--method")
+    parser.add_argument("--params")
+    parser.add_argument("--expression")
+    parser.add_argument("--timeout")
+    try:
+        options = parser.parse_args(rest)
+    except (argparse.ArgumentError, SystemExit) as error:
+        raise ClientError("usage", BROWSER_USAGE.get(command, f"Invalid browser {command} options")) from error
+    if command == "upload":
+        if not options.reference or not options.file:
+            raise ClientError(
+                "usage",
+                "browser upload requires --reference R (a file input or upload "
+                "button from browser snapshot) and one or more --file ABSOLUTE_PATH",
+            )
+        # Upload paths belong to the selected target, not this controller.
+        # Windows Python 3.13+ rejects POSIX roots in os.path.isabs.
+        path_type = PureWindowsPath if target_platform == "windows" else PurePosixPath
+        if not all(path_type(path).is_absolute() for path in options.file):
+            raise ClientError("usage", "browser upload --file paths must be absolute")
+    request: dict[str, Any] = {"operation": f"browser.{command}"}
+    if options.tab is not None:
+        request["tabId"] = options.tab
+    required = {
+        "navigate": ("url",), "click": ("reference",), "type": ("text",),
+        "key": ("key",),
+    }.get(command, ())
+    for field in required:
+        if getattr(options, field) is None:
+            raise ClientError("usage", f"browser {command} requires --{field}")
+    for field, key in (("url", "url"), ("reference", "reference"),
+                       ("text", "text"), ("key", "key"), ("max", "maxElements")):
+        if getattr(options, field) is not None:
+            request[key] = getattr(options, field)
+    if command == "cdp":
+        if not options.method:
+            raise ClientError("usage", "browser cdp requires --method Domain.method [--params JSON]")
+        request["method"] = options.method
+        if options.params is not None:
+            try:
+                params = json.loads(options.params)
+            except json.JSONDecodeError as error:
+                raise ClientError("usage", f"--params is not valid JSON: {error}") from error
+            if not isinstance(params, dict):
+                raise ClientError("usage", "--params must be a JSON object")
+            request["params"] = params
+    if command == "eval":
+        if not options.expression:
+            raise ClientError("usage", "browser eval requires --expression JS")
+        request["expression"] = options.expression
+    if options.file:
+        request["files"] = options.file
+    if options.new_tab:
+        request["newTab"] = True
+    if options.interactive:
+        request["interactiveOnly"] = True
+    if command == "wait" and options.timeout is not None:
+        request["timeoutMs"] = parse_duration_seconds(options.timeout) * 1000
+    return request
+
+
+def handle_browser(
+    alias: str, target: dict[str, Any], arguments: list[str]
+) -> int:
+    return send_resident_request(alias, target, browser_request(arguments, target["platform"]))
+
+
+def handle_grant(
+    alias: str, target: dict[str, Any], arguments: list[str]
+) -> int:
+    return send_resident_request(alias, target, grant_request(arguments))
+
+
+def update_request(arguments: list[str]) -> dict[str, Any]:
+    if len(arguments) != 1 or arguments[0] not in {"check", "status"}:
+        raise ClientError("usage", "update requires check or status; accepts no arguments")
+    return {"operation": f"update.{arguments[0]}"}
+
+
+def send_resident_request(
+    alias: str, target: dict[str, Any], request: dict[str, Any]
+) -> int:
+    if target.get("interface", "machine-control-v0") != "machine-control-v0":
+        raise ClientError(
+            "unsupported_desktop_interface",
+            "This target does not expose the common resident interface",
+        )
+    serialized = json.dumps(request, separators=(",", ":"), ensure_ascii=False)
+    completed, parsed, elapsed_ms = run_adapter(
+        target, ["control", serialized], accept_json_failure=True
+    )
+    value = validate_resident(parsed, target["platform"])
+    value = add_client_projection(
+        value, alias, target, str(request["operation"]),
+        len(serialized.encode("utf-8")),
+        len(completed.stdout.strip().encode("utf-8")), elapsed_ms, False,
+    )
+    emit(value)
+    return 0 if value["accepted"] else 1
 
 
 def ios_request(arguments: list[str]) -> dict[str, Any]:
@@ -2964,7 +3227,7 @@ def operation_requires_claim(operation: str, arguments: list[str]) -> bool:
         return subcommand != "capabilities"
     if operation == "workspace":
         return False
-    return operation in {"desktop", "ios", "testbed", "os"}
+    return operation in {"desktop", "grant", "update", "browser", "ios", "testbed", "os"}
 
 
 def operation_required_claim_use_class(
@@ -3309,6 +3572,7 @@ def usage() -> str:
                        COMMAND ...
 
 Commands:
+  agent identity|instructions     Read CLI identity or agent workflow (offline)
   inventory list|status|guide|credentials|doctor
                                     Use the private deployment inventory
   targets                         List logical targets without private paths
@@ -3321,6 +3585,15 @@ Commands:
   maintenance capabilities|audit|repair [--reboot]|certify [--profile ...]
   workspace capabilities|acquire|inventory|release|gc --dry-run
                                     Use `workspace --help` for claim composition
+  grant request --scope observe|control|browser|devtools... --reason TEXT
+        [--duration D] [--timeout D] | grant status | grant revoke
+                                    Ask a person at the target for access
+  update check|status             Queue desktop update discovery or read status
+  browser tabs|wait|navigate|snapshot|click|type|key|capture|upload|cdp|eval
+        |endpoint|release   (browser CMD --help for details)
+        [--tab ID] [--url URL] [--new-tab] [--reference R] [--text T]
+        [--file PATH]... [--method M --params JSON] [--expression JS]
+                                    Operate Chrome through the extension
   desktop status|capabilities|applications|windows|snapshot|action|capture
   desktop input text|key|click|move|drag|scroll
   desktop session unlock --expected-desktop-generation ID --expected-helper-generation ID --request-id ID
@@ -3440,6 +3713,16 @@ def main(argv: list[str] | None = None) -> int:
             print(usage(), end="")
             return 0 if known.help else 2
         operation = remainder[0]
+        if operation == "agent":
+            from agent_interface import identity, instructions
+
+            if remainder == ["agent", "identity"]:
+                emit(identity())
+                return 0
+            if remainder == ["agent", "instructions"]:
+                print(instructions(), end="")
+                return 0
+            raise ClientError("usage", "agent requires identity|instructions")
         if operation == "inventory":
             return run_inventory(known.inventory_provider, remainder[1:])
         targets, registry_source = load_registry(
@@ -3472,6 +3755,13 @@ def main(argv: list[str] | None = None) -> int:
                 ),
             },
         }
+        if (ROOT / "client-runtime.json").is_file():
+            target["environment"].update({
+                "MACHINE_CONTROL_HOST_PYTHON": sys.executable,
+                "MACHINE_CONTROL_CLAIMS_PYTHON": sys.executable,
+            })
+            if alias == "host" and target["platform"] == "windows":
+                target["environment"]["MACHINE_CONTROL_DESKTOP_INSTALL_DIR"] = str(ROOT.parent)
         attendance = controller_host_attendance()
         if attendance and not os.environ.get("MACHINE_CONTROL_HOST_ATTENDANCE"):
             target["environment"]["MACHINE_CONTROL_HOST_ATTENDANCE"] = attendance
@@ -3526,6 +3816,12 @@ def main(argv: list[str] | None = None) -> int:
             return handle_workspace(alias, target, remainder[1:])
         if operation == "desktop":
             return handle_desktop(alias, target, remainder[1:])
+        if operation == "grant":
+            return handle_grant(alias, target, remainder[1:])
+        if operation == "update":
+            return send_resident_request(alias, target, update_request(remainder[1:]))
+        if operation == "browser":
+            return handle_browser(alias, target, remainder[1:])
         if operation == "ios":
             return handle_ios(alias, target, remainder[1:])
         if operation == "testbed":

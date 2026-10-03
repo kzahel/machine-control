@@ -131,6 +131,44 @@ composition and OS observer are version-sensitive. Locally ad-hoc-signed VM
 acceptance is separate from physical hardware and notarized distribution.
 No proprietary Computer Use implementation or AsyncVNC code is a dependency.
 
+## Operator desktop packaging
+
+**Current (2026-09-30), `live-tested`, operator packaging in Tart:** the new
+Tauri desktop shell embeds the same Swift resident in its native process.
+A Developer ID signed, notarized, stapled CI bundle rendered correctly
+and exercised visible denial/narrowed approval, prompt pausing, self-interface
+and protected-operation refusal, Stop, restart, and an independently observed
+AppKit fixture effect. This changes packaging and operator presentation rather
+than the underlying provider composition. Both architecture packages are
+authenticated; ARM64 installed upgrade retained permissions and ended active
+access. Intel runtime execution remains open. Precise acceptance is tracked in
+[tactical 051](../../docs/tactical/051-tauri-macos-desktop.md). Subsequent public
+update testing found an automatic relaunch failure in the legacy sender.
+A signed repair fixture now passes native Permissions Restart and automatic
+production-feed installation, retaining permissions and ending access.
+Released 0.3.5 also passes native Restart and operator/tray acceptance after a
+public 0.3.3 production-feed installation with one legacy reopen.
+[Tactical 052](../../docs/tactical/052-macos-production-updates.md) owns exact
+release/update evidence. Physical-host and Intel runtime acceptance remain
+separate gates.
+
+**Current (2026-10-02), `live-tested`, native provider on physical ARM64 macOS:**
+The public signed Tauri `0.4.8` has partial physical smoke evidence for visible
+consent/approval, native semantics and independently observed fixture action,
+window capture, input delivery, and revocation. The
+[host topic](../../topics/host-control.md) owns the bounded result and omissions;
+full physical product acceptance remains open.
+
+**Current (2026-10-02), `live-tested`, signed ARM64 operator in Tart:** Public
+`0.4.9` adds manual until-stopped access. Its exact signed package passes visible
+lifetime selection, null expiry/countdown, selected scopes, independent AppKit
+counter effect, visible Stop with dispatch refusal, Permissions Restart with a
+new generation and retained TCC, and bounded public agent approval. The original
+appliance and policy are restored, power is parked, and the claim is released.
+[Tactical 057](../../docs/tactical/057-macos-until-stopped-release.md) owns exact
+package/publication evidence. This does not add signed lock/recovery, Intel, or
+full physical product acceptance.
+
 ## Owned authorization unlock prototype
 
 **Current (2026-09-10), `built` and `live-tested`:** An original Apple
@@ -220,6 +258,31 @@ not a new Setup Assistant/account run, and does not prove the exact private
 Tart/Virtualization.framework mechanism. The input path needs no guest agent;
 the test uses one only for setup and independent observation.
 
+## Owned resident lifetime reliability
+
+**Current (2026-09-29), source-reviewed and live-tested in Tart:** The owned
+resident's idle session observer retained a pipe read descriptor on each
+refresh outside its request autorelease pool. The unchanged guest gained
+272 numeric pipe FDs in 91 seconds without capture, AX, or input operations.
+Isolated process-limit reproduction caused unknown session state while the
+probe's independent unlocked observation remained valid. This is an owned
+resident lifetime defect, not evidence of a Cua or RSTorrent leak or TCC
+revocation. Separate guest testing reproduced the Darwin spawn file-action
+ceiling at FD 10,240 despite a 65,536 process limit: both the observer and a
+plain Foundation subprocess launch returned EBADF. The
+[fix and validation record](../../docs/tactical/047-macos-resident-resource-reliability.md)
+separates confirmed mechanism from the two historical incidents whose raw
+logs are unavailable, and tracks fixed workload/recovery evidence.
+
+**Current (2026-10-02), `live-tested`, signed ARM64 browser provider in Tart:**
+The exact desktop `0.4.10` package passes controlled-tab favicon/group lifecycle
+and browser fixture effects through its embedded resident under the appliance
+policy. Native capture confirms tab-strip presentation. Workstation browser
+approval UX, physical execution, and Intel execution stay separate.
+[Tactical 058](../../docs/tactical/058-browser-tab-indicators.md) owns the
+bounded evidence and release; the
+[provider dossier](../providers/chrome-extension.md) owns route facts and gaps.
+
 ## Current direction
 
 **Decision:** Preserve Cua as a replaceable common-plane adapter and Peekaboo as
@@ -233,3 +296,11 @@ multiple displays, localization, fresh login and broader loginwindow control,
 FileVault/preboot, bounded
 non-UI administration, a SIP-enabled protected-data image, private-API
 fragility, and longer background-interference soak runs.
+
+## Native command authentication
+
+**Current:** signed ARM64 desktop helpers pass native-dialog and root-effect
+conformance in a dedicated appliance. The Mac desktop bundles a wrapper over
+[system sudo](../providers/sudo.md), distinct from typed resident desktop
+control. [Native sudo](../../topics/native-sudo.md) owns the decision and
+[Tactical 061](../../docs/tactical/061-native-sudo.md) owns route evidence.

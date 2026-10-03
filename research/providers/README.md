@@ -7,7 +7,10 @@ components remain necessary. Evidence levels are defined in the
 
 | Provider | Declared top-level license | Platform reach under review | Strongest evidence here |
 | --- | --- | --- | --- |
+| [Machine Control Chrome extension](chrome-extension.md) | MIT; browser distributor terms remain separate | macOS, Windows; Linux integration open | Source-native browser conformance; signed Windows acceptance pending |
+| [Codex / ChatGPT browser extension](codex-browser-extension.md) | No top-level source license found in reviewed package; proprietary reference | Chromium browser indicators; platform behavior untested here | Source-reviewed tab groups, favicons, and cursor overlay |
 | [Cua Driver](cua-driver.md) | MIT; published skill copies have separate MIT-0 terms | Windows, macOS, Linux | Adopted by the Windows runtime; Windows/macOS conformance-tested |
+| [XDG Desktop Portal](xdg-desktop-portal.md) | RemoteDesktop LGPL-2.1-or-later; per-file terms | Linux compositor backends | Source-native GNOME x64 capture/input and independent effects |
 | [Open Computer Use](open-computer-use.md) | MIT; third-party notices apply | Windows, macOS, Linux | Source-reviewed at the spike pin |
 | [WinApp](winapp.md) | MIT | Windows | Adopted by `winvm-testbed`; external differential for the resident runtime |
 | [Agent Device](agent-device.md) | MIT | iOS, Android, macOS, Linux, web, TV/device variants | Adopted for iOS; macOS source-reviewed |
@@ -20,8 +23,11 @@ components remain necessary. Evidence levels are defined in the
 | [agent-desktop](agent-desktop.md) | Apache-2.0 | macOS implemented; Windows/Linux contract stubs | Source-reviewed |
 | [native-devtools-mcp](native-devtools-mcp.md) | MIT | macOS, Windows, Android | Source-reviewed |
 | [RustDesk](rustdesk.md) | AGPL-3.0 | Windows, macOS, Linux and remote-device variants | Windows service architecture source-reviewed |
+| [Sudo](sudo.md) | ISC-style with per-file BSD/ISC terms; uses installed OS binary | macOS askpass integration | Signed native dialog and independent root effect in ARM64 appliance |
 | [AsyncVNC](asyncvnc.md) | GPL-3.0 license text; package metadata says GPL | VNC servers; macOS Screen Sharing tested | Live-tested headless guest consent/bootstrap; not adopted |
 
 Search-triage projects that do not yet warrant dossiers remain listed in the
 [adjacent-project ledger](../adjacent-projects.md). Promote one when its
 architecture or a measured platform gap justifies source review.
+
+- [python-build-standalone](python-build-standalone.md): relocatable CPython for the installed client, with component licensing.

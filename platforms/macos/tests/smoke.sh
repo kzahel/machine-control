@@ -21,6 +21,7 @@ cd "$REPO_DIR"
 for script in \
     bin/macui \
     bin/macvm \
+    bin/machost \
     providers/tart-macos/provider.sh \
     providers/tart-macos/workspace.sh \
     providers/tart-macos/screenshot \
@@ -30,6 +31,7 @@ for script in \
     scripts/certify-appliance.sh \
     scripts/deploy-maintenance.sh \
     scripts/deploy-ui.sh \
+    scripts/grant-resident-consent.sh \
     scripts/unlock-provider.sh \
     guests/macos/unlock/build.sh \
     scripts/deploy-fixture.sh \
@@ -54,6 +56,10 @@ for script in \
     scripts/doctor-json.sh \
     scripts/doctor.sh \
     guests/macos/ui/machine-control \
+    resident/scripts/build-app.sh \
+    resident/scripts/install-user.sh \
+    resident/scripts/install-policy.sh \
+    resident/scripts/install-browser.sh \
     guests/macos/bootstrap/post-update.sh \
     guests/macos/bootstrap/bootstrap-guest.sh; do
     /bin/bash -n "$script"
@@ -62,8 +68,8 @@ done
 /usr/bin/plutil -lint \
     guests/macos/bootstrap/org.cirruslabs.tart-guest-agent.plist.in \
     guests/macos/bootstrap/org.cirruslabs.tart-guest-daemon.plist.in \
-    guests/macos/ui/com.kzahel.macvm-testbed.resident.plist.in \
-    guests/macos/ui/Info.plist \
+    resident/app/Info.plist \
+    resident/app/org.machine-control.resident.plist.in \
     guests/macos/fixture/Info.plist \
     guests/macos/admin-fixture/Info.plist \
     guests/macos/privacy-fixture/Info.plist \
@@ -74,7 +80,7 @@ done
 /usr/bin/swiftc -typecheck tests/fixtures/outer-keyboard.swift
 /usr/bin/swiftc -typecheck providers/tart-macos/normalize-screenshot.swift
 /usr/bin/swiftc -typecheck -framework SystemConfiguration \
-    guests/macos/ui/macui.swift
+    resident/Sources/macui/*.swift
 /usr/bin/swiftc -typecheck guests/macos/fixture/MachineControlFixture.swift
 /usr/bin/swiftc -typecheck -framework AppKit \
     guests/macos/admin-fixture/AdminAuthorizationFixture.swift
@@ -87,6 +93,25 @@ done
 
 /usr/bin/python3 -m json.tool \
     guests/macos/electron-fixture/package.json >/dev/null
+/usr/bin/python3 -m py_compile host/machost.py
+bin/machost help >/dev/null
+# The unpacked extension's fixed key must produce the ID that the native
+# host registration allows.
+/usr/bin/python3 - ../../providers/chrome-extension/manifest.json \
+    resident/scripts/install-browser.sh <<'PY'
+import base64, hashlib, json, re, sys
+key = json.load(open(sys.argv[1]))["key"]
+digest = hashlib.sha256(base64.b64decode(key)).hexdigest()[:32]
+derived = "".join(chr(ord("a") + int(c, 16)) for c in digest)
+script = open(sys.argv[2]).read()
+assert f"DEFAULT_EXTENSION_ID='{derived}'" in script, derived
+PY
+if command -v node >/dev/null 2>&1; then
+    node --check ../../providers/chrome-extension/service_worker.js
+fi
+for policy in resident/policies/*.json; do
+    /usr/bin/python3 -m json.tool "$policy" >/dev/null
+done
 for file in guests/macos/electron-fixture/main.js \
     guests/macos/electron-fixture/preload.js; do
     test -s "$file"
@@ -478,6 +503,8 @@ fi
 
 python3 "$REPO_DIR/../../tests/macos/doctor-state.py"
 python3 "$REPO_DIR/../../tests/macos/lock-screen-projection.py"
+python3 "$REPO_DIR/../../tests/macos/session-probe-resources.py"
+python3 "$REPO_DIR/../../tests/macos/maintenance-projection.py"
 
 if [[ "$mode" == "--static" ]]; then
     printf 'macOS native static checks passed\n'

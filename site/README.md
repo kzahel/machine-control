@@ -7,6 +7,9 @@ Cloudflare Turnstile.
 
 ## Local development
 
+Use Node 22.12+ and the project-pinned pnpm 11. Build-script permissions live in
+the workspace's `allowBuilds` map.
+
 Install dependencies and create the local database once:
 
 ```sh
@@ -70,3 +73,22 @@ WHERE email = ?;
 ```
 
 Delete the matching row instead when a subscriber asks for full removal.
+
+## Desktop downloads
+
+`/downloads/` exposes the latest published desktop preview, with stable
+`/download/macos/arm64`, `/download/macos/x86_64`, `/download/windows/x64`, and
+`/download/windows/arm64` redirects. Selection filters `desktop-vX.Y.Z` tags and
+excludes drafts/prereleases and independent workstation component releases.
+From 0.4.8 onward the highest numeric desktop version must contain both complete
+Mac and Windows installer/updater sets and receipts. Historical Mac-only releases
+remain supported. Releases use GitHub's public API with a five-minute cache and
+bounded 100-release lookup. Missing releases show an empty state; upstream or
+incomplete metadata failures report temporary unavailability.
+
+No site rebuild or version edit is needed after publication. In-app update
+routing remains owned by simple-app-update-server, with production deployment
+and signed update acceptance separate from website links. See
+[the release process](../release/desktop.md).
+
+Run release-selection and redirect tests with `pnpm test`.

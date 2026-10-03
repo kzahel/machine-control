@@ -1,0 +1,28 @@
+{
+  "bundle": {
+    "targets": ["nsis"],
+    "resources": {
+      "native/mc-cli/": "mc-cli/",
+      "native/runtime/": "runtime/"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false,
+        "installerHooks": "../native/windows-installer-hooks.nsh"
+      },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
+  "mainBinaryName": "machine-control"
+}

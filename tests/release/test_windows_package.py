@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 MODULE_PATH = Path(__file__).resolve().parents[2] / 'release/windows-package.py'
 spec = importlib.util.spec_from_file_location('windows_package', MODULE_PATH)
@@ -22,6 +23,12 @@ class WindowsPackageTests(unittest.TestCase):
             'schema': 'machine-control-windows-build/v0', 'profile': 'workstation',
             'protocol': 'machine-control/v0', 'runtime': 'win-arm64',
             'providerDigest': package.digest(provider)}))
+
+    def test_successful_publish_without_native_companions_is_refused(self):
+        with patch.object(package.subprocess, 'run'), patch.object(package, 'fetch_provider') as fetch:
+            with self.assertRaisesRegex(ValueError, 'native WPF companions'):
+                package.build(self.root / 'incomplete', 'win-x64', 'a' * 40, desktop_companion=True)
+            fetch.assert_not_called()
 
     def test_package_identity_changes_with_payload_and_is_repeatable(self):
         first = package.finalize(self.root)

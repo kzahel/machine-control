@@ -3,7 +3,7 @@
 set -uo pipefail
 
 readonly SCHEMA=machine-control-macos-post-update/v0
-readonly RESIDENT_LABEL=com.kzahel.macvm-testbed.resident
+readonly RESIDENT_LABEL=org.machine-control.resident
 readonly GUEST_DAEMON_LABEL=org.cirruslabs.tart-guest-daemon
 readonly GUEST_AGENT_LABEL=org.cirruslabs.tart-guest-agent
 readonly GUEST_DAEMON_PLIST=/Library/LaunchDaemons/org.cirruslabs.tart-guest-daemon.plist
@@ -48,9 +48,9 @@ fi
 readonly uid="$(/usr/bin/id -u)"
 readonly domain="gui/$uid"
 readonly home_directory="$HOME"
-readonly resident_app="$home_directory/Applications/MacVM UI.app"
+readonly resident_app="$home_directory/Applications/Machine Control.app"
 readonly resident_binary="$resident_app/Contents/MacOS/macui"
-readonly resident_socket_path="$home_directory/Library/Application Support/macvm-testbed/control.sock"
+readonly resident_socket_path="$home_directory/Library/Application Support/MachineControl/control.sock"
 readonly resident_plist="$home_directory/Library/LaunchAgents/$RESIDENT_LABEL.plist"
 readonly resident_cli="$home_directory/bin/machine-control"
 
@@ -100,16 +100,20 @@ collect_state() {
         if [[ "$(json_value "$resident_result" schema || true)" == \
                 machine-control/v0 ]] &&
                 [[ "$(json_value "$resident_result" accepted || true)" == true ]]; then
-            if [[ "$(json_value "$resident_result" data.semanticState || true)" == \
-                    ready ]]; then
+            # Consent and desktop readiness are independent. Older residents
+            # have no consent projection, so retain their readiness fallback.
+            semantic_consent="$(json_value "$resident_result" data.semanticAuthorizationState || true)"
+            capture_consent="$(json_value "$resident_result" data.captureAuthorizationState || true)"
+            [[ -n "$semantic_consent" ]] || semantic_consent="$(json_value "$resident_result" data.semanticState || true)"
+            [[ -n "$capture_consent" ]] || capture_consent="$(json_value "$resident_result" data.captureState || true)"
+            if [[ "$semantic_consent" == ready ]]; then
                 semantic_authorization=true
             fi
-            if [[ "$(json_value "$resident_result" data.captureState || true)" == \
-                    ready ]]; then
+            if [[ "$capture_consent" == ready ]]; then
                 capture_authorization=true
             fi
-            if [[ "$semantic_authorization" == true &&
-                  "$capture_authorization" == true ]]; then
+            if [[ "$(json_value "$resident_result" data.semanticState || true)" == ready &&
+                  "$(json_value "$resident_result" data.captureState || true)" == ready ]]; then
                 target_native=true
             fi
         fi

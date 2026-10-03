@@ -7,20 +7,24 @@
     <key>CFBundleExecutable</key>
     <string>macui</string>
     <key>CFBundleIdentifier</key>
-    <string>com.kzahel.macvm-testbed.ui</string>
+    <string>org.machine-control.app</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>MacVM UI</string>
+    <string>Machine Control</string>
+    <key>CFBundleDisplayName</key>
+    <string>Machine Control</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
+    <string>0.2.0</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>2</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
     <key>LSUIElement</key>
     <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>Machine Control developer preview</string>
 </dict>
 </plist>

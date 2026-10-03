@@ -10,8 +10,10 @@ fresh login, preboot, Recovery, and physical hardware remain open.
 ## Current state
 
 The authoritative [`platforms/macos`](../platforms/macos/README.md) now packages
-a persistent ordinary-session facade inside the stable MacVM UI application
-identity. A per-user Aqua LaunchAgent starts and keeps that signed resident
+a persistent ordinary-session facade inside the shared `Machine Control.app`
+identity that physical hosts also run; a root-owned appliance deployment
+policy gives guests standing access
+([`host-control`](host-control.md)). A per-user Aqua LaunchAgent starts and keeps that signed resident
 available after login, reboot, or a crash; doctor observes it without starting
 it. Guest-local and `tart exec` callers use the same user-owned socket,
 generation, request vocabulary, and normalized result shape without routine
@@ -154,6 +156,33 @@ and guards for untested Control/Option/Fn. The input path requires no guest
 agent; acceptance used the prepared guest for independent oracles. Ordinary
 post-bootstrap input stays target-resident, and the exact private VM-view
 translation mechanism remains unproved.
+
+## Resident lifetime reliability
+
+**Current (2026-09-29):** Investigation following RSTorrent Tactical 232
+reproduced one retained pipe descriptor per session probe outside a draining
+autorelease pool. The unchanged resident grew about three pipe FDs per second
+while idle; no capture or application operation was necessary. Reduced-limit
+reproduction turned the resulting probe launch failure into unknown desktop
+state. A same-guest high-FD experiment also identified the Darwin spawn
+file-action ceiling at descriptor 10,240 despite a 65,536 process limit; both
+probe and capture-like Foundation subprocess launch failed with EBADF. The two
+historical incidents are consistent with this cause, but their removed logs
+cannot establish identical causes or the exact capture failure.
+
+**Decision:** The observer owns a pool, closes its handles explicitly, bounds
+output/execution, and reaps failed/cancelled children. Idle refresh also has a
+pool. Probe failure diagnostics and authorization projections stay separate
+from desktop readiness; unknown state continues to refuse ordinary input.
+[Tactical 047](../docs/tactical/047-macos-resident-resource-reliability.md)
+owns reproduction, bounded workload/recovery validation, and remaining limits.
+
+**Current (2026-10-01):** Resident-owned Unix listeners and client sockets are
+marked close-on-exec. A regression test reproduced a plain spawned child
+retaining the live resident listener and now proves that the listener does not
+survive execution. Signed Tauri restart/update handoff acceptance is owned by
+[Tactical 052](../docs/tactical/052-macos-production-updates.md), separately from
+the session-probe lifetime workload above.
 
 ## Current Tart goal
 

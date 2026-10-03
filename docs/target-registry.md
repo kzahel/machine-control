@@ -42,6 +42,13 @@ The dependency-free client has generic logical targets such as `windows`,
 Those entries select the public adapter under `platforms/`; they do not contain
 a real machine identity or authorize mutation.
 
+The `host` target is the Mac running the client. Its adapter talks to the
+local Machine Control resident socket and needs no inventory entry. The
+resident's root-owned deployment policy decides whether access is standing
+or needs a person's approval; see [`host-control`](../topics/host-control.md).
+A private registry that sets `includeDefaults: false` must list `host`
+explicitly to use it.
+
 For a standard setup:
 
 1. Follow the selected [platform guide](../platforms/README.md).
@@ -360,6 +367,15 @@ When an adapter needs a controller-held credential:
 4. Let the platform's dedicated one-shot secret transport read and deliver the
    value without adding it to ordinary arguments, JSON, logs, captures, or
    evidence.
+
+For Linux factory/promotion handoff, configure `LINUXVM_LOGIN_SECRET_FILE` from
+this canonical locator and retain the setup SSH key and independently pinned
+known-hosts locators in private configuration. The
+[Linux verifier](../platforms/linux/docs/bootstrap.md#required-credential-handoff-before-promotion)
+checks guest password-hash equality without copying password bytes into this
+registry interface. File readiness and a verified guest credential are separate
+observations. An intentional password-free profile requires explicit declaration
+and guest verification; an empty credential inventory does not establish it.
 
 Do not commit real machine names, endpoints, addresses, device identifiers,
 accounts, local paths, credential locators, or topology to this public

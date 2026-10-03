@@ -79,7 +79,8 @@ declared host-local file in the same task. The inventory passes only the
 `MACVM_ADMIN_SECRET_FILE` path. Never commit credential values, private keys,
 machine identifiers, personal screenshots, VM images, or TCC databases here.
 
-After changing `guests/macos/ui/macui.swift`, deploy and verify it:
+After changing the resident package under `resident/`, run
+`swift test --package-path resident`, then deploy and verify it:
 
 ```bash
 bin/macvm deploy-ui

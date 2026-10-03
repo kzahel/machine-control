@@ -106,6 +106,12 @@ file, or a chat transcript. A VM whose login credential is unknown is not
 recovered by guessing; destroy and rebuild it after confirming it holds nothing
 irreplaceable.
 
+A key-only bootstrap, auto-login, or passwordless administration is not a
+completed credential handoff for a password-capable test appliance. Before
+promotion, establish and verify its canonical stored login password, or
+explicitly declare and verify a password-free appliance profile. Operational
+readiness alone is insufficient evidence of completed provisioning.
+
 Before asking a user to log in or unlock a dedicated test VM, always resolve
 its credential locator from the selected controller's private registry or
 inventory (`bin/machine-control inventory credentials TARGET`). Use the

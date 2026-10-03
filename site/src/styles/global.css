@@ -2106,3 +2106,19 @@ h1 {
     flex-direction: column;
   }
 }
+
+.downloads-page { padding: 52px 0 64px; }
+.downloads-page h1 { font-size: 36px; margin-bottom: 24px; }
+.download-panel { border: 1px solid var(--line); background: var(--paper-bright); padding: 24px; margin-bottom: 20px; }
+.download-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.download-heading h2 { font-size: 22px; margin: 0; }
+.download-heading span, .download-note { font-size: 13px; color: var(--ink-soft); }
+.download-note { margin: 14px 0 0; }
+.download-state { margin: 20px 0 0; }
+.download-steps { padding-left: 20px; margin: 22px 0 0; font-size: 14px; }
+.download-steps li + li { margin-top: 8px; }
+@media (max-width: 640px) {
+  .site-nav { gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+  .download-panel { padding: 18px; }
+  .download-heading { align-items: flex-start; flex-direction: column; gap: 4px; }
+}

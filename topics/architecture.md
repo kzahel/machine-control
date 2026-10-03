@@ -273,6 +273,9 @@ elevation. Lock state, credentials, consent, and secure-desktop operations
 remain separate capabilities rather than consequences of a generic “admin”
 flag.
 
+[`host-control`](host-control.md) owns the proposed presets, grant broker, and
+approval flow that implement these profiles on physical hosts.
+
 Both profiles use the same control vocabulary and report their real privilege
 and restrictions. Personal-machine safety must not redefine the project into a
 weak controller, and test-appliance power must not silently leak into personal

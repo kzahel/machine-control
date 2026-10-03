@@ -4,6 +4,7 @@ from contextlib import redirect_stdout
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import unittest
@@ -24,6 +25,7 @@ sys.modules[SPEC.name] = POST_UPDATE
 SPEC.loader.exec_module(POST_UPDATE)
 
 
+@unittest.skipUnless(os.name == "posix", "Linux guest maintenance requires POSIX user identity")
 class PostUpdateTests(unittest.TestCase):
     def run_main(self, mode: str, state: dict[str, bool]) -> tuple[int, dict]:
         output = io.StringIO()

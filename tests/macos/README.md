@@ -1,7 +1,35 @@
 # macOS conformance
 
-The macOS corpus drives the target-resident facade provided by the sibling
-`macvm-testbed` repository. `conformance.sh` runs the same request vocabulary
+`tauri-desktop.py` exercises an already installed signed Tauri candidate in a
+claimed dedicated testbed. Supply the logical target, current exclusive claim,
+guest candidate app path, and socket. Keep the standing appliance resident
+running separately, deploy and launch the AppKit fixture first, and give the
+candidate workstation policy. The test uses native AX input to approve and
+deny; no socket or test-only bypass approves access. Installation, consent,
+signed replacement, power restoration, and claim release belong to the caller.
+Do not run it on a personal workstation.
+
+`--candidate-client` routes candidate operations through the packaged Python
+CLI and acquires/releases a separate guest-local host claim. It also exercises
+the ergonomic capture/artifact commands and independently checks PNG bytes.
+The controller's VM claim remains distinct. Start the fixture before running.
+Use `--control-only` for the bounded approval/action/artifact slice; the default
+still exercises tray navigation and production update discovery separately.
+
+When the candidate occupies the canonical installation, supply a separate
+source-native appliance with `--operator-app` and `--operator-socket`.
+
+`tauri-update.py` uses that same separate observer to check production update
+discovery, disabled installation during active access, explicit Stop, signed
+replacement, relaunch, permission readiness, access revocation, and stale
+reference refusal. Supply the authenticated sender and expected release
+versions. `--verify-restart-before` and `--verify-restart-after` also exercise
+the Permissions Restart button. `--legacy-reopen` permits one native reopen
+for published 0.3.3/0.3.4 senders and reports it separately from automatic
+relaunch. The caller owns installation, fixture setup, and restoration.
+
+The macOS corpus drives the target-resident facade owned by
+`platforms/macos`. `conformance.sh` runs the same request vocabulary
 through two placements:
 
 - `remote`: the host wrapper sends a request through `tart exec`; and
@@ -116,3 +144,55 @@ explicit privileged fixture setup, disconnect/timeout revocation. These native
 fixtures do not authorize use of the controller desktop. See
 [Tactical 034](../../docs/tactical/034-macos-session-state-and-unlock.md) and the
 [runbook](../../platforms/macos/docs/session-unlock.md) for scope and evidence.
+
+## Resident resource reliability
+
+`session-probe-resources.py` compiles the production session observer with a
+synthetic probe and a 128-FD limit. It needs no UI consent and never queries a
+desktop. Always-on Swift preconditions check repeated completion, launch and
+parse errors, bounded output, timeout, cancellation, recovery, FD counts, and
+child reaping. `--idle-only --source FILE` accepts the old no-argument observer
+for a before/after reproduction; `--caller-pool` isolates the missing pool.
+The opt-in `--spawn-boundary` diagnostic retains at most 12,000 pipe readers
+in an isolated process and checks the actual Darwin spawn boundary separately
+from configured FD limits. It requires already sufficient limits and is not
+part of the ordinary native check suite.
+`maintenance-projection.py` checks the actual audit's consent/readiness
+projection. Both run in the native static suite.
+
+`resident-resources.py` is an explicit **guest-local** live runner. The caller
+must first doctor, claim, ensure readiness, deploy and launch a previously
+absent AppKit fixture, and arrange fixture/power/claim cleanup. Invoke it through
+common `os -- /usr/bin/python3 -c "$(cat tests/macos/resident-resources.py)"`.
+It isolates operation families before a combined workload, checks independent
+fixture effects, and reports numeric FDs/types, non-FD lsof entries, RSS,
+threads, children, test request counts, latency, and readiness. It captures
+only the fixture and deletes every owned artifact. It does not measure opaque
+framework queues or claim that sampled RSS is a strict memory bound.
+
+`resident-recovery.py --evidence-dir PRIVATE_DIRECTORY` runs on the controller
+under the same claimed task. It refuses an inherited fixture, owns its setup
+and removal, tests common capture/artifact round trips, temporarily removes
+execute permission from the deployed session probe with `finally` restoration,
+and verifies unknown-state refusal while an independent probe sees unlocked.
+It then uses supported resident stop, maintenance audit/repair, and fresh AX
+effects to check recovery and stale references. This is a deliberate fault
+injection for a dedicated test appliance, not a personal-workstation command.
+The caller owns initial power-state restoration and claim release.
+
+[Tactical 047](../../docs/tactical/047-macos-resident-resource-reliability.md)
+contains replay commands, measurements, and the limits of historical attribution.
+
+## Native sudo acceptance
+
+[Native sudo](../../platforms/macos/sudo/README.md) documents the signed fixture
+builder and claimed dedicated-appliance conformance runner. It uses real sudo
+and a native AX secure-field driver, with temporary exact-command password
+policy and canonical secret transport. Never run the driver on a workstation.
+
+`tests/browser/indicators-live.py --client INSTALLED_COMMAND` exercises browser
+operations through the installed CLI instead of direct socket calls, including
+browser PNG capture and artifact retrieval. Its dedicated Chrome for Testing
+profile, native host/extension, independent HTTP/CDP oracles and process cleanup
+remain the same. The caller owns guest-local and controller claims, native
+approval, canonical native-host socket selection and restoration.

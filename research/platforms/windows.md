@@ -36,6 +36,28 @@ resident stack must cover:
 - local and authenticated remote calls through the same logical contract; and
 - deterministic fixture effects plus real Windows-shell effects.
 
+The [Cua dossier](../providers/cua-driver.md) also records the desktop
+workstream's stale-token tool-error finding. Installed acceptance must check
+application effects and error payloads rather than treating a successful
+provider CLI process as accepted input.
+
+**Current — signed x64 desktop conformance:** The shared Tauri product and
+bundled ordinary-user resident pass native grants, lifecycle, tray, signed
+update, independent Cua effects/capture, and local/outside parity on a dedicated
+VM. ARM64 candidate signing and installed bytes pass; native ARM64 desktop
+execution remains unproved. [Tactical 053](../../docs/tactical/053-windows-desktop.md)
+owns this product-specific evidence.
+
+**Current — browser route:** The owned [Chrome extension](../providers/chrome-extension.md)
+now connects to the ordinary desktop resident through Windows native messaging.
+Source-native and exact signed x64 browser fixture conformance pass, including
+local/outside effects and artifacts. Signed browser-open replacement also
+passes; [Tactical 054](../../docs/tactical/054-windows-browser-and-arm64.md)
+owns the earlier package and recovery evidence. Unified public 0.4.8 passes
+installed browser tasks, production 0.4.7 to 0.4.8 replacement with Chrome open,
+and ordinary uninstall; [Tactical 055](../../docs/tactical/055-unified-desktop-publication.md)
+owns that publication evidence. Native ARM64 product execution remains open.
+
 ## Candidate matrix
 
 | Candidate | Evidence | Demonstrated value | Material gaps or unknowns | Current disposition |

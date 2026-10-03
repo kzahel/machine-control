@@ -1,0 +1,82 @@
+---
+import SiteFooter from "../components/SiteFooter.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteLayout from "../layouts/SiteLayout.astro";
+import { loadDesktopRelease } from "../lib/desktop-release";
+const title = "Downloads — Machine Control";
+const description = "Download the Machine Control desktop preview.";
+let release;
+let unavailable = false;
+try { release = await loadDesktopRelease(); } catch { unavailable = true; }
+Astro.response.headers.set("Cache-Control", "public, max-age=300");
+if (unavailable) {
+  Astro.response.status = 503;
+  Astro.response.headers.set("Cache-Control", "no-store");
+  Astro.response.headers.set("Retry-After", "60");
+}
+---
+<SiteLayout title={title} description={description} canonicalPath="/downloads/">
+  <SiteHeader />
+  <main class="downloads-page">
+    <div class="shell start-shell">
+      <h1>Downloads</h1>
+      <section class="download-panel" aria-labelledby="mac-download">
+        <div class="download-heading">
+          <h2 id="mac-download">Mac desktop</h2>
+          <span>{release ? `v${release.version} · Preview` : "Preview"}</span>
+        </div>
+        <p>Menu bar app with visible access controls. Requires macOS 13 or later.</p>
+        {release ? <>
+          <div class="actions">
+            <a class="button button-primary" href="/download/macos/arm64">Apple silicon .dmg</a>
+            <a class="button button-secondary" href="/download/macos/x86_64">Intel .dmg</a>
+          </div>
+          <p class="download-note">Signed and notarized. <a href={release.url}>Release notes</a></p>
+          <ol class="download-steps">
+            <li>Open the DMG and drag Machine Control to Applications.</li>
+            <li>Open the app. Grant Accessibility and Screen Recording in Permissions.</li>
+            <li>Choose access scopes and a duration, or approve an agent request.</li>
+          </ol>
+          <p class="download-note">Grants apply to all callers running as your user. Live tests cover Apple silicon Tart; physical Mac and Intel runtime acceptance remain open.</p>
+        </> : <p class="download-state">{unavailable ? "Downloads temporarily unavailable. Try again shortly." : "No public Mac release yet."}</p>}
+      </section>
+      <section class="download-panel" aria-labelledby="windows-download">
+        <div class="download-heading">
+          <h2 id="windows-download">Windows desktop</h2>
+          <span>{release?.windowsDownloads ? `v${release.version} · Preview` : "Preview"}</span>
+        </div>
+        <p>Tray app with visible access controls. Windows 11.</p>
+        {release?.windowsDownloads ? <>
+          <div class="actions">
+            <a class="button button-primary" href="/download/windows/x64">x64 .exe</a>
+            <a class="button button-secondary" href="/download/windows/arm64">ARM64 .exe</a>
+          </div>
+          <p class="download-note">Signed. <a href={release.url}>Release notes</a></p>
+          <ol class="download-steps">
+            <li>Run the installer, then open Machine Control.</li>
+            <li>Choose access scopes and a duration, or approve an agent request.</li>
+            <li>For Chrome, use browser setup in Permissions.</li>
+          </ol>
+          <p class="download-note">Grants apply to callers running as your user. x64 passes VM testing. ARM64 packages are verified; native ARM64 execution remains untested.</p>
+        </> : <p class="download-state">{unavailable ? "Downloads temporarily unavailable. Try again shortly." : "No public Windows release yet."}</p>}
+      </section>
+      <section class="download-panel" aria-labelledby="linux-download">
+        <div class="download-heading">
+          <h2 id="linux-download">Linux desktop</h2>
+          <span>{release?.linuxDownloads ? `v${release.version} · Preview` : "Preview"}</span>
+        </div>
+        <p>Ubuntu GNOME Wayland. Screen and input sharing requires portal consent.</p>
+        {release?.linuxDownloads ? <>
+          <div class="actions">
+            <a class="button button-primary" href="/download/linux/amd64/appimage">x64 AppImage</a>
+            <a class="button button-secondary" href="/download/linux/arm64/appimage">ARM64 AppImage</a>
+          </div>
+          <p class="download-note">Debian packages: <a href="/download/linux/amd64/deb">x64 .deb</a> · <a href="/download/linux/arm64/deb">ARM64 .deb</a>. <a href={release.url}>Release notes</a></p>
+          <p class="download-note">AppImage supports signed in-app updates. See the <a href="https://github.com/kzahel/machine-control/blob/main/desktop/LINUX.md">installation guide</a> for dependencies. Other desktops and physical hardware require separate validation.</p>
+        </> : <p class="download-state">{unavailable ? "Downloads temporarily unavailable. Try again shortly." : "No public Linux release yet."}</p>}
+      </section>
+      <p class="download-note">For testbeds and the common CLI, see <a href="/getting-started/">Getting started</a>.</p>
+    </div>
+  </main>
+  <SiteFooter />
+</SiteLayout>

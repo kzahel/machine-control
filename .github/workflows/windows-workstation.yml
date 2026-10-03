@@ -34,6 +34,13 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.12'
+      - name: Require versioned changelog before release signing
+        if: inputs.version != ''
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          python release/changelog.py release/WORKSTATION_CHANGELOG.md $env:RELEASE_VERSION
+          if ($LASTEXITCODE -ne 0) { throw 'Required release changelog is missing or empty' }
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: '8.0.x'
@@ -193,6 +200,16 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - name: Extract required release changelog
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: python3 release/changelog.py release/WORKSTATION_CHANGELOG.md "$RELEASE_VERSION" > notes.md
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: workstation-release
@@ -219,6 +236,5 @@ jobs:
             echo 'Release already exists; use a new version, never replace signed assets.' >&2
             exit 1
           fi
-          printf 'Signed Windows x64 and ARM64 Computer Control packages.\n\nInstall through Yep Anywhere Computer Control settings. Ordinary installation runs as the logged-in user; protected unlock is a separate explicit setup.\n\nSource: %s\n' "$GITHUB_SHA" > notes.md
           gh release create "$tag" packages/* --target "$GITHUB_SHA" --title "Machine Control $RELEASE_VERSION" --notes-file notes.md --draft
           gh release edit "$tag" --draft=false --latest
