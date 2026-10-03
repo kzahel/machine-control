@@ -5,7 +5,7 @@ Topic: `access-admission-and-pause`
 Status: implementation active. Common arbiters and live owner-bound channels
 pass deterministic checks. Mac physical notice focus, independent AX effect,
 composed operator pause, consent/pause restart and persistent Stop have bounded
-live evidence. Protected quiet resumption, shared outer reservations,
+live evidence. Protected takeover/local-use resumption, shared outer reservations,
 authenticated integration and Windows native acceptance remain open.
 Capabilities are qualified separately before release.
 
@@ -320,5 +320,6 @@ linked tacticals own execution evidence.
 
 **Current:** [Tactical 085](../docs/tactical/085-macos-admission-transport-cleanup.md)
 distinguishes a healthy resident cancelling a lost agent from guardian failure,
-bounds queue polling and releases interrupted pointer presses. Its protected
-physical acceptance is pending.
+bounds queue polling and releases interrupted pointer presses. Four bounded physical covered tasks pass independent effects, relock and
+consent retention, including two abrupt client disconnects. Hardware takeover
+and sustained-load acceptance remain separate.

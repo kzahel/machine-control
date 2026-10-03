@@ -1,6 +1,6 @@
 # Mac admission transport cleanup
 
-Status: source implemented; protected physical acceptance remains open.
+Status: completed for bounded cleanup, polling and protected task acceptance.
 Owning topic: [access admission and pause](../../topics/access-admission-and-pause.md).
 
 ## Objective and completion conditions
@@ -38,8 +38,19 @@ ready, healthy, no active session and no manual-recovery fault. Runtime sampling
 showed repeated synchronous helper/permission probes in presentation and queue
 polling. This is failure evidence, not covered-task acceptance.
 
-**Open:** install the frozen signed source candidate and prove two fresh covered
-activations, single fixture effects, independent relock, retained until-stopped
-consent and abrupt client transport loss. Guardian/resident/watchdog loss must
-remain a distinct fault. Actual hardware takeover and local-use resumption are
-separate gates in the parent plan.
+**Current, bounded physical acceptance:** the immutable Developer ID signed
+candidate installed at the existing test location after graceful native Quit.
+The helper updated automatically, with readiness granted/healthy and no Repair
+or additional OS consent. Two successive covered tasks each produced one
+independent fixture increment, then independently observed OS relock, zero
+covers and retained until-stopped consent. Two further tasks abruptly terminated
+their own byte adapter and passed the same cleanup/consent checks. Every
+activation used a distinct session. Snapshot/status measurements in the accepted
+runs were 1.57–2.40 seconds. No password or personal browser was used.
+
+**Limits:** one earlier attempt on the new candidate became stale after its
+snapshot; the next traced and disconnect trials passed. These four successful
+tasks are bounded evidence, not a claim of sustained-load acceptance. Actual
+hardware takeover/local-use resumption and guardian/watchdog failure remain
+separate gates in the parent plan. The opt-in runner never arms or installs
+access and requires an independent native session probe and isolated fixture.
