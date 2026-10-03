@@ -137,6 +137,15 @@ final class ResidentServer {
     }
     func removeChannel(_ descriptor: Int32) { channels.removeValue(forKey:descriptor) }
     func refreshAdmission() { tick() }
+    lazy var preparedConsoleReady: () -> Bool = { [weak self] in self?.lockedUse.enabled == true }
+    func preparedConsoleAuthority(scopes: Set<GrantScope>) -> String? {
+        if let refusal = broker.admissionAuthority(scopes:scopes) { return refusal }
+        guard let grant = broker.activeGrant,
+              grantConsoleBinding?.matches(grantID:grant.id, observation:grantConsoleObservation()) == true else {
+            return "console_session_changed"
+        }
+        return nil
+    }
     func activateCovered(_ channel: AdmissionChannel, view: [String:Any]) throws {
         if let coveredActivation { try coveredActivation(channel, view); return }
         guard service.observedDesktopState == "locked" else { return }
@@ -239,6 +248,7 @@ final class ResidentServer {
     private var pendingRequest: [String: Any]?
     private var pendingTimeout: DispatchWorkItem?
     private var grantConsoleBinding: GrantConsoleBinding?
+    private var restoringConsoleConsent = false
     private var observedGrantID: String?
 
     let browser: BrowserRelay
@@ -262,7 +272,7 @@ final class ResidentServer {
         }
         // Bind synchronously when approval is issued, including a lock that
         // follows before the next timer tick. Never adopt an unbound grant later.
-        broker.observe { [weak self] in self?.bindApprovedConsole() }
+        broker.bindAuthorityBeforeObservers = { [weak self] in self?.bindApprovedConsole() }
         broker.admission.sessionEnded = { [weak self] owner, _, reason in
             self?.channels.values.first(where:{ $0.owner == owner })?.outer?.invalidate()
             self?.activity.disarm()
@@ -309,6 +319,8 @@ final class ResidentServer {
         if observation["desktopState"] as? String == "locked" && !lockedUse.enabled { return }
         guard ["unlocked", "locked"].contains(observation["desktopState"] as? String ?? ""),
               AXIsProcessTrusted(), CGPreflightScreenCaptureAccess(), CGPreflightPostEventAccess() else { return }
+        restoringConsoleConsent = true
+        defer { restoringConsoleConsent = false }
         guard let fresh = broker.restoreConsent(scopes:scopes, remainingSeconds:duration) else { return }
         grantConsoleBinding = GrantConsoleBinding(grantID:fresh.id, observation:observation, restoring:true)
     }
@@ -319,7 +331,7 @@ final class ResidentServer {
         observedGrantID = id; grantConsoleBinding = nil
         guard broker.policy.grantMode == .approval, let id else { return }
         service.refreshSession()
-        grantConsoleBinding = GrantConsoleBinding(grantID:id, observation:grantConsoleObservation())
+        grantConsoleBinding = GrantConsoleBinding(grantID:id, observation:grantConsoleObservation(), restoring:restoringConsoleConsent)
     }
 
     func start() throws {
@@ -594,7 +606,7 @@ final class ResidentServer {
                 data["lockedUse"] = lockedUse.status
                 data["physicalActivity"] = activity.status
                 data["admission"] = broker.admission.status
-                data["admissionChannel"] = ["schema":AdmissionChannel.schema, "ownerBinding":"live_same_user_transport", "callerAssurance":"unverified_same_user", "delegatedAutomaticAccess":false, "outerRecovery":"borrowed_exact_claim/v1"]
+                data["admissionChannel"] = ["schema":AdmissionChannel.schema, "ownerBinding":"live_same_user_transport", "callerAssurance":"unverified_same_user", "delegatedAutomaticAccess":false, "outerRecovery":"borrowed_exact_claim/v1", "preparedConsole":"explicit_consent_and_prepared_helper/v1"]
                 var browserStatus = browser.statusJSON
                 browserStatus["devtoolsEndpoint"] = devtools.endpoint ?? NSNull()
                 data["browser"] = browserStatus

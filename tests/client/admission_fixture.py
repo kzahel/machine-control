@@ -26,6 +26,10 @@ for line in sys.stdin.buffer:
         if request.get("requestSequence") != sequence + 1:
             break
         sequence += 1
+    if operation == "control.open" and mode == "prepared-required":
+        if request.get("preparedConsole") is not True or request.get("scopes") != ["observe", "control"]:
+            break
+        event("prepared-console")
     event(operation)
     if mode == "malformed":
         print('{"schema":"obsolete"}', flush=True)

@@ -174,6 +174,7 @@ final class GrantBroker {
     var journal: DesktopJournal?
     var now: () -> Date = Date.init
     private var observers: [() -> Void] = []
+    var bindAuthorityBeforeObservers: (() -> Void)?
 
     private(set) var grant: Grant?
     private(set) var pending: GrantRequest?
@@ -224,6 +225,7 @@ final class GrantBroker {
     }
 
     private func notify() {
+        bindAuthorityBeforeObservers?()
         for observer in observers { observer() }
     }
 

@@ -131,7 +131,7 @@ final class DesktopCallerTrust {
         ["supported":true, "enabled":requirement != nil && !suspended && !storageInvalid,
          "suspended":suspended, "storageInvalid":storageInvalid,
          "scopes":scopes.sorted().map(\.rawValue), "profile":"ordinary_local_desktop",
-         "protectedControl":false, "outerRecovery":false]
+         "protectedControl":false, "outerRecovery":false, "preparedConsoleComposition":true]
     }
     func enroll(_ integration: VerifiedDesktopIntegration, scopes: Set<GrantScope>) throws {
         guard !scopes.isEmpty, scopes.isSubset(of:[.observe,.control]), integration.requirement.utf8.count <= 4096,

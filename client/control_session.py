@@ -42,17 +42,23 @@ def validate_view(value):
 
 
 class ControlSession:
-    def __init__(self, target, *, reason, scopes=("observe", "control"), wait=300, duration=300):
+    def __init__(self, target, *, reason, scopes=("observe", "control"), wait=300, duration=300, prepared_console=False):
+        if type(prepared_console) is not bool:
+            raise mc.ClientError("invalid_admission_request", "Invalid prepared console option")
         if not reason or len(reason) > 240 or type(wait) is not int or not 1 <= wait <= 14400 \
                 or type(duration) is not int or not 1 <= duration <= 900 \
                 or not scopes or len(set(scopes)) != len(scopes) \
                 or any(scope not in {"observe", "control", "browser", "devtools"} for scope in scopes):
             raise mc.ClientError("invalid_admission_request", "Invalid control admission options")
+        if prepared_console and set(scopes) != {"observe", "control"}:
+            raise mc.ClientError("invalid_admission_request", "Prepared console requires observation and control scopes")
         mc.require_selected_claim(target)
         self._start_transport(target, "channel", CHANNEL_SCHEMA, "control.cancel")
         try:
             request = dict(operation="control.open", schema=SCHEMA, reason=reason, scopes=list(scopes),
                            waitSeconds=wait, durationSeconds=duration)
+            if prepared_console:
+                request["preparedConsole"] = True
             if target.get("_claimId"):
                 request["claimId"] = target["_claimId"]
             self.view = validate_view(self._rpc(request, timeout=10))
@@ -247,6 +253,7 @@ def handle_control(alias, target, arguments):
     parser.add_argument("--scope", action="append", choices=["observe", "control", "browser", "devtools"])
     parser.add_argument("--wait", default="5m")
     parser.add_argument("--duration", default="5m")
+    parser.add_argument("--prepared-console", action="store_true")
     options = parser.parse_args(arguments)
     try:
         request = json.loads(options.json)
@@ -255,7 +262,8 @@ def handle_control(alias, target, arguments):
         translated = mc.translate_request(target["platform"], request)
         scopes = options.scope or ["observe", "control"]
         with ControlSession(target, reason=options.reason, scopes=scopes,
-                wait=mc.parse_duration_seconds(options.wait), duration=mc.parse_duration_seconds(options.duration)) as session:
+                wait=mc.parse_duration_seconds(options.wait), duration=mc.parse_duration_seconds(options.duration),
+                prepared_console=options.prepared_console) as session:
             session.wait()
             value = session.call(translated)
             mc.emit(value)

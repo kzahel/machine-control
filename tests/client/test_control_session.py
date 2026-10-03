@@ -27,6 +27,19 @@ class ControlSessionTests(unittest.TestCase):
         target = dict(self.target, environment={**self.target["environment"], "MC_ADMISSION_FIXTURE":mode})
         return ControlSession(target, reason="fixture", **options)
 
+    def test_prepared_console_is_explicit_and_uses_the_same_bounded_owner_lifecycle(self):
+        with self.session("prepared-required", prepared_console=True) as session:
+            session.wait()
+            self.assertTrue(session.call({"operation":"snapshot"})["accepted"])
+        events = self.record.read_text().splitlines()
+        self.assertEqual(events.count("prepared-console"),1)
+        self.assertIn("control.cancel",events)
+        self.assertIn("EOF",events)
+        with patch.object(subprocess,"Popen") as spawn:
+            with self.assertRaises(mc.ClientError):self.session(prepared_console="true")
+            with self.assertRaises(mc.ClientError):self.session(prepared_console=True, scopes=("browser",))
+            spawn.assert_not_called()
+
     def test_effect_once_live_keepalive_and_prompt_cancel_cleanup(self):
         with self.session() as session:
             session.wait()

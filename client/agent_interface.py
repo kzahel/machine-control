@@ -146,6 +146,10 @@ A trusted native desktop integration can bind a local control channel to
 its selected live agent process. The installed identity negotiates this
 capability; a proxy pathname or session label alone grants nothing. Use
 `control call` or the ControlSession SDK for delegated ordinary desktop work.
+For a Mac task with separately approved desktop consent and prepared locked-use
+control, request `control call --prepared-console` or
+`ControlSession(..., prepared_console=True)`. This composes existing approvals;
+trust alone cannot unlock or arm locked control. Do not use direct unlock.
 Pause preserves consent but ends current control; wait for a fresh session
 before new work and never replay an uncertain mutation. Closing the agent
 ends its delegated tasks, while separately approved MC access remains valid.

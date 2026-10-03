@@ -71,6 +71,56 @@ final class AdmissionChannelTests: XCTestCase {
         XCTAssertEqual(effects,0)
     }
 
+    func testPreparedDelegationRequiresSeparateConsentAndHelperAndFencesRevocation() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("mc-prepared-delegate-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])
+        defer { try? FileManager.default.removeItem(at:directory) }
+        server.callerTrust = DesktopCallerTrust(directory:directory.path)
+        try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture", publisher:"FIXTUREONLY"), scopes:[.observe,.control])
+        server.callerTrust.peerValid = { _,_ in true }; server.callerTrust.peerStillValid = { _,_ in true }
+        var activations = 0
+        server.coveredActivation = { channel,_ in XCTAssertTrue(channel.preparedConsole); activations += 1 }
+        server.preparedConsoleReady = { false }
+        func openPrepared(_ fd: Int32, _ id:String) -> [String:Any] {
+            exchange(fd,["operation":"control.open", "schema":AccessAdmission.schema, "requestId":id,
+                "scopes":["observe","control"], "reason":"fixture", "durationSeconds":60, "waitSeconds":120,
+                "preparedConsole":true, "desktopDelegation":["schema":"machine-control-desktop-delegation/v1", "sessionId":"fixture", "sessionGeneration":UUID().uuidString]])
+        }
+        broker.revoke(reason:"fixture")
+        let pending = try connect()
+        let first = openPrepared(pending,"no-consent")["data"] as! [String:Any]
+        XCTAssertEqual(first["state"] as? String,"waiting_for_approval")
+        XCTAssertEqual(activations,0)
+        broker.issueUntilStopped(scopes:[.observe], reason:"fixture", requester:"fixture", approver:"fixture")
+        XCTAssertEqual((command(pending,"control.status")["data"] as? [String:Any])?["state"] as? String,"waiting_for_approval")
+        broker.issueUntilStopped(scopes:[.observe,.control], reason:"fixture", requester:"fixture", approver:"fixture")
+        let offer = command(pending,"control.status")["data"] as! [String:Any]
+        XCTAssertEqual(command(pending,"control.accept",["offerGeneration":offer["offerGeneration"]!])["errorCode"] as? String,"locked_use_disabled")
+        XCTAssertEqual(activations,0)
+        server.preparedConsoleReady = { true }
+        let ready = try connect(), next = openPrepared(ready,"prepared")["data"] as! [String:Any]
+        let active = command(ready,"control.accept",["offerGeneration":next["offerGeneration"]!])["data"] as! [String:Any]
+        XCTAssertEqual(activations,1)
+        func effect() -> [String:Any] {
+            command(ready,"control.dispatch",["sessionId":active["sessionId"]!, "resourceGenerations":active["resourceGenerations"]!, "request":["operation":"snapshot"]])
+        }
+        XCTAssertEqual((effect()["data"] as? [String:Any])?["accepted"] as? Bool,true)
+        broker.revoke(reason:"approval_expired")
+        XCTAssertEqual(effect()["accepted"] as? Bool,false)
+        XCTAssertEqual(effects,1)
+        XCTAssertEqual(server.callerTrust.status["enabled"] as? Bool,true)
+    }
+
+    func testPreparedRequestCannotBeClaimedByAnUndelegatedOrMistypedCaller() throws {
+        for value: Any in [true, "true", 1, false] {
+            let response = exchange(try connect(),["operation":"control.open", "schema":AccessAdmission.schema,
+                "requestId":UUID().uuidString, "scopes":["observe","control"], "reason":"fixture", "durationSeconds":60,
+                "waitSeconds":120, "preparedConsole":value])
+            XCTAssertEqual(response["errorCode"] as? String,"invalid_prepared_console_request")
+        }
+        XCTAssertEqual(effects,0)
+    }
+
     func testDelegationDiscoveryReflectsCurrentOperatorChoiceWithoutCreatingAnIntent() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("mc-profile-" + UUID().uuidString)
         try FileManager.default.createDirectory(at:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])

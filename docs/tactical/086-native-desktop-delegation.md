@@ -17,7 +17,7 @@ negative callers, lifecycle cleanup and installed effects pass.
 The first automatic profile permits observation and input/app control only on
 the ordinary local unlocked desktop. Browser/devtools delegation is not yet
 advertised or enrolled.
-It cannot unlock, arm protected use, invoke native sudo, select outer recovery,
+Trust alone cannot unlock, arm protected use, invoke native sudo, select outer recovery,
 or reach a remote target. Existing explicit target-wide access remains an
 explicit cooperative legacy profile; it is never a fallback for a denied
 request carrying delegated-session attribution. No same-user shell containment
@@ -107,3 +107,7 @@ lifecycle/restart qualification and the independent protected-consent
 composition needed for unattended locked tasks. Keep this tactical and the
 coordinating plan active; source/socket fixtures are not distribution or genuine
 hardware takeover acceptance.
+
+The separately typed composition with existing prepared-console consent is
+owned by [Tactical 087](087-prepared-console-delegation.md). It must not widen
+automatic trust itself.

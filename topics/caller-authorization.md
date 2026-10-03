@@ -227,3 +227,10 @@ Native profile discovery is read-only and reflects current operator trust per
 launch. Pending sealed verification is bounded and leaves the resident queue
 responsive; Stop/revision changes fence its completion. See Tactical 086 for
 source and fixture evidence, distinct from installed qualification.
+
+**Decision:** A verified live native session may explicitly compose its trust
+with separately approved current-console observation/control consent and the
+already enabled locked-use helper for a finite covered task. Trust alone remains
+ordinary unlocked access. Tactical 087 owns this additive prepared-console
+profile; direct unlock, administrator, browser/devtools and outer routes remain
+excluded.

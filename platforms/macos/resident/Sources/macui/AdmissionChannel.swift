@@ -49,6 +49,7 @@ final class AdmissionChannel {
     var outer: OuterRecovery?
     private(set) var delegation: DesktopDelegation?
     private var trustRevision = ""
+    private(set) var preparedConsole = false
     private static let verificationSlots = DispatchSemaphore(value:4)
     private var verificationTimeout: DispatchWorkItem?
 
@@ -58,7 +59,7 @@ final class AdmissionChannel {
     }
     func open(_ request: [String:Any]) throws {
         guard let server, caller.uid == getuid(), caller.pid > 0,
-              Set(request.keys).isSubset(of:["operation", "schema", "requestId", "reason", "scopes", "durationSeconds", "waitSeconds", "claimId", "requestSequence", "outerRecovery", "desktopDelegation"]),
+              Set(request.keys).isSubset(of:["operation", "schema", "requestId", "reason", "scopes", "durationSeconds", "waitSeconds", "claimId", "requestSequence", "outerRecovery", "desktopDelegation", "preparedConsole"]),
               request["schema"] as? String == AccessAdmission.schema,
               let names = request["scopes"] as? [String], !names.isEmpty, Set(names).count == names.count,
               names.allSatisfy({ GrantScope(rawValue:$0) != nil }),
@@ -72,6 +73,11 @@ final class AdmissionChannel {
                 throw MacUIError.permission("desktop_delegation_profile_denied")
             }
             delegation = try DesktopDelegation.parse(request["desktopDelegation"])
+        }
+        if let value = request["preparedConsole"] {
+            guard let boolean = value as? NSNumber, CFGetTypeID(boolean) == CFBooleanGetTypeID(), boolean.boolValue,
+                  delegation != nil, scopes == [.observe,.control] else { throw MacUIError.usage("invalid_prepared_console_request") }
+            preparedConsole = true
         }
         if request["outerRecovery"] != nil {
             guard scopes == Set([.observe, .control]) else { throw MacUIError.usage("invalid_outer_scopes") }
@@ -127,9 +133,10 @@ final class AdmissionChannel {
                     guard let server = self.server else { return "resident_stopped" }
                     if let refusal = server.callerTrust.refusal(descriptor:self.descriptor, revision:self.trustRevision, scopes:scopes, checkPeer:false) { return refusal }
                     if broker.journal?.errorCode != nil { return "audit_storage_unavailable" }
-                    if !server.approvalDesktopUnlocked() || (server.grantConsoleObservation()["uid"] as? NSNumber)?.uint32Value != getuid() {
-                        return "desktop_delegation_requires_unlocked_console"
-                    }
+                    if (server.grantConsoleObservation()["uid"] as? NSNumber)?.uint32Value != getuid() { return "desktop_delegation_requires_own_console" }
+                    if self.preparedConsole {
+                        if let refusal = server.preparedConsoleAuthority(scopes:scopes) { return refusal }
+                    } else if !server.approvalDesktopUnlocked() { return "desktop_delegation_requires_unlocked_console" }
                 } else if let refusal = broker.admissionAuthority(scopes:scopes) { return refusal }
                 do { try self.outer?.binding.validate(); return nil }
                 catch { return String(describing:error) }
@@ -196,7 +203,10 @@ final class AdmissionChannel {
                 let view = try outer.map { try $0.binding.transaction(accept) } ?? accept()
                 server.activity.arm(baseline:physicalBaseline)
                 do {
-                    if outer == nil && delegation == nil { try server.activateCovered(self, view:view) }
+                    if outer == nil && (delegation == nil || preparedConsole) {
+                        if preparedConsole && !server.preparedConsoleReady() { throw MacUIError.action("locked_use_disabled") }
+                        try server.activateCovered(self, view:view)
+                    }
                     else if !server.approvalDesktopUnlocked() { throw MacUIError.action("outer_requires_unlocked_host") }
                 }
                 catch { try? admission.cancel(owner:owner, id:intentID); throw error }
@@ -240,7 +250,7 @@ final class AdmissionChannel {
                 if let delegation {
                     data?["ownerAssurance"] = "verified_desktop_integration"
                     data?["desktopSession"] = ["sessionId":delegation.session, "sessionGeneration":delegation.generation]
-                    data?["authorizationProfile"] = "ordinary_local_desktop"
+                    data?["authorizationProfile"] = preparedConsole ? "prepared_console_with_explicit_consent" : "ordinary_local_desktop"
                 }
             }
             let frame = try encodeJSONLine([

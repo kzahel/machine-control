@@ -560,7 +560,8 @@ function App() {
                   Until you turn this off: screen observation and input for
                   authenticated local sessions on the unlocked desktop. Requires
                   a compatible signed YepAnywhere app. Pause keeps this choice;
-                  Stop suspends it.
+                  Stop suspends it. Covered locked tasks also require separately
+                  approved desktop access and enabled locked-screen control.
                 </p>
                 {state.desktopCallerTrust.storageInvalid && (
                   <p className="note">
