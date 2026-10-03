@@ -17,7 +17,7 @@ SOURCES = [
     "bin/machine-control", "client/machine_control.py", "client/scoped_run.py",
     "client/scoped_process.py", "client/agent_interface.py", "client/control_session.py",
     "providers/claims/claims.py", "providers/claims/common.sh", "providers/claims/channel.py",
-    "providers/claims/admission.py", "providers/claims/admission_channel.py", "client/claim_session.py",
+    "providers/claims/admission.py", "providers/claims/admission_channel.py", "client/claim_session.py", "client/outer_session.py",
     "platforms/macos/bin/machost", "platforms/macos/host/machost.py",
     "platforms/windows/host/winhost.py", "platforms/linux/host/linuxhost.py",
 ]

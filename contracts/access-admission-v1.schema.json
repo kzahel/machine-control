@@ -16,6 +16,7 @@
       "properties": {
         "schema": { "$ref": "#/$defs/schema" },
         "requestSequencing": { "const": "strict" },
+        "outerRecovery": { "const": "borrowed_exact_claim/v1" },
         "revision": { "type": "integer", "minimum": 0 },
         "intentId": { "type": "string", "minLength": 1, "maxLength": 80 },
         "state": { "enum": ["waiting_for_approval", "waiting_for_resource", "waiting_for_user_idle", "paused", "announcing", "offered", "active", "ended"] },

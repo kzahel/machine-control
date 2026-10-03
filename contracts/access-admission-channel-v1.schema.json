@@ -75,6 +75,9 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 9223372036854775807
+        },
+        "outerRecovery": {
+          "$ref": "outer-borrow-v1.schema.json"
         }
       }
     },

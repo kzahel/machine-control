@@ -136,6 +136,56 @@ final class AdmissionChannelTests: XCTestCase {
         XCTAssertEqual(open(next, "successor")["state"] as? String, "offered")
         XCTAssertEqual(effects, 0)
     }
+    func testOuterVmsAndPhysicalOwnerShareDesktopAndPausedReferencesFail() throws {
+        let directory = NSTemporaryDirectory() + "mc-live-outer-" + UUID().uuidString
+        try FileManager.default.createDirectory(atPath:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])
+        defer { try? FileManager.default.removeItem(atPath:directory) }
+        func binding(_ name: String) throws -> [String:Any] {
+            let value = OuterClaimBinding(directory:directory, provider:"tart-macos", resource:name,
+                claim:"c-" + String(repeating:"a",count:24), windowName:name, width:640,height:480,generation:1)
+            let format = ISO8601DateFormatter(), now = Date()
+            let record: [String:Any] = ["schema":"machine-control-target-claim-record/v0",
+                "resource":["provider":"tart-macos","id":name],"generation":1,
+                "active":["claimId":value.claim,"mode":"exclusive","useClass":"disruptive","generation":1,
+                    "acquiredAt":format.string(from:now.addingTimeInterval(-1)),"expiresAt":format.string(from:now.addingTimeInterval(60))]]
+            let path = directory + "/resource-" + value.digest + ".json"
+            try JSONSerialization.data(withJSONObject:record).write(to:URL(fileURLWithPath:path)); chmod(path, 0o600)
+            return ["schema":"machine-control-outer-borrow/v1","directory":directory,"provider":"tart-macos","resource":name,
+                "claimId":value.claim,"generation":1,"windowName":name,"displayWidth":640,"displayHeight":480]
+        }
+        server.outerRecoveryFactory = { [fixture] binding in
+            let value = OuterRecovery(binding:binding, input:{ _ in fixture.effects += 1 })
+            value.resolve = { OuterRecovery.Window(id:1,pid:123,bounds:CGRect(x:0,y:0,width:640,height:508)) }
+            value.consoleUnlocked = { true }; value.activate = { _ in true }; value.foreground = { _ in true }
+            return value
+        }
+        func openOuter(_ fd: Int32, _ name: String) throws -> [String:Any] {
+            let reply = exchange(fd,["operation":"control.open","schema":AccessAdmission.schema,"requestId":name,
+                "scopes":["observe","control"],"reason":"Explicit fixture recovery","durationSeconds":60,"waitSeconds":120,
+                "outerRecovery":try binding(name)])
+            XCTAssertEqual(reply["accepted"] as? Bool,true); return reply["data"] as! [String:Any]
+        }
+        let a = try connect(), b = try connect(), physical = try connect()
+        let first = try openOuter(a,"first-vm"), second = try openOuter(b,"second-vm")
+        XCTAssertEqual(first["outerRecovery"] as? String,"borrowed_exact_claim/v1")
+        XCTAssertEqual(first["state"] as? String,"offered")
+        XCTAssertEqual(second["state"] as? String,"waiting_for_resource")
+        XCTAssertEqual(open(physical,"physical")["state"] as? String,"waiting_for_resource")
+        let active = command(a,"control.accept",["offerGeneration":first["offerGeneration"]!])["data"] as! [String:Any]
+        func dispatch(_ request: [String:Any]) -> [String:Any] {
+            command(a,"control.dispatch",["sessionId":active["sessionId"]!,"resourceGenerations":active["resourceGenerations"]!,"request":request])
+        }
+        let prepared = dispatch(["operation":"outer.prepare"])["data"] as! [String:Any]
+        XCTAssertEqual(prepared["accepted"] as? Bool,true)
+        let ref = (prepared["data"] as! [String:Any])["reference"]!
+        XCTAssertEqual(dispatch(["operation":"outer.begin","reference":ref])["accepted"] as? Bool,true)
+        XCTAssertEqual(dispatch(["operation":"outer.step","reference":ref,"kind":"click","x":10,"y":10])["accepted"] as? Bool,true)
+        XCTAssertEqual(effects,1)
+        try broker.pause(); try broker.resume()
+        XCTAssertEqual(dispatch(["operation":"outer.step","reference":ref,"kind":"click","x":10,"y":10])["accepted"] as? Bool,false)
+        XCTAssertEqual((command(b,"control.status")["data"] as! [String:Any])["state"] as? String,"offered")
+        XCTAssertEqual(effects,1)
+    }
     func testWireNumbersCannotBeBooleanOrFractional() {
         XCTAssertNil(admissionInteger(true))
         XCTAssertNil(admissionInteger(1.5))

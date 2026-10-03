@@ -46,13 +46,14 @@ final class AdmissionChannel {
     private var dispatching = false
     private weak var server: ResidentServer?
     var coveredOwner: Int32 = -1
+    var outer: OuterRecovery?
 
     init(_ descriptor: Int32, caller: CallerIdentity, server: ResidentServer) {
         self.descriptor = descriptor; self.caller = caller; self.server = server
     }
     func open(_ request: [String:Any]) throws {
         guard let server, caller.uid == getuid(), caller.pid > 0,
-              Set(request.keys).isSubset(of:["operation", "schema", "requestId", "reason", "scopes", "durationSeconds", "waitSeconds", "claimId", "requestSequence"]),
+              Set(request.keys).isSubset(of:["operation", "schema", "requestId", "reason", "scopes", "durationSeconds", "waitSeconds", "claimId", "requestSequence", "outerRecovery"]),
               request["schema"] as? String == AccessAdmission.schema,
               let names = request["scopes"] as? [String], !names.isEmpty, Set(names).count == names.count,
               names.allSatisfy({ GrantScope(rawValue:$0) != nil }),
@@ -61,14 +62,21 @@ final class AdmissionChannel {
               let reason = request["reason"] as? String,
               let requestID = request["requestId"] as? String, order.accept(request) else { throw MacUIError.usage("invalid_admission_request") }
         scopes = Set(names.compactMap(GrantScope.init(rawValue:)))
+        if request["outerRecovery"] != nil {
+            guard scopes == Set([.observe, .control]) else { throw MacUIError.usage("invalid_outer_scopes") }
+            let binding = try OuterClaimBinding.parse(request["outerRecovery"])
+            outer = server.outerRecoveryFactory(binding)
+        }
         let flags = fcntl(descriptor, F_GETFL)
         guard flags >= 0, fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) == 0 else { throw MacUIError.action("control_transport_unavailable") }
         let broker = server.broker
         let view = try broker.admission.submit(owner:owner, requestID:requestID, resources:["desktop"],
             wait:Double(wait), duration:Double(duration), reason:reason,
-            authority:{ [weak broker, scopes] in
-                guard let broker else { return "resident_stopped" }
-                return broker.admissionAuthority(scopes:scopes)
+            authority:{ [weak broker, weak self, scopes] in
+                guard let broker, let self else { return "resident_stopped" }
+                if let refusal = broker.admissionAuthority(scopes:scopes) { return refusal }
+                do { try self.outer?.binding.validate(); return nil }
+                catch { return String(describing:error) }
             },
             notice:server.approvalDesktopUnlocked() ? server.noticeSeconds : 0)
         intentID = view["intentId"] as! String
@@ -115,9 +123,13 @@ final class AdmissionChannel {
             case "control.accept":
                 guard let generation = admissionInteger(request["offerGeneration"]) else { throw MacUIError.usage("invalid_activation_offer") }
                 let physicalBaseline = server.activity.physicalAt
-                let view = try admission.accept(owner:owner, id:intentID, generation:generation)
+                let accept = { try admission.accept(owner:self.owner, id:self.intentID, generation:generation) }
+                let view = try outer.map { try $0.binding.transaction(accept) } ?? accept()
                 server.activity.arm(baseline:physicalBaseline)
-                do { try server.activateCovered(self, view:view) }
+                do {
+                    if outer == nil { try server.activateCovered(self, view:view) }
+                    else if !server.approvalDesktopUnlocked() { throw MacUIError.action("outer_requires_unlocked_host") }
+                }
                 catch { try? admission.cancel(owner:owner, id:intentID); throw error }
                 reply(id, data:view)
             case "control.cancel":
@@ -152,7 +164,10 @@ final class AdmissionChannel {
         guard !closed else { return }
         do {
             var data = data
-            if data?["schema"] as? String == AccessAdmission.schema { data?["requestSequencing"] = "strict" }
+            if data?["schema"] as? String == AccessAdmission.schema {
+                data?["requestSequencing"] = "strict"
+                if outer != nil { data?["outerRecovery"] = "borrowed_exact_claim/v1" }
+            }
             let frame = try encodeJSONLine([
                 "schema":Self.schema, "requestId":id, "accepted":error == nil,
                 "errorCode":error as Any? ?? NSNull(), "data":data as Any? ?? NSNull()])
@@ -206,6 +221,7 @@ final class AdmissionChannel {
     }
     func close() {
         guard !closed else { return }; closed = true
+        outer?.invalidate()
         writeSource?.cancel(); writeSource = nil
         writeTimeout?.cancel(); writeTimeout = nil
         outgoing.removeAll()

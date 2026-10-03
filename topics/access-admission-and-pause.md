@@ -310,6 +310,10 @@ and queued claim handoff have independent counter/stale-reference evidence.
 Bounded physical Mac presentation, pause, persistence and Stop are qualified;
 revised protected takeover/quiet resumption remains a separate gate. Windows
 ordinary approval is still timed and memory-only, and native acceptance remains
-unavailable. Shared outer resource arbitration and authenticated integration
+unavailable. Native shared outer input now borrows an existing exact VM claim under the
+claim-store operation lock and the host desktop fence; socket fixtures cover
+two VM contenders, physical contention and stale input refusal. Actual Tart/UTM
+effect acceptance remains pending in [Tactical 084](../docs/tactical/084-native-outer-desktop-admission.md).
+Authenticated integration
 remain open. The [API guide](../docs/access-admission.md) owns wire/client details;
 linked tacticals own execution evidence.

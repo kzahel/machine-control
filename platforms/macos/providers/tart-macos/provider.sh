@@ -239,34 +239,22 @@ host_control() {
     /usr/bin/swift "$PROVIDER_DIR/host-control.swift" "$@"
 }
 
-input_click() {
+outer_input() {
     macvm_assert_outer_input_allowed
-    if [[ $# -lt 2 || $# -gt 3 ]]; then
-        printf 'Usage: macvm click X Y [left|right|middle|double]\n' >&2
-        return 2
-    fi
-    local button="${3:-left}"
-    local width height
+    local operation="$1" width height
+    shift
     read -r width height < <(display_parts)
-    host_control click "$MACVM_NAME" "$width" "$height" "$1" "$2" "$button"
+    "${MACHINE_CONTROL_CLAIMS_PYTHON:-python3}" "$MACVM_REPO_DIR/../../providers/outer/macos.py" \
+        --state-dir "$MACVM_CLAIM_STATE_DIR" --provider tart-macos \
+        --resource "$MACVM_EXPECTED_NAME" --window-name "$MACVM_NAME" \
+        --width "$width" --height "$height" -- "$operation" "$@"
 }
 
-input_type() {
-    macvm_assert_outer_input_allowed
-    if [[ $# -ne 1 ]]; then
-        printf 'Usage: macvm type TEXT\n' >&2
-        return 2
-    fi
-    host_control type "$MACVM_NAME" "$1"
-}
-
+input_click() { outer_input click "$@"; }
+input_type() { outer_input type "$@"; }
 input_secret() {
     macvm_assert_outer_input_allowed
     macvm_assert_candidate_target
-    [[ $# -eq 0 ]] || {
-        printf 'Usage: macvm type-secret\n' >&2
-        return 2
-    }
     local secret_file="${MACVM_ADMIN_SECRET_FILE:-}"
     if [[ -z "$secret_file" || ! -f "$secret_file" || -L "$secret_file" ||
           "$(/usr/bin/stat -f %Lp "$secret_file" 2>/dev/null)" != 600 ||
@@ -275,28 +263,13 @@ input_secret() {
         printf 'A nonempty owner-only guest credential file is required\n' >&2
         return 1
     fi
-    host_control type-secret "$MACVM_NAME" < "$secret_file"
+    # No fallback to global HID input that could bypass Pause. The native
+    # bridge must discover a verified credential field before consuming bytes.
+    printf 'secret_safe_outer_transport_unavailable\n' >&2
+    return 1
 }
-
-input_drag() {
-    macvm_assert_outer_input_allowed
-    if [[ $# -ne 4 ]]; then
-        printf 'Usage: macvm drag X1 Y1 X2 Y2\n' >&2
-        return 2
-    fi
-    local width height
-    read -r width height < <(display_parts)
-    host_control drag "$MACVM_NAME" "$width" "$height" "$@"
-}
-
-input_key() {
-    macvm_assert_outer_input_allowed
-    if [[ $# -ne 1 ]]; then
-        printf 'Usage: macvm key CHORD\n' >&2
-        return 2
-    fi
-    host_control key "$MACVM_NAME" "$1"
-}
+input_drag() { outer_input drag "$@"; }
+input_key() { outer_input key "$@"; }
 
 guest_shutdown() {
     macvm_assert_mutation_target

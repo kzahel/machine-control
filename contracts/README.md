@@ -89,3 +89,7 @@ The [live admission channel schema](access-admission-channel-v1.schema.json) and
 - [Claim admission channel v1](claim-admission-channel-v1.schema.json) defines
   connection-owned waits, short offers, exact claim activation and cancellation.
   Its claimant assurance remains self-asserted; it does not grant desktop access.
+
+- [Outer borrow v1](outer-borrow-v1.schema.json) describes private adapter-derived
+  controller-local VM claim binding. It is not a public target projection or
+  authenticated caller credential.

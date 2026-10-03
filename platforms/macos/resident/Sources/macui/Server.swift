@@ -98,6 +98,9 @@ final class ResidentServer {
     var noticeSeconds = 10.0
     var coveredActivation: ((AdmissionChannel, [String:Any]) throws -> Void)?
     var controlledProvider: (([String:Any]) -> [String:Any])?
+    var outerRecoveryFactory: (OuterClaimBinding) -> OuterRecovery = {
+        OuterRecovery(binding:$0, input:OuterRecovery.emitNative)
+    }
     private var channels: [Int32:AdmissionChannel] = [:]
     private var noticePolicyState = ""
     var notice: AdmissionNotice?
@@ -131,6 +134,48 @@ final class ResidentServer {
                             generations: [String:Int], completion: @escaping ([String:Any]) -> Void) {
         var action = original
         let operation = action["operation"] as? String ?? ""
+        if operation.hasPrefix("outer.") {
+            guard let outer = channel.outer else {
+                completion(service.refusal(action, code:"outer_binding_required", message:"Outer recovery requires an exact borrowed VM claim")); return
+            }
+            guard broker.journal?.begin(action, caller:channel.caller) != false else {
+                completion(service.refusal(action, code:"audit_storage_unavailable", message:"Audit storage unavailable")); return
+            }
+            outer.fence = { [weak self, weak channel] in
+                guard let self, let channel else { throw MacUIError.action("owner_disconnected") }
+                self.refreshAdmission()
+                if let refusal = self.broker.admission.authorize(owner:channel.owner, id:channel.intentID, session:session, generations:generations) { throw MacUIError.action(refusal) }
+                if let refusal = self.service.inputCancellation() { throw MacUIError.action(refusal) }
+            }
+            do {
+                let data: [String:Any]
+                switch operation {
+                case "outer.prepare": data = try outer.prepare()
+                case "outer.begin": try outer.begin(action); data = ["delivery":"confirmed", "effect":"unverifiable"]
+                case "outer.step": try outer.step(action); data = ["delivery":"confirmed", "effect":"unverifiable"]
+                default: throw MacUIError.usage("unsupported_outer_operation")
+                }
+                try outer.fence()
+                var response = service.acceptance(action, data:data)
+                response["actualRoute"] = "host.user/macos-native.outer"
+                response["hostInterference"] = "focus_cursor_keyboard"
+                response["delivery"] = operation == "outer.prepare" ? "not_applicable" : "confirmed"
+                response["effect"] = "unverifiable"
+                response["uncertainty"] = "no_independent_guest_effect"
+                if broker.journal?.record(response) == false {
+                    response["accepted"] = false; response["errorCode"] = "audit_storage_unavailable"
+                    response["uncertainty"] = "audit_result_not_persisted"
+                }
+                completion(response)
+            } catch {
+                outer.cleanup()
+                var response = service.refusal(action, code:String(describing:error), message:"Outer recovery refused")
+                response["uncertainty"] = operation == "outer.prepare" ? "none" : "interrupted_after_possible_dispatch"
+                response["retrySafety"] = "unsafe"
+                _ = broker.journal?.record(response); completion(response)
+            }
+            return
+        }
         if let refusal = lockedUse.refusal(action) {
             completion(service.refusal(action, code:refusal.code, message:refusal.message)); return
         }
@@ -197,7 +242,8 @@ final class ResidentServer {
         // Bind synchronously when approval is issued, including a lock that
         // follows before the next timer tick. Never adopt an unbound grant later.
         broker.observe { [weak self] in self?.bindApprovedConsole() }
-        broker.admission.sessionEnded = { [weak self] _, _, reason in
+        broker.admission.sessionEnded = { [weak self] owner, _, reason in
+            self?.channels.values.first(where:{ $0.owner == owner })?.outer?.invalidate()
             self?.activity.disarm()
             self?.lockedUse.end(reason == "paused" ? "operator_paused" : reason)
         }
@@ -514,7 +560,7 @@ final class ResidentServer {
                 data["lockedUse"] = lockedUse.status
                 data["physicalActivity"] = activity.status
                 data["admission"] = broker.admission.status
-                data["admissionChannel"] = ["schema":AdmissionChannel.schema, "ownerBinding":"live_same_user_transport", "callerAssurance":"unverified_same_user", "delegatedAutomaticAccess":false]
+                data["admissionChannel"] = ["schema":AdmissionChannel.schema, "ownerBinding":"live_same_user_transport", "callerAssurance":"unverified_same_user", "delegatedAutomaticAccess":false, "outerRecovery":"borrowed_exact_claim/v1"]
                 var browserStatus = browser.statusJSON
                 browserStatus["devtoolsEndpoint"] = devtools.endpoint ?? NSNull()
                 data["browser"] = browserStatus

@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machine-control.invalid/contracts/outer-borrow-v1.schema.json",
+  "title": "Private controller-local exact VM claim borrow",
+  "description": "Adapter-derived private binding, never a public target projection or caller authentication credential. No concrete deployment values belong in repository evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "provider",
+    "directory",
+    "resource",
+    "windowName",
+    "claimId",
+    "generation",
+    "displayWidth",
+    "displayHeight"
+  ],
+  "properties": {
+    "schema": {
+      "const": "machine-control-outer-borrow/v1"
+    },
+    "provider": {
+      "enum": [
+        "tart-macos",
+        "utm-macos"
+      ]
+    },
+    "directory": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "resource": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "windowName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "claimId": {
+      "type": "string",
+      "pattern": "^c-[a-f0-9]{24}$"
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "displayWidth": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 32768
+    },
+    "displayHeight": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 32768
+    }
+  }
+}

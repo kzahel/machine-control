@@ -645,8 +645,11 @@ case "$command" in
         ;;
     drag)
         linuxvm_assert_outer_ui_allowed
-        host_control drag "$LINUXVM_UTM_NAME" "$LINUXVM_DISPLAY_WIDTH" \
-            "$LINUXVM_DISPLAY_HEIGHT" "$@"
+        linuxvm_assert_mutation_target
+        "${MACHINE_CONTROL_CLAIMS_PYTHON:-python3}" "$LINUXVM_REPO_DIR/../../providers/outer/macos.py" \
+            --state-dir "$LINUXVM_CLAIM_STATE_DIR" --provider utm-macos \
+            --resource "$LINUXVM_EXPECTED_UUID" --window-name "$LINUXVM_UTM_NAME" \
+            --width "$LINUXVM_DISPLAY_WIDTH" --height "$LINUXVM_DISPLAY_HEIGHT" -- drag "$@"
         ;;
     type)
         linuxvm_assert_outer_ui_allowed

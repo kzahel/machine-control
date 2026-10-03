@@ -129,3 +129,27 @@ uses constant replay memory throughout a bounded four-hour wait.
 Older providers omit this field and newer clients retain their legacy framing.
 Older unsequenced clients keep the bounded 4,096-ID connection budget. Ordered
 framing does not renew authority, extend useful deadlines or replay an action.
+
+### Controller-local outer recovery
+
+`OuterSession` opens a host desktop channel with the adapter-derived
+[private borrowed-claim binding](../contracts/outer-borrow-v1.schema.json).
+The native intent must negotiate `outerRecovery: "borrowed_exact_claim/v1"`;
+an older provider cannot silently fall back to global host input. `prepare()`
+discovers a finite window/geometry reference, `begin()` requests focus, and
+`step()` sends one typed key/click/drag primitive. Interrupted input is never
+replayed and a resumed session requires fresh discovery.
+
+The native arbiter reserves the host desktop, while the existing exact VM lease
+remains borrowed under its own deadline. Activation and each native input effect
+validate that lease under the claim store's operation lock; failed activation
+leaves the existing VM holder intact. All direct physical host use and global
+VM input through this controller contend on that desktop. Inner VM control and
+VM-directed/capture-only outer routes keep their narrower resources. Existing
+absolute route prohibitions, disruptive class and attendance checks still apply.
+
+This is cooperative controller-local coordination, not authenticated session
+admission or a distributed transaction. Credential input and diagnostic
+Control/Option/Fn chords are unsupported by this bridge. See
+[Tactical 084](tactical/084-native-outer-desktop-admission.md) for the measured
+fixture boundary and outstanding live acceptance.

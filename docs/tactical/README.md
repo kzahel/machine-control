@@ -149,3 +149,4 @@ the commits' `Topic:` trailers and register that exact string in
 - [081 — Mac admission presentation and consent acceptance](081-macos-admission-physical-acceptance.md).
 - [082 — Live queued target-use claims](082-queued-target-claims.md).
 - [083 — Long-lived admission channels](083-long-lived-admission-channels.md).
+- [084 — Native outer desktop admission](084-native-outer-desktop-admission.md).
