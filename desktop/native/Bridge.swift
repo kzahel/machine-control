@@ -30,6 +30,7 @@ public func mcDesktopMode(_ input: UnsafePointer<CChar>) -> Int32 {
         if args == ["locked-use-guardian"] { try runLockedUseGuardian() }
         if args == ["screen-capture-preflight"] { print(CGPreflightScreenCaptureAccess()); return 1 }
         if let origin = args.first, origin.hasPrefix("chrome-extension://") { runBrowserHost(origin: origin) }
+        if args.first == "channel", args.count == 2 { try runAdmissionProxy(socketPath:args[1]); return 1 }
         if args.first == "request", (2...3).contains(args.count) {
             let data = args.count >= 3 ? Data(args[2].utf8) : FileHandle.standardInput.readDataToEndOfFile()
             try runResidentClient(socketPath: args[1], requestData: data)
@@ -69,6 +70,7 @@ public func mcDesktopStart(_ path: UnsafePointer<CChar>) -> UnsafeMutablePointer
             let reference = (request["reference"] as? String).flatMap { server?.service.referencedProcess($0) }
             return selfTargetRefusal(request, own: own, referencedProcess: reference)
         }
+        server.activity.enable()
         try server.start()
         server.devtools.start()
         desktopServer = server
@@ -110,6 +112,7 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                     "manualUntilStoppedSupported": true,
                     "pauseSupported": true,
                     "admission": server.broker.admission.status,
+                    "physicalActivity": server.activity.status,
                     "lockedUse": server.lockedUse.status,
                     "socket": server.socketPath, "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "development"]
                 if let pending = desktopApprover.request {

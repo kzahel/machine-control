@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="../../src/MachineControl.Windows/DesktopJournal.cs" Link="DesktopJournal.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopGrants.cs" Link="DesktopGrants.cs" />
+    <Compile Include="../../src/MachineControl.Windows/AdmissionChannel.cs" Link="AdmissionChannel.cs" />
     <Compile Include="../../src/MachineControl.Windows/AccessAdmission.cs" Link="AccessAdmission.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopUpdates.cs" Link="DesktopUpdates.cs" />
     <Compile Include="../../src/MachineControl.Windows/BrowserWire.cs" Link="BrowserWire.cs" />

@@ -140,3 +140,5 @@ the commits' `Topic:` trailers and register that exact string in
   desktop 0.5.3 publication for all six Mac/Windows/Linux architectures.
 
 - [077 — Mac locked quiet resumption](077-mac-quiet-resumption.md): root pause reasons, locked quiet eligibility and operator Resume; physical acceptance pending.
+
+- [078 — Live desktop admission channels](078-live-admission-channels.md): owner-bound queues, fenced dispatch, activity monitor and standalone client; native acceptance pending.

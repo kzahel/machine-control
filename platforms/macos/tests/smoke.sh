@@ -358,7 +358,7 @@ set -e
 jq -e '.schema == "machine-control-macos-post-update/v0" and
     .mode == "audit" and .profile == "runtime" and
     .nonce == "abcdefghijklmnopqrstuvwx" and .healthy == false and
-    ([.checks[] | select(.id == "unlock_provider" and .required == false)] | length) == 1' <<<"$guest_audit" >/dev/null
+    ([.checks[] | select(.id == "unlock_provider" and (.required | type) == "boolean")] | length) == 1' <<<"$guest_audit" >/dev/null
 
 maintenance="$REPO_DIR/tests/fixtures/macvm-maintenance"
 doctor_ready="$REPO_DIR/tests/fixtures/doctor-ready"

@@ -108,7 +108,7 @@ internal sealed class BrowserRelay(DesktopGrants grants)
         }
     }
 
-    private async Task SendAsync(JsonObject? frame, CancellationToken cancellation)
+    private async Task SendAsync(JsonObject? frame, CancellationToken cancellation, bool controlled = false)
     {
         await _writes.WaitAsync(cancellation);
         try
@@ -117,8 +117,8 @@ internal sealed class BrowserRelay(DesktopGrants grants)
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
             timeout.CancelAfter(TimeSpan.FromSeconds(3));
             var generation = grants.Generation;
-            var browser = grants.Authorize("browser.tabs") is null;
-            var devtools = grants.Authorize("browser.eval") is null;
+            var browser = grants.Authorize("browser.tabs", controlled: true) is null;
+            var devtools = grants.Authorize("browser.eval", controlled: true) is null;
             var state = generation + browser + devtools;
             if (state != _publishedState)
             {
@@ -130,7 +130,7 @@ internal sealed class BrowserRelay(DesktopGrants grants)
             if (frame is not null)
             {
                 var operation = frame["operation"]?.GetValue<string>();
-                if (operation is not null && grants.Authorize(operation, frame["grantGeneration"]?.GetValue<string>()) is not null)
+                if (operation is not null && grants.Authorize(operation, frame["grantGeneration"]?.GetValue<string>(), controlled) is not null)
                     throw new OperationCanceledException("Browser authority changed before dispatch");
                 frame.Remove("grantGeneration");
                 await BrowserWire.WriteAsync(provider, frame, timeout.Token);
@@ -139,7 +139,7 @@ internal sealed class BrowserRelay(DesktopGrants grants)
         finally { _writes.Release(); }
     }
 
-    internal async Task<Result> ExecuteAsync(Request request, Result envelope, CancellationToken cancellation)
+    internal async Task<Result> ExecuteAsync(Request request, Result envelope, CancellationToken cancellation, bool controlled = false)
     {
         if (request.TimeoutMs is < 100 or > 45000)
             return envelope with { ErrorCode = "invalid_request", Message = "Browser timeout must be 100-45000 ms" };
@@ -153,7 +153,7 @@ internal sealed class BrowserRelay(DesktopGrants grants)
             FocusConsequence = "browser_tab_may_activate",
             CursorConsequence = "unchanged_expected"
         };
-        var refusal = grants.Authorize(request.Operation, request.ExpectedGeneration);
+        var refusal = grants.Authorize(request.Operation, request.ExpectedGeneration, controlled);
         if (refusal is not null) return result with { ErrorCode = refusal };
         if (!Connected) return result with { ErrorCode = "browser_provider_unavailable" };
         var parameters = JsonSerializer.SerializeToNode(request, Contract.Json)!.AsObject();
@@ -172,7 +172,7 @@ internal sealed class BrowserRelay(DesktopGrants grants)
         try
         {
             // Recheck after asynchronous scheduling and before dispatch.
-            refusal = grants.Authorize(request.Operation, generation);
+            refusal = grants.Authorize(request.Operation, generation, controlled);
             if (refusal is not null) return result with { ErrorCode = refusal };
             await SendAsync(new JsonObject
             {
@@ -181,10 +181,10 @@ internal sealed class BrowserRelay(DesktopGrants grants)
                 ["operation"] = request.Operation,
                 ["grantGeneration"] = generation,
                 ["params"] = parameters
-            }, cancellation);
+            }, cancellation, controlled);
             dispatched = true;
             var response = await completion.Task.WaitAsync(TimeSpan.FromMilliseconds(request.TimeoutMs ?? 45000), cancellation);
-            refusal = grants.Authorize(request.Operation, generation);
+            refusal = grants.Authorize(request.Operation, generation, controlled);
             if (refusal is not null || providerGeneration != _providerGeneration)
                 return Uncertain(result, refusal ?? "browser_provider_changed");
             if (response["ok"]?.GetValue<bool>() != true)

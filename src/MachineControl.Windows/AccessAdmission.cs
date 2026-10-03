@@ -12,10 +12,12 @@ internal sealed class AccessAdmission(TimeProvider? time = null, object? gate = 
     private readonly List<Intent> _intents = [];
     private readonly Queue<object> _events = new();
     private long _revision;
+    private bool _refreshing;
     internal double QueueLeaseSeconds { get; init; } = 60;
     internal double OfferSeconds { get; init; } = 15;
     internal double ActiveHeartbeatSeconds { get; init; } = 5;
     internal event Action<string, string, string>? SessionEnded;
+    internal event Action? SessionActivated;
 
     private double Now => (double)_time.GetTimestamp() / _time.TimestampFrequency;
 
@@ -156,6 +158,7 @@ internal sealed class AccessAdmission(TimeProvider? time = null, object? gate = 
                 intent.Generations.Add(resource, ++item.Generation);
             }
             Change("session.activated", intent);
+            SessionActivated?.Invoke();
             return View(intent);
         }
     }
@@ -221,69 +224,81 @@ internal sealed class AccessAdmission(TimeProvider? time = null, object? gate = 
     {
         lock (Gate)
         {
-            var now = Now;
-            foreach (var resource in _resources.Values)
-                foreach (var reason in resource.Pauses.Where(p => p.Value is { } end && now >= end).Select(p => p.Key).ToArray())
-                { resource.Pauses.Remove(reason); Change("resource.pause_expired"); }
-            foreach (var intent in _intents.Where(i => i.Terminal is null).ToArray())
+            if (_refreshing) return;
+            _refreshing = true;
+            try
             {
-                var denied = intent.Authority();
-                intent.AuthorizationBlock = denied;
-                if (denied is not null && (denied != "approval_required" || intent.Session is not null))
-                { Finish(intent, denied); continue; }
-                if (now >= intent.Heartbeat) { Finish(intent, intent.Session is null ? "queue_lease_expired" : "owner_disconnected"); continue; }
-                if (intent.Session is not null)
+                var now = Now;
+                foreach (var resource in _resources.Values)
+                    foreach (var reason in resource.Pauses.Where(p => p.Value is { } end && now >= end).Select(p => p.Key).ToArray())
+                    { resource.Pauses.Remove(reason); Change("resource.pause_expired"); }
+                foreach (var intent in _intents.Where(i => i.Terminal is null).ToArray())
                 {
-                    if (now >= intent.ActiveDeadline) { Finish(intent, "duration_expired"); continue; }
-                    if (intent.Resources.Any(r => ResourceBlocks(_resources[r]).Length > 0))
+                    var denied = intent.Authority();
+                    intent.AuthorizationBlock = denied;
+                    if (intent.Terminal is not null) continue;
+                    if (denied is not null && (denied != "approval_required" || intent.Session is not null))
+                    { Finish(intent, denied); continue; }
+                    if (now >= intent.Heartbeat) { Finish(intent, intent.Session is null ? "queue_lease_expired" : "owner_disconnected"); continue; }
+                    if (intent.Session is not null)
                     {
-                        Release(intent, "paused");
-                        intent.State = "paused";
-                        intent.Heartbeat = now + QueueLeaseSeconds;
-                        // Yield position without extending the caller deadline.
-                        _intents.Remove(intent); _intents.Add(intent);
+                        if (now >= intent.ActiveDeadline) { Finish(intent, "duration_expired"); continue; }
+                        if (intent.Resources.Any(r => ResourceBlocks(_resources[r]).Length > 0))
+                        {
+                            Release(intent, "paused");
+                            intent.State = "paused";
+                            intent.Heartbeat = now + QueueLeaseSeconds;
+                            // Yield position without extending the caller deadline.
+                            _intents.Remove(intent); _intents.Add(intent);
+                        }
+                    }
+                    else if (now >= intent.Deadline) Finish(intent, "wait_deadline_exceeded");
+                    else if (intent.State == "offered" && now >= intent.OfferDeadline) Finish(intent, "activation_offer_expired");
+                }
+                var reserved = _resources.Where(pair => pair.Value.Holder is not null).Select(pair => pair.Key).ToHashSet();
+                foreach (var intent in _intents.Where(i => i.Terminal is null && i.Session is null))
+                {
+                    if (intent.AuthorizationBlock is not null)
+                    {
+                        if (intent.State != "waiting_for_approval")
+                        { intent.State = "waiting_for_approval"; intent.OfferGeneration = 0; Change("intent.waiting", intent); }
+                        continue;
+                    }
+                    var blocks = intent.Resources.SelectMany(r => ResourceBlocks(_resources[r])).Distinct().Order().ToArray();
+                    var contended = intent.Resources.Any(reserved.Contains);
+                    if (blocks.Length > 0 || contended)
+                    {
+                        var state = blocks.Length > 0 ? "paused" : "waiting_for_resource";
+                        if (intent.State != state) { intent.State = state; intent.OfferGeneration = 0; Change("intent.waiting", intent); }
+                        continue;
+                    }
+                    // Notices/offers reserve the complete set for this pass only,
+                    // never a partial set while unavailable.
+                    foreach (var resource in intent.Resources) reserved.Add(resource);
+                    if (intent.State is not ("announcing" or "offered"))
+                    {
+                        intent.NoticeDeadline = now + intent.Notice;
+                        intent.State = intent.Notice > 0 ? "announcing" : "offered";
+                        intent.OfferDeadline = now + OfferSeconds;
+                        intent.OfferGeneration = Change("intent.eligible", intent);
+                    }
+                    if (intent.State == "announcing" && now >= intent.NoticeDeadline)
+                    {
+                        intent.State = "offered";
+                        intent.OfferDeadline = now + OfferSeconds;
+                        intent.OfferGeneration = Change("intent.offered", intent);
                     }
                 }
-                else if (now >= intent.Deadline) Finish(intent, "wait_deadline_exceeded");
-                else if (intent.State == "offered" && now >= intent.OfferDeadline) Finish(intent, "activation_offer_expired");
+                var terminal = _intents.Where(i => i.Terminal is not null).ToArray();
+                foreach (var intent in terminal.Take(Math.Max(0, terminal.Length - 256))) _intents.Remove(intent);
             }
-            var reserved = _resources.Where(pair => pair.Value.Holder is not null).Select(pair => pair.Key).ToHashSet();
-            foreach (var intent in _intents.Where(i => i.Terminal is null && i.Session is null))
-            {
-                if (intent.AuthorizationBlock is not null)
-                {
-                    if (intent.State != "waiting_for_approval")
-                    { intent.State = "waiting_for_approval"; intent.OfferGeneration = 0; Change("intent.waiting", intent); }
-                    continue;
-                }
-                var blocks = intent.Resources.SelectMany(r => ResourceBlocks(_resources[r])).Distinct().Order().ToArray();
-                var contended = intent.Resources.Any(reserved.Contains);
-                if (blocks.Length > 0 || contended)
-                {
-                    var state = blocks.Length > 0 ? "paused" : "waiting_for_resource";
-                    if (intent.State != state) { intent.State = state; intent.OfferGeneration = 0; Change("intent.waiting", intent); }
-                    continue;
-                }
-                // Notices/offers reserve the complete set for this pass only,
-                // never a partial set while unavailable.
-                foreach (var resource in intent.Resources) reserved.Add(resource);
-                if (intent.State is not ("announcing" or "offered"))
-                {
-                    intent.NoticeDeadline = now + intent.Notice;
-                    intent.State = intent.Notice > 0 ? "announcing" : "offered";
-                    intent.OfferDeadline = now + OfferSeconds;
-                    intent.OfferGeneration = Change("intent.eligible", intent);
-                }
-                if (intent.State == "announcing" && now >= intent.NoticeDeadline)
-                {
-                    intent.State = "offered";
-                    intent.OfferDeadline = now + OfferSeconds;
-                    intent.OfferGeneration = Change("intent.offered", intent);
-                }
-            }
-            var terminal = _intents.Where(i => i.Terminal is not null).ToArray();
-            foreach (var intent in terminal.Take(Math.Max(0, terminal.Length - 256))) _intents.Remove(intent);
+            finally { _refreshing = false; }
         }
+    }
+
+    internal bool Reserved
+    {
+        get { lock (Gate) { Refresh(); return _intents.Any(i => i.Terminal is null && i.State is "active" or "offered" or "announcing"); } }
     }
 
     internal object Status()

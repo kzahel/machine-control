@@ -103,6 +103,12 @@ case "${1:-}" in
         resident_request '{"operation":"status"}'
         exit
         ;;
+    channel)
+        macvm_assert_mutation_target
+        resident_start
+        macvm_exec -i "$(macvm_remote_ui_binary)" channel "$(macvm_remote_control_socket)"
+        exit
+        ;;
     control)
         shift
         if [[ $# -ne 1 ]]; then

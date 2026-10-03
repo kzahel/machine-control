@@ -75,6 +75,7 @@ final class BrowserRelay {
         let caller: CallerIdentity
         let claimID: String?
         let timeout: DispatchWorkItem
+        let completion: (([String:Any]) -> Void)?
     }
 
     let service: ResidentService
@@ -129,7 +130,7 @@ final class BrowserRelay {
     /// Forwards an authorized browser request. Returns a refusal, or nil when
     /// the client stays open for the extension's answer.
     func forward(_ client: Int32, _ request: [String: Any], caller: CallerIdentity,
-                 claimID: String?) -> [String: Any]? {
+                 claimID: String?, completion: (([String:Any]) -> Void)? = nil) -> [String: Any]? {
         guard connected else {
             return routed(service.refusal(request, code: "browser_provider_unavailable",
                 message: "The Machine Control Chrome extension is not connected"))
@@ -149,7 +150,7 @@ final class BrowserRelay {
                                 "message": "The browser did not answer in time"])
         }
         pending[id] = Pending(client: client, request: request, caller: caller,
-                              claimID: claimID, timeout: timeout)
+                              claimID: claimID, timeout: timeout, completion:completion)
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(BrowserRelay.timeoutSeconds),
                                       execute: timeout)
         write(["type": "request", "id": id,
@@ -263,8 +264,8 @@ final class BrowserRelay {
             routed(service.refusal(entry.request,
                 code: message["errorCode"] as? String ?? "browser_operation_failed",
                 message: message["message"] as? String ?? "Browser operation failed"))
-        respond?(entry.client, entry.request, response, entry.caller, entry.claimID)
-        Darwin.close(entry.client)
+        if let completion = entry.completion { completion(response) }
+        else { respond?(entry.client, entry.request, response, entry.caller, entry.claimID); Darwin.close(entry.client) }
     }
 
     private func accepted(_ request: [String: Any], data: [String: Any]) -> [String: Any] {

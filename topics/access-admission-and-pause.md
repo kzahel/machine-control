@@ -296,3 +296,11 @@ queue position; provider cancellation of in-flight work; exact route impact
 classification; distributed multi-resource authority; and which background
 operations warrant an explicitly independent scope. Record measured answers in
 the owning topic/platform report without promoting this proposal to evidence.
+
+**Current (source/fixtures):** [Tactical 078](../docs/tactical/078-live-admission-channels.md)
+and [the API guide](../docs/access-admission.md) describe live Mac and Windows
+desktop channels under the existing same-user target-wide grant profile,
+connection-owned waiting/offers, full resource fencing, parent cleanup and
+standalone CLI/SDK use. Mac initial framing no longer blocks the main queue.
+This is not YA-attested delegation or native distribution acceptance; shared
+outer resource arbitration and operator persistence/presentation remain open.

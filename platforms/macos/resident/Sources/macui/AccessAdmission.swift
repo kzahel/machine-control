@@ -204,6 +204,11 @@ final class AccessAdmission {
         let terminal = intents.filter { $0.terminal != nil }
         for old in terminal.prefix(max(0, terminal.count - 256)) { intents.removeAll { $0 === old } }
     }
+    var reserved: Bool {
+        refresh()
+        return intents.contains { $0.terminal == nil && ["active", "offered", "announcing"].contains($0.state) }
+    }
+
     var status: [String: Any] {
         refresh()
         return ["schema": Self.schema, "revision": revision, "ownerBinding": "admitted_channel",

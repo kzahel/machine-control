@@ -64,6 +64,11 @@ internal static class Program
                     return await DesktopHost.RunAsync();
                 case "desktop-worker":
                     return await RunDesktopWorkerAsync(args);
+                case "channel":
+                    if (GetOption(args, "--profile") != "user") throw new ArgumentException("Admission requires a user resident profile");
+                    await PipeTransport.ProxyAsync(RuntimeProfile.UserPipe(GetOption(args, "--instance") ?? "desktop",
+                        int.Parse(GetOption(args, "--session-id") ?? RuntimeProfile.SessionId.ToString())));
+                    return 0;
                 case "call":
                     return await RunClientAsync(args);
                 case "login":

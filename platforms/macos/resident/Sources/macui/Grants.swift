@@ -241,7 +241,7 @@ final class GrantBroker {
         return grant
     }
 
-    func authorize(_ operation: String) -> GrantRefusal? {
+    func authorize(_ operation: String, controlled: Bool = false) -> GrantRefusal? {
         switch operationClass(operation) {
         case .discovery, .grantManagement, .lifecycle, .providerRegistration:
             return nil
@@ -259,6 +259,9 @@ final class GrantBroker {
             }
             return nil
         case let .scoped(scope):
+            if !controlled && admission.reserved {
+                return GrantRefusal("control_session_required", "The desktop is reserved; use an owner-bound control channel", requiredScope:scope)
+            }
             if !admission.blocks("desktop").isEmpty {
                 return GrantRefusal("access_paused", "Computer access is temporarily paused; inspect grant.status", requiredScope: scope)
             }
@@ -282,6 +285,13 @@ final class GrantBroker {
             }
             return nil
         }
+    }
+
+    func admissionAuthority(scopes: Set<GrantScope>) -> String? {
+        if journal?.errorCode != nil { return "audit_storage_unavailable" }
+        if policy.grantMode == .standing { return nil }
+        guard let grant = activeGrant, scopes.isSubset(of:grant.scopes) else { return "approval_required" }
+        return nil
     }
 
     /// Returns an existing grant that already covers the request.

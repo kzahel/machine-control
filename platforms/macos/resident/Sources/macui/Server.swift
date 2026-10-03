@@ -94,6 +94,62 @@ final class ResidentServer {
     let service: ResidentService
     let broker: GrantBroker
     let updates = DesktopUpdates()
+    let activity = PhysicalAvailability()
+    var noticeSeconds = 10.0
+    var coveredActivation: ((AdmissionChannel, [String:Any]) throws -> Void)?
+    var controlledProvider: (([String:Any]) -> [String:Any])?
+    private var channels: [Int32:AdmissionChannel] = [:]
+    private var handshakes: [Int32:RequestHandshake] = [:]
+    func removeChannel(_ descriptor: Int32) { channels.removeValue(forKey:descriptor) }
+    func refreshAdmission() { tick() }
+    func activateCovered(_ channel: AdmissionChannel, view: [String:Any]) throws {
+        if let coveredActivation { try coveredActivation(channel, view); return }
+        guard service.observedDesktopState == "locked" else { return }
+        guard channel.scopes.contains(.control) else { throw MacUIError.action("locked_control_scope_required") }
+        var pair: [Int32] = [-1, -1]
+        guard socketpair(AF_UNIX, SOCK_STREAM, 0, &pair) == 0 else { throw MacUIError.action("control_transport_unavailable") }
+        do {
+            try closeOnExec(pair[0]); try closeOnExec(pair[1])
+            _ = try lockedUse.begin(["operation":"session.control", "requestId":UUID().uuidString,
+                "durationSeconds":max(1, Int(view["activeRemainingSeconds"] as? Double ?? 1))], owner:pair[0])
+            channel.coveredOwner = pair[1]
+        } catch { Darwin.close(pair[0]); Darwin.close(pair[1]); throw error }
+    }
+    func dispatchControlled(_ channel: AdmissionChannel, action original: [String:Any], session: String,
+                            generations: [String:Int], completion: @escaping ([String:Any]) -> Void) {
+        var action = original
+        let operation = action["operation"] as? String ?? ""
+        if let refusal = lockedUse.refusal(action) {
+            completion(service.refusal(action, code:refusal.code, message:refusal.message)); return
+        }
+        if let refusal = guardRequest?(action) {
+            completion(service.refusal(action, code:refusal.code, message:refusal.message)); return
+        }
+        guard broker.journal?.begin(action, caller:channel.caller) != false else {
+            completion(service.refusal(action, code:"audit_storage_unavailable", message:"Audit storage unavailable")); return
+        }
+        let finish: ([String:Any]) -> Void = { [weak self, weak channel] original in
+            guard let self, let channel else { return }
+            var result = original
+            self.refreshAdmission()
+            if let refusal = self.broker.admission.authorize(owner:channel.owner, id:channel.intentID,
+                session:session, generations:generations) {
+                result["errorCode"] = refusal; result["accepted"] = false
+                result["uncertainty"] = "interrupted_after_possible_dispatch"; result["retrySafety"] = "unsafe"
+            }
+            if self.broker.journal?.record(result) == false {
+                result["accepted"] = false; result["errorCode"] = "audit_storage_unavailable"
+                result["uncertainty"] = "audit_result_not_persisted"
+            }
+            completion(result)
+        }
+        if [.scoped(.browser), .scoped(.devtools)].contains(operationClass(operation)) {
+            if let refusal = browser.forward(-1, action, caller:channel.caller, claimID:nil, completion:finish) { finish(refusal) }
+        } else {
+            if lockedUse.isCovered { action["provider"] = "macos-native" }
+            finish(controlledProvider?(action) ?? service.handle(action))
+        }
+    }
     weak var approver: GrantApprover?
     /// Extra screening for approved control, such as refusing input aimed
     /// at the resident's own interface.
@@ -129,16 +185,36 @@ final class ResidentServer {
         // Bind synchronously when approval is issued, including a lock that
         // follows before the next timer tick. Never adopt an unbound grant later.
         broker.observe { [weak self] in self?.bindApprovedConsole() }
+        broker.admission.sessionEnded = { [weak self] _, _, reason in
+            self?.activity.disarm()
+            self?.lockedUse.end(reason == "paused" ? "operator_paused" : reason)
+        }
         broker.availabilityChanged = { [weak self] in
             guard let self else { return }
             self.service.invalidateReferences()
+            self.browser.closeAllSessions(reason:"control_generation_changed")
             let reasons = self.broker.admission.blocks("desktop")
             if !reasons.isEmpty {
                 self.lockedUse.end(reasons.contains("physical_activity") ? "physical_presence" : "operator_paused")
             }
         }
         bindApprovedConsole()
+        let protection = lockedUse.safety
+        service.inputCancellation = { [weak self, weak protection] in
+            protection?.reason ?? self?.activity.interruption
+        }
     }
+
+    func stop() {
+        ticker?.cancel(); ticker = nil
+        acceptSource?.cancel(); acceptSource = nil
+        for channel in Array(channels.values) { channel.close() }
+        for handshake in Array(handshakes.values) { handshake.cancel() }
+        handshakes.removeAll()
+        if listener >= 0 { Darwin.close(listener); listener = -1; unlink(socketPath) }
+        activity.stop()
+    }
+    deinit { stop() }
 
     private func bindApprovedConsole() {
         let id = broker.grant?.id
@@ -196,7 +272,9 @@ final class ResidentServer {
             grantConsoleBinding = nil
         }
         lockedUse.tick()
+        if activity.enabled { activity.tick(broker, helper:service.unlockStatus()) }
         broker.refreshAvailability()
+        for channel in Array(channels.values) { channel.tick() }
     }
 
     private func acceptPending() {
@@ -213,15 +291,24 @@ final class ResidentServer {
         var noSignal: Int32 = 1
         setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &noSignal,
                    socklen_t(MemoryLayout.size(ofValue: noSignal)))
-        autoreleasepool { serve(client) }
+        guard handshakes.count < 64 else { Darwin.close(client); return }
+        let handshake = RequestHandshake(client)
+        handshakes[client] = handshake
+        handshake.completion = { [weak self] data in
+            guard let self else { Darwin.close(client); return }
+            self.handshakes.removeValue(forKey:client)
+            guard let data else { Darwin.close(client); return }
+            autoreleasepool { self.serve(client, data:data) }
+        }
+        do { try handshake.start() }
+        catch { handshakes.removeValue(forKey:client); handshake.cancel() }
     }
 
-    private func serve(_ client: Int32) {
+    private func serve(_ client: Int32, data: Data) {
         var keepOpen = false
         defer { if !keepOpen { Darwin.close(client) } }
         var request: [String: Any] = [:]
         do {
-            let data = try readSocket(client)
             guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 throw MacUIError.usage("Request must be a JSON object")
             }
@@ -252,6 +339,16 @@ final class ResidentServer {
         // Observe transitions before authorization, rather than leaving a
         // quarter-second gap in the timer's lock-revocation policy.
         tick()
+
+        if operation == "control.open" {
+            guard channels.count < 64, channels.values.filter({ $0.caller.pid == caller.pid }).count < 4 else {
+                respond(client, request, service.refusal(request, code:"admission_queue_full", message:"Admission channel limit reached"), caller:caller, claimID:claimID); return
+            }
+            let channel = AdmissionChannel(client, caller:caller, server:self)
+            do { try channel.open(request); channels[client] = channel; keepOpen = true }
+            catch { respond(client, request, service.refusal(request, code:String(describing:error), message:"Cannot open admission channel"), caller:caller, claimID:claimID) }
+            return
+        }
 
         if operation == "session.control.end" {
             guard let id = request["controlSessionId"] as? String, id == lockedUse.lease?.id else {
@@ -376,6 +473,9 @@ final class ResidentServer {
                var data = response["data"] as? [String: Any] {
                 data["deployment"] = broker.statusJSON
                 data["lockedUse"] = lockedUse.status
+                data["physicalActivity"] = activity.status
+                data["admission"] = broker.admission.status
+                data["admissionChannel"] = ["schema":AdmissionChannel.schema, "ownerBinding":"live_same_user_transport", "callerAssurance":"unverified_same_user", "delegatedAutomaticAccess":false]
                 var browserStatus = browser.statusJSON
                 browserStatus["devtoolsEndpoint"] = devtools.endpoint ?? NSNull()
                 data["browser"] = browserStatus
@@ -657,6 +757,32 @@ func ownWindowFrames(_ processID: pid_t, extra: [NSWindow] = [], excluding: Set<
                       width: frame.width, height: frame.height)
     }
     return listed + drawn
+}
+
+/// Byte transport only. Liveness and activation belong to the client runtime;
+/// EOF on either direction promptly closes the owning resident connection.
+func runAdmissionProxy(socketPath: String) throws {
+    let fd = try residentSocket(); defer { Darwin.close(fd) }
+    var (address, length) = try unixAddress(socketPath)
+    guard withSockAddr(&address, length:length, { Darwin.connect(fd, $0, $1) }) == 0 else { throw MacUIError.action("resident_unavailable") }
+    var uid: uid_t = 0, gid: gid_t = 0
+    guard getpeereid(fd, &uid, &gid) == 0, uid == getuid(), uid != 0 else { throw MacUIError.permission("same_user_resident_required") }
+    var timeout = timeval(tv_sec:5, tv_usec:0)
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout.size(ofValue:timeout)))
+    let parent = getppid()
+    var bytes = [UInt8](repeating:0, count:16384)
+    while getppid() == parent {
+        var descriptors = [pollfd(fd:STDIN_FILENO, events:Int16(POLLIN | POLLHUP), revents:0),
+            pollfd(fd:fd, events:Int16(POLLIN | POLLHUP), revents:0)]
+        if poll(&descriptors, 2, 1000) < 0 { if errno == EINTR { continue }; return }
+        for index in 0...1 where descriptors[index].revents != 0 {
+            let count = Darwin.read(descriptors[index].fd, &bytes, bytes.count)
+            if count <= 0 { return }
+            let data = Data(bytes.prefix(count))
+            if index == 0 { try writeSocket(fd, data:data) }
+            else { FileHandle.standardOutput.write(data) }
+        }
+    }
 }
 
 func runResidentClient(socketPath: String, requestData: Data) throws {

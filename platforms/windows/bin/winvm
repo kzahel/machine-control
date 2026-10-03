@@ -187,6 +187,7 @@ case "$command" in
     claim-capabilities|claim-status|claim-acquire|claim-check|claim-renew|claim-release)
         claim_command "$@"
         ;;
+    channel) exec "$REPO_DIR/scripts/channel.sh" "$@" ;;
     control|control-local)
         exec "$REPO_DIR/scripts/control.sh" "$@"
         ;;

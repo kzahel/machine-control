@@ -15,6 +15,7 @@ import select
 import socket
 import sys
 import tempfile
+import selectors
 from typing import Any
 
 DOCTOR_SCHEMA = "machine-control-doctor/v0"
@@ -178,10 +179,33 @@ def artifact_fetch(arguments: list[str]) -> int:
     return 0
 
 
+def channel() -> int:
+    """Relay a live SDK channel; EOF or parent loss ends ownership."""
+    parent = os.getppid()
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+        client.connect(socket_path())
+        with selectors.DefaultSelector() as selector:
+            selector.register(sys.stdin.buffer, selectors.EVENT_READ, "input")
+            selector.register(client, selectors.EVENT_READ, "resident")
+            while os.getppid() == parent:
+                for key, _ in selector.select(1):
+                    chunk = os.read(key.fd, 16384)
+                    if not chunk:
+                        return 0
+                    if key.data == "input":
+                        client.sendall(chunk)
+                    else:
+                        sys.stdout.buffer.write(chunk)
+                        sys.stdout.buffer.flush()
+    return 0
+
+
 def main(arguments: list[str]) -> int:
     if not arguments:
         return 2
     command, rest = arguments[0], arguments[1:]
+    if command == "channel" and not rest:
+        return channel()
     if command in {"control", "control-local"} and len(rest) == 1:
         return control(rest[0])
     if command == "doctor":

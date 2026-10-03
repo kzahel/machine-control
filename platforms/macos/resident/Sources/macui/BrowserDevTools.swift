@@ -123,7 +123,7 @@ final class BrowserDevToolsBridge {
     /// Syncs the token to the grant and drops connections when it ends.
     @discardableResult
     func reconcile() -> String? {
-        if broker.devtoolsAllowed {
+        if (broker.devtoolsAllowed && !broker.admission.reserved) {
             if token.isEmpty { token = randomToken() }
             return endpointTemplate()
         }
@@ -132,7 +132,7 @@ final class BrowserDevToolsBridge {
     }
 
     var endpoint: String? {
-        broker.devtoolsAllowed ? endpointTemplate() : nil
+        (broker.devtoolsAllowed && !broker.admission.reserved) ? endpointTemplate() : nil
     }
 
     private func endpointTemplate() -> String? {
@@ -144,7 +144,7 @@ final class BrowserDevToolsBridge {
     /// A web page can also open ws://127.0.0.1; a browser sends Origin, an
     /// agent's raw client does not. The per-grant token gates either way.
     func acceptedTab(_ upgrade: WebSocketUpgrade) -> Int? {
-        guard broker.devtoolsAllowed,
+        guard (broker.devtoolsAllowed && !broker.admission.reserved),
               !token.isEmpty, upgrade.query["token"] == token,
               upgrade.origin == nil,
               upgrade.path.hasPrefix(BrowserDevToolsBridge.path),

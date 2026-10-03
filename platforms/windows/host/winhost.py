@@ -148,6 +148,9 @@ def main(arguments: list[str]) -> int:
                 return 2
             return claim([operation, "--provider", "windows-host", "--resource-id", resource_id(), *forwarded]).returncode
         require_claim()
+        if command == "channel" and not rest:
+            return subprocess.run([str(installation() / "runtime/machine-control-windows.exe"),
+                "channel", "--profile", "user", "--instance", "desktop", "--session-id", str(session_id())], check=False).returncode
         if command in {"control", "control-local"} and len(rest) == 1:
             request = json.loads(rest[0])
             if not isinstance(request, dict):

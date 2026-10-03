@@ -190,6 +190,22 @@ internal static class PipeTransport
         return secret;
     }
 
+    internal static async Task ProxyAsync(string pipeName)
+    {
+        using var stop = new CancellationTokenSource();
+        await using var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+        using var connect = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await pipe.ConnectAsync(connect.Token);
+        using var input = Console.OpenStandardInput();
+        await using var output = Console.OpenStandardOutput();
+        var send = input.CopyToAsync(pipe, stop.Token);
+        var receive = pipe.CopyToAsync(output, stop.Token);
+        await await Task.WhenAny(send, receive);
+        stop.Cancel();
+        // Disposing the owning pipe fences queued work even if a platform's
+        // standard-input implementation cannot immediately cancel its read.
+    }
+
     public static async Task<string> CallAsync(
         string pipeName,
         string request,

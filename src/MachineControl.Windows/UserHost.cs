@@ -4,6 +4,7 @@ using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace MachineControl.Windows;
 
@@ -78,6 +79,13 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
                 if (text.Length >= 1024 * 1024) throw new InvalidDataException("Request exceeds 1 MiB");
                 text.Append(character[0]);
             }
+            if (grants is not null && JsonNode.Parse(text.ToString()) is JsonObject opening && opening["operation"]?.GetValue<string>() == "control.open")
+            {
+                if (!GetNamedPipeClientProcessId(server.SafePipeHandle, out _)) throw new InvalidDataException("Unknown channel peer");
+                await AdmissionChannel.RunAsync(server, reader, opening, grants,
+                    (request, fence, cancellation) => ExecuteAsync(request, caller, cancellation, fence), stop.Token);
+                return;
+            }
             var request = Contract.ParseRequest(text.ToString());
             Result result;
             if (grants?.Journal?.Begin(request.Operation, request.RequestId, Generation, GetNamedPipeClientProcessId(server.SafePipeHandle, out var auditPid) ? auditPid : null) == false && request.Operation is not ("grant.revoke" or "runtime.stop"))
@@ -141,9 +149,11 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
         RetrySafety = "safe_not_dispatched",
     };
 
-    private async Task<Result> ExecuteAsync(Request request, string caller, CancellationToken cancellationToken)
+    private async Task<Result> ExecuteAsync(Request request, string caller, CancellationToken cancellationToken, ControlOwnership? ownership = null)
     {
         var result = Envelope(request);
+        string? OwnershipRefusal() => ownership is null ? null : grants!.Admission.Authorize(ownership.Owner, ownership.Intent, ownership.Session, ownership.Generations);
+        if (OwnershipRefusal() is { } ownerDenied) return result with { ErrorCode = ownerDenied };
         if (request.ExpectedGeneration is not null && request.ExpectedGeneration != Generation)
             return result with { ErrorCode = "stale_generation", Message = "Runtime generation changed" };
         if (!Operations.Contains(request.Operation, StringComparer.Ordinal) &&
@@ -239,12 +249,12 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
         if (!ready)
             return result with { ErrorCode = "desktop_unavailable", Message = "The active unlocked user desktop is unavailable" };
         if (browser is not null && BrowserWire.Operations.Contains(request.Operation, StringComparer.Ordinal))
-            return await browser.ExecuteAsync(request, Envelope(request), cancellationToken);
+            return await browser.ExecuteAsync(request, Envelope(request), cancellationToken, ownership is not null);
         await _providerGate.WaitAsync(cancellationToken);
         try
         {
             var generation = Generation;
-            var refusal = grants?.Authorize(request.Operation, request.ExpectedGeneration);
+            var refusal = OwnershipRefusal() ?? grants?.Authorize(request.Operation, request.ExpectedGeneration, ownership is not null);
             if (refusal is not null) return Envelope(request) with
             {
                 ErrorCode = refusal,

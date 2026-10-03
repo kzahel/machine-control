@@ -26,6 +26,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
                 if (_admission is not null) return _admission;
                 _admission = new AccessAdmission(_time, Gate);
                 _admission.Register("desktop", _ready);
+                _admission.SessionActivated += () => _generation = Guid.NewGuid().ToString("n");
                 _admission.SessionEnded += (_, _, _) => _generation = Guid.NewGuid().ToString("n");
                 return _admission;
             }
@@ -66,7 +67,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         }
     }
 
-    internal string? Authorize(string operation, string? expectedGeneration = null)
+    internal string? Authorize(string operation, string? expectedGeneration = null, bool controlled = false)
     {
         lock (Gate)
         {
@@ -76,6 +77,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             if (Journal?.Available == false) return "audit_storage_unavailable";
             var scope = ScopeFor(operation);
             if (scope is null) return "unsupported_operation";
+            if (!controlled && Admission.Reserved) return "control_session_required";
             if (!_ready) return "desktop_unavailable";
             if (_updating) return "update_in_progress";
             if (Admission.Blocks("desktop").Length > 0) return "access_paused";
@@ -84,6 +86,16 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             if (_grant is null || !(_grant.Scopes.Contains(scope) ||
                 scope == "browser" && _grant.Scopes.Contains("devtools"))) return "approval_required";
             return null;
+        }
+    }
+
+    internal string? AdmissionAuthority(string[] scopes)
+    {
+        lock (Gate)
+        {
+            if (Journal?.Available == false) return "audit_storage_unavailable";
+            if (_grant is not null && Elapsed(_grant.Started) >= _grant.Duration) return "expired";
+            return _grant is not null && scopes.All(_grant.Scopes.Contains) ? null : "approval_required";
         }
     }
 

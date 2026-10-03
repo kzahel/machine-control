@@ -81,3 +81,5 @@ three-desktop workflow are documented in
 
 - [Desktop event v0](desktop-event-v0.schema.json) defines the private desktop
   audit and diagnostic metadata format; it is not an agent control endpoint.
+
+The [live admission channel schema](access-admission-channel-v1.schema.json) and [API guide](../docs/access-admission.md) define connection-owned waiting, explicit activation and fenced dispatch under a negotiated profile.

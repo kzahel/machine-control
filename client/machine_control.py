@@ -3234,7 +3234,7 @@ def operation_requires_claim(operation: str, arguments: list[str]) -> bool:
         return subcommand != "capabilities"
     if operation == "workspace":
         return False
-    return operation in {"desktop", "grant", "update", "browser", "ios", "testbed", "os"}
+    return operation in {"control", "desktop", "grant", "update", "browser", "ios", "testbed", "os"}
 
 
 def operation_required_claim_use_class(
@@ -3602,6 +3602,8 @@ Commands:
         [--tab ID] [--url URL] [--new-tab] [--reference R] [--text T]
         [--file PATH]... [--method M --params JSON] [--expression JS]
                                     Operate Chrome through the extension
+  control status | call JSON --reason TEXT [--wait 5m] [--duration 5m]
+                                    Wait, accept, execute once and release
   desktop status|capabilities|applications|windows|snapshot|action|capture
   desktop input text|key|click|move|drag|scroll
   desktop session unlock --expected-desktop-generation ID --expected-helper-generation ID --request-id ID
@@ -3824,6 +3826,10 @@ def main(argv: list[str] | None = None) -> int:
             return handle_maintenance(alias, target, remainder[1:])
         if operation == "workspace":
             return handle_workspace(alias, target, remainder[1:])
+        if operation == "control":
+            from control_session import handle_control
+
+            return handle_control(alias, target, remainder[1:])
         if operation == "desktop":
             return handle_desktop(alias, target, remainder[1:])
         if operation == "grant":

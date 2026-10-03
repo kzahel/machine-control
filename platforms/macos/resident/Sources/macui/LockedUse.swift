@@ -116,6 +116,7 @@ private func lockedUseEventTap(_ proxy: CGEventTapProxy, _ type: CGEventType,
         guardObject.interrupt("input_guard_unavailable")
         return Unmanaged.passUnretained(event)
     }
+    if LockedUseSafety.physical(sourcePID: event.getIntegerValueField(.eventSourceUnixProcessID)) { guardObject.activity?() }
     if guardObject.safety.blocksPhysicalInput,
        LockedUseSafety.physical(sourcePID: event.getIntegerValueField(.eventSourceUnixProcessID)) {
         guardObject.interrupt("physical_presence")
@@ -128,6 +129,7 @@ private func lockedUseEventTap(_ proxy: CGEventTapProxy, _ type: CGEventType,
 
 final class PhysicalInputGuard {
     let safety: LockedUseSafety
+    var activity: (() -> Void)?
     var session: [String:Any]?
     private var thread: Thread?
     private var runLoop: CFRunLoop?
