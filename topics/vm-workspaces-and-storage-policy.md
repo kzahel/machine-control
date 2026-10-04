@@ -204,7 +204,7 @@ warm reboot and repeated media-free cold boots. A guest-kernel workaround was
 required for reliable multiprocessor boot. Windows passed pinned SSH, effective
 Secure Boot/TPM, canonical password verification, resident desktop and protected
 UAC tests, one-shot unlock, and two native build/deploy/test cycles. Windows
-cold-start and shutdown acceptance is blocked; the provider dossier owns that
+repeated cold-start and shutdown acceptance is blocked; the provider dossier owns that
 evidence. This is not production
 provider adoption: promotion and isolated workspaces remain open. VMware remains
 unselected.

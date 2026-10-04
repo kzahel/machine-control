@@ -150,6 +150,63 @@ class Adapter:
         command = "XDG_RUNTIME_DIR=/run/user/$(id -u) /usr/local/bin/machine-control "
         return json.loads(self.ssh(command + shlex.quote(json.dumps(request))))
 
+    def login(self):
+        """Cold login through the existing appliance's one-shot secret pipe."""
+        identity = json.loads(self.powershell(
+            "[ordered]@{user=[Environment]::UserName;"
+            "display=(Get-LocalUser -Name $env:USERNAME).FullName}|ConvertTo-Json -Compress"))
+        if identity.get("user", "").casefold() != self.config["username"].casefold() or \
+                not identity.get("display"):
+            raise ValueError("Authenticated account display identity is unavailable")
+        status = self.control({"operation": "service.status"})
+        if not status.get("accepted") or status.get("data", {}).get("interactiveUserPresent") is not False:
+            raise ValueError("Cold login requires no interactive user; use authorized unlock otherwise")
+        request = dict(operation="snapshot", scope="system", maxDepth=14, maxElements=150)
+        surface = self.control(request)
+        if not surface.get("accepted") or surface.get("desktop") != "Winlogon":
+            raise ValueError("Native Winlogon discovery is unavailable")
+        elements = surface.get("data", {}).get("elements", [])
+        if elements and len(elements) < 150 and not any(e.get("controlType") == "Edit" for e in elements):
+            reveal = self.control(dict(operation="key", key="enter",
+                                       expectedGeneration=surface["generation"]))
+            if not reveal.get("accepted"):
+                raise ValueError("Credential surface reveal was not accepted")
+            surface = self.control(request)
+        elements = surface.get("data", {}).get("elements", [])
+        fields = [e for e in elements if e.get("controlType") == "Edit" and
+                  e.get("automationId", "").startswith("PasswordField_") and
+                  e.get("name") == "Password" and e.get("enabled") and not e.get("offscreen")]
+        account_bound = False
+        ancestors = []
+        for element in elements:
+            depth = element.get("depth")
+            if type(depth) is not int:
+                ancestors = []
+                continue
+            while ancestors and ancestors[-1]["depth"] >= depth:
+                ancestors.pop()
+            if len(fields) == 1 and element is fields[0]:
+                account_bound = any(e.get("controlType") == "Group" and
+                                    e.get("name") == identity["display"] and
+                                    not e.get("offscreen") for e in ancestors)
+            ancestors.append(element)
+        if not surface.get("accepted") or surface.get("desktop") != "Winlogon" or \
+                len(elements) >= 150 or len(fields) != 1 or not account_bound:
+            raise ValueError("Exact account and stock password field discovery is uncertain")
+        locator = Path(self.config.get("credentialFile", ""))
+        if not locator.is_absolute() or not locator.is_file():
+            raise ValueError("Canonical credential locator is unavailable")
+        self.require_claim()
+        self.inspect()
+        secret = locator.read_bytes().rstrip(b"\r\n")
+        try:
+            # The broker independently revalidates session/provider/field state.
+            return json.loads(self.ssh(
+                "& 'C:\\ProgramData\\MachineControl\\runtime\\machine-control-windows.exe' "
+                "login --kind password", secret, timeout=75))
+        finally:
+            secret = None
+
     def credential(self, verify=False):
         locator = Path(self.config.get("credentialFile", ""))
         record = self.state / "credential-verification.json"
@@ -283,6 +340,16 @@ class Adapter:
                 self.vbox("controlvm", self.config["uuid"], "acpipowerbutton")
                 print(json.dumps(dict(delivered=True, effect="unconfirmed")))
                 return 0
+            if command == "recovery-key":
+                self.require_claim(disruptive=True)
+                keys = {"enter": ["1c", "9c"], "tab": ["0f", "8f"],
+                        "escape": ["01", "81"]}
+                if info["VMState"] != "running" or len(arguments) != 1 or arguments[0] not in keys:
+                    raise ValueError("A running recovery target and supported key are required")
+                self.vbox("controlvm", self.config["uuid"], "keyboardputscancode", *keys[arguments[0]])
+                print(json.dumps(dict(delivered=True, effect="unconfirmed", route="outer_recovery",
+                                      hostInterference="none")))
+                return 0
             if command == "candidate-hardware":
                 self.require_claim(disruptive=True)
                 if self.config["role"] != "candidate" or info["VMState"] != "poweroff":
@@ -290,6 +357,8 @@ class Adapter:
                 parser = argparse.ArgumentParser(allow_abbrev=False)
                 parser.add_argument("--cpus", type=int, choices=range(1, 5))
                 parser.add_argument("--x2apic", choices=("on", "off"))
+                parser.add_argument("--rtc-use-utc", choices=("on", "off"))
+                parser.add_argument("--paravirt-provider", choices=("none", "default", "hyperv"))
                 parser.add_argument("--serial-log")
                 options = parser.parse_args(arguments)
                 changes = []
@@ -297,6 +366,10 @@ class Adapter:
                     changes += ["--cpus", str(options.cpus)]
                 if options.x2apic is not None:
                     changes += ["--x86-x2apic", options.x2apic, "--apic", "on"]
+                if options.rtc_use_utc is not None:
+                    changes += ["--rtc-use-utc", options.rtc_use_utc]
+                if options.paravirt_provider is not None:
+                    changes += ["--paravirt-provider", options.paravirt_provider]
                 if options.serial_log is not None:
                     serial = Path(options.serial_log)
                     if not serial.is_absolute() or serial.exists() or not serial.parent.is_dir():
@@ -310,10 +383,17 @@ class Adapter:
                     raise ValueError("CPU configuration readback failed")
                 if options.x2apic is not None and actual.get("x2apic") != options.x2apic:
                     raise ValueError("APIC configuration readback failed")
+                if options.rtc_use_utc is not None and actual.get("rtcuseutc") != options.rtc_use_utc:
+                    raise ValueError("RTC configuration readback failed")
+                if options.paravirt_provider is not None and actual.get("paravirtprovider") != options.paravirt_provider:
+                    raise ValueError("Paravirtualization configuration readback failed")
                 return 0
             if command == "credential" and arguments in (["verify", "--json"], ["status", "--json"]):
                 result = self.credential(arguments[0] == "verify")
                 print(json.dumps(result)); return 0 if result["ready"] else 1
+            if command == "login" and not arguments and self.config["platform"] == "windows":
+                result = self.login()
+                print(json.dumps(result)); return 0 if result.get("accepted") else 1
             if command == "unlock" and not arguments and self.config["platform"] == "windows":
                 instance = self.config.get("unlockInstance", "")
                 if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,47}", instance):
@@ -387,7 +467,11 @@ class Adapter:
                     self.powershell("shutdown.exe /s /t 0")
                 else:
                     self.ssh("sudo systemd-run --on-active=2 /usr/bin/systemctl poweroff")
-                for _ in range(60):
+                # Windows can finish servicing/session teardown long after SSH
+                # exits. A short timeout is not evidence of a frozen guest.
+                deadline = time.monotonic() + (900 if self.config["platform"] == "windows" else 120)
+                while time.monotonic() < deadline:
+                    self.require_claim()
                     if self.inspect()["VMState"] == "poweroff":
                         return 0
                     time.sleep(2)

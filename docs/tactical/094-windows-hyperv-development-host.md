@@ -491,3 +491,30 @@ Validation: twelve adapter regressions pass on native Windows and WSL, seven
 unlock-controller tests pass, and package tests pass with the Windows symlink
 case skipped. The modified UAC harness parses and passed both live iterations.
 Host boot time remained unchanged. No public release or local signing occurred.
+
+### Stability follow-up — in progress
+
+The operator requested a stable retained Windows base and questioned whether
+short shutdown waits had been mistaken for hangs. A fresh private journal and
+disruptive claim cover this attempt. Before recovery, a stopped copy of the
+complete candidate directory, including firmware/TPM state, was verified file
+by file with SHA-256 in 188 seconds. It is a diagnostic backup, not a ready base.
+
+The next boot reached Windows without recovery input. Administration observed
+no CBS or Windows Update reboot marker, no pending file rename, and no active
+servicing worker. Guest Pacific time and host-local virtual RTC produced a
+nine-hour boot correction. The guest time zone and stopped virtual RTC were
+aligned to UTC; the following boot's timestamp matched the controller.
+
+Cold login passed using the existing appliance login pipe and canonical stored
+password, after fresh account/field discovery. Ready doctor and live credential
+verification followed. Guest shutdown then completed in 278.154 seconds with
+no force-stop. Windows adapter shutdown now allows fifteen minutes, rechecks
+its claim, and never automatically force-stops. The common adapter also gains
+guarded cold login and bounded recovery keys. Seventeen adapter regressions
+cover identity, claims, credential refusal, secret transport and slow shutdown.
+
+A subsequent UTC boot still stalled during guest control. One recovery Escape
+was followed by responsive SSH, but the result did not repeat reliably. This
+does not establish an input-wake root cause. Repeated lifecycle, promotion and
+cleanup acceptance are still being investigated; no stable base is claimed.

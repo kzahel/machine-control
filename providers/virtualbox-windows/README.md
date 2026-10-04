@@ -77,20 +77,35 @@ selects the host's desktop app. Native passthrough operations include:
   after authorization and native credential-field discovery. Installation and
   explicit account/controller approval are prerequisites, not implicit effects
   of this command. The appliance runtime and ordinary desktop app stay separate.
+- `login`: Windows cold login only, with no existing interactive user. Resolves
+  the authenticated account's display name and a unique visible stock password
+  field before opening the canonical credential file. Reuses the appliance
+  runtime's dedicated standard-input/login-pipe transport and independent
+  broker validation. A bounded generation-bound resident Enter may reveal the
+  non-credential curtain; uncertain account or field discovery refuses.
 - `detach-bootstrap-media`: stopped candidates only, exact seed identity and
   verified credential handoff required.
 
 Explicit recovery requires a disruptive claim: `screenshot NEW_ABSOLUTE_PATH`,
-`acpi-shutdown`, `force-stop`, and stopped-candidate `candidate-hardware`.
+`acpi-shutdown`, `force-stop`, `recovery-key enter|tab|escape`, and
+stopped-candidate `candidate-hardware`. Recovery keys are bounded virtual
+keyboard input for observed recovery screens, never a password transport.
 ACPI delivery does not claim shutdown; inspect power afterward. Normal shutdown
-never silently force-stops. Hardware experiments accept only `--cpus 1..4`,
+waits up to fifteen minutes for Windows power-off (two minutes for Linux),
+rechecking the claim during the wait, and never silently force-stops. Callers
+must allow the complete wait rather than killing the adapter at two minutes.
+Hardware experiments accept only `--cpus 1..4`,
 `--x2apic on|off`, and `--serial-log NEW_ABSOLUTE_PRIVATE_PATH`. Disabling
-x2APIC explicitly retains ordinary APIC for 64-bit guests. Provider captures
+x2APIC explicitly retains ordinary APIC for 64-bit guests. `--rtc-use-utc on|off`
+sets and reads back the candidate's virtual hardware clock convention; align
+the guest's own time configuration before changing it. Provider captures
 and serial logs are private recovery evidence, not ordinary test routes.
+`--paravirt-provider none|default|hyperv` selects the guest-facing interface
+with readback; it does not enable, disable or reconfigure the host hypervisor.
 
 Initial VM creation and Windows console bootstrap still use private exact-UUID
 factory scripts and need manual journal notes. No implicit fallback from SSH
-to host input exists. Windows protected login, snapshots, derived workspaces,
+to host input exists. Snapshots, derived workspaces,
 promotion, remote hosting and ARM controllers require further qualification.
 
 Run the bounded regression tests with:

@@ -119,12 +119,26 @@ target-native curtain-reveal input, but the following observation timed out.
 Read-only doctor and authenticated Guest Additions diagnosis were unavailable.
 The cause is undetermined; these observations do not isolate the guest OS,
 additions, runtime, hypervisor or host/backend. Unattended **unlock** of an
-existing session passed; cold **login** and reliable lifecycle operation remain
-unqualified. No host reboot, WSL shutdown or host security change was used to
+existing session passed; those attempts did not qualify cold **login** or
+reliable lifecycle operation. No host reboot, WSL shutdown or host security change was used to
 work around this failure.
 The final cleanup boot reached Automatic Repair; the candidate was retained
 powered off with its private credential handoff intact. It is diagnostic
 evidence, not an accepted reusable Windows base.
+
+**Current, `live-tested` follow-up:** one media-free cold login now passes
+through the existing appliance credential pipe, followed by ready doctor and
+live password verification. A shutdown completed without forced recovery after
+278 seconds, despite the adapter's earlier 120-second timeout. Prior short
+waits do not establish a frozen guest or exclude servicing. That follow-up
+observed no pending update restart or active servicing worker before shutdown.
+Aligning guest time zone and virtual RTC to UTC removes an observed nine-hour
+startup clock correction, but a subsequent guest-control stall remained.
+One outer recovery key was followed by restored SSH; the result did not repeat
+reliably. [Upstream issue 722](https://github.com/VirtualBox/virtualbox/issues/722)
+reports input-associated Windows guest stalls under a Microsoft hypervisor;
+the resemblance is a diagnostic lead, not an established common cause.
+Repeated lifecycle and ready-base promotion remain unqualified.
 
 The [experimental adapter](../../providers/virtualbox-windows/README.md)
 checks exact VM/disk identities, serializes claimed operations, uses pinned

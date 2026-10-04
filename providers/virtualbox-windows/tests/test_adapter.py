@@ -1,4 +1,5 @@
 import importlib.util
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -45,6 +46,7 @@ class AdapterTests(unittest.TestCase):
             if disruptive:
                 raise ValueError("Ordinary claim")
         for command, args in (("force-stop", []), ("acpi-shutdown", []),
+                              ("recovery-key", ["enter"]),
                               ("screenshot", [str(Path(self.directory.name) / "screen.png")]),
                               ("candidate-hardware", ["--cpus", "1"])):
             with self.subTest(command=command), \
@@ -54,6 +56,77 @@ class AdapterTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     self.instance.dispatch(command, args)
                 vbox.assert_not_called()
+
+    def test_recovery_key_refuses_unknown_input_before_management(self):
+        with patch.object(self.instance, "require_claim"), \
+                patch.object(self.instance, "inspect", return_value=self.info | {"VMState": "running"}), \
+                patch.object(self.instance, "vbox") as vbox:
+            with self.assertRaises(ValueError):
+                self.instance.dispatch("recovery-key", ["arbitrary text"])
+            vbox.assert_not_called()
+
+    def test_login_refuses_uncertain_identity_without_reading_secret(self):
+        self.config["platform"] = "windows"
+        identity = json.dumps(dict(user="appliance", display="Appliance User"))
+        field = dict(controlType="Edit", automationId="PasswordField_2", name="Password",
+                     enabled=True, offscreen=False)
+        account = dict(controlType="Text", name="Appliance User", offscreen=False)
+        for elements in ([field], [field, field, account],
+                         [field | {"offscreen": True}, account]):
+            with self.subTest(elements=elements), \
+                    patch.object(self.instance, "powershell", return_value=identity), \
+                    patch.object(self.instance, "control", side_effect=[
+                        dict(accepted=True, data=dict(interactiveUserPresent=False)),
+                        dict(accepted=True, desktop="Winlogon", data=dict(elements=elements))]), \
+                    patch.object(Path, "read_bytes") as read, \
+                    patch.object(self.instance, "ssh") as ssh:
+                with self.assertRaises(ValueError):
+                    self.instance.login()
+                read.assert_not_called()
+                ssh.assert_not_called()
+
+    def test_login_refuses_existing_user_before_secret_discovery(self):
+        with patch.object(self.instance, "powershell", return_value=json.dumps(
+                    dict(user="appliance", display="Appliance User"))), \
+                patch.object(self.instance, "control", return_value=dict(
+                    accepted=True, data=dict(interactiveUserPresent=True))), \
+                patch.object(Path, "read_bytes") as read:
+            with self.assertRaises(ValueError):
+                self.instance.login()
+            read.assert_not_called()
+
+    def test_login_binds_password_field_to_account_and_uses_stdin(self):
+        self.config["credentialFile"] = str(Path(self.directory.name) / "credential")
+        Path(self.config["credentialFile"]).write_bytes(b"test-password\r\n")
+        elements = [dict(controlType="Group", name="Appliance User", depth=3, offscreen=False),
+                    dict(controlType="Edit", name="Password", depth=4,
+                         automationId="PasswordField_2", enabled=True, offscreen=False)]
+        with patch.object(self.instance, "powershell", return_value=json.dumps(
+                    dict(user="appliance", display="Appliance User"))), \
+                patch.object(self.instance, "control", side_effect=[
+                    dict(accepted=True, data=dict(interactiveUserPresent=False)),
+                    dict(accepted=True, desktop="Winlogon", data=dict(elements=elements))]), \
+                patch.object(self.instance, "require_claim"), \
+                patch.object(self.instance, "inspect"), \
+                patch.object(self.instance, "ssh", return_value='{"accepted":true}') as ssh:
+            self.assertTrue(self.instance.login()["accepted"])
+            self.assertEqual(ssh.call_args.args[1], b"test-password")
+            self.assertNotIn("test-password", ssh.call_args.args[0])
+
+    def test_windows_shutdown_can_finish_after_two_minutes_without_force(self):
+        self.config["platform"] = "windows"
+        running = self.info | {"VMState": "running"}
+        with patch.object(self.instance, "require_claim") as claim, \
+                patch.object(self.instance, "inspect", side_effect=[running, running, self.info]), \
+                patch.object(self.instance, "powershell") as guest, \
+                patch.object(self.instance, "vbox") as vbox, \
+                patch.object(adapter.claims, "store_lock", return_value=contextlib.nullcontext()), \
+                patch.object(adapter.time, "monotonic", side_effect=[0, 121, 278]), \
+                patch.object(adapter.time, "sleep"):
+            self.assertEqual(self.instance.dispatch("shutdown", []), 0)
+            guest.assert_called_once_with("shutdown.exe /s /t 0")
+            vbox.assert_not_called()
+            self.assertEqual(claim.call_count, 4)
 
     def test_media_removal_requires_exact_seed_and_verified_password(self):
         self.config["bootstrapMedia"] = str(Path(self.directory.name) / "seed.iso")
