@@ -29,9 +29,9 @@ internal static class DesktopSafety
         if (DesktopGrants.ScopeFor(request.Operation) != "control") return null;
         if (OwnProcess(resolvedProcess ?? request.ProcessId) || OwnWindow(new IntPtr(request.Hwnd ?? 0)))
             return "self_target_refused";
-        if (request.Operation is "key" or "type" && OwnWindow(NativeMethods.GetForegroundWindow()))
+        if (request.Operation is "key" or "key.timeline" or "key.delayed_hold" or "type" && OwnWindow(NativeMethods.GetForegroundWindow()))
             return "self_target_refused";
-        if (request.Operation is "key" or "type" && OwnShellElement(AutomationElement.FocusedElement))
+        if (request.Operation is "key" or "key.timeline" or "key.delayed_hold" or "type" && OwnShellElement(AutomationElement.FocusedElement))
             return "self_target_refused";
         if (request.Operation == "click")
         {

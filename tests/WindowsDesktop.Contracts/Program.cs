@@ -190,6 +190,22 @@ Assert(broker.Authorize("invoke") is null && broker.Generation != original, "Loc
 original = broker.Generation;
 broker.Pause();
 Assert(broker.Authorize("snapshot") == "access_paused" && broker.Authorize("invoke") == "access_paused", "Pause gates observation and action");
+foreach (var operation in new[] { "key.timeline", "key.delayed_hold" })
+{
+    Assert(DesktopGrants.ScopeFor(operation) == "control", "Key timing requires control scope");
+    Assert(broker.Authorize(operation) == "access_paused", "Pause gates key timing");
+    var timing = new DesktopGrants(new TestTime());
+    timing.SetReady(true);
+    Assert(timing.Authorize(operation) == "approval_required", "Key timing is off by default");
+    timing.Arm(["observe"], 60);
+    Assert(timing.Authorize(operation) == "approval_required", "Observation does not allow key timing");
+    timing.Arm(["control"], 60);
+    var timingGeneration = timing.Generation;
+    Assert(timing.Authorize(operation, timingGeneration) is null, "Control scope permits key timing");
+    timing.Stop("test");
+    Assert(timing.Authorize(operation, timingGeneration) == "stale_generation", "Stop fences key timing references");
+    Assert(timing.Authorize(operation) == "approval_required", "Stop revokes key timing access");
+}
 Assert(broker.Generation != original && State(broker).GetProperty("deployment").GetProperty("grant").ValueKind == JsonValueKind.Object, "Pause preserves grant and fences references");
 broker.Admission.Pause("desktop", "safety_fault"); broker.Resume();
 Assert(broker.Authorize("invoke") == "access_paused", "Resume leaves independent safety block");

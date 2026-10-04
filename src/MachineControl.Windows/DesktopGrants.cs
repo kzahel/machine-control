@@ -40,7 +40,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     {
         "windows" or "snapshot" or "screenshot" => "observe",
         "app.launch" or "app.activate" or "invoke" or "set.value" or
-        "click" or "key" or "type" or "window.state" => "control",
+        "click" or "key" or "key.timeline" or "key.delayed_hold" or "type" or "window.state" => "control",
         "browser.tabs" or "browser.wait" or "browser.navigate" or "browser.snapshot" or
         "browser.click" or "browser.type" or "browser.key" or "browser.capture" or
         "browser.release" => "browser",

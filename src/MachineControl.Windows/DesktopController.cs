@@ -2322,13 +2322,19 @@ internal static class DesktopController
         SendKeyboardInputs(strokes
             .Select(stroke => KeyboardInput(stroke, 0))
             .ToArray());
-        Thread.Sleep(durationMs);
-        SendKeyboardInputs(strokes
-            .Reverse()
-            .Select(stroke => KeyboardInput(
-                stroke,
-                NativeMethods.KEYEVENTF_KEYUP))
-            .ToArray());
+        try
+        {
+            Thread.Sleep(durationMs);
+        }
+        finally
+        {
+            ReleaseKeyboardInputs(strokes
+                .Reverse()
+                .Select(stroke => KeyboardInput(
+                    stroke,
+                    NativeMethods.KEYEVENTF_KEYUP))
+                .ToArray());
+        }
     }
 
     private static void SendScanCodeKey(string key, int durationMs)
@@ -2342,12 +2348,17 @@ internal static class DesktopController
             .Select(stroke => ScanCodeInput(stroke.ScanCode, stroke.Extended, false))
             .ToArray();
         SendKeyboardInputs(inputs);
-        Thread.Sleep(durationMs);
-        inputs = strokes
-            .Reverse()
-            .Select(stroke => ScanCodeInput(stroke.ScanCode, stroke.Extended, true))
-            .ToArray();
-        SendKeyboardInputs(inputs);
+        try
+        {
+            Thread.Sleep(durationMs);
+        }
+        finally
+        {
+            ReleaseKeyboardInputs(strokes
+                .Reverse()
+                .Select(stroke => ScanCodeInput(stroke.ScanCode, stroke.Extended, true))
+                .ToArray());
+        }
     }
 
     private static void SendScanCodeTimeline(
@@ -2372,7 +2383,7 @@ internal static class DesktopController
             }
             finally
             {
-                SendKeyboardInputs([
+                ReleaseKeyboardInputs([
                     ScanCodeInput(secondary.ScanCode, secondary.Extended, true),
                 ]);
             }
@@ -2380,7 +2391,7 @@ internal static class DesktopController
         }
         finally
         {
-            SendKeyboardInputs([
+            ReleaseKeyboardInputs([
                 ScanCodeInput(primary.ScanCode, primary.Extended, true),
             ]);
         }
@@ -2402,7 +2413,7 @@ internal static class DesktopController
         }
         finally
         {
-            SendKeyboardInputs([
+            ReleaseKeyboardInputs([
                 ScanCodeInput(primary.ScanCode, primary.Extended, true),
             ]);
         }
@@ -2416,7 +2427,7 @@ internal static class DesktopController
         }
         finally
         {
-            SendKeyboardInputs([
+            ReleaseKeyboardInputs([
                 ScanCodeInput(secondary.ScanCode, secondary.Extended, true),
             ]);
         }
@@ -2519,6 +2530,18 @@ internal static class DesktopController
             throw new System.ComponentModel.Win32Exception(
                 Marshal.GetLastWin32Error());
         }
+    }
+
+    private static void ReleaseKeyboardInputs(NativeMethods.INPUT[] inputs)
+    {
+        // A hold already delivered before Pause/Stop still needs cleanup.
+        // This private path can only release keys, never start another effect.
+        if (inputs.Any(input => input.type != NativeMethods.INPUT_KEYBOARD ||
+            (input.union.keyboard.dwFlags & NativeMethods.KEYEVENTF_KEYUP) == 0))
+            throw new ArgumentException("Keyboard cleanup requires key releases");
+        if (NativeMethods.SendInput((uint)inputs.Length, inputs,
+                Marshal.SizeOf<NativeMethods.INPUT>()) != inputs.Length)
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
     }
 
     private readonly record struct ScanCodeStroke(

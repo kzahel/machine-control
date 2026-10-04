@@ -181,7 +181,8 @@ internal static class Program
     private static async Task<int> RunLocalInputClientAsync(string[] args)
     {
         string requestText;
-        if (args.Length > 1)
+        var hasRequestArgument = args.Length > 1 && !args[1].StartsWith("--", StringComparison.Ordinal);
+        if (hasRequestArgument)
         {
             requestText = args[1];
         }
@@ -197,13 +198,10 @@ internal static class Program
             throw new ArgumentException(
                 "input-call accepts only typed bounded key timeline operations");
         }
-        var generation = $"local-input:{Environment.ProcessId}:{Guid.NewGuid():n}";
-        var result = await DesktopController.ExecuteAsync(
-            request,
-            generation,
-            CancellationToken.None);
-        Console.WriteLine(Contract.Serialize(result));
-        return result.Accepted ? 0 : 3;
+        return await RunClientAsync([
+            "call", Contract.Serialize(request),
+            .. args.Skip(hasRequestArgument ? 2 : 1),
+        ]);
     }
 
     private static async Task<int> RunLoginClientAsync(string[] args)

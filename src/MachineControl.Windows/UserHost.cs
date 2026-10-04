@@ -17,6 +17,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
     [
         "status", "capabilities", "app.launch", "app.activate", "windows",
         "snapshot", "screenshot", "invoke", "set.value", "click", "key",
+        "key.timeline", "key.delayed_hold",
         "type", "window.state", "runtime.stop",
     ];
 

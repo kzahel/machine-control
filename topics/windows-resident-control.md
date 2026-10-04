@@ -313,9 +313,12 @@ one physical key, wait until an exact offset from its press, then hold a second
 key. The tap must fit inside the delay, and delay plus hold is bounded to 5000
 ms. Both keys are released in `finally` paths.
 The local CLI exposes only these bounded timeline operations through
-`input-call` when a non-elevated current-session caller needs newly published
-input operations before the installed resident runtime is upgraded. It is not
-a general direct-dispatch escape hatch.
+`input-call`, forwarding them through the selected installed resident endpoint
+with the same profile and session selectors as `call`. The resident must be
+upgraded to support them. Ordinary-user routes require the control scope and
+retain admission, Pause/Stop, generation and self-target checks for both
+operations and each new key press. Cleanup releases remain possible after
+authority ends so an interrupted hold does not leave a key pressed.
 
 The facade should allow compact semantic/visual scopes for Start, taskbar,
 notification area, a shell flyout, and a Settings window so agents do not pay
