@@ -96,7 +96,10 @@ class VmClaimAdapterTests(unittest.TestCase):
                         process.stdin.write(json.dumps(dict(operation=operation, requestId=str(sequence),
                             requestSequence=sequence, **fields)).encode()+b"\n")
                         process.stdin.flush()
-                        return json.loads(replies.get(timeout=5))
+                        # Hosted Windows ARM64 can take several seconds to
+                        # start Git Bash and its Python adapter. This checks
+                        # protocol behavior, not cold-start performance.
+                        return json.loads(replies.get(timeout=30))
                     offer = request(1,"claim.open",schema="machine-control-claim-admission/v1",
                         reason="Validate adapter queue",claimantAuthority="fixture",claimantId="caller",waitSeconds=30)
                     self.assertTrue(offer["accepted"])
