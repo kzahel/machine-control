@@ -2,7 +2,8 @@
 
 Status: active; full signed native ordinary path and operator controls proved;
 bounded negative/lifecycle and native input/capture qualification proved;
-additional replacement/load/scope and covered composition remain open.
+bounded busy-owner qualification proved; additional replacement/scope and
+covered composition remain open.
 Owning topics: [caller authorization](../../topics/caller-authorization.md) and
 [access admission and pause](../../topics/access-admission-and-pause.md).
 Dependency: [trusted Desktop access](071-desktop-caller-authorization.md).
@@ -164,7 +165,13 @@ the five-second ownership watchdog unchanged. An overlapping pointer correctly
 refused; a fresh owned fixture at the left edge avoids that operator-panel
 geometry without changing self-protection.
 
-**Open:** further signed replacement/load/scope qualification and
+The signed `load` case also passes 32 fresh AX effects in 67.874 seconds with
+active ownership after each; maximum action/keepalive latency is 1.490 seconds.
+The independent counter matches exactly and the full Pause/Resume, Stop/restart
+and restoration sequence passes. This is bounded real-clock load evidence,
+not a long-duration soak.
+
+**Open:** further signed replacement/scope and sustained-load qualification and
 prepared-console covered tasks. Keep this
 and the coordinating plan active; bounded conformance is not distribution or
 genuine hardware takeover acceptance.

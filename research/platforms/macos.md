@@ -42,7 +42,9 @@ not authenticated YA session delegation.
 origin, installed CLI routing and the full signed MC operator app pass ordinary
 independent effects, Pause/fresh Resume, Stop/restart and caller/lifecycle
 refusals. Owned protocol providers start no LLM. Positive protected-consent
-composition and further replacement/load qualification remain open. See [caller authorization](../../topics/caller-authorization.md) and
+composition, signed replacement and sustained-load qualification remain open.
+Native capture/input and a bounded 32-effect busy owner pass with independent
+oracles and the unchanged watchdog. See [caller authorization](../../topics/caller-authorization.md) and
 [Tactical 086](../../docs/tactical/086-native-desktop-delegation.md); a signed
 interpreter or public session label still provides no origin authority.
 
@@ -485,6 +487,8 @@ receiver forwarding to the actual native AX provider. Independent fixture
 counters proved ordinary effects, unrelated-process refusal, Pause/fresh Resume
 and Stop/reconnect refusal. [Tactical 086](../../docs/tactical/086-native-desktop-delegation.md)
 owns exact revisions and limits. A subsequent full signed MC app run proved native checkbox enrollment and
-operator Pause/Resume/Stop through the same live ordinary route. Both runs use
+operator Pause/Resume/Stop through the same live ordinary route. Signed native
+capture/input and bounded busy-owner evidence are recorded in Tactical 088.
+Both runs use
 an owned protocol provider, not an LLM. Protected composition, hardware takeover
 and distribution remain unqualified.

@@ -50,6 +50,13 @@ the guard is unchanged. This setup requires a fresh owned fixture process and
 reaps it, including on an early failure. The fixture compiles and deploys through
 the claimed platform CLI. Python compilation and formatting pass.
 
+The `load` case passes through the same frozen signed apps: 32 fresh AX effects
+in 67.874 seconds, maximum action/keepalive latency 1.490 seconds, independent
+counter delta exactly 32 and active ownership after every effect. The complete
+run observes 34 effects including initial and resumed work. Pause/fresh Resume,
+Stop/reconnect, restart and exact restoration also pass. This qualifies a bounded
+busy owner, not an hours-long soak or every competing-app workload.
+
 The initial signed route trial expired immediately after an AX action
 near the five-second lease boundary; the next request refused before its
 provider effect. The ordinary signed path and its source fixtures remain

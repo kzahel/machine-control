@@ -314,8 +314,9 @@ unavailable. Native shared outer input now borrows an existing exact VM claim un
 claim-store operation lock and the host desktop fence; socket fixtures cover
 two VM contenders, physical contention and stale input refusal. Actual Tart/UTM
 effect acceptance remains pending in [Tactical 084](../docs/tactical/084-native-outer-desktop-admission.md).
-Authenticated integration
-remains open. The [API guide](../docs/access-admission.md) owns wire/client details;
+Authenticated signed native YA ordinary integration now has bounded acceptance
+in Tactical 086; protected composition remains open. The
+[API guide](../docs/access-admission.md) owns wire/client details;
 linked tacticals own execution evidence.
 
 **Current:** [Tactical 085](../docs/tactical/085-macos-admission-transport-cleanup.md)
@@ -333,3 +334,9 @@ and remains off after signed resident restart. The owned provider is a protocol
 fixture, not an LLM. Prepared-console consent composition is source implemented
 in Tactical 087; covered tasks and revised genuine physical takeover/resumption
 remain separate acceptance gates.
+
+**Current:** [Tactical 088](../docs/tactical/088-targeted-native-effect-observation.md)
+qualifies signed native window capture, pointer/key/activation effects and their
+Pause refusals. A bounded busy-owner run observes exactly 32 fresh AX effects
+with ownership retained under the unchanged five-second watchdog. Physical
+covered resumption, broader load and remaining platform cells stay separate.

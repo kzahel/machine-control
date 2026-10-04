@@ -62,9 +62,13 @@ to take over. Full-display capture currently selects the main display, as in
 ordinary native capture; multi-display coverage is implemented but not accepted.
 
 Use the keyboard or pointer to take over. Hardware-origin events are swallowed
-while covered, initiate relock, revoke ordinary access, and pause automatic
-unlock until a manual unlock is independently observed. Unlock and approve
-new access before another task. Stop access, task completion, expiry, owner
+while covered, initiate relock, and temporarily pause otherwise valid access.
+The current source permits a fresh covered task after the same console is
+locked and physically quiet. If the owner unlocks to work, the local-use pause
+continues until re-lock plus quiet or explicit operator Resume. Manual Pause
+remains independent; Stop revokes access. Revised genuine physical takeover
+and unattended resumption still require qualification in Tactical 074.
+Stop access, task completion, expiry, owner
 disconnect, display changes, sleep, and failures also terminate temporary use.
 Covers are removed after observed lock, or after the bound console is replaced.
 
@@ -93,7 +97,8 @@ not extend the maximum deadline. A new lease requires current valid approval.
 Prepared, enabled and unpaused locked use retains that approval across idle
 locks and clean completion in the same console, so a subsequent task can start
 without a manual unlock or another approval. Grant expiry and revocation still
-apply; app restart clears the in-memory approval.
+apply. Until-stopped consent may survive restart for the verified same console
+and boot; queue entries and active sessions never survive restart.
 
 In the task's `finally` cleanup, end that exact session before releasing its
 target-use claim:
@@ -106,8 +111,9 @@ The ID permits stopping only; it is not bearer authority. A stale ID refuses.
 Disconnection or five seconds without a heartbeat ends the lease. Rediscover
 references after lock/unlock and completion. Use `macos-native` while covered;
 Cua is refused in this first version. A physical takeover returns
-`interrupted_by_physical_presence`; stop and wait for manual unlock and fresh
-approval instead of automatically rearming. Ordinary `session.unlock` remains
+`interrupted_by_physical_presence`; treat the old session as terminal and observe
+availability before obtaining fresh ownership. Do not replay an uncertain
+effect. Ordinary `session.unlock` remains
 appliance-only and cannot bypass this workstation profile.
 
 The same typed operations work locally or through the configured transport.
