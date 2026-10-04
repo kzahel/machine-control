@@ -1,6 +1,6 @@
 # Durable target claim and command history
 
-Status: implementation and validation in progress.
+Status: completed for the controller source slice.
 Owning topics: [target operation audit](../../topics/target-operation-audit.md),
 [target-use claims](../../topics/target-use-claims.md) and
 [desktop audit](../../topics/desktop-audit-and-diagnostics.md).
@@ -36,5 +36,26 @@ round trip. Do not claim retroactive history or signed app update acceptance.
 
 ## Validation and result
 
-Pending final source and local read-only validation. No VM creation, password
-change, identity repair or lifecycle mutation is required for this slice.
+**Current:** 194 client tests, 35 claim tests and 6 CLI packaging tests pass.
+The client suite includes 14 focused history checks: multi-process writers,
+restart/pagination, target/claim/claimant correlation, alias and replacement
+identity, release/renewal, payload omissions, private storage/link refusals,
+retention, unpaired intent, unavailable intent and result-write failure without
+replay. Claim fixtures additionally verify observed expiry and queued owner's
+actual heartbeat termination reason. Existing fencing and transport tests pass.
+
+The complete `bin/check --portable` passes, including platform/provider fixtures,
+tracked JSON and Bash syntax, indicator lifecycle and whitespace. Test runners
+and affected fixtures select isolated private journals rather than polluting
+operator history. A read-only source CLI capability call writes intent/result;
+a separate offline query reads them and reports incomplete coverage. The retained
+signed application's bundled Python runtime also passes a SQLite journal write
+and read round trip using the source module in an isolated directory. The new history
+schema validates both the actual read-only source output and fixture claim
+lifecycle/command correlation with local contract references.
+
+No VM creation, password change, identity repair or lifecycle mutation occurs.
+The installed payload source list includes the module. This does not qualify a
+signed updated application, every controller filesystem or Windows live runtime,
+authenticated agent identity, all direct shell/provider use or retrospective
+history. Existing resident and provider audit evidence remains separate.

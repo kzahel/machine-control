@@ -1,0 +1,294 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machine-control.invalid/contracts/target-operation-audit-v0.schema.json",
+  "title": "Private controller target claim and operation history",
+  "type": "object",
+  "required": [
+    "schema",
+    "available",
+    "events",
+    "coverage",
+    "nextBeforeId"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "machine-control-audit/v0"
+    },
+    "available": {
+      "type": "boolean"
+    },
+    "events": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "$ref": "#/$defs/event"
+      }
+    },
+    "nextBeforeId": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "coverage": {
+      "type": "object",
+      "required": [
+        "startedAt",
+        "earliestRetainedAt",
+        "complete"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "startedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "earliestRetainedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "complete": {
+          "const": false
+        },
+        "maximumEvents": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "retentionDays": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 256
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "event": {
+      "type": "object",
+      "required": [
+        "schema",
+        "event",
+        "eventId",
+        "timestamp",
+        "callerPid"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "machine-control-audit/v0"
+        },
+        "event": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "eventId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "callerPid": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "correlationId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{32}$"
+        },
+        "logicalTarget": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "platform": {
+          "enum": [
+            "macos",
+            "windows",
+            "linux",
+            "chromeos",
+            "ios",
+            "android",
+            "quest",
+            "steamdeck"
+          ]
+        },
+        "command": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "programKind": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        },
+        "argumentCountOmitted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "payloadsRecorded": {
+          "const": false
+        },
+        "claimId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^c-[a-f0-9]{24}$"
+        },
+        "resourceKey": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "provider": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "claimant": {
+          "$ref": "claim-result-v0.schema.json#/$defs/claimant"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "useClass": {
+          "enum": [
+            "ordinary",
+            "disruptive"
+          ]
+        },
+        "acquiredAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endReason": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "renewals": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "workspaceHandle": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cleanup": {
+          "type": "object",
+          "required": [
+            "claim",
+            "workspace"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "claim": {
+              "enum": [
+                "not_acquired",
+                "released",
+                "unresolved"
+              ]
+            },
+            "workspace": {
+              "enum": [
+                "not_acquired",
+                "released",
+                "unresolved"
+              ]
+            }
+          }
+        },
+        "outcome": {
+          "enum": [
+            "completed",
+            "child_failed",
+            "interrupted",
+            "renewal_failed",
+            "setup_failed"
+          ]
+        },
+        "childExitCode": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "signal": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "errorCode": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "exitCode": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "elapsedMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "accepted": {
+          "type": "boolean"
+        },
+        "delivery": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "effect": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "uncertainty": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        }
+      }
+    }
+  }
+}

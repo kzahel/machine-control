@@ -2,7 +2,8 @@
 
 Topic: `target-operation-audit`
 
-Status: controller journal implemented; portable validation in progress.
+Status: controller journal implemented and source validated; read-only local
+and bundled-runtime round trips pass. Signed installed adoption is not qualified.
 
 ## Scope and current gap
 

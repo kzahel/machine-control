@@ -10,7 +10,8 @@ bin/machine-control audit history --claim-id c-000000000000000000000000
 bin/machine-control audit history --before 123 --limit 100
 ```
 
-Output is JSON; `--json` is accepted explicitly. Limits are 1–500 events. Pages
+Output follows the [history schema](../contracts/target-operation-audit-v0.schema.json);
+`--json` is accepted explicitly. Limits are 1–500 events. Pages
 are chronological within the newest matching page; pass `nextBeforeId` as
 `--before` to read older rows. Queries do not load the current registry, claim
 a machine, start a VM or dispatch provider commands. A retired target's alias
