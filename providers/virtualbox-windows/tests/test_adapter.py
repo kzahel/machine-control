@@ -128,6 +128,62 @@ class AdapterTests(unittest.TestCase):
             vbox.assert_not_called()
             self.assertEqual(claim.call_count, 4)
 
+    def test_protected_base_refuses_mutation_even_with_candidate_config(self):
+        self.instance.state.mkdir()
+        (self.instance.state / "protected-base.json").write_text("malformed")
+        for operation in ("up", "shutdown", "force-stop", "login", "qualify", "ps"):
+            with self.subTest(operation=operation), \
+                    patch.object(self.instance, "require_claim"), \
+                    patch.object(self.instance, "inspect", return_value=self.info), \
+                    patch.object(self.instance, "vbox") as vbox, \
+                    patch.object(self.instance, "ssh") as ssh:
+                with self.assertRaises(ValueError):
+                    self.instance.dispatch(operation, [])
+                vbox.assert_not_called()
+                ssh.assert_not_called()
+
+    def test_opt_in_shutdown_reschedules_once_without_power_cut(self):
+        self.config.update(platform="windows", shutdownRescheduleAfterSeconds=30)
+        running = self.info | {"VMState": "running"}
+        with patch.object(self.instance, "require_claim"), \
+                patch.object(self.instance, "inspect", side_effect=[
+                    running, running, self.info | {"VMState": "paused"}, self.info]), \
+                patch.object(self.instance, "powershell"), \
+                patch.object(self.instance, "vbox") as vbox, \
+                patch.object(adapter.claims, "store_lock", return_value=contextlib.nullcontext()), \
+                patch.object(adapter.time, "monotonic", side_effect=[0, 31, 36]), \
+                patch.object(adapter.time, "sleep"):
+            self.assertEqual(self.instance.dispatch("shutdown", []), 0)
+            self.assertEqual([c.args[-1] for c in vbox.call_args_list], ["pause", "resume"])
+
+    def test_shutdown_assist_refuses_ordinary_claim_before_guest_action(self):
+        self.config.update(platform="windows", shutdownRescheduleAfterSeconds=30)
+        def require(disruptive=False):
+            if disruptive:
+                raise ValueError("Disruptive authority required")
+        with patch.object(self.instance, "require_claim", side_effect=require), \
+                patch.object(self.instance, "inspect", return_value=self.info | {"VMState": "running"}), \
+                patch.object(self.instance, "powershell") as guest, \
+                patch.object(self.instance, "vbox") as vbox:
+            with self.assertRaises(ValueError):
+                self.instance.dispatch("shutdown", [])
+            guest.assert_not_called()
+            vbox.assert_not_called()
+
+    def test_pause_error_still_restores_a_paused_vm(self):
+        self.config.update(platform="windows", shutdownRescheduleAfterSeconds=30)
+        running = self.info | {"VMState": "running"}
+        with patch.object(self.instance, "require_claim"), \
+                patch.object(self.instance, "inspect", side_effect=[
+                    running, running, self.info | {"VMState": "paused"}]), \
+                patch.object(self.instance, "powershell"), \
+                patch.object(self.instance, "vbox", side_effect=[ValueError("Uncertain pause"), ""]) as vbox, \
+                patch.object(adapter.claims, "store_lock", return_value=contextlib.nullcontext()), \
+                patch.object(adapter.time, "monotonic", side_effect=[0, 31]):
+            with self.assertRaises(ValueError):
+                self.instance.dispatch("shutdown", [])
+            self.assertEqual([c.args[-1] for c in vbox.call_args_list], ["pause", "resume"])
+
     def test_media_removal_requires_exact_seed_and_verified_password(self):
         self.config["bootstrapMedia"] = str(Path(self.directory.name) / "seed.iso")
         for medium, verified in (("foreign.iso", True), (self.config["bootstrapMedia"], False)):

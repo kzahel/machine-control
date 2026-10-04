@@ -19,6 +19,8 @@ import uuid
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "providers/claims"))
 import claims  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from images import Images  # noqa: E402
 
 
 def parse_info(text):
@@ -67,6 +69,14 @@ def load_config(path):
         raise ValueError("Invalid loopback transport")
     if not isinstance(value.get("profile"), str) or not value["profile"]:
         raise ValueError("Guest profile required")
+    assist = value.get("shutdownRescheduleAfterSeconds", 0)
+    if type(assist) is not int or assist != 0 and not 15 <= assist <= 120:
+        raise ValueError("Shutdown reschedule must be disabled or bounded to 15..120 seconds")
+    if assist and value["platform"] != "windows":
+        raise ValueError("Shutdown reschedule is a Windows-only compatibility experiment")
+    connect_timeout = value.get("sshConnectTimeoutSeconds", 5)
+    if type(connect_timeout) is not int or not 5 <= connect_timeout <= 60:
+        raise ValueError("SSH connection deadline must be bounded to 5..60 seconds")
     return value
 
 
@@ -123,7 +133,8 @@ class Adapter:
         executable = Path(os.environ.get("SystemRoot", "C:/Windows")) / "System32/OpenSSH/ssh.exe"
         return [str(executable), "-F", "NUL", "-T", "-i", c["sshKey"], "-p", str(c["sshPort"]),
                 "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes",
-                "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=5",
+                "-o", "StrictHostKeyChecking=yes", "-o",
+                "ConnectTimeout=" + str(c.get("sshConnectTimeoutSeconds", 5)),
                 "-o", "UserKnownHostsFile=" + c["knownHosts"], c["username"] + "@127.0.0.1", command]
 
     def ssh(self, command, input_bytes=None, timeout=120):
@@ -252,6 +263,7 @@ class Adapter:
                     verified=verified, mode="password", locatorReady=True)
 
     def doctor(self):
+        protected = (self.state / "protected-base.json").exists()
         states = dict(power="unknown", administration="unavailable", resident="unavailable",
                       desktop="unknown", semantic="unavailable", capture="unavailable",
                       input="unavailable", outer="unavailable")
@@ -263,10 +275,10 @@ class Adapter:
                                "saved": "suspended"}.get(info["VMState"], "unknown")
             checks.append(dict(id="identity", status="pass", summary="Exact VM and disk pins match"))
             states["outer"] = "ready"
-            operations = ["up", "shutdown", "force-stop"]
+            operations = [] if protected else ["up", "shutdown", "force-stop"]
             if states["power"] == "running":
                 if self.config["platform"] == "windows":
-                    self.powershell("'ready'", timeout=15)
+                    self.powershell("'ready'", timeout=max(15, self.config.get("sshConnectTimeoutSeconds", 5) + 15))
                 else:
                     self.ssh("true", timeout=15)
                 states["administration"] = "ready"
@@ -291,13 +303,19 @@ class Adapter:
                 checks.append(dict(id="resident", status="pass" if states["resident"] == "ready" else "warn"))
         except (ValueError, OSError, subprocess.SubprocessError):
             checks.append(dict(id="readiness", status="fail", summary="A pinned identity or guest route is unavailable"))
-        ready = states["desktop"] == "unlocked" and all(states[name] == "ready" for name in
+        ready = not protected and states["desktop"] == "unlocked" and all(states[name] == "ready" for name in
                     ("administration", "resident", "semantic", "capture", "input"))
         value = dict(schema="machine-control-doctor/v0", ready=ready,
                      target=dict(platform=self.config["platform"], profile=self.config["profile"], kind="desktop"),
                      states=states, checks=checks, lifecycleOperations=operations,
                      extensions=dict(provider="virtualbox-windows", transport="pinned_loopback_ssh",
-                                     experimental=True, role=self.config["role"],
+                                     experimental=True, role="ready-base" if protected
+                                     else self.config["role"],
+                                     shutdownSchedulerAssist=dict(
+                                         enabled=bool(self.config.get("shutdownRescheduleAfterSeconds", 0)),
+                                         afterSeconds=self.config.get("shutdownRescheduleAfterSeconds", 0),
+                                         requiresDisruptiveClaim=True, route="outer_lifecycle",
+                                         hostInterference="none"),
                                      lifecycle=dict(suspend=dict(availability="unavailable", source="provider",
                                                                 reasons=["Saved-state recovery is not qualified"]),
                                                     defaultDownAction="guest-shutdown")))
@@ -323,6 +341,17 @@ class Adapter:
         with claims.store_lock(directory):
             self.require_claim()
             info = self.inspect()
+            images = Images(self)
+            if images.protected() and not (command in {"status", "factory-stages", "base-verify"} or
+                                           command == "credential" and arguments == ["status", "--json"]):
+                raise ValueError("Protected ready base refuses ordinary mutation; derive a candidate")
+            if command == "qualify" and arguments == ["--json"]:
+                print(json.dumps(images.qualify(info))); return 0
+            if command == "promote-base" and arguments == ["--json"]:
+                self.require_claim(disruptive=True)
+                print(json.dumps(images.promote(info))); return 0
+            if command == "base-verify" and arguments == ["--json"]:
+                print(json.dumps(images.verify(info))); return 0
             if command == "status" and not arguments:
                 print({"poweroff": "off", "saved": "suspended"}.get(info["VMState"], info["VMState"]))
                 return 0
@@ -337,6 +366,7 @@ class Adapter:
                 self.require_claim(disruptive=True)
                 if info["VMState"] != "running":
                     raise ValueError("ACPI recovery requires a running guest")
+                images.invalidate(history=True)
                 self.vbox("controlvm", self.config["uuid"], "acpipowerbutton")
                 print(json.dumps(dict(delivered=True, effect="unconfirmed")))
                 return 0
@@ -346,6 +376,7 @@ class Adapter:
                         "escape": ["01", "81"]}
                 if info["VMState"] != "running" or len(arguments) != 1 or arguments[0] not in keys:
                     raise ValueError("A running recovery target and supported key are required")
+                images.invalidate(history=True)
                 self.vbox("controlvm", self.config["uuid"], "keyboardputscancode", *keys[arguments[0]])
                 print(json.dumps(dict(delivered=True, effect="unconfirmed", route="outer_recovery",
                                       hostInterference="none")))
@@ -377,6 +408,7 @@ class Adapter:
                     changes += ["--uart1", "0x3f8", "4", "--uart-mode1", "file", str(serial)]
                 if not changes:
                     raise ValueError("An explicit candidate hardware change is required")
+                images.invalidate(history=True)
                 self.vbox("modifyvm", self.config["uuid"], *changes)
                 actual = self.inspect()
                 if options.cpus is not None and actual.get("cpus") != str(options.cpus):
@@ -421,6 +453,12 @@ class Adapter:
                 return result.returncode
             if command == "factory-stages" and arguments == ["--json"]:
                 observed = self.doctor()
+                promotion = "waiting"
+                if images.protected():
+                    try:
+                        promotion = "complete" if images.verify(info, hashes=False)["verified"] else "blocked"
+                    except (ValueError, KeyError, OSError):
+                        promotion = "blocked"
                 try:
                     credential = self.credential()["ready"]
                 except (ValueError, OSError):
@@ -432,13 +470,14 @@ class Adapter:
                           dict(name="credential-handoff", state="complete" if credential else "action_required"),
                           dict(name="media", state="complete" if info.get("SATA-1-0") == "none" else "action_required"),
                           dict(name="final-stop", state="complete" if info["VMState"] == "poweroff" else "waiting"),
-                          dict(name="promotion", state="blocked")]
+                          dict(name="promotion", state=promotion)]
                 schema = "linuxvm-factory-stages/v0" if self.config["platform"] == "linux" else "winvm-factory-stages/v0"
                 print(json.dumps(dict(schema=schema, provider="virtualbox-windows", stages=stages,
-                                      limitations=["Common candidate promotion and isolated workspaces are not qualified"])))
+                                      limitations=["Isolated workspaces are not qualified"])))
                 return 0
             if command == "up" and not arguments:
                 if info["VMState"] == "poweroff":
+                    images.starting()
                     self.vbox("startvm", self.config["uuid"], "--type", "headless")
                 elif info["VMState"] != "running":
                     raise ValueError("Unsupported initial power state")
@@ -460,8 +499,12 @@ class Adapter:
             if command in {"shutdown", "force-stop"} and not arguments:
                 if info["VMState"] == "poweroff":
                     return 0
+                assist = self.config.get("shutdownRescheduleAfterSeconds", 0) if command == "shutdown" else 0
+                if assist:
+                    self.require_claim(disruptive=True)
                 if command == "force-stop":
                     self.require_claim(disruptive=True)
+                    images.invalidate(history=True)
                     self.vbox("controlvm", self.config["uuid"], "poweroff")
                 elif self.config["platform"] == "windows":
                     self.powershell("shutdown.exe /s /t 0")
@@ -469,11 +512,26 @@ class Adapter:
                     self.ssh("sudo systemd-run --on-active=2 /usr/bin/systemctl poweroff")
                 # Windows can finish servicing/session teardown long after SSH
                 # exits. A short timeout is not evidence of a frozen guest.
-                deadline = time.monotonic() + (900 if self.config["platform"] == "windows" else 120)
-                while time.monotonic() < deadline:
+                start = time.monotonic()
+                deadline = start + (900 if self.config["platform"] == "windows" else 120)
+                assisted = False
+                while (now := time.monotonic()) < deadline:
                     self.require_claim()
-                    if self.inspect()["VMState"] == "poweroff":
+                    stopped = self.inspect()
+                    if stopped["VMState"] == "poweroff":
+                        if command == "shutdown":
+                            images.stopped(stopped, now - start, scheduler_assisted=assisted)
                         return 0
+                    if assist and not assisted and now - start >= assist:
+                        self.require_claim(disruptive=True)
+                        # Explicit private compatibility profile, not a power
+                        # cut. Always restore scheduling after our own pause.
+                        try:
+                            self.vbox("controlvm", self.config["uuid"], "pause")
+                        finally:
+                            if self.inspect()["VMState"] == "paused":
+                                self.vbox("controlvm", self.config["uuid"], "resume")
+                        assisted = True
                     time.sleep(2)
                 raise ValueError("Shutdown unconfirmed; no automatic force-stop")
             if command in {"control", "control-local"} and len(arguments) == 1:
@@ -495,7 +553,8 @@ class Adapter:
                     executable = Path(os.environ.get("SystemRoot", "C:/Windows")) / "System32/OpenSSH/scp.exe"
                     result = subprocess.run([str(executable), "-F", "NUL", "-P", str(c["sshPort"]),
                         "-i", c["sshKey"], "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes",
-                        "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=5",
+                        "-o", "StrictHostKeyChecking=yes", "-o",
+                        "ConnectTimeout=" + str(self.config.get("sshConnectTimeoutSeconds", 5)),
                         "-o", "UserKnownHostsFile=" + c["knownHosts"], str(Path(source).resolve()),
                         c["username"] + "@127.0.0.1:" + destination.replace("\\", "/")],
                         capture_output=True, timeout=600)

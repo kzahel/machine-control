@@ -2,8 +2,9 @@
 
 Status: Windows and Linux guest administration and resident control are
 live-tested on a Windows Home x64 controller. This is an
-explicit opt-in adapter for privately provisioned candidates, not an accepted
-factory, base-image promotion or isolated-workspace implementation.
+explicit opt-in adapter for privately provisioned candidates. Guarded base
+promotion receipts are implemented; complete factory and isolated-workspace
+integration remain unqualified.
 Windows desktop/UAC and unlock tests passed, but shutdown and media-free
 cold-start attempts subsequently stalled; reliable Windows lifecycle acceptance
 is blocked. Linux passed repeated cold boots with a documented guest workaround.
@@ -30,7 +31,7 @@ The private configuration has schema `machine-control-virtualbox-target/v0`:
 | Field | Required value |
 | --- | --- |
 | `platform`, `profile` | `windows` or `linux`, and the guest profile |
-| `role` | `candidate` or `development`; immutable bases are refused |
+| `role` | `candidate` or `development`; a protected-base receipt overrides this role and refuses ordinary mutation |
 | `uuid`, `diskUuid` | Exact VM and system-disk UUIDs |
 | `library` | Absolute isolated `VBOX_USER_HOME` directory |
 | `vmFile`, `disk` | Absolute registered configuration and SATA port-zero disk paths |
@@ -41,6 +42,8 @@ The private configuration has schema `machine-control-virtualbox-target/v0`:
 | `bootstrapMedia` | Exact seed ISO path, required for guarded detachment |
 | `unlockInstance`, `unlockGrantFile`, `unlockKeyFile` | Optional installed Windows unlock instance and absolute private approval/key locators |
 | `opensslDirectory` | Optional absolute directory containing native OpenSSL for the existing unlock controller |
+| `shutdownRescheduleAfterSeconds` | Optional Windows compatibility experiment: `0` disables it; `15..120` seconds permits one bounded pause/resume during shutdown |
+| `sshConnectTimeoutSeconds` | Optional SSH handshake limit, `5..60` seconds; defaults to `5`, with no automatic command retry |
 
 Keep every path, identity, endpoint, key, journal and capture private. Restrict
 directories and secret files with Windows ACLs before provisioning. The SSH
@@ -69,7 +72,7 @@ selects the host's desktop app. Native passthrough operations include:
   verifiers, delivering the password only through standard input after
   authenticated account discovery. Status is a bounded cached observation.
 - `factory-stages --json`: journal-compatible observations, explicitly keeping
-  promotion and isolated workspaces unqualified.
+  promotion incomplete until a protected base verifies, and isolated workspaces unqualified.
 - `push SOURCE ABSOLUTE_GUEST_DESTINATION`: authenticated guest file transfer;
   Windows uses SFTP to preserve binary bytes independently of PowerShell stdin.
 - `unlock`: Windows only; reuses the existing signed-challenge controller and
@@ -103,10 +106,57 @@ and serial logs are private recovery evidence, not ordinary test routes.
 `--paravirt-provider none|default|hyperv` selects the guest-facing interface
 with readback; it does not enable, disable or reconfigure the host hypervisor.
 
+The explicit `shutdownRescheduleAfterSeconds` profile requires a disruptive
+claim before issuing shutdown. After Windows accepts native shutdown, the
+provider waits for the configured interval, then pauses and resumes scheduling
+at most once if the VM is still running. A `finally` path resumes a VM paused
+by that operation. It continues waiting for Windows to reach power-off and
+never substitutes a power cut. Doctor reports the opt-in outer lifecycle
+route, and each successful lifecycle receipt records whether it was used.
+This bounded compatibility path is distinct from an unassisted shutdown and
+from ordinary desktop tests, which continue to use only target-native control.
+
 Initial VM creation and Windows console bootstrap still use private exact-UUID
 factory scripts and need manual journal notes. No implicit fallback from SSH
 to host input exists. Snapshots, derived workspaces,
 promotion, remote hosting and ARM controllers require further qualification.
+
+## Qualification and protected bases
+
+Under the same exact-target claim and provisioning journal, run
+`testbed -- qualify --json` after cold login, resident conformance and idle
+checks. Qualification independently verifies doctor readiness, Secure Boot,
+TPM readiness, UAC, absent restart/servicing flags, detached installation media,
+disabled automatic login, absent cached setup password and the canonical
+stored password. It records a private boot identity and hardware fingerprint;
+it does not claim to run the full conformance suite itself.
+
+The following `target shutdown` records a clean lifecycle receipt only after
+observing power-off. Repeat on three distinct boots. Recovery input, ACPI
+recovery, force-stop and hardware experiments invalidate previous qualification
+history; a newly started but unqualified boot prevents promotion.
+The configured scheduler-assist policy is part of the qualification fingerprint;
+three assisted successes cannot qualify a configuration with assistance disabled.
+The configured SSH handshake budget is also part of that fingerprint.
+
+`testbed -- promote-base --json` requires a disruptive claim, a stopped
+candidate, three recent qualifying boots with clean shutdowns, unchanged
+credentials and an unchanged final disk. It hashes the disk, VM configuration
+and firmware/TPM state, then atomically creates the private protected manifest.
+The operation retains the existing registered VM in place: it neither deletes
+nor replaces another image. This is a same-controller appliance profile,
+not a generalized export or proof of isolated-workspace support.
+
+`testbed -- base-verify --json` checks the exact stopped identity, credential
+file stamp and all three file hashes. Protected bases refuse ordinary start,
+shutdown, administration, desktop, hardware, credential mutation and repeated
+promotion, including when private configuration still says `candidate`.
+Malformed protection records also refuse mutation. Doctor reports the base
+role; factory-stage inspection checks retained file stamps. Hash verification
+is the explicit stronger check. No automatic unprotect or base deletion exists.
+Keep manifests and qualification receipts private and retain the same
+controller state directory with the VM; these are cooperative same-user guards,
+not containment against the controller account or direct hypervisor use.
 
 Run the bounded regression tests with:
 

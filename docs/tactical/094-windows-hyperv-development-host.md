@@ -1,4 +1,4 @@
-# 094 — Windows development host and Hyper-V test loop
+# 094 â€” Windows development host and Hyper-V test loop
 
 Status: host inspected; bounded QEMU/WHPX probes passed on Windows Home, but
 Windows 11 qualification is blocked by native-host TPM support. A subsequent
@@ -85,7 +85,7 @@ prove the installed toolchains through actual builds.
 
 ## Ordered work
 
-### 1 — select and inspect the Windows development host
+### 1 â€” select and inspect the Windows development host
 
 Resolve the intended machine through private inventory; ask for its logical
 selection only if ambiguous. Inspect architecture, edition, virtualization
@@ -100,7 +100,7 @@ Choose a host-local checkout and cache layout accessible to native tools and
 WSL Git without maintaining two independently edited copies. Verify path,
 quoting, executable and line-ending behavior. Keep concrete paths private.
 
-### 2 — prove native host builds before VM provisioning
+### 2 â€” prove native host builds before VM provisioning
 
 Use [Windows desktop CI](../../.github/workflows/windows-desktop.yml),
 [component packaging](../../release/windows-package.py) and repository locks
@@ -116,7 +116,7 @@ unrelated layers on every edit. Bind deployed artifacts to source revision and
 digests. Record one cold build and representative warm rebuild timings; do not
 claim an iteration-speed improvement without measuring it.
 
-### 3 — add the Hyper-V provider and common adapter
+### 3 â€” add the Hyper-V provider and common adapter
 
 **Proposal:** place reusable Windows-host management under
 `providers/hyperv-windows/` with a thin Windows target integration under
@@ -139,7 +139,7 @@ live mutation. In particular, cover missing/renamed/replaced VMs, non-owned
 resources, unavailable permissions, unsupported hosts and interrupted commands.
 Never auto-adopt a same-named VM or hide uncertain completion with a retry.
 
-### 4 — provision and recover one Windows appliance
+### 4 â€” provision and recover one Windows appliance
 
 Begin a [private provisioning journal](../provisioning-journals.md). Adapt the
 existing Windows factory/bootstrap to the verified Hyper-V guest configuration
@@ -165,7 +165,7 @@ Any necessary outer UI recovery must remain explicit and must not become the
 normal install/test path. Keep the privileged appliance management runtime
 separate from the ordinary desktop product being tested.
 
-### 5 — add isolated test workspaces and safe cleanup
+### 5 â€” add isolated test workspaces and safe cleanup
 
 Map existing `persistent`, `isolated` and `candidate` intents onto tested
 Hyper-V mechanisms. Evaluate a stopped immutable base plus differencing VHDX
@@ -186,7 +186,7 @@ partial acquisition/release must retain enough private state for exact recovery;
 unknown outcomes are not permission to delete by name or retry allocation.
 Exercise missing/foreign receipts, wrong claims and last-ready-base protection.
 
-### 6 — prove and document the host-to-guest iteration loop
+### 6 â€” prove and document the host-to-guest iteration loop
 
 From the Windows host, run a repeatable command-driven sequence: build a known
 revision, acquire the guest/workspace, deploy the exact artifact, run native
@@ -234,7 +234,7 @@ contract and acceptance. Reboot persistence remains a separate decision.
 
 ## Final result
 
-### Initial Windows Home feasibility — 2026-10-04
+### Initial Windows Home feasibility â€” 2026-10-04
 
 Private inventory resolved the intended x64 development host. WSL Git worked;
 the checkout was clean. Native .NET, Rust/MSVC, C++/Windows SDK, Node and Python
@@ -273,7 +273,7 @@ The next gate is an actual Windows boot with supported firmware/TPM and guest
 transport. Native builds, the common adapter, protected resident acceptance,
 claimed workspaces and both measured build/deploy/test cycles remain pending.
 
-### Windows guest preflight — 2026-10-04
+### Windows guest preflight â€” 2026-10-04
 
 The operator authorized the next experiment while retaining the no-reboot
 boundary. A new private provisioning journal began before guest preflight.
@@ -294,7 +294,7 @@ unproved. A supported native TPM route or another Home-capable VM provider is
 needed before this Windows 11 experiment can continue. The earlier WHPX and
 offline overlay results remain valid within their narrower scope.
 
-### VirtualBox installer experiment — 2026-10-04
+### VirtualBox installer experiment â€” 2026-10-04
 
 The operator selected a bounded VirtualBox experiment, retaining explicit
 approval for any host reboot. A new private provisioning journal preceded
@@ -362,7 +362,7 @@ remain unproved. The
 assessment. Common-provider integration, isolated workspaces, resident
 acceptance, native builds and both measured iteration cycles remain pending.
 
-### Autonomous Windows and Linux provisioning — 2026-10-04
+### Autonomous Windows and Linux provisioning â€” 2026-10-04
 
 The operator expanded the experiment to end-to-end Windows and Linux setup,
 retaining the explicit host-reboot approval boundary. Separate private journals
@@ -492,7 +492,7 @@ unlock-controller tests pass, and package tests pass with the Windows symlink
 case skipped. The modified UAC harness parses and passed both live iterations.
 Host boot time remained unchanged. No public release or local signing occurred.
 
-### Stability follow-up — in progress
+### Stability follow-up â€” in progress
 
 The operator requested a stable retained Windows base and questioned whether
 short shutdown waits had been mistaken for hangs. A fresh private journal and
@@ -518,3 +518,23 @@ A subsequent UTC boot still stalled during guest control. One recovery Escape
 was followed by responsive SSH, but the result did not repeat reliably. This
 does not establish an input-wake root cause. Repeated lifecycle, promotion and
 cleanup acceptance are still being investigated; no stable base is claimed.
+
+
+The guest-facing Hyper-V paravirtualization interface (with the host backend
+unchanged) reached administration in 35.081 seconds and passed full resident
+conformance in 71.580 seconds and protected UAC conformance in 31.206 seconds.
+The optional unlock grant was explicitly revoked and no consent-fixture task
+remained. An unassisted shutdown still exceeded fifteen minutes; one explicit
+pause/resume was followed by power-off in 5.149 seconds. A privately enabled,
+bounded shutdown scheduling assist subsequently completed one cycle in 37.940
+seconds. It is reported as an outer lifecycle compatibility experiment and
+requires disruptive authority before shutdown; it is not an ordinary desktop
+control route or proof of an unassisted lifecycle.
+
+Idle transport remained unreliable. Five-, fifteen- and thirty-second SSH
+handshake budgets all failed in separate attempts, including a banner timeout.
+Authenticated Guest Additions diagnosis found Windows and sshd running, the
+local SSH banner responsive, and guest networking configured. Disabling guest
+Intel virtual-NIC interrupt moderation is a focused pending experiment, not an
+established fix. The stopped diagnostic backup remains retained. No image has
+been promoted on the strength of these incomplete results.
