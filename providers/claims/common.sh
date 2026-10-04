@@ -115,7 +115,7 @@ claim_adapter_main() {
     case "$command" in
         claim-capabilities)
             [[ ${#forwarded[@]} == 0 || "${forwarded[*]}" == '--version 1' ]] || return 2
-            claim_store "$state_dir" capabilities "${forwarded[@]}"
+            claim_store "$state_dir" capabilities ${forwarded[@]+"${forwarded[@]}"}
             ;;
         claim-status)
             (( ${#forwarded[@]} == 0 )) || return 2
@@ -124,19 +124,19 @@ claim_adapter_main() {
             ;;
         claim-acquire)
             claim_store "$state_dir" acquire --provider "$provider" \
-                --resource-id "$resource_id" "${forwarded[@]}"
+                --resource-id "$resource_id" ${forwarded[@]+"${forwarded[@]}"}
             ;;
         claim-check)
             claim_store "$state_dir" check --provider "$provider" \
-                --resource-id "$resource_id" "${forwarded[@]}"
+                --resource-id "$resource_id" ${forwarded[@]+"${forwarded[@]}"}
             ;;
         claim-renew)
             claim_store "$state_dir" renew --provider "$provider" \
-                --resource-id "$resource_id" "${forwarded[@]}"
+                --resource-id "$resource_id" ${forwarded[@]+"${forwarded[@]}"}
             ;;
         claim-release)
             claim_store "$state_dir" release --provider "$provider" \
-                --resource-id "$resource_id" "${forwarded[@]}"
+                --resource-id "$resource_id" ${forwarded[@]+"${forwarded[@]}"}
             ;;
         *)
             printf 'Unknown target-use claim command\n' >&2

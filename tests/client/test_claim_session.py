@@ -1,7 +1,7 @@
 import json
 import os
-from pathlib import Path
 import select
+from pathlib import Path
 import subprocess
 import sys
 import tempfile
@@ -67,8 +67,12 @@ os.execv(sys.executable,command)
         child.stdin.write(json.dumps(dict(operation=operation, requestId=str(sequence),
                                          requestSequence=sequence, **fields)).encode() + b"\n")
         child.stdin.flush()
-        self.assertTrue(select.select([child.stdout], [], [], 5)[0], "No bounded reply")
-        return json.loads(child.stdout.readline())
+        reply = []
+        reader = threading.Thread(target=lambda: reply.append(child.stdout.readline()), daemon=True)
+        reader.start()
+        reader.join(5)
+        self.assertFalse(reader.is_alive(), "No bounded reply")
+        return json.loads(reply[0])
 
     def open(self, child):
         return self.rpc(child, 1, "claim.open", schema="machine-control-claim-admission/v1",
@@ -161,7 +165,7 @@ os.execv(sys.executable,command)
                   "controllerPlatforms":[mc.controller_platform()], "launcher":"auto"}
         registry.write_text(json.dumps({"schema":mc.TARGET_SCHEMA, "targets":{"fixture":target}}))
         marker = self.directory / "effect"
-        command = [str(ROOT/'bin/machine-control'), '--registry', str(registry), '--target', 'fixture',
+        command = [sys.executable, str(ROOT/'bin/machine-control'), '--registry', str(registry), '--target', 'fixture',
             'run', '--wait', '10s', '--reason', 'Validate queued task', '--claimant-authority', 'fixture',
             '--claimant-id', 'queued-task', '--', sys.executable, '-c',
             "import os,pathlib; assert 'MACHINE_CONTROL_SCOPE_FILE' in os.environ; pathlib.Path("+repr(str(marker))+").touch()"]
@@ -178,6 +182,7 @@ os.execv(sys.executable,command)
             self.assertTrue(marker.exists())
         self.assertEqual(self.invoke('status')['data']['state'], 'available')
 
+    @unittest.skipIf(sys.platform == "win32", "POSIX SIGTERM cancellation fixture")
     def test_queued_cli_cancellation_never_starts_child(self):
         import signal
         registry = self.directory / "registry.json"
@@ -187,7 +192,7 @@ os.execv(sys.executable,command)
         marker = self.directory / "effect"
         with self.session() as first:
             first.wait()
-            child = subprocess.Popen([str(ROOT/'bin/machine-control'),'--registry',str(registry),'--target','fixture',
+            child = subprocess.Popen([sys.executable, str(ROOT/'bin/machine-control'),'--registry',str(registry),'--target','fixture',
                 'run','--wait','30s','--reason','Validate cancellation','--claimant-authority','fixture','--claimant-id','queued-task',
                 '--',sys.executable,'-c',"from pathlib import Path; Path("+repr(str(marker))+").touch()"],
                 stdout=subprocess.PIPE,stderr=subprocess.PIPE)

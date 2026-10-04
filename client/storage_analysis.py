@@ -104,7 +104,10 @@ def analyze(roots: list[Path], *, minimum_bytes: int = 1048576,
                                 break
                             if path.suffix.lower() not in EXTENSIONS:
                                 continue
-                            info = entry.stat(follow_symlinks=False)
+                            # Windows DirEntry.stat may omit file identity (inode zero).
+                            # Path.stat queries the actual identity, preserving hardlink
+                            # deduplication without collapsing unrelated images.
+                            info = path.stat(follow_symlinks=False)
                             if not stat.S_ISREG(info.st_mode) or info.st_size < minimum_bytes:
                                 continue
                             identity = (info.st_dev, info.st_ino)

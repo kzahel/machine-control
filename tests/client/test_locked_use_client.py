@@ -45,6 +45,7 @@ class LockedUseConnectionTests(unittest.TestCase):
                 machost.channel()
             resident.assert_not_called()
 
+    @unittest.skipUnless(hasattr(socket, "AF_UNIX"), "Mac native Unix-socket transport")
     def test_connection_stays_open_and_heartbeats_until_task_end(self):
         with tempfile.TemporaryDirectory(prefix="mc-session-") as directory:
             path = str(Path(directory) / "control.sock")
