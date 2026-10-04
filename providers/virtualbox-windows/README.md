@@ -5,9 +5,10 @@ live-tested on a Windows Home x64 controller. This is an
 explicit opt-in adapter for privately provisioned candidates. Guarded base
 promotion receipts are implemented; complete factory and isolated-workspace
 integration remain unqualified.
-Windows desktop/UAC and unlock tests passed, but shutdown and media-free
-cold-start attempts subsequently stalled; reliable Windows lifecycle acceptance
-is blocked. Linux passed repeated cold boots with a documented guest workaround.
+Windows desktop/UAC, cold login and repeated lifecycle acceptance now pass
+under a declared compatibility profile with a bounded shutdown scheduling
+assist. A protected stopped Windows base and accepted full-copy development
+VM are retained. Linux passed repeated cold boots with a guest workaround.
 
 Use native Windows Python, OpenSSH and VBoxManage through the common CLI.
 Keep Git in WSL. The platform directories continue to own guest bootstrap,
@@ -118,8 +119,8 @@ from ordinary desktop tests, which continue to use only target-native control.
 
 Initial VM creation and Windows console bootstrap still use private exact-UUID
 factory scripts and need manual journal notes. No implicit fallback from SSH
-to host input exists. Snapshots, derived workspaces,
-promotion, remote hosting and ARM controllers require further qualification.
+to host input exists. Snapshots, isolated workspaces, generalized image export,
+remote hosting and ARM controllers require further qualification.
 
 ## Qualification and protected bases
 

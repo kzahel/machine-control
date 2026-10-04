@@ -126,19 +126,27 @@ The final cleanup boot reached Automatic Repair; the candidate was retained
 powered off with its private credential handoff intact. It is diagnostic
 evidence, not an accepted reusable Windows base.
 
-**Current, `live-tested` follow-up:** one media-free cold login now passes
-through the existing appliance credential pipe, followed by ready doctor and
-live password verification. A shutdown completed without forced recovery after
-278 seconds, despite the adapter's earlier 120-second timeout. Prior short
-waits do not establish a frozen guest or exclude servicing. That follow-up
-observed no pending update restart or active servicing worker before shutdown.
-Aligning guest time zone and virtual RTC to UTC removes an observed nine-hour
-startup clock correction, but a subsequent guest-control stall remained.
-One outer recovery key was followed by restored SSH; the result did not repeat
-reliably. [Upstream issue 722](https://github.com/VirtualBox/virtualbox/issues/722)
-reports input-associated Windows guest stalls under a Microsoft hypervisor;
-the resemblance is a diagnostic lead, not an established common cause.
-Repeated lifecycle and ready-base promotion remain unqualified.
+**Current, `live-tested` follow-up:** a bounded Windows lifecycle profile now
+passes three qualified media-free cold boots, guarded appliance login,
+idle/security/password checks and completed OS shutdowns. One idle interval
+lasted five minutes. The profile combines guest-facing Hyper-V
+paravirtualization, three vCPUs, ordinary APIC with x2APIC disabled, UTC time,
+disabled guest Intel NIC interrupt moderation and a bounded SSH handshake.
+Shutdown explicitly permits one claimed pause/resume after thirty seconds;
+this is an outer lifecycle compatibility path, not an unassisted shutdown or
+an ordinary desktop-test route. The underlying cause remains undetermined.
+[Upstream issue 722](https://github.com/VirtualBox/virtualbox/issues/722) remains
+a resemblance, not proof of a shared cause.
+
+A separate full-copy derivative retained firmware/TPM and passed first-attempt
+resident/UAC conformance, credential/security acceptance and shutdown. The
+original is promoted as a protected stopped base with verified disk,
+configuration and firmware/TPM hashes. An attempted ordinary start was refused.
+An earlier source conformance attempt failed at the Start-menu stage and its
+unchanged rerun passed; the tactical retains that friction and all timings.
+Host security, Microsoft hypervisor and WSL settings were not disabled, and
+no host reboot was used. This qualifies one private compatibility profile,
+not production adoption or broad Windows-host support.
 
 The [experimental adapter](../../providers/virtualbox-windows/README.md)
 checks exact VM/disk identities, serializes claimed operations, uses pinned
@@ -155,8 +163,8 @@ receipts still need adoption work.
 CLI support for snapshots/clones alone does not prove safe disposable
 workspaces or preservation of TPM/NVRAM state across derivation.
 
-**Open:** complete common-factory integration, qualified lifecycle recovery and
-isolated workspace acceptance.
+**Open:** complete common-factory integration, unassisted lifecycle reliability,
+generalized derivation/recovery and isolated workspace acceptance.
 Remote provider hosting and Windows ARM hosts remain untested. Evidence and
 cleanup results belong to [Tactical 094](../../docs/tactical/094-windows-hyperv-development-host.md);
 private journals retain exact media, resource and credential locators.

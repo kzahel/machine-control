@@ -1,12 +1,11 @@
-# 094 â€” Windows development host and Hyper-V test loop
+# 094 — Windows development host and Hyper-V test loop
 
-Status: host inspected; bounded QEMU/WHPX probes passed on Windows Home, but
-Windows 11 qualification is blocked by native-host TPM support. A subsequent
-VirtualBox experiment now has an opt-in common adapter and live-tested Windows
-and Linux resident candidates. Windows security, protected control and two
-native build/deploy/test cycles pass, but subsequent Windows shutdown and
-media-free cold-start tests stall. Windows lifecycle acceptance is blocked;
-production factory/workspaces remain open.
+Status: native builds and two Windows build/deploy/test cycles passed on a
+Windows Home x64 host. The VirtualBox follow-up qualified a Windows lifecycle
+compatibility profile and promoted a protected stopped base, with an accepted
+independent full-copy development VM. Linux resident/cold-boot evidence also
+exists. Complete factory and isolated-workspace integration remain open;
+Hyper-V is unimplemented and QEMU/WHPX Windows 11 TPM support remains blocked.
 
 Owning topics: [VM workspaces](../../topics/vm-workspaces-and-storage-policy.md),
 [cross-platform coordinator](../../topics/cross-platform-coordinator.md),
@@ -85,7 +84,7 @@ prove the installed toolchains through actual builds.
 
 ## Ordered work
 
-### 1 â€” select and inspect the Windows development host
+### 1 — select and inspect the Windows development host
 
 Resolve the intended machine through private inventory; ask for its logical
 selection only if ambiguous. Inspect architecture, edition, virtualization
@@ -100,7 +99,7 @@ Choose a host-local checkout and cache layout accessible to native tools and
 WSL Git without maintaining two independently edited copies. Verify path,
 quoting, executable and line-ending behavior. Keep concrete paths private.
 
-### 2 â€” prove native host builds before VM provisioning
+### 2 — prove native host builds before VM provisioning
 
 Use [Windows desktop CI](../../.github/workflows/windows-desktop.yml),
 [component packaging](../../release/windows-package.py) and repository locks
@@ -116,7 +115,7 @@ unrelated layers on every edit. Bind deployed artifacts to source revision and
 digests. Record one cold build and representative warm rebuild timings; do not
 claim an iteration-speed improvement without measuring it.
 
-### 3 â€” add the Hyper-V provider and common adapter
+### 3 — add the Hyper-V provider and common adapter
 
 **Proposal:** place reusable Windows-host management under
 `providers/hyperv-windows/` with a thin Windows target integration under
@@ -139,7 +138,7 @@ live mutation. In particular, cover missing/renamed/replaced VMs, non-owned
 resources, unavailable permissions, unsupported hosts and interrupted commands.
 Never auto-adopt a same-named VM or hide uncertain completion with a retry.
 
-### 4 â€” provision and recover one Windows appliance
+### 4 — provision and recover one Windows appliance
 
 Begin a [private provisioning journal](../provisioning-journals.md). Adapt the
 existing Windows factory/bootstrap to the verified Hyper-V guest configuration
@@ -165,7 +164,7 @@ Any necessary outer UI recovery must remain explicit and must not become the
 normal install/test path. Keep the privileged appliance management runtime
 separate from the ordinary desktop product being tested.
 
-### 5 â€” add isolated test workspaces and safe cleanup
+### 5 — add isolated test workspaces and safe cleanup
 
 Map existing `persistent`, `isolated` and `candidate` intents onto tested
 Hyper-V mechanisms. Evaluate a stopped immutable base plus differencing VHDX
@@ -186,7 +185,7 @@ partial acquisition/release must retain enough private state for exact recovery;
 unknown outcomes are not permission to delete by name or retry allocation.
 Exercise missing/foreign receipts, wrong claims and last-ready-base protection.
 
-### 6 â€” prove and document the host-to-guest iteration loop
+### 6 — prove and document the host-to-guest iteration loop
 
 From the Windows host, run a repeatable command-driven sequence: build a known
 revision, acquire the guest/workspace, deploy the exact artifact, run native
@@ -234,7 +233,7 @@ contract and acceptance. Reboot persistence remains a separate decision.
 
 ## Final result
 
-### Initial Windows Home feasibility â€” 2026-10-04
+### Initial Windows Home feasibility — 2026-10-04
 
 Private inventory resolved the intended x64 development host. WSL Git worked;
 the checkout was clean. Native .NET, Rust/MSVC, C++/Windows SDK, Node and Python
@@ -273,7 +272,7 @@ The next gate is an actual Windows boot with supported firmware/TPM and guest
 transport. Native builds, the common adapter, protected resident acceptance,
 claimed workspaces and both measured build/deploy/test cycles remain pending.
 
-### Windows guest preflight â€” 2026-10-04
+### Windows guest preflight — 2026-10-04
 
 The operator authorized the next experiment while retaining the no-reboot
 boundary. A new private provisioning journal began before guest preflight.
@@ -294,7 +293,7 @@ unproved. A supported native TPM route or another Home-capable VM provider is
 needed before this Windows 11 experiment can continue. The earlier WHPX and
 offline overlay results remain valid within their narrower scope.
 
-### VirtualBox installer experiment â€” 2026-10-04
+### VirtualBox installer experiment — 2026-10-04
 
 The operator selected a bounded VirtualBox experiment, retaining explicit
 approval for any host reboot. A new private provisioning journal preceded
@@ -362,7 +361,7 @@ remain unproved. The
 assessment. Common-provider integration, isolated workspaces, resident
 acceptance, native builds and both measured iteration cycles remain pending.
 
-### Autonomous Windows and Linux provisioning â€” 2026-10-04
+### Autonomous Windows and Linux provisioning — 2026-10-04
 
 The operator expanded the experiment to end-to-end Windows and Linux setup,
 retaining the explicit host-reboot approval boundary. Separate private journals
@@ -492,7 +491,7 @@ unlock-controller tests pass, and package tests pass with the Windows symlink
 case skipped. The modified UAC harness parses and passed both live iterations.
 Host boot time remained unchanged. No public release or local signing occurred.
 
-### Stability follow-up â€” in progress
+### Stability follow-up — qualified compatibility profile
 
 The operator requested a stable retained Windows base and questioned whether
 short shutdown waits had been mistaken for hangs. A fresh private journal and
@@ -516,8 +515,8 @@ cover identity, claims, credential refusal, secret transport and slow shutdown.
 
 A subsequent UTC boot still stalled during guest control. One recovery Escape
 was followed by responsive SSH, but the result did not repeat reliably. This
-does not establish an input-wake root cause. Repeated lifecycle, promotion and
-cleanup acceptance are still being investigated; no stable base is claimed.
+does not establish an input-wake root cause. At that point, repeated lifecycle, promotion and
+cleanup acceptance remained unqualified.
 
 
 The guest-facing Hyper-V paravirtualization interface (with the host backend
@@ -535,6 +534,70 @@ Idle transport remained unreliable. Five-, fifteen- and thirty-second SSH
 handshake budgets all failed in separate attempts, including a banner timeout.
 Authenticated Guest Additions diagnosis found Windows and sshd running, the
 local SSH banner responsive, and guest networking configured. Disabling guest
-Intel virtual-NIC interrupt moderation is a focused pending experiment, not an
-established fix. The stopped diagnostic backup remains retained. No image has
-been promoted on the strength of these incomplete results.
+Intel virtual-NIC interrupt moderation became the next focused experiment;
+these incomplete observations alone did not justify promotion.
+
+
+The final private profile retains three virtual CPUs, ordinary APIC with
+x2APIC disabled, guest-facing Hyper-V paravirtualization, UTC guest/RTC time,
+and disabled guest Intel NIC interrupt moderation. SSH allows a bounded
+fifteen-second handshake without automatically replaying commands. Native
+shutdown includes the explicitly enabled single pause/resume after thirty
+seconds. This combination is qualified on the tested controller; individual
+causality and broader host compatibility are not established.
+
+Three distinct source boots passed guarded cold login, idle readiness, live
+canonical-password verification, Secure Boot/TPM/UAC checks, no pending restart
+or servicing, absent automatic-login/cached-password state, and observed OS
+power-off. Their shutdowns took 37.882, 37.893 and 69.193 seconds. Two reached
+administration in approximately 58 seconds. The last included five untouched
+idle minutes. An earlier 221.533-second shutdown had supplemental hypervisor
+register queries and was conservatively excluded from the acceptance set.
+
+The five-minute-idle run's first resident suite failed at the Start-menu stage;
+its exact stderr was not retained. An unchanged diagnostic rerun passed in
+54.439 seconds without VM recovery or restart, followed by protected UAC
+conformance in 30.481 seconds. This test friction remains recorded rather than
+being reported as a clean first-pass run.
+
+A native full clone completed within 164 seconds, retaining firmware/TPM and
+guest hardware identity while allocating fresh VM/disk/MAC identities and a
+separate pinned loopback transport. An incorrect forwarding-rule-name
+assertion stopped post-copy configuration before boot; exact inspection and a
+corrected private step completed it without creating another clone. Its own
+journal, exact claims and canonical stored password covered acceptance.
+The derivative passed cold login, configuration readback, full resident
+conformance on its first attempt in 76.849 seconds, protected UAC conformance
+in 28.376 seconds, idle readiness and live security/password verification.
+Its native shutdown completed in 37.975 seconds with the declared assist.
+
+The stopped original was then promoted in place through the common CLI.
+Promotion and independent verification hashed its disk, VM configuration and
+firmware/TPM state; the three qualified lifecycle receipts and canonical
+credential stamp remain private. A public start attempt was refused, and an
+independent observation confirmed the protected source stayed off. The
+accepted full-copy derivative is retained as the development target. These
+are same-controller private appliance results, not generalized export or
+isolated-workspace qualification.
+
+
+Final cleanup retained the protected base, accepted development VM, canonical
+credentials, private journals, ownership receipts and diagnostic logs. Only the
+superseded diagnostic backup disk was deleted after receipt/path/hash checks
+and verification of both retained replacements, reclaiming approximately
+22.1 GiB. Both VMs ended stopped, both claims were released, and both follow-up
+journals closed ready with zero unpaired commands. Host boot time was unchanged;
+no host reboot, WSL shutdown, host security disable, local signing or public
+release occurred. The optional unlock grant was revoked before derivation.
+Private text evidence was scanned without credential matches; effective secret
+ACLs were checked. A private retained-target registry and handoff document
+preserve base/development selection without replacing other inventories.
+
+Implementation commits: `7f3d605` adds guarded cold login and the longer
+shutdown observation window; `3d6620d` adds qualification/protected-base guards
+and the explicit compatibility controls. Twenty-nine adapter/image regressions
+pass on native Windows and WSL. Live evidence establishes this bounded
+compatibility profile and retained appliance milestone. Complete common-factory
+creation/derivation, isolated workspaces, unassisted lifecycle reliability,
+remote hosting and Windows ARM support remain open; this tactical as a whole
+is not complete.

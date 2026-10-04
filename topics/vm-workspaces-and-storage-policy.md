@@ -204,9 +204,9 @@ warm reboot and repeated media-free cold boots. A guest-kernel workaround was
 required for reliable multiprocessor boot. Windows passed pinned SSH, effective
 Secure Boot/TPM, canonical password verification, resident desktop and protected
 UAC tests, one-shot unlock, and two native build/deploy/test cycles. Windows
-repeated cold-start and shutdown acceptance is blocked; the provider dossier owns that
-evidence. This is not production
-provider adoption: promotion and isolated workspaces remain open. VMware remains
+now retains a protected stopped base and accepted full-copy development VM under an explicit lifecycle compatibility profile; the provider
+dossier owns the evidence and limitations. This is not production provider
+adoption: complete factory and isolated workspaces remain open. VMware remains
 unselected.
 
 **Decision:** neither the Linux nor Windows host plan attempts to virtualize a
@@ -252,17 +252,16 @@ and a Windows guest test loop before further Windows desktop parity
 work. Host toolchains and caches serve compilation; claimed guests serve
 installation and disruptive acceptance. [Tactical 094](../docs/tactical/094-windows-hyperv-development-host.md)
 owns host discovery, native builds, provider qualification, provisioning,
-isolated workspaces and measured iteration. Resolve the Home-host TPM blocker
-or qualify another provider first;
-the larger implementation is planned work, not Windows-host VM support;
-Linux guests follow the Windows acceptance gate.
+isolated workspaces and measured iteration. VirtualBox now has an experimental
+Home-host route and protected Windows base; continue from its declared
+compatibility profile toward complete factory and isolated-workspace support.
 
 - Determine whether storage divergence can be measured usefully enough to
   warn on a long-lived copy-on-write workspace without claiming false
   per-workspace precision.
 - Decide when an isolated failure should be retained automatically versus
   stopped with only its receipt retained for operator-directed recovery.
-- Qualify a Home-capable route with TPM, then add and live-validate the selected
-  Windows host provider, beginning with a Windows guest and then a
-  Linux guest. Keep its supported host editions and CPU architectures explicit
+- Complete the experimental Home-capable VirtualBox factory and workspace
+  integration, and investigate unassisted Windows lifecycle reliability. Keep
+  supported host editions, architectures and compatibility profiles explicit
   rather than projecting one successful machine onto all Windows hosts.

@@ -352,9 +352,10 @@ unimplemented. The operator subsequently selected a bounded
 adapter now has Windows and Linux resident evidence. Windows effective Secure
 Boot/TPM, stored-password authentication, two native build/deploy/test cycles,
 protected UAC and one-shot unattended unlock passed. Linux passed repeated
-media-free cold boots with a guest-kernel workaround. Windows cold-start and
-shutdown acceptance is blocked; the dossier owns those failures. Production
-factory and workspace derivation remain open.
+media-free cold boots with a guest-kernel workaround. Windows now has a
+protected base and accepted full-copy derivative under an explicit lifecycle
+compatibility profile; the dossier owns its evidence and limitations. Production
+factory and isolated workspace integration remain open.
 
 **Current:** The macOS-hosted UTM route has a live-observed ScriptingBridge
 CLI crash before guest dispatch. See the [UTM dossier](../providers/utm.md)
