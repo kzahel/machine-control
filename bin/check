@@ -95,19 +95,22 @@ def validate_shell() -> None:
             scripts.append(path)
             continue
         try:
-            first_line = path.open(encoding="utf-8").readline()
+            with path.open(encoding="utf-8") as source:
+                first_line = source.readline()
         except (OSError, UnicodeDecodeError):
             continue
         if "bash" in first_line:
             scripts.append(path)
-    run(
-        f"tracked Bash syntax ({len(scripts)} files)",
-        [bash, "-n", *[str(path) for path in scripts]],
-    )
+    print(f"\n== tracked Bash syntax ({len(scripts)} files) ==", flush=True)
+    for path in scripts:
+        completed = subprocess.run([bash, "-n", str(path)], check=False)
+        if completed.returncode != 0:
+            raise SystemExit(completed.returncode)
 
 
 def portable_checks() -> None:
     suites = [
+        ("repository check runner", ROOT, ROOT / "tests" / "check"),
         ("common coordinator", ROOT, ROOT / "tests" / "client"),
         ("desktop update mailbox", ROOT, ROOT / "tests" / "desktop"),
         ("shared ADB", ROOT, ROOT / "providers" / "adb" / "tests"),

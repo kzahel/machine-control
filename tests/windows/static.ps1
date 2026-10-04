@@ -32,6 +32,7 @@ $projects = @(
     'src\MachineControl.ElevatedFixture\MachineControl.ElevatedFixture.csproj',
     'tests\WindowsUnlock.Contracts\WindowsUnlock.Contracts.csproj'
     'tests\WindowsDesktop.Contracts\WindowsDesktop.Contracts.csproj'
+    'tests\AccessAdmission.Contracts\AccessAdmission.Contracts.csproj'
 )
 foreach ($project in $projects) {
     & dotnet build (Join-Path $Repository $project) `
@@ -51,5 +52,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Unlock authorization contracts failed' }
 
 & dotnet run --project (Join-Path $Repository 'tests\WindowsDesktop.Contracts') --configuration Release --no-build
 if ($LASTEXITCODE -ne 0) { throw 'Desktop grant contracts failed' }
+
+& dotnet run --project (Join-Path $Repository 'tests\AccessAdmission.Contracts') --configuration Release --no-build
+if ($LASTEXITCODE -ne 0) { throw 'Access admission contracts failed' }
 
 Write-Output 'Windows native static, build, and format checks passed'
