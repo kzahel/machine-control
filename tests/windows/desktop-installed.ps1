@@ -207,15 +207,18 @@ try {
  $off=Call @{operation='snapshot'}
  Assert (-not $off.accepted -and $off.errorCode -eq 'approval_required') 'Installed resident is off by default'
  if ($UntilStoppedOnly) {
-  # Operate the real HTML select through native focus and keyboard routing.
-  # End selects the last visible choice; native status independently proves
-  # that the resulting grant is indefinite, rather than assuming input worked.
+  # The WebView exposes the select popup outside the app's window subtree.
+  # Select its visible native option and independently verify the grant below.
   $combo=Element 'Access duration' 'ComboBox'
-  $combo.SetFocus()
-  [DesktopFixtureInput]::keybd_event(0x23,0,0,[UIntPtr]::Zero)
-  [DesktopFixtureInput]::keybd_event(0x23,0,2,[UIntPtr]::Zero)
-  [DesktopFixtureInput]::keybd_event(0x0D,0,0,[UIntPtr]::Zero)
-  [DesktopFixtureInput]::keybd_event(0x0D,0,2,[UIntPtr]::Zero)
+  $combo.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+  $condition=[Windows.Automation.AndCondition]::new([Windows.Automation.Condition[]]@(
+   [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,'Until I turn it off'),
+   [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::ListItem),
+   [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::IsOffscreenProperty,$false)))
+  $options=[Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Descendants,$condition)
+  Assert ($options.Count -eq 1) 'One visible native indefinite access option'
+  $options[0].GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
+  Assert ($combo.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value -eq 'Until I turn it off') 'Native access duration selection changed'
   Press 'Enable access';WaitGrant $true
   $grant=Granted
   Assert ($grant.lifetime -eq 'until_stopped' -and $null -eq $grant.remainingSeconds) 'Visible choice creates indefinite native grant'
