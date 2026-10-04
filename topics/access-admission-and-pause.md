@@ -6,7 +6,7 @@ Status: implementation active. Common arbiters and live owner-bound channels
 pass deterministic checks. Mac physical notice focus, independent AX effect,
 composed operator pause, consent/pause restart and persistent Stop have bounded
 live evidence. Protected takeover/local-use resumption, shared outer reservations,
-authenticated integration and Windows native acceptance remain open.
+authenticated integration and complete Windows release acceptance remain open.
 Capabilities are qualified separately before release.
 
 ## Scope and motivation
@@ -45,8 +45,11 @@ claim waiting through explicit v1 negotiation. Claim v0 still advertises no queu
 connection ownership mandatory for ordinary Windows desktop-product native and
 browser dispatch, including when the desktop is idle. Common CLI calls can
 negotiate a short owner session; `control stream` retains one across related
-actions. Headless/appliance profiles keep their existing authority. Installed
-Windows acceptance remains open; this is not authenticated exact-claim binding.
+actions. Headless/appliance profiles keep their existing authority.
+[Tactical 096](../docs/tactical/096-windows-owner-session-acceptance.md) now records
+focused staged Windows ARM64 native/browser effects, contention, disconnect,
+heartbeat expiry and real operator Pause/Stop. Complete signed release
+acceptance remains open; this is not authenticated exact-claim binding.
 
 **Current, source-reviewed:** these are separate mechanisms today:
 

@@ -38,11 +38,14 @@ Windows support claim.
 
 ## Execution and remaining gates
 
-**Current, unreleased source and fixtures:** ordinary desktop-product native
+**Current, unreleased candidate acceptance:** ordinary desktop-product native
 and browser dispatch requires a live owner session, even with an idle standing
 grant. The common CLI negotiates short ownership or retains it with
 `control stream`. [Tactical 095](../docs/tactical/095-windows-required-owner-session.md)
-owns validation and the remaining installed-build acceptance gate.
+owns the implementation. [Tactical 096](../docs/tactical/096-windows-owner-session-acceptance.md)
+proves the focused ARM64 native/browser workflow and owner lifecycle with a
+staged runtime and the real operator UI. Full signed-package release and broader
+lifecycle acceptance remain separate gates.
 
 **Current, public 0.5.4:** the native operator supports **Until I turn it
 off**, with explicit `until_stopped` lifetime and null remaining seconds.

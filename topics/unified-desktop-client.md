@@ -208,8 +208,11 @@ The common CLI negotiates short ownership on an explicit undispatched refusal;
 workflow. These paths reuse native dispatch, grants and generation checks.
 Appliance/headless profiles and existing exact-claim adapter checks remain
 separate. This does not yet bind the resident to an authenticated claim issuer
-or contain arbitrary same-user shell access. Installed Windows acceptance and
-other platform cutovers remain open. See
+or contain arbitrary same-user shell access. Focused staged Windows ARM64
+acceptance now passes through the real operator UI, native and browser providers,
+SDK and retained CLI; [Tactical 096](../docs/tactical/096-windows-owner-session-acceptance.md)
+records its limits and the confirmed-delivery/unverifiable-effect correction.
+Signed release qualification and other platform cutovers remain open. See
 [Tactical 095](../docs/tactical/095-windows-required-owner-session.md) and the
 [CLI lifecycle contract](../docs/access-admission.md#standalone-use).
 

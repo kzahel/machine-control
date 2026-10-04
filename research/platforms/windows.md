@@ -22,6 +22,13 @@ and
 
 ## Platform acceptance surface
 
+**Current, conformance-tested for the staged ordinary desktop route:**
+[Tactical 096](../../docs/tactical/096-windows-owner-session-acceptance.md) adds
+ARM64 native Cua and browser-extension effects through owner-required SDK/CLI
+channels, real operator Pause/Stop, competing owners and disconnection/heartbeat
+fencing. This qualifies the owned facade's lifecycle with a staged runtime;
+complete signed release, protected routes and x64 execution are separate gates.
+
 Windows depth is not established by controlling one ordinary application. The
 resident stack must cover:
 

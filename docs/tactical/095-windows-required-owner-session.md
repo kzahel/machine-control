@@ -5,6 +5,10 @@ Windows desktop/browser acceptance pending.
 Owning topics: [unified desktop client](../../topics/unified-desktop-client.md)
 and [access admission](../../topics/access-admission-and-pause.md).
 
+Follow-up: [Tactical 096](096-windows-owner-session-acceptance.md) records focused
+native ARM64 candidate acceptance and subsequent client compatibility fixes.
+This document retains the original source-slice validation record.
+
 ## Objective and completion conditions
 
 The user requested a bounded first implementation of shared live ownership,

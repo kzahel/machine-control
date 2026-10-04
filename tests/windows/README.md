@@ -138,3 +138,49 @@ payload to an unrelated path and checks offline discovery, runtime isolation
 and bundled claims. Windows x64 execution passes in a claimed appliance with
 no source checkout mounted into the test. This is CLI execution evidence; it
 does not authenticate an unsigned staging payload.
+
+
+## Live owner-session acceptance
+
+`owner-session-live.py` runs from the controller against an already claimed
+Windows VM. Stage a copy of the desktop app with the candidate runtime and its
+matching pinned provider; retain the installed release. A locally assembled
+candidate is behavior evidence, not signed-package acceptance. Supply the
+exact native build revision and SHA-256 independently of the runner revision.
+The VM must have an unlocked interactive session, the accepted appliance
+resident, Python, and a separately identified Chrome for Testing executable.
+The installed desktop app must be closed before starting this isolated run.
+
+```sh
+python3 tests/windows/owner-session-live.py \
+  --target windows --claim "$claim_id" \
+  --install '<guest candidate app directory>' \
+  --guest-root '<owned guest acceptance directory>' --session SESSION_ID \
+  --chrome '<Chrome for Testing executable>' \
+  --fixture '<native medium counter fixture executable>' \
+  --runtime-revision COMMIT --runtime-sha256 SHA256 \
+  --output '<private controller evidence directory>'
+```
+
+The caller runs doctor, acquires and renews the exact VM claim, and releases
+it in finally/trap cleanup; this harness borrows that claim without renewing or
+replacing it. It verifies readiness and claim validity again, uploads only its
+independent UI actor/browser fixture, and launches the actor through the
+appliance's target-native application route. The actor operates real Access,
+Pause/Resume, Stop and browser setup UI. Its private mailbox is test-operator
+control, not an agent approval API. Agent work uses the ordinary desktop
+product's live channel through the existing Python SDK or common CLI.
+
+Checks cover unowned/forged requests, native notice, independent counter
+changes, two competing connections, stale references, Pause, silent-heartbeat
+expiry, killed CLI owner, successor progress, one-shot negotiation, browser
+extension effects and Stop. Results preserve actual provider routes. Cleanup
+closes sessions, kills only owned fixture/app/browser processes, restores
+browser native-messaging registration, and reports cleanup failures. Evidence,
+resolved inventory, guest paths and runtime identifiers are private; commit
+only minimized findings to Tactical 096. No controller desktop input is used.
+
+Older direct-IPC desktop grant/browser/release runners describe the pre-owner
+contract and are not substitutes for this runner on an owner-required candidate.
+Their full release/lifecycle cases need session-aware migration before release;
+this focused pass does not qualify those unexecuted cases.

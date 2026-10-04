@@ -192,3 +192,7 @@ the commits' `Topic:` trailers and register that exact string in
 - [095 — Windows required owner session and CLI compatibility](095-windows-required-owner-session.md):
   desktop dispatch enforcement, negotiated short sessions and retained CLI
   streams; installed Windows acceptance pending.
+
+- [096 — Windows owner-session native acceptance](096-windows-owner-session-acceptance.md):
+  completed focused ARM64 candidate qualification through the desktop app,
+  SDK and retained CLI; signed release qualification remains separate.
