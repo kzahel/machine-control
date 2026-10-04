@@ -46,6 +46,15 @@ completed without new CLI crash reports. Library recovery no longer equates
 every failed status query with an unloaded library or repeats a crashing CLI.
 Python factory-stage probes share the health guard.
 
+**Current — retained-appliance control:** A fresh ARM64 Linux deployment
+observed an operation-unavailable execution error followed by an absent
+completion record even though pinned SSH remained usable. This does not
+identify an upstream root cause. The owned Linux adapter can explicitly
+select UUID-pinned SSH administration/transfer after exact guest-agent key
+discovery; UTM retains lifecycle and address discovery. Fresh Windows and
+Linux appliances passed disk-only boot and common resident conformance, and
+remain retained. See [Tactical 090](../../docs/tactical/090-retained-desktop-appliance-rebuild.md).
+
 **Open:** Isolate the endpoint failure across versions and launch contexts.
 The guard does not restore automation or eliminate a failure between probe
 and dispatch. Establish a tested repair before recommending upgrades,

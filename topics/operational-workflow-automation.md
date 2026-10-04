@@ -60,6 +60,9 @@ linked implementation and exit evidence.
 **Current:** Retained appliance bring-up now has a
 [shared recipe](../docs/retained-desktop-appliances.md) and
 [Tactical 090](../docs/tactical/090-retained-desktop-appliance-rebuild.md).
+Both retained ARM64 appliances now pass disk-only cold boot, verified
+credentials, startup readiness and common conformance. Their private
+development bindings are proven and the appliances remain running.
 Linux can establish its stored login password on an independently verified
 locked bootstrap account through pinned key-only SSH; it refuses replacement
 of an unknown configured password. The NoCloud seed explicitly starts SSH.

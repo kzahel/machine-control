@@ -2,5 +2,12 @@
 
 set -euo pipefail
 
-source_path="${2:-}"
-[[ "${1:-}" == -q && -f "$source_path" && "${3:-}" == *:*/source.zip ]]
+# The provider-bound carrier prepends SSH configuration options. Payload
+# operands remain the final two arguments rather than fixed argv positions.
+source_path="" destination="" quiet=false
+for argument in "$@"; do
+    [[ "$argument" != -q ]] || quiet=true
+    source_path="$destination"
+    destination="$argument"
+done
+[[ "$quiet" == true && -f "$source_path" && "$destination" == *:*/source.zip ]]

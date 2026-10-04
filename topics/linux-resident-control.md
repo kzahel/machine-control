@@ -11,7 +11,9 @@ administration and transfer then use pinned key-only SSH and appliance sudo;
 UTM retains exact identity, lifecycle and address discovery. There is no
 implicit transport fallback. The resident and its desktop contract stay the
 same. See [Tactical 090](../docs/tactical/090-retained-desktop-appliance-rebuild.md)
-for the fresh retained-appliance acceptance status.
+for the accepted fresh retained-appliance run: bootstrap, seed removal,
+disk-only cold boot, password verification, common conformance and the
+platform pointer/keyboard smoke all passed.
 
 ## Current state
 

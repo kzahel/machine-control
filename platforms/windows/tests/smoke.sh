@@ -669,6 +669,13 @@ if env "${post_update_environment[@]}" \
 fi
 
 certify_environment=(
+    WINVM_CONFIG_FILE=/dev/null
+    WINVM_TARGET_FILE="$temporary/absent-certify-target"
+    WINVM_PROVIDER=utm-macos
+    WINVM_EXPECTED_UTM_ID=11111111-2222-3333-4444-555555555555
+    WINVM_TARGET_ROLE=candidate
+    WINVM_OSASCRIPT="$REPO_DIR/tests/fixtures/osascript-target-id"
+    WINVM_UTMCTL="$REPO_DIR/tests/fixtures/utmctl-post-update"
     WINVM_CERTIFY_ALLOW_DIRTY_FOR_TESTS=1
     WINVM_CERTIFY_WINVM="$REPO_DIR/tests/fixtures/winvm-certify"
     WINVM_SSH_BIN="$REPO_DIR/tests/fixtures/ssh-certify"

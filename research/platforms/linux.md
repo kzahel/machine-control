@@ -102,9 +102,8 @@ signed-package acceptance.
 
 **Current — explicit retained-appliance SSH route:** The UTM provider now
 supports explicit pinned key-only SSH for administration and transfer after
-exact guest-agent host-key discovery. Live root administration passed on the
-fresh ARM64 appliance; broader retained-appliance acceptance remains tracked
-in [Tactical 090](../../docs/tactical/090-retained-desktop-appliance-rebuild.md).
+exact guest-agent host-key discovery. Fresh ARM64 bootstrap, disk-only reboot, credential verification,
+common conformance and the native pointer/keyboard smoke passed. See [Tactical 090](../../docs/tactical/090-retained-desktop-appliance-rebuild.md).
 The route was added after UTM execution returned an operation-unavailable
 error and failed to produce a completion record during resident deployment.
 This observation does not establish whether the defect is in UTM or QGA.
