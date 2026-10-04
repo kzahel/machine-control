@@ -51,6 +51,8 @@ if [[ "$identity_exit" -eq 0 ]]; then
 elif winvm_utm_library_unloaded; then
     add_check identity fail \
         'UTM has not loaded its virtual machine library; open UTM (open -a UTM) and rerun doctor'
+elif [[ "${WINVM_UTM_AUTOMATION_STATE:-}" == unavailable ]]; then
+    add_check identity fail 'UTM automation is unavailable; VM state and registration are unknown'
 elif [[ "$identity_detail" == *'could not resolve the configured target identity'* ]]; then
     add_check identity fail \
         'Pinned target is not registered in UTM; run winvm repair-registration before re-pinning'
@@ -64,7 +66,8 @@ else
     add_check identity fail 'Exact private target identity is unavailable'
 fi
 
-status="$($PROVIDER status 2>/dev/null || true)"
+status="$($PROVIDER status 2>/dev/null)"
+status_exit=$?
 case "$status" in
     started|running)
         power=running
@@ -79,7 +82,11 @@ case "$status" in
         add_check power fail 'Target is suspended'
         ;;
     *)
-        add_check power fail 'Target power state is unknown'
+        if [[ "$WINVM_PROVIDER" == utm-macos && "$status_exit" -eq 69 ]]; then
+            add_check power fail 'UTM automation is unavailable; target power state is unknown'
+        else
+            add_check power fail 'Target power state is unknown'
+        fi
         ;;
 esac
 

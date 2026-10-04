@@ -31,7 +31,8 @@ input=unavailable
 outer=unknown
 resident_json=null
 
-status="$($PROVIDER status 2>/dev/null || true)"
+status="$($PROVIDER status 2>/dev/null)"
+status_exit=$?
 case "$status" in
     started|running)
         power=running
@@ -46,9 +47,13 @@ case "$status" in
         add_check power fail 'Target is suspended'
         ;;
     *)
-        if linuxvm_utm_library_unloaded; then
+        if [[ "$LINUXVM_PROVIDER" == utm-macos && "$status_exit" -eq 69 ]]; then
+            add_check power fail 'UTM automation is unavailable; target power state is unknown'
+        elif linuxvm_utm_library_unloaded; then
             add_check power fail \
                 'UTM has not loaded its virtual machine library; open UTM (open -a UTM) and rerun doctor'
+        elif [[ "${LINUXVM_UTM_AUTOMATION_STATE:-}" == unavailable ]]; then
+            add_check power fail 'UTM automation is unavailable; target power state is unknown'
         else
             add_check power fail 'Target power state is unknown'
         fi

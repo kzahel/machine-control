@@ -336,10 +336,16 @@ no arguments or guest content are retained. See
 [operator guidance](../providers/utm/README.md) and the
 [UTM provider evidence](../research/providers/utm.md).
 
-**Open:** The scripting-definition failure has a read-only reproduction but
-no validated repair. Diagnostics do not suppress the crash, change readiness
-semantics, retry mutations, or prove guest effects. Direct CLI, AppleScript,
-and Python factory-stage calls remain outside this wrapper's coverage.
+**Current:** A bounded read-only automation-health probe now prevents CLI
+launch against the observed broken UTM endpoint, including factory-stage
+probes. Doctor reports unavailable automation with unknown guest state.
+Library recovery distinguishes an empty/unready library from unavailable
+automation and no longer retries arbitrary status failures.
+
+**Open:** This mitigates the observed crash loop without repairing the UTM
+endpoint. A failure between preflight and dispatch can still crash upstream.
+No operation is replayed and no guest effect is inferred. Diagnostic logging
+still excludes direct CLI, AppleScript, and Python factory-stage calls.
 
 ## Open work
 

@@ -28,9 +28,11 @@ therefore affect unrelated commands and guests through the same host bridge.
 aborted during read-only inventory after failing to load the scripting
 definition. The installed dictionary remained readable using Apple's `sdef`.
 Historical status-call reports showed the same `virtualMachines` selector
-failure. The observed process carried an App Sandbox entitlement; whether
-sandboxing, application registration, or another OS interaction causes the
-load failure has not been isolated. Provider-owned diagnosis and reproduction
+failure. Direct AppleScript inventory and a background LaunchServices reopen also
+returned `-600` while the UTM process remained alive with an idle event loop.
+This places the failure at the host application automation endpoint rather
+than a particular guest power state. The reason for that endpoint failure
+has not been isolated. Provider-owned diagnosis and reproduction
 instructions live in [UTM diagnostics](../../providers/utm/README.md).
 
 **Decision:** Retain metadata at the subprocess boundary, including signal and
@@ -38,7 +40,14 @@ child PID, rather than losing failures in readiness probes that suppress
 stderr. Preserve guest-effect verification, exact target claims, and existing
 outer-route boundaries.
 
-**Open:** Isolate the scripting-definition failure across UTM/macOS versions
-and launch contexts. Establish a tested repair before recommending upgrades,
-registration changes, or process restarts. Diagnostic coverage currently
-excludes direct CLI calls, AppleScript, and Python factory-stage probes.
+**Current — live-tested mitigation:** An AppleScript inventory-health probe
+refuses the observed broken endpoint before launching the CLI. Common doctor
+completed without new CLI crash reports. Library recovery no longer equates
+every failed status query with an unloaded library or repeats a crashing CLI.
+Python factory-stage probes share the health guard.
+
+**Open:** Isolate the endpoint failure across versions and launch contexts.
+The guard does not restore automation or eliminate a failure between probe
+and dispatch. Establish a tested repair before recommending upgrades,
+registration changes, or process restarts. Diagnostic logging still excludes
+direct CLI calls, AppleScript, and Python factory-stage probes.

@@ -13,8 +13,13 @@ import shutil
 import signal
 import stat
 import subprocess
+import sys
 import tempfile
 import time
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "providers/utm"))
+from automation import probe as utm_automation_probe
 
 
 SCHEMA = "linuxvm-factory-stages/v0"
@@ -26,6 +31,10 @@ ATTESTATION_MAX_AGE = 24 * 60 * 60
 
 
 def call(*args: str, timeout: int = 30) -> tuple[bool, str]:
+    if args and args[0] == os.environ.get(
+        "LINUXVM_UTMCTL", "/Applications/UTM.app/Contents/MacOS/utmctl"
+    ) and utm_automation_probe(args[0]) in {"unavailable", "not_running", "library_unready"}:
+        return False, ""
     try:
         process = subprocess.Popen(args, stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE, text=True,

@@ -17,12 +17,20 @@ import tempfile
 import time
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "providers/utm"))
+from automation import probe as utm_automation_probe
+
+
 STAGE_SCHEMA = "winvm-factory-stages/v0"
 UUID = re.compile(r"^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
 ATTESTATION_MAX_AGE_SECONDS = 4 * 60 * 60
 
 
 def command(*arguments: str, timeout: int = 80) -> tuple[bool, str]:
+    if arguments and arguments[0] == os.environ.get(
+        "WINVM_UTMCTL", "/Applications/UTM.app/Contents/MacOS/utmctl"
+    ) and utm_automation_probe(arguments[0]) in {"unavailable", "not_running", "library_unready"}:
+        return False, ""
     environment = os.environ.copy()
     environment["WINVM_SSH_ALLOW_START"] = "false"
     try:

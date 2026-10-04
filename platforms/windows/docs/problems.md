@@ -198,4 +198,6 @@ dispatch. Shell provider and workspace calls now retain private, bounded
 metadata even when probes discard stderr. See
 [UTM diagnostics](../../../providers/utm/README.md) for log locations,
 correlation with Apple crash reports, a read-only reproduction, and coverage
-limits. No repair has yet been validated for this failure.
+limits. A read-only health guard now refuses the observed broken automation
+endpoint before CLI launch, and library recovery no longer repeats arbitrary
+status failures. Restoring the underlying UTM endpoint remains unresolved.

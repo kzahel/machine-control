@@ -253,26 +253,44 @@ winvm_tcp_check() {
     fi
 }
 
-# UTM loads its virtual-machine library with its main window. A UTM process
-# whose library was never loaded lists no VMs and refuses commands with "UTM is
-# not ready to accept commands", which otherwise looks like a missing VM. The
-# configured bundle is still observable with stat, which macOS permits inside
-# UTM's container even where listing and reading are denied.
-winvm_utm_library_unloaded() {
-    [[ "$WINVM_PROVIDER" == utm-macos && -e "$WINVM_UTM_BUNDLE" ]] || return 1
-    ! "$WINVM_UTMCTL" status "${WINVM_EXPECTED_UTM_ID:-$WINVM_UTM_NAME}" \
-        >/dev/null 2>&1
+# Inventory health must not be inferred from a failed per-VM status command:
+# an unavailable Apple-event endpoint can make utmctl itself abort.
+winvm_utm_automation_state() {
+    "${PYTHON:-python3}" "$WINVM_REPO_DIR/../../providers/utm/automation.py" \
+        "$WINVM_UTMCTL"
 }
 
-# Ask LaunchServices to reopen UTM in the background, which creates its main
-# window and loads the library, then wait for the configured VM to appear.
+winvm_utm_library_unloaded() {
+    WINVM_UTM_AUTOMATION_STATE=not_applicable
+    [[ "$WINVM_PROVIDER" == utm-macos && -e "$WINVM_UTM_BUNDLE" ]] || return 1
+    WINVM_UTM_AUTOMATION_STATE="$(winvm_utm_automation_state)" || \
+        WINVM_UTM_AUTOMATION_STATE=unavailable
+    case "$WINVM_UTM_AUTOMATION_STATE" in
+        empty|not_running|library_unready) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 winvm_load_utm_library() {
-    winvm_utm_library_unloaded || return 0
-    /usr/bin/open -g -a UTM >/dev/null 2>&1 || true
-    local attempt
-    for attempt in {1..20}; do
+    if ! winvm_utm_library_unloaded; then
+        if [[ "$WINVM_UTM_AUTOMATION_STATE" == unavailable ]]; then
+            printf 'UTM automation is unavailable; refusing library recovery and CLI retries\n' >&2
+            return 1
+        fi
+        return 0
+    fi
+    /usr/bin/open -g -a UTM >/dev/null 2>&1 || return 1
+    local remaining=20
+    while (( remaining > 0 )); do
+        remaining=$((remaining - 1))
         sleep 1
-        winvm_utm_library_unloaded || return 0
+        if ! winvm_utm_library_unloaded; then
+            if [[ "$WINVM_UTM_AUTOMATION_STATE" == unavailable ]]; then
+                printf 'UTM automation became unavailable during library recovery\n' >&2
+                return 1
+            fi
+            return 0
+        fi
     done
     printf '%s\n' \
         'UTM has not loaded its virtual machine library; open UTM once (open -a UTM) and retry' >&2

@@ -263,10 +263,10 @@ library_state() {
     env LINUXVM_CONFIG_FILE=/dev/null LINUXVM_PROVIDER=utm-macos \
         LINUXVM_UTM_NAME=fixture-library LINUXVM_UTM_BUNDLE="$1" \
         LINUXVM_UTMCTL="$2" \
-        bash -c 'source "$1"; linuxvm_utm_library_unloaded && echo unloaded || echo loaded' \
-            _ "$REPO_DIR/scripts/common.sh"
+        bash -c 'source "$1"; fixture_state="$2"; linuxvm_utm_automation_state() { printf "%s\n" "$fixture_state"; }; linuxvm_utm_library_unloaded && echo unloaded || echo loaded' \
+            _ "$REPO_DIR/scripts/common.sh" "$2"
 }
-[[ "$(library_state "$utm_bundle" /usr/bin/false)" == unloaded ]]
-[[ "$(library_state "$utm_bundle" /usr/bin/true)" == loaded ]]
-[[ "$(library_state "$temporary/utm-documents/absent.utm" /usr/bin/false)" == loaded ]]
+[[ "$(library_state "$utm_bundle" empty)" == unloaded ]]
+[[ "$(library_state "$utm_bundle" ready)" == loaded ]]
+[[ "$(library_state "$temporary/utm-documents/absent.utm" empty)" == loaded ]]
 printf 'Linux native static checks passed\n'

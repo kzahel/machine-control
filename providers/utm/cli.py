@@ -21,6 +21,10 @@ import sys
 import time
 import uuid
 
+# Also supports loading this script through importlib in fixture tests.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from automation import probe as automation_probe
+
 MAX_BYTES = 1024 * 1024
 SEGMENTS = 3
 OPERATIONS = frozenset({
@@ -122,6 +126,17 @@ def run(source: str, executable: str, arguments: list[str]) -> int:
 
     started = time.monotonic()
     record(event="intent")
+    # --help and parser version output do not connect to UTM. Do not consume
+    # stdin: file transfers and interactive commands must retain their input.
+    if arguments and arguments[0] not in {"--help", "-h", "--version", "help"}:
+        health = automation_probe(executable)
+        if health in {"unavailable", "not_running", "library_unready"}:
+            record(event="result", outcome="refused", returnCode=69,
+                   failureCategories=["utm_automation_" + health],
+                   elapsedMs=round((time.monotonic() - started) * 1000))
+            print("machine-control: utm_automation_" + health +
+                  "; UTM CLI was not launched; guest state is unknown", file=sys.stderr)
+            return 69
     child = None
     pending_signals: list[int] = []
     old_handlers = {}
