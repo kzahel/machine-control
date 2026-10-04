@@ -96,7 +96,26 @@ class HistoryTests(unittest.TestCase):
             audit.append("fixture")
 
     def test_concurrent_writers_keep_unique_events(self):
-        code = "import audit_history as a; [a.append('fixture', ordinal=i) for i in range(10)]"
+        # append deliberately bounds SQLite lock waits. A burst of writers on
+        # a slow filesystem may receive BUSY even though the store is healthy.
+        # Retry rolled-back contention in this stress actor, not in production;
+        # the exact count below still detects lost or duplicated commits.
+        code = """
+import audit_history as a
+import sqlite3
+import time
+deadline = time.monotonic() + 20
+for i in range(10):
+    while True:
+        try:
+            a.append('fixture', ordinal=i)
+            break
+        except sqlite3.OperationalError as error:
+            code = getattr(error, 'sqlite_errorcode', 0) & 255
+            if code not in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED) or time.monotonic() >= deadline:
+                raise
+            time.sleep(.02)
+"""
         environment = dict(os.environ, PYTHONPATH=str(ROOT / "client"))
         children = [
             subprocess.Popen(
