@@ -318,12 +318,15 @@ def handle_control(alias, target, arguments):
             while True:
                 value = session.call(request)
                 # Stream replies are one JSON line each, available before the
-                # next input. Stop at the first refusal/uncertain outcome.
+                # next input. Confirmed delivery with an unverifiable effect
+                # needs a follow-up observation under the same owner. Preserve
+                # that uncertainty; never mistake it for lost delivery.
                 if options.command == "stream":
                     print(json.dumps(value, separators=(",", ":")), flush=True)
                 else:
                     mc.emit(value)
-                if not value["accepted"] or value.get("uncertainty", "none") != "none":
+                if not value["accepted"] or value.get("delivery") in {"unknown", "refused"} \
+                        or value.get("effect") in {"unknown", "partial"}:
                     return 1
                 request = next(pending, None)
                 if request is None:

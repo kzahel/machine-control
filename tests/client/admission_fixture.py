@@ -52,6 +52,9 @@ for line in sys.stdin.buffer:
             operation=request["request"]["operation"], requestId=request["requestId"],
             delivery="confirmed", effect="unknown" if uncertain else "observed",
             uncertainty="interrupted_after_possible_dispatch" if uncertain else "none")
+        if mode == "unverified" and request["request"]["operation"] == "type":
+            data.update(effect="unverifiable", uncertainty="Independent application effect not supplied",
+                        retrySafety="observe_before_retry")
     if operation == "control.dispatch" and mode.startswith("outer"):
         data["data"] = {"reference":"fixture-outer-reference"}
         if mode == "outer-refused" and request["request"]["operation"] == "outer.step":

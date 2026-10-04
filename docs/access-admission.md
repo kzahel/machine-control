@@ -39,8 +39,12 @@ Write one common desktop request per line to stdin and read one compact result
 line from stdout. The client flushes each result before reading the next action,
 so a caller can inspect a snapshot and send an action using its references.
 It acquires once, sends actions sequentially, keeps the owner alive between
-actions, and closes on EOF or error. Empty input acquires nothing. A refusal or
-uncertain result ends the stream; later input is not dispatched. The duration
+actions, and closes on EOF or error. Empty input acquires nothing. A refusal,
+unknown delivery, or unknown/partial effect ends the stream; later input is not
+dispatched. Confirmed delivery with an explicitly unverifiable effect keeps
+ownership so the caller can observe the application next. The result retains
+that uncertainty; acceptance never becomes proof of an effect or permission
+for automatic replay. The duration
 is bounded, not automatically renewed, and interruption does not silently
 reacquire ownership. The caller must close stdin when finished. While stdin is
 idle, heartbeat failure releases the transport but the CLI may remain waiting

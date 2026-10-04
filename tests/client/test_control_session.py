@@ -147,6 +147,17 @@ sys.exit(handle_control('fixture',json.loads(sys.argv[2]),['stream','--reason','
         self.assertIn("control.cancel", events)
         self.assertIn("EOF", events)
 
+    def test_confirmed_delivery_keeps_owner_for_independent_observation(self):
+        code, results = self.stream(b'{"operation":"input.text","text":"fixture"}\n{"operation":"snapshot"}\n', "unverified")
+        self.assertEqual(code, 0)
+        self.assertEqual([row["operation"] for row in results], ["type", "snapshot"])
+        self.assertEqual(results[0]["effect"], "unverifiable")
+        self.assertNotEqual(results[0]["uncertainty"], "none")
+        events = self.record.read_text().splitlines()
+        self.assertEqual(events.count("control.open"), 1)
+        self.assertEqual(events.count("control.dispatch"), 2)
+        self.assertIn("control.cancel", events)
+
     def test_prepared_console_is_explicit_and_uses_the_same_bounded_owner_lifecycle(self):
         with self.session("prepared-required", prepared_console=True) as session:
             session.wait()
