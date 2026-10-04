@@ -1,7 +1,8 @@
 # 094 — Windows development host and Hyper-V test loop
 
-Status: host inspected; bounded QEMU/WHPX feasibility passed on Windows Home.
-Native builds, provider implementation and Windows guest acceptance remain open.
+Status: host inspected; bounded QEMU/WHPX probes passed on Windows Home, but
+Windows 11 qualification is blocked by native-host TPM support. Native builds,
+provider implementation and Windows guest acceptance remain open.
 
 Owning topics: [VM workspaces](../../topics/vm-workspaces-and-storage-policy.md),
 [cross-platform coordinator](../../topics/cross-platform-coordinator.md),
@@ -267,3 +268,24 @@ boundary, rather than claiming appliance readiness.
 The next gate is an actual Windows boot with supported firmware/TPM and guest
 transport. Native builds, the common adapter, protected resident acceptance,
 claimed workspaces and both measured build/deploy/test cycles remain pending.
+
+### Windows guest preflight — 2026-10-04
+
+The operator authorized the next experiment while retaining the no-reboot
+boundary. A new private provisioning journal began before guest preflight.
+The native QEMU binary rejected `-tpmdev` and reported `tpm-crb` and `tpm-tis`
+absent. Upstream build/backend inspection confirmed a native Windows-host TPM
+exclusion; merely installing another standard Windows package or running a
+TPM server in WSL does not supply that missing backend. The
+[provider dossier](../../research/providers/qemu-whpx.md) owns that finding.
+
+Result: blocked before Windows boot. No installation media was downloaded,
+guest disk created, credential assigned, accepted target/claim acquired, or
+security check bypassed. All capability probes terminated; private source
+snapshots and a reproducible preflight report remain for diagnosis. The journal
+closed as blocked. No host feature, installation or reboot change occurred.
+
+Windows boot/Secure Boot/TPM, unattended transport and resident effects remain
+unproved. A supported native TPM route or another Home-capable VM provider is
+needed before this Windows 11 experiment can continue. The earlier WHPX and
+offline overlay results remain valid within their narrower scope.

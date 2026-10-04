@@ -192,8 +192,11 @@ contract. Evaluate [QEMU with WHPX](https://www.qemu.org/docs/master/system/whpx
 when a measured host-edition, workspace, capture, input, or recovery gap cannot
 be met by Hyper-V. The selected development host's Home edition now supplies
 that gap: evaluate QEMU/WHPX before requiring an edition upgrade. Bounded
-[Windows Home feasibility evidence](../research/providers/qemu-whpx.md) passes;
-Windows guest boot and provider adoption remain open. VMware and VirtualBox
+[Windows Home feasibility evidence](../research/providers/qemu-whpx.md) passes,
+but follow-up qualification is blocked by upstream's native Windows-host TPM
+exclusion. Do not bypass Windows 11 security requirements or adopt QEMU/WHPX
+from acceleration evidence alone. Evaluate another Home-capable provider, or
+a supported native TPM route, before implementation. VMware and VirtualBox
 remain unselected candidates rather than implicit fallbacks.
 
 **Decision:** neither the Linux nor Windows host plan attempts to virtualize a
@@ -239,7 +242,8 @@ and a Windows guest test loop before further Windows desktop parity
 work. Host toolchains and caches serve compilation; claimed guests serve
 installation and disruptive acceptance. [Tactical 094](../docs/tactical/094-windows-hyperv-development-host.md)
 owns host discovery, native builds, provider qualification, provisioning,
-isolated workspaces and measured iteration. Evaluate QEMU/WHPX on Home first;
+isolated workspaces and measured iteration. Resolve the Home-host TPM blocker
+or qualify another provider first;
 the larger implementation is planned work, not Windows-host VM support;
 Linux guests follow the Windows acceptance gate.
 
@@ -248,7 +252,7 @@ Linux guests follow the Windows acceptance gate.
   per-workspace precision.
 - Decide when an isolated failure should be retained automatically versus
   stopped with only its receipt retained for operator-directed recovery.
-- Qualify QEMU/WHPX on Home, then add and live-validate the selected Windows
-  host provider, beginning with a Windows guest and then a
+- Qualify a Home-capable route with TPM, then add and live-validate the selected
+  Windows host provider, beginning with a Windows guest and then a
   Linux guest. Keep its supported host editions and CPU architectures explicit
   rather than projecting one successful machine onto all Windows hosts.

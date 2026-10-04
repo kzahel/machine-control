@@ -1,7 +1,8 @@
 # QEMU with Windows Hypervisor Platform
 
 Status: bounded Windows Home x64 feasibility probes are `live-tested`;
-Windows guest boot and Machine Control provider integration remain open.
+Windows 11 qualification is blocked by native Windows-host TPM support.
+Machine Control provider integration remains unimplemented.
 
 ## Provider and licensing
 
@@ -55,8 +56,29 @@ owns the sanitized execution summary.
 
 ## Fit and next evidence
 
+**Current (2026-10-04), native Windows TPM preflight:** the tested binary
+rejects `-tpmdev` as an invalid option, reports both `tpm-crb` and `tpm-tis`
+devices absent, and lists no TPM device. Device-help errors can return exit
+status zero; inspect the diagnostic and device inventory, not exit code alone.
+
+**Source-reviewed:** upstream [build configuration](https://gitlab.com/qemu-project/qemu/-/blob/master/meson.build)
+explicitly excludes Windows hosts from TPM emulation. The
+[TPM emulator backend](https://gitlab.com/qemu-project/qemu/-/blob/master/backends/tpm/tpm_emulator.c)
+uses a Unix socket pair and descriptor passing for its data channel. This is
+more than a missing emulator executable or one distributor's omitted option.
+An external TPM service in WSL does not add the missing backend/devices to the
+native Windows QEMU binary. Exact source snapshots and binary probe results
+are retained with the private experiment evidence.
+
+The Windows boot experiment stopped at this preflight boundary: no installer
+was booted, disk allocated, credential assigned, security requirement bypassed,
+or host feature changed. It does not establish that Windows cannot boot under
+QEMU; it establishes that the tested standard native route cannot meet this
+project's retained Windows 11 TPM requirement. No host reboot was needed.
+
 **Proposal:** use QMP plus receipt-bound QCOW2 derivation behind the existing
-common contract if Windows guest acceptance succeeds. There is no common
+common contract only if a supported native TPM route becomes available and
+Windows guest acceptance succeeds. There is no common
 adapter, exact-identity/claim integration, or authenticated management endpoint
 from this experiment. Loopback alone is not an authorization boundary.
 

@@ -337,8 +337,10 @@ signed-package acceptance.
 [QEMU/WHPX evaluation](../providers/qemu-whpx.md) on Windows Home x64 passed
 guest instruction execution, headless management and offline disk-overlay
 probes. This is early feasibility evidence, not an installed Windows guest or
-an adopted Machine Control provider. Hyper-V remains unimplemented; the
-Windows Home route needs guest boot and full acceptance before adoption.
+an adopted Machine Control provider. Follow-up binary probes and upstream
+source review found native Windows-host TPM emulation unavailable, blocking
+qualification with Windows 11 security requirements intact. Hyper-V remains
+unimplemented; another Home-capable route needs evaluation before adoption.
 
 **Current:** The macOS-hosted UTM route has a live-observed ScriptingBridge
 CLI crash before guest dispatch. See the [UTM dossier](../providers/utm.md)
