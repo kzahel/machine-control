@@ -165,6 +165,10 @@ guest_exec() {
         return 2
     fi
     linuxvm_assert_mutation_target
+    if [[ "${LINUXVM_ADMIN_TRANSPORT:-qga}" == ssh ]]; then
+        ssh_transport exec "$@"
+        return
+    fi
     wait_for_guest_agent
 
     local token remote_dir remote_stdout remote_stderr remote_status
@@ -225,6 +229,10 @@ guest_exec() {
 
 guest_shell() {
     linuxvm_assert_mutation_target
+    if [[ "${LINUXVM_ADMIN_TRANSPORT:-qga}" == ssh ]]; then
+        ssh_transport shell
+        return
+    fi
     wait_for_guest_agent
     utm_cli exec "$LINUXVM_UTM_NAME" --input \
         --cmd /usr/bin/bash -l
@@ -237,6 +245,10 @@ file_push() {
     fi
     [[ -r "$1" ]] || { printf 'Unreadable local file: %s\n' "$1" >&2; return 1; }
     linuxvm_assert_mutation_target
+    if [[ "${LINUXVM_ADMIN_TRANSPORT:-qga}" == ssh ]]; then
+        ssh_transport push "$@"
+        return
+    fi
     wait_for_guest_agent
     utm_cli file push "$LINUXVM_UTM_NAME" "$2" <"$1"
 }
@@ -246,6 +258,11 @@ file_pull() {
         printf 'Usage: linuxvm pull REMOTE [LOCAL]\n' >&2
         return 2
     fi
+    if [[ "${LINUXVM_ADMIN_TRANSPORT:-qga}" == ssh ]]; then
+        linuxvm_assert_mutation_target
+        ssh_transport pull "$@"
+        return
+    fi
     wait_for_guest_agent
     if (( $# == 2 )); then
         utm_cli file pull "$LINUXVM_UTM_NAME" "$1" >"$2"
@@ -253,6 +270,24 @@ file_pull() {
     else
         utm_cli file pull "$LINUXVM_UTM_NAME" "$1"
     fi
+}
+
+ssh_transport() {
+    local address
+    address="$(guest_ipv4)" || return
+    LINUXVM_SSH_ADDRESS="$address" "${PYTHON:-python3}" \
+        "$LINUXVM_REPO_DIR/scripts/ssh-transport.py" "$@"
+}
+
+trust_ssh_host_key() {
+    (( $# == 0 )) || return 2
+    linuxvm_assert_mutation_target
+    local address key
+    address="$(guest_ipv4)" || return
+    key="$(utm_cli exec "$LINUXVM_UTM_NAME" --cmd /usr/bin/cat \
+        /etc/ssh/ssh_host_ed25519_key.pub)" || return
+    printf '%s\n' "$key" | LINUXVM_SSH_ADDRESS="$address" \
+        "${PYTHON:-python3}" "$LINUXVM_REPO_DIR/scripts/ssh-transport.py" pin-host
 }
 
 input_text() {
@@ -638,6 +673,7 @@ case "$command" in
         ;;
     ip) guest_ipv4 ;;
     exec) guest_exec "$@" ;;
+    trust-ssh-host-key) trust_ssh_host_key "$@" ;;
     shell) guest_shell ;;
     push) file_push "$@" ;;
     pull) file_pull "$@" ;;

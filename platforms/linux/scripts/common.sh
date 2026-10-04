@@ -26,6 +26,7 @@ linuxvm_config_names=(
     LINUXVM_LOGIN_SECRET_FILE
     LINUXVM_SETUP_SSH_KEY_FILE
     LINUXVM_SETUP_SSH_KNOWN_HOSTS_FILE
+    LINUXVM_ADMIN_TRANSPORT
     LINUXVM_CREDENTIAL_STATE_DIR
     LINUXVM_DISPLAY_WIDTH
     LINUXVM_DISPLAY_HEIGHT
@@ -79,6 +80,21 @@ unset linuxvm_config_index linuxvm_config_name linuxvm_config_names
 unset linuxvm_environment_value linuxvm_environment_values
 
 LINUXVM_PROVIDER="${LINUXVM_PROVIDER:-utm-macos}"
+LINUXVM_ADMIN_TRANSPORT="${LINUXVM_ADMIN_TRANSPORT:-qga}"
+case "$LINUXVM_ADMIN_TRANSPORT" in
+    qga) ;;
+    ssh)
+        if [[ "$LINUXVM_PROVIDER" != utm-macos ]]; then
+            printf 'Explicit SSH administration is supported only on UTM.\n' >&2
+            return 2
+        fi
+        ;;
+    *) printf 'Invalid Linux administration transport.\n' >&2; return 2 ;;
+esac
+LINUXVM_ADMIN_ROUTE=qemu_guest_agent
+if [[ "$LINUXVM_ADMIN_TRANSPORT" == ssh ]]; then
+    LINUXVM_ADMIN_ROUTE=key_only_ssh_sudo
+fi
 LINUXVM_UTM_NAME="${LINUXVM_UTM_NAME:-Linux}"
 LINUXVM_UTMCTL="${LINUXVM_UTMCTL:-/Applications/UTM.app/Contents/MacOS/utmctl}"
 LINUXVM_UTM_BUNDLE="${LINUXVM_UTM_BUNDLE:-$HOME/Library/Containers/com.utmapp.UTM/Data/Documents/$LINUXVM_UTM_NAME.utm}"
@@ -164,6 +180,7 @@ export LINUXVM_REPO_DIR LINUXVM_CONFIG_FILE LINUXVM_PROVIDER
 export LINUXVM_UTM_NAME LINUXVM_UTMCTL LINUXVM_DESKTOP_USER
 export LINUXVM_CREDENTIAL_PROFILE LINUXVM_LOGIN_SECRET_FILE
 export LINUXVM_SETUP_SSH_KEY_FILE LINUXVM_SETUP_SSH_KNOWN_HOSTS_FILE
+export LINUXVM_ADMIN_TRANSPORT
 export LINUXVM_CREDENTIAL_STATE_DIR
 export LINUXVM_LIBVIRT_URI LINUXVM_LIBVIRT_DOMAIN_NAME
 export LINUXVM_LIBVIRT_VIRSH LINUXVM_LIBVIRT_QEMU

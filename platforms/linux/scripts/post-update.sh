@@ -175,6 +175,7 @@ fi
 
 jq -cn \
     --arg operation "$operation" \
+    --arg administrationRoute "$LINUXVM_ADMIN_ROUTE" \
     --argjson healthy "$healthy" \
     --argjson requested "$reboot" \
     --argjson observed "$reboot_observed" \
@@ -182,7 +183,7 @@ jq -cn \
     --argjson doctor "$doctor" '{
         schema:"machine-control-linux-post-update-orchestration/v0",
         operation:$operation,
-        route:"qemu_guest_agent",
+        route:$administrationRoute,
         healthy:$healthy,
         reboot:{requested:$requested,observed:$observed},
         post_update:$postUpdate,

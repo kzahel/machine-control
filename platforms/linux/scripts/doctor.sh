@@ -65,9 +65,9 @@ else
 fi
 
 if $PROVIDER exec /usr/bin/id >/dev/null 2>&1; then
-    ok "QEMU guest-agent command channel"
+    ok "guest administration: $LINUXVM_ADMIN_ROUTE"
 else
-    bad "QEMU guest-agent command channel"
+    bad "guest administration: $LINUXVM_ADMIN_ROUTE"
 fi
 
 ip="$($PROVIDER ip 2>/dev/null || true)"

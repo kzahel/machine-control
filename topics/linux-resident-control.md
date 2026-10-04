@@ -5,6 +5,14 @@ Topic: `linux-resident-control`
 Status: accepted Ubuntu GNOME Wayland logged-in appliance; other compositors,
 protected login planes, and physical Linux hardware remain research-stage.
 
+**Current:** Retained UTM appliances can explicitly select
+`LINUXVM_ADMIN_TRANSPORT=ssh` after guest-agent host-key pinning. Root
+administration and transfer then use pinned key-only SSH and appliance sudo;
+UTM retains exact identity, lifecycle and address discovery. There is no
+implicit transport fallback. The resident and its desktop contract stay the
+same. See [Tactical 090](../docs/tactical/090-retained-desktop-appliance-rebuild.md)
+for the fresh retained-appliance acceptance status.
+
 ## Current state
 
 The authoritative [`platforms/linux`](../platforms/linux/README.md) now

@@ -63,7 +63,7 @@ esac
 if [[ "$power" == running ]] &&
         $PROVIDER exec /usr/bin/true >/dev/null 2>&1; then
     administration=ready
-    add_check administration pass 'QEMU guest-agent administration is ready'
+    add_check administration pass "Guest administration is ready ($LINUXVM_ADMIN_ROUTE)"
 else
     add_check administration fail 'Guest administration is unavailable'
 fi
@@ -213,6 +213,7 @@ jq -cn \
     --argjson ready "$ready" \
     --arg power "$power" \
     --arg administration "$administration" \
+    --arg administrationRoute "$LINUXVM_ADMIN_ROUTE" \
     --arg desktop "$desktop" \
     --arg resident_state "$resident" \
     --arg semantic "$semantic" \
@@ -247,7 +248,7 @@ jq -cn \
             "status","up","suspend","reboot","shutdown","force-stop"
         ],
         extensions:{
-            administrationRoute:"qemu_guest_agent",
+            administrationRoute:$administrationRoute,
             desktopSession:"gnome_wayland",
             inputPrivilege:$privilege,
             residentInstance:$ENV.MACHINE_CONTROL_LINUX_INSTANCE,

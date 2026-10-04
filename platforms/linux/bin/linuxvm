@@ -26,6 +26,7 @@ Lifecycle and transport:
   credential status|verify|establish [--json]
                                  Check stored login handoff; verify via SSH stdin
   exec -- COMMAND [ARG...]       Run a root command with reliable completion
+  trust-ssh-host-key             Pin the exact UTM guest key for explicit SSH
   user-exec -- COMMAND [ARG...]  Run in the active Wayland desktop session
   gui-launch -- COMMAND [ARG...] Launch through the desktop user systemd manager
   shell                          Stdin-forwarded root shell (no PTY)
@@ -290,7 +291,7 @@ case "$command" in
         exec "$LINUXVM_REPO_DIR/providers/$LINUXVM_PROVIDER/workspace.sh" \
             "$command" "$@"
         ;;
-    status|target-id|guard-status|host-state|up|ip|shell|push|pull|screenshot|click|drag|type|key|scan|permissions|window-info|suspend|reboot|shutdown|force-stop|factory-create|factory-detach-media|clone|disposable)
+    status|target-id|guard-status|host-state|up|ip|shell|push|pull|trust-ssh-host-key|screenshot|click|drag|type|key|scan|permissions|window-info|suspend|reboot|shutdown|force-stop|factory-create|factory-detach-media|clone|disposable)
         exec "$PROVIDER" "$command" "$@"
         ;;
     *) printf 'Unknown command: %s\n' "$command" >&2; usage >&2; exit 2 ;;

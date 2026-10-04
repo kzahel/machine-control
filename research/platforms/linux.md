@@ -100,6 +100,15 @@ storage-failure acceptance runs on the platform's dedicated VM. The shared
 platform/architecture results. This does not broaden provider privilege or
 signed-package acceptance.
 
+**Current — explicit retained-appliance SSH route:** The UTM provider now
+supports explicit pinned key-only SSH for administration and transfer after
+exact guest-agent host-key discovery. Live root administration passed on the
+fresh ARM64 appliance; broader retained-appliance acceptance remains tracked
+in [Tactical 090](../../docs/tactical/090-retained-desktop-appliance-rebuild.md).
+The route was added after UTM execution returned an operation-unavailable
+error and failed to produce a completion record during resident deployment.
+This observation does not establish whether the defect is in UTM or QGA.
+
 ## Controller CLI reliability
 
 **Current:** The macOS-hosted UTM route has a live-observed ScriptingBridge

@@ -49,7 +49,9 @@ exact hypervisor guest-agent channel. Keep password SSH authentication disabled.
 Windows: store and verify the setup password; use the dedicated credential
 rotation/login commands for subsequent changes or cold-login recovery. Linux:
 configure its canonical password file, setup key and pinned known-hosts locator,
-then use `credential establish --json` for the fresh locked account followed by
+use `trust-ssh-host-key` to install the exact UUID host-key pin, select
+`LINUXVM_ADMIN_TRANSPORT=ssh` on UTM when desired, then use
+`credential establish --json` for the fresh locked account followed by
 `credential verify --json`. Do not leave a key-only account as the password
 handoff. Expose the credential locator through private inventory as well.
 

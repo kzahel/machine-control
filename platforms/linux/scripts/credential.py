@@ -194,7 +194,14 @@ def verification_route(config: dict, script: str = VERIFY_SCRIPT) -> list[str]:
         raise Refusal("credential_address_unverified") from None
     public_key = command(str(CLI), "exec", "--", "/usr/bin/cat",
                          "/etc/ssh/ssh_host_ed25519_key.pub").split()
-    entries = command("ssh-keygen", "-F", address, "-f", known_hosts).splitlines()
+    host_alias = config["targetId"]
+    try:
+        entries = command("ssh-keygen", "-F", host_alias, "-f", known_hosts).splitlines()
+    except Refusal:
+        # Existing controller files used an address pin; retain that strict
+        # compatibility route until the exact-UUID pin is explicitly installed.
+        host_alias = address
+        entries = command("ssh-keygen", "-F", host_alias, "-f", known_hosts).splitlines()
     if (len(public_key) < 2 or public_key[0] != "ssh-ed25519" or not any(
             line.split()[1:3] == public_key[:2] for line in entries
             if line and not line.startswith("#"))):
@@ -202,6 +209,7 @@ def verification_route(config: dict, script: str = VERIFY_SCRIPT) -> list[str]:
     remote = shlex.join(["sudo", "-n", "/usr/bin/python3", "-W", "ignore",
                          "-c", script, user, "password"])
     return ["ssh", "-F", "/dev/null", "-T", "-o", "BatchMode=yes",
+            "-o", f"HostKeyAlias={host_alias}",
             "-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=yes",
             "-o", f"UserKnownHostsFile={known_hosts}",
             "-o", "GlobalKnownHostsFile=/dev/null", "-o", "HostKeyAlgorithms=ssh-ed25519",

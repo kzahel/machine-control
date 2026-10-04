@@ -130,6 +130,21 @@ If health reports zero or missing applications:
 3. Confirm `/run/user/UID/bus` exists.
 4. Confirm `gir1.2-atspi-2.0` and `python3-gi` are installed.
 
+## Explicit SSH administration on retained UTM appliances
+
+The bootstrap QGA route remains the default. After SSH is installed, configure
+`LINUXVM_SETUP_SSH_KEY_FILE`, `LINUXVM_SETUP_SSH_KNOWN_HOSTS_FILE`, the exact UUID
+and desktop account in private inventory. Under the existing target claim run
+`testbed -- trust-ssh-host-key`; it reads the ED25519 public key through the
+exact guest-agent channel and atomically pins a dedicated known-hosts file.
+Then select `LINUXVM_ADMIN_TRANSPORT=ssh`. Administration, shell and file
+transfer use pinned key-only SSH and passwordless appliance sudo, while
+lifecycle/address discovery stays with UTM. The host-key alias is the exact
+provider UUID, so a DHCP change cannot replace the authorized guest. This is
+an explicit transport selection; failures do not fall back to another route.
+The command replaces the dedicated known-hosts file, which must not be shared
+with other targets. Credential verification also accepts this UUID pin.
+
 ## 4 — Disable Idle Lock For A Dedicated Testbed
 
 Auto-login does not disable GNOME's independent idle lock. The original guest
