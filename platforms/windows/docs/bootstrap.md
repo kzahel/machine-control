@@ -241,3 +241,14 @@ running KVM domain to a private PNG and can send bounded named-key, US-ASCII,
 and absolute-tablet events through QEMU. Private inventory prohibits that
 route during ordinary work; temporarily arming it remains a separate recovery
 decision and every command still requires the exact target-use claim.
+
+## Provider-bound controller carriers
+
+The native `bootstrap`, `login`, `post-update` and `appliance-certify` commands
+use claim-checked direct SSH/SCP on both UTM and libvirt. Each carrier resolves
+the provider's selected address, retains the pinned host-key alias and disables
+controller ProxyCommand routing. It refuses an absent address before starting
+SSH. The helper filenames retain their historical `libvirt-direct-*` names
+for deployed callers; they now support both owned providers. Fixture suites
+retain the existing explicit optional-claim policy, while normal calls require
+and recheck the supplied claim.

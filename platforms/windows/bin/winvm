@@ -149,8 +149,8 @@ Host $WINVM_SSH_HOST
 EOF
 }
 
-configure_libvirt_direct_transport() {
-    if [[ "$WINVM_PROVIDER" == libvirt-linux ]]; then
+configure_direct_transport() {
+    if [[ "$WINVM_PROVIDER" == libvirt-linux || "$WINVM_PROVIDER" == utm-macos ]]; then
         export WINVM_DIRECT_SSH_BIN="${WINVM_DIRECT_SSH_BIN:-$WINVM_SSH_BIN}"
         export WINVM_DIRECT_SCP_BIN="${WINVM_DIRECT_SCP_BIN:-$WINVM_SCP_BIN}"
         export WINVM_SSH_BIN="$REPO_DIR/scripts/libvirt-direct-ssh.sh"
@@ -196,11 +196,11 @@ case "$command" in
         exec "$REPO_DIR/scripts/fetch-artifact.sh" "$@"
         ;;
     post-update)
-        configure_libvirt_direct_transport
+        configure_direct_transport
         exec "$REPO_DIR/scripts/post-update.sh" "$@"
         ;;
     appliance-certify)
-        configure_libvirt_direct_transport
+        configure_direct_transport
         exec "$REPO_DIR/scripts/certify-appliance.sh" "$@"
         ;;
     deploy-ui) assert_target deploy-ui; exec "$REPO_DIR/scripts/deploy-ui.sh" "$@" ;;
@@ -212,7 +212,7 @@ case "$command" in
             printf 'Usage: winvm bootstrap [--profile development|runtime]\n' >&2
             exit 2
         fi
-        if [[ "$WINVM_PROVIDER" == libvirt-linux ]]; then
+        if [[ "$WINVM_PROVIDER" == libvirt-linux || "$WINVM_PROVIDER" == utm-macos ]]; then
             export WINVM_DIRECT_SSH_BIN="$WINVM_SSH_BIN"
             export WINVM_DIRECT_SCP_BIN="$WINVM_SCP_BIN"
             export MACHINE_CONTROL_SSH_BIN="$REPO_DIR/scripts/libvirt-direct-ssh.sh"
@@ -224,7 +224,7 @@ case "$command" in
     ssh-config) print_ssh_config "$@" ;;
     credential) exec "$REPO_DIR/scripts/credential.sh" "$@" ;;
     login)
-        if [[ "$WINVM_PROVIDER" == libvirt-linux ]]; then
+        if [[ "$WINVM_PROVIDER" == libvirt-linux || "$WINVM_PROVIDER" == utm-macos ]]; then
             export WINVM_DIRECT_SSH_BIN="$WINVM_SSH_BIN"
             export MACHINE_CONTROL_SSH_BIN="$REPO_DIR/scripts/libvirt-direct-ssh.sh"
         fi
