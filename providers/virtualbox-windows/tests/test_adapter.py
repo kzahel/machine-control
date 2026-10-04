@@ -129,6 +129,29 @@ class AdapterTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             adapter.load_config(path)
 
+    def test_native_ssh_is_not_reselected_when_openssl_changes_path(self):
+        with patch.dict(os.environ, SystemRoot=self.directory.name,
+                        PATH=str(Path(self.directory.name) / "foreign-tools")):
+            arguments = self.instance.ssh_arguments("public carrier command")
+        self.assertTrue(Path(arguments[0]).is_absolute())
+        self.assertEqual(Path(arguments[0]).name, "ssh.exe")
+        self.assertIn("StrictHostKeyChecking=yes", arguments)
+        self.assertEqual(arguments[-1], "public carrier command")
+
+    def test_unlock_missing_authority_cannot_start_carrier_or_read_secret(self):
+        self.config["platform"] = "windows"
+        self.config["unlockInstance"] = "test-instance"
+        for key in ("unlockGrantFile", "unlockKeyFile", "credentialFile"):
+            self.config[key] = str(Path(self.directory.name) / key)
+        with patch.object(self.instance, "require_claim"), \
+                patch.object(self.instance, "inspect", return_value=self.info), \
+                patch.object(adapter.subprocess, "run") as run, \
+                patch.object(Path, "read_bytes") as read:
+            with self.assertRaises(ValueError):
+                self.instance.dispatch("unlock", [])
+            run.assert_not_called()
+            read.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

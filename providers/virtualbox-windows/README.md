@@ -1,9 +1,12 @@
 # Experimental native Windows VirtualBox adapter
 
-Status: Linux guest administration and resident control are live-tested on a
-Windows Home x64 controller. Windows qualification is in progress. This is an
+Status: Windows and Linux guest administration and resident control are
+live-tested on a Windows Home x64 controller. This is an
 explicit opt-in adapter for privately provisioned candidates, not an accepted
 factory, base-image promotion or isolated-workspace implementation.
+Windows desktop/UAC and unlock tests passed, but shutdown and media-free
+cold-start attempts subsequently stalled; reliable Windows lifecycle acceptance
+is blocked. Linux passed repeated cold boots with a documented guest workaround.
 
 Use native Windows Python, OpenSSH and VBoxManage through the common CLI.
 Keep Git in WSL. The platform directories continue to own guest bootstrap,
@@ -36,12 +39,17 @@ The private configuration has schema `machine-control-virtualbox-target/v0`:
 | `sshKey`, `knownHosts` | Absolute controller private-key and independently pinned host-key files |
 | `credentialFile` | Canonical stored login password; required for credential handoff |
 | `bootstrapMedia` | Exact seed ISO path, required for guarded detachment |
+| `unlockInstance`, `unlockGrantFile`, `unlockKeyFile` | Optional installed Windows unlock instance and absolute private approval/key locators |
+| `opensslDirectory` | Optional absolute directory containing native OpenSSL for the existing unlock controller |
 
 Keep every path, identity, endpoint, key, journal and capture private. Restrict
 directories and secret files with Windows ACLs before provisioning. The SSH
 host key must be obtained through the authenticated bootstrap route before
 first connection. SSH uses strict verification and an empty configuration
 file; it does not modify or inherit the user's personal SSH configuration.
+The adapter pins Windows' native OpenSSH executables by absolute path, including
+when the unlock controller adds an OpenSSL directory to its process-local PATH.
+Windows guests use the PowerShell 7 installation from the existing bootstrap.
 
 ## Claims and operation boundaries
 
@@ -62,7 +70,13 @@ selects the host's desktop app. Native passthrough operations include:
   authenticated account discovery. Status is a bounded cached observation.
 - `factory-stages --json`: journal-compatible observations, explicitly keeping
   promotion and isolated workspaces unqualified.
-- `push SOURCE ABSOLUTE_GUEST_DESTINATION`: authenticated guest file transfer.
+- `push SOURCE ABSOLUTE_GUEST_DESTINATION`: authenticated guest file transfer;
+  Windows uses SFTP to preserve binary bytes independently of PowerShell stdin.
+- `unlock`: Windows only; reuses the existing signed-challenge controller and
+  installed optional unlock service. It reads the canonical password only
+  after authorization and native credential-field discovery. Installation and
+  explicit account/controller approval are prerequisites, not implicit effects
+  of this command. The appliance runtime and ordinary desktop app stay separate.
 - `detach-bootstrap-media`: stopped candidates only, exact seed identity and
   verified credential handoff required.
 

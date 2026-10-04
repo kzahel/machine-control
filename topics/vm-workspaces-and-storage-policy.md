@@ -201,10 +201,13 @@ bounded [VirtualBox evaluation](../research/providers/virtualbox.md).
 binds exact identities, exclusive claims and pinned SSH. An Ubuntu Wayland
 candidate passed resident semantics, input, capture, credential verification,
 warm reboot and repeated media-free cold boots. A guest-kernel workaround was
-required for reliable multiprocessor boot. Windows reached an authenticated
-desktop and Guest Additions; SSH/resident qualification is still in progress.
-This is not production provider adoption: promotion, isolated workspaces and
-the complete Windows iteration loop remain open. VMware remains unselected.
+required for reliable multiprocessor boot. Windows passed pinned SSH, effective
+Secure Boot/TPM, canonical password verification, resident desktop and protected
+UAC tests, one-shot unlock, and two native build/deploy/test cycles. Windows
+cold-start and shutdown acceptance is blocked; the provider dossier owns that
+evidence. This is not production
+provider adoption: promotion and isolated workspaces remain open. VMware remains
+unselected.
 
 **Decision:** neither the Linux nor Windows host plan attempts to virtualize a
 macOS guest. Callers on those platforms reach a physical Mac, its resident

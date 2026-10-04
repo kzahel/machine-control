@@ -118,13 +118,17 @@ class Adapter:
         if result.returncode or json.loads(result.stdout).get("accepted") is not True:
             raise ValueError("Exclusive claim is missing, stale, or mismatched")
 
-    def ssh(self, command, input_bytes=None, timeout=120):
+    def ssh_arguments(self, command):
         c = self.config
-        args = ["ssh.exe", "-F", "NUL", "-T", "-i", c["sshKey"], "-p", str(c["sshPort"]),
+        executable = Path(os.environ.get("SystemRoot", "C:/Windows")) / "System32/OpenSSH/ssh.exe"
+        return [str(executable), "-F", "NUL", "-T", "-i", c["sshKey"], "-p", str(c["sshPort"]),
                 "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes",
                 "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=5",
                 "-o", "UserKnownHostsFile=" + c["knownHosts"], c["username"] + "@127.0.0.1", command]
-        result = subprocess.run(args, input=input_bytes, capture_output=True, timeout=timeout)
+
+    def ssh(self, command, input_bytes=None, timeout=120):
+        result = subprocess.run(self.ssh_arguments(command), input=input_bytes,
+                                capture_output=True, timeout=timeout)
         if result.returncode:
             raise ValueError("Guest command failed; no host or console fallback")
         return result.stdout.decode("utf-8-sig").strip()
@@ -132,7 +136,8 @@ class Adapter:
     def powershell(self, script, input_bytes=None, timeout=120):
         script = "[Console]::OutputEncoding=[Text.UTF8Encoding]::new();" + script
         encoded = base64.b64encode(script.encode("utf-16le")).decode()
-        return self.ssh("powershell.exe -NoProfile -NonInteractive -EncodedCommand " + encoded,
+        return self.ssh("& 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' "
+                        "-NoLogo -NoProfile -NonInteractive -EncodedCommand " + encoded,
                         input_bytes, timeout)
 
     def control(self, request):
@@ -309,6 +314,31 @@ class Adapter:
             if command == "credential" and arguments in (["verify", "--json"], ["status", "--json"]):
                 result = self.credential(arguments[0] == "verify")
                 print(json.dumps(result)); return 0 if result["ready"] else 1
+            if command == "unlock" and not arguments and self.config["platform"] == "windows":
+                instance = self.config.get("unlockInstance", "")
+                if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,47}", instance):
+                    raise ValueError("Explicit installed unlock instance required")
+                for key in ("unlockGrantFile", "unlockKeyFile", "credentialFile"):
+                    path = Path(self.config.get(key, ""))
+                    if not path.is_absolute() or not path.is_file():
+                        raise ValueError("Private unlock locators are unavailable")
+                environment = os.environ.copy()
+                if self.config.get("opensslDirectory"):
+                    directory = Path(self.config["opensslDirectory"])
+                    if not directory.is_absolute() or not (directory / "openssl.exe").is_file():
+                        raise ValueError("Native OpenSSL locator is unavailable")
+                    environment["PATH"] = str(directory) + os.pathsep + environment.get("PATH", "")
+                carrier = "& 'C:\\Program Files\\MachineControlUnlock\\" + instance + \
+                    "\\machine-control-windows.exe' unlock --relay --instance " + instance
+                # The existing controller reads the canonical secret only after
+                # signed authorization and native credential-field discovery.
+                result = subprocess.run([sys.executable, str(ROOT / "release/unlock-controller.py"),
+                    "unlock", "--instance", instance, "--grant", self.config["unlockGrantFile"],
+                    "--key", self.config["unlockKeyFile"], "--secret-file", self.config["credentialFile"],
+                    "--", *self.ssh_arguments(carrier)], env=environment,
+                    capture_output=True, text=True, encoding="utf-8", timeout=100)
+                print(result.stdout.strip())
+                return result.returncode
             if command == "factory-stages" and arguments == ["--json"]:
                 observed = self.doctor()
                 try:
@@ -366,21 +396,27 @@ class Adapter:
                 value = self.control(json.loads(arguments[0])); print(json.dumps(value))
                 return 0 if value.get("accepted") else 1
             if command == "ps" and len(arguments) == 1 and self.config["platform"] == "windows":
-                print(self.powershell(arguments[0])); return 0
+                print(self.powershell(arguments[0], timeout=600)); return 0
             if command == "push" and len(arguments) == 2:
                 source, destination = arguments
-                content = Path(source).read_bytes()
                 if self.config["platform"] == "linux":
                     if not destination.startswith("/"):
                         raise ValueError("An absolute guest destination is required")
-                    self.ssh("sudo tee " + shlex.quote(destination) + " >/dev/null", content)
+                    self.ssh("sudo tee " + shlex.quote(destination) + " >/dev/null", Path(source).read_bytes())
                 else:
-                    if not re.match(r"^[A-Za-z]:[\\/]", destination):
+                    if not re.match(r"^[A-Za-z]:[\\/]", destination) or \
+                            any(c in destination for c in "\r\n\0"):
                         raise ValueError("An absolute guest destination is required")
-                    quoted = destination.replace("'", "''")
-                    self.powershell("$f=[IO.File]::Open('" + quoted +
-                                    "','Create','Write');try{[Console]::OpenStandardInput().CopyTo($f)}"
-                                    "finally{$f.Dispose()}", content)
+                    c = self.config
+                    executable = Path(os.environ.get("SystemRoot", "C:/Windows")) / "System32/OpenSSH/scp.exe"
+                    result = subprocess.run([str(executable), "-F", "NUL", "-P", str(c["sshPort"]),
+                        "-i", c["sshKey"], "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes",
+                        "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=5",
+                        "-o", "UserKnownHostsFile=" + c["knownHosts"], str(Path(source).resolve()),
+                        c["username"] + "@127.0.0.1:" + destination.replace("\\", "/")],
+                        capture_output=True, timeout=600)
+                    if result.returncode:
+                        raise ValueError("Pinned guest SFTP transfer failed")
                 return 0
             if command in {"artifact", "artifact-fetch"} and len(arguments) == 2:
                 identifier, destination = arguments

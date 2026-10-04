@@ -2,8 +2,10 @@
 
 Status: Windows Home x64 hosting is `live-tested` through an experimental
 common adapter. Linux resident conformance and repeated cold boot pass with a
-guest workaround. Windows reached authenticated desktop/Guest Additions;
-resident acceptance is in progress. Production adoption remains open.
+guest workaround. Windows resident desktop/UAC conformance, unattended unlock
+and two native build/deploy/test cycles pass, but subsequent shutdown and
+media-free cold-start tests stall. Windows lifecycle acceptance and production
+adoption remain blocked.
 
 ## Provider and licensing
 
@@ -70,7 +72,8 @@ to a blank console without Guest Additions. Actual storage counters showed
 ongoing writes before becoming unchanged for several minutes; a second clean
 ACPI shutdown did not stop the guest. It was force-stopped under the recovery
 authorization and retained for diagnosis, without a further boot or host reboot.
-Guest security, password authentication and command effects remain unverified.
+At that initial checkpoint, guest security, password authentication and command
+effects remained unverified; the follow-up below supersedes those limitations.
 Do not infer stalled I/O from a VDI file timestamp: use provider storage counters.
 
 ## Follow-up guest qualification
@@ -96,6 +99,33 @@ Two vCPUs had stalled in EFI, resembling but not proving the cause in
 [upstream issue 799](https://github.com/VirtualBox/virtualbox/issues/799).
 These are experiment settings, not a qualified universal host profile.
 
+**Current, `live-tested`:** the Windows candidate now passes effective Secure
+Boot and TPM 2.0 checks without hardware bypasses, canonical stored-password
+authentication, pinned SSH, full resident desktop conformance and protected UAC
+cancel/approve tests. Two native x64 build/deploy/test cycles passed using the
+existing transactional appliance installer. UAC and secure-desktop policies
+remain enabled. The existing optional unlock component also passed an observed
+lock and signed-challenge, one-shot credential unlock. Its elevated approval
+dialog required the existing bounded guest-local consent fixture; ordinary
+semantic invocation was insufficient. No ordinary test manipulated the host
+desktop. Native OpenSSH capability installation took roughly 30 minutes.
+
+Subsequent lifecycle tests did **not** pass. Guest-native shutdown remained
+running beyond five minutes and required explicit forced recovery. After media
+detachment and disabling automatic login, a three-vCPU cold boot reached pinned
+SSH and the protected resident with no interactive user, then lost SSH before
+credential submission. A four-vCPU recovery similarly reached SSH and accepted
+target-native curtain-reveal input, but the following observation timed out.
+Read-only doctor and authenticated Guest Additions diagnosis were unavailable.
+The cause is undetermined; these observations do not isolate the guest OS,
+additions, runtime, hypervisor or host/backend. Unattended **unlock** of an
+existing session passed; cold **login** and reliable lifecycle operation remain
+unqualified. No host reboot, WSL shutdown or host security change was used to
+work around this failure.
+The final cleanup boot reached Automatic Repair; the candidate was retained
+powered off with its private credential handoff intact. It is diagnostic
+evidence, not an accepted reusable Windows base.
+
 The [experimental adapter](../../providers/virtualbox-windows/README.md)
 checks exact VM/disk identities, serializes claimed operations, uses pinned
 loopback SSH and existing credential verifiers, and exposes explicit recovery
@@ -111,9 +141,8 @@ receipts still need adoption work.
 CLI support for snapshots/clones alone does not prove safe disposable
 workspaces or preservation of TPM/NVRAM state across derivation.
 
-**Open:** complete Windows guest-side security verification, resident command
-effects, cold-start recovery, common-factory integration, resident protected
-control, isolated workspace acceptance, and measured build/deploy/test cycles.
+**Open:** complete common-factory integration, qualified lifecycle recovery and
+isolated workspace acceptance.
 Remote provider hosting and Windows ARM hosts remain untested. Evidence and
 cleanup results belong to [Tactical 094](../../docs/tactical/094-windows-hyperv-development-host.md);
 private journals retain exact media, resource and credential locators.

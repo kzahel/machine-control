@@ -2,10 +2,11 @@
 
 Status: host inspected; bounded QEMU/WHPX probes passed on Windows Home, but
 Windows 11 qualification is blocked by native-host TPM support. A subsequent
-VirtualBox experiment now has an opt-in common adapter and a qualified Linux
-resident candidate. Windows desktop authentication and Guest Additions work;
-SSH/resident qualification continues. Native runtime builds pass. Production
-factory/workspaces and the complete Windows iteration loop remain open.
+VirtualBox experiment now has an opt-in common adapter and live-tested Windows
+and Linux resident candidates. Windows security, protected control and two
+native build/deploy/test cycles pass, but subsequent Windows shutdown and
+media-free cold-start tests stall. Windows lifecycle acceptance is blocked;
+production factory/workspaces remain open.
 
 Owning topics: [VM workspaces](../../topics/vm-workspaces-and-storage-policy.md),
 [cross-platform coordinator](../../topics/cross-platform-coordinator.md),
@@ -365,8 +366,9 @@ acceptance, native builds and both measured iteration cycles remain pending.
 
 The operator expanded the experiment to end-to-end Windows and Linux setup,
 retaining the explicit host-reboot approval boundary. Separate private journals
-covered the two candidates. Host Git stayed in WSL and builds/VirtualBox
-management stayed native. No host reboot or security/feature change occurred.
+covered the two candidates. Direct Git commands used WSL and builds/VirtualBox
+management stayed native; an internal package-helper exception was discovered
+and fixed below. No host reboot or security/feature change occurred.
 
 An opt-in native Windows adapter now binds exact VM/configuration/disk pins,
 exclusive claims and serialized operations. Pinned loopback SSH carries the
@@ -374,7 +376,7 @@ existing guest residents and credential verifiers. Ordinary tests use only
 guest-native routes. Explicit disruptive recovery covers console capture,
 ACPI delivery, forced stop and bounded stopped-candidate hardware experiments.
 Creation and initial console bootstrap remain private direct-script steps,
-recorded manually in the journals. Ten adapter regressions pass.
+recorded manually in the journals.
 
 | Measurement | Result | Elapsed |
 | --- | --- | --- |
@@ -406,9 +408,11 @@ enabled, x2APIC disabled and guest paravirtualization `none`. Its stored
 password authenticated and Guest Additions became available after first-logon
 setup and a clean guest shutdown/cold boot. UAC remained active: a non-elevated
 security probe was denied, and SSH bootstrap required the observed guest UAC
-consent. Windows SSH installation, resident acceptance and final cleanup are
-still in progress; these measurements are not two completed Windows iteration
-cycles.
+consent. Native OpenSSH capability installation took roughly 30 minutes before
+the existing bootstrap completed with PowerShell 7 and key-only SSH. Its host
+key was independently pinned before the first connection. Guest checks then
+verified effective Secure Boot, ready TPM 2.0, no hardware-check bypasses and
+UAC consent on the secure desktop.
 
 Native build follow-up found two host-specific frictions. Package source-state
 inspection originally invoked native Git internally; `--git-via-wsl` now routes
@@ -416,5 +420,74 @@ that inspection through WSL without adding a WSL prerequisite to hosted CI.
 The native unlock bootstrap's generated batch command now uses an explicit
 relative path, so it works with `NoDefaultCurrentDirectoryInExePath` enabled.
 A complete unsigned development component build then passed in 12.750 s;
-publisher signing remains exclusively in CI. This is build evidence, not yet
-unlock-service acceptance on the new guest.
+publisher signing remains exclusively in CI.
+
+The existing transactional appliance installer and resident conformance suites
+completed two measured iterations. Toolchains and build caches stayed on the
+host; ordinary tests used pinned SSH and guest-native control with no host
+desktop interference. Unchanged conformance fixtures were reused in cycle two.
+
+| Windows measurement | Cycle one | Cycle two |
+| --- | --- | --- |
+| Native x64 runtime package build | 3.186 s | 8.328 s |
+| Package transfer | 16.379 s via bootstrap Guest Additions | 5.138 s via pinned SFTP |
+| Hash verification, extraction and transactional replacement | Completed; not separately timed | 15.365 s |
+| Full resident desktop conformance | 67.583 s, passed | 59.729 s, passed |
+| Protected UAC cancellation/approval conformance | 26.513 s, passed | 33.254 s, passed |
+
+The first full test attempts exposed interference from the task's elevated
+bootstrap terminal and a fixture startup exceeding the original timeout.
+Minimizing that guest window and allowing an explicit 60-second transition
+budget produced passing tests. The checked-in UAC harness retains its original
+timeouts unless the caller requests that bounded override.
+
+The existing optional unlock component installed unarmed in 22.418 s. Its
+account, transport identity, controller fingerprint and bounded expiry were
+observed in the native approval dialog. Ordinary semantic invocation failed;
+the existing guest-local consent fixture completed approval and removed its
+temporary task. An independently observed lock then passed the existing
+signed-challenge, one-shot credential unlock and returned to the ordinary
+desktop. Appliance authority remains separate from the desktop application.
+
+Two transport fixes were required: SFTP replaced binary PowerShell stdin copying
+that could stall, and absolute native OpenSSH paths prevent an OpenSSL PATH
+addition from selecting Git's SSH. The latter failure refused before reading
+the credential. Canonical password verification also passed with PowerShell 7.
+
+Windows lifecycle acceptance failed after those successful iterations.
+Automatic login, the registry's cached setup password and cached Panther answer
+files were removed. Guest-native shutdown remained running beyond five minutes;
+explicit recovery capture first showed shutdown and then a black screen. A
+claimed force-stop was required. With installation media detached, a three-vCPU
+cold boot reached pinned SSH and the resident's protected Winlogon snapshot,
+with no interactive user. The following curtain-reveal call timed out and SSH
+became unavailable. A four-vCPU recovery accepted the reveal input, but its next
+observation timed out; both SSH doctor and authenticated Guest Additions
+diagnosis then failed. No password was read or submitted for either cold-login
+attempt. These failures do not establish a root cause or invalidate the earlier
+existing-session unlock result.
+
+The candidate remains useful as retained diagnostic evidence, but it is not a
+reliably provisioned Windows base. Cold login, repeated clean lifecycle,
+common-factory creation/promotion, and isolated workspaces remain unqualified.
+No host reboot, host security change or WSL shutdown was performed. The private
+journal records direct bootstrap/recovery actions and exact evidence; this
+tactical is not complete.
+
+Final Windows cleanup: a last boot restored the three-vCPU experiment setting
+for an attempted authorization cleanup, but reached Automatic Repair before SSH
+became available. The exact candidate was force-stopped and its power-off state
+verified. Installation media remains detached; the disk, firmware/TPM state,
+private keys, canonical password and evidence are retained for diagnosis. The
+stored password's fingerprint is unchanged from its successful guest
+verification, effective private ACLs were checked, and ordinary evidence files
+contained no password matches. The temporary consent fixture had already
+removed its task. Explicit unlock-grant revocation could not run on the final
+boot; that test grant retains its bounded expiry and its controller key stays
+private. No guest VM process remains, and the Windows claim was released.
+The Windows journal closes **blocked**; the Linux journal remains **ready**.
+
+Validation: twelve adapter regressions pass on native Windows and WSL, seven
+unlock-controller tests pass, and package tests pass with the Windows symlink
+case skipped. The modified UAC harness parses and passed both live iterations.
+Host boot time remained unchanged. No public release or local signing occurred.

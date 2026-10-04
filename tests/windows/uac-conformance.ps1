@@ -4,7 +4,10 @@ param(
     [string]$Executable,
 
     [string]$EvidencePath = (Join-Path $env:LOCALAPPDATA `
-        'MachineControl\conformance\uac.json')
+        'MachineControl\conformance\uac.json'),
+
+    [ValidateRange(0, 120)]
+    [int]$TransitionTimeoutSeconds = 0
 )
 
 Set-StrictMode -Version Latest
@@ -29,6 +32,7 @@ function Assert-Accepted {
 
 function Wait-ForDesktop {
     param([string]$Name, [int]$Seconds = 15)
+    if ($TransitionTimeoutSeconds) { $Seconds = $TransitionTimeoutSeconds }
     $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
     do {
         $status = Invoke-Control @{ operation = 'status' }
@@ -42,6 +46,7 @@ function Wait-ForDesktop {
 
 function Wait-ForWindow {
     param([string]$Title, [int]$Seconds = 15)
+    if ($TransitionTimeoutSeconds) { $Seconds = $TransitionTimeoutSeconds }
     $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
     do {
         $inventory = Invoke-Control @{
@@ -64,6 +69,7 @@ function Wait-ForWindow {
 
 function Wait-ForSemanticText {
     param([string]$Text, [int]$Seconds = 10)
+    if ($TransitionTimeoutSeconds) { $Seconds = $TransitionTimeoutSeconds }
     $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
     do {
         $snapshot = Invoke-Control @{
