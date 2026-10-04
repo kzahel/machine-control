@@ -180,7 +180,7 @@ portable contract. Live discard acceptance proved that release removed the
 exact overlay and transient domain without changing the stopped base.
 
 **Decision:** [Hyper-V](https://learn.microsoft.com/windows-server/virtualization/hyper-v/overview)
-is the first Windows-host provider candidate for Windows and Linux guests. Its
+remains a Windows-host provider candidate for eligible editions. Its
 PowerShell management surface should own exact VM identity, lifecycle,
 storage, and checkpoint or differencing-disk mechanisms.
 [PowerShell Direct](https://learn.microsoft.com/windows-server/virtualization/hyper-v/powershell-direct)
@@ -189,8 +189,11 @@ transport; Linux and ordinary post-bootstrap control continue through explicit
 guest administration and the target-resident facade. Hyper-V Manager and
 VMConnect are human and outer-recovery surfaces, not the ordinary adapter
 contract. Evaluate [QEMU with WHPX](https://www.qemu.org/docs/master/system/whpx.html)
-only if live evidence finds a required host-edition, workspace, capture, input,
-or recovery gap that the Hyper-V provider cannot meet. VMware and VirtualBox
+when a measured host-edition, workspace, capture, input, or recovery gap cannot
+be met by Hyper-V. The selected development host's Home edition now supplies
+that gap: evaluate QEMU/WHPX before requiring an edition upgrade. Bounded
+[Windows Home feasibility evidence](../research/providers/qemu-whpx.md) passes;
+Windows guest boot and provider adoption remain open. VMware and VirtualBox
 remain unselected candidates rather than implicit fallbacks.
 
 **Decision:** neither the Linux nor Windows host plan attempts to virtualize a
@@ -232,11 +235,12 @@ libvirt bases ended stopped and claim-free.
 ## Open work
 
 **Decision:** prioritize native builds on the operator-selected Windows host
-and a Hyper-V Windows guest test loop before further Windows desktop parity
+and a Windows guest test loop before further Windows desktop parity
 work. Host toolchains and caches serve compilation; claimed guests serve
 installation and disruptive acceptance. [Tactical 094](../docs/tactical/094-windows-hyperv-development-host.md)
-owns host discovery, native builds, the provider, provisioning, isolated
-workspaces and measured iteration. This is planned work, not Hyper-V support;
+owns host discovery, native builds, provider qualification, provisioning,
+isolated workspaces and measured iteration. Evaluate QEMU/WHPX on Home first;
+the larger implementation is planned work, not Windows-host VM support;
 Linux guests follow the Windows acceptance gate.
 
 - Determine whether storage divergence can be measured usefully enough to
@@ -244,7 +248,7 @@ Linux guests follow the Windows acceptance gate.
   per-workspace precision.
 - Decide when an isolated failure should be retained automatically versus
   stopped with only its receipt retained for operator-directed recovery.
-- After the Linux provider proves the adapter boundary, add and live-validate
-  a Hyper-V/Windows host provider, beginning with a Windows guest and then a
+- Qualify QEMU/WHPX on Home, then add and live-validate the selected Windows
+  host provider, beginning with a Windows guest and then a
   Linux guest. Keep its supported host editions and CPU architectures explicit
   rather than projecting one successful machine onto all Windows hosts.

@@ -1,6 +1,7 @@
 # 094 — Windows development host and Hyper-V test loop
 
-Status: planned; no host setup, Hyper-V implementation or live acceptance yet.
+Status: host inspected; bounded QEMU/WHPX feasibility passed on Windows Home.
+Native builds, provider implementation and Windows guest acceptance remain open.
 
 Owning topics: [VM workspaces](../../topics/vm-workspaces-and-storage-policy.md),
 [cross-platform coordinator](../../topics/cross-platform-coordinator.md),
@@ -23,6 +24,13 @@ inside the guest is required. Ordinary guest control stays target-native.
 
 ## Starting point
 
+**Decision (2026-10-04):** the operator does not want Windows Pro to become a
+hosting prerequisite and authorized a bounded QEMU/WHPX experiment after
+read-only inspection found Windows Home. Evaluate that route before the
+Hyper-V-specific implementation steps below. Any host reboot requires explicit
+operator approval. This changes provider qualification order; it does not
+authorize declaring a supported provider from low-level smoke tests.
+
 **Current:** the coordinator and local Windows desktop adapter exist. Windows
 VM hosting is implemented for UTM on macOS and libvirt/KVM on Linux; there is
 no implemented Hyper-V provider. See the [host matrix](../../README.md#controller-host-support)
@@ -40,10 +48,11 @@ unlock component preserves an existing console session. These are distinct
 from the ordinary desktop profile. Do not reimplement them or silently grant
 their authority to desktop callers as part of this provider work.
 
-**Open:** the exact development host, architecture, Windows edition, Hyper-V
-readiness, available resources, installed toolchains, storage and management
-permissions must be resolved from private inventory and read-only inspection.
-No concrete host was selected or changed while recording this plan.
+**Current:** private inventory and read-only inspection resolved the x64 Home
+development host and baseline resources/toolchains. No host was selected by
+the original planning commit; the initial experiment below records the later
+inspection. **Open:** qualify a reproducible Windows Home hosting profile and
+prove the installed toolchains through actual builds.
 
 ## Boundaries
 
@@ -220,5 +229,41 @@ contract and acceptance. Reboot persistence remains a separate decision.
 
 ## Final result
 
-Pending implementation. This commit records the plan only; it establishes no
-new Windows host, Hyper-V capability, credential, guest or performance evidence.
+### Initial Windows Home feasibility — 2026-10-04
+
+Private inventory resolved the intended x64 development host. WSL Git worked;
+the checkout was clean. Native .NET, Rust/MSVC, C++/Windows SDK, Node and Python
+were present; package-manager alignment and actual builds remain untested.
+The full Hyper-V role is unavailable on Home. No existing target was operated.
+
+The operator authorized a bounded QEMU/WHPX experiment, retaining explicit
+approval for any reboot. A private provisioning journal began before the
+experiment. A digest-verified Windows QEMU distribution was extracted into
+private experiment storage without system-wide installation. Direct-script
+steps, including the initial stdio QMP harness failure, were recorded manually.
+
+Measured results (single smoke samples, not OS boot or iteration benchmarks):
+
+| Probe | Result | Elapsed |
+| --- | --- | --- |
+| Diskless guest instruction marker, WHPX only | Expected exit marker observed; no emulation fallback | 0.147 s |
+| Headless QMP over loopback | Prelaunch/running/paused readback and clean exit | 0.145 s |
+| Offline QCOW2 overlay | Marker verified; base digest unchanged; fresh overlay had no marker | Not timed |
+
+The feature-enable request was cancelled after probes succeeded without it.
+HypervisorPlatform still reported disabled, with an existing active hypervisor
+and WSL2. No reboot or host feature change occurred. This is a bounded observed
+configuration, not a recommendation to ignore upstream setup requirements.
+The [provider dossier](../../research/providers/qemu-whpx.md) owns the capability
+interpretation and open qualification gaps.
+
+Cleanup: all probe processes were reaped and the two temporary probe disk files
+were deleted. Private binaries, tiny test firmware, scripts and minimized logs
+remain for reproducibility. No Windows installation, guest account, password,
+accepted target, target claim or provider integration was created. Journal
+closure records abandonment of full provisioning at this intentional smoke-test
+boundary, rather than claiming appliance readiness.
+
+The next gate is an actual Windows boot with supported firmware/TPM and guest
+transport. Native builds, the common adapter, protected resident acceptance,
+claimed workspaces and both measured build/deploy/test cycles remain pending.

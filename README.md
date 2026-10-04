@@ -155,7 +155,7 @@ Windows. Live desktop-VM hosting remains provider-specific:
 | --- | --- | --- | --- |
 | macOS | Portable and native checks; current live controller | UTM/QEMU for Windows and Linux; Tart for macOS | Current baseline |
 | Linux | Portable and native checks plus exact-source execution inside both native guests | libvirt with QEMU/KVM for native x86_64 Windows and Linux guests | Broader host and guest-profile coverage |
-| Windows | Hosted CI plus execution inside the retained Windows appliance | None | Hyper-V on eligible Windows editions for Windows and Linux guests; evaluate QEMU/WHPX only for measured gaps |
+| Windows | Hosted CI plus execution inside the retained Windows appliance | None | QEMU/WHPX under evaluation for Windows Home; Hyper-V remains a candidate on eligible editions |
 
 The Linux row is live-accepted only for native x86_64 KVM domains. Its provider
 refuses software emulation and cross-architecture domains before start or

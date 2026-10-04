@@ -333,6 +333,13 @@ signed-package acceptance.
 
 ## Controller CLI reliability
 
+**Current:** the full Hyper-V role excludes Windows Home. A bounded
+[QEMU/WHPX evaluation](../providers/qemu-whpx.md) on Windows Home x64 passed
+guest instruction execution, headless management and offline disk-overlay
+probes. This is early feasibility evidence, not an installed Windows guest or
+an adopted Machine Control provider. Hyper-V remains unimplemented; the
+Windows Home route needs guest boot and full acceptance before adoption.
+
 **Current:** The macOS-hosted UTM route has a live-observed ScriptingBridge
 CLI crash before guest dispatch. See the [UTM dossier](../providers/utm.md)
 for evidence and the remaining investigation; this does not change the

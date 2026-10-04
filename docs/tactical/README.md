@@ -180,8 +180,8 @@ the commits' `Topic:` trailers and register that exact string in
   and unified public 0.5.4 with production Windows replacement.
 
 - [094 — Windows development host and Hyper-V test loop](094-windows-hyperv-development-host.md):
-  planned native host builds, guarded Hyper-V lifecycle, Windows provisioning,
-  isolated workspaces and repeatable host-to-guest acceptance.
+  initial QEMU/WHPX Home feasibility; pending native builds, provider lifecycle,
+  Windows provisioning, isolated workspaces and host-to-guest acceptance.
 
 - [093 — Session entry-point and authority audit](093-session-entry-point-audit.md):
   completed bounded source inventory, claim/channel fixtures and first session

@@ -7,6 +7,7 @@ components remain necessary. Evidence levels are defined in the
 
 | Provider | Declared top-level license | Platform reach under review | Strongest evidence here |
 | --- | --- | --- | --- |
+| [QEMU/WHPX](qemu-whpx.md) | GPL-2.0; bundled components retain their terms | Windows-hosted VMs | Live Windows Home x64 execution, QMP and offline overlay probes; Windows guest boot unproved |
 | [UTM](utm.md) | Apache-2.0; bundled (L)GPL and other components retain their terms | macOS-hosted Windows/Linux VMs | Adopted lifecycle provider; live CLI failure diagnosis |
 | [Sky Computer Use](sky-computer-use.md) | Proprietary plugin/service; separate Codex source Apache-2.0 | macOS caller authorization; Windows unreviewed | JS/native static review; bounded live discovery and rejection of Python/signed-Node socket callers |
 | [Machine Control Chrome extension](chrome-extension.md) | MIT; browser distributor terms remain separate | macOS, Windows; Linux integration open | Source-native browser conformance; signed Windows acceptance pending |
