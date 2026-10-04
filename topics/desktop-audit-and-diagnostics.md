@@ -55,3 +55,7 @@ time-range export, and adoption by standalone headless/protected services are
 follow-up work. Bundle replacement is tested separately from a signed updater.
 This feature adds no provider, privilege, or authentication boundary. Separate
 caller authorization follows the [host control](host-control.md) contract.
+
+[Target operation audit](target-operation-audit.md) adds controller-local claim
+and common CLI history. It retains claimants across release and joins selected
+commands by exact resource without replacing this resident event stream.

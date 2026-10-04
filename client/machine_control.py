@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from contextvars import ContextVar
 from datetime import datetime
 import json
 import os
@@ -11,13 +12,17 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 import platform as host_platform
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 import time
 from typing import Any
 
+import audit_history
+
 
 ROOT = Path(__file__).resolve().parents[1]
+_AUDIT_COMMAND = ContextVar("machine_control_audit_command", default=None)
 TARGET_SCHEMA = "machine-control-targets/v0"
 CONTROLLER_CONFIG_SCHEMA = "machine-control-controller/v0"
 HOST_ATTENDANCE = {"attended", "unattended"}
@@ -342,6 +347,9 @@ def resolved_adapter_command(target: dict[str, Any]) -> list[str] | None:
 
 
 def emit(value: Any) -> None:
+    command = _AUDIT_COMMAND.get()
+    if command is not None:
+        command.observe(value)
     print(json.dumps(value, separators=(",", ":"), sort_keys=True))
 
 
@@ -3587,6 +3595,8 @@ def usage() -> str:
 Commands:
   agent identity|instructions     Read CLI identity or agent workflow (offline)
                                     identity --paths includes resolved locations
+  audit history [--claim-id ID] [--claimant-id ID] [--since UTC] [--limit N]
+                                    Read private controller history (offline)
   inventory list|status|guide|credentials|doctor
                                     Use the private deployment inventory
   targets                         List logical targets without private paths
@@ -3722,9 +3732,58 @@ def parse_global_options(
     return argparse.Namespace(**values), arguments[index:]
 
 
+def _dispatch(alias, target, remainder):
+    operation = remainder[0]
+    if operation != "claim" and operation_requires_claim(
+        operation, remainder[1:]
+    ):
+        require_selected_claim(
+            target,
+            operation_required_claim_use_class(
+                operation, remainder[1:], target
+            ),
+        )
+    if operation == "target":
+        return handle_target(alias, target, remainder[1:])
+    if operation == "run":
+        from scoped_run import handle_run
+
+        return handle_run(alias, target, remainder[1:])
+    if operation == "claim":
+        return handle_claim(alias, target, remainder[1:])
+    if operation == "maintenance":
+        return handle_maintenance(alias, target, remainder[1:])
+    if operation == "workspace":
+        return handle_workspace(alias, target, remainder[1:])
+    if operation == "control":
+        from control_session import handle_control
+
+        return handle_control(alias, target, remainder[1:])
+    if operation == "desktop":
+        return handle_desktop(alias, target, remainder[1:])
+    if operation == "grant":
+        return handle_grant(alias, target, remainder[1:])
+    if operation == "update":
+        return send_resident_request(alias, target, update_request(remainder[1:]))
+    if operation == "browser":
+        return handle_browser(alias, target, remainder[1:])
+    if operation == "ios":
+        return handle_ios(alias, target, remainder[1:])
+    if operation == "testbed":
+        return exec_escape(target, remainder[1:], os_escape=False)
+    if operation == "os":
+        return exec_escape(target, remainder[1:], os_escape=True)
+    raise ClientError(
+        "unsupported_command", f"Unsupported command '{operation}'"
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     remainder: list[str] = []
+    operation = "client"
+    command = None
+    token = None
     try:
         known, remainder = parse_global_options(arguments)
         from scoped_run import apply_scope
@@ -3744,6 +3803,16 @@ def main(argv: list[str] | None = None) -> int:
                 print(instructions(), end="")
                 return 0
             raise ClientError("usage", "agent requires identity [--paths]|instructions")
+        if operation == "audit":
+            try:
+                emit(audit_history.handle(remainder[1:], target=known.target))
+                return 0
+            except (audit_history.AuditError, OSError, sqlite3.Error,
+                    ValueError, KeyError, TypeError) as error:
+                raise ClientError(
+                    "audit_history_unavailable",
+                    "Controller audit history is unavailable or the query is invalid",
+                ) from error
         if operation == "inventory":
             return run_inventory(known.inventory_provider, remainder[1:])
         targets, registry_source = load_registry(
@@ -3814,48 +3883,32 @@ def main(argv: list[str] | None = None) -> int:
                 },
                 "_claimId": known.claim,
             }
-        if operation != "claim" and operation_requires_claim(
-            operation, remainder[1:]
-        ):
-            require_selected_claim(
-                target,
-                operation_required_claim_use_class(
-                    operation, remainder[1:], target
-                ),
+        target["environment"]["MACHINE_CONTROL_AUDIT_TARGET"] = alias
+        identifier = target.get("_claimId")
+        if (operation == "claim" and len(remainder) >= 3
+                and remainder[1] in {"renew", "release"}
+                and _valid_claim_id(remainder[2])):
+            identifier = remainder[2]
+        try:
+            command = audit_history.Command(alias, target["platform"], remainder, identifier)
+        except (audit_history.AuditError, OSError, sqlite3.Error):
+            # Missing history must not prevent prompt release or safe teardown.
+            cleanup = remainder[:2] in (
+                ["claim", "release"], ["workspace", "release"],
+                ["target", "shutdown"], ["grant", "revoke"],
             )
-        if operation == "target":
-            return handle_target(alias, target, remainder[1:])
-        if operation == "run":
-            from scoped_run import handle_run
-
-            return handle_run(alias, target, remainder[1:])
-        if operation == "claim":
-            return handle_claim(alias, target, remainder[1:])
-        if operation == "maintenance":
-            return handle_maintenance(alias, target, remainder[1:])
-        if operation == "workspace":
-            return handle_workspace(alias, target, remainder[1:])
-        if operation == "control":
-            from control_session import handle_control
-
-            return handle_control(alias, target, remainder[1:])
-        if operation == "desktop":
-            return handle_desktop(alias, target, remainder[1:])
-        if operation == "grant":
-            return handle_grant(alias, target, remainder[1:])
-        if operation == "update":
-            return send_resident_request(alias, target, update_request(remainder[1:]))
-        if operation == "browser":
-            return handle_browser(alias, target, remainder[1:])
-        if operation == "ios":
-            return handle_ios(alias, target, remainder[1:])
-        if operation == "testbed":
-            return exec_escape(target, remainder[1:], os_escape=False)
-        if operation == "os":
-            return exec_escape(target, remainder[1:], os_escape=True)
-        raise ClientError(
-            "unsupported_command", f"Unsupported command '{operation}'"
-        )
+            if not cleanup:
+                raise ClientError(
+                    "audit_unavailable",
+                    "Controller audit intent could not be persisted; nothing dispatched",
+                )
+            audit_history.best_effort("cleanup.audit_unavailable", logicalTarget=alias, claimId=identifier)
+        if command is not None:
+            token = _AUDIT_COMMAND.set(command)
+        result = _dispatch(alias, target, remainder)
+        if command is not None and command.finish(result) is None:
+            return result or 1
+        return result
     except ClientError as error:
         emit(
             refusal(
@@ -3865,6 +3918,8 @@ def main(argv: list[str] | None = None) -> int:
                 error.data,
             )
         )
+        if command is not None:
+            command.finish(error.exit_code, error.code)
         return error.exit_code
     except ValueError:
         emit(
@@ -3872,7 +3927,14 @@ def main(argv: list[str] | None = None) -> int:
                 operation, "invalid_number", "A numeric argument is invalid"
             )
         )
+        if command is not None:
+            command.finish(2, "invalid_number")
         return 2
+    finally:
+        if command is not None and not command.finished:
+            command.finish(error_code="client_aborted")
+        if token is not None:
+            _AUDIT_COMMAND.reset(token)
 
 
 if __name__ == "__main__":

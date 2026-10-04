@@ -73,3 +73,6 @@ commits with no expected follow-up do not need a trailer or registry entry.
 
 - `macos-locked-use` — opt-in covered Mac control, native helper preparation,
   finite watchdog sessions, physical takeover and verified relock.
+
+- `target-operation-audit` — durable target claim and common CLI history,
+  exact-resource correlation, retained attribution and explicit coverage gaps.

@@ -196,6 +196,12 @@ without requiring each platform adapter to acquire a GUI runtime.
 
 ## Current implementation
 
+**Current:** [Target operation audit](target-operation-audit.md) adds durable
+controller history of claim transitions and common CLI use. Release still
+retains only current fencing state in the claim record; the independent journal
+preserves claimant history and exact-resource correlation across replacement.
+It does not authenticate self-asserted attribution or prove complete history.
+
 **Current:** `bin/machine-control` projects claim policy in target inventory,
 exposes capabilities/status/acquire/check/renew/release, accepts generic
 self-asserted caller metadata, and requires `--claim` before meaningful VM

@@ -137,6 +137,14 @@ use both, and pass that claim when releasing the workspace. If doctor cannot
 resolve exact private identity, repair the private inventory or pin first and
 rerun doctor rather than bypassing claim enforcement.
 
+Before attributing past target use, creation, deletion, or credential changes,
+inspect `bin/machine-control --target TARGET audit history` and its coverage
+limits. Correlate exact resource keys and claim IDs rather than assuming an
+alias always denotes the same VM. Current inventory, a released claim record,
+or one old session transcript is not a complete activity history. Distinguish
+claim-holder labels from authenticated agent identity and never infer non-use
+from missing retained events.
+
 Preserve these rules:
 
 - YepAnywhere owns agent-session coordination and cross-host delegation.

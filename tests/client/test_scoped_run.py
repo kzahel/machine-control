@@ -7,6 +7,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -20,6 +21,9 @@ class ScopedRunTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.directory = Path(self.temp.name)
+        audit_env = mock.patch.dict(os.environ, {"MACHINE_CONTROL_AUDIT_DIR": str(self.directory / "audit-history")})
+        audit_env.start()
+        self.addCleanup(audit_env.stop)
         self.registry = self.directory / "registry.json"
         self.target = {
             "platform": "linux", "profile": "fixture",

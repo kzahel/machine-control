@@ -63,6 +63,11 @@ status, and separate claim/workspace cleanup states. It omits command
 arguments, private configuration, credentials, and raw management diagnostics.
 Task output retains the task's own disclosure responsibilities.
 
+The same minimized summaries are now persisted in the controller's
+[target operation journal](target-operation-audit.md), alongside claim
+transitions and nested common CLI commands. Retained history remains queryable
+after release; stderr is still the task's immediate result channel.
+
 The task's exit code is preserved when cleanup succeeds. Handled POSIX signals
 return `128 + signal`; orchestration or cleanup failure returns nonzero.
 `outcome` describes task execution; always check `exitCode`, `errorCode`, and

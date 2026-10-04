@@ -167,3 +167,5 @@ the commits' `Topic:` trailers and register that exact string in
 - [087 — Prepared console delegation](087-prepared-console-delegation.md).
 
 - [088 — Targeted native effect observation](088-targeted-native-effect-observation.md).
+
+- [089 — Durable target claim and command history](089-target-operation-audit.md).

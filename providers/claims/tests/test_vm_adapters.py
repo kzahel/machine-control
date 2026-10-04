@@ -8,6 +8,7 @@ import select
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -19,6 +20,9 @@ class VmClaimAdapterTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.directory = Path(self.temporary.name)
+        audit_env = mock.patch.dict(os.environ, {"MACHINE_CONTROL_AUDIT_DIR": str(self.directory / "audit-history")})
+        audit_env.start()
+        self.addCleanup(audit_env.stop)
 
     def tearDown(self) -> None:
         self.temporary.cleanup()

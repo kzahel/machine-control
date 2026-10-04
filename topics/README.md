@@ -34,6 +34,9 @@ its `Topic:` trailers.
 
 ## Current topics
 
+- [`target-operation-audit.md`](target-operation-audit.md): durable controller
+  claim and command history, exact-resource correlation and coverage limits.
+
 - [`access-admission-and-pause.md`](access-admission-and-pause.md): proposed
   resumable pauses, polite activation, live waiting queues, cancellation and
   physical/VM resource arbitration without revoking standing authorization.

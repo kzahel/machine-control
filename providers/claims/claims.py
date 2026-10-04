@@ -17,6 +17,9 @@ import sys
 import time
 from typing import Any, Iterator
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "client"))
+import audit_history
+
 
 RECORD_SCHEMA = "machine-control-target-claim-record/v0"
 RESULT_SCHEMA = "machine-control-claim/v0"
@@ -244,7 +247,11 @@ def write_exclusive(path: Path, value: dict[str, Any]) -> None:
         path.chmod(0o600)
 
 
-def write_record(path: Path, value: dict[str, Any]) -> None:
+def write_record(path: Path, value: dict[str, Any], *, audit_reason=None) -> None:
+    previous = None
+    is_claim = value.get("schema") == RECORD_SCHEMA
+    if is_claim and path.exists():
+        previous = json.loads(path.read_text())
     temporary = path.parent / f".{path.name}.{secrets.token_hex(8)}"
     write_exclusive(temporary, value)
     os.replace(temporary, path)
@@ -255,6 +262,12 @@ def write_record(path: Path, value: dict[str, Any]) -> None:
             os.fsync(descriptor)
         finally:
             os.close(descriptor)
+    if is_claim:
+        audit_history.claim_transition(
+            previous, value,
+            resource_digest(value["resource"]["provider"], value["resource"]["id"]),
+            reason=audit_reason, observed_at=timestamp(utc_now()),
+        )
 
 
 def new_record(provider: str, resource_id: str) -> dict[str, Any]:

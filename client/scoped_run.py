@@ -11,6 +11,7 @@ import tempfile
 import time
 
 import machine_control as mc
+import audit_history
 from scoped_process import ProcessTree
 
 
@@ -153,6 +154,8 @@ class Run:
             **extra,
         }
         print(json.dumps(value, separators=(",", ":")), file=sys.stderr, flush=True)
+        audit_history.best_effort("run." + event, **{key: item for key, item in value.items()
+            if key not in {"schema", "event"}})
 
     def call(self, kind, operation, arguments, *, target=None):
         _, parsed, _ = mc.run_adapter(

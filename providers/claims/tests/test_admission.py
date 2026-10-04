@@ -18,6 +18,9 @@ class AdmissionTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.directory = Path(self.temporary.name)
+        audit_env = mock.patch.dict(os.environ, {"MACHINE_CONTROL_AUDIT_DIR": str(self.directory / "audit-history")})
+        audit_env.start()
+        self.addCleanup(audit_env.stop)
         self.clock = time.monotonic()
         self.patch = mock.patch.object(admission.time, "monotonic", side_effect=lambda:self.clock)
         self.patch.start()
@@ -37,6 +40,18 @@ class AdmissionTests(unittest.TestCase):
         options = dict(reason="Fixture task", claimantAuthority="fixture", claimantId="caller", waitSeconds=300)
         options.update(overrides)
         return a, a.submit(options)
+
+    def test_history_records_queue_owner_end_reason(self):
+        import audit_history
+        owner, offered = self.owner()
+        active = owner.accept(offered["offerGeneration"])
+        self.clock += 6
+        ended = owner.inspect()
+        self.assertEqual(ended["terminalReason"], "heartbeat_expired")
+        events = audit_history.history()["events"]
+        self.assertEqual([e["event"] for e in events], ["claim.acquired", "claim.released"])
+        self.assertEqual(events[-1]["claimId"], active["claim"]["claimId"])
+        self.assertEqual(events[-1]["endReason"], "heartbeat_expired")
 
     def test_fifo_aliases_disjoint_resources_and_no_legacy_offer_theft(self):
         first, offer = self.owner()

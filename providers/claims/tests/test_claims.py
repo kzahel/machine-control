@@ -26,6 +26,9 @@ class ClaimStoreTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.directory = Path(self.temporary.name)
+        audit_env = mock.patch.dict(os.environ, {"MACHINE_CONTROL_AUDIT_DIR": str(self.directory / "audit-history")})
+        audit_env.start()
+        self.addCleanup(audit_env.stop)
         self.now = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
 
     def tearDown(self) -> None:
@@ -58,6 +61,24 @@ class ClaimStoreTests(unittest.TestCase):
     def acquire(self, **overrides: object) -> dict[str, object]:
         with mock.patch.object(claims, "utc_now", return_value=self.now):
             return claims.command_acquire(self.args("acquire", **overrides))
+
+    def test_durable_history_retains_claimants_and_expiry_after_replacement(self):
+        import audit_history
+        first = self.acquire()["data"]["claim"]["claimId"]
+        with mock.patch.object(claims, "utc_now", return_value=self.now + timedelta(seconds=30)):
+            claims.command_renew(self.args("renew", claim_id=first))
+            claims.command_release(self.args("release", claim_id=first))
+        second = self.acquire(duration_seconds=60)["data"]["claim"]["claimId"]
+        with mock.patch.object(claims, "utc_now", return_value=self.now + timedelta(seconds=61)):
+            claims.command_acquire(self.args("acquire", claimant_id="replacement"))
+        events = audit_history.history()["events"]
+        self.assertEqual([e["event"] for e in events], ["claim.acquired", "claim.renewed",
+                         "claim.released", "claim.acquired", "claim.expired", "claim.acquired"])
+        self.assertEqual(events[2]["claimId"], first)
+        self.assertEqual(events[4]["claimId"], second)
+        self.assertEqual(events[-1]["claimant"]["id"], "replacement")
+        self.assertEqual(len({e["resourceKey"] for e in events}), 1)
+        self.assertNotIn("private-resource", json.dumps(events))
 
     def test_acquire_status_and_conflict_are_minimized(self) -> None:
         acquired = self.acquire()

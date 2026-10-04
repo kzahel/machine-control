@@ -10,6 +10,12 @@ fencing generation after release or expiry so a later claimant receives a
 higher generation. Public results expose claimant attribution, reason, timing,
 and generation without exposing the provider identity or state path.
 
+The shared record writer also appends claim transitions to the private
+[controller operation journal](../../docs/target-operation-audit.md), retaining
+claimant attribution after release. Exact identity is represented by an opaque
+resource key. Queue termination supplies its actual end reason. Journal failure
+warns without undoing a state write, stranding cleanup, or changing fencing.
+
 Claims coordinate cooperative callers. Self-asserted authority, claimant,
 session, label, and metadata fields are attribution rather than authentication.
 An unrestricted process with the same shell or direct provider access remains

@@ -36,6 +36,9 @@ class ClientTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.directory = Path(self.temporary.name)
+        audit_env = mock.patch.dict(os.environ, {"MACHINE_CONTROL_AUDIT_DIR": str(self.directory / "audit-history")})
+        audit_env.start()
+        self.addCleanup(audit_env.stop)
         self.registry = self.directory / "targets.json"
         self.write_registry("linux")
 

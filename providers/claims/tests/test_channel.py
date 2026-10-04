@@ -8,6 +8,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[3]
 SPEC = importlib.util.spec_from_file_location('test_channel_claims', ROOT / 'providers/claims/claims.py')
@@ -17,6 +18,9 @@ claims = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(claims)
 class ClaimChannelTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(); self.directory = Path(self.temporary.name)
+        audit_env = mock.patch.dict(os.environ, {"MACHINE_CONTROL_AUDIT_DIR": str(self.directory / "audit-history")})
+        audit_env.start()
+        self.addCleanup(audit_env.stop)
         self.children = []
         self.fixture = self.directory / 'fixture.py'
         self.effects = self.directory / 'effects.txt'

@@ -86,7 +86,7 @@ def end(directory, item, reason):
         path, record = record_for_digest(directory, item["resource"])
         if record and record["active"] and record["active"]["claimId"] == item["claimId"]:
             record["active"] = None
-            claims.write_record(path, record)
+            claims.write_record(path, record, audit_reason=reason)
     item["state"] = "ended"
     item["terminalReason"] = reason
 

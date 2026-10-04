@@ -80,6 +80,13 @@ Require accepted=true and retain data.claim.claimId. Carry --claim CLAIM_ID on
 every subsequent target operation. Renew during long work and release promptly
 in finally/trap cleanup: machine-control --target host claim release CLAIM_ID.
 Caller/session ids are attribution, not credentials. Never invent identity.
+
+For past activity, use `machine-control --target TARGET audit history`.
+Filter with --claim-id, --claimant-id or --since; inspect coverage and resourceKey.
+Claims retain self-asserted holder attribution after release, not authenticated
+agent identity. An alias can refer to a replacement VM. Missing history or one
+old transcript cannot prove nobody used the target later. Raw command arguments,
+payloads and secret transport are omitted from this operational journal.
 Alternatively `machine-control --target host run --help` describes a scoped
 runner that owns doctor, claim renewal and release for a local task program.
 
