@@ -180,7 +180,8 @@ the commits' `Topic:` trailers and register that exact string in
   and unified public 0.5.4 with production Windows replacement.
 
 - [094 — Windows development host and Hyper-V test loop](094-windows-hyperv-development-host.md):
-  QEMU/WHPX Home probes pass; Windows 11 TPM preflight blocks qualification.
+  QEMU/WHPX Home probes pass but lack Windows TPM; VirtualBox installer boots
+  but stalls before guest acceptance.
   Pending native builds, provider lifecycle,
   Windows provisioning, isolated workspaces and host-to-guest acceptance.
 

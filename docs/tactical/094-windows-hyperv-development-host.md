@@ -1,8 +1,9 @@
 # 094 — Windows development host and Hyper-V test loop
 
 Status: host inspected; bounded QEMU/WHPX probes passed on Windows Home, but
-Windows 11 qualification is blocked by native-host TPM support. Native builds,
-provider implementation and Windows guest acceptance remain open.
+Windows 11 qualification is blocked by native-host TPM support. A subsequent
+VirtualBox experiment booted the installer but stalled before guest acceptance.
+Native builds and provider implementation remain open.
 
 Owning topics: [VM workspaces](../../topics/vm-workspaces-and-storage-policy.md),
 [cross-platform coordinator](../../topics/cross-platform-coordinator.md),
@@ -289,3 +290,52 @@ Windows boot/Secure Boot/TPM, unattended transport and resident effects remain
 unproved. A supported native TPM route or another Home-capable VM provider is
 needed before this Windows 11 experiment can continue. The earlier WHPX and
 offline overlay results remain valid within their narrower scope.
+
+### VirtualBox installer experiment — 2026-10-04
+
+The operator selected a bounded VirtualBox experiment, retaining explicit
+approval for any host reboot. A new private provisioning journal preceded
+installation. The signed core application and support driver installed with
+restart suppressed, exit status zero and no restart requested. Host boot time
+remained unchanged. Optional networking/USB drivers and the Extension Pack
+were not installed; the guest used NAT in an isolated private VM library.
+
+Direct VBoxManage scripts bound each operation to a new exact UUID receipt.
+The scratch VM used EFI, TPM 2.0, enrolled Secure Boot keys, four CPUs, 6 GiB
+RAM and a 64 GiB dynamic disk. Official Windows 11 Enterprise evaluation media
+matched Microsoft's published digest. The stock unattended template's hardware
+check bypasses were removed and the rendered answer checked. The randomly
+assigned password was stored atomically behind private Windows ACLs and passed
+through password-file options. Its canonical stored value matches the prepared
+answer; guest authentication has **not** been verified.
+
+| Probe | Observed result | Elapsed |
+| --- | --- | --- |
+| Official evaluation ISO download | Full digest verified | 111.6 s |
+| Headless start command | Provider accepted start; installer subsequently visible | 3.6 s |
+| Unattended installation | Reached 77%, then blank console; no Guest Additions | Still incomplete after 21 min |
+| Clean ACPI shutdown request | Request delivered; VM remained running | More than 2 min observation |
+
+These are single experiment measurements, not build/deploy benchmarks. The
+native Windows hypervisor backend reported slow execution mode. WSL remained
+responsive, but coexistence performance is not qualified. After the blank
+screen, the disk stopped changing; a provider-native Shift tap had no visible
+effect. Read-only debugger probes identified a Windows kernel and reported no
+bugcheck. The cause remains unknown. Console capture/input was limited to this
+explicit bootstrap diagnosis and did not use the host desktop.
+
+Cleanup is incomplete pending an operator decision on forced guest recovery:
+the unaccepted scratch VM remains running, with its private disk, NVRAM/TPM
+state, installation media and credential store retained. No forced stop,
+reset, host reboot or host security change occurred. The provisioning journal
+remains open at this recovery boundary. Ordinary diagnostic files were checked
+for the assigned password with no matches; required answer media stays private.
+No accepted target or claim was created. Direct-script operations are recorded
+manually because no common VirtualBox adapter exists.
+
+Result: scriptable creation and headless installer boot are demonstrated;
+Windows installation, effective Secure Boot/TPM, credential authentication,
+guest command effects and cold-start recovery remain unproved. The
+[provider dossier](../../research/providers/virtualbox.md) owns the capability
+assessment. Common-provider integration, isolated workspaces, resident
+acceptance, native builds and both measured iteration cycles remain pending.

@@ -195,9 +195,10 @@ that gap: evaluate QEMU/WHPX before requiring an edition upgrade. Bounded
 [Windows Home feasibility evidence](../research/providers/qemu-whpx.md) passes,
 but follow-up qualification is blocked by upstream's native Windows-host TPM
 exclusion. Do not bypass Windows 11 security requirements or adopt QEMU/WHPX
-from acceleration evidence alone. Evaluate another Home-capable provider, or
-a supported native TPM route, before implementation. VMware and VirtualBox
-remain unselected candidates rather than implicit fallbacks.
+from acceleration evidence alone. **Decision:** the operator authorized a
+bounded [VirtualBox evaluation](../research/providers/virtualbox.md) next.
+Qualify guest security, headless administration and WSL coexistence before
+implementation; this is not provider adoption. VMware remains unselected.
 
 **Decision:** neither the Linux nor Windows host plan attempts to virtualize a
 macOS guest. Callers on those platforms reach a physical Mac, its resident

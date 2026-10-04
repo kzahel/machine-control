@@ -7,6 +7,7 @@ components remain necessary. Evidence levels are defined in the
 
 | Provider | Declared top-level license | Platform reach under review | Strongest evidence here |
 | --- | --- | --- | --- |
+| [VirtualBox](virtualbox.md) | Base GPL-3.0-only; bundled components and Extension Pack have separate terms | Windows Home x64 hosting; other hosts upstream-claimed here | Headless Windows 11 installer boot; installation stalled before guest acceptance |
 | [QEMU/WHPX](qemu-whpx.md) | GPL-2.0; bundled components retain their terms | Windows-hosted VMs | Live x64 execution/QMP/overlay probes; Windows 11 qualification blocked by native-host TPM exclusion |
 | [UTM](utm.md) | Apache-2.0; bundled (L)GPL and other components retain their terms | macOS-hosted Windows/Linux VMs | Adopted lifecycle provider; live CLI failure diagnosis |
 | [Sky Computer Use](sky-computer-use.md) | Proprietary plugin/service; separate Codex source Apache-2.0 | macOS caller authorization; Windows unreviewed | JS/native static review; bounded live discovery and rejection of Python/signed-Node socket callers |

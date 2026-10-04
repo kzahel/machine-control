@@ -340,7 +340,9 @@ probes. This is early feasibility evidence, not an installed Windows guest or
 an adopted Machine Control provider. Follow-up binary probes and upstream
 source review found native Windows-host TPM emulation unavailable, blocking
 qualification with Windows 11 security requirements intact. Hyper-V remains
-unimplemented; another Home-capable route needs evaluation before adoption.
+unimplemented. The operator subsequently selected a bounded
+[VirtualBox experiment](../providers/virtualbox.md); headless Windows 11
+installation booted but stalled before guest-side acceptance.
 
 **Current:** The macOS-hosted UTM route has a live-observed ScriptingBridge
 CLI crash before guest dispatch. See the [UTM dossier](../providers/utm.md)
