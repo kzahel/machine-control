@@ -84,7 +84,7 @@ def worker():
         command = json.loads(trigger.read_text())
         result = {}
         try:
-            if command["operation"] == "open":
+            if command["operation"] in ("open", "open-prepared-pending"):
                 cli = root / "Machine Control.app/Contents/Resources/mc-cli"
                 err = open(root / f"proxy-{index}.log", "w")
                 child = subprocess.Popen(
@@ -109,6 +109,11 @@ def worker():
                     scopes=["observe", "control"],
                     durationSeconds=120,
                     waitSeconds=120,
+                    **(
+                        {"preparedConsole": True}
+                        if command["operation"] == "open-prepared-pending"
+                        else {}
+                    ),
                 )
                 result = {
                     "open": reply.get("accepted"),
@@ -116,6 +121,11 @@ def worker():
                 }
                 if reply.get("accepted"):
                     view = reply["data"]
+                    if command["operation"] == "open-prepared-pending":
+                        active = view
+                        result.update(state=view["state"])
+                        (root / f"result-{index}.json").write_text(json.dumps(result))
+                        continue
                     end = time.monotonic() + 20
                     while view["state"] != "offered" and time.monotonic() < end:
                         time.sleep(0.2)
@@ -186,13 +196,51 @@ def worker():
                 ):
                     time.sleep(0.2)
                     view = rpc("control.heartbeat")["data"]
-                active = (
-                    rpc("control.accept", offerGeneration=view["offerGeneration"]).get(
-                        "data"
-                    )
-                    or {}
+                reply = rpc("control.accept", offerGeneration=view["offerGeneration"])
+                active = reply.get("data") or {}
+                result = {
+                    "state": active.get("state"),
+                    "accepted": reply.get("accepted"),
+                    "errorCode": reply.get("errorCode"),
+                }
+            elif command["operation"] == "protected-dispatch":
+                rpc("control.heartbeat")
+                reply = rpc(
+                    "control.dispatch",
+                    sessionId=active["sessionId"],
+                    resourceGenerations=active["resourceGenerations"],
+                    request={"operation": "session.unlock"},
                 )
-                result = {"state": active.get("state")}
+                result = {
+                    "accepted": bool((reply.get("data") or {}).get("accepted")),
+                    "errorCode": reply.get("errorCode"),
+                }
+            elif command["operation"] == "forged-attribution":
+                cli = root / "Machine Control.app/Contents/Resources/mc-cli"
+                forbidden = {
+                    "operation": "control.open",
+                    "schema": "machine-control-admission/v1",
+                    "requestId": "forged",
+                    "desktopDelegation": {
+                        "schema": "machine-control-desktop-delegation/v1",
+                        "sessionId": "foreign-session",
+                        "sessionGeneration": "00000000-0000-0000-0000-000000000001",
+                    },
+                }
+                attempt = subprocess.run(
+                    [
+                        str(cli / "python/bin/python3"),
+                        "-I",
+                        "-B",
+                        str(cli / "platforms/macos/host/machost.py"),
+                        "channel",
+                    ],
+                    input=json.dumps(forbidden) + "\n",
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+                result = {"accepted": attempt.returncode == 0 and bool(attempt.stdout)}
             elif command["operation"] == "close":
                 result = {"accepted": rpc("control.cancel").get("accepted")}
                 child.stdin.close()

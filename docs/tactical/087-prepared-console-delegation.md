@@ -56,7 +56,9 @@ and pre-dispatch fencing. Mac static checks, source UI typecheck, native deploym
 and fresh doctor pass. These do not prove a signed covered task or real hardware
 interruption.
 
-Ordinary signed launch
-qualification remains recorded in Tactical 086; it cannot prove this protected
-composition. Keep the parent coordinating plan active until its selected
+**Current, signed negative qualification:** Tactical 086's `boundaries` run
+proves that the full signed app waits for separate console consent, then refuses
+activation while the helper is unprepared. Trust remains enabled and no native
+effect occurs. The prepared positive path remains unqualified; ordinary signed
+launch qualification cannot prove an actual covered task or hardware takeover. Keep the parent coordinating plan active until its selected
 route matrix passes.

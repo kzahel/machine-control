@@ -142,8 +142,20 @@ owned fixture remains a protocol provider, not an LLM. This qualifies the signed
 ordinary route and native operator controls only, not covered control or release
 distribution.
 
-**Open:** additional signed negative callers,
-lifecycle/restart qualification and prepared-console covered tasks. Keep this
+**Current, additional signed acceptance:** the `boundaries`, `provider-exit`
+and `integration-exit` cases pass against the same frozen signed revisions.
+A publisher-signed Bun process and an actual registered launch attempting forged
+attribution refuse without an effect. Prepared-console requests wait without
+explicit consent and refuse activation with an unprepared helper. Direct
+protected dispatch refuses. Provider termination and abrupt native YA loss
+release active ownership while retaining trust; each fresh authenticated launch
+produces exactly one additional independent effect. Stop/reconnect and signed
+resident restart still fence subsequent work. Exact prior state restoration is
+checked after each run. These cases use actual native/kernel connections and
+owned protocol providers, not simulated caller admission.
+
+**Open:** further signed replacement/load/scope qualification and
+prepared-console covered tasks. Keep this
 and the coordinating plan active; bounded conformance is not distribution or
 genuine hardware takeover acceptance.
 

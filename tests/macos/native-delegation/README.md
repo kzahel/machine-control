@@ -47,3 +47,11 @@ after signed resident restart. This
 bounded run does not qualify protected/covered use, genuine hardware takeover,
 all signed negatives, restart failures or release distribution. Tactical 086
 owns evidence and remaining gates.
+
+Additional cases select `--case boundaries`, `--case provider-exit` or
+`--case integration-exit`. Boundaries checks signed Bun and forged-attribution
+refusal, waiting without separate consent, unprepared-helper activation refusal
+and protected-operation denial. Lifecycle cases terminate the owned provider or
+abruptly kill native YA, require ownership release with retained trust, then
+create a fresh authenticated launch and independently observe one new effect.
+All cases still prove Stop/reconnect and signed resident restart refusal.

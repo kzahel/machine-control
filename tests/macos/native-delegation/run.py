@@ -29,6 +29,11 @@ def main():
     parser.add_argument("--auth-data", type=Path, required=True)
     parser.add_argument("--auth-session-file", type=Path, required=True)
     parser.add_argument("--keep-artifacts", action="store_true")
+    parser.add_argument(
+        "--case",
+        choices=("ordinary", "boundaries", "provider-exit", "integration-exit"),
+        default="ordinary",
+    )
     args = parser.parse_args()
     if args.target == "host":
         parser.error("This runner requires a dedicated Mac appliance")
@@ -100,7 +105,7 @@ def main():
                     )
                 send(app.parent, name)
         result = subprocess.run(
-            mc + ["-i", "/usr/bin/python3", "-", remote],
+            mc + ["-i", "/usr/bin/python3", "-", remote, args.case],
             input=(FIXTURES / "guest.py").read_text(),
             text=True,
             timeout=300,

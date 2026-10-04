@@ -220,9 +220,10 @@ server/launch proxy path are implemented, with kernel subprocess, credential
 origin and closure fixtures. The first profile enrolls observation/input scopes
 on the ordinary local unlocked desktop. Signed YA origin, the installed CLI and full signed MC operator app now pass
 bounded ordinary native acceptance with independent AX effects, Pause/fresh
-Resume, Stop and unrelated-caller refusal. Broader negative/failure qualification
-and protected-consent composition remain open; this is not distribution
-acceptance. Existing target-wide approval stays
+Resume, Stop and unrelated-caller refusal. Signed Bun/forged-attribution refusal and provider/native-integration crash
+cleanup also pass, with fresh authenticated effects after trust-preserving
+recovery. Further replacement/load qualification and positive protected-consent
+composition remain open; this is not distribution acceptance. Existing target-wide approval stays
 explicitly cooperative.
 
 Native profile discovery is read-only and reflects current operator trust per

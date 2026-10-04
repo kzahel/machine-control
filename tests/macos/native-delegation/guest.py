@@ -9,6 +9,8 @@ import json, os, pathlib, subprocess, time, socket, urllib.request, urllib.error
 
 root = pathlib.Path(sys.argv[1])
 home = pathlib.Path.home()
+case = sys.argv[2] if len(sys.argv) > 2 else "ordinary"
+assert case in ("ordinary", "boundaries", "provider-exit", "integration-exit")
 assert (
     root.is_absolute() and root.resolve().parent == pathlib.Path("/tmp").resolve()
 ), "Use an isolated guest temporary directory"
@@ -145,6 +147,7 @@ try:
     else:
         raise RuntimeError("fixture did not become independently ready")
     before = fixture()["count"]
+    expected_effects = 2
     assert not backup.exists()
     if canonical.exists():
         os.rename(canonical, backup)
@@ -361,26 +364,198 @@ try:
     expect(command(5, "accept"), "state", "active")
     expect(command(6, "effect"), "accepted", True)
     end = time.monotonic() + 5
-    while fixture()["count"] < before + 2 and time.monotonic() < end:
+    while fixture()["count"] < before + expected_effects and time.monotonic() < end:
         time.sleep(0.1)
-    assert fixture()["count"] == before + 2
+    assert fixture()["count"] == before + expected_effects
     print(
         "PASS Pause retains trust; fresh Resume permits exactly one new effect",
         flush=True,
     )
+    extra_commands = 0
+    if case in ("provider-exit", "integration-exit"):
+        old_runtime = runtime
+        rows = subprocess.run(
+            ["/bin/ps", "-axo", "pid=,ppid=,command="], capture_output=True, text=True
+        ).stdout.splitlines()
+        old_descendants = []
+        known = {native.pid}
+        for _ in range(10):
+            for row in rows:
+                columns = row.strip().split(None, 2)
+                if (
+                    len(columns) == 3
+                    and int(columns[1]) in known
+                    and int(columns[0]) not in known
+                ):
+                    known.add(int(columns[0]))
+                    old_descendants.append((int(columns[0]), columns[2]))
+        if case == "provider-exit":
+            identity = subprocess.run(
+                ["/bin/ps", "-p", str(runtime["pid"]), "-o", "command="],
+                capture_output=True,
+                text=True,
+            ).stdout
+            assert str(root / "codex-fixture.py") in identity
+            os.kill(runtime["pid"], signal.SIGTERM)
+        else:
+            native.kill()  # abrupt native integration loss, not graceful cleanup
+            native.wait(timeout=5)
+        end = time.monotonic() + 8
+        while (
+            rpc(standard, {"operation": "status"})["data"]["admission"]["active"]
+            and time.monotonic() < end
+        ):
+            time.sleep(0.1)
+        assert (
+            rpc(standard, {"operation": "status"})["data"]["admission"]["active"] == 0
+        )
+        assert rpc(standard, {"operation": "desktop.delegation.status"})["data"][
+            "enabled"
+        ]
+        assert fixture()["count"] == before + expected_effects
+        if case == "integration-exit":
+            # Reap only the old native process's exact captured descendants.
+            for pid, identity in reversed(old_descendants):
+                current = subprocess.run(
+                    ["/bin/ps", "-p", str(pid), "-o", "command="],
+                    capture_output=True,
+                    text=True,
+                ).stdout.strip()
+                if current == identity:
+                    try:
+                        os.kill(pid, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+            end = time.monotonic() + 5
+            for pid, identity in reversed(old_descendants):
+                while time.monotonic() < end:
+                    current = subprocess.run(
+                        ["/bin/ps", "-p", str(pid), "-o", "command="],
+                        capture_output=True,
+                        text=True,
+                    ).stdout.strip()
+                    if current != identity:
+                        break
+                    time.sleep(0.1)
+                if current == identity:
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+            native = subprocess.Popen(
+                [str(ya / "Contents/MacOS/yep-anywhere-desktop")],
+                env=env,
+                stdout=open(root / "ya-restart.log", "w"),
+                stderr=subprocess.STDOUT,
+            )
+            processes.append(native)
+            end = time.monotonic() + 60
+            while time.monotonic() < end:
+                try:
+                    if (
+                        urllib.request.urlopen(base + "/health", timeout=1).status
+                        == 200
+                    ):
+                        break
+                except Exception:
+                    time.sleep(0.2)
+            else:
+                raise RuntimeError("Signed integration restart readiness timeout")
+        for pattern in ("command-*.json", "result-*.json", "agent-runtime.json"):
+            for path in root.glob(pattern):
+                path.unlink()
+        # Authentication is fresh in the restarted server; no origin object or
+        # runtime registration is restored from the previous launch.
+        json.load(urllib.request.urlopen(request, timeout=45))
+        runtime = waitfile(root / "agent-runtime.json")
+        assert runtime["delegated"] and runtime["pid"] != old_runtime["pid"]
+        expect(command(1, "open"), "state", "active")
+        expect(command(2, "effect"), "accepted", True)
+        expected_effects += 1
+        end = time.monotonic() + 5
+        while fixture()["count"] < before + expected_effects and time.monotonic() < end:
+            time.sleep(0.1)
+        assert fixture()["count"] == before + expected_effects
+        extra_commands = -4
+        print(
+            "PASS "
+            + case
+            + " releases ownership and retains trust; fresh authenticated launch has one new effect",
+            flush=True,
+        )
+    if case == "boundaries":
+        expect(command(7, "forged-attribution"), "accepted", False)
+        expect(command(8, "close"), "accepted", True)
+        pending = command(9, "open-prepared-pending")
+        expect(pending, "state", "waiting_for_approval")
+        assert fixture()["count"] == before + expected_effects
+        # A publisher-signed interpreter still cannot authenticate native YA.
+        program = """const {createConnection}=require('node:net');
+const socket=createConnection({path:process.argv[1]});
+const timer=setTimeout(()=>{socket.destroy();process.exit(2)},12000);
+socket.on('connect',()=>socket.write(process.argv[2]+'\\n'));
+socket.on('data',data=>{process.stdout.write(data);clearTimeout(timer);socket.end()});
+socket.on('error',()=>{clearTimeout(timer);process.exit(3)});
+socket.on('end',()=>{clearTimeout(timer)});
+"""
+        frame = {
+            "operation": "control.open",
+            "requestId": "signed-interpreter-negative",
+            "schema": "machine-control-admission/v1",
+            "reason": "Negative boundary fixture",
+            "scopes": ["observe", "control"],
+            "durationSeconds": 60,
+            "waitSeconds": 60,
+            "desktopDelegation": {
+                "schema": "machine-control-desktop-delegation/v1",
+                "sessionId": "forged-label",
+                "sessionGeneration": "00000000-0000-0000-0000-000000000001",
+            },
+        }
+        negative = subprocess.run(
+            [
+                str(ya / "Contents/MacOS/bun"),
+                "-e",
+                program,
+                str(standard),
+                json.dumps(frame),
+            ],
+            capture_output=True,
+            timeout=15,
+        )
+        assert negative.stdout, "Signed interpreter refusal was not observed"
+        assert json.loads(negative.stdout)["accepted"] is False
+        assert fixture()["count"] == before + expected_effects
+        operator_press("Enable access")
+        refusal = command(10, "accept")
+        expect(refusal, "accepted", False)
+        expect(refusal, "errorCode", "locked_use_disabled")
+        assert fixture()["count"] == before + expected_effects
+        assert rpc(standard, {"operation": "desktop.delegation.status"})["data"][
+            "enabled"
+        ]
+        expect(command(11, "close"), "accepted", True)
+        expect(command(12, "open"), "state", "active")
+        expect(command(13, "protected-dispatch"), "accepted", False)
+        assert fixture()["count"] == before + expected_effects
+        extra_commands = 7
+        print(
+            "PASS forged attribution and signed interpreter refusal; separate consent/helper and protected-operation gates",
+            flush=True,
+        )
     operator_press("Stop access")
     time.sleep(0.3)
-    expect(command(7, "effect"), "accepted", False)
+    expect(command(7 + extra_commands, "effect"), "accepted", False)
     assert (
         rpc(
             standard, {"operation": "desktop.delegation.status", "requestId": "stopped"}
         )["data"]["enabled"]
         is False
     )
-    result = command(8, "open")
+    result = command(8 + extra_commands, "open")
     expect(result, "open", False)
     expect(result, "errorCode", "desktop_trust_not_enabled")
-    assert fixture()["count"] == before + 2
+    assert fixture()["count"] == before + expected_effects
     print("PASS Stop fences current work and fresh delegated reconnect", flush=True)
     # A new resident runtime must not restore live ownership or undo Stop.
     broker.terminate()
@@ -400,8 +575,8 @@ try:
         rpc(standard, {"operation": "desktop.delegation.status"})["data"]["enabled"]
         is False
     )
-    expect(command(9, "open"), "open", False)
-    assert fixture()["count"] == before + 2
+    expect(command(9 + extra_commands, "open"), "open", False)
+    assert fixture()["count"] == before + expected_effects
     print(
         "PASS Stop persists across signed resident restart; old ownership is not restored",
         flush=True,
@@ -411,7 +586,7 @@ try:
         json.dumps(
             {
                 "passed": True,
-                "effects": 2,
+                "effects": expected_effects,
                 "signedNativeOrigin": True,
                 "signedOperatorApp": True,
                 "provider": "native AX",
