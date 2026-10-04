@@ -10,7 +10,7 @@ import json, os, pathlib, subprocess, time, socket, urllib.request, urllib.error
 root = pathlib.Path(sys.argv[1])
 home = pathlib.Path.home()
 case = sys.argv[2] if len(sys.argv) > 2 else "ordinary"
-assert case in ("ordinary", "boundaries", "provider-exit", "integration-exit")
+assert case in ("ordinary", "boundaries", "provider-exit", "integration-exit", "routes")
 assert (
     root.is_absolute() and root.resolve().parent == pathlib.Path("/tmp").resolve()
 ), "Use an isolated guest temporary directory"
@@ -325,7 +325,19 @@ try:
     runtime = waitfile(root / "agent-runtime.json")
     assert runtime["delegated"] is True, "launch did not select native delegation"
     expect(command(1, "open"), "state", "active")
-    expect(command(2, "effect"), "accepted", True)
+    first_effect = command(2, "effect")
+    expect(first_effect, "accepted", True)
+    if case == "routes":
+        expect(first_effect, "ownerState", "active")
+        assert (
+            first_effect["latencySeconds"] < 2.5
+        ), "Native fixture effect consumed its watchdog margin"
+        print(
+            "Native signed AX effect latency: "
+            + format(first_effect["latencySeconds"], ".3f")
+            + "s",
+            flush=True,
+        )
     end = time.monotonic() + 5
     while fixture()["count"] == before and time.monotonic() < end:
         time.sleep(0.1)
@@ -349,20 +361,54 @@ try:
     ), "unrelated process forwarded a frame"
     assert fixture()["count"] == before + 1
     print("PASS unrelated same-user native CLI refused without an effect", flush=True)
+    route_offset = 0
+    if case == "routes":
+        keys_before = fixture()["keyEventCount"]
+        route_result = command(3, "routes")
+        expect(route_result, "accepted", True)
+        expect(route_result, "png", True)
+        expected_effects += 1
+        end = time.monotonic() + 5
+        while (
+            fixture()["count"] != before + 2
+            or fixture()["keyEventCount"] <= keys_before
+        ) and time.monotonic() < end:
+            time.sleep(0.1)
+        assert fixture()["count"] == before + 2
+        assert fixture()["keyEventCount"] > keys_before and fixture()["lastKey"] == "p"
+        assert fixture()["applicationActive"] and fixture()["keyWindow"]
+        route_offset = 1
+        print(
+            "PASS native PNG capture and independently observed pointer, keyboard and activation effects",
+            flush=True,
+        )
     operator_press("Pause access")
     time.sleep(0.3)
-    expect(command(3, "effect"), "accepted", False)
-    expect(command(4, "status"), "state", "paused")
+    expect(command(3 + route_offset, "effect"), "accepted", False)
+    expect(command(4 + route_offset, "status"), "state", "paused")
     assert (
         rpc(
             standard, {"operation": "desktop.delegation.status", "requestId": "paused"}
         )["data"]["enabled"]
         is True
     )
+    if case == "routes":
+        paused_before = fixture()
+        refusals = command(6, "paused-routes")
+        expect(refusals, "allRefused", True)
+        assert (
+            fixture()["count"] == paused_before["count"]
+            and fixture()["keyEventCount"] == paused_before["keyEventCount"]
+        )
+        route_offset = 2
+        print(
+            "PASS Pause fences capture, pointer, keyboard and activation without new effects",
+            flush=True,
+        )
     operator_press("Resume access")
     time.sleep(0.3)
-    expect(command(5, "accept"), "state", "active")
-    expect(command(6, "effect"), "accepted", True)
+    expect(command(5 + route_offset, "accept"), "state", "active")
+    expect(command(6 + route_offset, "effect"), "accepted", True)
     end = time.monotonic() + 5
     while fixture()["count"] < before + expected_effects and time.monotonic() < end:
         time.sleep(0.1)
@@ -371,7 +417,7 @@ try:
         "PASS Pause retains trust; fresh Resume permits exactly one new effect",
         flush=True,
     )
-    extra_commands = 0
+    extra_commands = route_offset
     if case in ("provider-exit", "integration-exit"):
         old_runtime = runtime
         rows = subprocess.run(

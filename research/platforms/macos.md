@@ -38,10 +38,11 @@ not authenticated YA session delegation.
 
 ## Caller authentication gap
 
-**Current, source/fixture level:** native MC trust, a specifically authenticated
-native YA peer and the actual private YA server/launch proxy are implemented.
-Signed installed session-origin/effect and protected-consent qualification remain
-open. See [caller authorization](../../topics/caller-authorization.md) and
+**Current, bounded `live-tested`:** native MC trust, authenticated signed YA
+origin, installed CLI routing and the full signed MC operator app pass ordinary
+independent effects, Pause/fresh Resume, Stop/restart and caller/lifecycle
+refusals. Owned protocol providers start no LLM. Positive protected-consent
+composition and further replacement/load qualification remain open. See [caller authorization](../../topics/caller-authorization.md) and
 [Tactical 086](../../docs/tactical/086-native-desktop-delegation.md); a signed
 interpreter or public session label still provides no origin authority.
 

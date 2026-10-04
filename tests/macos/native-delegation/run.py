@@ -31,7 +31,13 @@ def main():
     parser.add_argument("--keep-artifacts", action="store_true")
     parser.add_argument(
         "--case",
-        choices=("ordinary", "boundaries", "provider-exit", "integration-exit"),
+        choices=(
+            "ordinary",
+            "boundaries",
+            "provider-exit",
+            "integration-exit",
+            "routes",
+        ),
         default="ordinary",
     )
     args = parser.parse_args()

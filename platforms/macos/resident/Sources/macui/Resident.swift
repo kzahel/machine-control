@@ -1201,10 +1201,15 @@ final class ResidentService {
         return (app, traverse(root: root, maxDepth: depth, limit: limit))
     }
 
-    private func observationFingerprint() -> String {
+    // Keep cheap process/focus observations global, but query only the affected
+    // application's windows. AX calls to this GUI from its own main thread
+    // cannot service their messages and consume the ownership watchdog.
+    private func observationFingerprint(targetPID: pid_t) -> String {
         var parts: [String] = []
         for app in runningApplications() {
             parts.append("a:\(app.processIdentifier):\(app.isActive):\(app.isHidden)")
+            guard app.processIdentifier == targetPID,
+                  app.processIdentifier != getpid() else { continue }
             let root = AXUIElementCreateApplication(app.processIdentifier)
             let windows = (attribute(root, kAXWindowsAttribute as CFString)
                            as? [AXUIElement]) ?? []
@@ -2170,7 +2175,10 @@ final class ResidentService {
                     break
                 }
                 let action = requestString(request, "action") ?? "press"
-                let before = observationFingerprint()
+                var effectPID: pid_t = 0
+                guard AXUIElementGetPid(element, &effectPID) == .success,
+                      effectPID > 0 else { throw MacUIError.action("effect_target_unavailable") }
+                let before = observationFingerprint(targetPID:effectPID)
                 var delivery: AXError?
                 switch action {
                 case "press":
@@ -2201,7 +2209,7 @@ final class ResidentService {
                     break
                 }
                 usleep(180_000)
-                let after = observationFingerprint()
+                let after = observationFingerprint(targetPID:effectPID)
                 result = base(request, route: "guest.user/macos.ax")
                 result["delivery"] = "confirmed"
                 result["effect"] = before == after ? "unverifiable" : "confirmed"
@@ -2420,9 +2428,10 @@ final class ResidentService {
                                      route: "guest.user/macos.coregraphics")
                     break
                 }
-                _ = try activateTarget(requestString(request, "target"))
+                let target = try activateTarget(requestString(request, "target"))
                 try validateCoordinateSpace(request)
-                let before = observationFingerprint()
+                let effectPID = target?.processIdentifier ?? NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0
+                let before = observationFingerprint(targetPID:effectPID)
                 var inputData: [String: Any] = [:]
                 if operation == "input.key" {
                     guard let key = requestString(request, "key") else {
@@ -2527,7 +2536,7 @@ final class ResidentService {
                     }
                 }
                 usleep(180_000)
-                let changed = before != observationFingerprint()
+                let changed = before != observationFingerprint(targetPID:effectPID)
                 result = base(request, route: "guest.user/macos.coregraphics")
                 result["delivery"] = "confirmed"
                 result["effect"] = changed ? "confirmed" : "unverifiable"

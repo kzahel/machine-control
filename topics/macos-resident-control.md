@@ -354,3 +354,13 @@ after acceptance while the reusable runtimes remain installed.
   soak runs beyond the first acceptance corpus.
 - Whether repeated evidence justifies adopting, forking, or replacing Cua or
   deeper macOS-specific provider code.
+
+## Native effect observation latency
+
+**Current, source implemented:** [Tactical 088](../docs/tactical/088-targeted-native-effect-observation.md)
+limits AX window fingerprints to the actual affected app and excludes the
+resident's own main-thread AX queries. A signed GUI trial exposed roughly
+five-second actions that consumed the finite owner watchdog; the deadline
+remains unchanged. Source/static/deployment checks pass; immutable signed
+capture/input and latency qualification remain open. Independent fixture
+counters remain the effect oracle.

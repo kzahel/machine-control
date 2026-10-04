@@ -158,6 +158,7 @@ def worker():
                         or e.get("title") == "Increment"
                     )
                     rpc("control.heartbeat")
+                    action_started = time.monotonic()
                     action = rpc(
                         "control.dispatch",
                         sessionId=active["sessionId"],
@@ -173,13 +174,120 @@ def worker():
                         "accepted": action.get("data", {}).get("accepted"),
                         "errorCode": action.get("errorCode"),
                     }
-                    rpc("control.heartbeat")
+                    alive = rpc("control.heartbeat")
+                    result["ownerState"] = (alive.get("data") or {}).get("state")
+                    result["latencySeconds"] = time.monotonic() - action_started
                     heartbeat = time.monotonic()
                 else:
                     result = {
                         "accepted": False,
                         "errorCode": snapshot.get("errorCode")
                         or nested.get("errorCode"),
+                    }
+            elif command["operation"] in ("routes", "paused-routes"):
+
+                def dispatch(request):
+                    rpc("control.heartbeat")
+                    reply = rpc(
+                        "control.dispatch",
+                        sessionId=active["sessionId"],
+                        resourceGenerations=active["resourceGenerations"],
+                        request={"provider": "macos-native", **request},
+                    )
+                    rpc("control.heartbeat")
+                    return reply.get("data") or {
+                        "accepted": False,
+                        "errorCode": reply.get("errorCode"),
+                    }
+
+                if command["operation"] == "paused-routes":
+                    replies = [
+                        dispatch(request)
+                        for request in [
+                            {
+                                "operation": "capture",
+                                "scope": "window",
+                                "target": "org.machine-control.fixture",
+                            },
+                            {
+                                "operation": "input.click",
+                                "target": "org.machine-control.fixture",
+                                "x": 0,
+                                "y": 0,
+                                "coordinateSpace": "global_display_points",
+                            },
+                            {
+                                "operation": "input.key",
+                                "target": "org.machine-control.fixture",
+                                "key": "p",
+                            },
+                            {
+                                "operation": "application.activate",
+                                "target": "org.machine-control.fixture",
+                            },
+                        ]
+                    ]
+                    result = {
+                        "allRefused": all(
+                            reply.get("accepted") is False for reply in replies
+                        )
+                    }
+                else:
+                    activated = dispatch(
+                        {
+                            "operation": "application.activate",
+                            "target": "org.machine-control.fixture",
+                        }
+                    )
+                    assert activated.get("accepted"), "Native activation refused"
+                    capture = dispatch(
+                        {
+                            "operation": "capture",
+                            "scope": "window",
+                            "target": "org.machine-control.fixture",
+                        }
+                    )
+                    assert capture.get("accepted"), "Native capture refused"
+                    path = pathlib.Path(capture["data"]["artifactPath"])
+                    try:
+                        png = path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+                    finally:
+                        path.unlink()
+                    snapshot = dispatch(
+                        {
+                            "operation": "snapshot",
+                            "target": "org.machine-control.fixture",
+                            "query": "Increment",
+                            "projection": "compact",
+                        }
+                    )
+                    assert snapshot.get("accepted"), "Native pointer snapshot refused"
+                    button = next(
+                        e
+                        for e in snapshot["data"]["elements"]
+                        if e.get("identifier") == "fixture.increment"
+                    )
+                    bounds = button["bounds"]
+                    pointer = dispatch(
+                        {
+                            "operation": "input.click",
+                            "target": "org.machine-control.fixture",
+                            "x": round(bounds["x"] + bounds["width"] / 2),
+                            "y": round(bounds["y"] + bounds["height"] / 2),
+                            "coordinateSpace": "global_display_points",
+                        }
+                    )
+                    keyboard = dispatch(
+                        {
+                            "operation": "input.key",
+                            "target": "org.machine-control.fixture",
+                            "key": "p",
+                        }
+                    )
+                    result = {
+                        "accepted": pointer.get("accepted") is True
+                        and keyboard.get("accepted") is True,
+                        "png": png,
                     }
             elif command["operation"] == "status":
                 reply = rpc("control.heartbeat")

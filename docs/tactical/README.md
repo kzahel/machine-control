@@ -155,3 +155,5 @@ the commits' `Topic:` trailers and register that exact string in
 
 - [086 — Native desktop delegation](086-native-desktop-delegation.md).
 - [087 — Prepared console delegation](087-prepared-console-delegation.md).
+
+- [088 — Targeted native effect observation](088-targeted-native-effect-observation.md).
