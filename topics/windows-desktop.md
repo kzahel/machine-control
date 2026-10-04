@@ -2,9 +2,9 @@
 
 Topic: `windows-desktop`
 
-Status: public 0.5.3 preview published for x64 and ARM64. Signed x64 VM
-execution and production updates are accepted; ARM64 native execution and
-physical hardware remain open.
+Status: public 0.5.4 preview published for x64 and ARM64. Signed ARM64 VM
+indefinite-access, Pause/Resume, Stop and production-update acceptance passes.
+Earlier x64 coverage remains; full ARM64 and physical acceptance remain open.
 
 ## Product and boundaries
 
@@ -38,21 +38,23 @@ Windows support claim.
 
 ## Execution and remaining gates
 
-**Current, implementation:** the native operator supports **Until I turn it
+**Current, public 0.5.4:** the native operator supports **Until I turn it
 off**, with explicit `until_stopped` lifetime and null remaining seconds.
 Dispatch and admission skip only the absent expiry; scopes, Stop, pause,
 availability and update exclusion remain enforced. Public agent approvals
-remain timed. Public 0.5.3 does not include this Windows feature.
-[Tactical 091](../docs/tactical/091-desktop-until-stopped.md) owns native
-acceptance and the next unified release. Restart/reboot persistence is deferred.
+remain timed. Signed ARM64 installed acceptance proves visible selection, an
+independent fixture effect, Pause/Resume, Stop and bounded agent approval.
+Production 0.5.3 to 0.5.4 replacement also passes. [Tactical 091](../docs/tactical/091-desktop-until-stopped.md)
+owns this focused acceptance and unified release. No new restart/reboot
+persistence semantics are added.
 
 **Current:** Public 0.5.3 x64 passes the installed Python CLI's ordinary-user
 native approval, refusal, independent Cua counter effect, capture/artifact hash,
 stale-reference and Stop slice, together with actual YA installation verification.
 [Installed agent CLI](installed-agent-cli.md) owns that evidence, actual YA
 native/browser model turns, exact live/reloaded media and close/restart/crash
-isolation. Remaining provider/platform cells are listed there. ARM64 offline packaging evidence does not
-establish ARM64 interactive desktop execution.
+isolation. Remaining provider/platform cells are listed there; the ARM64 desktop slice
+in 091 does not establish those broader YA consumer cells.
 
 **Current:** The exact signed 0.4.7 x64 candidate passes installed payload,
 native grant, self-interface protection, tray, expiry, emergency Stop, startup,
@@ -78,10 +80,9 @@ engine/package evidence is in
 [Tactical 036](../docs/tactical/036-windows-workstation-distribution.md);
 [native distribution](native-distribution.md) owns shared release decisions.
 
-**Open:** ARM64 native UI/runtime execution, physical hardware, in-place unlock
-integration.
-ARM64 signing, installation, payload bytes, and updater authentication pass CI;
-they do not establish ARM64 desktop execution.
+**Open:** Broader ARM64 browser/lifecycle acceptance, physical hardware, and
+in-place unlock integration. Focused ARM64 execution in 091 does not establish
+those separate capabilities.
 
 **Current:** Windows browser setup and browser/devtools scopes are implemented.
 Source-native fixture effects and enforcement pass on x64. Upload and raw CDP
@@ -112,5 +113,5 @@ browser, held-image refusal and ordinary uninstall pass. Production `0.4.7`
 to `0.4.8` replacement passes with Chrome open, retaining startup/registration,
 reconnecting, relaunching off and rejecting old references. ARM64 public packages
 pass signing, provenance, payload and updater authentication; native execution
-remains untested. [Tactical 055](../docs/tactical/055-unified-desktop-publication.md)
+was not part of that earlier release record. [Tactical 055](../docs/tactical/055-unified-desktop-publication.md)
 owns publication and its final available-VM evidence.

@@ -111,12 +111,14 @@ The project deliberately shares an experience rather than pretending every
 platform has the same implementation.
 
 The optional [Tauri desktop app](desktop/README.md) supplies setup, visible
-approval, activity, and tray controls over the native resident. Public 0.5.3
+approval, activity, and tray controls over the native resident. Public 0.5.4
 includes Mac ARM64/Intel, Windows x64/ARM64, and Linux x64/ARM64 packages, plus
 the bundled Python CLI, native update discovery, and Mac sudo helpers. All six
 packages and production update routes are authenticated. Version-specific GUI
-execution evidence covers ARM64 Tart, Windows x64, and Linux x64 GNOME VMs;
-Intel/Windows ARM64/Linux ARM64 GUI and full physical-host acceptance remain open.
+execution evidence covers ARM64 Tart, Windows x64/ARM64, and Linux x64/ARM64
+GNOME VMs. Version 0.5.4 adds indefinite manual access on Windows and Linux,
+with focused installed acceptance on all three ARM64 VMs and a production
+Windows upgrade. Intel GUI and full physical-host acceptance remain open.
 The [desktop acceptance matrix](docs/desktop-acceptance.md) distinguishes
 these product results from earlier native runtime evidence.
 Headless control remains independent.

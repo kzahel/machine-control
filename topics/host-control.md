@@ -15,11 +15,10 @@ workstation. This covers the shared grant broker, deployment presets, the
 menu bar application, local host targeting, and attended-away operation.
 Browser control has its own topic, [`browser-control`](browser-control.md).
 
-**Decision — planned evolution:** temporary pauses should preserve otherwise
-valid authorization, with explicit Resume distinct from Stop. Polite
-activation, live waiting requests and their physical/VM resource semantics
-belong to [access admission and pause](access-admission-and-pause.md).
-That proposed plan does not change the current grant/restart behavior below.
+**Current:** Mac and Windows temporary pauses preserve otherwise valid
+authorization, with explicit Resume distinct from Stop. Polite activation,
+live waiting requests, existing Mac consent restoration and physical/VM
+resource semantics belong to [access admission and pause](access-admission-and-pause.md).
 
 The product aim is a less limited alternative to agent-coupled Computer Use
 tools: the whole desktop, including the Dock, menu bar, and system UI, gated
@@ -176,13 +175,20 @@ owns packaging and exact signed-artifact validation.
 **Decision:** Every packaged desktop local operator can choose **Until I turn it off** when
 manually enabling selected scopes. That in-memory grant has no timer and
 reports `lifetime: until_stopped` with null expiry and remaining seconds.
-Stop, caller revocation, leaving an unlocked desktop, and resident exit still
-end access. Restart starts with access off. Agent approval requests retain
-bounded durations; they cannot create this lifetime through the public socket.
+Stop and caller revocation end access. Session changes, pause and restart
+follow the native platform rules. Windows/Linux gain no restart persistence
+in this slice. Mac retains its separately implemented same-console/boot
+consent restoration, which derives fresh grants and never restores old owners
+or queue positions; [access admission and pause](access-admission-and-pause.md)
+owns that behavior. Agent approval requests retain bounded durations; they
+cannot create this lifetime through the public socket.
 The shared UI exposes this choice only when the native operator advertises
-support. Windows and Linux implementation and release acceptance are owned by
-[Tactical 091](../docs/tactical/091-desktop-until-stopped.md). Existing platform
-pause/session behavior remains; that slice does not add restart persistence. Public `0.4.9` passes signed ARM64 Tart checks for visible selection,
+support. Public 0.5.4 implements this on Windows and Linux, with focused signed
+installed acceptance on Mac, Windows and Linux ARM64 VMs, including independent
+fixture effects and Stop. [Tactical 091](../docs/tactical/091-desktop-until-stopped.md)
+owns that release evidence. Existing platform pause/session behavior remains;
+that slice does not add restart persistence. Public `0.4.9` passes signed ARM64
+Tart checks for visible selection,
 null expiry/countdown, selected scopes, independent fixture effect, Stop,
 Restart with access off and retained permissions, and bounded agent approval.
 [Tactical 057](../docs/tactical/057-macos-until-stopped-release.md) owns this

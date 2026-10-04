@@ -176,5 +176,5 @@ the commits' `Topic:` trailers and register that exact string in
 - [089 — Durable target claim and command history](089-target-operation-audit.md).
 
 - [091 — Indefinite manual desktop access](091-desktop-until-stopped.md):
-  Windows/Linux lifetime support, Mac regression, VM acceptance and a unified
-  six-architecture tagged release.
+  Completed: Windows/Linux lifetime support, Mac regression, ARM64 VM acceptance
+  and unified public 0.5.4 with production Windows replacement.

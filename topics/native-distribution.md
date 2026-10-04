@@ -3,14 +3,16 @@
 Topic: `native-distribution`
 
 Status: signed Windows headless workstation preview remains available; YA now
-consumes the installed desktop CLI and has retired its component lifecycle. Unified Mac/Windows/Linux desktop `0.5.3` is published; package
+consumes the installed desktop CLI and has retired its component lifecycle. Unified Mac/Windows/Linux desktop `0.5.4` is published; package
 signatures, public downloads, and production metadata are verified for all six
 architectures.
 ARM64 Tart has targeted signed browser-indicator evidence; Windows x64 retains
-its earlier installed product acceptance. Intel, Windows ARM64 product execution,
-and full physical product acceptance remain separate. Linux x64 Debian/AppImage
-installed acceptance and signed replacement pass on Ubuntu GNOME Wayland;
-Linux ARM64 desktop execution remains open. Legacy Mac `0.3.3`/`0.3.4` update senders may need one reopen;
+its earlier installed product acceptance. Public 0.5.4 adds focused indefinite
+access and fixture-effect acceptance on all three ARM64 VMs, plus Windows
+production replacement from 0.5.3. Intel and full physical product acceptance
+remain separate. Linux x64 Debian/AppImage installed acceptance and signed
+replacement pass on Ubuntu GNOME Wayland; ARM64 portal/browser/lifecycle
+coverage remains open. Legacy Mac `0.3.3`/`0.3.4` update senders may need one reopen;
 fixed senders pass production-feed handoff. YA installed Mac/Windows consumer
 model/media/lifecycle use and Linux x64 core control are accepted within
 [their declared scope](../../yepanywhere/topics/optional-computer-control.md).
@@ -208,7 +210,7 @@ then published the same draft by ID without replacing bytes or its tag. Future
 CI publication now resolves and verifies the draft by ID. Both re-downloaded
 public DMGs and archives passed publisher signatures, notarization/stapling,
 updater signature/version and tamper rejection. The live download page selects
-unified `0.5.3` for all eight installer/package routes. Both the shared server and website proxy return signed
+unified `0.5.4` for all eight installer/package routes. Both the shared server and website proxy return signed
 archive metadata with cumulative required changelogs for older clients and 204
 for current clients. Product registration and the website proxy preserve the
 endpoint already embedded in 0.3.3.
@@ -239,24 +241,25 @@ immutable.
 required changelog, tag and updater manifest for every implemented platform.
 Mac ARM64/Intel, Windows x64/ARM64, and Linux x64/ARM64 publish together. A
 successful exact-source unified candidate can be promoted without rebuilding
-its accepted signed bytes. Windows ARM64 publication is
-explicitly requested while Tauri GUI execution remains unverified.
+its accepted signed bytes. Focused Windows ARM64 Tauri execution is recorded
+for public 0.5.4; broader capability claims require their own evidence.
 [The unified process](../release/desktop.md) owns operator guidance;
 [Tactical 055](../docs/tactical/055-unified-desktop-publication.md) owns execution.
 
-**Current:** [Public desktop 0.5.3](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.3)
-promotes all six exact authenticated candidates without rebuilding. It ships
-native update discovery, the installed Python CLI, and Mac sudo helpers.
-[Tactical 063](../docs/tactical/063-six-platform-desktop-release.md) owns exact
-source, workflow, public-byte authentication and production delivery checks.
-All six CLI payloads pass offline relocation smoke; Windows ARM64 uses a native
-ARM64 runner. These checks do not establish new GUI control acceptance.
+**Current:** [Public desktop 0.5.4](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.4)
+promotes all six authenticated candidates without rebuilding. It adds Windows
+and Linux indefinite manual access, matching Mac.
+[Tactical 091](../docs/tactical/091-desktop-until-stopped.md) owns exact source,
+workflow, public-byte authentication, focused native acceptance on all three
+ARM64 VMs and production Windows replacement from 0.5.3. All six installed CLI
+payloads also pass hosted offline relocation checks. Earlier CLI publication
+evidence remains in [063](../docs/tactical/063-six-platform-desktop-release.md).
 
 Linux x64 Debian/AppImage installed acceptance and signed browser-open
 replacement retain their exact public 0.5.0 evidence in
 [Tactical 059](../docs/tactical/059-public-linux-desktop.md).
-[Linux desktop](linux-desktop.md) owns the supported profile; ARM64 desktop
-execution remains open.
+[Linux desktop](linux-desktop.md) owns the supported profile and the limits of
+focused ARM64 0.5.4 acceptance.
 
 Earlier public-release execution remains in [055](../docs/tactical/055-unified-desktop-publication.md),
 [057](../docs/tactical/057-macos-until-stopped-release.md), and

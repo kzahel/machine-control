@@ -3,7 +3,7 @@
 One desktop version, required changelog, annotated `desktop-vX.Y.Z` tag, and
 release script cover every currently packaged platform: Mac Apple silicon and
 Intel, Windows x64 and ARM64, and from 0.5.0 Linux x64 and ARM64.
-Workstation components remain independent. Public desktop 0.5.3 includes all
+Workstation components remain independent. Public desktop 0.5.4 includes all
 six architectures; the acceptance matrix distinguishes packaging from GUI execution.
 
 ## Release
@@ -93,8 +93,9 @@ product route. Installation remains explicit and refuses active access or
 pending approvals. Website deployment and installed production-feed acceptance
 are verified separately from package publication.
 
-Public ARM64 Windows availability does not imply native execution acceptance.
-The [acceptance matrix](../docs/desktop-acceptance.md) records that distinction.
+Public 0.5.4 has focused ARM64 Windows installed grant and production-update
+acceptance. The [acceptance matrix](../docs/desktop-acceptance.md) distinguishes
+that slice from broader lifecycle, browser, and physical-hardware coverage.
 
 Linux native Ubuntu 24.04 runners build Debian and AppImage packages, sign both
 final containers with the product updater key and authenticated version, and

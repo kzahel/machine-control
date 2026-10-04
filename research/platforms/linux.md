@@ -69,8 +69,11 @@ accepted GNOME profile and controller route, not every Linux host or desktop.
 a Linux companion and native grants. Exact signed x64 GNOME Debian/AppImage
 acceptance proves portal capture and input, Unicode, native approvals, Stop,
 expiry, sharing closure, references, startup and browser-open signed replacement
-without root input. ARM64 has native build/package evidence; desktop execution
-and physical acceptance remain separate.
+without root input. Public 0.5.4 adds focused signed ARM64 Debian conformance
+for visible indefinite access, native AT-SPI delivery, an independent GTK effect
+and Stop in a GNOME Wayland VM; [Tactical 091](../../docs/tactical/091-desktop-until-stopped.md)
+owns that evidence. ARM64 portal/browser/lifecycle and physical acceptance
+remain separate.
 The [portal dossier](../providers/xdg-desktop-portal.md) owns route facts and
 [Tactical 056](../../docs/tactical/056-linux-desktop.md) owns execution gates.
 

@@ -2,9 +2,10 @@
 
 Topic: `linux-desktop`
 
-Status: public desktop 0.5.3 includes signed Debian/AppImage packages for
-x64 and ARM64. Installed x64 acceptance passes on Ubuntu GNOME Wayland;
-ARM64 desktop execution remains open.
+Status: public desktop 0.5.4 includes signed Debian/AppImage packages for
+x64 and ARM64. Focused ARM64 Debian indefinite-access, native semantic effect
+and Stop acceptance passes on Ubuntu GNOME Wayland; earlier x64 coverage
+remains. ARM64 portal/browser/lifecycle acceptance remains separate.
 
 **Decision:** Extend the shared Tauri settings and tray app with an ordinary-user
 Linux companion. Reuse the owned AT-SPI facade, with compositor-mediated XDG
@@ -55,19 +56,21 @@ search paths, and blocking operator IPC stays outside GTK's event thread.
 Debian updates use the package manager; AppImage uses the signed updater.
 
 **Current:** [Public downloads](https://machinecontrol.dev/downloads/) and
-[desktop 0.5.3](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.3)
+[desktop 0.5.4](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.4)
 serve both architectures. [Tactical 059](../docs/tactical/059-public-linux-desktop.md)
 retains the earlier 0.5.0 production metadata and signed replacement acceptance.
-Positive installed production-feed replacement to 0.5.3 remains separate from
-package authentication and the Debian CLI/core acceptance above.
+Positive installed AppImage production-feed replacement to 0.5.4 remains
+separate from authenticated production metadata and Debian acceptance.
 
-**Open:** Native ARM64 desktop execution, physical hardware, other compositors,
+**Open:** ARM64 portal/browser/lifecycle execution, physical hardware, other compositors,
 multiple monitors/scaling, suspend/resume, arbitrary window activation, and
 protected login/unlock need separate acceptance.
 
-**Current, implementation:** the native operator supports **Until I turn it
+**Current, public 0.5.4:** the native operator supports **Until I turn it
 off**, reporting `until_stopped` and null remaining seconds. Session loss still
 revokes access; scopes, Stop and update exclusion remain enforced. Public
-agent requests stay timed. This is not in public 0.5.3. [Tactical 091](../docs/tactical/091-desktop-until-stopped.md)
-owns installed acceptance and unified publication. Restart/reboot persistence
-is deferred.
+agent requests stay timed. Exact signed ARM64 Debian acceptance proves the
+visible choice and status, null countdown, native semantic delivery, an
+independent GTK fixture effect and Stop. [Tactical 091](../docs/tactical/091-desktop-until-stopped.md)
+owns that focused evidence and unified publication. No new restart/reboot
+persistence semantics are added.

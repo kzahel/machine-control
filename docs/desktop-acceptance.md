@@ -1,12 +1,12 @@
 # Desktop product acceptance matrix
 
-Reviewed: 2026-10-02.
+Reviewed: 2026-10-04.
 
 This is an index of recorded acceptance for the shared Tauri desktop product,
 with earlier runtime evidence kept separate. Linked tactical records own exact
 versions, source identity, workflow artifacts, procedures, and limitations.
-Current public 0.5.3 package verification for all six targets is recorded in
-[063](tactical/063-six-platform-desktop-release.md); execution keeps its specific
+Current public 0.5.4 package verification for all six targets is recorded in
+[091](tactical/091-desktop-until-stopped.md); execution keeps its specific
 versions. All six installed CLI payloads authenticate and pass hosted offline
 relocation smoke, including native Windows ARM64; this is separate from GUI
 execution.
@@ -29,19 +29,21 @@ immediately. Concrete targets and raw evidence stay in private inventory/storage
 
 | Target environment | Package evidence | App execution evidence | Record |
 | --- | --- | --- | --- |
-| macOS ARM64, Tart VM | Signed/notarized public 0.5.3 verified | Installed CLI replacement from an owned signed 0.5.2 fixture to public 0.5.3 passes with active-access refusal, automatic relaunch, access off and YA reauthentication; targeted signed 0.4.10 browser indicators and fixture effects pass under appliance policy; 0.4.9 until-stopped access, Stop, restart and bounded approval pass; earlier full operator and production-update evidence is 0.4.8 | [052](tactical/052-macos-production-updates.md), [055](tactical/055-unified-desktop-publication.md), [057](tactical/057-macos-until-stopped-release.md), [058](tactical/058-browser-tab-indicators.md), [062](tactical/062-installed-agent-cli.md#published-mac-installed-cli-replacement); [063](tactical/063-six-platform-desktop-release.md) |
+| macOS ARM64, Tart VM | Signed/notarized public 0.5.4 verified | Signed 0.5.4 indefinite selection, null countdown, narrowed approval, fixture effect, prompt pause and Stop pass. Installed CLI replacement from an owned signed 0.5.2 fixture to public 0.5.3 passes with active-access refusal, automatic relaunch, access off and YA reauthentication; targeted signed 0.4.10 browser indicators and fixture effects pass under appliance policy; 0.4.9 until-stopped access, Stop, restart and bounded approval pass; earlier full operator and production-update evidence is 0.4.8 | [052](tactical/052-macos-production-updates.md), [055](tactical/055-unified-desktop-publication.md), [057](tactical/057-macos-until-stopped-release.md), [058](tactical/058-browser-tab-indicators.md), [062](tactical/062-installed-agent-cli.md#published-mac-installed-cli-replacement); [063](tactical/063-six-platform-desktop-release.md), [091](tactical/091-desktop-until-stopped.md) |
 | macOS ARM64, physical Mac | Public signed/notarized 0.4.8 package authenticated | Partial smoke: consent/readiness, off-state refusal, visible approval, independent AX counter effect, exact-window capture, keyboard delivery and revoke; full desktop acceptance remains open | [host topic](../topics/host-control.md) |
-| macOS Intel | Signed/notarized public 0.5.3 verified | Intel GUI execution not recorded | [052](tactical/052-macos-production-updates.md), [057](tactical/057-macos-until-stopped-release.md), [058](tactical/058-browser-tab-indicators.md); [063](tactical/063-six-platform-desktop-release.md) |
-| Windows x64, Windows VM on Linux/KVM | Exact signed public 0.5.3 installer and payload verified | Public 0.4.8 UI/grants/lifecycle, browser tasks, production update and uninstall accepted; outside parity, lock/sign-in startup and component compatibility recorded on 0.4.7 | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md), [055](tactical/055-unified-desktop-publication.md), [057](tactical/057-macos-until-stopped-release.md), [058](tactical/058-browser-tab-indicators.md); [063](tactical/063-six-platform-desktop-release.md) |
-| Windows ARM64, Windows VM | Signed public 0.5.3 verified; native ARM64 CLI relocation smoke passes | New Tauri operator execution not recorded; earlier ARM64 component execution below | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md), [057](tactical/057-macos-until-stopped-release.md), [058](tactical/058-browser-tab-indicators.md); [063](tactical/063-six-platform-desktop-release.md) |
+| macOS Intel | Signed/notarized public 0.5.4 verified | Intel GUI execution not recorded | [052](tactical/052-macos-production-updates.md), [057](tactical/057-macos-until-stopped-release.md), [058](tactical/058-browser-tab-indicators.md); [063](tactical/063-six-platform-desktop-release.md), [091](tactical/091-desktop-until-stopped.md) |
+| Windows x64, Windows VM on Linux/KVM | Exact signed public 0.5.4 installer and payload verified | Public 0.4.8 UI/grants/lifecycle, browser tasks, production update and uninstall accepted; outside parity, lock/sign-in startup and component compatibility recorded on 0.4.7 | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md), [055](tactical/055-unified-desktop-publication.md), [057](tactical/057-macos-until-stopped-release.md), [058](tactical/058-browser-tab-indicators.md); [063](tactical/063-six-platform-desktop-release.md), [091](tactical/091-desktop-until-stopped.md) |
+| Windows ARM64, Windows VM | Signed public 0.5.4 verified; native ARM64 CLI relocation smoke passes | Signed 0.5.4 visible indefinite access, fixture effect, Pause/Resume, Stop and bounded approval pass; production 0.5.3 to 0.5.4 update relaunches off with a new generation and rejects stale requests | [053](tactical/053-windows-desktop.md), [054](tactical/054-windows-browser-and-arm64.md), [057](tactical/057-macos-until-stopped-release.md), [058](tactical/058-browser-tab-indicators.md); [063](tactical/063-six-platform-desktop-release.md), [091](tactical/091-desktop-until-stopped.md) |
 | Windows x64, physical Windows | New candidate package verification does not establish physical execution | New Tauri operator acceptance not recorded; earlier appliance engine evidence below | [physical engine record](evidence/windows-physical-x64.md) |
-| Linux x64, Ubuntu GNOME Wayland VM | Exact signed public 0.5.3 Debian/AppImage bytes, signatures and inventories verified | Public 0.5.0 fresh installed UI/grants/effects/lifecycle and signed replacement with browser tasks pass; earlier same-core lock, reboot/startup and removal evidence remains in 056 | [056](tactical/056-linux-desktop.md), [059](tactical/059-public-linux-desktop.md); [063](tactical/063-six-platform-desktop-release.md) |
-| Linux ARM64 | Public 0.5.3 native Ubuntu CI builds, compiled identity, container inventories/signatures and tamper rejection verified | GNOME desktop execution not established | [056](tactical/056-linux-desktop.md), [059](tactical/059-public-linux-desktop.md); [063](tactical/063-six-platform-desktop-release.md) |
+| Linux x64, Ubuntu GNOME Wayland VM | Exact signed public 0.5.4 Debian/AppImage bytes, signatures and inventories verified | Public 0.5.0 fresh installed UI/grants/effects/lifecycle and signed replacement with browser tasks pass; earlier same-core lock, reboot/startup and removal evidence remains in 056 | [056](tactical/056-linux-desktop.md), [059](tactical/059-public-linux-desktop.md); [063](tactical/063-six-platform-desktop-release.md), [091](tactical/091-desktop-until-stopped.md) |
+| Linux ARM64, Ubuntu GNOME Wayland VM | Public 0.5.4 native Ubuntu CI builds, compiled identity, container inventories/signatures and tamper rejection verified | Exact 0.5.4 Debian visible indefinite access/status, null countdown, AT-SPI delivery, independent GTK counter effect and Stop pass; portal/browser/lifecycle execution remains separate | [056](tactical/056-linux-desktop.md), [059](tactical/059-public-linux-desktop.md); [063](tactical/063-six-platform-desktop-release.md), [091](tactical/091-desktop-until-stopped.md) |
 
 ## Shared Tauri behavior checklist
 
-Live product environments are macOS ARM64 Tart, Windows x64 VM, and Linux x64
-GNOME Wayland VM. Linux installed tests execute the exact signed bytes
+This historical broad checklist covers macOS ARM64 Tart, Windows x64 VM, and
+Linux x64 GNOME Wayland VM. Focused 0.5.4 ARM64 results are recorded separately
+below; the broad checklist is not a claim that every cell was rerun on 0.5.4.
+Linux installed tests execute the exact signed bytes
 promoted to public 0.5.0; production metadata is verified separately.
 Other environments retain the execution gaps above; do not copy a passing VM
 cell into a physical, architecture, or different package-family cell.
@@ -52,7 +54,7 @@ cell into a physical, architecture, or different package-family cell.
 | Off-state refusal and native approval/denial | Pass | Pass | Pass |
 | Scope narrowing and input pause during approval | Pass | Pass | Installed prompt pause passes; narrowing has contract coverage |
 | Request timeout and live bounded grant expiry | Not established by the Tauri live record; native contract coverage exists | Pass | Installed grant expiry passes; request timeout has contract coverage |
-| Manual until-stopped access | Pass, signed public 0.4.9: null expiry/countdown, scopes, independent effect, Stop and Restart; public agent approvals stay timed | Timed access retained | Timed access retained |
+| Manual until-stopped access | Pass, signed public 0.4.9; targeted 0.5.4 regression below | Implemented in 0.5.4; new installed evidence is ARM64 below | Implemented in 0.5.4; new installed evidence is ARM64 below |
 | Stop and stale-generation refusal | Pass | Pass | Pass |
 | Native emergency Stop shortcut | Pass | Pass | Pass, opt-in GNOME shortcut |
 | Self-interface and protected-operation refusal | Pass | Pass | Operator/approval protected; protected control unavailable |
@@ -80,6 +82,18 @@ relaunches after explicit installation. Automatic unattended installation is
 not enabled. A legacy sender requiring reopening and a fixed sender relaunching
 automatically are distinct results.
 
+## Focused public 0.5.4 ARM64 acceptance
+
+All three installed packages were authenticated at the exact release source.
+[Tactical 091](tactical/091-desktop-until-stopped.md) owns workflow identities,
+procedures, outcomes and limits. All access was stopped after testing.
+
+| Environment | Executed checks | Limits |
+| --- | --- | --- |
+| Mac ARM64 Tart | Visible indefinite selection, null countdown, native approval/denial/narrowing, independent fixture action, self/protected refusal, prompt pause, Stop | Focused native regression; no new physical, browser, restart or updater claim |
+| Windows ARM64 VM | Exact signed installed inventory, visible indefinite selection, null countdown, independent fixture action, Pause/Resume, Stop, timed agent approval; actual 0.5.3 production update with access exclusion, automatic relaunch off, exact new source and stale-generation refusal | No new ARM64 browser, lock/login, startup or physical claim |
+| Linux ARM64 GNOME Wayland VM | Exact signed Debian source, ready session, visible indefinite selection/status, null countdown, AT-SPI action, independent GTK counter effect and Stop | No new ARM64 portal capture/input, AppImage replacement, browser, lifecycle or physical claim |
+
 ## Earlier evidence that still matters
 
 | Implementation | Environment | Recorded acceptance | Limit |
@@ -99,10 +113,10 @@ has not been exercised. It is not an ordinary desktop-preview prerequisite.
 
 ## Follow-up priorities
 
-**Proposal:** Repeat exact signed product tests in ARM64 Windows when a
-registered target with a ready credential handoff is available. No such local target is currently
-registered. Repeat a full extension task on the signed Mac Tauri package.
-These do not require physical-machine approval or privileged unlock integration.
+**Proposal:** Extend the focused ARM64 Windows/Linux execution above to
+browser and lifecycle coverage. Repeat a full extension task on the signed
+Mac Tauri package. These are separate from physical-machine and privileged
+unlock integration coverage.
 
 **Open:** Physical-machine product testing should target specific gaps such as
 multi-monitor/DPI, GPU capture, suspend/resume, and personal-workstation
