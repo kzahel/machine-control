@@ -50,6 +50,13 @@ requests use that same controller. Discovery does not focus, download, install,
 restart, approve, or revoke access. Installation stays an explicit local operator
 action behind the resident's access/approval replacement gate.
 
+**Current (source; not yet released):** The shared Settings UI explains why
+an available update cannot be installed, including enabled access, standing
+appliance policy, pending
+approval, and an operation in progress. Enabled access includes a Go to Access
+button so the operator can stop access before installation. The explanation
+is also associated with the disabled install button for assistive technology.
+
 **Current:** Public desktop 0.5.3 ships this integration for Mac/Windows/Linux;
 older released clients keep their shipped behavior until updated.
 [Tactical 060](../docs/tactical/060-native-update-discovery.md) records validation

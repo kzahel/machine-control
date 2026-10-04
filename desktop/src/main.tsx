@@ -245,6 +245,19 @@ function App() {
     state?.supportedScopes ?? (Object.keys(labels) as Scope[]);
   const grant = state?.deployment.grant;
   const standing = state?.deployment.policy.grantMode === "standing";
+  const updateInstallBlockedReason = update?.installing
+    ? "Installing the update. Wait for the app to restart."
+    : update?.checking
+      ? "Wait for the update check to finish before installing."
+      : busy
+        ? "Wait for the current operation to finish before installing."
+        : state?.pending
+          ? "Resolve the pending access request before installing the update."
+          : standing
+            ? "Updates for appliances with standing access are managed by your administrator."
+            : grant
+              ? "Stop access before installing the update. The app will restart."
+              : undefined;
   const trustedAccess = state?.desktopCallerTrust?.enabled === true;
   const availability = state?.deployment.availability;
   const manuallyPaused = availability?.blockingReasons.some((reason) =>
@@ -1165,13 +1178,11 @@ function App() {
                 {update?.availableVersion &&
                   state?.updateInstallSupported !== false && (
                     <button
-                      disabled={
-                        busy ||
-                        update.checking ||
-                        update.installing ||
-                        !!grant ||
-                        standing ||
-                        !!state?.pending
+                      disabled={!!updateInstallBlockedReason}
+                      aria-describedby={
+                        updateInstallBlockedReason
+                          ? "update-install-blocked-reason"
+                          : undefined
                       }
                       onClick={async () => {
                         setBusy(true);
@@ -1202,6 +1213,24 @@ function App() {
                   Version {update.availableVersion} available.
                 </p>
               )}
+              {update?.availableVersion &&
+                state?.updateInstallSupported !== false &&
+                updateInstallBlockedReason && (
+                  <div className="group-footer">
+                    <p
+                      className="note"
+                      id="update-install-blocked-reason"
+                      role="status"
+                    >
+                      {updateInstallBlockedReason}
+                    </p>
+                    {grant && !standing && !state?.pending && (
+                      <button onClick={() => navigate("access")}>
+                        Go to Access
+                      </button>
+                    )}
+                  </div>
+                )}
               {update?.phase === "up_to_date" && update.reason === "manual" && (
                 <p className="note">Up to date.</p>
               )}
