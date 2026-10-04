@@ -8,7 +8,8 @@ param(
  [Parameter(Mandatory=$true)][string]$ExpectedRevision,
  [string]$ExpectedPublisher,
  [string]$Payload,
- [switch]$AllowUnsigned
+ [switch]$AllowUnsigned,
+ [switch]$UntilStoppedOnly
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
@@ -183,7 +184,8 @@ try {
  if (-not $AllowUnsigned) {
   Assert (-not [string]::IsNullOrWhiteSpace($ExpectedPublisher) -and -not [string]::IsNullOrWhiteSpace($Payload)) 'Publisher and exact installed inventory supplied'
   $inventory=Get-Content -LiteralPath $Payload -Raw|ConvertFrom-Json
-  Assert ($inventory.sourceRevision -eq $ExpectedRevision -and $inventory.target -eq 'x86_64-pc-windows-msvc') 'Installed inventory binds source and native architecture'
+  $nativeTarget=if($env:PROCESSOR_ARCHITECTURE -eq 'ARM64'){'aarch64-pc-windows-msvc'}else{'x86_64-pc-windows-msvc'}
+  Assert ($inventory.sourceRevision -eq $ExpectedRevision -and $inventory.target -eq $nativeTarget) 'Installed inventory binds source and native architecture'
   Assert ((Get-Item (Join-Path $Install 'machine-control.exe')).VersionInfo.ProductVersion -eq $inventory.version) 'Installed version matches signed candidate'
   $files=@(Get-ChildItem -LiteralPath $Install -Recurse -File)
   Assert ($files.Count -eq $inventory.files.Count) 'Installed payload has exactly the candidate file set'
@@ -204,6 +206,44 @@ try {
  if ($null -ne (Granted)) {Press 'Stop access';WaitGrant $false}
  $off=Call @{operation='snapshot'}
  Assert (-not $off.accepted -and $off.errorCode -eq 'approval_required') 'Installed resident is off by default'
+ if ($UntilStoppedOnly) {
+  # Operate the real HTML select through native focus and keyboard routing.
+  # End selects the last visible choice; native status independently proves
+  # that the resulting grant is indefinite, rather than assuming input worked.
+  $combo=Element 'Access duration' 'ComboBox'
+  $combo.SetFocus()
+  [DesktopFixtureInput]::keybd_event(0x23,0,0,[UIntPtr]::Zero)
+  [DesktopFixtureInput]::keybd_event(0x23,0,2,[UIntPtr]::Zero)
+  [DesktopFixtureInput]::keybd_event(0x0D,0,0,[UIntPtr]::Zero)
+  [DesktopFixtureInput]::keybd_event(0x0D,0,2,[UIntPtr]::Zero)
+  Press 'Enable access';WaitGrant $true
+  $grant=Granted
+  Assert ($grant.lifetime -eq 'until_stopped' -and $null -eq $grant.remainingSeconds) 'Visible choice creates indefinite native grant'
+  $status=Call @{operation='status'};$generation=$status.generation
+  $launch=Call @{operation='app.launch';executablePath=$Fixture}
+  Assert $launch.accepted 'Indefinite grant launches independent fixture'
+  $fixtureProcess=$launch.data.processId
+  $window=@($launch.data.windows|Where-Object {$_.title -eq 'Machine Control Medium Fixture' -and $_.visible})[0]
+  $snapshot=Call @{operation='snapshot';hwnd=[long]$window.hwnd;maxDepth=8;maxElements=100}
+  Assert $snapshot.accepted 'Indefinite grant observes fixture'
+  $button=@($snapshot.data.elements|Where-Object {$_.name -eq 'Increment counter'})[0]
+  $invoke=Call @{operation='invoke';hwnd=[long]$window.hwnd;reference=$button.reference;expectedGeneration=$generation}
+  Assert $invoke.accepted 'Indefinite grant delivers semantic action'
+  $marker=Get-Content (Join-Path $env:LOCALAPPDATA 'MachineControl\conformance\counter.json') -Raw|ConvertFrom-Json
+  Assert ($marker.counter -eq 1 -and $marker.processId -eq $fixtureProcess) 'Independent indefinite-access fixture effect'
+  Press 'Pause access'
+  Assert (-not (Call @{operation='snapshot';hwnd=[long]$window.hwnd}).accepted) 'Pause blocks indefinite access'
+  Assert ((Granted).lifetime -eq 'until_stopped') 'Pause preserves indefinite grant'
+  Press 'Resume access'
+  Assert (Call @{operation='snapshot';hwnd=[long]$window.hwnd}).accepted 'Resume restores indefinite access'
+  Press 'Stop access';WaitGrant $false
+  Assert (-not (Call @{operation='snapshot';hwnd=[long]$window.hwnd}).accepted) 'Stop revokes indefinite access'
+  Request $true
+  Assert ((Granted).lifetime -eq 'timed' -and (Granted).remainingSeconds -gt 0) 'Agent approval remains timed'
+  Press 'Stop access';WaitGrant $false
+  $evidence.passed=$true
+  return
+ }
  Request $false
  Request $false $false $true
  Request $true $true

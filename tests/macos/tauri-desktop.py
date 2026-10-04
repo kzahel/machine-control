@@ -19,6 +19,7 @@ p.add_argument('--target', required=True)
 p.add_argument('--claim', required=True)
 p.add_argument('--candidate-app', required=True)
 p.add_argument('--candidate-socket', required=True)
+p.add_argument('--until-stopped', action='store_true', help='Select and verify indefinite manual access before fixture effects')
 p.add_argument('--control-only', action='store_true', help='Bounded native-control acceptance; updater/tray acceptance remains separate')
 p.add_argument('--candidate-client', help='Installed CLI command on the guest; uses a separate guest-local claim')
 p.add_argument('--operator-app', help='Separate guest appliance app; defaults to installed native app')
@@ -167,7 +168,16 @@ try:
         assert not candidate(dict(operation='input.key', target=fixture, key='tab'))['accepted']
         press(pid, 'Stop access')
 
+        if args.until_stopped:
+            choices = accepted(base(dict(operation='snapshot', target=str(pid),
+                query='Access duration', maxDepth=30, maxElements=500)))['elements']
+            choice = next(e for e in choices if e['role'] == 'AXPopUpButton')
+            accepted(base(dict(operation='action', reference=choice['reference'], action='press')))
+            press(pid, 'Until I turn it off', 'AXMenuItem')
         press(pid, 'Enable access')
+        if args.until_stopped:
+            grant = accepted(candidate(dict(operation='grant.status')))['grant']
+            assert grant['lifetime'] == 'until_stopped' and grant['remainingSeconds'] is None, grant
         assert candidate(dict(operation='input.key', target=str(pid), key='tab'))['errorCode'] == 'self_target_refused'
         assert candidate(dict(operation='authorization.begin'))['errorCode'] == 'operation_not_permitted_by_policy'
         before = oracle()['count']

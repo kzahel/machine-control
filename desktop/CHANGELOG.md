@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [0.5.4]
+
+- Offer **Until I turn it off** when manually enabling access on Windows and
+  Linux, matching Mac. Indefinite access has no countdown and retains selected
+  scopes, Stop, platform availability checks and update-install exclusion.
+  Agent approval requests remain timed. This change adds no new reboot or
+  restart persistence behavior.
+- Include Windows main-executable CLI discovery and startup, desktop audit
+  history and diagnostics, and resumable Windows operator pause controls.
+- Include the intervening Mac caller-authorization, consent and control-session
+  work, with capability-specific acceptance limits retained in the repository.
+
+One tagged release includes Mac Apple silicon/Intel, Windows x64/ARM64, and
+Linux x64/ARM64 Debian/AppImage packages. Native feature acceptance and package
+verification are recorded separately in the desktop acceptance matrix.
+
 ## [0.5.3]
 
 - Check for updates silently five seconds after startup and daily while the
