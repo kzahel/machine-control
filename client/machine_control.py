@@ -19,10 +19,12 @@ import time
 from typing import Any
 
 import audit_history
+import provision_journal
 
 
 ROOT = Path(__file__).resolve().parents[1]
 _AUDIT_COMMAND = ContextVar("machine_control_audit_command", default=None)
+_PROVISION_COMMAND = ContextVar("machine_control_provision_command", default=None)
 TARGET_SCHEMA = "machine-control-targets/v0"
 CONTROLLER_CONFIG_SCHEMA = "machine-control-controller/v0"
 HOST_ATTENDANCE = {"attended", "unattended"}
@@ -350,6 +352,9 @@ def emit(value: Any) -> None:
     command = _AUDIT_COMMAND.get()
     if command is not None:
         command.observe(value)
+    provision = _PROVISION_COMMAND.get()
+    if provision is not None:
+        provision.observe(value)
     print(json.dumps(value, separators=(",", ":"), sort_keys=True))
 
 
@@ -3250,7 +3255,8 @@ def operation_requires_claim(operation: str, arguments: list[str]) -> bool:
         if values[:1] in (["factory-create"], ["factory-preflight"],
                           ["target-id"], ["pin-target"], ["help"]):
             return False
-        if values[:2] == ["factory-stages", "preflight"]:
+        if values[:2] in (["factory-stages", "preflight"],
+                          ["bootstrap-stages", "preflight"]):
             return False
     if operation == "target":
         return subcommand not in {"status", "doctor", "capabilities"}
@@ -3572,6 +3578,30 @@ def exec_escape(
             "This target does not expose a generic guest OS command route",
         )
     try:
+        provision = _PROVISION_COMMAND.get()
+        if provision is not None and not os_escape and values[0] in {
+            "factory-stages", "bootstrap-stages"
+        } and "--json" in values:
+            # Stream the normal output unchanged; retain only a bounded,
+            # allowlisted stage projection, never raw output or stderr.
+            with subprocess.Popen(command, stdout=subprocess.PIPE,
+                                  env={**os.environ, **target.get("environment", {})}) as child:
+                output = bytearray()
+                size = 0
+                while chunk := child.stdout.read(8192):
+                    size += len(chunk)
+                    if size <= provision_journal.MAX_OUTPUT_BYTES:
+                        output.extend(chunk)
+                    stream = getattr(sys.stdout, "buffer", None)
+                    if stream is not None:
+                        stream.write(chunk)
+                        stream.flush()
+                    else:
+                        sys.stdout.write(chunk.decode("utf-8", errors="replace"))
+                        sys.stdout.flush()
+                result = child.wait()
+            provision.stages(output if size <= provision_journal.MAX_OUTPUT_BYTES else b"")
+            return result
         return subprocess.run(
             command,
             check=False,
@@ -3600,6 +3630,7 @@ def run_inventory(path_text: str | None, arguments: list[str]) -> int:
 def usage() -> str:
     return """Usage: machine-control [--registry PATH] [--inventory-provider PATH]
                        [--target ALIAS] [--workspace HANDLE] [--claim ID]
+                       [--provision-run ID]
                        COMMAND ...
 
 Commands:
@@ -3609,6 +3640,8 @@ Commands:
                                     Read private controller history (offline)
   storage analyze [--root PATH] [--minimum-bytes N]
                                     Inspect disk images; never deletes (offline)
+  provision begin|note|show|finish  Dated private bring-up journal (offline)
+                                    Use `provision --help` for details
   inventory list|status|guide|credentials|doctor
                                     Use the private deployment inventory
   targets                         List logical targets without private paths
@@ -3706,6 +3739,7 @@ def parse_global_options(
         "target": None,
         "workspace": None,
         "claim": None,
+        "provision_run": None,
         "help": False,
     }
     index = 0
@@ -3722,6 +3756,7 @@ def parse_global_options(
             ("--target", "target"),
             ("--workspace", "workspace"),
             ("--claim", "claim"),
+            ("--provision-run", "provision_run"),
         ):
             if token == option:
                 if index + 1 >= len(arguments):
@@ -3796,6 +3831,9 @@ def main(argv: list[str] | None = None) -> int:
     operation = "client"
     command = None
     token = None
+    provision = None
+    provision_token = None
+    result = None
     try:
         known, remainder = parse_global_options(arguments)
         from scoped_run import apply_scope
@@ -3805,20 +3843,53 @@ def main(argv: list[str] | None = None) -> int:
             print(usage(), end="")
             return 0 if known.help else 2
         operation = remainder[0]
+        if operation == "provision":
+            try:
+                value = provision_journal.handle(remainder[1:])
+            except provision_journal.JournalError as error:
+                raise ClientError("invalid_provision_request", str(error)) from error
+            except (audit_history.AuditError, OSError, sqlite3.Error,
+                    ValueError, UnicodeError) as error:
+                raise ClientError("provision_journal_unavailable",
+                    "Provisioning journal is unavailable or the request is invalid") from error
+            if isinstance(value, str):
+                print(value, end="")
+            else:
+                emit(value)
+            return 0
+        provision_id = known.provision_run or os.environ.get("MACHINE_CONTROL_PROVISION_RUN")
+        cleanup = remainder[:2] in (
+            ["claim", "release"], ["workspace", "release"],
+            ["target", "shutdown"], ["grant", "revoke"],
+        )
+        if provision_id:
+            try:
+                provision = provision_journal.Command(
+                    provision_id, remainder, known.claim)
+                provision_token = _PROVISION_COMMAND.set(provision)
+            except (provision_journal.JournalError, audit_history.AuditError,
+                    OSError, sqlite3.Error, ValueError):
+                if not cleanup:
+                    raise ClientError("provision_journal_unavailable",
+                        "Provisioning intent could not be persisted; nothing dispatched")
+                print("machine-control: provisioning persistence unavailable; cleanup continues with a coverage gap", file=sys.stderr)
         if operation == "agent":
             from agent_interface import identity, instructions
 
             if remainder in (["agent", "identity"], ["agent", "identity", "--paths"]):
                 emit(identity(paths="--paths" in remainder))
-                return 0
+                result = 0
+                return result
             if remainder == ["agent", "instructions"]:
                 print(instructions(), end="")
-                return 0
+                result = 0
+                return result
             raise ClientError("usage", "agent requires identity [--paths]|instructions")
         if operation == "audit":
             try:
                 emit(audit_history.handle(remainder[1:], target=known.target))
-                return 0
+                result = 0
+                return result
             except (audit_history.AuditError, OSError, sqlite3.Error,
                     ValueError, KeyError, TypeError) as error:
                 raise ClientError(
@@ -3829,9 +3900,11 @@ def main(argv: list[str] | None = None) -> int:
             from storage_analysis import handle
 
             emit(handle(remainder[1:]))
-            return 0
+            result = 0
+            return result
         if operation == "inventory":
-            return run_inventory(known.inventory_provider, remainder[1:])
+            result = run_inventory(known.inventory_provider, remainder[1:])
+            return result
         targets, registry_source = load_registry(
             known.registry, known.inventory_provider
         )
@@ -3851,7 +3924,8 @@ def main(argv: list[str] | None = None) -> int:
                     ],
                 }
             )
-            return 0
+            result = 0
+            return result
         alias, target = select_target(targets, known.target)
         target = {
             **target,
@@ -3901,6 +3975,8 @@ def main(argv: list[str] | None = None) -> int:
                 "_claimId": known.claim,
             }
         target["environment"]["MACHINE_CONTROL_AUDIT_TARGET"] = alias
+        if provision_id:
+            target["environment"]["MACHINE_CONTROL_PROVISION_RUN"] = provision_id
         identifier = target.get("_claimId")
         if (operation == "claim" and len(remainder) >= 3
                 and remainder[1] in {"renew", "release"}
@@ -3922,9 +3998,12 @@ def main(argv: list[str] | None = None) -> int:
             audit_history.best_effort("cleanup.audit_unavailable", logicalTarget=alias, claimId=identifier)
         if command is not None:
             token = _AUDIT_COMMAND.set(command)
+            if provision is not None:
+                provision.bind(command)
         result = _dispatch(alias, target, remainder)
         if command is not None and command.finish(result) is None:
-            return result or 1
+            result = result or 1
+            return result
         return result
     except ClientError as error:
         emit(
@@ -3937,6 +4016,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         if command is not None:
             command.finish(error.exit_code, error.code)
+        if provision is not None:
+            provision.finish(error.exit_code, error.code)
         return error.exit_code
     except ValueError:
         emit(
@@ -3946,12 +4027,23 @@ def main(argv: list[str] | None = None) -> int:
         )
         if command is not None:
             command.finish(2, "invalid_number")
+        if provision is not None:
+            provision.finish(2, "invalid_number")
         return 2
     finally:
         if command is not None and not command.finished:
             command.finish(error_code="client_aborted")
         if token is not None:
             _AUDIT_COMMAND.reset(token)
+        persistence_failed = False
+        if provision is not None and not provision.finished:
+            # Includes offline commands and registry/claim refusals. A killed
+            # process can leave an unpaired intent; never invent its outcome.
+            persistence_failed = provision.finish(result, None) is None
+        if provision_token is not None:
+            _PROVISION_COMMAND.reset(provision_token)
+        if persistence_failed and result is not None:
+            return result or 1
 
 
 if __name__ == "__main__":

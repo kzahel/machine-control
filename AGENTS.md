@@ -96,6 +96,18 @@ point for provider/platform options and evidence, then read `GLOSSARY.md`,
 before changing ownership boundaries among YepAnywhere, dotfiles, a testbed, a
 guest-resident provider, or an outer provider.
 
+For every fresh VM/appliance bring-up, begin a dated private
+[provisioning journal](docs/provisioning-journals.md) before preflight and carry
+its `--provision-run` ID on common CLI calls through acceptance and cleanup.
+Re-inspect factory/bootstrap stages after meaningful transitions so their
+states are recorded automatically. Add timestamped agent notes for friction,
+unexpected waits, manual intervention, workarounds, fixes with commit references,
+and deferred improvements. Record direct-script steps and private evidence
+references explicitly; they are outside automatic coverage. Finish with an
+honest outcome and summary, including when no friction occurred. Recording an
+issue does not require fixing it or expand task authorization. Keep these logs
+private and secret-free; promote only sanitized findings to public documents.
+
 Every VM or appliance an agent creates, provisions, or re-credentials must
 leave the task with its current login credentials recorded in the controller's
 untracked local secret store (mode `0600`). This includes throwaway values such

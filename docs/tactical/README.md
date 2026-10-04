@@ -1,7 +1,9 @@
 # Implementation Tacticals
 
 - [090 — Retained desktop appliance rebuild](090-retained-desktop-appliance-rebuild.md)
-  (active): disk analysis and retained Windows/Linux provisioning acceptance.
+  (complete): disk analysis and retained Windows/Linux provisioning acceptance.
+- [092 — Dated provisioning journals](092-provisioning-journals.md): automatic
+  command/phase observations and private agent friction notes.
 
 Bounded implementation plans and execution records live here.
 

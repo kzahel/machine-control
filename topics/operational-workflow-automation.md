@@ -7,6 +7,18 @@ review, implementation, and live acceptance.
 
 ## Scope and test for inclusion
 
+**Current:** Fresh desktop appliance bring-ups have a
+[dated private provisioning journal](../docs/provisioning-journals.md), with
+automatic common CLI intent/result metadata and safe Windows/Linux/macOS phase
+projections alongside explicitly agent-authored friction notes. Portable
+fixture validation, privacy/refusal cases and coverage limits are recorded in
+[Tactical 092](../docs/tactical/092-provisioning-journals.md).
+
+**Decision:** Every fresh bring-up records a run, including successful runs
+without friction. Notes preserve workarounds, fix commits and deferred ideas;
+recording a problem does not require fixing it during provisioning. Direct
+script/guest evidence remains separate and must be referenced explicitly.
+
 This tracker covers operational work in which an agent still has to infer the
 current stage, next safe action, or recovery branch from prose. A long document
 is not itself a defect. Architecture, policy, consent instructions, and past

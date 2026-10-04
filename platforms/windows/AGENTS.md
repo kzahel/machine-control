@@ -8,6 +8,11 @@ configuration is currently a Windows 11 guest in UTM/QEMU on macOS.
 
 ## Start Here
 
+For fresh bring-up, follow the root
+[provisioning journal workflow](../../docs/provisioning-journals.md): carry the
+run through common CLI calls, record phase observations and agent friction
+notes, and finish after acceptance and claim cleanup.
+
 Start at the repository root. Run
 `bin/machine-control --target windows target doctor` before operating the VM;
 the common client supplies the controller's private inventory without exposing

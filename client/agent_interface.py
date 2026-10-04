@@ -90,6 +90,19 @@ payloads and secret transport are omitted from this operational journal.
 Alternatively `machine-control --target host run --help` describes a scoped
 runner that owns doctor, claim renewal and release for a local task program.
 
+For a fresh Windows/Linux/macOS appliance bring-up, begin a private dated
+journal before preflight: `machine-control provision begin --platform PLATFORM`.
+Carry its runId with global --provision-run on common CLI calls through cleanup;
+nested common CLI calls inherit the selection. Factory/bootstrap --json stage
+inspections record safe phase states. Add non-secret notes on stdin using
+`provision note RUN_ID --kind friction|workaround|fix|follow-up|summary`.
+Record waits, manual steps, workarounds, fix commits, deferred ideas and evidence
+references, including direct scripts outside automatic coverage. Recording
+friction does not authorize fixing it. After acceptance and claim cleanup, use
+`provision finish RUN_ID --outcome ready|blocked|failed|abandoned`, and inspect
+`provision show RUN_ID --markdown`. Outcome is agent-reported; missing command
+results remain unknown. Keep logs private and credentials in the secret store.
+
 Inspect status/capabilities; request only the scopes needed for this task:
   machine-control --target host --claim CLAIM_ID desktop status
   machine-control --target host --claim CLAIM_ID desktop capabilities

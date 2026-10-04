@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SOURCES = [
     "bin/machine-control", "client/machine_control.py", "client/scoped_run.py",
     "client/scoped_process.py", "client/agent_interface.py", "client/control_session.py",
-    "client/audit_history.py", "client/storage_analysis.py",
+    "client/audit_history.py", "client/storage_analysis.py", "client/provision_journal.py",
     "providers/claims/claims.py", "providers/claims/common.sh", "providers/claims/channel.py",
     "providers/claims/admission.py", "providers/claims/admission_channel.py", "client/claim_session.py", "client/outer_session.py",
     "platforms/macos/bin/machost", "platforms/macos/host/machost.py",

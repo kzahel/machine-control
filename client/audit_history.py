@@ -25,10 +25,10 @@ RETENTION_DAYS = 30
 MAX_EVENT_BYTES = 16384
 CLAIM = re.compile(r"c-[a-f0-9]{24}")
 VERBS = frozenset(
-    "status capabilities doctor up down suspend shutdown force-stop reboot ensure-ready validate-candidate prepare-promotion acquire renew release check inventory gc snapshot action capture input applications windows launch activate close artifact read observe request approve deny revoke open poll accept cancel heartbeat exec ps ssh wsl ui login credential store rotate deploy deploy-ui deploy-fixture factory stage preflight factory-create factory-status factory-preflight factory-media-status factory-detach-installer factory-detach-media post-update audit repair certify seal delete repair-registration target-id pin-target trust-ssh-host-key host-doctor bootstrap setup run enable disable identity instructions list guide credentials control session stream type key click drag scan move scroll press permissions find get inspect".split()
+    "status capabilities doctor up down suspend shutdown force-stop reboot ensure-ready validate-candidate prepare-promotion acquire renew release check inventory gc snapshot action capture input applications windows launch activate close artifact read observe request approve deny revoke open poll accept cancel heartbeat exec ps ssh wsl ui login credential store rotate verify establish deploy deploy-ui deploy-fixture factory stage factory-stages bootstrap-stages preflight factory-create factory-status factory-preflight factory-media-status factory-detach-installer factory-detach-media post-update audit repair certify seal delete repair-registration target-id pin-target trust-ssh-host-key host-doctor bootstrap setup run enable disable identity instructions list guide credentials control session stream type key click drag scan move scroll press permissions find get inspect analyze".split()
 )
 OPERATIONS = frozenset(
-    "claim target workspace maintenance desktop control grant update browser ios testbed os run inventory".split()
+    "claim target workspace maintenance desktop control grant update browser ios testbed os run inventory storage agent audit".split()
 )
 
 

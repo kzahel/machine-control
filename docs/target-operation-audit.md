@@ -67,3 +67,11 @@ gaps. The journal cannot retrospectively reconstruct them or identify an
 authenticated agent from a self-asserted label. Keep resident
 [desktop history](desktop-audit.md) and provider diagnostics as separate
 evidence rather than assuming this journal replaces them.
+
+Fresh bring-ups additionally use a
+[dated provisioning journal](provisioning-journals.md). It groups safe command
+and factory/bootstrap phase observations with agent notes for one run, and
+retains them independently of this audit's 30-day window. Command results
+include an audit correlation ID where available; use this history for retained
+claim attribution and exact-resource bindings. Neither log covers direct
+provider/script bypasses exhaustively.

@@ -8,6 +8,11 @@ configuration is currently a macOS guest in Tart on an Apple-silicon Mac.
 
 ## Start Here
 
+For fresh bring-up, follow the root
+[provisioning journal workflow](../../docs/provisioning-journals.md): carry the
+run through common CLI calls, record phase observations and agent friction
+notes, and finish after acceptance and claim cleanup.
+
 Start from the repository root with
 `bin/machine-control --target macos target doctor`. Once it resolves exact
 private identity, acquire an exclusive target-use claim with a reason,

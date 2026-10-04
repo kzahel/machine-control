@@ -9,6 +9,11 @@ protected-session policy.
 
 ## 1 — prepare controller storage and media
 
+Begin a [dated private provisioning journal](provisioning-journals.md) before
+preflight. Carry its run ID through common CLI calls, inspect stages after each
+meaningful transition, and add agent notes alongside automatic observations.
+Finish with acceptance evidence, friction/fix/deferred-idea notes and cleanup.
+
 Run `storage analyze`, review ignored current and legacy factory artifacts,
 and reserve space for installation, source media and divergence. Preserve
 retained development/ready-base disks. Use official media and verify its exact

@@ -7,6 +7,11 @@ LinuxVM Testbed operates an Ubuntu Wayland desktop inside UTM from a macOS
 host. Keep lifecycle/transport in `providers/`, guest behavior in `guests/`,
 and agent-facing commands in `bin/`.
 
+For fresh bring-up, follow the root
+[provisioning journal workflow](../../docs/provisioning-journals.md): carry the
+run through common CLI calls, record phase observations and agent friction
+notes, and finish after acceptance and claim cleanup.
+
 Start from the repository root with
 `bin/machine-control --target linux target doctor`. Once it resolves exact
 private identity, acquire an exclusive target-use claim with a reason,
