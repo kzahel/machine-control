@@ -103,20 +103,43 @@ def connect(*, read=False):
         uri=True,
         timeout=1,
     )
-    if not read:
-        db.execute("PRAGMA synchronous=FULL")
-        db.execute("PRAGMA auto_vacuum=FULL")
-        db.execute(
-            "CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT NOT NULL, target TEXT, claim TEXT, resource TEXT, claimant TEXT, data TEXT NOT NULL)"
-        )
-        db.execute("CREATE INDEX IF NOT EXISTS events_claim ON events(claim)")
-        db.execute("CREATE INDEX IF NOT EXISTS events_target ON events(target)")
-        db.execute(
-            "CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
-        )
-        db.execute("INSERT OR IGNORE INTO metadata VALUES ('startedAt', ?)", (now(),))
-        db.commit()
-    return db
+    try:
+        if not read:
+            initialize(db)
+        return db
+    except BaseException:
+        db.close()
+        raise
+
+
+def initialize(db):
+    # auto_vacuum must precede the first table and cannot be set inside the
+    # write transaction. Concurrent empty-database initialization can return
+    # SQLITE_BUSY immediately; retry only this idempotent setup, never events.
+    deadline = time.monotonic() + 1
+    while True:
+        try:
+            db.execute("PRAGMA synchronous=FULL")
+            if db.execute("PRAGMA auto_vacuum").fetchone()[0] != 1:
+                db.execute("PRAGMA auto_vacuum=FULL")
+            db.execute("BEGIN IMMEDIATE")
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT NOT NULL, target TEXT, claim TEXT, resource TEXT, claimant TEXT, data TEXT NOT NULL)"
+            )
+            db.execute("CREATE INDEX IF NOT EXISTS events_claim ON events(claim)")
+            db.execute("CREATE INDEX IF NOT EXISTS events_target ON events(target)")
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+            )
+            db.execute("INSERT OR IGNORE INTO metadata VALUES ('startedAt', ?)", (now(),))
+            db.commit()
+            return
+        except sqlite3.OperationalError as error:
+            db.rollback()
+            code = getattr(error, "sqlite_errorcode", 0) & 255
+            if code not in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED) or time.monotonic() >= deadline:
+                raise
+            time.sleep(0.01)
 
 
 def append(event, **fields):

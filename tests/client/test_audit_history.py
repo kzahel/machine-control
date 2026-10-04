@@ -107,12 +107,60 @@ class HistoryTests(unittest.TestCase):
             )
             for _ in range(4)
         ]
-        for child in children:
-            _, errors = child.communicate(timeout=30)
-            self.assertEqual(child.returncode, 0, errors.decode())
+        try:
+            results = [(child, child.communicate(timeout=30)[1]) for child in children]
+            for child, errors in results:
+                self.assertEqual(child.returncode, 0, errors.decode())
+        finally:
+            for child in children:
+                if child.poll() is None:
+                    child.terminate()
+                child.communicate(timeout=5)
         value = audit.history()
         self.assertEqual(len(value["events"]), 40)
         self.assertEqual(len({e["eventId"] for e in value["events"]}), 40)
+
+    def test_busy_initialization_retries_without_losing_vacuum_or_events(self):
+        class Contended(sqlite3.Connection):
+            collisions = 2
+
+            def execute(self, sql, *args):
+                if sql == "PRAGMA auto_vacuum=FULL" and self.collisions:
+                    self.collisions -= 1
+                    error = sqlite3.OperationalError("fixture initialization contention")
+                    error.sqlite_errorcode = sqlite3.SQLITE_BUSY
+                    raise error
+                return super().execute(sql, *args)
+
+        connect = sqlite3.connect
+        with mock.patch.object(audit.sqlite3, "connect", side_effect=lambda *a, **kw:
+                               connect(*a, **kw, factory=Contended)):
+            audit.append("fixture")
+        self.assertEqual(len(audit.history()["events"]), 1)
+        db = connect(self.audit / "history.sqlite3")
+        try:
+            self.assertEqual(db.execute("PRAGMA auto_vacuum").fetchone()[0], 1)
+        finally:
+            db.close()
+
+    def test_failed_initialization_closes_its_connection(self):
+        connections = []
+
+        class Broken(sqlite3.Connection):
+            def execute(self, sql, *args):
+                raise sqlite3.OperationalError("fixture non-retryable failure")
+
+        connect = sqlite3.connect
+        def broken(*args, **kwargs):
+            db = connect(*args, **kwargs, factory=Broken)
+            connections.append(db)
+            return db
+        with mock.patch.object(audit.sqlite3, "connect", side_effect=broken):
+            with self.assertRaisesRegex(sqlite3.OperationalError, "non-retryable"):
+                audit.append("fixture")
+        self.assertEqual(len(connections), 1)
+        with self.assertRaisesRegex(sqlite3.ProgrammingError, "closed"):
+            sqlite3.Connection.execute(connections[0], "SELECT 1")
 
     def test_opaque_arguments_are_never_resumed_as_grammar_tokens(self):
         command = audit.Command(

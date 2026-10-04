@@ -54,6 +54,13 @@ never strand ownership or alter fencing.
 
 ## Evidence and limits
 
+**Current:** Journal initialization serializes schema creation and retries
+transient SQLite contention within a bounded window. Failed initialization
+closes its connection; actual audit events are never replayed. Deterministic
+busy/error tests and concurrent first-use writers pass on the controller and
+Windows with Python 3.12. [Tactical 091](../docs/tactical/091-desktop-until-stopped.md)
+records the release checks that exposed this portability gap.
+
 [Tactical 089](../docs/tactical/089-target-operation-audit.md) owns validation.
 [The operator guide](../docs/target-operation-audit.md) owns locations, query
 examples and privacy. The installed CLI payload includes the journal module;
