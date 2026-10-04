@@ -282,7 +282,10 @@ final class AdmissionChannelTests: XCTestCase {
     }
     func testLargeReplySurvivesSocketBackpressureWithoutBlockingOperator() throws {
         let client = try connect()
-        var capacity: Int32 = 1024
+        // Remain far below the reply size to exercise backpressure without
+        // making a healthy reader exceed the five-second write deadline on
+        // a loaded runner (the server retries blocked writes every 25 ms).
+        var capacity: Int32 = 16 * 1024
         XCTAssertEqual(setsockopt(client, SOL_SOCKET, SO_RCVBUF, &capacity, socklen_t(MemoryLayout<Int32>.size)), 0)
         let first = open(client, "large")
         let active = command(client, "control.accept", ["offerGeneration":first["offerGeneration"]!])["data"] as! [String:Any]
