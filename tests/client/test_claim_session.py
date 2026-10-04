@@ -24,7 +24,7 @@ class ClaimSessionTests(unittest.TestCase):
         audit_env.start()
         self.addCleanup(audit_env.stop)
         self.adapter = self.directory / "adapter.py"
-        self.adapter.write_text('''import os,sys
+        self.adapter.write_text('''import runpy,sys
 from pathlib import Path
 root=Path(sys.argv[1]); state=Path(sys.argv[2]); operation=sys.argv[3]
 policy=['--state-dir',str(state),'--minimum-duration','1','--default-duration','30','--maximum-duration','120','--maximum-lifetime','120']
@@ -35,7 +35,9 @@ elif operation=='doctor':
 else:
  name=operation.removeprefix('claim-'); rest=[v for v in sys.argv[4:] if v!='--json']
  command=[sys.executable,str(root/'providers/claims/claims.py'),*policy,name,*([] if name=='capabilities' else ['--provider','fixture','--resource-id','exact-fixture']),*rest]
-os.execv(sys.executable,command)
+sys.argv=command[1:]
+sys.path.insert(0,str(Path(command[1]).parent))
+runpy.run_path(command[1],run_name="__main__")
 ''')
         self.target = dict(command=[sys.executable, str(self.adapter), str(ROOT), str(self.directory)],
                            environment={}, claimPolicy="required", interface="machine-control-v0")
