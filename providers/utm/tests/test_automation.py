@@ -34,7 +34,7 @@ class AutomationTests(unittest.TestCase):
             self.assertEqual(automation.probe("fixture"), "unavailable")
             self.assertEqual(run.call_args.kwargs["timeout"], 7)
             self.assertNotIn("input", run.call_args.kwargs)
-            self.assertEqual(run.call_args.args[0][-1], '/fixture/UTM.app')
+            self.assertEqual(run.call_args.args[0][-1], str(Path('/fixture/UTM.app')))
             self.assertIn('application appPath is running', run.call_args.args[0][-2])
 
     def test_custom_executable_never_probes_real_app(self):

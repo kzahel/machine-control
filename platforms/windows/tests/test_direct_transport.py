@@ -9,6 +9,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@unittest.skipUnless(os.name == "posix", "POSIX controller SSH/SCP carrier scripts")
 class DirectTransportTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

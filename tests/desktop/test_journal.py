@@ -14,6 +14,7 @@ from journal import Journal
 from grants import Grants
 
 
+@unittest.skipUnless(hasattr(os, "getuid"), "Linux journal uses POSIX ownership and modes")
 class JournalTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

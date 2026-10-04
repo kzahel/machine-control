@@ -198,6 +198,8 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
                 "linux-runtime/extension/service_worker.js", "linux-runtime/extension/indicators.js"}
     if tuple(map(int, version.split("."))) >= (0, 5, 3):
         required.add("linux-runtime/updates.py")
+    if tuple(map(int, version.split("."))) >= (0, 5, 4):
+        required.add("linux-runtime/journal.py")
     for record in records:
         found = set()
         for item in record.get("files", []):

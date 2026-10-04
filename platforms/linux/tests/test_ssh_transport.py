@@ -77,7 +77,8 @@ class SshTransportTests(unittest.TestCase):
         with patch.object(transport.sys, "stdin", io.StringIO(public_key)), \
                 patch.object(transport.sys, "stdout", io.StringIO()):
             transport.pin_host()
-        self.assertEqual(hosts.stat().st_mode & 0o777, 0o600)
+        if os.name == "posix":
+            self.assertEqual(hosts.stat().st_mode & 0o777, 0o600)
         self.assertEqual([line.split()[0] for line in hosts.read_text().splitlines()],
                          ["00000000-0000-0000-0000-000000000001", "192.0.2.10"])
         self.assertEqual(list(self.root.glob(".host-key-*")), [])

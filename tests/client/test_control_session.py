@@ -44,7 +44,9 @@ class ControlSessionTests(unittest.TestCase):
         with self.session() as session:
             session.wait()
             self.assertTrue(session.call({"operation":"snapshot"})["accepted"])
-            time.sleep(1.1)
+            deadline = time.monotonic() + 10
+            while "control.heartbeat" not in self.record.read_text() and time.monotonic() < deadline:
+                time.sleep(0.02)
             process = session.process
         events = self.record.read_text().splitlines()
         self.assertEqual(events.count("effect"), 1)

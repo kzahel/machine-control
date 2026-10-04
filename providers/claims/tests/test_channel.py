@@ -25,9 +25,9 @@ class ClaimChannelTests(unittest.TestCase):
         self.fixture = self.directory / 'fixture.py'
         self.effects = self.directory / 'effects.txt'
         self.fixture.write_text('''import sys, pathlib
-for line in sys.stdin:
- with pathlib.Path(sys.argv[1]).open('a') as file: file.write(line)
- print(line, end='', flush=True)
+for line in sys.stdin.buffer:
+ with pathlib.Path(sys.argv[1]).open('ab') as file: file.write(line)
+ sys.stdout.buffer.write(line); sys.stdout.buffer.flush()
 ''')
         self.identifier = self.acquire(2)
     def tearDown(self):
