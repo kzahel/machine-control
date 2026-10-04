@@ -8,6 +8,7 @@ import queue
 import threading
 import subprocess
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -105,9 +106,28 @@ class VmClaimAdapterTests(unittest.TestCase):
                     self.assertTrue(offer["accepted"])
                     active = request(2,"claim.accept",offerGeneration=offer["data"]["offerGeneration"])
                     self.assertTrue(active["accepted"])
-                    checked = self.run_adapter(executable, environment, "claim-check", "--claim-id",
-                        active["data"]["claim"]["claimId"], "--json")
-                    self.assertEqual(checked.returncode, 0, checked.stderr)
+                    # Cold-starting a second Bash/Python adapter can exceed
+                    # the active lease. Behave like a real channel client:
+                    # retain liveness while the independent check runs.
+                    checked = subprocess.Popen([BASH, str(executable), "claim-check", "--claim-id",
+                        active["data"]["claim"]["claimId"], "--json"],
+                        text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                        env={**os.environ, **environment, "MACHINE_CONTROL_CLAIM_POLICY":"required"})
+                    try:
+                        sequence = 3
+                        deadline = time.monotonic() + 60
+                        while checked.poll() is None:
+                            self.assertLess(time.monotonic(), deadline, "Independent claim check timed out")
+                            heartbeat = request(sequence, "claim.heartbeat")
+                            self.assertTrue(heartbeat["accepted"], heartbeat)
+                            self.assertEqual(heartbeat["data"]["state"], "active", heartbeat)
+                            sequence += 1
+                            time.sleep(.5)
+                        stdout, stderr = checked.communicate(timeout=3)
+                        self.assertEqual(checked.returncode, 0, (stdout, stderr))
+                    finally:
+                        if checked.poll() is None: checked.terminate()
+                        checked.communicate(timeout=3)
                     process.stdin.close();process.stdin=None
                     process.wait(timeout=3)
                     status = self.run_adapter(executable, environment, "claim-status", "--json")

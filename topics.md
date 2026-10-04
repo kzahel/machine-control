@@ -76,3 +76,6 @@ commits with no expected follow-up do not need a trailer or registry entry.
 
 - `target-operation-audit` — durable target claim and common CLI history,
   exact-resource correlation, retained attribution and explicit coverage gaps.
+
+- `desktop-until-stopped` — cross-platform indefinite manual desktop access,
+  installed VM acceptance and unified release completion.
