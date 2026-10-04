@@ -3,6 +3,7 @@
 
 The independent AT-SPI actor uses the actual operator UI. Product requests
 use its ordinary socket; an independent GTK fixture records the effect.
+Run through the graphical systemd user manager to inherit its session context.
 Caller owns installation, guest claim, and source/package authentication.
 """
 import argparse
@@ -24,7 +25,7 @@ p.add_argument('--revision', required=True)
 a = p.parse_args()
 sys.path.insert(0, str(a.runtime))
 import linuxui
-from gi.repository import GLib
+from gi.repository import Atspi, GLib
 
 endpoint = Path(os.environ['XDG_RUNTIME_DIR']) / 'machine-control-desktop/desktop.sock'
 checks = []
@@ -69,14 +70,15 @@ def nodes():
     return list(linuxui.walk(root, 30, 2000))
 
 
-def widget(label):
-    matches = [n for n, i in nodes() if i['name'] == label and 'showing' in i['states']]
+def widget(label, role=None):
+    matches = [n for n, i in nodes() if i['name'] == label and 'showing' in i['states']
+               and (role is None or i['role'] == role)]
     return matches[0] if len(matches) == 1 else None
 
 
-def press(label):
-    node = poll(lambda: widget(label))
-    check('Native UI ' + label, node.do_action(0))
+def press(label, role=None, action=0):
+    node = poll(lambda: widget(label, role))
+    check('Native UI ' + label, node.do_action(action))
     time.sleep(.3)
 
 
@@ -85,14 +87,20 @@ try:
     app = subprocess.Popen([str(a.app)], stdout=log, stderr=log, start_new_session=True)
     state = poll(lambda: call('status'))
     check('Exact installed source', state['data']['sourceRevision'] == a.revision)
+    check('Supported session ready', state['data']['ready'])
     check('Starts off', state['data']['grant'] is None)
     press('Access duration')
-    press('Until I turn it off')
+    # GTK exposes both the HTML option and the open native popup row.
+    # Activate the visible popup row rather than an ambiguous duplicate.
+    press('Until I turn it off', role='table cell', action=2)
     press('Enable access')
     grant = poll(lambda: call('status')['data']['grant'])
     check('Explicit indefinite lifetime', grant['lifetime'] == 'until_stopped')
     check('No countdown', grant['remainingSeconds'] is None)
-    check('Visible indefinite status', any('Until you turn it off' in i['name'] for _, i in nodes()))
+    check('Visible indefinite status', poll(
+        lambda: any('Until you turn it off' in (i['name'] + (
+            (linuxui.safe(lambda: Atspi.Text.get_text(n, 0, -1), '') or '') if 'Text' in i['interfaces'] else ''))
+            for n, i in nodes() if 'showing' in i['states'])))
     state_path = a.output.with_suffix('.fixture.json')
     state_path.unlink(missing_ok=True)
     source = a.output.with_suffix('.fixture.py')

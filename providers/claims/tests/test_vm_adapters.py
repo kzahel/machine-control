@@ -4,7 +4,8 @@ import json
 import os
 from pathlib import Path
 import shutil
-import select
+import queue
+import threading
 import subprocess
 import tempfile
 import unittest
@@ -84,13 +85,18 @@ class VmClaimAdapterTests(unittest.TestCase):
                 process = subprocess.Popen([BASH, str(executable), "claim-channel"],
                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     env={**os.environ, **environment, "MACHINE_CONTROL_CLAIM_POLICY":"required"})
+                replies = queue.Queue()
+                def read_replies():
+                    for line in process.stdout:
+                        replies.put(line)
+                reader = threading.Thread(target=read_replies, daemon=True)
+                reader.start()
                 try:
                     def request(sequence, operation, **fields):
                         process.stdin.write(json.dumps(dict(operation=operation, requestId=str(sequence),
                             requestSequence=sequence, **fields)).encode()+b"\n")
                         process.stdin.flush()
-                        self.assertTrue(select.select([process.stdout], [], [], 5)[0])
-                        return json.loads(process.stdout.readline())
+                        return json.loads(replies.get(timeout=5))
                     offer = request(1,"claim.open",schema="machine-control-claim-admission/v1",
                         reason="Validate adapter queue",claimantAuthority="fixture",claimantId="caller",waitSeconds=30)
                     self.assertTrue(offer["accepted"])
@@ -105,7 +111,10 @@ class VmClaimAdapterTests(unittest.TestCase):
                     self.assertEqual(json.loads(status.stdout)["data"]["state"], "available")
                 finally:
                     if process.poll() is None: process.terminate()
-                    process.communicate(timeout=3)
+                    process.wait(timeout=3)
+                    reader.join(timeout=3)
+                    if process.stdin is not None: process.stdin.close()
+                    process.stdout.close(); process.stderr.close()
 
     def test_vm_adapters_expose_claims_and_gate_effectful_use(self) -> None:
         for executable, environment, effectful, disruptive in self.adapters():

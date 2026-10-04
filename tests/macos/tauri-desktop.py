@@ -173,7 +173,11 @@ try:
                 query='Access duration', maxDepth=30, maxElements=500)))['elements']
             choice = next(e for e in choices if e['role'] == 'AXPopUpButton')
             accepted(base(dict(operation='action', reference=choice['reference'], action='press')))
-            press(pid, 'Until I turn it off', 'AXMenuItem')
+            # WebKit's native select menu can temporarily hide the web AX
+            # subtree. Select its unique U-prefixed option with target-native
+            # keyboard input, then independently verify the resulting grant.
+            accepted(base(dict(operation='input.key', target=str(pid), key='u')))
+            accepted(base(dict(operation='input.key', target=str(pid), key='enter')))
         press(pid, 'Enable access')
         if args.until_stopped:
             grant = accepted(candidate(dict(operation='grant.status')))['grant']
@@ -210,7 +214,9 @@ try:
         press(pid, 'Stop access')
         assert candidate(dict(operation='snapshot', target=fixture))['errorCode'] == 'approval_required'
         if args.control_only:
-            print('Visible denial, narrowed approval, fixture effect, capture, self/protected refusal, prompt pause, and Stop passed')
+            if args.until_stopped:
+                print('Visible indefinite arming and null countdown passed')
+            print('Visible denial, narrowed approval, fixture effect, self/protected refusal, prompt pause, and Stop passed')
             raise SystemExit(0)
         tray(pid, 'Settings…')
         # The setting-row button proves the menu navigated to the right page.
