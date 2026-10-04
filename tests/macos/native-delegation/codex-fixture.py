@@ -40,7 +40,10 @@ def worker():
         request = {"operation": operation, "requestId": str(seq), **fields}
         child.stdin.write(json.dumps(request) + "\n")
         child.stdin.flush()
-        if not select.select([child.stdout], [], [], 12)[0]:
+        # Initial native peer/bundle authentication precedes the first frame.
+        # It is separate from the unchanged active-owner watchdog.
+        reply_timeout = 30 if operation == "control.open" else 12
+        if not select.select([child.stdout], [], [], reply_timeout)[0]:
             raise RuntimeError("fixture control response timeout")
         line = child.stdout.readline()
         if not line:

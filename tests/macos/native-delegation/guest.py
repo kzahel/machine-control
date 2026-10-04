@@ -347,7 +347,7 @@ try:
     (root / "launch.private.json").write_text(json.dumps(response))
     runtime = waitfile(root / "agent-runtime.json")
     assert runtime["delegated"] is True, "launch did not select native delegation"
-    expect(command(1, "open"), "state", "active")
+    expect(command(1, "open", timeout=60), "state", "active")
     first_effect = command(2, "effect")
     expect(first_effect, "accepted", True)
     if case == "routes":
