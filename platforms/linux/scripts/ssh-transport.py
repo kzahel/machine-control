@@ -75,7 +75,7 @@ def pin_host() -> int:
         with tempfile.NamedTemporaryFile(mode="w", dir=destination.parent,
                                          prefix=".host-key-", delete=False) as file:
             temporary = Path(file.name)
-            os.fchmod(file.fileno(), 0o600)
+            # NamedTemporaryFile already creates mode 0600 on POSIX.
             file.write(f"{identifier} {words[0]} {words[1]}\n")
             file.write(f"{address} {words[0]} {words[1]}\n")
             file.flush()
