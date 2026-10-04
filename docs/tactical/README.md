@@ -186,3 +186,7 @@ the commits' `Topic:` trailers and register that exact string in
 - [093 — Session entry-point and authority audit](093-session-entry-point-audit.md):
   completed bounded source inventory, claim/channel fixtures and first session
   migration boundary; no runtime changes.
+
+- [095 — Windows required owner session and CLI compatibility](095-windows-required-owner-session.md):
+  desktop dispatch enforcement, negotiated short sessions and retained CLI
+  streams; installed Windows acceptance pending.

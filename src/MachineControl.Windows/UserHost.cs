@@ -223,6 +223,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
                     protocol = Contract.Schema,
                     approvalRequired = grants is not null,
                     desktopProduct = grants is not null,
+                    controlSessionRequired = grants is not null,
                     artifactRoot = RuntimeProfile.ArtifactRoot,
                 }
                 : new
@@ -231,6 +232,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
                     operations = grants is null ? Operations : [.. Operations, .. BrowserWire.Operations, "grant.request", "grant.status", "grant.revoke", .. (updates is null ? Array.Empty<string>() : new[] { "update.check", "update.status" })],
                     browser = browser?.State,
                     authorization = grants is null ? "component_owner" : "native_target_wide_grants",
+                    controlSession = grants is null ? null : new { schema = AccessAdmission.Schema, required = true },
                     providers = ProviderRouter.DescribeUser(),
                     serviceOperations = Array.Empty<string>(),
                     protectedDesktop = new { available = false, reason = "not_installed_in_this_profile" },
@@ -251,17 +253,21 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
         if (!ready)
             return result with { ErrorCode = "desktop_unavailable", Message = "The active unlocked user desktop is unavailable" };
         if (browser is not null && BrowserWire.Operations.Contains(request.Operation, StringComparer.Ordinal))
+        {
+            if (grants?.Authorize(request, request.ExpectedGeneration) is { } denied)
+                return Envelope(request) with { ErrorCode = denied, Data = DesktopGrants.RefusalData(request.Operation, denied) };
             return await browser.ExecuteAsync(request, Envelope(request), cancellationToken, ownership is not null);
+        }
         await _providerGate.WaitAsync(cancellationToken);
         try
         {
             var generation = Generation;
-            var refusal = OwnershipRefusal() ?? grants?.Authorize(request.Operation, request.ExpectedGeneration, ownership is not null);
+            var refusal = OwnershipRefusal() ?? grants?.Authorize(request, request.ExpectedGeneration);
             if (refusal is not null) return Envelope(request) with
             {
                 ErrorCode = refusal,
                 Message = "Desktop access refused before dispatch",
-                Data = new { requiredScope = DesktopGrants.ScopeFor(request.Operation), requestOperation = "grant.request" }
+                Data = DesktopGrants.RefusalData(request.Operation, refusal)
             };
             return await ProviderRouter.ExecuteAsync(request with { ControlOwnership = ownership }, generation, cancellationToken);
         }

@@ -10,6 +10,7 @@ import json
 import os
 import queue
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -18,6 +19,31 @@ import machine_control as mc
 
 SCHEMA = "machine-control-admission/v1"
 CHANNEL_SCHEMA = "machine-control-admission-channel/v1"
+
+
+def complete_session_handoff(target, request, refusal):
+    """Negotiate only an explicit, provably undispatched ownership refusal.
+
+    Never replay unknown delivery or fall back after channel failure. Legacy
+    providers without this declaration keep their existing command behavior.
+    """
+    if refusal.get("accepted") is not False or refusal.get("errorCode") != "control_session_required":
+        return refusal, None
+    data = refusal.get("data")
+    requirement = data.get("controlSession") if isinstance(data, dict) else None
+    if requirement is None:
+        return refusal, None
+    if refusal.get("delivery") != "refused" or refusal.get("effect") != "refused" \
+            or refusal.get("uncertainty") != "none" or refusal.get("retrySafety") != "safe_not_dispatched":
+        return refusal, None
+    if not isinstance(requirement, dict) or requirement.get("schema") != SCHEMA \
+            or requirement.get("scope") not in {"observe", "control", "browser", "devtools"}:
+        raise mc.ClientError("admission_unsupported", "Resident requires an unsupported control session")
+    started = time.monotonic()
+    with ControlSession(target, reason="CLI desktop operation", scopes=[requirement["scope"]]) as session:
+        session.wait()
+        value = mc.validate_resident(session.call(request), target["platform"])
+    return value, int((time.monotonic() - started) * 1000)
 
 
 def validate_view(value):
@@ -246,27 +272,61 @@ class ControlSession:
 def handle_control(alias, target, arguments):
     if arguments == ["status"]:
         return mc.send_resident_request(alias, target, {"operation":"status"})
-    parser = argparse.ArgumentParser(prog="machine-control control call")
-    parser.add_argument("command", choices=["call"])
-    parser.add_argument("json")
+    parser = argparse.ArgumentParser(prog="machine-control control")
+    parser.add_argument("command", choices=["call", "stream"])
+    parser.add_argument("json", nargs="?")
     parser.add_argument("--reason", required=True)
     parser.add_argument("--scope", action="append", choices=["observe", "control", "browser", "devtools"])
     parser.add_argument("--wait", default="5m")
     parser.add_argument("--duration", default="5m")
     parser.add_argument("--prepared-console", action="store_true")
     options = parser.parse_args(arguments)
-    try:
-        request = json.loads(options.json)
-        if not isinstance(request, dict) or not isinstance(request.get("operation"), str):
+    if (options.command == "call") != (options.json is not None):
+        raise mc.ClientError("usage", "call requires JSON; stream reads JSON lines from stdin")
+    def parse(text):
+        try:
+            request = json.loads(text)
+        except ValueError:
+            raise mc.ClientError("invalid_control_request", "Control action must be valid JSON") from None
+        if not isinstance(request, dict) or not isinstance(request.get("operation"), str) or not request["operation"]:
             raise mc.ClientError("invalid_control_request", "Control action must be an object with an operation")
-        translated = mc.translate_request(target["platform"], request)
+        return mc.translate_request(target["platform"], request)
+
+    def requests():
+        if options.command == "call":
+            yield parse(options.json)
+            return
+        while True:
+            line = sys.stdin.buffer.readline(65537)
+            if not line:
+                return
+            if len(line) > 65536:
+                raise mc.ClientError("invalid_control_request", "Control request exceeds 64 KiB")
+            yield parse(line)
+
+    try:
+        pending = iter(requests())
+        first = next(pending, None)
+        if first is None:
+            return 0
         scopes = options.scope or ["observe", "control"]
         with ControlSession(target, reason=options.reason, scopes=scopes,
                 wait=mc.parse_duration_seconds(options.wait), duration=mc.parse_duration_seconds(options.duration),
                 prepared_console=options.prepared_console) as session:
             session.wait()
-            value = session.call(translated)
-            mc.emit(value)
-            return 0 if value["accepted"] else 1
+            request = first
+            while True:
+                value = session.call(request)
+                # Stream replies are one JSON line each, available before the
+                # next input. Stop at the first refusal/uncertain outcome.
+                if options.command == "stream":
+                    print(json.dumps(value, separators=(",", ":")), flush=True)
+                else:
+                    mc.emit(value)
+                if not value["accepted"] or value.get("uncertainty", "none") != "none":
+                    return 1
+                request = next(pending, None)
+                if request is None:
+                    return 0
     except KeyboardInterrupt:
         raise mc.ClientError("cancelled", "Control request cancelled", exit_code=130)

@@ -40,6 +40,14 @@ qualifies their bounded physical behavior.
 [Tactical 082](../docs/tactical/082-queued-target-claims.md) adds live exact-target
 claim waiting through explicit v1 negotiation. Claim v0 still advertises no queue.
 
+**Current, source and fixture evidence:**
+[Tactical 095](../docs/tactical/095-windows-required-owner-session.md) makes
+connection ownership mandatory for ordinary Windows desktop-product native and
+browser dispatch, including when the desktop is idle. Common CLI calls can
+negotiate a short owner session; `control stream` retains one across related
+actions. Headless/appliance profiles keep their existing authority. Installed
+Windows acceptance remains open; this is not authenticated exact-claim binding.
+
 **Current, source-reviewed:** these are separate mechanisms today:
 
 | Mechanism | Implemented behavior | Gap for this feature |

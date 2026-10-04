@@ -26,6 +26,49 @@ closes the owning transport. Ctrl-C, parent exit or transport loss releases
 ownership; watchdog expiry is the backstop. An uncertain input is never
 replayed automatically. Grant clocks continue while paused.
 
+For related actions, keep one connection open and exchange newline-delimited
+JSON with the same client:
+
+```sh
+machine-control --target host --claim CLAIM_ID control stream \
+  --reason 'Inspect and operate the application' \
+  --scope observe --scope control --wait 5m --duration 5m
+```
+
+Write one common desktop request per line to stdin and read one compact result
+line from stdout. The client flushes each result before reading the next action,
+so a caller can inspect a snapshot and send an action using its references.
+It acquires once, sends actions sequentially, keeps the owner alive between
+actions, and closes on EOF or error. Empty input acquires nothing. A refusal or
+uncertain result ends the stream; later input is not dispatched. The duration
+is bounded, not automatically renewed, and interruption does not silently
+reacquire ownership. The caller must close stdin when finished. While stdin is
+idle, heartbeat failure releases the transport but the CLI may remain waiting
+for input until the caller closes or writes again.
+
+**Current, source and fixture evidence:** the Windows desktop product requires
+owner context for native observation, application/input and browser operations
+even when a standing grant exists and no owner is active. Direct one-shot IPC
+receives `control_session_required` with a typed `data.controlSession` schema
+and required scope. Common `desktop` and browser CLI calls use that declaration
+to open a short session only when the result explicitly says delivery/effect
+were refused, uncertainty is `none`, and retry safety is
+`safe_not_dispatched`. They preserve the operation and dispatch it once through
+the existing provider. They never fall back after channel failure or replay an
+uncertain result. Missing/older declarations retain their existing behavior.
+Status, capabilities, grant/update management, runtime stop and the separate
+operator channel retain their existing policy. Headless workstation and
+dedicated appliance profiles are not changed by this requirement.
+
+One-shot ownership changes generations. Use `control stream` or the Python SDK
+for snapshot/reference/action workflows; references from a completed short
+session must not be retargeted into another session. Explicit `call-local` and
+`raw-local` parity probes retain their selected route and report the resident
+refusal instead of silently switching transports. Raw `browser.endpoint`
+export remains prohibited inside admission; use typed browser operations.
+Installed Windows UI and browser acceptance remain pending; see
+[Tactical 095](tactical/095-windows-required-owner-session.md).
+
 The Python SDK's `ControlSession(target, reason=..., scopes=..., wait=...,
 duration=...)` is a context manager over an already resolved common-client
 target. `wait()` accepts a current offer, `status()` observes without renewing,

@@ -2762,10 +2762,13 @@ def send_resident_request(
         target, ["control", serialized], accept_json_failure=True
     )
     value = validate_resident(parsed, target["platform"])
+    from control_session import complete_session_handoff
+    value, admission_ms = complete_session_handoff(target, request, value)
     value = add_client_projection(
         value, alias, target, str(request["operation"]),
         len(serialized.encode("utf-8")),
-        len(completed.stdout.strip().encode("utf-8")), elapsed_ms, False,
+        len(completed.stdout.strip().encode("utf-8")) if admission_ms is None else len(json.dumps(value).encode("utf-8")),
+        elapsed_ms + (admission_ms or 0), False,
     )
     emit(value)
     return 0 if value["accepted"] else 1
@@ -3537,14 +3540,20 @@ def handle_desktop(
         target, [command, serialized], accept_json_failure=True
     )
     value = validate_resident(parsed, target["platform"])
+    # Local-call parity explicitly selects an in-target CLI route. Do not
+    # silently replace that proof with the outside admission adapter.
+    admission_ms = None
+    if not local:
+        from control_session import complete_session_handoff
+        value, admission_ms = complete_session_handoff(target, translated, value)
     value = add_client_projection(
         value,
         alias,
         target,
         str(request["operation"]),
         len(serialized.encode("utf-8")),
-        len(completed.stdout.strip().encode("utf-8")),
-        elapsed_ms,
+        len(completed.stdout.strip().encode("utf-8")) if admission_ms is None else len(json.dumps(value).encode("utf-8")),
+        elapsed_ms + (admission_ms or 0),
         local,
     )
     emit(value)
@@ -3665,6 +3674,7 @@ Commands:
                                     Operate Chrome through the extension
   control status | call JSON --reason TEXT [--wait 5m] [--duration 5m]
                                     Wait, accept, execute once and release
+  control stream --reason TEXT [--scope SCOPE]  JSON lines; one live owner
   desktop status|capabilities|applications|windows|snapshot|action|capture
   desktop input text|key|click|move|drag|scroll
   desktop session unlock --expected-desktop-generation ID --expected-helper-generation ID --request-id ID

@@ -74,9 +74,20 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             var ownership = request.ControlOwnership;
             if (ownership is not null && Admission.Authorize(ownership.Owner, ownership.Intent,
                 ownership.Session, ownership.Generations) is { } denied) return denied;
-            return Authorize(request.Operation, expectedGeneration, ownership is not null);
+            // Only AdmissionChannel can attach ControlOwnership (it is ignored
+            // by JSON deserialization). A grant alone never owns the desktop.
+            return Authorize(request.Operation, expectedGeneration, ownership is not null)
+                ?? (ownership is null ? "control_session_required" : null);
         }
     }
+
+    internal static object RefusalData(string operation, string code) => new
+    {
+        requiredScope = ScopeFor(operation),
+        requestOperation = code == "control_session_required" ? "control.open" : "grant.request",
+        controlSession = code == "control_session_required"
+            ? new { schema = AccessAdmission.Schema, scope = ScopeFor(operation) } : null,
+    };
 
     internal string? Authorize(string operation, string? expectedGeneration = null, bool controlled = false)
     {
@@ -106,7 +117,8 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         {
             if (Journal?.Available == false) return "audit_storage_unavailable";
             if (_grant?.Duration is int duration && Elapsed(_grant.Started) >= duration) return "expired";
-            return _grant is not null && scopes.All(_grant.Scopes.Contains) ? null : "approval_required";
+            return _grant is not null && scopes.All(scope => _grant.Scopes.Contains(scope) ||
+                scope == "browser" && _grant.Scopes.Contains("devtools")) ? null : "approval_required";
         }
     }
 

@@ -38,6 +38,12 @@ Windows support claim.
 
 ## Execution and remaining gates
 
+**Current, unreleased source and fixtures:** ordinary desktop-product native
+and browser dispatch requires a live owner session, even with an idle standing
+grant. The common CLI negotiates short ownership or retains it with
+`control stream`. [Tactical 095](../docs/tactical/095-windows-required-owner-session.md)
+owns validation and the remaining installed-build acceptance gate.
+
 **Current, public 0.5.4:** the native operator supports **Until I turn it
 off**, with explicit `until_stopped` lifetime and null remaining seconds.
 Dispatch and admission skip only the absent expiry; scopes, Stop, pause,

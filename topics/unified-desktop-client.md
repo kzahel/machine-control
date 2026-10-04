@@ -197,9 +197,21 @@ recovery must still contend with physical host use.
 **Current:** the first-step [entry-point and authority audit](../docs/session-entry-point-audit.md)
 is complete for a bounded source review and existing claim/channel fixtures.
 It records direct ingress, profile differences, device leases, conflict
-classification and the next implementation gate. Native migration has not
-begun. [Tactical 093](../docs/tactical/093-session-entry-point-audit.md) owns the
+classification and the next implementation gate.
+[Tactical 093](../docs/tactical/093-session-entry-point-audit.md) owns the
 execution record; the audit owns the detailed coverage matrix.
+
+**Current, source and fixture evidence:** the first migration slice requires
+live owner context for ordinary operations in the Windows desktop product.
+The common CLI negotiates short ownership on an explicit undispatched refusal;
+`control stream` and the existing Python SDK retain one connection across a
+workflow. These paths reuse native dispatch, grants and generation checks.
+Appliance/headless profiles and existing exact-claim adapter checks remain
+separate. This does not yet bind the resident to an authenticated claim issuer
+or contain arbitrary same-user shell access. Installed Windows acceptance and
+other platform cutovers remain open. See
+[Tactical 095](../docs/tactical/095-windows-required-owner-session.md) and the
+[CLI lifecycle contract](../docs/access-admission.md#standalone-use).
 
 **Proposal:** preserve the mature provider implementations through a bounded
 migration:

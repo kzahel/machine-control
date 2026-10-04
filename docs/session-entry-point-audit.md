@@ -5,6 +5,11 @@ Status: **Current, source-reviewed** inventory; migration changes below are
 Owning topic: [unified desktop client](../topics/unified-desktop-client.md).
 Execution record: [Tactical 093](tactical/093-session-entry-point-audit.md).
 
+This matrix is the pre-migration baseline. The subsequent Windows desktop
+owner enforcement and common CLI compatibility slice are recorded in
+[Tactical 095](tactical/095-windows-required-owner-session.md); current lifecycle
+behavior is maintained in [access admission](access-admission.md).
+
 ## Scope and evidence
 
 The first migration step inventories public command families and independently

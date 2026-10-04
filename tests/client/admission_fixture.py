@@ -46,10 +46,12 @@ for line in sys.stdin.buffer:
     if operation == "control.dispatch":
         event("effect")
         if mode.startswith("outer"): event(request["request"]["operation"])
+        uncertain = mode in {"uncertain", "uncertain-accepted"}
         data = dict(schema="machine-control/v0", accepted=mode != "uncertain",
+            actualRoute="fixture", generation="fixture-generation", hostInterference="none", elapsedMs=0,
             operation=request["request"]["operation"], requestId=request["requestId"],
-            delivery="confirmed", effect="observed" if mode != "uncertain" else "unknown",
-            uncertainty="none" if mode != "uncertain" else "interrupted_after_possible_dispatch")
+            delivery="confirmed", effect="unknown" if uncertain else "observed",
+            uncertainty="interrupted_after_possible_dispatch" if uncertain else "none")
     if operation == "control.dispatch" and mode.startswith("outer"):
         data["data"] = {"reference":"fixture-outer-reference"}
         if mode == "outer-refused" and request["request"]["operation"] == "outer.step":
