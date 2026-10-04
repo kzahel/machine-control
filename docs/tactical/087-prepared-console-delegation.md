@@ -62,3 +62,20 @@ activation while the helper is unprepared. Trust remains enabled and no native
 effect occurs. The prepared positive path remains unqualified; ordinary signed
 launch qualification cannot prove an actual covered task or hardware takeover. Keep the parent coordinating plan active until its selected
 route matrix passes.
+
+**Current, preparation diagnostic:** the signed MC `8067b56` / YA `549602039`
+appliance probe passes ordinary enrollment, independent effects and Pause/Resume
+before attempting native helper preparation. Login Items approval succeeds
+through the existing strict authorization profile and canonical one-shot
+credential transport. The visible pane is “Login Items & Extensions,” while the
+actual authentication requester is “Login Items”; the mismatched requester
+refuses before credential delivery. Using the exact requester confirms delivery
+and effect, without adding a permission profile or grant.
+
+The initial post-approval preparation still fails with `unlock_not_installed`
+while Service Management reports approval granted. This is an unresolved helper
+bootstrap/installation diagnostic, not a successful prepared console. The probe
+removes its helper registration, confirms no installed receipt and restores the
+original application, socket, policy and operator preferences. No locked or
+covered task is attempted. Resolve and repeat this preparation gate before
+promoting the signed positive composition to live-tested evidence.
