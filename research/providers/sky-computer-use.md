@@ -31,14 +31,23 @@ Reading map:
 
 ## License and provenance
 
+The research repository is
+[`kzahel/machine-control-spike`](https://github.com/kzahel/machine-control-spike)
+(private; repository access required), with default branch `main`. For local
+work, check it out beside `machine-control` as `../machine-control-spike`.
+The evidence links below pin the published snapshot
+[`674b756`](https://github.com/kzahel/machine-control-spike/commit/674b756f4f44164dfdb19a71b8b64c930826833c)
+rather than depending on a local checkout or a moving branch. Later experiments
+must record their own snapshot before updating these references.
+
 The installed Computer Use plugin declares **Proprietary**. No separate
 open-source license grant was found in the bundled `@oai/sky` package manifest;
 do not infer one from its readable JavaScript. The separate Codex repository
 declares Apache-2.0, which does not relicense the desktop service or runtime.
 No proprietary code or assets are adopted. Exact versions, source revision,
 artifact hashes and inspection paths live in the
-[caller spike review](../../../machine-control-spike/docs/sky-caller-authorization.md)
-and [external MCP experiment](../../../machine-control-spike/docs/sky-mcp-external-host.md).
+[caller spike review](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-caller-authorization.md)
+and [external MCP experiment](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-mcp-external-host.md).
 
 ## Evidence and architecture
 
@@ -110,9 +119,9 @@ There are three different interfaces: MCP exposes tools such as `js` and
 observations; the trusted implementation sends private framed requests to Sky.
 A skill or lazily emitted API documentation teaches tool use; it supplies no
 OS permission or session authority. The
-[protocol and launch record](../../../machine-control-spike/docs/sky-mcp-external-host.md#three-protocol-layers)
+[protocol and launch record](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-mcp-external-host.md#three-protocol-layers)
 owns exact tool names and installation discovery, and the
-[transport record](../../../machine-control-spike/docs/sky-caller-authorization.md#transport-direct-source-findings)
+[transport record](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-caller-authorization.md#transport-direct-source-findings)
 owns framing and startup details.
 
 ### Reconstructed admission boundary
@@ -195,7 +204,7 @@ metadata identifies the Computer Use connector, app, tool and risk level, and
 offers session or session/always persistence according to native policy.
 Only an `accept` result permits the wrapped operation. It recognizes a
 persisted-state response marker; recognition does not locate the underlying
-storage. The [detailed approval trace](../../../machine-control-spike/docs/sky-caller-authorization.md#app-approval-separate-source-and-documented-behavior)
+storage. The [detailed approval trace](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-caller-authorization.md#app-approval-separate-source-and-documented-behavior)
 records source paths, fields and the inspected configuration schema.
 
 **Current, experiment ownership:** we wrote a temporary **MCP client/host**,
@@ -311,8 +320,8 @@ vulnerability or comprehensive security audit is claimed.
 
 ## Sources and investigation methods
 
-The spike's [exact inputs](../../../machine-control-spike/docs/sky-caller-authorization.md#exact-inputs)
-and [additional pins](../../../machine-control-spike/docs/sky-mcp-external-host.md#inputs-and-discovery)
+The spike's [exact inputs](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-caller-authorization.md#exact-inputs)
+and [additional pins](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-mcp-external-host.md#inputs-and-discovery)
 identify versions, source revisions, relative installation paths and SHA-256
 hashes. Binary addresses apply only to those ARM64 artifacts. Readable bundled
 JavaScript, native reconstruction, open-source code, product documentation
@@ -320,14 +329,14 @@ and experiments are different sources of evidence.
 
 | Question | Source and how inspected | Detailed record |
 | --- | --- | --- |
-| Installation and provenance | Package/plugin manifests, README, MCP template, selected launch fields and app archive; hashes and `codesign` inspection | [Inputs/discovery](../../../machine-control-spike/docs/sky-mcp-external-host.md#inputs-and-discovery) |
-| Native wire protocol and service startup | Distributed `targets/mac/native-pipe.js`, client and service facade; bounded source searches | [Transport](../../../machine-control-spike/docs/sky-caller-authorization.md#transport-direct-source-findings) |
-| Admission predicate | `strings`, `nm`, Swift metadata/demangling, bounded ARM64 disassembly and requirement initializers; not source access to the native service | [Control-flow and addresses](../../../machine-control-spike/docs/sky-caller-authorization.md#native-control-flow-follow-up) |
-| Runtime authority placement | Launcher and embedded runtime JS; owned handler/endpoint fixture with kernel `LOCAL_PEERPID` | [Runtime topology](../../../machine-control-spike/docs/sky-caller-authorization.md#runtime-topology-and-ancestry-follow-up) |
-| Real rejection and acceptance | Process trees, socket ownership/modes, `lsof`, scoped service logs, bounded framed probes and detached negative/positive pairs | [Initial probes](../../../machine-control-spike/docs/sky-caller-authorization.md#authorized-live-follow-up), [signed-parent experiment](../../../machine-control-spike/docs/sky-caller-authorization.md#signed-parent-admission-experiment) |
-| App policy versus approval | Distributed `computer-use-policy.js`; pinned Codex configuration schema/tests; official product documentation | [Approval trace](../../../machine-control-spike/docs/sky-caller-authorization.md#app-approval-separate-source-and-documented-behavior) |
-| App-server dependency and actual effects | Native locator reconstruction, service error/log, direct CLI initialize control, genuine external MCP client, fresh AX state and `textutil` file oracle | [External experiment](../../../machine-control-spike/docs/sky-mcp-external-host.md#experiment-and-result) |
-| Codex/YA host integration | Pinned open-source stdio transport, app-server request schema and YA provider request handler | [Host path](../../../machine-control-spike/docs/sky-caller-authorization.md#host-to-service-path), [YA gap](../../../machine-control-spike/docs/sky-mcp-external-host.md#yepanywhere-integration-gap) |
+| Installation and provenance | Package/plugin manifests, README, MCP template, selected launch fields and app archive; hashes and `codesign` inspection | [Inputs/discovery](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-mcp-external-host.md#inputs-and-discovery) |
+| Native wire protocol and service startup | Distributed `targets/mac/native-pipe.js`, client and service facade; bounded source searches | [Transport](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-caller-authorization.md#transport-direct-source-findings) |
+| Admission predicate | `strings`, `nm`, Swift metadata/demangling, bounded ARM64 disassembly and requirement initializers; not source access to the native service | [Control-flow and addresses](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-caller-authorization.md#native-control-flow-follow-up) |
+| Runtime authority placement | Launcher and embedded runtime JS; owned handler/endpoint fixture with kernel `LOCAL_PEERPID` | [Runtime topology](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-caller-authorization.md#runtime-topology-and-ancestry-follow-up) |
+| Real rejection and acceptance | Process trees, socket ownership/modes, `lsof`, scoped service logs, bounded framed probes and detached negative/positive pairs | [Initial probes](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-caller-authorization.md#authorized-live-follow-up), [signed-parent experiment](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-caller-authorization.md#signed-parent-admission-experiment) |
+| App policy versus approval | Distributed `computer-use-policy.js`; pinned Codex configuration schema/tests; official product documentation | [Approval trace](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-caller-authorization.md#app-approval-separate-source-and-documented-behavior) |
+| App-server dependency and actual effects | Native locator reconstruction, service error/log, direct CLI initialize control, genuine external MCP client, fresh AX state and `textutil` file oracle | [External experiment](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-mcp-external-host.md#experiment-and-result) |
+| Codex/YA host integration | Pinned open-source stdio transport, app-server request schema and YA provider request handler | [Host path](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-caller-authorization.md#host-to-service-path), [YA gap](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-mcp-external-host.md#yepanywhere-integration-gap) |
 
 **Current, retention limits:** records retain sanitized methods, results, pins
 and native anchors. Private paths, raw UI/log output, transient scripts,
