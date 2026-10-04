@@ -96,7 +96,18 @@ class FactoryStagesTests(unittest.TestCase):
              mock.patch.object(MODULE, "call", return_value=(True, "UUID Status Name\n")):
             ready, reason = MODULE.utm_destination("candidate", Path("/unused"))
         self.assertFalse(ready)
-        self.assertEqual(reason, "utm_library_unverified")
+        self.assertEqual(reason, "utm_scripting_unavailable")
+
+    def test_verified_empty_utm_library_allows_first_creation(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(MODULE.platform, "system", return_value="Darwin"), \
+             mock.patch.object(MODULE.platform, "machine", return_value="arm64"), \
+             mock.patch.object(MODULE.shutil, "which", return_value="/tool"), \
+             mock.patch.object(MODULE.os, "access", return_value=True), \
+             mock.patch.object(MODULE, "call", side_effect=[
+                 (True, "UUID Status Name\n"), (True, "0\n")]):
+            self.assertEqual(MODULE.utm_destination("candidate", Path(tmp)),
+                             (True, "utm_host_and_destination_verified"))
 
     def test_utm_inventory_read_does_not_hide_unresponsive_scripting(self):
         with mock.patch.object(MODULE.platform, "system", return_value="Darwin"), \

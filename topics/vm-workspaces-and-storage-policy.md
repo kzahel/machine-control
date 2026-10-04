@@ -98,6 +98,14 @@ workspace may exist by default, even when its initial storage is cheap.
 
 ## Storage vocabulary
 
+**Current:** the offline [disk-prune analyzer](../docs/storage-analysis.md)
+inspects current and legacy factory storage as well as provider and
+application-managed disk images. It reports logical and allocated sizes,
+unknown exclusive/reclaimable bytes, and incomplete scan coverage. Review
+categories confer no deletion authority; receipt-bound workspace cleanup
+remains separate. Retained appliance bring-up is tracked in
+[Tactical 090](../docs/tactical/090-retained-desktop-appliance-rebuild.md).
+
 **Decision:** logical disk size is not physical cost. Providers report a cost
 class and the strongest measurements they can support:
 

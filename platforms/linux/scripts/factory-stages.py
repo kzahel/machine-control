@@ -162,7 +162,7 @@ def utm_destination(name: str, factory_root: Path) -> tuple[bool, str]:
         return False, "utm_cli_unavailable"
     ok, listing = call(utmctl, "list", timeout=15)
     lines = listing.splitlines()
-    if not ok or not lines or not lines[0].startswith("UUID ") or len(lines) == 1:
+    if not ok or not lines or not lines[0].startswith("UUID "):
         return False, "utm_library_unverified"
     script_ok, count = call("osascript", "-e",
                             'tell application "UTM" to count virtual machines',

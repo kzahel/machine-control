@@ -1,5 +1,8 @@
 # Implementation Tacticals
 
+- [090 — Retained desktop appliance rebuild](090-retained-desktop-appliance-rebuild.md)
+  (active): disk analysis and retained Windows/Linux provisioning acceptance.
+
 Bounded implementation plans and execution records live here.
 
 Tacticals are selected from current [`topics/`](../../topics/README.md) and

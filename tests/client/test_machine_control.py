@@ -18,6 +18,14 @@ import machine_control  # noqa: E402
 
 
 class ClientTests(unittest.TestCase):
+    def test_precreation_is_available_without_unfencing_guest_operations(self):
+        for command in (["factory-create", "unused", "media"],
+                        ["factory-stages", "preflight", "--json"],
+                        ["target-id"], ["pin-target", "candidate"]):
+            self.assertFalse(machine_control.operation_requires_claim("testbed", ["--", *command]))
+        for command in (["up"], ["factory-detach-media"],
+                        ["factory-stages", "--json"], ["exec", "--", "id"]):
+            self.assertTrue(machine_control.operation_requires_claim("testbed", ["--", *command]))
     def test_linux_local_host_selects_native_adapter(self):
         target = machine_control.default_host_target("Linux")
         self.assertEqual(target["platform"], "linux")

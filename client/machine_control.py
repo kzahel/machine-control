@@ -3242,6 +3242,16 @@ def require_selected_claim(
 
 def operation_requires_claim(operation: str, arguments: list[str]) -> bool:
     subcommand = arguments[0] if arguments else ""
+    if operation == "testbed":
+        values = arguments[1:] if arguments[:1] == ["--"] else arguments
+        # Precreation and exact inventory bootstrap cannot require a claim on
+        # a VM which does not exist or has not been pinned. Adapter guards
+        # still require an unused destination; guest operations stay fenced.
+        if values[:1] in (["factory-create"], ["factory-preflight"],
+                          ["target-id"], ["pin-target"], ["help"]):
+            return False
+        if values[:2] == ["factory-stages", "preflight"]:
+            return False
     if operation == "target":
         return subcommand not in {"status", "doctor", "capabilities"}
     if operation == "maintenance":
@@ -3597,6 +3607,8 @@ Commands:
                                     identity --paths includes resolved locations
   audit history [--claim-id ID] [--claimant-id ID] [--since UTC] [--limit N]
                                     Read private controller history (offline)
+  storage analyze [--root PATH] [--minimum-bytes N]
+                                    Inspect disk images; never deletes (offline)
   inventory list|status|guide|credentials|doctor
                                     Use the private deployment inventory
   targets                         List logical targets without private paths
@@ -3813,6 +3825,11 @@ def main(argv: list[str] | None = None) -> int:
                     "audit_history_unavailable",
                     "Controller audit history is unavailable or the query is invalid",
                 ) from error
+        if operation == "storage":
+            from storage_analysis import handle
+
+            emit(handle(remainder[1:]))
+            return 0
         if operation == "inventory":
             return run_inventory(known.inventory_provider, remainder[1:])
         targets, registry_source = load_registry(
