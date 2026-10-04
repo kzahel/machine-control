@@ -70,6 +70,172 @@ second common administration path. A fresh already-resolved SSH call was about
 reuse is deferred: it would not materially reduce the remaining adapter and
 claim cost.
 
+## Proposed connection-oriented agent interface
+
+**Proposal:** make a claimed logical session the ordinary interface for
+multi-step agent workflows. Keep the CLI supported for discovery, doctor,
+claim/lifecycle management, scripts and occasional operations. CLI statelessness
+does not require stateless enforcement: a one-shot client can request a short
+session, while a task runner, SDK or MCP integration holds one across a workflow.
+Low expected concurrency is a convenience assumption, not a reason to bypass
+the same admission and authorization checks.
+
+The motivation is reliable ownership across observations and effects, explicit
+caller lifetime and reduced repeated setup. Process-launch reduction must be
+measured separately; changing the front-end transport does not eliminate
+subprocesses inside adapters, claim checks or resident observation.
+
+**Current:** `ControlSession` already provides a live owner channel on supported
+profiles. The [admission guide](../docs/access-admission.md) owns its wire and
+cleanup behavior. One-shot calls and this channel still coexist; this proposal
+does not claim uniform session enforcement across all platforms or operations.
+
+**Proposal:** unify clients around these rules:
+
+- Bind the exact target, existing claim and its generation, permitted scopes,
+  verified caller assurance, and active control ownership to a server-side
+  session. These remain distinct facts with distinct expiration/revocation
+  rules. A claim ID in command arguments selects cooperative ownership; it
+  does not authenticate the process presenting it. Connection possession alone
+  is likewise not proof of an approved caller.
+- Authenticate or explicitly classify the caller when opening the channel.
+  A broker multiplexing agents retains separate logical owners and scopes;
+  one persistent process must not silently share one claim or grant among them.
+  An eligible CLI may use an inherited session channel, or explicitly establish
+  its own bounded session, without inventing an agent identity from ancestry.
+- Revalidate claim expiry/replacement, authority, pause and resource generations
+  at authoritative dispatch. Serialize effects for the contended resource and
+  preserve ownership across sequences such as focus-then-type. A claim-store
+  record lock or serialized individual handlers does not reserve that sequence.
+- End active ownership promptly on caller/channel loss, with finite watchdogs
+  as the backstop. A connection borrowing an existing claim does not acquire
+  authority to release or renew that claim; the explicit claim owner manages
+  its lifetime. Reconnect requires fresh admission, and uncertain effects are
+  never automatically replayed.
+- Keep CLI, SDK and MCP projections on the same operation/result contract.
+  Retain Unix sockets or platform-native IPC locally and authenticated carriers
+  remotely. A new WebSocket endpoint is not required to obtain these semantics.
+  Audit legacy, browser, protected and recovery routes before claiming uniform
+  enforcement; preserve explicit emergency-stop behavior.
+
+**Comparison:** the [Sky dossier](../research/providers/sky-computer-use.md)
+provides evidence for a persistent model-facing runtime, app bindings and a
+native supervisor owning the service connection. It does not establish the
+same claim model or agent-session authentication. Reuse that ergonomic pattern
+through an owned implementation, while
+[caller authorization](caller-authorization.md) owns identity and grants,
+[admission](access-admission-and-pause.md) owns active desktop arbitration, and
+[target-use claims](target-use-claims.md) owns exact-resource coordination.
+The [provider comparison](provider-landscape.md#optional-sky-provider-and-agent-facing-compatibility)
+keeps facade similarity separate from adopting Sky as an optional provider.
+
+### Versioning and implementation boundary
+
+**Proposal:** migrate incrementally to one authoritative session contract,
+not two independently implemented old/new operation APIs. Negotiate the session
+protocol and advertised capabilities explicitly. Extend existing admission v1
+where compatible; introduce a successor only for incompatible lifecycle or
+authority semantics. Preserve existing typed operations and result envelopes
+where their meaning is unchanged. A product label such as "API v2" must not
+substitute for enumerating those compatibility changes.
+
+CLI, desktop integration and agent runtimes should call the same authoritative
+dispatch path for target operations. The desktop's native approval, trust,
+Pause and Stop controls remain a separately authenticated operator channel;
+agents cannot obtain operator authority by calling the same control methods.
+Headless deployment must remain usable without the desktop app. Share policy
+and contract behavior, rather than requiring identical implementation languages
+or process placement across all platforms.
+
+Keep arbitrary model-written Python/JavaScript outside the native resident and
+protected broker. A persistent interpreter is a client with bounded resources,
+its own cancellation/reset lifecycle, and an explicit execution security
+profile. Interpreter persistence does not imply sandboxing or permission to
+forward arbitrary code into privileged providers. Its app/device handles call
+typed operations and still reject stale references and revoked authority.
+
+**Proposal:** initially reuse the existing Python session client to prove the
+contract and compatibility CLI. Prototype one thin persistent model-facing
+runtime, comparing Python and JavaScript on identical fixture workflows before
+selecting a supported default. Evaluate task success, tool/output ergonomics,
+tokens, latency, packaging, process/resource counts and cancellation. A language
+choice should not require rewriting native providers or create another policy
+implementation. Sky-like handles, compact state/diffs and images are facade
+choices, not the universal device or security model.
+
+### Platform fit
+
+**Proposal:** use the same logical session vocabulary with platform-specific
+authority placement and capability namespaces:
+
+| Target | Enforcement placement to qualify | Existing implementation to preserve |
+| --- | --- | --- |
+| Windows, macOS, Linux | Target-resident session boundary, with separately authorized protected providers | Native desktop companions, application APIs and existing provider adapters |
+| ChromeOS | Target-local controller reached through authenticated SSH or an equivalent carrier | `chrome.automation`, page CDP, DRM/EGL capture and evdev/uinput; no controller-desktop manipulation |
+| iOS | Authoritative Mac device host bound to the exact device and runner generation | CoreDevice/XCTest, signing, pairing and existing device lease; no general resident daemon or shell assumed on the phone |
+| Android/Quest | Authoritative device host or qualified resident route, bound to exact device/boot identity | ADB and device-native facilities, current lease and protected-operation policies |
+
+This is a migration map, not a claim that these session endpoints all exist.
+Keep device-shaped operations explicit; unsupported windows, shells, protected
+input or lifecycle operations must not be fabricated for vocabulary symmetry.
+Existing device leases must be adapted or deliberately cut over to the common
+authority, never supplemented with an independent competing claim store.
+If multiple controllers can reach one resource, identify the single arbitration
+authority or an explicit single-controller constraint. Independent local claim
+files cannot guarantee cross-controller exclusivity.
+
+Begin with coarse exclusive interaction ownership; add finer app/tab sharing
+only after proving resource independence. Observations require their applicable
+authorization, while claim-free readiness diagnostics stay available. Capture,
+global focus/input, runner restart, installation, administration, protected
+control and outer recovery need explicit scope/conflict classifications rather
+than one undifferentiated desktop-mutation flag. Shared host input used for VM
+recovery must still contend with physical host use.
+
+### Ordered migration and acceptance
+
+**Proposal:** preserve the mature provider implementations through a bounded
+migration:
+
+1. **Inventory dispatch and authority.** Produce an operation/entry-point matrix
+   covering common CLI, platform wrappers, direct resident IPC, browser routes,
+   desktop integration, administration and protected/outer paths. Record exact
+   authority, resource conflicts, current bypasses, compatibility behavior and
+   evidence level. Classify existing profiles honestly; a new session cannot
+   turn cooperative same-user access into hostile-process containment.
+2. **Prove one shared session boundary.** Reuse the existing Windows vertical
+   slice and Mac owner channels for ordinary observation/input/app operations.
+   Prove CLI one-shot, CLI retained-task and direct SDK requests reach the same
+   checks, generations, provider and outcomes. Use portable fixtures to cover
+   ChromeOS/iOS placement before expanding live implementation across platforms.
+   This slice has no persistent code interpreter requirement.
+3. **Move consumers onto that boundary.** Route desktop target operations and
+   existing CLI commands through the session client. One-shot compatibility
+   can acquire short ownership or join an explicitly inherited session; scripts
+   retain ownership across related calls. Do not silently fall back to legacy
+   ambient access when a new endpoint denies or lacks required semantics.
+   Retain clearly declared legacy profiles until their parity gate passes.
+4. **Add the model-facing runtime.** Hold logical sessions per caller and target,
+   expose bounded code execution with reusable handles and rich outputs, and
+   keep MCP a projection of the same contract. Multiplexing does not merge
+   caller grants. Reset/crash closes owned control; borrowed claims retain
+   their separately defined lifetime.
+5. **Qualify and cut over each remaining provider.** Exercise ChromeOS and iOS
+   early as distinct placement proofs, then Android/Quest and remaining desktop
+   cells. Turn down legacy mutation routes per profile only after equivalent
+   functionality and negative tests pass. Keep diagnostic/recovery access
+   explicit and independently usable.
+
+**Open — release gates:** prove two independent callers, parallel calls sharing
+a claim, generation replacement, claim expiry, pause/Stop, reset, dropped
+connections, provider crashes and unknown delivery without replay. Test both
+local and remote callers and direct-route bypasses. Attribute audit intent,
+dispatch and results across clients without recording secrets; preserve the
+[audit coverage distinctions](target-operation-audit.md) rather than claiming
+that a client log proves provider effects. Measure idle and active subprocess
+churn and retained resources separately from UI correctness. No CLI deprecation,
+new security guarantee or runtime behavior is established by this proposal.
+
 ## Escape hatches
 
 **Decision:** Unification stops where platform semantics become misleading.
