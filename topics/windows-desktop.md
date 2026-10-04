@@ -14,7 +14,8 @@ contract. Supervise a self-contained companion; require neither a separately
 installed .NET runtime nor the privileged appliance service.
 
 **Decision:** The desktop resident starts with access off. Enforce scope,
-bounded duration, approval narrowing, prompt-time input pause, Stop, expiry,
+timed or operator-selected until-stopped access, approval narrowing,
+prompt-time input pause, Stop, expiry,
 session/desktop transitions, and stale-reference invalidation in resident
 dispatch. Approval uses a private operator channel, never the agent endpoint.
 Preview grants apply to callers of the same user; this does not contain an
@@ -36,6 +37,14 @@ checked-in versioned notes. Exact signed installed acceptance precedes any
 Windows support claim.
 
 ## Execution and remaining gates
+
+**Current, implementation:** the native operator supports **Until I turn it
+off**, with explicit `until_stopped` lifetime and null remaining seconds.
+Dispatch and admission skip only the absent expiry; scopes, Stop, pause,
+availability and update exclusion remain enforced. Public agent approvals
+remain timed. Public 0.5.3 does not include this Windows feature.
+[Tactical 091](../docs/tactical/091-desktop-until-stopped.md) owns native
+acceptance and the next unified release. Restart/reboot persistence is deferred.
 
 **Current:** Public 0.5.3 x64 passes the installed Python CLI's ordinary-user
 native approval, refusal, independent Cua counter effect, capture/artifact hash,

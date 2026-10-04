@@ -54,7 +54,7 @@ class Grants:
         self.activity = deque(maxlen=100)
 
     def refresh(self):
-        if self.grant and self.clock() >= self.grant["expires"]:
+        if self.grant and self.grant["expires"] is not None and self.clock() >= self.grant["expires"]:
             self.stop("expired")
         if self.pending and self.clock() >= self.pending["expires"]:
             self.finish_pending(False, "approval_timeout")
@@ -90,16 +90,20 @@ class Grants:
         if self.journal and not self.journal.event("access.enabled"):
             raise ValueError("Audit storage unavailable")
         self.generation = uuid.uuid4().hex
-        self.grant = {"scopes": selected, "expires": self.clock() + seconds,
+        self.grant = {"scopes": selected, "expires": self.clock() + seconds if seconds is not None else None,
+                      "lifetime": "timed" if seconds is not None else "until_stopped",
                       "reason": reason, "requester": caller}
         self.last_ended = None
         self.changed()
 
-    def arm(self, selected, seconds):
+    def arm(self, selected, seconds, lifetime="timed"):
         self.refresh()
         if not self.ready or self.updating or self.pending:
             raise ValueError("Finish approval and use an unlocked desktop")
-        self.issue(scopes(selected), duration(seconds), "Enabled by the person", "local operator")
+        if lifetime not in ("timed", "until_stopped"):
+            raise ValueError("Choose a supported access lifetime")
+        self.issue(scopes(selected), duration(seconds) if lifetime == "timed" else None,
+                   "Enabled by the person", "local operator")
 
     def request(self, request, caller, complete):
         self.refresh()
@@ -179,13 +183,14 @@ class Grants:
         grant = None
         if self.grant:
             grant = {**self.grant, "scopes": sorted(self.grant["scopes"]),
-                     "remainingSeconds": max(0, math.ceil(self.grant["expires"] - self.clock()))}
+                     "remainingSeconds": max(0, math.ceil(self.grant["expires"] - self.clock()))
+                     if self.grant["expires"] is not None else None}
             del grant["expires"]
         pending = None
         if self.pending:
             pending = {k: self.pending[k] for k in ["id", "reason", "caller", "duration"]}
             pending["scopes"] = sorted(self.pending["scopes"])
-        return {"generation": self.generation,
+        return {"generation": self.generation, "manualUntilStoppedSupported": True,
                 "deployment": {"policy": {"preset": "workstation", "grantMode": "approval"},
                                "grant": grant, "pendingRequest": pending},
                 "pending": pending, "activity": list(reversed(self.activity)),

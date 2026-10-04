@@ -86,7 +86,8 @@ internal static class DesktopHost
                             BrowserRegistration.Install();
                             reply = new { ok = true }; break;
                         case "arm":
-                            broker.Arm(command["scopes"]?.Deserialize<string[]>(), command["duration"]?.GetValue<int>() ?? 900);
+                            broker.Arm(command["scopes"]?.Deserialize<string[]>(), command["duration"]?.GetValue<int>() ?? 900,
+                                command["lifetime"]?.GetValue<string>() ?? "timed");
                             reply = new { ok = true }; break;
                         case "decision":
                             broker.Decide(command["id"]?.GetValue<string>() ?? "", command["allow"]?.GetValue<bool>() == true,

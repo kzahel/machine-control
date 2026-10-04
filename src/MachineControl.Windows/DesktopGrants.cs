@@ -105,7 +105,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         lock (Gate)
         {
             if (Journal?.Available == false) return "audit_storage_unavailable";
-            if (_grant is not null && Elapsed(_grant.Started) >= _grant.Duration) return "expired";
+            if (_grant?.Duration is int duration && Elapsed(_grant.Started) >= duration) return "expired";
             return _grant is not null && scopes.All(_grant.Scopes.Contains) ? null : "approval_required";
         }
     }
@@ -158,14 +158,20 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         }
     }
 
-    internal void Arm(string[]? scopes, int duration)
+    internal void Arm(string[]? scopes, int duration, string lifetime = "timed")
     {
         lock (Gate)
         {
             Refresh();
             if (!_ready || _updating || _pending is not null)
                 throw new InvalidOperationException("Finish approval and use an unlocked desktop before enabling access");
-            Issue(ValidateScopes(scopes), ValidateDuration(duration), "Manually enabled by the person", "local operator");
+            int? seconds = lifetime switch
+            {
+                "timed" => ValidateDuration(duration),
+                "until_stopped" => null,
+                _ => throw new ArgumentException("Choose a supported access lifetime"),
+            };
+            Issue(ValidateScopes(scopes), seconds, "Manually enabled by the person", "local operator");
         }
     }
 
@@ -190,7 +196,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         }
     }
 
-    private void Issue(HashSet<string> scopes, int duration, string reason, string caller)
+    private void Issue(HashSet<string> scopes, int? duration, string reason, string caller)
     {
         if (Journal?.Event("access.enabled") == false) throw new InvalidOperationException("Audit storage unavailable");
         _generation = Guid.NewGuid().ToString("n");
@@ -230,7 +236,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     {
         lock (Gate)
         {
-            if (_grant is not null && Elapsed(_grant.Started) >= _grant.Duration) Stop("expired");
+            if (_grant?.Duration is int duration && Elapsed(_grant.Started) >= duration) Stop("expired");
             if (_pending is not null && Elapsed(_pending.Started) >= _pending.Timeout)
             {
                 Journal?.Event("access.approval_timeout", false);
@@ -260,7 +266,9 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     private object? GrantState() => _grant is null ? null : new
     {
         scopes = _grant.Scopes.Order().ToArray(),
-        remainingSeconds = Math.Max(0, (int)Math.Ceiling(_grant.Duration - Elapsed(_grant.Started))),
+        lifetime = _grant.Duration is null ? "until_stopped" : "timed",
+        remainingSeconds = System.Text.Json.JsonSerializer.SerializeToElement(_grant.Duration is int duration
+            ? (int?)Math.Max(0, (int)Math.Ceiling(duration - Elapsed(_grant.Started))) : null),
         reason = _grant.Reason,
         requester = _grant.Caller,
         binding = "target_wide",
@@ -290,6 +298,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             return new
             {
                 generation = _generation,
+                manualUntilStoppedSupported = true,
                 deployment = DeploymentState(),
                 pending = _pending is null ? null : new
                 {
@@ -318,7 +327,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     private static int ValidateDuration(int seconds) => seconds is >= 60 and <= 28800
         ? seconds : throw new ArgumentException("Duration must be 60-28800 seconds");
 
-    private sealed record LiveGrant(HashSet<string> Scopes, int Duration, string Reason, string Caller, long Started);
+    private sealed record LiveGrant(HashSet<string> Scopes, int? Duration, string Reason, string Caller, long Started);
     private sealed record PendingGrant(string Id, HashSet<string> Scopes, int Duration, int Timeout,
         string Reason, string Caller, long Started, TaskCompletionSource<GrantReply> Completion);
 }

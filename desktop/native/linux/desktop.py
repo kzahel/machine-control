@@ -236,7 +236,8 @@ class Desktop:
             self.journal.diagnostic("desktop.supervisor", command.get("code", "unknown"))
             return {"ok": True}
         if method == "arm":
-            self.grants.arm(command.get("scopes"), command.get("duration", 900))
+            self.grants.arm(command.get("scopes"), command.get("duration", 900),
+                            command.get("lifetime", "timed"))
         elif method == "decision":
             self.grants.decide(command.get("id"), command.get("allow") is True,
                                command.get("scopes"), command.get("duration", 0))

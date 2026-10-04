@@ -18,7 +18,8 @@ X11, protected login/unlock, other users, and physical hardware require their
 own evidence.
 
 **Decision:** Preserve the compact Access, Permissions, Activity, and Settings
-UX, native approval, scoped timed grants, Stop, expiry, own-interface protection,
+UX, native approval, scoped timed or operator-selected until-stopped grants,
+Stop, expiry, own-interface protection,
 session-loss revocation, and reference generations. Only the inherited operator
 channel can arm or approve; same-user agents with shells are not contained.
 
@@ -63,3 +64,10 @@ package authentication and the Debian CLI/core acceptance above.
 **Open:** Native ARM64 desktop execution, physical hardware, other compositors,
 multiple monitors/scaling, suspend/resume, arbitrary window activation, and
 protected login/unlock need separate acceptance.
+
+**Current, implementation:** the native operator supports **Until I turn it
+off**, reporting `until_stopped` and null remaining seconds. Session loss still
+revokes access; scopes, Stop and update exclusion remain enforced. Public
+agent requests stay timed. This is not in public 0.5.3. [Tactical 091](../docs/tactical/091-desktop-until-stopped.md)
+owns installed acceptance and unified publication. Restart/reboot persistence
+is deferred.

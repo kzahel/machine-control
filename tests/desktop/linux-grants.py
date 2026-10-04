@@ -92,6 +92,58 @@ class GrantsTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.broker.arm(value, 30)
 
+    def test_until_stopped_has_no_expiry_and_retains_scopes(self):
+        self.broker.arm(["observe"], 0, "until_stopped")
+        self.now = 365 * 24 * 3600
+        state = self.broker.state()
+        self.assertTrue(state["manualUntilStoppedSupported"])
+        self.assertEqual(state["deployment"]["grant"]["lifetime"], "until_stopped")
+        self.assertIsNone(state["deployment"]["grant"]["remainingSeconds"])
+        self.assertIsNone(self.broker.authorize("snapshot"))
+        self.assertEqual(self.broker.authorize("input.key"), "approval_required")
+        with self.assertRaises(ValueError):
+            self.broker.prepare_update()
+        generation = self.broker.generation
+        self.broker.stop()
+        self.assertEqual(self.broker.authorize("snapshot", generation), "stale_generation")
+        self.assertEqual(self.broker.authorize("snapshot"), "approval_required")
+        self.broker.prepare_update()
+        with self.assertRaises(ValueError):
+            self.broker.arm(["observe"], 0, "until_stopped")
+
+    def test_until_stopped_session_loss_and_timed_replacement(self):
+        self.broker.arm(["observe"], 0, "until_stopped")
+        self.broker.set_ready(False)
+        self.assertIsNone(self.broker.grant)
+        self.broker.set_ready(True)
+        self.assertEqual(self.broker.authorize("snapshot"), "approval_required")
+        self.broker.arm(["observe"], 0, "until_stopped")
+        self.broker.arm(["observe"], 30)
+        self.assertEqual(self.broker.state()["deployment"]["grant"]["lifetime"], "timed")
+        self.now = 30
+        self.assertEqual(self.broker.authorize("snapshot"), "approval_required")
+
+    def test_until_stopped_keeps_public_approvals_bounded(self):
+        self.broker.arm(["observe"], 0, "until_stopped")
+        with self.assertRaises(ValueError):
+            self.request(scopes=["observe"], durationSeconds=0, lifetime="until_stopped")
+        self.request(lifetime="until_stopped")
+        with self.assertRaises(ValueError):
+            self.broker.arm(["observe"], 0, "until_stopped")
+        with self.assertRaises(ValueError):
+            self.broker.decide(self.broker.pending["id"], True, ["observe"], 0)
+        self.broker.decide(self.broker.pending["id"], True, ["observe"], 10)
+        self.now = 10
+        self.assertEqual(self.broker.authorize("snapshot"), "approval_required")
+
+    def test_until_stopped_rejects_invalid_lifetime_and_scopes(self):
+        for lifetime in [None, "", "forever", True]:
+            with self.assertRaises(ValueError):
+                self.broker.arm(["observe"], 30, lifetime)
+        for selected in [[], ["shell"], None]:
+            with self.assertRaises(ValueError):
+                self.broker.arm(selected, 0, "until_stopped")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -173,14 +173,16 @@ owns packaging and exact signed-artifact validation.
 
 **Current:** In the MVP, the workstation preset is off by default.
 
-**Decision:** The Mac local operator can choose **Until I turn it off** when
+**Decision:** Every packaged desktop local operator can choose **Until I turn it off** when
 manually enabling selected scopes. That in-memory grant has no timer and
 reports `lifetime: until_stopped` with null expiry and remaining seconds.
 Stop, caller revocation, leaving an unlocked desktop, and resident exit still
 end access. Restart starts with access off. Agent approval requests retain
 bounded durations; they cannot create this lifetime through the public socket.
 The shared UI exposes this choice only when the native operator advertises
-support. Public `0.4.9` passes signed ARM64 Tart checks for visible selection,
+support. Windows and Linux implementation and release acceptance are owned by
+[Tactical 091](../docs/tactical/091-desktop-until-stopped.md). Existing platform
+pause/session behavior remains; that slice does not add restart persistence. Public `0.4.9` passes signed ARM64 Tart checks for visible selection,
 null expiry/countdown, selected scopes, independent fixture effect, Stop,
 Restart with access off and retained permissions, and bounded agent approval.
 [Tactical 057](../docs/tactical/057-macos-until-stopped-release.md) owns this
