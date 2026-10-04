@@ -215,10 +215,21 @@ try {
    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,'Until I turn it off'),
    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::ListItem),
    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::IsOffscreenProperty,$false)))
-  $options=[Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Descendants,$condition)
+  $deadline=[DateTime]::UtcNow.AddSeconds(8)
+  do {
+   $options=[Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Descendants,$condition)
+   if ($options.Count -eq 1) {break}
+   Start-Sleep -Milliseconds 100
+  } while ([DateTime]::UtcNow -lt $deadline)
   Assert ($options.Count -eq 1) 'One visible native indefinite access option'
   $options[0].GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
-  Assert ($combo.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value -eq 'Until I turn it off') 'Native access duration selection changed'
+  $deadline=[DateTime]::UtcNow.AddSeconds(8)
+  do {
+   $selected=$combo.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).Current.Value
+   if ($selected -eq 'Until I turn it off') {break}
+   Start-Sleep -Milliseconds 100
+  } while ([DateTime]::UtcNow -lt $deadline)
+  Assert ($selected -eq 'Until I turn it off') 'Native access duration selection changed'
   Press 'Enable access';WaitGrant $true
   $grant=Granted
   Assert ($grant.lifetime -eq 'until_stopped' -and $null -eq $grant.remainingSeconds) 'Visible choice creates indefinite native grant'
