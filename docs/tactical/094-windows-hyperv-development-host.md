@@ -2,7 +2,8 @@
 
 Status: host inspected; bounded QEMU/WHPX probes passed on Windows Home, but
 Windows 11 qualification is blocked by native-host TPM support. A subsequent
-VirtualBox experiment booted the installer but stalled before guest acceptance.
+VirtualBox experiment reached the installed kernel after cold recovery but
+setup stalled again before guest acceptance; the scratch VM is stopped.
 Native builds and provider implementation remain open.
 
 Owning topics: [VM workspaces](../../topics/vm-workspaces-and-storage-policy.md),
@@ -319,23 +320,42 @@ answer; guest authentication has **not** been verified.
 These are single experiment measurements, not build/deploy benchmarks. The
 native Windows hypervisor backend reported slow execution mode. WSL remained
 responsive, but coexistence performance is not qualified. After the blank
-screen, the disk stopped changing; a provider-native Shift tap had no visible
-effect. Read-only debugger probes identified a Windows kernel and reported no
-bugcheck. The cause remains unknown. Console capture/input was limited to this
+screen, the disk file timestamp stopped changing; a provider-native Shift tap
+had no visible effect. Read-only debugger probes identified a Windows kernel
+and reported no bugcheck. The cause remains unknown. Console capture/input was limited to this
 explicit bootstrap diagnosis and did not use the host desktop.
 
-Cleanup is incomplete pending an operator decision on forced guest recovery:
-the unaccepted scratch VM remains running, with its private disk, NVRAM/TPM
-state, installation media and credential store retained. No forced stop,
-reset, host reboot or host security change occurred. The provisioning journal
-remains open at this recovery boundary. Ordinary diagnostic files were checked
-for the assigned password with no matches; required answer media stays private.
-No accepted target or claim was created. Direct-script operations are recorded
+At the initial check-in, cleanup was incomplete pending an operator decision
+on forced guest recovery. The unaccepted scratch VM and its private disk,
+NVRAM/TPM state, installation media and credential store were retained. No
+accepted target or claim was created. Direct-script operations were recorded
 manually because no common VirtualBox adapter exists.
 
-Result: scriptable creation and headless installer boot are demonstrated;
-Windows installation, effective Secure Boot/TPM, credential authentication,
-guest command effects and cold-start recovery remain unproved. The
+The operator then authorized forced recovery. Exact-UUID force-stop followed
+by one headless cold boot resumed setup from the existing disk; the start
+command took 3.15 s. Within about one minute, setup displayed its next stage,
+then advanced to 42%. Read-only debugger inspection identified the installed
+Windows kernel. Storage counters showed continued I/O through roughly seven
+minutes, despite an unchanged VDI timestamp and blank console. This corrects
+the earlier interpretation of file timestamps as evidence of stopped writes.
+The counters subsequently remained unchanged for several minutes and Guest
+Additions never became available. No bugcheck was reported. A second clean
+ACPI shutdown request did not stop the guest during 108 s of observation.
+
+Cleanup: the same scratch VM was force-stopped under the recovery authorization
+after approximately 12.2 min of this cold-boot attempt. Power-off readback was
+verified and no further recovery boot attempted. Headless VM processes exited;
+the disk, firmware/TPM state, media and private credentials remain for diagnosis.
+The canonical secret was rechecked against the prepared answer, and ordinary
+diagnostic files contained no matches for that secret. Guest authentication
+remains unverified. Host boot time stayed unchanged; no host security/feature
+changes occurred. The journal closed as blocked with the retained resource
+state and credential limitation recorded.
+
+Result: scriptable creation, headless installer boot and installed-kernel boot
+are demonstrated. Completed Windows setup, effective Secure Boot/TPM,
+credential authentication, guest command effects and recovery to guest readiness
+remain unproved. The
 [provider dossier](../../research/providers/virtualbox.md) owns the capability
 assessment. Common-provider integration, isolated workspaces, resident
 acceptance, native builds and both measured iteration cycles remain pending.

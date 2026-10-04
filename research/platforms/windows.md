@@ -342,7 +342,9 @@ source review found native Windows-host TPM emulation unavailable, blocking
 qualification with Windows 11 security requirements intact. Hyper-V remains
 unimplemented. The operator subsequently selected a bounded
 [VirtualBox experiment](../providers/virtualbox.md); headless Windows 11
-installation booted but stalled before guest-side acceptance.
+installation booted and an authorized cold recovery reached the installed
+kernel, but setup stalled again before guest-side acceptance. The scratch VM
+is stopped and retained for diagnosis.
 
 **Current:** The macOS-hosted UTM route has a live-observed ScriptingBridge
 CLI crash before guest dispatch. See the [UTM dossier](../providers/utm.md)

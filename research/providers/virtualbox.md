@@ -1,8 +1,8 @@
 # Oracle VirtualBox
 
-Status: headless Windows 11 installer boot on Windows Home x64 is
-`live-tested`; installation stalled before guest acceptance. Not adopted
-behind the common adapter.
+Status: headless installer and installed Windows kernel boot on Windows Home
+x64 are `live-tested`; setup stalled again after one authorized cold recovery.
+Guest acceptance is blocked. Not adopted behind the common adapter.
 
 ## Provider and licensing
 
@@ -58,10 +58,19 @@ is not a substitute for checking its effective state inside Windows.
 
 Installation reached 77%, then presented a blank console without Guest
 Additions becoming available. Read-only debugger inspection reported a Windows
-kernel and no bugcheck; disk writes stopped. The native Windows hypervisor backend
+kernel and no bugcheck; the disk file timestamp stopped changing. That timestamp
+alone does not establish an absence of I/O. The native Windows hypervisor backend
 reported its slow execution mode. These observations do not identify the cause
-of the stall or establish a general compatibility failure. Guest security,
-password authentication and command effects remain unverified.
+of the stall or establish a general compatibility failure.
+
+An operator-authorized force-stop and cold boot resumed setup on the existing
+disk and reached the installed Windows kernel. Setup advanced, then returned
+to a blank console without Guest Additions. Actual storage counters showed
+ongoing writes before becoming unchanged for several minutes; a second clean
+ACPI shutdown did not stop the guest. It was force-stopped under the recovery
+authorization and retained for diagnosis, without a further boot or host reboot.
+Guest security, password authentication and command effects remain unverified.
+Do not infer stalled I/O from a VDI file timestamp: use provider storage counters.
 
 ## Fit and remaining gates
 

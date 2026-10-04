@@ -196,7 +196,9 @@ that gap: evaluate QEMU/WHPX before requiring an edition upgrade. Bounded
 but follow-up qualification is blocked by upstream's native Windows-host TPM
 exclusion. Do not bypass Windows 11 security requirements or adopt QEMU/WHPX
 from acceleration evidence alone. **Decision:** the operator authorized a
-bounded [VirtualBox evaluation](../research/providers/virtualbox.md) next.
+bounded [VirtualBox evaluation](../research/providers/virtualbox.md).
+**Current:** installer and installed-kernel boots worked, but setup stalled
+again after an authorized cold recovery; the scratch VM is stopped.
 Qualify guest security, headless administration and WSL coexistence before
 implementation; this is not provider adoption. VMware remains unselected.
 
