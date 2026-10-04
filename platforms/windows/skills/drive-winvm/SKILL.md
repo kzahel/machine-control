@@ -43,8 +43,12 @@ Read the result before acting:
   default). Windows update/recovery and delayed post-boot services can be
   healthy but slow. Continue bounded read-only probes; do not shut down,
   restart, or force-stop the target during this interval.
-- If TCP/SSH fails, capture the UTM window and use provider recovery. Read
-  `docs/bootstrap.md` when OpenSSH needs repair.
+- If SSH reports a changed host key, use claimed `testbed --
+  trust-ssh-host-key`. This verifies the selected guest's public key through
+  its authenticated guest-agent channel; never disable host-key checking.
+  Repeat doctor afterward. For other administration failures, read
+  `docs/bootstrap.md` and use the bounded maintenance audit before considering
+  recovery. An outer-UI prohibition remains absolute.
 - If SSH works but the UI relay fails, check whether Explorer has an
   interactive session. Wait for configured auto-logon or use the stored-login
   command below for an observed sign-in surface; then run `winvm deploy-ui`
@@ -75,8 +79,7 @@ winvm ui launch notepad.exe
 
 Private inventory stores a typed locator next to the VM metadata and keeps the
 password bytes in an untracked controller-local file. With a live target-use
-claim in `claim_id`, resolve the ready locator and stream it through the
-dedicated login helper:
+claim in `claim_id`, use the inventory-aware testbed login operation:
 
 ```bash
 bin/machine-control inventory credentials winvm --json

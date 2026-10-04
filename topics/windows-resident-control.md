@@ -379,3 +379,14 @@ provenance.
 - How multiple displays, RDP/console sessions, fast-user switching, and nested
   VMs are represented.
 - Which physical Windows machines warrant BMC, power, or hardware-KVM support.
+
+**Current — exact native reference actions:**
+[Tactical 064](../docs/tactical/064-windows-exact-semantic-references.md) fixes
+the native UIA duplicate-label defect exposed by a real application's Start
+button.
+Reference invoke/set.value resolve only the observed process and opaque UIA
+runtime ID; missing identities refuse without label fallback. Fresh reference
+tokens do not overwrite older observations. Duplicate-control effects,
+removed-element refusal, generation fencing and a real application pass on
+Windows x64. UIA runtime IDs are not durable identities across arbitrary
+provider reuse; no cross-restart lifetime is claimed.

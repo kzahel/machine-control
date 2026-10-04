@@ -2071,6 +2071,8 @@ def handle_target(
         "validate-candidate",
         "prepare-promotion",
     }
+    if target["platform"] == "linux":
+        allowed.add("reboot")
     if native_device:
         allowed.add("reboot")
         allowed.difference_update({
@@ -2165,12 +2167,12 @@ def handle_target(
         )
         return 0
     preflight_elapsed_ms = 0
-    if operation == "suspend":
+    if operation in {"suspend", "reboot"}:
         value, _ = doctor(alias, target)
         preflight_elapsed_ms = value["adapter"]["elapsedMs"]
         if operation not in value["lifecycleOperations"]:
             lifecycle = value["extensions"].get("lifecycle")
-            reasons = lifecycle["suspend"]["reasons"] if lifecycle else []
+            reasons = lifecycle.get(operation, {}).get("reasons", []) if lifecycle else []
             raise ClientError(
                 "unsupported_target_operation",
                 f"Target '{alias}' does not support lifecycle operation "

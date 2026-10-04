@@ -139,6 +139,9 @@ the commits' `Topic:` trailers and register that exact string in
 - [`063-six-platform-desktop-release.md`](063-six-platform-desktop-release.md) (complete):
   desktop 0.5.3 publication for all six Mac/Windows/Linux architectures.
 
+- [`064-windows-exact-semantic-references.md`](064-windows-exact-semantic-references.md) (complete):
+  exact native UIA reference resolution and duplicate-label regression coverage.
+
 - [077 — Mac locked quiet resumption](077-mac-quiet-resumption.md): root pause reasons, locked quiet eligibility and operator Resume; physical acceptance pending.
 
 - [078 — Live desktop admission channels](078-live-admission-channels.md): owner-bound queues, fenced dispatch, activity monitor and standalone client; native acceptance pending.

@@ -483,7 +483,7 @@ if (
         else (
             []
             if target_platform == "chromeos"
-            else ["status", "up", "suspend", "shutdown", "force-stop"]
+            else ["status", "up", "suspend", "shutdown", "force-stop"] + (["reboot"] if target_platform == "linux" else [])
         )
     )
     extensions = {}

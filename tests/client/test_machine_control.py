@@ -419,6 +419,12 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(value["data"]["states"]["connection"], "ready")
         self.assertEqual(value["target"]["interface"], "native")
 
+    def test_linux_reboot_uses_declared_lifecycle(self):
+        result, value = self.run_cli("--target", "fixture", "target", "reboot")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["operation"], "target.reboot")
+        self.assertEqual(value["data"]["powerState"], "running")
+
     def test_native_device_reboot_uses_declared_lifecycle(self):
         log = self.directory / "arguments.json"
         self.write_registry("android", interface="native")
@@ -633,7 +639,8 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertEqual(value["errorCode"], "invalid_resident_result")
 
-    def test_desktop_reboot_remains_platform_escape(self):
+    def test_windows_reboot_remains_platform_escape(self):
+        self.write_registry("windows")
         result, value = self.run_cli(
             "--target", "fixture", "target", "reboot"
         )

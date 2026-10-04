@@ -21,6 +21,12 @@ machine-control --target <logical-target> desktop capture ...
 machine-control --target <logical-target> desktop input ...
 ```
 
+Linux `target reboot` uses the declared platform reboot operation, including
+its boot-ID observation. Like suspend, it checks doctor capabilities before
+calling the adapter; readiness after restart remains `target ensure-ready`.
+A claimed Linux guest passes the common reboot followed by readiness on
+2026-09-28; 100 client tests and the Linux static suite also pass.
+
 ## Common surface
 
 **Current:** The first portable desktop subset covers:
