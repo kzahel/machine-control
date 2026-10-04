@@ -231,6 +231,14 @@ libvirt bases ended stopped and claim-free.
 
 ## Open work
 
+**Decision:** prioritize native builds on the operator-selected Windows host
+and a Hyper-V Windows guest test loop before further Windows desktop parity
+work. Host toolchains and caches serve compilation; claimed guests serve
+installation and disruptive acceptance. [Tactical 094](../docs/tactical/094-windows-hyperv-development-host.md)
+owns host discovery, native builds, the provider, provisioning, isolated
+workspaces and measured iteration. This is planned work, not Hyper-V support;
+Linux guests follow the Windows acceptance gate.
+
 - Determine whether storage divergence can be measured usefully enough to
   warn on a long-lived copy-on-write workspace without claiming false
   per-workspace precision.

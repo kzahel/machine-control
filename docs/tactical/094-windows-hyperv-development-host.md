@@ -1,0 +1,224 @@
+# 094 — Windows development host and Hyper-V test loop
+
+Status: planned; no host setup, Hyper-V implementation or live acceptance yet.
+
+Owning topics: [VM workspaces](../../topics/vm-workspaces-and-storage-policy.md),
+[cross-platform coordinator](../../topics/cross-platform-coordinator.md),
+[target lifecycle](../../topics/target-lifecycle-and-readiness.md), and
+[Windows resident control](../../topics/windows-resident-control.md).
+
+## Objective
+
+Use the operator's fast Windows machine for native builds and orchestration,
+with Hyper-V Windows guests for installation and disruptive acceptance. Keep
+the checkout, toolchains and reusable build caches on the host rather than
+making a small VM the main compiler. Establish this loop before continuing
+Windows desktop feature parity work.
+
+**Decision:** prioritize the Windows-host provider now because it serves both
+the immediate development workflow and the existing cross-platform hosting
+direction. Host builds can start before the provider is complete. An agent
+may run on the Windows host, but neither YA delegation nor a second agent
+inside the guest is required. Ordinary guest control stays target-native.
+
+## Starting point
+
+**Current:** the coordinator and local Windows desktop adapter exist. Windows
+VM hosting is implemented for UTM on macOS and libvirt/KVM on Linux; there is
+no implemented Hyper-V provider. See the [host matrix](../../README.md#controller-host-support)
+and the [Linux provider precedent](028-linux-libvirt-controller-host.md).
+
+**Current:** the desktop product contains a React/TypeScript UI, Rust/Tauri
+shell and supervised C#/.NET Windows engine. Python supplies the shared CLI,
+coordination and packaging tools. Signed 0.5.4 Windows packages were built in
+CI and installed on the ARM64 VM for acceptance; that is not evidence of a
+complete local Windows-host build loop.
+
+**Current:** UAC approve/cancel, elevated applications and lock/login already
+exist in the protected appliance runtime. The separately armed workstation
+unlock component preserves an existing console session. These are distinct
+from the ordinary desktop profile. Do not reimplement them or silently grant
+their authority to desktop callers as part of this provider work.
+
+**Open:** the exact development host, architecture, Windows edition, Hyper-V
+readiness, available resources, installed toolchains, storage and management
+permissions must be resolved from private inventory and read-only inspection.
+No concrete host was selected or changed while recording this plan.
+
+## Boundaries
+
+- First acceptance is one Windows guest on the selected Windows host's native
+  architecture. Record the exact supported host/guest configuration. Do not
+  import the ARM64 UTM disk into an incompatible host or use emulation as an
+  implicit fallback. Linux guests are a later extension, not this gate.
+- Public provider code belongs here; private identities, switches, storage,
+  endpoints, media locators and credentials remain in private inventory/state.
+  Preserve unrelated edits. Use Git through WSL on Windows, as required by
+  project instructions; run Windows compilers and Hyper-V management natively.
+- Keep the development host out of guest installer, UAC, lock, logout and
+  destructive lifecycle tests. Native development does not authorize replacing
+  the host's installed desktop app or changing its standing control grants.
+- Use Hyper-V management interfaces for lifecycle. PowerShell Direct is a
+  candidate bootstrap/recovery route; validate its actual requirements before
+  adopting it. Ordinary administration and UI control use the guest's existing
+  authenticated transport and resident facade. VMConnect is not the test loop.
+- Retain Windows Secure Boot, TPM, UAC, secure-desktop and credential policies.
+  Never turn generic host administration into an arbitrary SYSTEM guest API.
+- Do not add desktop feature parity changes, reboot-persistent consent, Linux
+  guest acceptance, remote provider hosting or a new release to this slice.
+  Keep signing credentials in the existing release system. Local development
+  binaries do not establish signed-install/update acceptance.
+
+## Ordered work
+
+### 1 — select and inspect the Windows development host
+
+Resolve the intended machine through private inventory; ask for its logical
+selection only if ambiguous. Inspect architecture, edition, virtualization
+readiness, Hyper-V management access, WSL/Git, native toolchains, existing VMs,
+networking and storage capacity. Check current Microsoft prerequisites rather
+than assuming one Windows edition or CPU architecture supports the plan.
+Record a private baseline and any required feature activation/reboot. Establish
+the actual host interruption window before a disruptive host transition.
+Do not modify unrelated VMs, switches or management permissions.
+
+Choose a host-local checkout and cache layout accessible to native tools and
+WSL Git without maintaining two independently edited copies. Verify path,
+quoting, executable and line-ending behavior. Keep concrete paths private.
+
+### 2 — prove native host builds before VM provisioning
+
+Use [Windows desktop CI](../../.github/workflows/windows-desktop.yml),
+[component packaging](../../release/windows-package.py) and repository locks
+as the dependency/build source. Install or reuse the required .NET SDK,
+Rust/MSVC toolchain, C++ Build Tools/Windows SDK, Node, pnpm and Python; record
+actual versions and architecture. Do not assume the source checkout's static
+package version is the release version; use the existing version/staging tools.
+
+Build and test the Windows engine, frontend, Rust shell and a complete local
+development package. Provide repeatable commands for engine-only, frontend
+and full-shell changes. Reuse verified component staging rather than rebuilding
+unrelated layers on every edit. Bind deployed artifacts to source revision and
+digests. Record one cold build and representative warm rebuild timings; do not
+claim an iteration-speed improvement without measuring it.
+
+### 3 — add the Hyper-V provider and common adapter
+
+**Proposal:** place reusable Windows-host management under
+`providers/hyperv-windows/` with a thin Windows target integration under
+`platforms/windows/providers/hyperv-windows/`. Keep provider-specific commands
+behind the existing common CLI; do not add a parallel VM command vocabulary.
+
+Implement read-only capabilities/doctor and exact VM-ID resolution first,
+then guarded start, clean shutdown, reboot, explicit recovery and storage
+inspection. Re-read identity, role and capability before mutation. Register
+Windows controller eligibility and truthful unsupported capabilities.
+
+Integrate the existing claim authority, command audit and provisioning journal.
+Refuse missing, expired or mismatched claims on accepted-target operations;
+use the existing explicit factory boundary before a newly created VM can be
+pinned and claimed. Serialize conflicting management/workspace mutations.
+Claims coordinate use and are not authentication or desktop authorization.
+
+Test management parsing and refusal paths with deterministic fixtures before
+live mutation. In particular, cover missing/renamed/replaced VMs, non-owned
+resources, unavailable permissions, unsupported hosts and interrupted commands.
+Never auto-adopt a same-named VM or hide uncertain completion with a retry.
+
+### 4 — provision and recover one Windows appliance
+
+Begin a [private provisioning journal](../provisioning-journals.md). Adapt the
+existing Windows factory/bootstrap to the verified Hyper-V guest configuration
+and official native-architecture media. Reuse Windows guest setup and resident
+code; replace only hypervisor-specific provisioning and transport assumptions.
+
+Store every assigned login password immediately in the controller's canonical
+untracked secret store, with mode 0600 where meaningful and equivalent private
+Windows ACL protection. Rotate the same locator atomically and verify the
+canonical password before promotion. Answer files, chat and auto-login are not
+credential handoff. Keep secrets out of arguments, ordinary JSON and logs.
+
+Pin the created VM's exact identity privately. Doctor and claim it before
+meaningful accepted-target use. Establish authenticated administration, native
+app launch and the existing resident service independently of a visible host
+console. Inspect credentials through `inventory credentials` for unlock/login;
+use the supported secret transport rather than asking for passwords in chat.
+
+Prove reboot and guest-transport recovery with fresh runtime/session identity.
+Qualify a bounded recovery route when ordinary transport is unavailable;
+report console capture/input unavailable unless actually implemented and tested.
+Any necessary outer UI recovery must remain explicit and must not become the
+normal install/test path. Keep the privileged appliance management runtime
+separate from the ordinary desktop product being tested.
+
+### 5 — add isolated test workspaces and safe cleanup
+
+Map existing `persistent`, `isolated` and `candidate` intents onto tested
+Hyper-V mechanisms. Evaluate a stopped immutable base plus differencing VHDX
+and a separately identified derivative; do not assume a checkpoint alone gives
+isolation or safe discard. Report the actual mechanism. If the common mechanism
+schema cannot describe it honestly, extend that contract with compatibility
+tests rather than mislabeling it as another provider's format.
+
+Bind private receipts to exact base/derivative VM and disk identities, claim,
+requested intent and cleanup disposition. Protect the base and its backing
+chain; check storage headroom, parent dependencies and concurrent acquisition.
+Default to one development target, one stopped ready base and at most one
+temporary workspace; do not make per-feature clones or full-copy fallbacks.
+
+Prove isolated marker changes disappear after release while the base remains
+unchanged. Candidate intent retains its explicitly owned result. Failed or
+partial acquisition/release must retain enough private state for exact recovery;
+unknown outcomes are not permission to delete by name or retry allocation.
+Exercise missing/foreign receipts, wrong claims and last-ready-base protection.
+
+### 6 — prove and document the host-to-guest iteration loop
+
+From the Windows host, run a repeatable command-driven sequence: build a known
+revision, acquire the guest/workspace, deploy the exact artifact, run native
+tests with independent fixture effects, collect minimized evidence and release
+in finally-style cleanup. Renew claims during long work. Guest UI tests must
+leave host focus, pointer and keyboard alone without a VMConnect window open.
+
+Run a second warm edit/build/deploy/test cycle to prove useful incremental
+iteration, not just one successful installation. Exercise the separate appliance
+UAC/lock routes with existing fixtures and qualify ordinary desktop grants,
+indefinite arming, Pause/Resume and Stop without conflating the two profiles.
+Use the existing signed candidate/public packages for any signing, replacement
+or updater assertions; do not publish merely to validate this provider.
+
+Update the owning topics, Windows host matrix, platform guide, provider research
+and System Map as their facts change. Document supported edition/architecture,
+toolchain bootstrap, daily build commands, guest selection, credential locator,
+recovery, cleanup and measured cycle times. Public docs use placeholders only.
+
+## Completion and validation gates
+
+- Native host engine checks, `dotnet format --verify-no-changes`, contract
+  tests, frontend checks and appropriate ARM64/x64 publishes pass. Full local
+  Tauri packaging works; hosted CI remains the signed release authority.
+- Portable coordinator/provider fixtures pass, including claim/identity,
+  serialization, failed creation, capacity and receipt-bound cleanup cases.
+- One new native Windows guest reaches read-only doctor readiness, verified
+  credential handoff, reboot recovery and independent resident control effects.
+- Persistent, isolated and retained-candidate outcomes are exercised. The
+  isolated base is unchanged, owned derivatives are cleaned up or explicitly
+  retained for diagnosis, and all completed-use claims are released.
+- Host-native builds drive two successful guest test cycles without routine
+  outer input. Record measured timings and supported recovery limits.
+- Leave host/guest power and installation state documented, preserve unrelated
+  host work, finish the provisioning journal, and provide a repeatable handoff.
+
+## Subsequent Windows product work
+
+After this infrastructure gate, scope separate implementation tacticals for
+desktop integration of existing protected capabilities, same-session consent
+restoration, polite activity-aware control, authenticated caller integration,
+and browser upload/raw CDP gaps. Reuse the protected appliance and optional
+unlock implementations; personal-desktop authority requires its own explicit
+contract and acceptance. Reboot persistence remains a separate decision.
+
+## Final result
+
+Pending implementation. This commit records the plan only; it establishes no
+new Windows host, Hyper-V capability, credential, guest or performance evidence.

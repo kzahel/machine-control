@@ -178,3 +178,7 @@ the commits' `Topic:` trailers and register that exact string in
 - [091 — Indefinite manual desktop access](091-desktop-until-stopped.md):
   Completed: Windows/Linux lifetime support, Mac regression, ARM64 VM acceptance
   and unified public 0.5.4 with production Windows replacement.
+
+- [094 — Windows development host and Hyper-V test loop](094-windows-hyperv-development-host.md):
+  planned native host builds, guarded Hyper-V lifecycle, Windows provisioning,
+  isolated workspaces and repeatable host-to-guest acceptance.
