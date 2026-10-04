@@ -44,7 +44,7 @@ def build(runtime, output):
         batch += 'if errorlevel 1 exit /b %errorlevel%\n' + subprocess.list2cmdline(compiler) + '\n'
         batch += 'exit /b %errorlevel%\n'
         (work / 'build.cmd').write_text(batch)
-        subprocess.run(['cmd.exe', '/d', '/c', 'build.cmd'], cwd=work, check=True)
+        subprocess.run(['cmd.exe', '/d', '/c', r'.\build.cmd'], cwd=work, check=True)
 
 
 if __name__ == '__main__':

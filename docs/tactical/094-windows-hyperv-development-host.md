@@ -409,3 +409,12 @@ security probe was denied, and SSH bootstrap required the observed guest UAC
 consent. Windows SSH installation, resident acceptance and final cleanup are
 still in progress; these measurements are not two completed Windows iteration
 cycles.
+
+Native build follow-up found two host-specific frictions. Package source-state
+inspection originally invoked native Git internally; `--git-via-wsl` now routes
+that inspection through WSL without adding a WSL prerequisite to hosted CI.
+The native unlock bootstrap's generated batch command now uses an explicit
+relative path, so it works with `NoDefaultCurrentDirectoryInExePath` enabled.
+A complete unsigned development component build then passed in 12.750 s;
+publisher signing remains exclusively in CI. This is build evidence, not yet
+unlock-service acceptance on the new guest.

@@ -11,6 +11,10 @@ residents and credential verification; this adapter owns host lifecycle and
 transport. See [Tactical 094](../../docs/tactical/094-windows-hyperv-development-host.md)
 and the [provider dossier](../../research/providers/virtualbox.md).
 
+Native development-host package builds should pass `--git-via-wsl` to
+`release/windows-package.py build`; compilers stay native while source-state
+inspection uses WSL Git. Hosted CI retains its existing Git configuration.
+
 ## Private configuration
 
 Set `MACHINE_CONTROL_VBOX_CONFIG` in an untracked registry target's environment

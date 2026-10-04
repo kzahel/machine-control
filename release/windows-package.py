@@ -7,11 +7,24 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import urllib.request
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def source_dirty(git_via_wsl=False):
+    if git_via_wsl:
+        if sys.platform != 'win32':
+            raise ValueError('WSL Git requires a Windows build host')
+        directory = subprocess.check_output(
+            ['wsl.exe', '--exec', 'wslpath', '-u', str(ROOT)], text=True).strip()
+        command = ['wsl.exe', '--exec', 'git', '-C', directory, 'status', '--porcelain']
+    else:
+        command = ['git', 'status', '--porcelain']
+    return bool(subprocess.check_output(command, cwd=ROOT).strip())
 
 
 def fetch_provider(directory, rid):
@@ -66,7 +79,7 @@ def inventory(directory):
     return files
 
 
-def build(directory, rid, revision, provider_digest=None, desktop_companion=False):
+def build(directory, rid, revision, provider_digest=None, desktop_companion=False, git_via_wsl=False):
     if directory.exists():
         raise ValueError('Build output must not already exist')
     if not re.fullmatch('[0-9a-f]{40}', revision):
@@ -128,7 +141,7 @@ def build(directory, rid, revision, provider_digest=None, desktop_companion=Fals
         'profile': 'desktop_companion' if desktop_companion else 'workstation',
         'protocol': 'machine-control/v0', 'runtime': rid, 'sourceRevision': revision,
         'sdkVersion': subprocess.check_output(['dotnet', '--version'], text=True).strip(),
-        'sourceDirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT).strip()),
+        'sourceDirty': source_dirty(git_via_wsl),
         'providerDigest': provider_digest or json.loads((ROOT / 'providers/cua/provider.json').read_text())['windows'][rid]['executableSha256'],
     }, indent=2) + '\n')
 
@@ -175,12 +188,15 @@ if __name__ == '__main__':
     parser.add_argument('--provider-digest')
     parser.add_argument('--desktop-companion', action='store_true',
                         help='Build only the desktop companion, excluding component/setup tools')
+    parser.add_argument('--git-via-wsl', action='store_true',
+                        help='Inspect source state through WSL Git on a Windows development host')
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
     if args.command == 'build':
         if not args.runtime or not args.revision:
             parser.error('build requires --runtime and --revision')
-        build(args.directory.resolve(), args.runtime, args.revision, args.provider_digest, args.desktop_companion)
+        build(args.directory.resolve(), args.runtime, args.revision, args.provider_digest,
+              args.desktop_companion, args.git_via_wsl)
     elif args.command == 'fetch-provider':
         if not args.runtime:
             parser.error('fetch-provider requires --runtime')

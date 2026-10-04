@@ -12,6 +12,22 @@ spec.loader.exec_module(package)
 
 
 class WindowsPackageTests(unittest.TestCase):
+    def test_windows_repository_inspection_uses_wsl_git(self):
+        with patch.object(package.sys, 'platform', 'win32'), \
+                patch.object(package.subprocess, 'check_output',
+                             side_effect=['/mnt/c/example/repo\n', b' M file\n']) as execute:
+            self.assertTrue(package.source_dirty(git_via_wsl=True))
+            self.assertEqual(execute.call_args_list[0].args[0][:4],
+                             ['wsl.exe', '--exec', 'wslpath', '-u'])
+            self.assertEqual(execute.call_args_list[1].args[0],
+                             ['wsl.exe', '--exec', 'git', '-C', '/mnt/c/example/repo',
+                              'status', '--porcelain'])
+
+    def test_default_build_does_not_require_wsl_in_ci(self):
+        with patch.object(package.subprocess, 'check_output', return_value=b'') as execute:
+            self.assertFalse(package.source_dirty())
+            self.assertEqual(execute.call_args.args[0], ['git', 'status', '--porcelain'])
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
