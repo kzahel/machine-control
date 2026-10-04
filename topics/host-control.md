@@ -15,6 +15,12 @@ workstation. This covers the shared grant broker, deployment presets, the
 menu bar application, local host targeting, and attended-away operation.
 Browser control has its own topic, [`browser-control`](browser-control.md).
 
+**Decision — planned evolution:** temporary pauses should preserve otherwise
+valid authorization, with explicit Resume distinct from Stop. Polite
+activation, live waiting requests and their physical/VM resource semantics
+belong to [access admission and pause](access-admission-and-pause.md).
+That proposed plan does not change the current grant/restart behavior below.
+
 The product aim is a less limited alternative to agent-coupled Computer Use
 tools: the whole desktop, including the Dock, menu bar, and system UI, gated
 by explicit, visible, revocable grants rather than by a fixed list of
@@ -74,8 +80,11 @@ browser, restart/update, lock, emergency Stop, and full product acceptance
 remain open.
 
 **Current:** The optional root unlock broker still authenticates the resident,
-not the original caller; workstation policy does not register protected
-operations, and host installation installs no root helper.
+not the original caller. Workstation policy refuses standalone protected
+operations; ordinary host installation installs no root helper. The separate
+[locked-use opt-in](macos-locked-use.md) installs a covered-session profile
+through native System Settings approval in Permissions and binds it to
+approved bounded control. The Settings checkbox only changes the preference.
 
 **Current:** The Windows ordinary-user workstation host
 ([Tactical 036](../docs/tactical/036-windows-workstation-distribution.md))
@@ -213,47 +222,24 @@ the same user.
 
 ## Attended-away operation
 
-The goal is for an agent to use a physical machine while the person is away
-and the screen is locked, while keeping it physically protected against
-casual local access, including with the laptop lid closed.
+**Decision:** the first Mac version uses a persistent, default-off locked-use
+setting, native helper approval in Permissions, ordinary access approval,
+and a bounded active
+control session. The person locks normally; temporary unlock occurs behind
+covers. Physical input relocks, revokes access, and pauses automatic unlock
+until manual unlock. Keep the Mac awake with its lid open.
 
-**Upstream-claimed:** OpenAI documents a comparable opt-in Codex “Locked use”
-mode on macOS. An authorization plug-in lets an active turn temporarily unlock
-the session while all displays are covered and local use is blocked. Local
-keyboard or pointer activity relocks the screen and pauses automatic unlock
-until the person unlocks manually. The
-[screen-lock investigation](../platforms/macos/docs/lock-screen-investigation.md#codex-computer-use-comparison)
-records the source review; it was not exercised.
+The sibling [macOS locked-use topic](macos-locked-use.md) owns current scope,
+implementation, and acceptance. [Tactical 064](../docs/tactical/064-macos-locked-use.md)
+records execution. This follows OpenAI's documented locked-use experience;
+Machine Control owns its explicit task connection and completion semantics.
+No stored login password is used.
 
-**Proposal:** Add an away mode that the person arms explicitly, with a bounded
-duration, before locking the screen.
-
-- An agent request while locked uses the existing authorization-plug-in broker
-  to unlock. The broker issues a grant only while away mode is armed, so the
-  host never needs a stored login password.
-- While unlocked, a curtain window covers every display. It ignores mouse
-  events and is excluded from the resident's own ScreenCaptureKit capture, so
-  the agent sees the desktop and people nearby do not.
-- A presence guard watches for hardware-originated keyboard and pointer events,
-  lid opening, display reconfiguration, and the power button. Any of these locks
-  the screen immediately, revokes the grant, reports an
-  `interrupted_by_physical_presence` result, and disarms automatic unlock
-  until the person unlocks manually.
-- Closed-lid operation combines this with lid-awake's sleep-disable
-  mechanism. Opening the lid is then a strong presence signal.
-
-**Open:** Whether a closed built-in display without an external display
-leaves a WindowServer display that can be captured and targeted. A virtual
-display (`CGVirtualDisplay`, private API) is a candidate if not.
-
-**Open:** Whether the authorization plug-in's persistent policy change is
-acceptable on a personal machine, or whether disarming away mode must also
-restore the original policy. Storing the login password for typed unlock is
-the rejected alternative unless the plug-in route proves unworkable.
-
-**Open:** Whether Machine Control should absorb lid-awake's sleep control or
-coordinate with it as a separately installed utility. Coordinating first
-avoids two tools owning `pmset disablesleep`.
+**Open:** closed-lid operation remains deferred. Determine whether a closed
+built-in display without an external display retains a capturable WindowServer
+display, and whether to coordinate with lid-awake rather than take ownership
+of its sleep policy. Neither sleep prevention nor virtual displays belongs to
+this first implementation.
 
 ## Next direction
 

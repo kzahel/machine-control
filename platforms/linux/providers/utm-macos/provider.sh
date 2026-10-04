@@ -6,6 +6,12 @@ readonly PROVIDER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../scripts/common.sh
 source "$PROVIDER_DIR/../../scripts/common.sh"
 
+# Preserve diagnostics even when a readiness probe discards stderr.
+utm_cli() {
+    "${PYTHON:-python3}" "$LINUXVM_REPO_DIR/../../providers/utm/cli.py" \
+        linux "$LINUXVM_UTMCTL" "$@"
+}
+
 usage() {
     cat <<'EOF'
 Usage: provider.sh COMMAND [ARG...]
@@ -26,7 +32,7 @@ require_utmctl() {
 }
 
 vm_status() {
-    "$LINUXVM_UTMCTL" status "$LINUXVM_UTM_NAME" 2>/dev/null
+    utm_cli status "$LINUXVM_UTM_NAME" 2>/dev/null
 }
 
 ensure_running() {
@@ -35,7 +41,7 @@ ensure_running() {
     status="$(vm_status || true)"
     if [[ "$status" != "started" ]]; then
         linuxvm_assert_mutation_target
-        "$LINUXVM_UTMCTL" start "$LINUXVM_UTM_NAME" >/dev/null
+        utm_cli start "$LINUXVM_UTM_NAME" >/dev/null
     fi
 
     local deadline=$((SECONDS + LINUXVM_BOOT_TIMEOUT))
@@ -53,7 +59,7 @@ ensure_running() {
 }
 
 guest_agent_ready() {
-    "$LINUXVM_UTMCTL" exec "$LINUXVM_UTM_NAME" \
+    utm_cli exec "$LINUXVM_UTM_NAME" \
         --cmd /usr/bin/id >/dev/null 2>&1
 }
 
@@ -98,7 +104,7 @@ guest_shutdown() {
         return 1
     fi
 
-    "$LINUXVM_UTMCTL" stop --request "$LINUXVM_UTM_NAME" >/dev/null
+    utm_cli stop --request "$LINUXVM_UTM_NAME" >/dev/null
     if wait_for_vm_state stopped "$LINUXVM_SHUTDOWN_TIMEOUT"; then
         printf 'stopped\n'
         return
@@ -114,7 +120,7 @@ guest_ipv4() {
     local deadline=$((SECONDS + LINUXVM_BOOT_TIMEOUT))
     local addresses ip
     while (( SECONDS < deadline )); do
-        addresses="$("$LINUXVM_UTMCTL" ip-address \
+        addresses="$(utm_cli ip-address \
             "$LINUXVM_UTM_NAME" 2>/dev/null || true)"
         ip="$(printf '%s\n' "$addresses" | awk \
             '/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }')"
@@ -133,14 +139,14 @@ guest_reboot() {
     linuxvm_assert_mutation_target
     wait_for_guest_agent
     local old_boot_id new_boot_id deadline
-    old_boot_id="$("$LINUXVM_UTMCTL" exec "$LINUXVM_UTM_NAME" \
+    old_boot_id="$(utm_cli exec "$LINUXVM_UTM_NAME" \
         --cmd /usr/bin/cat /proc/sys/kernel/random/boot_id)"
-    "$LINUXVM_UTMCTL" exec "$LINUXVM_UTM_NAME" \
+    utm_cli exec "$LINUXVM_UTM_NAME" \
         --cmd /usr/bin/systemctl reboot >/dev/null 2>&1 || true
 
     deadline=$((SECONDS + LINUXVM_BOOT_TIMEOUT))
     while (( SECONDS < deadline )); do
-        new_boot_id="$("$LINUXVM_UTMCTL" exec "$LINUXVM_UTM_NAME" \
+        new_boot_id="$(utm_cli exec "$LINUXVM_UTM_NAME" \
             --cmd /usr/bin/cat /proc/sys/kernel/random/boot_id 2>/dev/null || true)"
         if [[ -n "$new_boot_id" && "$new_boot_id" != "$old_boot_id" ]]; then
             guest_ipv4
@@ -184,7 +190,7 @@ guest_exec() {
 
     # UTM 4.7 can return from exec before a compound guest command has made
     # every side effect visible. The status file, written last, is authoritative.
-    "$LINUXVM_UTMCTL" exec "$LINUXVM_UTM_NAME" \
+    utm_cli exec "$LINUXVM_UTM_NAME" \
         --cmd /usr/bin/bash -lc "$remote_script" >/dev/null 2>&1 || true
 
     local local_dir local_status local_stderr status deadline
@@ -194,13 +200,13 @@ guest_exec() {
     deadline=$((SECONDS + LINUXVM_EXEC_TIMEOUT))
 
     while (( SECONDS < deadline )); do
-        if "$LINUXVM_UTMCTL" file pull "$LINUXVM_UTM_NAME" \
+        if utm_cli file pull "$LINUXVM_UTM_NAME" \
             "$remote_status" >"$local_status" 2>/dev/null; then
             status="$(tr -d '\r\n' <"$local_status")"
             if [[ "$status" =~ ^[0-9]+$ ]]; then
-                "$LINUXVM_UTMCTL" file pull "$LINUXVM_UTM_NAME" \
+                utm_cli file pull "$LINUXVM_UTM_NAME" \
                     "$remote_stdout" 2>/dev/null || true
-                if "$LINUXVM_UTMCTL" file pull "$LINUXVM_UTM_NAME" \
+                if utm_cli file pull "$LINUXVM_UTM_NAME" \
                     "$remote_stderr" >"$local_stderr" 2>/dev/null; then
                     cat "$local_stderr" >&2
                 fi
@@ -220,7 +226,7 @@ guest_exec() {
 guest_shell() {
     linuxvm_assert_mutation_target
     wait_for_guest_agent
-    "$LINUXVM_UTMCTL" exec "$LINUXVM_UTM_NAME" --input \
+    utm_cli exec "$LINUXVM_UTM_NAME" --input \
         --cmd /usr/bin/bash -l
 }
 
@@ -232,7 +238,7 @@ file_push() {
     [[ -r "$1" ]] || { printf 'Unreadable local file: %s\n' "$1" >&2; return 1; }
     linuxvm_assert_mutation_target
     wait_for_guest_agent
-    "$LINUXVM_UTMCTL" file push "$LINUXVM_UTM_NAME" "$2" <"$1"
+    utm_cli file push "$LINUXVM_UTM_NAME" "$2" <"$1"
 }
 
 file_pull() {
@@ -242,10 +248,10 @@ file_pull() {
     fi
     wait_for_guest_agent
     if (( $# == 2 )); then
-        "$LINUXVM_UTMCTL" file pull "$LINUXVM_UTM_NAME" "$1" >"$2"
+        utm_cli file pull "$LINUXVM_UTM_NAME" "$1" >"$2"
         printf '%s\n' "$2"
     else
-        "$LINUXVM_UTMCTL" file pull "$LINUXVM_UTM_NAME" "$1"
+        utm_cli file pull "$LINUXVM_UTM_NAME" "$1"
     fi
 }
 
@@ -333,7 +339,7 @@ APPLESCRIPT
 }
 
 vm_is_registered() {
-    "$LINUXVM_UTMCTL" status "$1" >/dev/null 2>&1
+    utm_cli status "$1" >/dev/null 2>&1
 }
 
 # Create a stopped ARM64 UTM appliance from an official Ubuntu arm64 QCOW2
@@ -393,7 +399,7 @@ on run argv
 end run
 APPLESCRIPT
 )" || created_id=""
-    status="$("$LINUXVM_UTMCTL" status "$destination" 2>/dev/null || true)"
+    status="$(utm_cli status "$destination" 2>/dev/null || true)"
     if [[ -z "$created_id" || "$status" != "stopped" ]]; then
         printf 'UTM did not create a stopped factory target.\n' >&2
         return 1
@@ -562,7 +568,7 @@ APPLESCRIPT
 factory_agent_ready() {
     linuxvm_assert_candidate_target || return 1
     [[ "$(vm_status || true)" == started ]] || return 1
-    "$LINUXVM_UTMCTL" exec "$LINUXVM_UTM_NAME" --cmd /usr/bin/true \
+    utm_cli exec "$LINUXVM_UTM_NAME" --cmd /usr/bin/true \
         >/dev/null 2>&1
 }
 
@@ -671,25 +677,25 @@ case "$command" in
     host-state) host_control host-state ;;
     suspend)
         linuxvm_assert_mutation_target
-        "$LINUXVM_UTMCTL" suspend --save-state "$LINUXVM_UTM_NAME"
+        utm_cli suspend --save-state "$LINUXVM_UTM_NAME"
         ;;
     reboot) guest_reboot ;;
     shutdown) guest_shutdown ;;
     force-stop)
         linuxvm_assert_mutation_target
-        "$LINUXVM_UTMCTL" stop --force "$LINUXVM_UTM_NAME"
+        utm_cli stop --force "$LINUXVM_UTM_NAME"
         ;;
     disposable)
         linuxvm_assert_mutation_target
         [[ "$(vm_status)" == "stopped" ]] || {
             printf 'Disposable start requires a stopped VM\n' >&2; exit 1;
         }
-        "$LINUXVM_UTMCTL" start "$LINUXVM_UTM_NAME" --disposable
+        utm_cli start "$LINUXVM_UTM_NAME" --disposable
         ;;
     clone)
         linuxvm_assert_mutation_target
         (( $# == 1 )) || { printf 'Usage: linuxvm clone NEW_NAME\n' >&2; exit 2; }
-        "$LINUXVM_UTMCTL" clone "$LINUXVM_UTM_NAME" --name "$1"
+        utm_cli clone "$LINUXVM_UTM_NAME" --name "$1"
         ;;
     *) usage >&2; exit 2 ;;
 esac

@@ -154,3 +154,12 @@ Immediately after `linuxvm shutdown`, `linuxvm status` still reported
 
 Cleanup scripts can now treat a successful shutdown command as the terminal
 lifecycle boundary.
+
+## UTM CLI crash during inventory or status
+
+**Current:** A ScriptingBridge failure can abort `utmctl` before guest
+dispatch. Shell provider and workspace calls now retain private, bounded
+metadata even when probes discard stderr. See
+[UTM diagnostics](../../../providers/utm/README.md) for log locations,
+correlation with Apple crash reports, a read-only reproduction, and coverage
+limits. No repair has yet been validated for this failure.

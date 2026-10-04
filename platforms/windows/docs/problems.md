@@ -190,3 +190,12 @@ dialog difficult to inspect.
 
 Possible direction: add a WebView2/CDP-capable driver or a documented
 application opt-in that exposes embedded web content to accessibility tooling.
+
+## UTM CLI crash during inventory or status
+
+**Current:** A ScriptingBridge failure can abort `utmctl` before guest
+dispatch. Shell provider and workspace calls now retain private, bounded
+metadata even when probes discard stderr. See
+[UTM diagnostics](../../../providers/utm/README.md) for log locations,
+correlation with Apple crash reports, a read-only reproduction, and coverage
+limits. No repair has yet been validated for this failure.

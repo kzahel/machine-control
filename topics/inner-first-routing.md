@@ -172,3 +172,11 @@ Control should expose enough structured state for that affordance, while the
 coordination/controller UI owns presentation. The implemented interlock
 remains UI-less and does not add a Rust GUI/notification dependency or
 platform-native approval dialog to each testbed adapter.
+
+**Proposal — polite admission:**
+[access admission and pause](access-admission-and-pause.md) extends that
+affordance with activity-aware waiting, resource-level deferral, finite offers
+and shared host-desktop arbitration across physical use and outer VM routes.
+It preserves explicit recovery authority and absolute outer prohibitions;
+claims or notification countdowns cannot override them. Declared attendance
+remains current behavior until an activity capability is independently tested.

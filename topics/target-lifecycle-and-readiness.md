@@ -327,6 +327,20 @@ full-runtime proof retain their stricter readiness result.
 - Platform extensions never override a failed portable readiness dimension.
 - Outer recovery is reported, not invoked, by ordinary readiness checks.
 
+## UTM controller diagnostics
+
+**Current:** Windows/Linux UTM shell and workspace provider calls retain
+bounded private subprocess metadata, even when readiness probes discard
+stderr. Child PID and timestamps correlate failures with macOS crash reports;
+no arguments or guest content are retained. See
+[operator guidance](../providers/utm/README.md) and the
+[UTM provider evidence](../research/providers/utm.md).
+
+**Open:** The scripting-definition failure has a read-only reproduction but
+no validated repair. Diagnostics do not suppress the crash, change readiness
+semantics, retry mutations, or prove guest effects. Direct CLI, AppleScript,
+and Python factory-stage calls remain outside this wrapper's coverage.
+
 ## Open work
 
 - Add maintenance support to another platform only where live evidence

@@ -242,6 +242,16 @@ must wait for an exact pin and live claim, with `ensure-ready` providing the
 explicit path from an off target to a passing doctor. Physical-device adapters
 remain outside the initial policy pending target-specific contention decisions.
 
+## Planned admission extension
+
+**Proposal — queued admission:**
+[access admission and pause](access-admission-and-pause.md) owns waiting leases,
+activation offers, cancellation and composition with a shared controller
+desktop for host-interfering recovery. Its
+[coordinating plan](../docs/tactical/074-access-admission-and-pause.md) preserves
+legacy fail-fast acquisition and exact-resource claim authority through a
+versioned extension. The current claim implementation still has no queue.
+
 ## Validation requirements
 
 Conformance must prove:

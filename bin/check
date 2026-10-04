@@ -114,6 +114,7 @@ def portable_checks() -> None:
         ("common coordinator", ROOT, ROOT / "tests" / "client"),
         ("desktop update mailbox", ROOT, ROOT / "tests" / "desktop"),
         ("shared ADB", ROOT, ROOT / "providers" / "adb" / "tests"),
+        ("UTM diagnostics", ROOT, ROOT / "providers" / "utm" / "tests"),
         (
             "target-use claims",
             ROOT,

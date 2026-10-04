@@ -328,3 +328,10 @@ storage-failure acceptance runs on the platform's dedicated VM. The shared
 [Tactical 069](../../docs/tactical/069-desktop-audit-and-diagnostics.md) owns
 platform/architecture results. This does not broaden provider privilege or
 signed-package acceptance.
+
+## Controller CLI reliability
+
+**Current:** The macOS-hosted UTM route has a live-observed ScriptingBridge
+CLI crash before guest dispatch. See the [UTM dossier](../providers/utm.md)
+for evidence and the remaining investigation; this does not change the
+platform's target-resident control evidence.

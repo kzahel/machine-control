@@ -4,13 +4,20 @@
 # platform adapters. The caller supplies only private, exact configuration and
 # then invokes utm_workspace_main.
 
+UTM_WORKSPACE_DIAGNOSTIC_RUNNER="$(cd "$(dirname "${BASH_SOURCE[0]}")/../utm" && pwd)/cli.py"
+
+utm_workspace_cli() {
+    "${MACHINE_CONTROL_WORKSPACE_PYTHON:-python3}" "$UTM_WORKSPACE_DIAGNOSTIC_RUNNER" \
+        workspace "$UTM_WORKSPACE_CLI" "$@"
+}
+
 utm_workspace_status() {
-    "$UTM_WORKSPACE_CLI" status "$1" 2>/dev/null
+    utm_workspace_cli status "$1" 2>/dev/null
 }
 
 utm_workspace_id_for_name() {
     local expected_name="$1"
-    "$UTM_WORKSPACE_CLI" list | awk -v expected="$expected_name" '
+    utm_workspace_cli list | awk -v expected="$expected_name" '
         NR > 1 {
             uuid = $1
             $1 = ""
@@ -155,7 +162,7 @@ utm_workspace_start() {
     local identifier="$1" mode="$2"
     local -a arguments=(start --hide "$identifier")
     if [[ "$mode" == "disposable" ]]; then arguments+=(--disposable); fi
-    "$UTM_WORKSPACE_CLI" "${arguments[@]}" >/dev/null || return
+    utm_workspace_cli "${arguments[@]}" >/dev/null || return
     utm_workspace_wait_state "$identifier" started "$UTM_WORKSPACE_BOOT_TIMEOUT"
 }
 
@@ -325,7 +332,7 @@ utm_workspace_acquire_candidate() {
         return 1
     fi
     source_claim_id="$(jq -r '.claimId // empty' <<<"$source_claim")"
-    "$UTM_WORKSPACE_CLI" clone --hide "$source_id" --name "$destination" \
+    utm_workspace_cli clone --hide "$source_id" --name "$destination" \
         >/dev/null || {
             workspace_claim_release_exact "$UTM_WORKSPACE_CLAIM_STATE_DIR" \
                 "$UTM_WORKSPACE_PROVIDER" "$source_id" "$source_claim_id" \
@@ -467,7 +474,7 @@ utm_workspace_release_inner() {
         workspace_receipts "$UTM_WORKSPACE_STATE_DIR" update \
             --handle "$handle" --cleanup pending
         if [[ "$state" == "started" ]]; then
-            "$UTM_WORKSPACE_CLI" stop --hide "$target_id" --request >/dev/null || {
+            utm_workspace_cli stop --hide "$target_id" --request >/dev/null || {
                 workspace_refusal release workspace_stop_failed \
                     'The disposable workspace did not accept a shutdown request'
                 return $?

@@ -6,6 +6,12 @@ readonly PROVIDER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../scripts/common.sh
 source "$PROVIDER_DIR/../../scripts/common.sh"
 
+# Preserve diagnostics even when a readiness probe discards stderr.
+utm_cli() {
+    "${PYTHON:-python3}" "$WINVM_REPO_DIR/../../providers/utm/cli.py" \
+        windows "$WINVM_UTMCTL" "$@"
+}
+
 usage() {
     cat <<'EOF'
 Usage: provider.sh COMMAND [ARG...]
@@ -33,7 +39,7 @@ require_outer_ui_allowed() {
 }
 
 vm_status() {
-    "$WINVM_UTMCTL" status "$(utm_target_identifier)" 2>/dev/null
+    utm_cli status "$(utm_target_identifier)" 2>/dev/null
 }
 
 utm_target_identifier() {
@@ -314,7 +320,7 @@ on run argv
 end run
 APPLESCRIPT
 )" || created_id=""
-    status="$("$WINVM_UTMCTL" status "$destination" 2>/dev/null || true)"
+    status="$(utm_cli status "$destination" 2>/dev/null || true)"
     if [[ -z "$created_id" || "$status" != "stopped" ]]; then
         printf 'UTM did not create a stopped factory target.\n' >&2
         return 1
@@ -448,7 +454,7 @@ trust_ssh_host_key() (
     chmod 700 "$temporary_root"
     trap 'rm -rf -- "$temporary_root"' EXIT
     public_key="$temporary_root/ssh_host_ed25519_key.pub"
-    "$WINVM_UTMCTL" file pull "$(utm_target_identifier)" \
+    utm_cli file pull "$(utm_target_identifier)" \
         'C:\ProgramData\ssh\ssh_host_ed25519_key.pub' >"$public_key"
     if (( "$(wc -l <"$public_key")" != 1 )); then
         printf 'Guest SSH host key is not a single public-key record.\n' >&2
@@ -506,13 +512,13 @@ factory_status() (
     report_file="$(mktemp "${TMPDIR:-/tmp}/winvm-factory-report.XXXXXX")"
     trap 'rm -f -- "$state_file" "$report_file"' EXIT
 
-    if ! "$WINVM_UTMCTL" ip-address "$target" >/dev/null 2>&1; then
+    if ! utm_cli ip-address "$target" >/dev/null 2>&1; then
         jq -n '{schema:"winvm-image-factory-status/v0",state:"pending",
             completed:false,guest_agent:"unavailable",
             ssh_bootstrap:"pending_or_unavailable",seed_removal_required:true}'
         return
     fi
-    if "$WINVM_UTMCTL" file pull "$target" \
+    if utm_cli file pull "$target" \
             'C:\ProgramData\WinVM-Factory\state.json' >"$state_file" 2>/dev/null &&
             [[ -s "$state_file" ]]; then
         if ! jq -e '
@@ -529,7 +535,7 @@ factory_status() (
             seed_removal_required:true}'
         return
     fi
-    if "$WINVM_UTMCTL" file pull "$target" \
+    if utm_cli file pull "$target" \
             'C:\ProgramData\WinVM-Factory\first-logon-report.json' \
             >"$report_file" 2>/dev/null && [[ -s "$report_file" ]]; then
         if ! jq -e '
@@ -554,7 +560,7 @@ factory_status() (
 
 factory_agent_ready() {
     assert_target inspect >/dev/null
-    "$WINVM_UTMCTL" ip-address "$(utm_target_identifier)" >/dev/null 2>&1
+    utm_cli ip-address "$(utm_target_identifier)" >/dev/null 2>&1
 }
 
 factory_media_status() {
@@ -864,7 +870,7 @@ provider_capabilities() {
 }
 
 vm_is_registered() {
-    "$WINVM_UTMCTL" status "$1" >/dev/null 2>&1
+    utm_cli status "$1" >/dev/null 2>&1
 }
 
 vm_seal() {
@@ -887,9 +893,9 @@ vm_seal() {
         printf 'Seal destination is already registered.\n' >&2
         return 1
     fi
-    "$WINVM_UTMCTL" clone --hide "$(utm_target_identifier)" --name "$destination" \
+    utm_cli clone --hide "$(utm_target_identifier)" --name "$destination" \
         >/dev/null
-    status="$("$WINVM_UTMCTL" status "$destination" 2>/dev/null || true)"
+    status="$(utm_cli status "$destination" 2>/dev/null || true)"
     if [[ "$status" != "stopped" ]]; then
         printf 'UTM did not produce a stopped seal (state: %s).\n' \
             "${status:-unknown}" >&2
@@ -906,7 +912,7 @@ vm_disposable_up() {
             "${status:-unknown}" >&2
         return 1
     fi
-    "$WINVM_UTMCTL" start --hide "$(utm_target_identifier)" --disposable >/dev/null
+    utm_cli start --hide "$(utm_target_identifier)" --disposable >/dev/null
     if ! wait_for_vm_state started "$WINVM_BOOT_TIMEOUT"; then
         printf 'Timed out waiting for disposable VM start (last state: %s).\n' \
             "${LAST_VM_STATUS:-unknown}" >&2
@@ -931,7 +937,7 @@ vm_delete() {
             "${status:-unknown}" >&2
         return 1
     fi
-    "$WINVM_UTMCTL" delete "$WINVM_EXPECTED_UTM_ID" >/dev/null
+    utm_cli delete "$WINVM_EXPECTED_UTM_ID" >/dev/null
     if vm_is_registered "$WINVM_EXPECTED_UTM_ID"; then
         printf 'UTM still reports the deleted VM as registered.\n' >&2
         return 1
@@ -954,7 +960,7 @@ vm_suspend() {
         print_suspend_unavailable
         return 1
     fi
-    "$WINVM_UTMCTL" suspend --save-state "$(utm_target_identifier)"
+    utm_cli suspend --save-state "$(utm_target_identifier)"
 }
 
 wait_for_vm_state() {
@@ -1006,7 +1012,7 @@ vm_shutdown() {
 
     # Requesting power-down is the non-destructive provider fallback. Never
     # promote a routine shutdown to force-stop.
-    "$WINVM_UTMCTL" stop --request "$(utm_target_identifier)" >/dev/null
+    utm_cli stop --request "$(utm_target_identifier)" >/dev/null
     if wait_for_vm_state stopped "$WINVM_SHUTDOWN_TIMEOUT"; then
         printf 'stopped\n'
         return
@@ -1035,7 +1041,7 @@ ensure_running() {
     winvm_load_utm_library || return 1
     status="$(vm_status || true)"
     if [[ "$status" != "started" ]]; then
-        "$WINVM_UTMCTL" start --hide "$(utm_target_identifier)" >/dev/null 2>&1 || true
+        utm_cli start --hide "$(utm_target_identifier)" >/dev/null 2>&1 || true
     fi
 
     local deadline=$((SECONDS + WINVM_BOOT_TIMEOUT))
@@ -1073,7 +1079,7 @@ guest_ipv4() {
 
 guest_ipv4_once() {
     local addresses
-    addresses="$("$WINVM_UTMCTL" ip-address \
+    addresses="$(utm_cli ip-address \
         "$(utm_target_identifier)" 2>/dev/null || true)"
     printf '%s\n' "$addresses" |
         awk '/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ { print; exit }'
@@ -1240,9 +1246,9 @@ stage_bootstrap() {
     fi
 
     ensure_running
-    "$WINVM_UTMCTL" file push "$(utm_target_identifier)" \
+    utm_cli file push "$(utm_target_identifier)" \
         'C:\Users\Public\winvm-bootstrap-openssh.ps1' < "$bootstrap"
-    "$WINVM_UTMCTL" file push "$(utm_target_identifier)" \
+    utm_cli file push "$(utm_target_identifier)" \
         'C:\Users\Public\winvm-host.pub' < "$public_key"
 
     cat <<'EOF'
@@ -1271,14 +1277,14 @@ post_update_guest_agent() {
     local pulled_report
     pulled_report="$(mktemp "${TMPDIR:-/tmp}/winvm-post-update.XXXXXX")"
 
-    "$WINVM_UTMCTL" file push "$(utm_target_identifier)" \
+    utm_cli file push "$(utm_target_identifier)" \
         "$guest_script" < \
         "$WINVM_REPO_DIR/guests/windows/post-update.ps1"
 
     # UTM guest execution has returned false success on an earlier appliance.
     # Ignore this delivery result and accept only a fresh nonce-bound report
     # retrieved independently through guest-agent file transfer.
-    "$WINVM_UTMCTL" exec "$(utm_target_identifier)" --cmd \
+    utm_cli exec "$(utm_target_identifier)" --cmd \
         powershell.exe -NoLogo -NoProfile -NonInteractive \
         -ExecutionPolicy Bypass -File "$guest_script" \
         -Mode Repair -Profile "$profile" -Nonce "$nonce" \
@@ -1286,7 +1292,7 @@ post_update_guest_agent() {
 
     local deadline=$((SECONDS + WINVM_POST_UPDATE_REPORT_TIMEOUT))
     while (( SECONDS < deadline )); do
-        if "$WINVM_UTMCTL" file pull "$(utm_target_identifier)" \
+        if utm_cli file pull "$(utm_target_identifier)" \
                 "$guest_report" >"$pulled_report" 2>/dev/null &&
             jq -e --arg nonce "$nonce" \
                 '.schema == "machine-control-windows-post-update/v0" and
@@ -1338,6 +1344,6 @@ case "$command" in
     down) assert_target down >/dev/null; vm_down ;;
     suspend) assert_target suspend >/dev/null; vm_suspend ;;
     shutdown) assert_target shutdown >/dev/null; vm_shutdown ;;
-    force-stop) assert_target force-stop >/dev/null; "$WINVM_UTMCTL" stop --force "$(utm_target_identifier)" ;;
+    force-stop) assert_target force-stop >/dev/null; utm_cli stop --force "$(utm_target_identifier)" ;;
     *) usage >&2; exit 2 ;;
 esac

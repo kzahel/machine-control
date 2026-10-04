@@ -54,10 +54,10 @@ its `Topic:` trailers.
 - [`cross-platform-coordinator.md`](cross-platform-coordinator.md): portable
   macOS/Linux/Windows coordination, controller-route eligibility, launchers,
   and target-native validation.
-- [`delegation-and-agent-placement.md`](delegation-and-agent-placement.md): YA
-  coordination and the separation between agent placement and control target.
 - [`desktop-audit-and-diagnostics.md`](desktop-audit-and-diagnostics.md): durable
   desktop history, logging health, privacy and operator diagnostics.
+- [`delegation-and-agent-placement.md`](delegation-and-agent-placement.md): YA
+  coordination and the separation between agent placement and control target.
 - [`host-control.md`](host-control.md): physical and personal hosts, deployment
   presets, grant broker and approval, menu bar application, and away mode.
 - [`inner-first-routing.md`](inner-first-routing.md): ordinary resident routes,
@@ -71,6 +71,8 @@ its `Topic:` trailers.
 - [`macos-resident-control.md`](macos-resident-control.md): current macOS
   resident implementation, accepted logged-in Aqua Tart software testing,
   and accepted SIP-enabled appliance lock state/unlock with outer UI prohibited.
+- [`macos-locked-use.md`](macos-locked-use.md): opt-in covered control after
+  screen lock, native takeover, bounded sessions, and failure relock.
 - [`native-distribution.md`](native-distribution.md): optional native packages,
   publisher signing, package authenticity, CI evidence, and workstation scope.
 - [`operational-workflow-automation.md`](operational-workflow-automation.md):

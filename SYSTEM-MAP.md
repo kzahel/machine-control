@@ -24,6 +24,12 @@ supply claimant/session metadata and manage renewal around active work, but the
 claim contract does not name or require that coordinator. Private inventory
 selects claim policy and state placement without becoming the live arbiter.
 
+**Proposal:** [access admission and pause](topics/access-admission-and-pause.md)
+extends MC-owned arbitration with waiting, temporary availability and shared
+controller-desktop reservations. Native/controller UI presents notices and
+operator controls; YA consumes state for agent supervision. This adds no second
+VM lease authority and moves no private inventory ownership.
+
 YepAnywhere's delegation direction is documented in
 [`cross-host-delegation.md`](../yepanywhere/topics/cross-host-delegation.md).
 Delegation creates a normal worker session on a YA peer; it does not turn YA
@@ -57,6 +63,17 @@ their authoritative platform directories here; broader facade coverage must
 not flatten their platform semantics into one generic implementation.
 
 ## Desktop VM testbeds
+
+**Current:** the Mac desktop owns an experimental default-off
+[covered locked-use profile](topics/macos-locked-use.md). Its existing native
+executable launches a separate signed cover/input guardian, and its optional
+root authorization broker owns the deadline, restart marker, and failure relock.
+Permissions owns native SMAppService registration and typed helper preparation;
+System Settings owns service approval and authentication. Settings only changes
+the prepared local preference. The calling agent/integration owns a live bounded
+task connection and explicit completion. This adds no YA coordination
+or dotfiles inventory ownership and does not reuse exposed appliance unlock
+as a workstation fallback.
 
 **Current:** The optional Windows workstation host is another deployment of
 Machine Control's shared ordinary providers. It runs under the interactive user;
