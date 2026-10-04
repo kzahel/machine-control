@@ -195,7 +195,7 @@ class ActivationTests(unittest.TestCase):
 
 
 class CompatibilityTests(unittest.TestCase):
-    @unittest.skipIf(not shutil.which("bash"), "Requires Bash")
+    @unittest.skipIf(os.name == "nt" or not shutil.which("bash"), "Requires POSIX guest Bash")
     def test_legacy_entry_uses_local_activation_and_preserves_arguments(self):
         result = subprocess.run(["bash", str(SCRIPTS / "bootstrap.sh"), "--help"],
                                 capture_output=True, text=True, check=True)
