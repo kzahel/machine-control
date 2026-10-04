@@ -44,6 +44,15 @@ pass; Pause refuses each route without a new counter or key event. Fresh Resume,
 Stop/reconnect and signed resident restart pass, followed by verified restoration
 of the original socket, application, policy and operator state.
 
+A subsequent signed `routes` regression passes with MC `8067b56` and YA
+`549602039`: the first AX effect takes 1.459 seconds, and real capture, independent
+pointer/key/activation effects, Pause refusals, fresh Resume, Stop/reconnect,
+resident restart and exact restoration pass. The harness allows 30 seconds for
+the initial native authentication frame and 60 seconds for the combined initial
+handshake/offer. Active primitive timeouts and the five-second owner watchdog
+remain unchanged; a cold native authentication timeout before the first frame
+is not evidence of an expired active owner.
+
 The owned fixture launches at the left edge for pointer acceptance. A centered
 fixture overlapped the operator panel and correctly hit `self_target_refused`;
 the guard is unchanged. This setup requires a fresh owned fixture process and
