@@ -194,6 +194,13 @@ recovery must still contend with physical host use.
 
 ### Ordered migration and acceptance
 
+**Current:** the first-step [entry-point and authority audit](../docs/session-entry-point-audit.md)
+is complete for a bounded source review and existing claim/channel fixtures.
+It records direct ingress, profile differences, device leases, conflict
+classification and the next implementation gate. Native migration has not
+begun. [Tactical 093](../docs/tactical/093-session-entry-point-audit.md) owns the
+execution record; the audit owns the detailed coverage matrix.
+
 **Proposal:** preserve the mature provider implementations through a bounded
 migration:
 

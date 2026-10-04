@@ -2,7 +2,9 @@
 
 Topic: `target-use-claims`
 
-Status: implemented for accepted Windows, macOS, and Linux VM adapters.
+Status: implemented for accepted Windows, macOS, and Linux VM adapters and
+default physical desktop host adapters; live owner-channel support differs
+by profile.
 
 ## Scope
 
@@ -18,9 +20,13 @@ A target-use claim is distinct from:
 - an authorization lease, which grants a protected capability; and
 - authentication or hostile-user containment.
 
-The first implementation covers the accepted Windows, macOS, and Linux VM
-adapters. The contract is provider-neutral and may later cover contended
-physical devices without pretending that every target has the same lifecycle.
+**Current:** accepted Windows, macOS, and Linux VM adapters and their default
+physical desktop host adapters require common claims. Other device targets
+retain their platform-specific leases or lack common claims. Direct resident
+access is not universally subject to controller-side claim validation. The
+[session entry-point audit](../docs/session-entry-point-audit.md) records exact
+profile and ingress coverage. The contract remains provider-neutral without
+pretending that every target has the same lifecycle.
 
 ## Decision
 
