@@ -92,6 +92,25 @@ script remains at `guests/ubuntu/bootstrap/bootstrap-guest.sh`.
 
 ## 3 — Deploy Semantic Wayland Automation
 
+For a newly provisioned key-only account, establish its canonical stored login
+password before handoff. Configure `LINUXVM_LOGIN_SECRET_FILE`, the retained
+setup SSH key and its independently pinned known-hosts file in private
+inventory, then run under the exact VM's claim:
+
+```bash
+bin/machine-control --target linux --claim CLAIM_ID testbed -- credential establish --json
+bin/machine-control --target linux --claim CLAIM_ID testbed -- credential verify --json
+```
+
+`establish` verifies exact identity, account and SSH host key before reading
+the mode-0600 secret. Only a locked bootstrap account may be changed; an
+already configured account is verified without replacing its password.
+Credential bytes travel once on strict-key SSH stdin, never QGA JSON or
+arguments. A private `.establish.pending` copy is fsynced before mutation and
+retained on uncertainty; it is removed after guest verification and a durable
+handoff receipt. An unknown existing password remains a rebuild case. See the
+[retained appliance recipe](../../../docs/retained-desktop-appliances.md).
+
 Keep the GNOME desktop logged in:
 
 ```bash

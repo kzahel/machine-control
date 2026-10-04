@@ -129,10 +129,11 @@ render_seed() {
               "systemctl start qemu-guest-agent.service; " +
               "DEBIAN_FRONTEND=noninteractive apt-get " +
               "-o Dpkg::Options::=--force-confold install -y " +
-              "ubuntu-desktop spice-vdagent python3-gi " +
+              "ubuntu-desktop openssh-server spice-vdagent python3-gi " +
               "gir1.2-atspi-2.0 gnome-screenshot python3-evdev " +
               "python3-pyqt5 wl-clipboard jq git build-essential " +
               "python3-venv; " +
+              "systemctl enable --now ssh.service; " +
               "snap install chromium; " +
               "runuser -u " + $username + " -- dbus-run-session -- " +
               "gsettings set org.gnome.desktop.session idle-delay 0; " +

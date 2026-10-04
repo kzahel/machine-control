@@ -88,6 +88,69 @@ class CredentialTests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(receipt.parent.stat().st_mode), 0o700)
         self.assertNotIn("fixture-secret", receipt.read_text())
 
+    def test_establish_keeps_secret_stored_before_change_and_verifies(self):
+        original = self.command
+        def establishment(*args, input_bytes=None):
+            if args[0] == "ssh":
+                if MODULE.ACCOUNT_STATE_SCRIPT.strip() in args[-1]:
+                    self.assertIsNone(input_bytes)
+                    return "locked"
+                if "chpasswd" in args[-1]:
+                    pending = Path(str(self.secret) + ".establish.pending")
+                    self.assertEqual(pending.read_bytes(), input_bytes)
+                    self.inputs.append(input_bytes)
+                    return "established"
+            return original(*args, input_bytes=input_bytes)
+        # Remote source is shell-quoted; use its distinctive state marker.
+        def wrapped(*args, **kwargs):
+            if args[0] == "ssh" and "configured" in args[-1]:
+                self.assertIsNone(kwargs.get("input_bytes"))
+                return "locked"
+            return establishment(*args, **kwargs)
+        with mock.patch.object(MODULE, "command", side_effect=wrapped):
+            self.assertTrue(MODULE.inspect("establish")["ready"])
+        self.assertEqual(self.inputs, [b"fixture-secret\n", b"fixture-secret\n"])
+        self.assertFalse(Path(str(self.secret) + ".establish.pending").exists())
+
+    def test_uncertain_establishment_keeps_pending_secret(self):
+        original = self.command
+        def uncertain(*args, **kwargs):
+            if args[0] == "ssh" and "configured" in args[-1]:
+                return "locked"
+            if args[0] == "ssh" and "chpasswd" in args[-1]:
+                raise MODULE.Refusal("verification_route_unavailable")
+            return original(*args, **kwargs)
+        with mock.patch.object(MODULE, "command", side_effect=uncertain):
+            with self.assertRaises(MODULE.Refusal):
+                MODULE.inspect("establish")
+        self.assertEqual(Path(str(self.secret) + ".establish.pending").read_bytes(),
+                         b"fixture-secret\n")
+        self.assertFalse(self.inspect("status")["ready"])
+
+    def test_unverified_establishment_refuses_before_secret_read(self):
+        original = self.command
+        def uncertain(*args, **kwargs):
+            if args[0] == "ssh" and "configured" in args[-1]:
+                return "unknown"
+            return original(*args, **kwargs)
+        with mock.patch.object(MODULE, "command", side_effect=uncertain), \
+             mock.patch.object(MODULE.os, "read", side_effect=AssertionError("secret read")):
+            with self.assertRaisesRegex(MODULE.Refusal, "state_unverified"):
+                MODULE.inspect("establish")
+
+    def test_guest_establishment_never_replaces_configured_password(self):
+        entry = types.SimpleNamespace(sp_pwdp="$existing$hash")
+        stdin = mock.Mock()
+        with mock.patch.dict(sys.modules, {"spwd": types.SimpleNamespace(
+                getspnam=lambda _user: entry)}), \
+             mock.patch.object(sys, "argv", ["establish", "appliance"]), \
+             mock.patch.object(sys, "stdin", stdin), \
+             mock.patch("subprocess.run") as run:
+            with self.assertRaises(SystemExit):
+                exec(MODULE.ESTABLISH_SCRIPT, {})
+        stdin.buffer.read.assert_not_called()
+        run.assert_not_called()
+
     def test_metadata_alone_never_qualifies_and_status_does_not_read_secret(self):
         with mock.patch.object(MODULE.os, "read", side_effect=AssertionError("secret read")):
             self.assertFalse(self.inspect("status")["ready"])

@@ -23,7 +23,7 @@ Lifecycle and transport:
   claim-renew | claim-release       Coordinate exact-target exclusive use
   guard-status | host-state      Inspect acceptance safety without guest pixels
   candidate-status --json       Emit a minimized exact-candidate assertion
-  credential status|verify [--json]
+  credential status|verify|establish [--json]
                                  Check stored login handoff; verify via SSH stdin
   exec -- COMMAND [ARG...]       Run a root command with reliable completion
   user-exec -- COMMAND [ARG...]  Run in the active Wayland desktop session

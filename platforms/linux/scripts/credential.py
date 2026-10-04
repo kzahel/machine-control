@@ -53,6 +53,35 @@ except Exception:
 print('verified')
 """
 
+# This is account bootstrap, not recovery of an unknown password. A second
+# invocation verifies an already established password without replacing it.
+ACCOUNT_STATE_SCRIPT = """
+import spwd, sys
+try:
+    value = spwd.getspnam(sys.argv[1]).sp_pwdp
+    print('locked' if value.startswith(('!', '*')) else 'configured')
+except Exception:
+    sys.exit(1)
+"""
+ESTABLISH_SCRIPT = """
+import spwd, subprocess, sys
+try:
+    user = sys.argv[1]
+    if not spwd.getspnam(user).sp_pwdp.startswith(('!', '*')):
+        raise ValueError()
+    password = sys.stdin.buffer.read(4097).removesuffix(b'\\n')
+    if not password or len(password) > 4096 or any(c in password for c in (b'\\n', b'\\r', b'\\0', b':')):
+        raise ValueError()
+    result = subprocess.run(['/usr/sbin/chpasswd'],
+        input=user.encode() + b':' + password + b'\\n',
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    if result.returncode:
+        raise ValueError()
+except Exception:
+    sys.exit(1)
+print('established')
+"""
+
 
 class Refusal(Exception):
     pass
@@ -147,7 +176,7 @@ def recorded(config: dict, fingerprint: dict | None) -> bool:
         return False
 
 
-def verification_route(config: dict) -> list[str]:
+def verification_route(config: dict, script: str = VERIFY_SCRIPT) -> list[str]:
     user = config["account"]
     account = command(str(CLI), "exec", "--", "/usr/bin/getent", "passwd", user)
     if len(account.splitlines()) != 1 or account.split(":")[0] != user:
@@ -171,7 +200,7 @@ def verification_route(config: dict) -> list[str]:
             if line and not line.startswith("#"))):
         raise Refusal("credential_host_key_unverified")
     remote = shlex.join(["sudo", "-n", "/usr/bin/python3", "-W", "ignore",
-                         "-c", VERIFY_SCRIPT, user, "password"])
+                         "-c", script, user, "password"])
     return ["ssh", "-F", "/dev/null", "-T", "-o", "BatchMode=yes",
             "-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=yes",
             "-o", f"UserKnownHostsFile={known_hosts}",
@@ -187,11 +216,33 @@ def inspect(operation: str) -> dict:
         fingerprint = None
         if config["profile"] == "password":
             fd, fingerprint = open_secret(config["secretFile"])
-        if operation == "verify":
+        if operation in {"verify", "establish"}:
             # Drop previous evidence first: a failed recheck must not retain it.
             receipt_path(config).unlink(missing_ok=True)
             route = verification_route(config)
+            locked = False
+            if operation == "establish":
+                if config["profile"] != "password":
+                    raise Refusal("password_profile_required")
+                state = command(*verification_route(config, ACCOUNT_STATE_SCRIPT))
+                if state not in {"locked", "configured"}:
+                    raise Refusal("credential_account_state_unverified")
+                locked = state == "locked"
             password = os.read(fd, 4098) if fd is not None else None
+            pending = None
+            if locked:
+                # Preserve the exact supplied bytes before the guest mutation.
+                # On uncertainty this file remains for explicit recovery.
+                pending = Path(config["secretFile"] + ".establish.pending")
+                pending_fd = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL |
+                                     os.O_NOFOLLOW, 0o600)
+                with os.fdopen(pending_fd, "wb") as file:
+                    file.write(password)
+                    file.flush()
+                    os.fsync(file.fileno())
+                if command(*verification_route(config, ESTABLISH_SCRIPT),
+                           input_bytes=password) != "established":
+                    raise Refusal("credential_establishment_unverified")
             if command(*route, input_bytes=password) != "verified":
                 raise Refusal("guest_verification_failed")
             if fd is not None:
@@ -200,6 +251,8 @@ def inspect(operation: str) -> dict:
                 if current != fingerprint:
                     raise Refusal("credential_file_changed")
             write_receipt(config, fingerprint)
+            if pending:
+                pending.unlink()
         ready = recorded(config, fingerprint)
         return {"schema": SCHEMA, "ready": ready, "profile": config["profile"],
                 "evidence": "guest_password_hash_verified" if ready and fd is not None else
@@ -212,7 +265,7 @@ def inspect(operation: str) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("operation", choices=("status", "verify"))
+    parser.add_argument("operation", choices=("status", "verify", "establish"))
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     try:

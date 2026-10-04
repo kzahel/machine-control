@@ -57,6 +57,13 @@ linked implementation and exit evidence.
 
 ## Suggested implementation path
 
+**Current:** Retained appliance bring-up now has a
+[shared recipe](../docs/retained-desktop-appliances.md) and
+[Tactical 090](../docs/tactical/090-retained-desktop-appliance-rebuild.md).
+Linux can establish its stored login password on an independently verified
+locked bootstrap account through pinned key-only SSH; it refuses replacement
+of an unknown configured password. The NoCloud seed explicitly starts SSH.
+
 **Current:** Linux now adds a required credential handoff to L1's factory
 completion and P1's common promotion preparation. See
 [Tactical 049](../docs/tactical/049-linux-credential-promotion-gate.md).
