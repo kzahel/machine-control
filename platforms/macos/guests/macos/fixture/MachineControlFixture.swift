@@ -163,6 +163,13 @@ final class FixtureController: NSObject, NSApplicationDelegate, NSTextFieldDeleg
         window.contentView = stack
         window.acceptsMouseMovedEvents = true
         window.center()
+        if ProcessInfo.processInfo.environment["MC_FIXTURE_LEFT_EDGE"] == "1",
+           let screen = window.screen ?? NSScreen.main {
+            // Keep the owned pointer fixture outside a centered operator panel.
+            // Normal launches retain their usual centered placement.
+            window.setFrameOrigin(NSPoint(x: screen.visibleFrame.minX,
+                                          y: window.frame.minY))
+        }
         window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(textField)
         NSApp.activate(ignoringOtherApps: true)

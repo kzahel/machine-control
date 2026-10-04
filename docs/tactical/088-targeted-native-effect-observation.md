@@ -1,6 +1,6 @@
 # Targeted native effect observation
 
-Status: active; source correction under signed qualification.
+Status: completed for the bounded ordinary native regression.
 Owning topics: [Mac resident control](../../topics/macos-resident-control.md),
 [access admission](../../topics/access-admission-and-pause.md) and
 [caller authorization](../../topics/caller-authorization.md).
@@ -37,7 +37,18 @@ from the stored AX reference or verified input target/frontmost process. AX
 window sampling excludes every other process, including the resident itself;
 cheap process/focus observations remain global. 141 Swift tests pass without
 warnings, Mac static checks pass, and source deployment/fresh doctor are ready.
-The signed regression remains pending.
+The immutable signed MC `d6ffdf2` and signed YA `158e7a1c9` pass the checked-in
+`routes` case. The first AX effect takes 1.259 seconds and ownership remains
+active. Real window PNG bytes and independent pointer/key/activation effects
+pass; Pause refuses each route without a new counter or key event. Fresh Resume,
+Stop/reconnect and signed resident restart pass, followed by verified restoration
+of the original socket, application, policy and operator state.
+
+The owned fixture launches at the left edge for pointer acceptance. A centered
+fixture overlapped the operator panel and correctly hit `self_target_refused`;
+the guard is unchanged. This setup requires a fresh owned fixture process and
+reaps it, including on an early failure. The fixture compiles and deploys through
+the claimed platform CLI. Python compilation and formatting pass.
 
 The initial signed route trial expired immediately after an AX action
 near the five-second lease boundary; the next request refused before its

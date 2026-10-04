@@ -55,3 +55,11 @@ and protected-operation denial. Lifecycle cases terminate the owned provider or
 abruptly kill native YA, require ownership release with retained trust, then
 create a fresh authenticated launch and independently observe one new effect.
 All cases still prove Stop/reconnect and signed resident restart refusal.
+
+`--case routes` checks real window PNG bytes and independent pointer, keyboard
+and activation effects, then refuses all four routes while paused. It requires
+a fresh owned fixture and launches it at the left edge, away from the operator
+panel; self-target protection remains enforced. `--case load` performs 32 fresh
+native AX effects without retries, verifies the independent counter delta and
+active ownership after each, and reports bounded elapsed/max-action latency.
+It is a busy-owner regression, not a long-duration soak.

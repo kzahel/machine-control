@@ -1,7 +1,8 @@
 # Native desktop delegation
 
 Status: active; full signed native ordinary path and operator controls proved;
-additional negative/failure qualification and covered composition remain open.
+bounded negative/lifecycle and native input/capture qualification proved;
+additional replacement/load/scope and covered composition remain open.
 Owning topics: [caller authorization](../../topics/caller-authorization.md) and
 [access admission and pause](../../topics/access-admission-and-pause.md).
 Dependency: [trusted Desktop access](071-desktop-caller-authorization.md).
@@ -153,6 +154,15 @@ produces exactly one additional independent effect. Stop/reconnect and signed
 resident restart still fence subsequent work. Exact prior state restoration is
 checked after each run. These cases use actual native/kernel connections and
 owned protocol providers, not simulated caller admission.
+
+**Current, signed alternate native routes:** Tactical 088 records signed MC
+`d6ffdf2` with the same signed YA origin. Real window PNG capture and independently
+observed native pointer/key/activation effects pass. Pause fences each operation;
+fresh Resume, Stop and signed resident restart preserve the same semantics.
+Targeted effect fingerprints remove the main-thread self AX delay while keeping
+the five-second ownership watchdog unchanged. An overlapping pointer correctly
+refused; a fresh owned fixture at the left edge avoids that operator-panel
+geometry without changing self-protection.
 
 **Open:** further signed replacement/load/scope qualification and
 prepared-console covered tasks. Keep this

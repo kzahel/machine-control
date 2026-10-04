@@ -37,6 +37,7 @@ def main():
             "provider-exit",
             "integration-exit",
             "routes",
+            "load",
         ),
         default="ordinary",
     )

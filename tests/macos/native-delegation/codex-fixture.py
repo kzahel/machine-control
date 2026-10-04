@@ -67,6 +67,54 @@ def worker():
             )
         return response
 
+    def perform_effect():
+        rpc("control.heartbeat")
+        snapshot = rpc(
+            "control.dispatch",
+            sessionId=active["sessionId"],
+            resourceGenerations=active["resourceGenerations"],
+            request={
+                "operation": "snapshot",
+                "provider": "macos-native",
+                "target": "org.machine-control.fixture",
+                "depth": 6,
+            },
+        )
+        nested = snapshot.get("data") or {}
+        if nested.get("accepted"):
+            button = next(
+                e
+                for e in nested["data"]["elements"]
+                if e.get("identifier") == "fixture.increment"
+                or e.get("title") == "Increment"
+            )
+            rpc("control.heartbeat")
+            action_started = time.monotonic()
+            action = rpc(
+                "control.dispatch",
+                sessionId=active["sessionId"],
+                resourceGenerations=active["resourceGenerations"],
+                request={
+                    "operation": "action",
+                    "provider": "macos-native",
+                    "action": "press",
+                    "reference": button["reference"],
+                },
+            )
+            result = {
+                "accepted": action.get("data", {}).get("accepted"),
+                "errorCode": action.get("errorCode"),
+            }
+            alive = rpc("control.heartbeat")
+            result["ownerState"] = (alive.get("data") or {}).get("state")
+            result["latencySeconds"] = time.monotonic() - action_started
+        else:
+            result = {
+                "accepted": False,
+                "errorCode": snapshot.get("errorCode") or nested.get("errorCode"),
+            }
+        return result
+
     for index in range(1, 20):
         trigger = root / f"command-{index}.json"
         until = time.monotonic() + 180
@@ -137,53 +185,26 @@ def worker():
                         state=active["state"], assurance=active.get("ownerAssurance")
                     )
             elif command["operation"] == "effect":
-                rpc("control.heartbeat")
-                snapshot = rpc(
-                    "control.dispatch",
-                    sessionId=active["sessionId"],
-                    resourceGenerations=active["resourceGenerations"],
-                    request={
-                        "operation": "snapshot",
-                        "provider": "macos-native",
-                        "target": "org.machine-control.fixture",
-                        "depth": 6,
-                    },
-                )
-                nested = snapshot.get("data") or {}
-                if nested.get("accepted"):
-                    button = next(
-                        e
-                        for e in nested["data"]["elements"]
-                        if e.get("identifier") == "fixture.increment"
-                        or e.get("title") == "Increment"
-                    )
-                    rpc("control.heartbeat")
-                    action_started = time.monotonic()
-                    action = rpc(
-                        "control.dispatch",
-                        sessionId=active["sessionId"],
-                        resourceGenerations=active["resourceGenerations"],
-                        request={
-                            "operation": "action",
-                            "provider": "macos-native",
-                            "action": "press",
-                            "reference": button["reference"],
-                        },
-                    )
-                    result = {
-                        "accepted": action.get("data", {}).get("accepted"),
-                        "errorCode": action.get("errorCode"),
-                    }
-                    alive = rpc("control.heartbeat")
-                    result["ownerState"] = (alive.get("data") or {}).get("state")
-                    result["latencySeconds"] = time.monotonic() - action_started
-                    heartbeat = time.monotonic()
-                else:
-                    result = {
-                        "accepted": False,
-                        "errorCode": snapshot.get("errorCode")
-                        or nested.get("errorCode"),
-                    }
+                result = perform_effect()
+                heartbeat = time.monotonic()
+            elif command["operation"] == "load":
+                started = time.monotonic()
+                latencies = []
+                for _ in range(32):
+                    effect = perform_effect()
+                    assert effect.get("accepted"), "Load effect refused"
+                    assert (
+                        effect.get("ownerState") == "active"
+                    ), "Load ownership expired"
+                    latencies.append(effect["latencySeconds"])
+                    assert time.monotonic() - started < 80, "Load deadline exceeded"
+                result = {
+                    "accepted": True,
+                    "effects": len(latencies),
+                    "maxLatencySeconds": max(latencies),
+                    "elapsedSeconds": time.monotonic() - started,
+                }
+                heartbeat = time.monotonic()
             elif command["operation"] in ("routes", "paused-routes"):
 
                 def dispatch(request):

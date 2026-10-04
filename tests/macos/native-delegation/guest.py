@@ -10,7 +10,14 @@ import json, os, pathlib, subprocess, time, socket, urllib.request, urllib.error
 root = pathlib.Path(sys.argv[1])
 home = pathlib.Path.home()
 case = sys.argv[2] if len(sys.argv) > 2 else "ordinary"
-assert case in ("ordinary", "boundaries", "provider-exit", "integration-exit", "routes")
+assert case in (
+    "ordinary",
+    "boundaries",
+    "provider-exit",
+    "integration-exit",
+    "routes",
+    "load",
+)
 assert (
     root.is_absolute() and root.resolve().parent == pathlib.Path("/tmp").resolve()
 ), "Use an isolated guest temporary directory"
@@ -69,9 +76,9 @@ def waitfile(path, timeout=30):
     raise RuntimeError("fixture result timeout")
 
 
-def command(index, operation):
+def command(index, operation, timeout=30):
     (root / f"command-{index}.json").write_text(json.dumps({"operation": operation}))
-    return waitfile(root / f"result-{index}.json")
+    return waitfile(root / f"result-{index}.json", timeout)
 
 
 def rpc(path, request):
@@ -119,15 +126,31 @@ try:
         app for app in apps if app.get("bundleId") == "org.machine-control.fixture"
     ]
     fixture_started = not existing
+    if case == "routes":
+        assert fixture_started, "Route qualification needs its own fixture process"
     if fixture_started:
-        subprocess.run(
-            [
-                "/usr/bin/open",
-                "-a",
-                str(home / "Applications/Machine Control Fixture.app"),
-            ],
-            check=True,
-        )
+        if case == "routes":
+            fixture_process = subprocess.Popen(
+                [
+                    str(
+                        home
+                        / "Applications/Machine Control Fixture.app/Contents/MacOS/MachineControlFixture"
+                    )
+                ],
+                env={**os.environ, "MC_FIXTURE_LEFT_EDGE": "1"},
+                stdout=open(root / "fixture.log", "w"),
+                stderr=subprocess.STDOUT,
+            )
+            processes.append(fixture_process)
+        else:
+            subprocess.run(
+                [
+                    "/usr/bin/open",
+                    "-a",
+                    str(home / "Applications/Machine Control Fixture.app"),
+                ],
+                check=True,
+            )
     end = time.monotonic() + 15
     while time.monotonic() < end:
         apps = rpc(standard, {"operation": "applications", "provider": "macos-native"})[
@@ -362,6 +385,22 @@ try:
     assert fixture()["count"] == before + 1
     print("PASS unrelated same-user native CLI refused without an effect", flush=True)
     route_offset = 0
+    if case == "load":
+        loaded = command(3, "load", timeout=90)
+        expect(loaded, "accepted", True)
+        expect(loaded, "effects", 32)
+        assert loaded["maxLatencySeconds"] < 2.5
+        assert fixture()["count"] == before + 33
+        expected_effects += 32
+        route_offset = 1
+        print(
+            "PASS signed busy owner: 32 fresh native AX effects; max latency "
+            + format(loaded["maxLatencySeconds"], ".3f")
+            + "s; elapsed "
+            + format(loaded["elapsedSeconds"], ".3f")
+            + "s",
+            flush=True,
+        )
     if case == "routes":
         keys_before = fixture()["keyEventCount"]
         route_result = command(3, "routes")
