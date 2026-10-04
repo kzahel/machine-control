@@ -714,6 +714,7 @@ function App() {
                         {!state ? "—" : granted ? "Granted" : "Required"}
                       </span>
                       <button
+                        aria-label={`Open ${title} settings`}
                         disabled={busy}
                         onClick={() =>
                           void act({ method: "permission", permission: id })
@@ -752,6 +753,13 @@ function App() {
                               : "Required for locked use"}
                       </span>
                       <button
+                        aria-label={
+                          state.lockedUse.setupState === "approval"
+                            ? "Open Machine Control helper settings"
+                            : state.lockedUse.permissionReady
+                              ? "Repair Machine Control helper"
+                              : "Set up Machine Control helper"
+                        }
                         disabled={
                           busy ||
                           !!state.lockedUse.controlSessionId ||
@@ -777,6 +785,7 @@ function App() {
                         state.lockedUse.helperApproval,
                       ) && (
                         <button
+                          aria-label="Remove Machine Control helper"
                           disabled={
                             busy ||
                             !!state.lockedUse.controlSessionId ||
@@ -830,6 +839,7 @@ function App() {
                     {state?.browser.connected ? "Connected" : "Not connected"}
                   </span>
                   <button
+                    aria-label="Set up browser extension"
                     disabled={busy}
                     onClick={async () => {
                       try {
