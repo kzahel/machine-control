@@ -226,7 +226,7 @@ class ControlSession:
         mc.require_selected_claim(self.target)
         view = self.status()
         if view["state"] != "active":
-            raise mc.ClientError("control_interrupted", "Control is paused or ended; wait for a fresh session before issuing new work", view)
+            raise mc.ClientError("control_interrupted", "Control is paused or ended; wait for a fresh session before issuing new work", data=view)
         result = self._rpc({"operation":"control.dispatch", "sessionId":view["sessionId"],
                            "resourceGenerations":view["resourceGenerations"], "request":request}, timeout=60)
         if not isinstance(result, dict) or type(result.get("accepted")) is not bool:

@@ -199,6 +199,15 @@ sys.exit(handle_control('fixture',json.loads(sys.argv[2]),['stream','--reason','
             self.assertEqual(error.exception.code, "wait_deadline_exceeded")
         self.assertNotIn("effect", self.record.read_text())
 
+    def test_interruption_reports_state_as_data_and_keeps_numeric_exit_code(self):
+        with self.session("paused") as session:
+            with self.assertRaises(mc.ClientError) as error:
+                session.call({"operation":"snapshot"})
+            self.assertEqual(error.exception.code, "control_interrupted")
+            self.assertEqual(error.exception.data["state"], "paused")
+            self.assertIsInstance(error.exception.exit_code, int)
+        self.assertNotIn("effect", self.record.read_text())
+
     def test_bad_negotiation_reaps_transport(self):
         with self.assertRaises(mc.ClientError) as error:
             self.session("malformed")
