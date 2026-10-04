@@ -66,7 +66,9 @@ def main():
         shutil.copy2(exe, moved / exe.name)
         shutil.copytree(root / "mc-cli", moved / "mc-cli")
         relocated = json.loads(run([str(moved / exe.name), "agent", "identity", "--paths"]).stdout)
-        assert Path(relocated["paths"]["installationRoot"]) == moved
+        # TemporaryDirectory may use an 8.3 parent name on Windows while the
+        # installed client reports its canonical long path. Compare identity.
+        assert Path(relocated["paths"]["installationRoot"]).samefile(moved)
         interpreter = moved / "mc-cli/python/python.exe"
         hidden = interpreter.with_suffix(".missing")
         interpreter.rename(hidden)
