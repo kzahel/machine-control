@@ -348,10 +348,11 @@ an adopted Machine Control provider. Follow-up binary probes and upstream
 source review found native Windows-host TPM emulation unavailable, blocking
 qualification with Windows 11 security requirements intact. Hyper-V remains
 unimplemented. The operator subsequently selected a bounded
-[VirtualBox experiment](../providers/virtualbox.md); headless Windows 11
-installation booted and an authorized cold recovery reached the installed
-kernel, but setup stalled again before guest-side acceptance. The scratch VM
-is stopped and retained for diagnosis.
+[VirtualBox experiment](../providers/virtualbox.md). Follow-up recovery reached
+an authenticated Windows desktop and Guest Additions; SSH/resident acceptance
+continues. An experimental common adapter has live Linux resident evidence,
+including repeated media-free cold boots with a guest-kernel workaround.
+Production factory, Windows acceptance and workspace derivation remain open.
 
 **Current:** The macOS-hosted UTM route has a live-observed ScriptingBridge
 CLI crash before guest dispatch. See the [UTM dossier](../providers/utm.md)

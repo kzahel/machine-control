@@ -108,6 +108,12 @@ pixels/input named only for bootstrap and recovery. Their guarded doctor and
 common conformance paths now enforce that ordinary control does not reach the
 outer route merely because it is convenient.
 
+The opt-in [Windows VirtualBox adapter](providers/virtualbox-windows/README.md)
+owns native host identity, claims, lifecycle and pinned SSH for experimental
+Windows/Linux candidates. Guest residents and credential verifiers remain in
+their existing platform/runtime owners. Creation/bootstrap is not yet an
+adopted common factory, and promotion/workspace derivation remains unqualified.
+
 ## Physical and device testbeds
 
 | Repository | Current role | Important boundary |

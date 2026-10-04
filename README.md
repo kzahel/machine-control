@@ -155,12 +155,13 @@ Windows. Live desktop-VM hosting remains provider-specific:
 | --- | --- | --- | --- |
 | macOS | Portable and native checks; current live controller | UTM/QEMU for Windows and Linux; Tart for macOS | Current baseline |
 | Linux | Portable and native checks plus exact-source execution inside both native guests | libvirt with QEMU/KVM for native x86_64 Windows and Linux guests | Broader host and guest-profile coverage |
-| Windows | Hosted CI plus execution inside the retained Windows appliance | None accepted through the common adapter | VirtualBox under evaluation on Home; QEMU/WHPX blocked on Windows 11 TPM; Hyper-V remains a candidate on eligible editions |
+| Windows | Hosted CI, native runtime builds and experimental host execution | Experimental VirtualBox/Linux resident candidate on Home; Windows bootstrap in progress | VirtualBox factory/workspaces; QEMU/WHPX blocked on Windows 11 TPM; Hyper-V remains a candidate on eligible editions |
 
 The Linux row is live-accepted only for native x86_64 KVM domains. Its provider
 refuses software emulation and cross-architecture domains before start or
-derivation. The Windows row still claims coordinator portability rather than a
-live-tested local hypervisor adapter. Each new provider must independently
+derivation. The Windows row has an opt-in local adapter and bounded Linux
+resident evidence, not a supported production factory/workspace provider.
+Each new provider must independently
 prove exact target identity, guarded lifecycle, administration, workspace
 isolation and cleanup, resident desktop conformance, explicit recovery, and
 host non-interference before being documented as supported.

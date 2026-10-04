@@ -1,8 +1,9 @@
 # Oracle VirtualBox
 
-Status: headless installer and installed Windows kernel boot on Windows Home
-x64 are `live-tested`; setup stalled again after one authorized cold recovery.
-Guest acceptance is blocked. Not adopted behind the common adapter.
+Status: Windows Home x64 hosting is `live-tested` through an experimental
+common adapter. Linux resident conformance and repeated cold boot pass with a
+guest workaround. Windows reached authenticated desktop/Guest Additions;
+resident acceptance is in progress. Production adoption remains open.
 
 ## Provider and licensing
 
@@ -72,16 +73,46 @@ authorization and retained for diagnosis, without a further boot or host reboot.
 Guest security, password authentication and command effects remain unverified.
 Do not infer stalled I/O from a VDI file timestamp: use provider storage counters.
 
+## Follow-up guest qualification
+
+**Current (2026-10-04), `live-tested`:** an official Ubuntu 24.04 cloud image
+was provisioned with pinned SSH host keys, a canonical verified login password,
+GNOME Wayland and the existing Linux resident. Common-CLI tests independently
+observed semantic button effects, Unicode text and capture hashes. Secure Boot
+was enabled inside the guest. A warm reboot and two cold boots without seed
+media passed; the candidate was cleanly stopped and its claim released.
+
+Four-vCPU cold boots initially stopped during initramfs driver loading. A
+one-vCPU boot recovered access. Guest kernel arguments
+`nox2apic rcupdate.rcu_normal=1`, with ordinary APIC enabled, then allowed
+repeated four-vCPU boots and resident tests. The workaround was suggested by
+[upstream issue 861](https://github.com/VirtualBox/virtualbox/issues/861), whose
+reported host/backend differs; this does not establish an identical cause.
+
+Windows recovery reached a responding login screen with three vCPUs,
+paravirtualization set to `none`, x2APIC disabled and ordinary APIC enabled.
+The canonical password authenticated and Guest Additions became available.
+Two vCPUs had stalled in EFI, resembling but not proving the cause in
+[upstream issue 799](https://github.com/VirtualBox/virtualbox/issues/799).
+These are experiment settings, not a qualified universal host profile.
+
+The [experimental adapter](../../providers/virtualbox-windows/README.md)
+checks exact VM/disk identities, serializes claimed operations, uses pinned
+loopback SSH and existing credential verifiers, and exposes explicit recovery
+separately from ordinary resident calls. Initial creation and console bootstrap
+still require private factory scripts with manual journal coverage.
+
 ## Fit and remaining gates
 
 **Proposal:** qualify this Home-capable provider before implementing common
-VM lifecycle and workspaces. A provider must bind identity/role, claims,
-serialization, journal/audit coverage, and cleanup receipts before adoption.
+production workspaces. Identity/role, claims and operation serialization have
+initial implementation and tests; complete factory/audit coverage and cleanup
+receipts still need adoption work.
 CLI support for snapshots/clones alone does not prove safe disposable
 workspaces or preservation of TPM/NVRAM state across derivation.
 
-**Open:** complete guest-side security/credential verification and command
-effects, cold-start recovery, common-adapter integration, resident protected
+**Open:** complete Windows guest-side security verification, resident command
+effects, cold-start recovery, common-factory integration, resident protected
 control, isolated workspace acceptance, and measured build/deploy/test cycles.
 Remote provider hosting and Windows ARM hosts remain untested. Evidence and
 cleanup results belong to [Tactical 094](../../docs/tactical/094-windows-hyperv-development-host.md);

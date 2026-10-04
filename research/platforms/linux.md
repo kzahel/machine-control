@@ -6,6 +6,12 @@ compositors, protected planes, and physical hardware remain research-stage.
 Every claim must identify X11, XWayland, the Wayland compositor, and the active
 desktop session rather than saying only “Linux.”
 
+**Current:** an experimental [Windows Home/VirtualBox route](../providers/virtualbox.md)
+has bounded live evidence for this existing GNOME Wayland resident: semantic
+and Unicode fixture effects, capture verification, credentials and repeated
+cold boots. This does not extend the full accepted platform matrix; the guest
+needs a kernel boot workaround and factory/workspace adoption is unfinished.
+
 ## Native foundation
 
 AT-SPI is the semantic foundation in the active user D-Bus session. X11

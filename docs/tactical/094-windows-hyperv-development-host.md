@@ -2,9 +2,10 @@
 
 Status: host inspected; bounded QEMU/WHPX probes passed on Windows Home, but
 Windows 11 qualification is blocked by native-host TPM support. A subsequent
-VirtualBox experiment reached the installed kernel after cold recovery but
-setup stalled again before guest acceptance; the scratch VM is stopped.
-Native builds and provider implementation remain open.
+VirtualBox experiment now has an opt-in common adapter and a qualified Linux
+resident candidate. Windows desktop authentication and Guest Additions work;
+SSH/resident qualification continues. Native runtime builds pass. Production
+factory/workspaces and the complete Windows iteration loop remain open.
 
 Owning topics: [VM workspaces](../../topics/vm-workspaces-and-storage-policy.md),
 [cross-platform coordinator](../../topics/cross-platform-coordinator.md),
@@ -359,3 +360,52 @@ remain unproved. The
 [provider dossier](../../research/providers/virtualbox.md) owns the capability
 assessment. Common-provider integration, isolated workspaces, resident
 acceptance, native builds and both measured iteration cycles remain pending.
+
+### Autonomous Windows and Linux provisioning — 2026-10-04
+
+The operator expanded the experiment to end-to-end Windows and Linux setup,
+retaining the explicit host-reboot approval boundary. Separate private journals
+covered the two candidates. Host Git stayed in WSL and builds/VirtualBox
+management stayed native. No host reboot or security/feature change occurred.
+
+An opt-in native Windows adapter now binds exact VM/configuration/disk pins,
+exclusive claims and serialized operations. Pinned loopback SSH carries the
+existing guest residents and credential verifiers. Ordinary tests use only
+guest-native routes. Explicit disruptive recovery covers console capture,
+ACPI delivery, forced stop and bounded stopped-candidate hardware experiments.
+Creation and initial console bootstrap remain private direct-script steps,
+recorded manually in the journals. Ten adapter regressions pass.
+
+| Measurement | Result | Elapsed |
+| --- | --- | --- |
+| Native Windows static checks | Build, formatting and contract suites passed | 28.344 s |
+| Native x64 runtime package | Existing runtime and desktop companion built | 3.186 s |
+| Medium/elevated fixture publishes | Both self-contained publishes passed | 1.446 / 1.457 s |
+| Linux resident deployment | Existing resident, broker and fixtures installed | 19.7 s |
+| Linux resident conformance | Independent semantic/Unicode effects and capture hash; local/remote parity | 17.427 s |
+| Linux warm reboot | New boot/resident identities and ready doctor observed | Within 50.909 s |
+| Linux post-recovery conformance | One-CPU recovery, then two four-CPU cold boots passed | 15.461 / 14.693 / 16.482 s |
+
+Linux used a digest-verified official Ubuntu 24.04 cloud image, EFI Secure Boot,
+pre-pinned SSH host keys and a canonical password established and independently
+verified through the existing verifier. GNOME Wayland and the existing resident
+were installed. Four-vCPU cold boot initially stalled during initramfs driver
+loading. One CPU restored access; guest arguments
+`nox2apic rcupdate.rcu_normal=1` then enabled repeated four-vCPU cold boots.
+The [provider dossier](../../research/providers/virtualbox.md) owns the upstream
+comparison and cause uncertainty. Both final cold boots had seed media detached.
+
+Linux cleanup: final doctor and password verification passed, guest-native
+shutdown reached confirmed power-off, and the exclusive claim was released.
+The private disk, firmware, keys, canonical credential, detached seed and
+diagnostic evidence are retained. The journal closed ready for the experimental
+candidate scope. Immutable-base promotion and isolated workspaces remain blocked.
+
+Windows reached a responding login screen with three vCPUs, ordinary APIC
+enabled, x2APIC disabled and guest paravirtualization `none`. Its stored
+password authenticated and Guest Additions became available after first-logon
+setup and a clean guest shutdown/cold boot. UAC remained active: a non-elevated
+security probe was denied, and SSH bootstrap required the observed guest UAC
+consent. Windows SSH installation, resident acceptance and final cleanup are
+still in progress; these measurements are not two completed Windows iteration
+cycles.
