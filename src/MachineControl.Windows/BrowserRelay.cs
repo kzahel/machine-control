@@ -32,8 +32,8 @@ internal sealed class BrowserRelay(DesktopGrants grants) : IBrowserDevToolsProvi
         available = true,
         route = Route,
         extensionVersion = _hello?["extensionVersion"]?.GetValue<string>(),
-        knownOmissions = new[] { "browser-level CDP attachment" },
-        streamingCdp = new { available = DevTools is not null, binding = "live_devtools_owner", transport = "target_loopback_websocket" },
+        knownOmissions = new[] { "isolated browser contexts", "browser-wide downloads and shutdown", "restricted pages and CDP domains" },
+        streamingCdp = new { available = DevTools is not null, browserLevel = true, context = "existing_default_profile", binding = "live_devtools_owner", transport = "target_loopback_websocket" },
         fileUpload = new { maximumFiles = BrowserUpload.MaximumFiles, paths = "target_local_drive", osDialog = false }
     };
 
@@ -281,6 +281,7 @@ internal sealed class BrowserRelay(DesktopGrants grants) : IBrowserDevToolsProvi
             ["cmdId"] = command["id"]!.DeepClone(),
             ["method"] = command["method"]!.DeepClone(),
             ["params"] = command["params"]?.DeepClone() ?? new JsonObject(),
+            ["sessionId"] = command["sessionId"]?.DeepClone(),
             ["operation"] = "browser.cdp",
             ["grantGeneration"] = generation
         }, cancellation, true, authority, providerGeneration);

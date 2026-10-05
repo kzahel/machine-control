@@ -564,6 +564,7 @@ final class ResidentServer {
         if operation == "browser.endpoint" {
             var data = browser.statusJSON
             data["devtoolsEndpoint"] = devtools.reconcile() ?? NSNull()
+            data["browserEndpoint"] = devtools.browserEndpoint ?? NSNull()
             respond(client, request, service.acceptance(request, data: data),
                     caller: caller, claimID: claimID)
             return
@@ -609,6 +610,7 @@ final class ResidentServer {
                 data["admissionChannel"] = ["schema":AdmissionChannel.schema, "ownerBinding":"live_same_user_transport", "callerAssurance":"unverified_same_user", "delegatedAutomaticAccess":false, "outerRecovery":"borrowed_exact_claim/v1", "preparedConsole":"explicit_consent_and_prepared_helper/v1"]
                 var browserStatus = browser.statusJSON
                 browserStatus["devtoolsEndpoint"] = devtools.endpoint ?? NSNull()
+                browserStatus["browserEndpoint"] = devtools.browserEndpoint ?? NSNull()
                 data["browser"] = browserStatus
                 if updates.request(check: false) != nil {
                     data["updateDiscovery"] = ["operations": ["update.check", "update.status"],

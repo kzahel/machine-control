@@ -2648,7 +2648,7 @@ BROWSER_USAGE = {
     "cdp": "browser cdp --method Domain.method [--params JSON] [--tab ID] — one raw "
            "DevTools call (devtools grant)",
     "eval": "browser eval --expression JS [--tab ID] — evaluate JavaScript (devtools grant)",
-    "endpoint": "browser endpoint — the DevTools WebSocket URL for a live session (devtools grant)",
+    "endpoint": "browser endpoint — browser and per-tab CDP WebSocket URLs for a live session (devtools grant)",
     "release": "browser release — detach all debugger sessions",
 }
 

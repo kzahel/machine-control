@@ -101,9 +101,14 @@ a per-grant token and refuses reserved ownership. The Windows desktop bridge
 binds its token to a retained live DevTools owner, grant and provider generation;
 Pause, Stop or loss of that authority closes streams and invalidates the URL.
 Single-shot ownership cannot produce a usable endpoint. Events stream back
-over the socket. Tab-level clients and raw CDP libraries work directly;
-browser-level attachment for Playwright and Puppeteer would need target
-emulation and is not built. A separate agent Chrome profile started with
+over the socket. `browserEndpoint` adds a browser-root connection alongside
+the tab template. Shared extension logic exposes supported default-profile
+page targets, discovery, tab lifecycle, facade tab wrappers and flattened
+native child sessions. Windows and macOS native bridges preserve session
+routing; macOS browser-root changes are source-only pending qualification.
+Playwright requires `noDefaults: true` because browser-wide download policy
+is unavailable. Isolated contexts, browser shutdown and restricted operations
+refuse explicitly. A separate agent Chrome profile started with
 `--remote-debugging-port` remains the alternative for full native access
 without the extension in the path.
 
@@ -139,8 +144,12 @@ package and environment boundaries.
   including independent received bytes and Pause/Stop fences.
   [Tactical 098](../docs/tactical/098-windows-browser-upload.md) owns evidence
   and remaining signed/ARM64/physical qualification.
-- **Open:** Browser-level CDP attachment (target list plus per-tab attach) so
-  Playwright and Puppeteer `connectOverCDP` work, not only tab-level clients.
+- **Current, unreleased Windows candidate:** Browser-level attachment adds
+  default-profile target discovery and flattened sessions for real Playwright
+  and Puppeteer clients. [Tactical 100](../docs/tactical/100-browser-level-cdp.md)
+  owns qualification and the supported subset. Shared extension behavior is
+  reusable; macOS native build/live, Linux registration, isolated contexts and
+  browser-wide operations remain separate gaps.
 - **Current:** Windows per-user registration, scoped browser operations, and
   single-shot raw CDP/evaluation are implemented. Signed installed acceptance
   is in [054](../docs/tactical/054-windows-browser-and-arm64.md). The unreleased

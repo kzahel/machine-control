@@ -167,9 +167,12 @@ final class BrowserRelay {
         return id
     }
 
-    func sendSessionCommand(_ id: String, cmdId: Int, method: String, params: [String: Any]) {
-        write(["type": "session.command", "id": id, "cmdId": cmdId,
-               "method": method, "params": params])
+    func sendSessionCommand(_ id: String, cmdId: Int, method: String, params: [String: Any],
+                            childSession: String? = nil) {
+        var frame: [String: Any] = ["type": "session.command", "id": id, "cmdId": cmdId,
+                                 "method": method, "params": params]
+        if let childSession { frame["sessionId"] = childSession }
+        write(frame)
     }
 
     func closeSession(_ id: String) {

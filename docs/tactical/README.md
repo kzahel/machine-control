@@ -208,3 +208,7 @@ the commits' `Topic:` trailers and register that exact string in
 - [099 — Windows streaming CDP](099-windows-streaming-cdp.md):
   owner-bound per-tab WebSockets, streamed events, bounded transport and
   independent browser effects through the Windows desktop app.
+
+- [100 — Browser-level CDP compatibility](100-browser-level-cdp.md):
+  shared target discovery, flattened sessions and real browser clients through
+  the extension and native desktop bridges.

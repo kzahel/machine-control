@@ -22,6 +22,18 @@ actual candidate evidence; this does not qualify a signed public package.
 Each run creates a fresh browser profile so a retained Manifest V3 worker
 cannot mask changes to the staged extension.
 
+For browser-level acceptance also stage [`browser-root-clients.mjs`](browser-root-clients.mjs),
+a matching native Node executable and a private package directory containing
+`playwright-core` 1.63.0 and `puppeteer-core` 25.12.0. Pass `--node` and
+`--client-modules` to the actor. Endpoint authority goes to the clients over
+standard input, never arguments. The clients connect to the resident bridge;
+the browser has no remote-debugging port. The extended run covers default-profile
+tabs, new tabs, popup, cross-site iframe, dedicated worker, PNG captures,
+independent click effects, unsupported contexts and browser-root owner/grant/
+provider transitions. [Tactical 100](../../docs/tactical/100-browser-level-cdp.md)
+owns evidence and limits. Playwright uses `noDefaults: true` so connection does
+not request the unsupported browser-wide download policy.
+
 ## Browser upload acceptance
 
 [`browser-upload-live.py`](browser-upload-live.py) runs in the interactive

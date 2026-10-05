@@ -84,9 +84,10 @@ class CdpSocket:
             if first & 128:
                 return json.loads(body)
 
-    def call(self, method, params=None):
+    def call(self, method, params=None, session_id=None):
         self.next_id += 1
-        self.send(json.dumps({'id': self.next_id, 'method': method, 'params': params or {}}))
+        self.send(json.dumps({'id': self.next_id, 'method': method, 'params': params or {},
+                             **({'sessionId': session_id} if session_id else {})}))
         while True:
             message = self.read()
             if message.get('id') == self.next_id:

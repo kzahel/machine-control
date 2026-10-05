@@ -1,7 +1,7 @@
 # Windows streaming CDP
 
 This is an unreleased desktop development feature. The resident exposes a
-target-loopback, per-tab CDP WebSocket through the existing Chrome extension.
+target-loopback, per-tab and browser-level CDP WebSockets through the existing Chrome extension.
 Commands and events use ordinary CDP JSON. No browser debug port or UAC helper
 is required.
 
@@ -40,6 +40,37 @@ Replies have `id` and `result` or `error`; streamed events have `method` and
 `browser endpoint` returns `retained_owner_required` when the resident requires
 ownership, because ending the command would immediately invalidate its URL.
 
+The same response's `data.browserEndpoint` addresses the browser facade:
+
+```text
+ws://127.0.0.1:PORT/devtools/browser?token=TOKEN
+```
+
+Keep the same owner alive while connecting a browser client. With Playwright
+1.63, use `chromium.connectOverCDP(browserEndpoint, { noDefaults: true })` to
+preserve the current profile's browser defaults, including download policy.
+Use `browser.contexts()[0]` for existing tabs or `context.newPage()`; creating
+an isolated context refuses. Puppeteer 25.12 uses
+`puppeteer.connect({ browserWSEndpoint: browserEndpoint, defaultViewport: null })`.
+Disconnect the client when finished. The facade refuses `Browser.close`.
+
+Browser discovery exposes supported default-profile pages, omitting incognito,
+privileged Chrome pages and the Web Store. Root methods support version/context
+observations, target discovery, flattened attachment, new tabs, activation and
+close. A logical `mc-default` context identifies the current profile; it does
+not provide storage isolation. Synthetic tab wrappers support clients that
+attach tabs before their pages. Related native iframe/worker sessions receive
+connection-local IDs, preserved on commands, results and events. Unknown or
+detached IDs refuse. A root connection excludes raw per-tab connections, and
+at most 256 attached routes are retained.
+
+Root auto-attachment cannot pause a newly created renderer before its first
+script runs: facade page/tab attachments report `waitingForDebugger: false`.
+Native child auto-attachment preserves Chrome's actual waiting flag. Isolated
+contexts, browser-wide downloads, shutdown and unavailable CDP domains return
+protocol errors. This is a supported compatibility subset; client features
+outside it must be qualified separately.
+
 The address is loopback on the **target**, even for an outside caller. An
 outside client needs an authenticated forwarding tunnel to that target's
 ephemeral port while retaining the same owner. Preserve the target loopback
@@ -60,8 +91,8 @@ The listener accepts only strict upgrades on IPv4 loopback and refuses every
 `Origin` header, including an empty one. It bounds the handshake to 8 KiB and
 five seconds, connections to eight, and each tab to one raw connection. Commands
 are text objects with a unique outstanding nonnegative 32-bit integer `id`, a
-`Domain.method`, and optional object `params`. Browser-level/subsession routing
-is not supported. Client frames are bounded below 1 MiB; native framing overhead
+`Domain.method`, optional object `params` and optional bounded `sessionId`.
+Client frames are bounded below 1 MiB; native framing overhead
 also counts against its 1 MiB limit. At most 16 commands may be outstanding.
 
 Completion has a 45-second deadline. Output queues hold at most 64 frames and
@@ -80,7 +111,7 @@ tokens, CDP methods, parameters, page data and events. Same-user shell access is
 not contained. Chrome's debugger indicator remains visible, and Chrome may
 refuse restricted tabs or CDP domains.
 
-This is tab-level access. Playwright/Puppeteer browser-level attachment needs
-target discovery and attachment emulation, which remains a separate feature.
 [Tactical 099](../docs/tactical/099-windows-streaming-cdp.md) owns focused VM
-evidence and the remaining signed-release, ARM64 and physical qualification.
+per-tab evidence. [Tactical 100](../docs/tactical/100-browser-level-cdp.md) owns
+browser-client qualification. Signed-release, ARM64 and physical qualification
+remain separate.

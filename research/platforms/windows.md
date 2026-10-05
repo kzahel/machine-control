@@ -26,8 +26,11 @@ and
 [Tactical 099](../../docs/tactical/099-windows-streaming-cdp.md) adds per-tab
 WebSockets through the owned Chrome extension under retained DevTools
 ownership. Focused VM acceptance uses real operator controls, debugger events
-and independent HTTP effects; all 28 checks pass. Browser-level attachment, automatic tunnel
+and independent HTTP effects; all 28 checks pass. Automatic tunnel
 setup, signed packages and other execution platforms remain separate gates.
+Browser-level compatibility now has its own candidate acceptance in
+[Tactical 100](../../docs/tactical/100-browser-level-cdp.md): existing-profile
+tabs, real Playwright/Puppeteer tasks and native child-session routing.
 
 **Current — conformance-tested for staged x64 browser upload:**
 [Tactical 098](../../docs/tactical/098-windows-browser-upload.md) proves the

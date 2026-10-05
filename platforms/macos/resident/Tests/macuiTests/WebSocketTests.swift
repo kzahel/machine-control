@@ -80,6 +80,10 @@ final class DevToolsBridgeTests: XCTestCase {
         broker.issue(scopes: [.devtools], durationSeconds: 600, reason: "r", requester: "x",
                      approver: "test")
         XCTAssertEqual(bridge.acceptedTab(upgrade(token: "secret")), 7)
+        XCTAssertEqual(bridge.acceptedTab(upgrade(path: "/devtools/browser", token: "secret")), 0)
+        XCTAssertNil(bridge.acceptedTab(upgrade(path: "/devtools/browser", token: "wrong")))
+        XCTAssertNil(bridge.acceptedTab(upgrade(path: "/devtools/browser", token: "secret", origin: "")))
+        XCTAssertNil(bridge.acceptedTab(upgrade(path: "/devtools/page/0", token: "secret")))
         XCTAssertNil(bridge.acceptedTab(upgrade(token: "wrong")))
         XCTAssertNil(bridge.acceptedTab(upgrade(token: "secret", origin: "https://evil.example")))
         XCTAssertNil(bridge.acceptedTab(upgrade(path: "/other/7", token: "secret")))

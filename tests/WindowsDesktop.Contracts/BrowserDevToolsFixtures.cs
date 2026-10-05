@@ -129,7 +129,7 @@ internal static class BrowserDevToolsFixtures
             Require(next != uri, "new owner generation rotates endpoint"); await Refuse(uri);
             using (var socket = await Connect(next))
             {
-                await Send(socket, "{\"id\":1,\"method\":\"Runtime.evaluate\",\"sessionId\":\"forged\"}");
+                await Send(socket, "{\"id\":1,\"method\":\"Runtime.evaluate\",\"sessionId\":{}}");
                 await Closed(socket); Require(provider.Commands == 1, "invalid frame refused before dispatch");
             }
             // Wait for provider cleanup before intentionally reconnecting.
@@ -228,6 +228,28 @@ internal static class BrowserDevToolsFixtures
             Require(audit.Contains("browser.endpoint") && audit.Contains("browser.cdp") && audit.Contains("browser_completion_not_observed"), "endpoint and uncertain raw commands audited");
             Require(!audit.Contains("fixture-secret") && !audit.Contains("Runtime.evaluate") &&
                 !audit.Contains(uri.Query[7..]), "tokens, methods and params excluded from audit");
+            grants.Arm(["devtools"], 60); request = Owned(); next = Endpoint(request);
+            var browser = new Uri(next.ToString().Replace("/devtools/page/1", "/devtools/browser"));
+            using (var socket = await Connect(browser))
+            {
+                await Refuse(browser); await Refuse(next);
+                Require(provider.LastTab == 0, "browser endpoint selects root provider session");
+                await Send(socket, "{\"id\":21,\"method\":\"Runtime.enable\",\"sessionId\":\"mc-session-1\"}");
+                Require((await Read(socket))["sessionId"]!.GetValue<string>() == "mc-session-1", "subsession result preserves routing");
+                Require((await Read(socket))["sessionId"]!.GetValue<string>() == "mc-session-1", "subsession event preserves routing");
+                grants.Pause(); await Closed(socket); await Refuse(browser);
+            }
+            grants.Resume(); grants.Admission.Disconnect(owner); request = Owned(); next = Endpoint(request);
+            browser = new Uri(next.ToString().Replace("/devtools/page/1", "/devtools/browser"));
+            provider.MismatchSession = true;
+            int UnknownCompletions() => Contract.Serialize(journal.Preview()).Split("browser_completion_not_observed").Length;
+            using (var socket = await Connect(browser))
+            {
+                var unknownBefore = UnknownCompletions();
+                await Send(socket, "{\"id\":22,\"method\":\"Runtime.enable\",\"sessionId\":\"mc-session-1\"}");
+                await Closed(socket);
+                Require(UnknownCompletions() == unknownBefore + 1, "misrouted result records uncertain completion");
+            }
         }
         finally
         {
@@ -247,14 +269,14 @@ internal static class BrowserDevToolsFixtures
     {
         public bool Connected { get; set; } = true;
         public string Generation { get; set; } = "first";
-        internal int Opens, Commands, Closes;
-        internal bool SuppressResults;
+        internal int Opens, Commands, Closes, LastTab;
+        internal bool SuppressResults, MismatchSession;
         private Action<JsonObject>? _receive;
         internal void EmitLateFrame() => _receive!(new() { ["type"] = "session.closed" });
         public Task OpenAsync(string id, int tabId, Request authority, string generation, string providerGeneration,
             Action<JsonObject> receive, CancellationToken cancellation)
         {
-            Interlocked.Increment(ref Opens); _receive = receive;
+            Interlocked.Increment(ref Opens); LastTab = tabId; _receive = receive;
             receive(new() { ["type"] = "session.opened" }); return Task.CompletedTask;
         }
         public Task CommandAsync(string id, JsonObject command, Request authority, string generation,
@@ -262,8 +284,20 @@ internal static class BrowserDevToolsFixtures
         {
             Interlocked.Increment(ref Commands);
             if (SuppressResults) return Task.CompletedTask;
-            _receive!(new() { ["type"] = "session.result", ["cmdId"] = command["id"]!.DeepClone(), ["result"] = new JsonObject() });
-            _receive(new() { ["type"] = "session.event", ["method"] = "Runtime.consoleAPICalled", ["params"] = new JsonObject() });
+            _receive!(new()
+            {
+                ["type"] = "session.result",
+                ["cmdId"] = command["id"]!.DeepClone(),
+                ["sessionId"] = MismatchSession ? JsonValue.Create("other-session") : command["sessionId"]?.DeepClone(),
+                ["result"] = new JsonObject()
+            });
+            _receive(new()
+            {
+                ["type"] = "session.event",
+                ["method"] = "Runtime.consoleAPICalled",
+                ["sessionId"] = command["sessionId"]?.DeepClone(),
+                ["params"] = new JsonObject()
+            });
             return Task.CompletedTask;
         }
         public Task CloseAsync(string id, string providerGeneration) { Interlocked.Increment(ref Closes); return Task.CompletedTask; }

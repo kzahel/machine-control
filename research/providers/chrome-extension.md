@@ -27,12 +27,13 @@ tab lifecycle APIs. It is not the approval authority.
 | Platform and route | Evidence | Boundary |
 | --- | --- | --- |
 | macOS source-native extension/native messaging | `conformance-tested` | Fixture effects, navigation, capture and provider refusal in a Tart guest; predates signed Tauri acceptance |
-| macOS per-tab raw CDP WebSocket | `live-tested` | Reads/actions/events on physical and guest Chrome; browser-level attachment absent |
+| macOS per-tab raw CDP WebSocket | `live-tested` | Reads/actions/events on physical and guest Chrome; browser-root native changes are source-only pending build/live qualification |
 | macOS signed Tauri, installed Python CLI and YA local Codex | `conformance-tested` | Chrome for Testing 145 in a claimed appliance: independent HTTP counter effect, tab PNG consumed by the built-in agent image tool, plus 21 existing indicator/worker checks; standing policy, not workstation approval |
 | Windows source-native extension/native messaging | `conformance-tested` | Dedicated x64 VM, browser/devtools enforcement, independent fixture effects and PNG/hash checks; exact installed evidence below |
 | Windows signed Tauri extension/native messaging | `conformance-tested` | Public 0.4.8 x64 VM package: setup/approval, independent effects/capture, restart, production browser-open replacement and ordinary uninstall; local/outside parity and lock revocation recorded on 0.4.7 |
 | Windows staged x64 file upload | `conformance-tested` | Unreleased real desktop UI, browser-only live SDK owner and CLI request parser; Chrome for Testing 154: direct/multiple inputs, intercepted chooser, independent HTTP byte/hash effects and 23 scope/path/reference/Pause/Stop checks |
 | Windows staged x64 per-tab CDP WebSocket | `conformance-tested` | Unreleased real desktop UI and retained DevTools owner, fresh Chrome for Testing 154: commands/events, unresolved-promise concurrency, independent HTTP effects and 28 scope/token/Origin/owner/provider/Pause/Stop checks; signed/ARM64/physical acceptance separate |
+| Windows staged x64 browser-level CDP | `conformance-tested` | Shared target facade and native session routing; Chrome for Testing 154, Playwright 1.63 and Puppeteer 25.12: independent clicks, captures, popup/iframe/worker, refusals and 51 real-UI/authority/provider checks; signed/ARM64/physical acceptance separate |
 | Linux and other Chromium browsers | `upstream-claimed` facilities only | Owned registration and product acceptance absent |
 
 [Tactical 050](../../docs/tactical/050-macos-host-control-mvp.md) and
@@ -73,10 +74,20 @@ and output queues, records attachment/command metadata without payloads or
 tokens, and closes uncertain streams without replay. Raw commands progress
 concurrently so an awaited page promise does not hold up session cleanup.
 [Tactical 099](../../docs/tactical/099-windows-streaming-cdp.md) owns focused
-x64 evidence and remaining release/platform gates. No browser-level attachment
-or automatic outside WebSocket tunnel is inferred.
+x64 per-tab evidence and remaining release/platform gates. Automatic outside
+WebSocket tunnels remain unavailable.
 
-**Open:** Browser-level target emulation on all platforms; Linux registration; other Chromium browsers;
+**Current, unreleased candidate:** shared browser-level emulation combines
+real extension page target IDs with facade browser/tab sessions, the current
+default profile, tab lifecycle and connection-local child-session routing.
+It preserves Chrome's restricted domains/pages rather than claiming complete
+native browser CDP. Root attachment reports already-running targets;
+before-first-script popup interception is unavailable. Playwright 1.63 uses
+`noDefaults: true`; isolated contexts, downloads and shutdown refuse.
+[Tactical 100](../../docs/tactical/100-browser-level-cdp.md) owns real-client
+evidence. macOS native changes remain source-only, Linux registration absent.
+
+**Open:** macOS browser-root build/live qualification; Linux registration; other Chromium browsers;
 Web Store distribution; signed Mac workstation browser approval acceptance. No Windows ARM64
 execution is inferred from the x64 browser evidence.
 

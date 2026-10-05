@@ -30,7 +30,7 @@ test("real worker cleans markers on resident revocation, release and disconnect"
       async set(value) { Object.assign(storage, structuredClone(value)); },
       async remove(key) { delete storage[key]; } } },
     tabs: {
-      onUpdated: event(), onRemoved: event(),
+      onCreated: event(), onUpdated: event(), onRemoved: event(),
       async query() { return [...tabs.values()]; },
       async get(id) { return tabs.get(id); },
       async create({ url }) { const tab = { id: next++, url, windowId: 1, groupId: -1, status: "complete" };

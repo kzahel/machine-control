@@ -113,7 +113,9 @@ The unreleased [Windows browser upload](WINDOWS-BROWSER-UPLOAD.md) operation
 attaches validated target-local files through that extension without the OS
 picker, under browser grants and live ownership.
 The unreleased [Windows streaming CDP](WINDOWS-STREAMING-CDP.md) bridge adds
-per-tab WebSockets and debugger events under a retained DevTools owner.
+per-tab and browser-level WebSockets, debugger events and flattened target
+sessions under a retained DevTools owner. Real Playwright/Puppeteer tasks use
+the existing default profile; unsupported browser-wide operations refuse.
 
 Mac 0.4.9 offers **Until I turn it off** for manually enabled access.
 It removes the timer for the selected scopes; Stop, screen lock/session loss,

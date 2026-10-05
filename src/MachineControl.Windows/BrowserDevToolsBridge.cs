@@ -87,6 +87,8 @@ internal sealed class BrowserDevToolsBridge : IDisposable
             Data = new
             {
                 devtoolsEndpoint = $"ws://127.0.0.1:{Port}/devtools/page/<tabId>?token={token}",
+                browserEndpoint = $"ws://127.0.0.1:{Port}/devtools/browser?token={token}",
+                browserContext = "existing_default_profile",
                 binding = "live_devtools_owner",
                 retainedOwnerRequired = true,
                 maximumConnections = 8,
@@ -137,8 +139,10 @@ internal sealed class BrowserDevToolsBridge : IDisposable
         var lines = Encoding.ASCII.GetString(bytes, 0, count).Split("\r\n");
         var request = lines[0].Split(' ');
         if (request.Length != 3 || request[0] != "GET" || request[2] != "HTTP/1.1") return null;
-        var match = Regex.Match(request[1], @"\A/devtools/page/([1-9][0-9]*)\?token=([a-f0-9]{64})\z");
-        if (!match.Success || !int.TryParse(match.Groups[1].Value, out var tab)) return null;
+        var match = Regex.Match(request[1], @"\A/devtools/(?:page/([1-9][0-9]*)|browser)\?token=([a-f0-9]{64})\z");
+        if (!match.Success) return null;
+        var tab = 0; // Internal provider sentinel for a browser-root connection.
+        if (match.Groups[1].Success && !int.TryParse(match.Groups[1].Value, out tab)) return null;
         var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var line in lines.Skip(1).Where(line => line.Length > 0))
         {
@@ -153,8 +157,12 @@ internal sealed class BrowserDevToolsBridge : IDisposable
             !headers.TryGetValue("Sec-WebSocket-Version", out var version) || version != "13" ||
             !headers.TryGetValue("Sec-WebSocket-Key", out var key) || !ValidKey(key)) return null;
         Binding? binding;
-        lock (_gate) _tokens.TryGetValue(match.Groups[2].Value, out binding);
-        if (binding is null || !Authorized(binding) || !_tabs.TryAdd(tab, 0)) return null;
+        lock (_gate)
+        {
+            _tokens.TryGetValue(match.Groups[2].Value, out binding);
+            if (binding is null || !Authorized(binding) || (tab == 0 ? !_tabs.IsEmpty : _tabs.ContainsKey(0)) ||
+                !_tabs.TryAdd(tab, 0)) return null;
+        }
         try
         {
             var accept = Convert.ToBase64String(SHA1.HashData(Encoding.ASCII.GetBytes(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")));
@@ -245,18 +253,22 @@ internal sealed class BrowserDevToolsBridge : IDisposable
                     case "session.result":
                         var cmdId = frame["cmdId"]!.GetValue<int>();
                         if (!pending.TryRemove(cmdId, out var command)) { Abort(); return; }
+                        if (frame["sessionId"]?.GetValue<string>() != command.Session) { Audit(command, false); Abort(); return; }
                         if (!Audit(command, true)) { Abort(); return; }
                         var reply = new JsonObject { ["id"] = cmdId };
+                        if (frame["sessionId"] is { } replySession) reply["sessionId"] = replySession.DeepClone();
                         if (frame["error"] is { } error) reply["error"] = error.DeepClone();
                         else reply["result"] = frame["result"]?.DeepClone() ?? new JsonObject();
                         Queue(reply);
                         return;
                     case "session.event":
-                        Queue(new JsonObject
+                        var notification = new JsonObject
                         {
                             ["method"] = frame["method"]!.DeepClone(),
                             ["params"] = frame["params"]?.DeepClone() ?? new JsonObject()
-                        });
+                        };
+                        if (frame["sessionId"] is { } eventSession) notification["sessionId"] = eventSession.DeepClone();
+                        Queue(notification);
                         return;
                 }
             }
@@ -298,7 +310,7 @@ internal sealed class BrowserDevToolsBridge : IDisposable
                 var command = JsonNode.Parse(bytes.AsSpan(0, count))?.AsObject();
                 if (command is null || !ValidCommand(command) || pending.Count >= 16 || !Authorized(binding)) return;
                 var commandId = command["id"]!.GetValue<int>();
-                var audit = new Pending(Guid.NewGuid().ToString("n"), Environment.TickCount64);
+                var audit = new Pending(Guid.NewGuid().ToString("n"), Environment.TickCount64, command["sessionId"]?.GetValue<string>());
                 if (!pending.TryAdd(commandId, audit)) return;
                 if (_grants.Journal?.Begin("browser.cdp", audit.Id, binding.Generation) == false) return;
                 await _provider.CommandAsync(id, command, binding.Authority, binding.Generation, binding.Provider, stop.Token);
@@ -332,17 +344,20 @@ internal sealed class BrowserDevToolsBridge : IDisposable
         }
     }
 
-    internal static bool ValidCommand(JsonObject command) => command.Count is 2 or 3 &&
-        command.All(entry => entry.Key is "id" or "method" or "params") &&
+    internal static bool ValidCommand(JsonObject command) => command.Count is >= 2 and <= 4 &&
+        command.All(entry => entry.Key is "id" or "method" or "params" or "sessionId") &&
         command["id"] is JsonValue id && id.TryGetValue<int>(out var value) && value >= 0 &&
         command["method"] is JsonValue method && method.TryGetValue<string>(out var name) &&
         name.Length <= 160 && Regex.IsMatch(name, @"\A[A-Za-z][A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*\z") &&
-        (!command.ContainsKey("params") || command["params"] is JsonObject);
+        (!command.ContainsKey("params") || command["params"] is JsonObject) &&
+        (!command.ContainsKey("sessionId") || command["sessionId"] is JsonValue session &&
+            session.TryGetValue<string>(out var sessionId) && sessionId.Length is > 0 and <= 160 &&
+            Regex.IsMatch(sessionId, @"\A[A-Za-z0-9_-]+\z"));
 
     public void Dispose() => _listener.Stop();
     private sealed record Binding(Request Authority, string Generation, string Provider)
     {
         internal int Revoked;
     }
-    private sealed record Pending(string Id, long Started);
+    private sealed record Pending(string Id, long Started, string? Session = null);
 }

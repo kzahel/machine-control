@@ -28,7 +28,9 @@ from control_session import ControlSession
 from machine_control import ClientError
 from cdp_socket import CdpSocket
 
-PAGE = b'<!doctype html><meta charset="utf-8"><title>Streaming CDP Fixture</title><p>Independent effect fixture</p>'
+PAGE = b'''<!doctype html><meta charset="utf-8"><title>Streaming CDP Fixture</title>
+<p>Independent effect fixture</p><button id="effect" onclick="fetch('/effect',
+{method:'POST',body:this.dataset.marker}).then(r=>r.text()).then(()=>this.dataset.done='yes')">Effect</button>'''
 
 
 
@@ -51,6 +53,8 @@ def main():
     parser.add_argument('--install', required=True, type=Path)
     parser.add_argument('--chrome', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
+    parser.add_argument('--node', type=Path)
+    parser.add_argument('--client-modules', type=Path)
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     exe = args.install / 'runtime/machine-control-windows.exe'
@@ -75,11 +79,12 @@ def main():
             pass
 
         def do_GET(self):
+            page = b'<title>Child</title><p id="frame">Cross-site child</p>' if self.path == '/frame' else PAGE
             self.send_response(200)
             self.send_header('Content-Type', 'text/html; charset=utf-8')
-            self.send_header('Content-Length', str(len(PAGE)))
+            self.send_header('Content-Length', str(len(page)))
             self.end_headers()
-            self.wfile.write(PAGE)
+            self.wfile.write(page)
 
         def do_POST(self):
             size = int(self.headers.get('Content-Length', '0'))
@@ -220,7 +225,7 @@ def main():
         profile = args.output / ('browser-profile-' + str(time.time_ns()))
         browser = subprocess.Popen([str(args.chrome), '--no-first-run', '--no-default-browser-check',
                                     '--user-data-dir='+str(profile),
-                                    '--load-extension='+str(args.install/'runtime/browser-extension')],
+                                    '--site-per-process', '--load-extension='+str(args.install/'runtime/browser-extension')],
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         owner = new_owner(['browser'])
         poll(lambda: owner.call({'operation': 'browser.tabs'}).get('accepted'))
@@ -280,11 +285,55 @@ def main():
         check(replacement != current and refused(current), 'Reconnected provider requires a new endpoint')
         stream = connect(replacement)
         effect(stream, 'reconnected')
-        stream.send('{"id":1,"method":"Runtime.evaluate","sessionId":"forged"}')
+        stream.send('{"id":1,"method":"Runtime.evaluate","sessionId":{}}')
         check(closed(stream) and received == ['first', 'resumed', 'reconnected'], 'Malformed command closes only its connection before dispatch')
         stream = connect(replacement)
         ui('Stop access')
         check(closed(stream) and refused(replacement) and received == ['first', 'resumed', 'reconnected'], 'Stop closes stream and prevents further effects')
+        if args.node and args.client_modules:
+            owner.close(); owner = None
+            ui('Enable access'); owner = new_owner()
+            data = accepted({'operation': 'browser.endpoint'})['data']
+            root_url = data['browserEndpoint']
+            check(refused(root_url[:-64]+'0'*64) and refused(root_url, ''), 'Browser endpoint preserves token and Origin gates')
+            stream = connect(root_url)
+            check(refused(root_url) and refused(data['devtoolsEndpoint'].replace('<tabId>', str(tab))), 'Browser root owns exclusive debugger attachment')
+            check(stream.call('Browser.close')['error']['code'] == -32601 and
+                  stream.call('Browser.setDownloadBehavior')['error']['code'] == -32601, 'Browser shutdown and download policy refuse explicitly')
+            check(stream.call('Runtime.enable', session_id='forged')['error']['code'] == -32000, 'Forged child session cannot reach debugger')
+            stream.close(); time.sleep(.3)
+            fixture_url = 'http://127.0.0.1:'+str(server.server_port)+'/'
+            value = subprocess.run([str(args.node), str(Path(__file__).with_name('browser-root-clients.mjs')),
+                                    str(args.client_modules)], input=json.dumps({'endpoint': root_url, 'fixtureUrl': fixture_url}),
+                                   capture_output=True, text=True, encoding='utf-8', timeout=150)
+            result = json.loads(value.stdout)
+            report['clients'] = result
+            for label in result['checks']:
+                check(True, label)
+            check(value.returncode == 0 and result['passed'], 'Real browser clients complete: '+result.get('error', 'passed'))
+            check(received == ['first', 'resumed', 'reconnected', 'playwright', 'puppeteer'], 'Independent HTTP server observes both client clicks exactly once')
+            stream = connect(root_url)
+            stream.call('Target.setAutoAttach', {'autoAttach': True, 'flatten': True, 'waitForDebuggerOnStart': False})
+            stream.call('Target.setDiscoverTargets', {'discover': True})
+            ui('Pause access')
+            check(closed(stream) and refused(root_url), 'Pause closes browser and all attached sessions')
+            owner.close(); owner = None
+            ui('Resume access'); owner = new_owner()
+            fresh = accepted({'operation': 'browser.endpoint'})['data']['browserEndpoint']
+            check(fresh != root_url and refused(root_url), 'Browser endpoint rotates after Resume')
+            stream = connect(fresh)
+            owner.close(); owner = None
+            check(closed(stream) and refused(fresh), 'Browser owner disconnect closes root connection')
+            owner = new_owner()
+            fresh = accepted({'operation': 'browser.endpoint'})['data']['browserEndpoint']
+            stream = connect(fresh)
+            count = ps('$owned=@(Get-CimInstance Win32_Process | Where-Object {$_.ExecutablePath -eq '+quote(exe)+' -and $_.CommandLine -like '+quote('*chrome-extension://*')+'}); if($owned.Count -ne 1){throw "Native host identity uncertain"}; $owned | ForEach-Object {Stop-Process -Id $_.ProcessId}; $owned.Count')
+            check(count == '1' and closed(stream) and refused(fresh), 'Provider loss closes browser root and fences its endpoint')
+            poll(lambda: owner.call({'operation': 'browser.tabs'}).get('accepted'), timeout=60)
+            recovered = accepted({'operation': 'browser.endpoint'})['data']['browserEndpoint']
+            check(recovered != fresh and refused(fresh), 'Browser provider reconnect requires a fresh endpoint')
+            stream = connect(recovered); ui('Stop access')
+            check(closed(stream) and refused(recovered), 'Stop closes browser connection')
         report['passed'] = True
 
     except BaseException as error:

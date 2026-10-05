@@ -2,6 +2,7 @@
 // authorization: it forwards a request only while a person has granted the
 // browser scope, and tells this worker when that grant ends.
 import { TabIndicators } from "./indicators.js";
+import { BrowserCdp } from "./browser_cdp.js";
 
 const HOST = "org.machine_control.browser";
 const PROTOCOL_VERSION = 1;
@@ -43,13 +44,22 @@ let retryDelayMs = 1000;
 let retryTimer = null;
 const attached = new Set();
 const generations = new Map();
-// Raw DevTools sessions opened for the WebSocket bridge: id -> tabId.
-const sessions = new Map();
 let authorityGeneration = 0;
 let grantGeneration = null;
 const attaching = new Map();
 const indicators = new TabIndicators((tabId, method, params = {}) =>
   chrome.debugger.sendCommand({ tabId }, method, params));
+const streaming = new BrowserCdp({ chrome, ensureAttached,
+  releaseTab: async (tabId) => {
+    if (streaming.usesTab(tabId)) return;
+    await indicators.release(tabId);
+    await chrome.debugger.detach({ tabId }).catch(() => {});
+    attached.delete(tabId);
+  },
+  trackNewTab: (tabId) => ensureAttached(tabId, true),
+  authority: () => devtools && port ? `${grantGeneration}:${authorityGeneration}` : null,
+  post: (frame) => port?.postMessage(frame),
+});
 const initialized = indicators.recover();
 let disconnectCleanup = Promise.resolve();
 let residentMessages = Promise.resolve();
@@ -116,7 +126,6 @@ async function connect() {
     devtools = false;
     authorityGeneration += 1;
     grantGeneration = null;
-    sessions.clear();
     disconnectCleanup = detachAll();
     updateBadge();
     scheduleReconnect();
@@ -148,19 +157,27 @@ async function onResidentMessage(message) {
     granted = message.browser === true;
     devtools = message.devtools === true;
     if (revoked) authorityGeneration += 1;
-    if (!devtools) await closeAllSessions("devtools_grant_ended");
+    if (!devtools) await streaming.closeAll("devtools_grant_ended");
     if (!granted && !devtools) await detachAll();
     updateBadge();
     return;
   }
-  if (message?.type === "session.open") return openSession(message);
+  if (message?.type === "session.open") {
+    try {
+      await streaming.open(message.id, message.tabId);
+      port?.postMessage({ type: "session.opened", id: message.id });
+    } catch (error) {
+      port?.postMessage({ type: "session.failed", id: message.id, message: String(error.message || error) });
+    }
+    return;
+  }
   if (message?.type === "session.command") {
     // A CDP awaitPromise must not hold the resident queue: close/revocation
     // and other correlated commands need to progress while it is pending.
-    sessionCommand(message).catch(() => {});
+    streaming.command(message).catch(() => {});
     return;
   }
-  if (message?.type === "session.close") return closeSession(message.id, "closed");
+  if (message?.type === "session.close") return streaming.close(message.id, "closed");
   if (message?.type !== "request") return;
   const reply = { type: "response", id: message.id };
   try {
@@ -308,6 +325,7 @@ async function send(tabId, method, params = {}) {
 
 async function detachAll() {
   authorityGeneration += 1;
+  await streaming.closeAll("access_ended");
   const tabs = [...attached];
   attached.clear();
   await indicators.releaseAll();
@@ -497,64 +515,6 @@ async function setFiles(tabId, backendNodeId, files) {
   }
 }
 
-async function openSession(message) {
-  const { id, tabId } = message;
-  try {
-    const generation = authorityGeneration;
-    if (!devtools) throw new Error("DevTools access is not enabled");
-    await ensureAttached(tabId);
-    if (!devtools || generation !== authorityGeneration) throw new Error("DevTools authority changed");
-    sessions.set(id, tabId);
-    port?.postMessage({ type: "session.opened", id });
-  } catch (error) {
-    port?.postMessage({ type: "session.failed", id, message: String(error.message || error) });
-  }
-}
-
-async function sessionCommand(message) {
-  const tabId = sessions.get(message.id);
-  if (!devtools || tabId === undefined) {
-    port?.postMessage({ type: "session.result", id: message.id, cmdId: message.cmdId,
-      error: { code: -32000, message: "session closed" } });
-    return;
-  }
-  const connection = port;
-  const generation = authorityGeneration;
-  const current = () => devtools && port === connection && generation === authorityGeneration
-    && sessions.get(message.id) === tabId;
-  try {
-    const result = await chrome.debugger.sendCommand({ tabId }, message.method, message.params || {});
-    if (current()) connection?.postMessage({ type: "session.result", id: message.id, cmdId: message.cmdId, result: result ?? {} });
-  } catch (error) {
-    if (current()) connection?.postMessage({ type: "session.result", id: message.id, cmdId: message.cmdId,
-      error: { code: -32000, message: String(error.message || error) } });
-  }
-}
-
-async function closeSession(id, reason) {
-  const tabId = sessions.get(id);
-  if (tabId === undefined) return;
-  sessions.delete(id);
-  // Detach only when no session or other work holds the tab.
-  if (![...sessions.values()].includes(tabId)) {
-    await indicators.release(tabId);
-    await chrome.debugger.detach({ tabId }).catch(() => {});
-    attached.delete(tabId);
-  }
-  port?.postMessage({ type: "session.closed", id, reason });
-}
-
-async function closeAllSessions(reason) {
-  for (const id of [...sessions.keys()]) await closeSession(id, reason);
-}
-
-// Forward every debugger event to each session on that tab.
-chrome.debugger.onEvent.addListener((source, method, params) => {
-  for (const [id, tabId] of sessions) {
-    if (tabId === source.tabId) port?.postMessage({ type: "session.event", id, method, params });
-  }
-});
-
 // Raw DevTools protocol access under the separate devtools grant. Chrome
 // still refuses the few domains it withholds from extensions.
 async function cdp(params) {
@@ -598,14 +558,6 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   attached.delete(tabId);
   generations.delete(tabId);
   indicators.release(tabId).catch(() => {});
-  for (const [id, sessionTab] of sessions) {
-    if (sessionTab === tabId) { sessions.delete(id); port?.postMessage({ type: "session.closed", id, reason: "tab_closed" }); }
-  }
-});
-chrome.debugger.onDetach.addListener((source) => {
-  for (const [id, tabId] of sessions) {
-    if (tabId === source.tabId) { sessions.delete(id); port?.postMessage({ type: "session.closed", id, reason: "detached" }); }
-  }
 });
 chrome.tabs.onUpdated.addListener((tabId, change) => {
   // A navigation invalidates element references for that tab.

@@ -47,8 +47,11 @@ streamed events, payload-free audit, bounded transport and authority/provider
 fences pass 28 focused VM checks with independent HTTP effects.
 [Tactical 099](../docs/tactical/099-windows-streaming-cdp.md)
 owns focused VM evidence; [the streaming guide](../desktop/WINDOWS-STREAMING-CDP.md)
-owns usage, connection limits and outside forwarding. Browser-level attachment
-and signed/ARM64/physical qualification remain separate.
+owns usage, connection limits and outside forwarding. The candidate also
+supports browser-root target discovery, tab lifecycle and flattened native
+child sessions. [Tactical 100](../docs/tactical/100-browser-level-cdp.md) owns
+real Playwright/Puppeteer qualification and the supported default-profile
+subset. Signed/ARM64/physical qualification remains separate.
 
 **Current, unreleased x64 development candidate:** browser-scoped file upload
 passes 23 live checks through the real operator UI and Chrome for Testing in a

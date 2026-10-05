@@ -9,7 +9,7 @@ protocol DevToolsSession: AnyObject {
     func sessionClosed(_ reason: String)
 }
 
-/// Bridges one local WebSocket to one tab's DevTools session. The client
+/// Bridges one local WebSocket to a tab or the browser facade. The client
 /// speaks raw CDP (`{"id",...,"method",...}` in, results and events out);
 /// this translates to and from the relay's session messages.
 final class DevToolsBridgeConnection: DevToolsSession {
@@ -38,7 +38,8 @@ final class DevToolsBridgeConnection: DevToolsSession {
             return
         }
         relay?.sendSessionCommand(sessionId, cmdId: cmdId, method: method,
-                                  params: object["params"] as? [String: Any] ?? [:])
+                                  params: object["params"] as? [String: Any] ?? [:],
+                                  childSession: object["sessionId"] as? String)
     }
 
     func sessionOpened() { opened = true }
@@ -46,6 +47,7 @@ final class DevToolsBridgeConnection: DevToolsSession {
     func sessionResult(_ message: [String: Any]) {
         guard let cmdId = (message["cmdId"] as? NSNumber)?.intValue else { return }
         var frame: [String: Any] = ["id": cmdId]
+        if let session = message["sessionId"] as? String { frame["sessionId"] = session }
         if let error = message["error"] {
             frame["error"] = normalizedError(error)
         } else {
@@ -56,7 +58,9 @@ final class DevToolsBridgeConnection: DevToolsSession {
 
     func sessionEvent(_ message: [String: Any]) {
         guard let method = message["method"] as? String else { return }
-        sendFrame(["method": method, "params": message["params"] as? [String: Any] ?? [:]])
+        var frame: [String: Any] = ["method": method, "params": message["params"] as? [String: Any] ?? [:]]
+        if let session = message["sessionId"] as? String { frame["sessionId"] = session }
+        sendFrame(frame)
     }
 
     func sessionClosed(_ reason: String) {
@@ -135,6 +139,10 @@ final class BrowserDevToolsBridge {
         (broker.devtoolsAllowed && !broker.admission.reserved) ? endpointTemplate() : nil
     }
 
+    var browserEndpoint: String? {
+        endpoint?.replacingOccurrences(of: "\(BrowserDevToolsBridge.path)<tabId>", with: "/devtools/browser")
+    }
+
     private func endpointTemplate() -> String? {
         guard let server, server.port != 0, !token.isEmpty else { return nil }
         return "ws://127.0.0.1:\(server.port)\(BrowserDevToolsBridge.path)<tabId>?token=\(token)"
@@ -146,11 +154,12 @@ final class BrowserDevToolsBridge {
     func acceptedTab(_ upgrade: WebSocketUpgrade) -> Int? {
         guard (broker.devtoolsAllowed && !broker.admission.reserved),
               !token.isEmpty, upgrade.query["token"] == token,
-              upgrade.origin == nil,
-              upgrade.path.hasPrefix(BrowserDevToolsBridge.path),
-              let tabId = Int(upgrade.path.dropFirst(BrowserDevToolsBridge.path.count)) else {
+              upgrade.origin == nil else {
             return nil
         }
+        if upgrade.path == "/devtools/browser" { return 0 }
+        guard upgrade.path.hasPrefix(BrowserDevToolsBridge.path),
+              let tabId = Int(upgrade.path.dropFirst(BrowserDevToolsBridge.path.count)), tabId > 0 else { return nil }
         return tabId
     }
 
