@@ -91,6 +91,10 @@ capture programs that deliberately exclude the cover. It does not weaken UAC, se
 password or lockout policy. Same-user unrestricted shell access is not
 contained by desktop consent or a same-user controller key.
 
+Abrupt guardian-process death, display hotplug, other topmost overlays and
+physical hardware have no privacy qualification. Covers are ordinary Windows
+presentation windows; no zero-frame exposure guarantee is claimed.
+
 ## Validation
 
 [Tactical 101](../docs/tactical/101-windows-desktop-locked-use.md) owns candidate

@@ -86,8 +86,9 @@ The unreleased [optional UAC helper](WINDOWS-UAC.md) adds administrator-approved
 default-off UAC consent and elevated application control behind native grants
 and a live owner session. The unreleased [bounded locked-use profile](WINDOWS-LOCKED-USE.md)
 adds separately approved, owner-bound existing-session password unlock and
-independent relock. It temporarily exposes the console. Cold login and other
-users remain unavailable.
+independent relock behind an opaque single-display cover. Tasks that start
+unlocked finish without requesting lock. Cold login and other users remain
+unavailable.
 Ctrl+Alt+Shift+Period is the native emergency Stop shortcut. Startup is an
 explicit preference. See [Windows packages](../release/windows-desktop.md)
 and [Tactical 053](../docs/tactical/053-windows-desktop.md) for current evidence.

@@ -59,8 +59,10 @@ Focused unreleased Windows bounded locked-use evidence is recorded in
 x64 development app and the native route in a Windows-hosted VirtualBox VM.
 It adds existing-session unlock and independently guarded relock; it does not
 retroactively qualify the historical signed ordinary-profile cells below.
-Signed installed, broad Cua post-unlock, ARM64 live, hardware takeover and
-opaque-cover acceptance remain open.
+[Tactical 102](tactical/102-windows-covered-control.md) adds focused opaque
+one-display VM presentation, underlying native capture/input and initial-state
+cleanup checks. Signed installed, broad Cua post-unlock, ARM64 live and hardware
+takeover acceptance remain open.
 
 This historical broad checklist covers macOS ARM64 Tart, Windows x64 VM, and
 Linux x64 GNOME Wayland VM. Focused 0.5.4 ARM64 results are recorded separately

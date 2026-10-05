@@ -30,7 +30,10 @@ adds an optional separately installed/armed desktop UAC helper. It must retain
 native grants and live ownership and never inherit appliance authority.
 The separately approved [bounded locked-use profile](../desktop/WINDOWS-LOCKED-USE.md)
 adds existing-session password unlock and relock with a temporarily visible
-console. Cold login and other users remain outside this desktop integration.
+console in its historical candidate. The current source uses a single-display
+opaque cover; [Tactical 102](../docs/tactical/102-windows-covered-control.md)
+owns that successor's qualification. Cold login and other users remain outside
+this desktop integration.
 
 **Decision:** Reuse the concise Access, Permissions, Activity, and Settings UX.
 Windows permissions report session/integrity availability rather than macOS
@@ -47,10 +50,12 @@ Windows support claim.
 binds the existing unlock broker to explicit native preparation and a finite
 desktop task. A SYSTEM guardian owns relock independently of the resident and
 service. Exact signed installed qualification for the accumulated Windows
-changes remains pending authenticated release tooling. Opaque-screen privacy
-and physical takeover have no new acceptance claim. The operator must approve
-the temporarily visible console profile; native task effects and lifecycle
-checks do not establish broader Cua or signed-package acceptance.
+changes remains pending authenticated release tooling. The successor in
+[Tactical 102](../docs/tactical/102-windows-covered-control.md) proves opaque
+one-display VM presentation with underlying native capture and injected
+pointer/keyboard effects. It also fences unlock to locked-origin tasks and
+proves that ordinary completion does not newly lock the console. Physical
+takeover, broader Cua and signed-package qualification remain separate gates.
 
 **Current, unreleased x64 development candidate:** per-tab CDP WebSockets use
 the shared Chrome extension and a retained DevTools owner. Typed commands,

@@ -94,8 +94,10 @@ The unreleased [desktop locked-use integration](desktop/WINDOWS-LOCKED-USE.md)
 reuses that protected payload with a separate controller grant. The Medium
 resident owns consent and task admission; the controller owns key and one-shot
 credential custody; an independent SYSTEM guardian owns failure relock for the
-bound console session. This profile temporarily exposes the console and does
-not inherit the Mac covered-display mechanism.
+bound console session. That Windows guardian now also owns the opaque
+single-display cover and physical-input interception. Windows uses its own
+Win32/DWM presentation mechanism; the Mac guardian remains a separate native
+implementation. Both profiles bind cleanup to the task's initial lock state.
 Consumer acceptance and its limits live in
 [YA's topic](../yepanywhere/topics/optional-computer-control.md); historical
 headless native acceptance remains in

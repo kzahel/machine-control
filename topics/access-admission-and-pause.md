@@ -41,9 +41,10 @@ implements this fence on Windows and corrects the macOS legacy lease path.
 explicitly prepared, finite observation/control owner while the exact local
 console is locked. Ordinary dispatch still refuses until password unlock is
 independently confirmed. An independent SYSTEM guardian owns relock, and a
-relock barrier fences new work after authority loss. The console is temporarily
-visible; physical takeover, opaque privacy and signed installed qualification
-remain distinct gates.
+relock barrier fences new work after authority loss. That historical candidate
+used a temporarily visible console. [Tactical 102](../docs/tactical/102-windows-covered-control.md)
+adds opaque one-display VM presentation and native task-origin fencing;
+physical takeover and signed installed qualification remain distinct gates.
 
 **Current:** [Tactical 075](../docs/tactical/075-admission-contract-and-arbiter.md)
 records the common contract/arbiter checks and Windows builds.

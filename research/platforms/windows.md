@@ -31,6 +31,18 @@ not cache passwords or weaken Windows policy. Its native effects and lifecycle
 evidence are distinct from signed installed, broad Cua post-unlock, ARM64 live,
 physical takeover and opaque-cover qualification.
 
+**Current — staged x64 covered desktop route:**
+[Tactical 102](../../docs/tactical/102-windows-covered-control.md) separates
+opaque VM presentation from underlying native GDI capture and injected input.
+The owned SYSTEM guardian uses a nonactivating, layered, input-transparent
+window with capture exclusion; its lifetime is independent of the resident and
+service. [Microsoft's display-affinity API](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowdisplayaffinity)
+defines `WDA_EXCLUDEFROMCAPTURE` from Windows 10 version 2004 under DWM
+composition. Source refuses unsupported versions/composition and multiple
+displays before credential submission. This is presentation privacy, not a
+security boundary against local software using other capture routes. Broader
+capture/provider, physical and signed-package qualification remain separate.
+
 **Current — conformance-tested for staged x64 streaming CDP:**
 [Tactical 099](../../docs/tactical/099-windows-streaming-cdp.md) adds per-tab
 WebSockets through the owned Chrome extension under retained DevTools

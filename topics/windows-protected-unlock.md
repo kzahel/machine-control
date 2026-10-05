@@ -33,7 +33,10 @@ observation/control consent and a prepared owner session are all required.
 The controller supplies a password once after exact field readiness; the
 desktop stores none. A separately launched SYSTEM guardian binds relock to the
 same account/logon session and fences owner loss, authority changes, deadlines
-and failure. The first profile temporarily exposes the console. See
+and failure. The current single-display profile places an opaque cover before
+possible credential submission; only a locked-origin task can prepare unlock
+and acquire relock authority. Ordinary completion never newly locks the
+console. See [Tactical 102](../docs/tactical/102-windows-covered-control.md),
 [Tactical 101](../docs/tactical/101-windows-desktop-locked-use.md) and the
 [operator guide](../desktop/WINDOWS-LOCKED-USE.md) for qualification and limits.
 

@@ -220,6 +220,7 @@ def main():
                 else:
                     ui('Stop access')
             else:
+                external('verify-cover-' + args.scenario)
                 external('crash-' + args.scenario)
             external('verify-relock-' + args.scenario)
             check(not ready(), args.scenario + ': independent guardian relocks after interruption')
