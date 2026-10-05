@@ -94,8 +94,13 @@ there is no product fallback to the appliance. Controller actions are claimed
 guest-native transport; no VM-window input, host focus or controller installation
 is used. Final cleanup independently confirms no optional service/payload,
 candidate process or acceptance task remains. Private evidence stays outside
-Git; inactive private staging files are retained. The VM returns to its original
-powered-off state and both the validation and bounded shutdown claims are
+Git. The inactive private staging directory was subsequently removed through
+claimed guest PowerShell after an explicit cleanup request, with its exact path
+and absence of links verified before deletion and absence verified afterward.
+The first wrapped cleanup command had been rejected before execution by the
+controller's command tool; no guest filesystem refusal was observed.
+The VM returns to its original powered-off state and the validation and cleanup
+claims are
 released. The accepted runtime SHA-256 is
 `2ff7d4bc648b9d554f2f21a01191b660bb63478d5b87cee08a20982167ea8b02`.
 The final native shell SHA-256 is
