@@ -32,6 +32,7 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
         {
             var grant = UnlockPolicy.Read(Instance);
             using var identity = WindowsIdentity.GetCurrent();
+            if (!DesktopDisplayCovers.Supported) return "covered_display_configuration_unsupported";
             if (!DesktopUacNative.Installed()) return "helper_unavailable";
             if (grant.TargetUserSid != identity.User?.Value || grant.TransportUserSid != identity.User?.Value)
                 return "controller_account_mismatch";
@@ -48,7 +49,7 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
     {
         lock (grants.Gate) return new
         {
-            supported = true,
+            supported = DesktopDisplayCovers.Supported,
             permissionReady = Prepared(),
             preparationRefusal = PreparationRefusal(),
             enabled = grants.PreparedConsole,

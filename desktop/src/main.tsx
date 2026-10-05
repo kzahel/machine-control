@@ -663,7 +663,9 @@ function App() {
                         on
                           ? lockedOff
                           : !lockedUse.supported
-                            ? "Requires macOS 14 or later"
+                            ? windows
+                              ? "Requires Windows 10 version 2004 or later and one display"
+                              : "Requires macOS 14 or later"
                             : yaOnly
                               ? "Not available with YepAnywhere-only access"
                               : state?.pending
@@ -702,7 +704,9 @@ function App() {
                     </label>
                     <span className="row-status">
                       {!lockedUse.supported
-                        ? "Requires macOS 14 or later"
+                        ? windows
+                          ? "Requires one display and active desktop composition"
+                          : "Requires macOS 14 or later"
                         : yaOnly
                           ? "Not with YepAnywhere-only"
                           : lockedUse.setupState === "approval"

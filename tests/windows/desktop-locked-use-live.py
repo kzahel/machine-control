@@ -186,6 +186,11 @@ def main():
             if args.scenario in ('stop', 'covered'):
                 windows = owner.call({'operation': 'windows', 'scope': 'system'})
                 hwnd = next(w['hwnd'] for w in windows['data']['windows'] if w['processId'] == fixture.pid)
+                if args.scenario == 'covered':
+                    cover = next(w for w in windows['data']['windows'] if w['title'] == 'Machine Control privacy cover')
+                    refused = owner.call({'operation': 'window.state', 'hwnd': cover['hwnd'], 'state': 'closed'})
+                    check(not refused['accepted'] and refused.get('errorCode') == 'self_target_refused',
+                          'Agent cannot close its independent privacy guardian')
                 owner.call({'operation': 'window.state', 'hwnd': hwnd, 'state': 'maximized'})
                 snapshot = owner.call({'operation': 'snapshot', 'scope': 'system', 'hwnd': hwnd})
                 button = next(e for e in snapshot['data']['elements'] if e['name'] == 'Increment counter')

@@ -12,6 +12,8 @@ internal sealed class DesktopDisplayCovers : IDisposable
 {
     private Cover? _cover;
     private Rectangle _bounds;
+    internal static bool Supported => OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041) &&
+        Forms.Screen.AllScreens.Length == 1 && DwmIsCompositionEnabled(out var composed) == 0 && composed;
     internal bool Healthy => _cover is { IsDisposed: false, Visible: true } cover &&
         Forms.Screen.AllScreens is [var screen] && screen.Bounds == _bounds &&
         GetWindowDisplayAffinity(cover.Handle, out var affinity) && affinity == 0x11 &&
@@ -19,9 +21,7 @@ internal sealed class DesktopDisplayCovers : IDisposable
 
     internal void Install()
     {
-        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041) ||
-            Forms.Screen.AllScreens is not [var screen] ||
-            DwmIsCompositionEnabled(out var composed) != 0 || !composed)
+        if (!Supported || Forms.Screen.AllScreens is not [var screen])
             throw new InvalidOperationException("covered_display_configuration_unsupported");
         _bounds = screen.Bounds;
         _cover = new Cover
