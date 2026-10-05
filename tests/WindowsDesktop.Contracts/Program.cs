@@ -56,6 +56,21 @@ try
 }
 finally { if (Directory.Exists(journalRoot)) Directory.Delete(journalRoot, true); }
 var clock = new TestTime();
+var consent = new Request { Operation = "uac.respond", State = "approve" };
+Assert(DesktopUacPolicy.Refusal(consent, false, true, "Winlogon", true) == "uac_access_disabled", "UAC opt-in required");
+Assert(DesktopUacPolicy.Refusal(consent, true, false, "Winlogon", true) == "desktop_unavailable", "Locked console refused");
+Assert(DesktopUacPolicy.Refusal(consent, true, true, "Winlogon", false) == "uac_prompt_unavailable", "Winlogon alone is not UAC");
+Assert(DesktopUacPolicy.Refusal(consent, true, true, "unknown", true) == "uac_prompt_unavailable", "Unknown desktop refused");
+Assert(DesktopUacPolicy.Refusal(consent, true, true, "Default", true) == "uac_prompt_unavailable", "No approval on ordinary desktop");
+Assert(DesktopUacPolicy.Refusal(consent, true, true, "Winlogon", true) is null, "Typed UAC approval");
+Assert(DesktopUacPolicy.Refusal(consent with { State = "cancel" }, true, true, "Winlogon", true) is null, "Typed UAC cancellation");
+Assert(DesktopGrants.ScopeFor("uac.respond") == "control", "UAC response needs control scope");
+foreach (var forbidden in new[] { "app.launch", "session.login", "session.lock", "service.revoke", "runtime.stop", "browser.eval" })
+    Assert(DesktopUacPolicy.Refusal(consent with { Operation = forbidden }, true, true, "Default", true) == "protected_operation_refused", "Closed privileged surface: " + forbidden);
+foreach (var forbidden in new[] { "invoke", "click", "key", "type", "set.value", "window.state", "app.activate" })
+    Assert(DesktopUacPolicy.Refusal(consent with { Operation = forbidden }, true, true, "Winlogon", true) == "secure_desktop_operation_refused", "Secure input is typed: " + forbidden);
+Assert(DesktopUacPolicy.Refusal(consent with { Text = "secret" }, true, true, "Winlogon", true) == "invalid_uac_response", "No secret in UAC response");
+Assert(DesktopUacPolicy.Refusal(consent with { SecretPipe = "secret" }, true, true, "Winlogon", true) == "protected_operation_refused", "No credential transport");
 var updates = new DesktopUpdates();
 Refuses(() => updates.Request(true), "Updater not initialized by operator");
 var idleUpdates = System.Text.Json.Nodes.JsonNode.Parse("{\"checking\":false,\"installing\":false}")!.AsObject();
