@@ -28,7 +28,14 @@ internal static class DesktopUacWorker
     }
     internal static AutomationElement ConsentUi(int consentPid)
     {
-        var windows = AutomationElement.RootElement.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ProcessIdProperty, consentPid));
+        // consent.exe also owns the secure background Pane. Require the
+        // single visible, enabled dialog Window rather than treating that
+        // independently observed stock background as a second prompt.
+        var windows = AutomationElement.RootElement.FindAll(TreeScope.Children, new AndCondition(
+            new PropertyCondition(AutomationElement.ProcessIdProperty, consentPid),
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Window),
+            new PropertyCondition(AutomationElement.IsOffscreenProperty, false),
+            new PropertyCondition(AutomationElement.IsEnabledProperty, true)));
         if (windows.Count != 1) throw new DesktopAccessRefusedException("uac_prompt_ambiguous");
         var edits = windows[0].FindAll(TreeScope.Descendants, new OrCondition(
             new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit), new PropertyCondition(AutomationElement.IsPasswordProperty, true)));
