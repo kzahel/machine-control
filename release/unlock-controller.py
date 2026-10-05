@@ -113,7 +113,18 @@ def run(args):
     credential_read = False
     submission_attempted = False
     try:
-        send(dict(operation='unlock', credentialKind=args.kind))
+        hello = dict(operation='unlock', credentialKind=args.kind)
+        preparation = None
+        if getattr(args, 'desktop_preparation', None):
+            preparation = json.loads(args.desktop_preparation.read_text(encoding='utf-8'))
+            if preparation.get('instance') != 'desktop' or preparation.get('operation') != 'desktop.unlock' \
+                    or args.instance != 'desktop' or args.kind != 'password' \
+                    or not isinstance(preparation.get('guardPipe'), str) \
+                    or not preparation['guardPipe'].startswith('machine-control-locked-guard-') \
+                    or type(preparation.get('residentPid')) is not int or preparation['residentPid'] <= 0:
+                raise ValueError('Invalid desktop unlock preparation')
+            hello.update(operation='desktop.unlock', guardPipe=preparation['guardPipe'], residentPid=preparation['residentPid'])
+        send(hello)
         frame = frames.next()
         if frame.get('stage') != 'challenge':
             print(json.dumps(frame))
@@ -121,6 +132,11 @@ def run(args):
         challenge_text = frame['challenge']
         phase = 'challenge_validation'
         validate_challenge(json.loads(challenge_text), grant, args.instance, args.kind)
+        challenge = json.loads(challenge_text)
+        expected_binding = None if preparation is None else hashlib.sha256(
+            (preparation['guardPipe'] + ':' + str(preparation['residentPid'])).encode()).hexdigest()
+        if challenge.get('desktopControlBinding') != expected_binding:
+            raise ValueError('Challenge belongs to a different desktop task')
         phase = 'controller_proof'
         signature = openssl(['dgst', '-sha256', '-sign', str(args.key)], challenge_text.encode('utf-8'))
         send(dict(signature=base64.b64encode(signature).decode()))
@@ -200,6 +216,8 @@ def main():
     unlock.add_argument('--key', type=Path, required=True)
     unlock.add_argument('--kind', choices=['password', 'pin'], default='password')
     unlock.add_argument('--secret-file', type=Path)
+    unlock.add_argument('--desktop-preparation', type=Path,
+                        help='Exact session.unlock.prepare data from a retained desktop owner')
     unlock.add_argument('carrier', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if args.action == 'keygen':

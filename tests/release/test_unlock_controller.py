@@ -54,14 +54,15 @@ class UnlockChallengeTests(unittest.TestCase):
             with self.subTest(hours=hours), self.assertRaises(ValueError):
                 controller.proposal(SimpleNamespace(hours=hours))
 
-    def run_failure(self, challenge, replies):
+    def run_failure(self, challenge, replies, preparation=None):
         source = Mock()
         source.open.return_value = io.BytesIO(b'fixture-credential')
         process = Mock(stdin=io.BytesIO(), stdout=io.BytesIO())
         frames = Mock()
         frames.next.side_effect = [dict(stage='challenge', challenge=json.dumps(challenge)), *replies]
         args = SimpleNamespace(grant=Mock(read_text=lambda: json.dumps(self.grant)), key=Path('fixture-key'),
-            carrier=['fixture-carrier'], instance='example', kind='password', secret_file=source)
+            carrier=['fixture-carrier'], instance='desktop' if preparation else 'example', kind='password', secret_file=source,
+            desktop_preparation=Mock(read_text=lambda **_: json.dumps(preparation)) if preparation else None)
         output = io.StringIO()
         with patch.object(controller.subprocess, 'Popen', return_value=process), \
                 patch.object(controller, 'Frames', return_value=frames), \
@@ -85,3 +86,21 @@ class UnlockChallengeTests(unittest.TestCase):
         self.assertTrue(result['credentialRead'])
         self.assertEqual(result['delivery'], 'unknown')
         self.assertEqual(result['retrySafety'], 'never_automatically')
+
+    def test_different_desktop_task_never_opens_credential(self):
+        preparation = dict(instance='desktop', operation='desktop.unlock',
+                           residentPid=17, guardPipe='machine-control-locked-guard-' + uuid.uuid4().hex)
+        result, source = self.run_failure({**self.challenge, 'instance': 'desktop',
+                                          'desktopControlBinding': '00' * 32}, [], preparation)
+        source.open.assert_not_called()
+        self.assertEqual(result['phase'], 'challenge_validation')
+        self.assertFalse(result['credentialRead'])
+
+    def test_matching_task_still_requires_native_field_readiness(self):
+        preparation = dict(instance='desktop', operation='desktop.unlock',
+                           residentPid=17, guardPipe='machine-control-locked-guard-' + uuid.uuid4().hex)
+        binding = hashlib.sha256((preparation['guardPipe'] + ':17').encode()).hexdigest()
+        result, source = self.run_failure({**self.challenge, 'instance': 'desktop',
+                                          'desktopControlBinding': binding}, [dict(stage='refused')], preparation)
+        source.open.assert_not_called()
+        self.assertEqual(result['stage'], 'refused')
