@@ -110,6 +110,9 @@ final class LockedUseTests: XCTestCase {
                 "A later idle lock cannot turn an unlocked-origin task into covered control")
             XCTAssertFalse(lease.mayActivateCovered(observedState:"unlocked"))
             XCTAssertFalse(lease.mayActivateCovered(observedState:"unknown"))
+            XCTAssertEqual(lease.ordinaryLockEnding("desktop_locked"), origin == "unlocked",
+                "An ordinary idle lock keeps otherwise valid standing approval")
+            XCTAssertFalse(lease.ordinaryLockEnding("owner_disconnected"))
         }
     }
 

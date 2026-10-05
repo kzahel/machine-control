@@ -47,7 +47,7 @@ checkbox choice. Ordinary launches of the same build do not restart the helper.
 Permissions still offers Repair for actual failures. Maintenance does not grant
 ordinary Access; restarting the app clears that in-memory approval.
 
-The active task then opens a bounded control session. Lock the Mac normally.
+Lock the Mac normally before the agent starts its bounded covered task.
 Every display receives an opaque, nonactivating cover before the existing
 console is temporarily unlocked. Operator windows are hidden while covered
 and restored after relock, so their self-interface protection does not block application pointer targets. The
@@ -71,6 +71,11 @@ and unattended resumption still require qualification in Tactical 074.
 Stop access, task completion, expiry, owner
 disconnect, display changes, sleep, and failures also terminate temporary use.
 Covers are removed after observed lock, or after the bound console is replaced.
+Tasks that start unlocked finish without requesting lock. If an ordinary task
+encounters an idle or user lock, it ends without unlocking that screen; a fresh
+locked-origin task can enter covered control under the existing approval.
+This task-origin correction is source implemented, with native Mac validation
+still pending in [Tactical 102](../../../docs/tactical/102-windows-covered-control.md).
 
 Turning the setting off immediately persists local revocation and ends active
 use without another administrator prompt. The idle installed helper has no

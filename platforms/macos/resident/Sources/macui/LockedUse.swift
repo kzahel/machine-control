@@ -21,6 +21,9 @@ struct ControlSessionLease {
     func mayActivateCovered(observedState: String) -> Bool {
         startedLocked && observedState == "locked"
     }
+    func ordinaryLockEnding(_ reason: String) -> Bool {
+        session["desktopState"] as? String == "unlocked" && reason == "desktop_locked"
+    }
 
     static func duration(_ value: Any?) -> Int? {
         guard let number = value as? NSNumber,
@@ -546,7 +549,7 @@ final class MacLockedUse {
     }
 
     func end(_ reason: String) {
-        guard lease != nil else { return }
+        guard let current = lease else { return }
         guard phase != "relocking" else {
             // A dead owner cannot prevent the lock-readback cleanup path.
             if nativeSessionObservation()["desktopState"] as? String == "locked" { finishAfterLock() }
@@ -567,7 +570,7 @@ final class MacLockedUse {
         if reason == "physical_presence" {
             try? broker.pause(reason: "physical_activity", seconds: 30)
         }
-        if !cleanCoveredEnding(reason) && reason != "physical_presence" {
+        if !cleanCoveredEnding(reason) && reason != "physical_presence" && !current.ordinaryLockEnding(reason) {
             broker.revoke(reason: reason == "physical_presence" ? "interrupted_by_physical_presence" : reason)
             service.invalidateReferences()
         }
