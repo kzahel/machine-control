@@ -162,8 +162,8 @@ still require private factory scripts with manual journal coverage.
 opt-in scheduling assist runs once after the configured wait. It does not
 request Windows sleep, hibernation, hybrid shutdown or VirtualBox saved state.
 Existing live evidence includes both idle transport stalls and shutdown stalls;
-it does not establish that these have one cause. No new guest experiment or
-host configuration change was performed for this research pass.
+it does not establish that these have one cause. The research pass was followed
+by the bounded live shutdown trace below; host configuration stayed unchanged.
 
 **Upstream-claimed:** [issue 722](https://github.com/VirtualBox/virtualbox/issues/722)
 reports Windows 11 guest stalls on a Windows 11 host using Hyper-V, including
@@ -191,6 +191,25 @@ restores shutdown progress and ordinary idle use has also stalled. Pausing
 affects several subsystems, so this is not a root-cause finding. Guest service
 or driver teardown, including Guest Additions, remains a competing explanation.
 
+**Current (2026-10-05), live-tested:** an unprotected development guest with
+the scheduling assist disabled exceeded the fifteen-minute observation budget.
+One explicit pause/resume was followed by power-off in approximately four
+seconds. A private, shutdown-persistent ETW recording captured scheduler,
+disk, interrupt, power, service and logon events. After approximately eight
+seconds of activity, it recorded only seven events over the next roughly
+895 seconds, then substantial activity returned around recovery. The decoded
+trace reports zero lost events and buffers. Sparse interrupt/DPC routines map
+to `ndis.sys`; this establishes occasional network-stack activity, not a
+network-driver cause. Service shutdown continued after recovery.
+
+This strengthens the idle/wakeup hypothesis relative to sustained shutdown I/O,
+but does not prove where guest progress stopped. Built-in WPR profiles refused
+with `0x80070032`; a minimal custom profile succeeded without sampled CPU stacks.
+The controller's event decoder also lacks some guest event schemas. Without
+stacks or an independent host/backend trace, a specific blocked service,
+driver or virtualization defect cannot be identified. Execution and cleanup
+details belong to [Tactical 094](../../docs/tactical/094-windows-hyperv-development-host.md#unassisted-shutdown-trace--2026-10-05).
+
 **Upstream-claimed:** Microsoft documents
 [full shutdown as the default for `shutdown.exe /s /t 0`](https://learn.microsoft.com/en-us/troubleshoot/windows-client/setup-upgrade-and-drivers/fast-startup-causes-system-hibernation-shutdown-fail);
 [`/hybrid`](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/shutdown)
@@ -200,7 +219,14 @@ would be a different test. This research found no specific primary-source link
 between System Restore and pause/resume-sensitive shutdown; do not disable it
 without trace evidence implicating restore or VSS activity.
 
-**Proposal:** use an unprotected development candidate for one-variable tests:
+**Current, live-tested:** although the guest's Fast Startup registry preference
+was enabled, `powercfg /a` reported hibernation unsupported by firmware and Fast
+Startup unavailable. Changing that preference cannot explain this observed
+full-shutdown stall.
+
+**Proposal:** continue with an unprotected development candidate for
+one-variable tests. The first instrumented reproduction above is complete;
+guest-only idle behavior is the next focused comparison, not a proven fix:
 
 1. Acquire its exact-target claim and collect a private baseline: guest build,
    Guest Additions/driver versions, power configuration, shutdown event logs,

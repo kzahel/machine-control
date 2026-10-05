@@ -601,3 +601,50 @@ compatibility profile and retained appliance milestone. Complete common-factory
 creation/derivation, isolated workspaces, unassisted lifecycle reliability,
 remote hosting and Windows ARM support remain open; this tactical as a whole
 is not complete.
+
+### Unassisted shutdown trace — 2026-10-05
+
+The user requested a clean committed tree followed by shutdown tracing, to
+investigate the pause/resume dependency rather than assume a guest power
+setting would fix it. Research and the proposed experiment sequence were
+committed before the live run (current history: `cb630e7`).
+
+Read-only doctor, an exclusive disruptive claim, private journals, canonical
+credential verification and guarded cold login covered the retained development
+VM. The protected base remained off. A private configuration copy disabled
+only the shutdown assist while retaining exact target identity; the normal
+configuration was verified unchanged. No password submission occurred during
+recording. Built-in WPR profiles failed with `0x80070032`, including a CPU-only
+probe without shutdown persistence. Partial files and recorder state were
+inspected; the successful custom probe was cancelled before the actual run.
+A minimal custom shutdown-persistent profile succeeded
+with scheduler, loader, disk, interrupt, power, service and logon coverage,
+without sampled CPU stacks.
+
+The native full shutdown failed its unassisted observation after 902.129
+seconds. No console input, debugger probes or pause/resume occurred during
+that interval. One explicitly claimed pause/resume recovery was followed by
+independently observed power-off in 4.373 seconds. After restart, WPR merged
+the private trace and was verified stopped; pinned transfer and matching
+guest/controller hashes verified the retained approximately 16 MB ETL.
+
+The trace contains 230,885 events with zero reported event or buffer loss.
+After approximately eight seconds, only seven events appear over roughly
+895 seconds; activity returns around recovery. The controller decoder emitted
+inconsistent timezone suffixes, so relative timing was calibrated to the ETL
+header and displayed wall clock rather than mixing those offsets. Some guest
+schemas remain undecoded. Interpretation, Fast Startup availability and the
+next diagnostic comparison live in the
+[VirtualBox dossier](../../research/providers/virtualbox.md#unassisted-shutdown-investigation).
+This is useful instrumented reproduction evidence, not unassisted lifecycle
+acceptance or a confirmed root cause.
+
+Private journals record recorder failures, a refused claim-release invocation
+that incorrectly supplied the global claim argument, its corrected release,
+and direct recovery/transfer steps outside automatic CLI coverage. Final
+canonical credential verification passed. Cleanup using the normal assisted
+profile completed in 37.969 seconds; the development VM ended off, its claim
+was released, and the protected base remained off. Normal configuration and
+host boot time were unchanged. No force-stop, host reboot, host security/WSL
+change, or guest power-setting change occurred. Raw traces, decoded events,
+provider logs, scripts and exact journal references remain private.

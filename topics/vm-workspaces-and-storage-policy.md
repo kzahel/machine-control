@@ -258,9 +258,13 @@ compatibility profile toward complete factory and isolated-workspace support.
 
 **Decision:** investigate unassisted Windows shutdown using the
 [VirtualBox dossier's evidence and experiment sequence](../research/providers/virtualbox.md#unassisted-shutdown-investigation).
-Idle execution and host/backend wakeup behavior are the leading hypothesis,
-not a confirmed cause. The native command already requests full shutdown,
-so guest Fast Startup and System Restore are not the first settings to change.
+The first live trace recorded almost no scheduler, interrupt or I/O activity
+through the stall, with activity returning around pause/resume. Idle execution
+and host/backend wakeup behavior remain the leading hypothesis, not a confirmed
+cause. Compare guest-only idle behavior next, retaining original values and
+treating increased CPU/power use as a diagnostic cost. The native command
+already requests full shutdown, and Fast Startup is unavailable in this guest;
+System Restore has no supporting evidence as the cause.
 Preserve the protected base and host hypervisor/WSL/security configuration;
 remove assistance only after repeated unassisted lifecycle acceptance.
 
