@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Add an optional Windows administrator-installed UAC helper with per-run
+  opt-in, native grants and live ownership. Approved tasks can observe English
+  stock consent prompts, approve/cancel them and control elevated apps. Pause,
+  Stop and owner loss still fence effects. Credential prompts and lock/login
+  remain unavailable; UAC and secure-desktop policy stay enabled.
+
 ## [0.5.5]
 
 - Redesign the Access tab around an on/off switch with Pause and Resume

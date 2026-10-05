@@ -43,10 +43,14 @@ fn main() {
         .current_dir(&repository)
         .output()
     {
-        let branch = String::from_utf8(branch.stdout).unwrap();
-        for name in ["HEAD", branch.trim()]
+        let branch = branch
+            .status
+            .success()
+            .then(|| String::from_utf8(branch.stdout).ok())
+            .flatten();
+        for name in ["HEAD", branch.as_deref().unwrap_or("").trim()]
             .into_iter()
-            .filter(|v| !v.is_empty())
+            .filter(|v| branch.is_some() && !v.is_empty())
         {
             if let Ok(path) = source_git(&repository)
                 .args(["rev-parse", "--path-format=absolute", "--git-path", name])

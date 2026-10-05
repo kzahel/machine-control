@@ -22,6 +22,18 @@ and
 
 ## Platform acceptance surface
 
+**Current — conformance-tested for the staged x64 desktop UAC route:**
+[Tactical 097](../../docs/tactical/097-windows-desktop-uac.md) proves optional
+administrator-installed helper setup/removal through the real product UI,
+secure-desktop PNG/hash delivery, typed cancellation/approval and independent
+elevated fixture effects through the desktop owner channel. Closed-operation,
+scope, caller, credential, stale-reference, disconnect, Pause and Stop checks
+pass without weakening UAC policy. The privileged provider is the owned native
+UIA/Win32 worker; Cua stays Medium. The testbed appliance acts only on setup and
+removal prompts, not as a product fallback. Evidence is an unsigned x64
+candidate on a Windows-hosted VirtualBox VM; ARM64 builds, signed packages,
+physical machines, localized consent and credential prompts are distinct gates.
+
 **Current, conformance-tested for the staged ordinary desktop route:**
 [Tactical 096](../../docs/tactical/096-windows-owner-session-acceptance.md) adds
 ARM64 native Cua and browser-extension effects through owner-required SDK/CLI

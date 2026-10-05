@@ -42,8 +42,9 @@ the commits' `Topic:` trailers and register that exact string in
 
 ## Tactical index
 
-- [097 — Windows desktop UAC](097-windows-desktop-uac.md) (active): optional
-  protected helper, desktop grants/live ownership, and Windows VM acceptance.
+- [097 — Windows desktop UAC](097-windows-desktop-uac.md) (completed slice):
+  optional protected helper, desktop grants/live ownership and 21 x64 VM checks;
+  signed release and ARM64/physical acceptance remain separate.
 
 | Tactical | Status | Scope |
 | --- | --- | --- |

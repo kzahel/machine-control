@@ -1,6 +1,6 @@
 # 097 — Windows desktop UAC and elevated application control
 
-Status: active.
+Status: completed bounded source and x64 development-VM acceptance.
 Owning topic: [Windows desktop](../../topics/windows-desktop.md).
 
 ## Objective and completion conditions
@@ -64,4 +64,77 @@ claim in cleanup and leave access off.
 
 ## Validation and final result
 
-Pending implementation and VM acceptance.
+Completed on 2026-10-05. The actual Tauri Permissions UI cancels installation,
+installs the administrator-owned helper with access off, and removes it after
+Stop. Settings opts into the protected route for the current run; the ordinary
+companion remains Medium. Setup uses Windows elevation, separate SCM service
+identity, protected payload ACLs, kernel pipe/process identities, and a closed
+operation list. Launch/activation remain Medium; credential and lock/login
+operations are excluded. Worker callbacks recheck the exact owner's grant and
+fences before native effects. Desktop epochs invalidate semantic references.
+
+The checked-in [interactive actor](../../tests/windows/desktop-uac-live.py)
+passes 21 checks on the claimed x64 development VM through the actual GUI and
+desktop named-pipe owner channel:
+
+- UAC/secure desktop enabled, ordinary Off refusal, setup cancellation,
+  protected helper installation and default-off state;
+- untrusted Medium caller, idle grant, observe-only owner and credential
+  transport refusals;
+- protected secure-desktop PNG/hash, generic secure input refusal, typed
+  cancellation with no elevated marker, and stale semantic-reference refusal;
+- typed approval followed by the fixture-owned process marker and elevated
+  counter effect, with exact process identity;
+- owner disconnection, Pause and Stop fences, native window closure, helper
+  removal and unchanged UAC policy.
+
+The separate appliance actor handles only install/remove prompts. Application
+consent and elevated effects use `windows.desktop_uac/windows.native` routes;
+there is no product fallback to the appliance. Controller actions are claimed
+guest-native transport; no VM-window input, host focus or controller installation
+is used. Final cleanup independently confirms no optional service/payload,
+candidate process or acceptance task remains. Private evidence stays outside
+Git; inactive private staging files are retained. The VM returns to its original
+powered-off state and both the validation and bounded shutdown claims are
+released. The accepted runtime SHA-256 is
+`2ff7d4bc648b9d554f2f21a01191b660bb63478d5b87cee08a20982167ea8b02`.
+The final native shell SHA-256 is
+`2bd5c109bf6d5f41e0b418e42e0871c05509554362ec69e1ea5fec68681aa53a`.
+
+To repeat, stage the runtime/provider/fixtures, desktop executable, bundled
+Python, `client/`, and `tests/windows/desktop-uac-live.py` in a private candidate
+directory. Run the actor in the interactive Medium session with `--install`,
+`--evidence` and `--mailbox` private paths. The claimed controller observes
+`setup-cancel`, `setup-approve` and `remove-approve` mailbox phases, responds
+only to their independent setup prompts, and writes the matching `.done`
+files. Do not run another target operation concurrently with that controller.
+
+Validation passes: runtime/desktop-contract formatting, desktop and unlock
+contracts, self-contained x64/ARM64 publishes, TypeScript/Vite build, Rust
+formatting/clippy and the native Tauri Windows build. Release/client Python
+regressions pass with their recorded platform skips; the live actor compiles.
+
+Friction and resulting fixes:
+
+- Named-pipe impersonation must follow a read. Identification-level clients,
+  actual server PIDs and a narrowly scoped SYSTEM ACL allow authenticated
+  resident validation without changing the ordinary user pipe.
+- STA initialization can create a window before desktop binding. Protected
+  requests use UIA's MTA route and bind before authority callbacks; ordinary
+  requests retain STA. Win32 failures report their native code.
+- Stock consent owns a background Pane as well as its dialog. Discovery requires
+  one visible enabled Window of the unique stock consent process, while keeping
+  edit/password-field and unique response refusals.
+- Cold payload copies, companion restart and elevated window creation need
+  bounded state waits. The test mailbox uses atomic replacement. Earlier test
+  coordination errors were corrected before the passing complete run.
+- The independent appliance relay needed typed revocation before setup prompt
+  handling. This is testbed friction, not an adopted product fallback.
+- A cold ordinary `app.launch` held the existing grant gate long enough to lose
+  owner heartbeat. This run starts its independent fixture before acquiring
+  product ownership; repairing that separate launch/watchdog concern is deferred.
+
+No public release is published. Exact signed installed/update/uninstall-helper
+qualification, ARM64 live and physical execution, localized consent, helper
+fault/restart campaigns and broader elevated application/input coverage remain
+open. Credential prompts and lock/login remain explicitly unsupported.

@@ -82,6 +82,9 @@ authorize operations.
 Windows uses a separate `desktop` instance and inherited private operator
 channel. Its public pipe enforces grants and cannot approve them. Ordinary
 control does not cross UAC, elevated apps, lock/login, or other user sessions.
+The unreleased [optional UAC helper](WINDOWS-UAC.md) adds administrator-approved,
+default-off UAC consent and elevated application control behind native grants
+and a live owner session. Lock/login and other users remain unavailable.
 Ctrl+Alt+Shift+Period is the native emergency Stop shortcut. Startup is an
 explicit preference. See [Windows packages](../release/windows-desktop.md)
 and [Tactical 053](../docs/tactical/053-windows-desktop.md) for current evidence.

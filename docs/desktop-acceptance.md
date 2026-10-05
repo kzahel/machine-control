@@ -38,6 +38,20 @@ immediately. Concrete targets and raw evidence stay in private inventory/storage
 | Linux x64, Ubuntu GNOME Wayland VM | Exact signed public 0.5.4 Debian/AppImage bytes, signatures and inventories verified | Public 0.5.0 fresh installed UI/grants/effects/lifecycle and signed replacement with browser tasks pass; earlier same-core lock, reboot/startup and removal evidence remains in 056 | [056](tactical/056-linux-desktop.md), [059](tactical/059-public-linux-desktop.md); [063](tactical/063-six-platform-desktop-release.md), [091](tactical/091-desktop-until-stopped.md) |
 | Linux ARM64, Ubuntu GNOME Wayland VM | Public 0.5.4 native Ubuntu CI builds, compiled identity, container inventories/signatures and tamper rejection verified | Exact 0.5.4 Debian visible indefinite access/status, null countdown, AT-SPI delivery, independent GTK counter effect and Stop pass; portal/browser/lifecycle execution remains separate | [056](tactical/056-linux-desktop.md), [059](tactical/059-public-linux-desktop.md); [063](tactical/063-six-platform-desktop-release.md), [091](tactical/091-desktop-until-stopped.md) |
 
+## Focused Windows desktop UAC candidate acceptance
+
+The unsigned x64 development candidate passes 21 checks in a Windows-hosted
+VirtualBox VM through the real operator UI and desktop owner channel. Setup
+cancellation/install/removal, secure consent capture/hash, typed cancellation
+and approval, independent elevated counter effects, caller/scope/credential
+refusals, stale references, disconnect, Pause and Stop pass with UAC policy
+unchanged. The helper is removed afterward. [Tactical 097](tactical/097-windows-desktop-uac.md)
+records the exact runtime hash, methodology, friction and limits.
+
+These checks do not promote the public 0.5.4 package or establish signed
+replacement, ARM64 live, physical, localized consent or credential support.
+The historical ordinary-profile checklist below retains its own scope.
+
 ## Shared Tauri behavior checklist
 
 This historical broad checklist covers macOS ARM64 Tart, Windows x64 VM, and

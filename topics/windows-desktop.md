@@ -41,6 +41,19 @@ Windows support claim.
 
 ## Execution and remaining gates
 
+**Current, unreleased x64 development candidate:** the optional desktop UAC
+helper passes 21 live checks in a Windows-hosted VirtualBox VM. The actual
+operator UI installs/cancels/removes it; the desktop owner channel captures
+secure consent, cancels/approves it, and controls an independently observed
+elevated fixture counter. Untrusted caller, observe-only, credential, generic
+secure-input, stale-reference, disconnect, Pause and Stop refusals pass, and
+UAC policy is unchanged. The helper/service and test processes are removed
+afterward. [Tactical 097](../docs/tactical/097-windows-desktop-uac.md) owns the
+execution record; the [operator guide](../desktop/WINDOWS-UAC.md) owns setup,
+per-run opt-in and version replacement. This is unsigned candidate evidence,
+with x64/ARM64 builds; signed release, ARM64 live, physical and localized
+prompt acceptance remain open. Lock/login is outside this integration.
+
 **Current, unreleased candidate acceptance:** ordinary desktop-product native
 and browser dispatch requires a live owner session, even with an idle standing
 grant. The common CLI negotiates short ownership or retains it with

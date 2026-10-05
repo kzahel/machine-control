@@ -84,6 +84,12 @@ installation, updates, native access and resident lifecycle. YA's former
 workstation installer, grants, deferred tool and private process job are retired;
 it does not stop the independent desktop on session close or crash. The headless
 workstation profile and protected appliance remain independently available.
+The desktop's optional [UAC helper](desktop/WINDOWS-UAC.md) is a separate
+administrator-installed LocalSystem service with a protected payload. The
+Medium desktop resident owns grants and live admission; the helper verifies
+that resident and calls back for each request's authority before effects.
+Permissions owns setup/removal, Settings owns per-run opt-in, and neither
+surface inherits the appliance's protected authority.
 Consumer acceptance and its limits live in
 [YA's topic](../yepanywhere/topics/optional-computer-control.md); historical
 headless native acceptance remains in
