@@ -133,6 +133,9 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
         security.SetAccessRuleProtection(true, false);
         security.AddAccessRule(new PipeAccessRule(identity.User!,
             PipeAccessRights.FullControl, AccessControlType.Allow));
+        if (string.Equals(Environment.ProcessPath, DesktopUacNative.Executable, StringComparison.OrdinalIgnoreCase))
+            security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                PipeAccessRights.ReadWrite, AccessControlType.Allow));
         return NamedPipeServerStreamAcl.Create(name, PipeDirection.InOut, 8,
             PipeTransmissionMode.Byte, PipeOptions.Asynchronous | (first ? PipeOptions.FirstPipeInstance : PipeOptions.None),
             65536, 65536, security);

@@ -148,7 +148,11 @@ internal static class DesktopController
         out IntPtr switchedDesktop)
     {
         switchedDesktop = IntPtr.Zero;
-        DesktopSafety.Require(request, generation);
+        // A synchronous pipe authority check can initialize COM's STA wait
+        // window. Bind the protected request thread before that check so
+        // SetThreadDesktop is still legal; binding itself dispatches no effect.
+        // Authority is checked below before any observation or action.
+        if (DesktopSafety.ExternalCheck is null) DesktopSafety.Require(request, generation);
         var timer = Stopwatch.StartNew();
         var desktop = NativeMethods.OpenInputDesktop(
             0,
