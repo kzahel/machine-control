@@ -232,12 +232,15 @@ function App() {
               uac: { ...previous.uac!, setupState: "pending", enabled: false },
             },
         );
-        setNotice(
-          "Finish Windows administrator approval to install or remove the UAC helper.",
-        );
+        setNotice("Finish helper setup in the Windows dialogs.");
         return;
       }
       setState(r.state);
+      setNotice((previous) =>
+        previous === "Finish helper setup in the Windows dialogs."
+          ? ""
+          : previous,
+      );
       if (r.state?.platform) setPlatform(r.state.platform);
     } catch (e) {
       setState(undefined);
@@ -323,7 +326,7 @@ function App() {
           ? "Wait for the current agent to finish"
           : "Turn access on";
   const lockedUse =
-    mac && state?.deployment.policy.grantMode === "approval"
+    (mac || windows) && state?.deployment.policy.grantMode === "approval"
       ? state.lockedUse
       : undefined;
   const accessTitle = !state
@@ -645,7 +648,9 @@ function App() {
                   })}
                 </div>
                 {windows &&
-                  shownScopes.some((s) => s === "browser" || s === "devtools") && (
+                  shownScopes.some(
+                    (s) => s === "browser" || s === "devtools",
+                  ) && (
                     <p className="note group-note">
                       Browser access can attach local files to websites.
                     </p>
@@ -707,7 +712,9 @@ function App() {
                               : lockedUse.setupState !== "idle"
                                 ? "Preparing…"
                                 : lockedUse.enabled
-                                  ? "Keep your Mac awake, lid open"
+                                  ? windows
+                                    ? "Tasks temporarily expose your desktop, then relock"
+                                    : "Keep your Mac awake, lid open"
                                   : ""}
                     </span>
                     {!on &&
@@ -723,6 +730,7 @@ function App() {
                           }
                           disabled={
                             busy ||
+                            (windows && !state?.uac?.installed) ||
                             !!lockedUse.controlSessionId ||
                             !!state?.pending
                           }
@@ -742,6 +750,15 @@ function App() {
                 )}
                 {lockedUse?.setupError && !yaOnly && (
                   <p className="note group-note">{lockedUse.setupError}</p>
+                )}
+                {windows && lockedUse && (
+                  <p className="note group-note">
+                    An approved controller supplies your password once per task.
+                    The screen is visible while unlocked; it relocks when the
+                    task ends or loses access. No password is saved. Install the
+                    helper in Permissions, then choose the controller's public
+                    approval.
+                  </p>
                 )}
                 {trustSupported && (
                   <div className="ya-row">
@@ -862,7 +879,7 @@ function App() {
                   )}
                   <div className="setting-row">
                     <span className="row-label">
-                      Lock screen and other users
+                      Other users and cold login
                     </span>
                     <span className="row-status">Unavailable</span>
                   </div>
@@ -1539,7 +1556,9 @@ function App() {
               ))}
             </div>
             {windows &&
-              pendingScopes.some((s) => s === "browser" || s === "devtools") && (
+              pendingScopes.some(
+                (s) => s === "browser" || s === "devtools",
+              ) && (
                 <p className="note">
                   Browser access can attach local files to websites.
                 </p>

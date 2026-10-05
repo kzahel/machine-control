@@ -21,11 +21,17 @@ internal static class DesktopSafety
         catch (System.ComponentModel.Win32Exception) { return false; }
     }
 
+    internal static void RefreshAvailability(DesktopGrants broker)
+    {
+        var sameConsole = NativeMethods.WTSGetActiveConsoleSessionId() == (uint)RuntimeProfile.SessionId;
+        broker.SetReady(Ready(), sameConsole && SessionStateInspector.IsLocked((uint)RuntimeProfile.SessionId) == true);
+    }
+
     internal static string? Check(Request request, string generation, int? resolvedProcess = null)
     {
         if (ExternalCheck is { } external) return external(request, generation, resolvedProcess);
         if (Broker is not { } broker) return null;
-        broker.SetReady(Ready());
+        RefreshAvailability(broker);
         var refusal = broker.Authorize(request, generation);
         if (refusal is not null) return refusal;
         if (DesktopGrants.ScopeFor(request.Operation) != "control") return null;

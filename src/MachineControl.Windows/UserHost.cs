@@ -164,10 +164,13 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
         if (!Operations.Contains(request.Operation, StringComparer.Ordinal) &&
             !(updates is not null && request.Operation is "update.check" or "update.status") &&
             !(grants is not null && request.Operation is "grant.request" or "grant.status" or "grant.revoke") &&
+            !(grants is not null && request.Operation == "session.unlock.prepare") &&
             !(browser is not null && BrowserWire.Operations.Contains(request.Operation, StringComparer.Ordinal)))
             return result with { ErrorCode = "unsupported_operation", Message = "Operation is unavailable in the workstation profile" };
         if (request.SecretPipe is not null || request.CredentialKind is not null)
             return result with { ErrorCode = "profile_refused", Message = "Workstation mode has no credential transport" };
+        if (request.Operation == "session.unlock.prepare" && DesktopLockedUse.Current is { } lockedUse)
+            return lockedUse.Prepare(request, Generation);
         if (updates is not null && request.Operation is "update.check" or "update.status")
         {
             try
@@ -185,7 +188,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
         }
         if (grants is not null)
         {
-            grants.SetReady(DesktopSafety.Ready());
+            DesktopSafety.RefreshAvailability(grants);
             if (request.Operation == "grant.revoke") grants.Stop("revoked_by_caller");
             if (request.Operation is "grant.status" or "grant.revoke")
                 return Envelope(request) with { Accepted = true, Delivery = "confirmed", Effect = "not_applicable", Data = grants.DeploymentState() };
@@ -231,16 +234,17 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
                 : new
                 {
                     profile = "workstation",
-                    operations = grants is null ? Operations : [.. Operations, .. BrowserWire.Operations, "grant.request", "grant.status", "grant.revoke", .. (updates is null ? Array.Empty<string>() : new[] { "update.check", "update.status" })],
+                    operations = grants is null ? Operations : [.. Operations, .. BrowserWire.Operations, "grant.request", "grant.status", "grant.revoke", "session.unlock.prepare", .. (updates is null ? Array.Empty<string>() : new[] { "update.check", "update.status" })],
                     browser = browser?.State,
                     authorization = grants is null ? "component_owner" : "native_target_wide_grants",
                     controlSession = grants is null ? null : new { schema = AccessAdmission.Schema, required = true },
                     providers = ProviderRouter.DescribeUser(),
                     serviceOperations = Array.Empty<string>(),
                     protectedDesktop = DesktopUacClient.State(),
+                    lockedUse = DesktopLockedUse.Current?.State(),
                     sessionRequirement = DesktopUacClient.Enabled ? "same active unlocked console; Default or stock English UAC consent" : "active unlocked console Default desktop",
-                    knownOmissions = DesktopUacClient.Enabled ? new[] { "UAC credential prompts", "localized UAC responses", "lock/login", "RDP and other user sessions" }
-                        : new[] { "elevated applications", "UAC", "lock/login", "RDP and other user sessions" },
+                    knownOmissions = DesktopUacClient.Enabled ? new[] { "UAC credential prompts", "localized UAC responses", "ordinary lock/login UI", "RDP and other user sessions" }
+                        : new[] { "elevated applications", "UAC", "ordinary lock/login UI", "RDP and other user sessions" },
                 };
             return result with
             {

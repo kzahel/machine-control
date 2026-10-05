@@ -13,6 +13,21 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     private LiveGrant? _grant;
     private PendingGrant? _pending;
     private bool _ready;
+    private bool _preparedConsole;
+    private bool _lockedConsole;
+    private long _authorizationRevision;
+    internal bool PreparedConsole { get { lock (Gate) return _preparedConsole; } }
+    internal bool ConsoleReady { get { lock (Gate) return _ready; } }
+    internal long AuthorizationRevision { get { lock (Gate) return _authorizationRevision; } }
+    internal void PrepareConsole(bool enabled)
+    {
+        lock (Gate)
+        {
+            Stop("locked_use_preference_changed");
+            _preparedConsole = enabled;
+            Admission.SetReady("desktop", _ready || enabled && _lockedConsole);
+        }
+    }
     private bool _updating;
     private string? _lastEnded;
     private readonly Queue<object> _activity = new();
@@ -40,7 +55,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     {
         "windows" or "snapshot" or "screenshot" => "observe",
         "app.launch" or "app.activate" or "invoke" or "set.value" or
-        "click" or "key" or "key.timeline" or "key.delayed_hold" or "type" or "window.state" or "uac.respond" => "control",
+        "click" or "key" or "key.timeline" or "key.delayed_hold" or "type" or "window.state" or "uac.respond" or "session.unlock.prepare" => "control",
         "browser.tabs" or "browser.wait" or "browser.navigate" or "browser.snapshot" or
         "browser.click" or "browser.type" or "browser.key" or "browser.capture" or
         "browser.upload" or "browser.release" => "browser",
@@ -48,7 +63,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         _ => null,
     };
 
-    internal void SetReady(bool ready)
+    internal void SetReady(bool ready, bool lockedConsole = false)
     {
         lock (Gate)
         {
@@ -63,7 +78,8 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
                 }
             }
             _ready = ready;
-            Admission.SetReady("desktop", ready);
+            _lockedConsole = lockedConsole;
+            Admission.SetReady("desktop", ready || _preparedConsole && lockedConsole);
         }
     }
 
@@ -100,7 +116,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             var scope = ScopeFor(operation);
             if (scope is null) return "unsupported_operation";
             if (!controlled && Admission.Reserved) return "control_session_required";
-            if (!_ready) return "desktop_unavailable";
+            if (!_ready && !(controlled && operation == "session.unlock.prepare" && _preparedConsole && _lockedConsole)) return "desktop_unavailable";
             if (_updating) return "update_in_progress";
             if (Admission.Blocks("desktop").Length > 0) return "access_paused";
             if (_pending is not null && (scope is "control" or "devtools" ||
@@ -204,6 +220,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         {
             Admission.Resume("desktop", "manual");
             Admission.Resume("desktop", "operator_deferral");
+            Admission.Resume("desktop", "physical_takeover");
             Journal?.Event("access.resumed");
         }
     }
@@ -213,6 +230,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         if (Journal?.Event("access.enabled") == false) throw new InvalidOperationException("Audit storage unavailable");
         _generation = Guid.NewGuid().ToString("n");
         _grant = new LiveGrant(scopes, duration, reason, caller, _time.GetTimestamp());
+        ++_authorizationRevision;
         _lastEnded = null;
     }
 
@@ -223,6 +241,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             Journal?.Event("access." + DesktopJournal.Token(reason));
             _generation = Guid.NewGuid().ToString("n");
             _grant = null;
+            ++_authorizationRevision;
             _lastEnded = reason;
             _pending?.Completion.TrySetResult(new GrantReply(false, reason));
             _pending = null;

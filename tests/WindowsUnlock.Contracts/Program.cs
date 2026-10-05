@@ -47,4 +47,5 @@ Assert(stream.Length - stream.Position == 4, "Handshake did not read ahead into 
 var bytes = await UnlockWire.ReadSecretAsync(stream, CancellationToken.None);
 Assert(bytes.SequenceEqual(new byte[] { 65, 66 }), "Secret frame intact");
 CryptographicOperations.ZeroMemory(bytes);
+Assert(!DesktopLockedUse.Prepared(), "Unprepared ordinary status does not throw or grant protected authority");
 Console.WriteLine("Windows unlock authorization and transport contracts passed");

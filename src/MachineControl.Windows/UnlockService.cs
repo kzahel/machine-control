@@ -33,8 +33,8 @@ internal sealed class UnlockWindowsService : ServiceBase
 
 internal sealed record UnlockChallenge(string Protocol, string Instance, string ServiceGeneration,
     long SessionEpoch, uint SessionId, string SessionLogonId, string GrantRevision, string TargetUserSid,
-    string ControllerFingerprint, string CredentialKind, string Nonce, DateTimeOffset Deadline);
-internal sealed record UnlockHello(string Operation, string? CredentialKind);
+    string ControllerFingerprint, string CredentialKind, string Nonce, DateTimeOffset Deadline, string? DesktopControlBinding = null);
+internal sealed record UnlockHello(string Operation, string? CredentialKind, string? GuardPipe = null, uint? ResidentPid = null);
 internal sealed record UnlockProof(string Signature);
 internal sealed record UnlockWorkerStart(string Instance, string Revision, uint SessionId,
     string SessionLogonId, string TargetUserSid, string CredentialKind, string Generation, bool PrepareDesktop = false);
@@ -45,6 +45,7 @@ internal sealed class UnlockProgress
     public string Phase { get; set; } = "hello";
     public bool CredentialRead { get; set; }
     public bool ForwardAttempted { get; set; }
+    public bool UnlockConfirmed { get; set; }
     public string? WorkerFailure { get; set; }
     public int? NativeError { get; set; }
 }
@@ -54,17 +55,43 @@ internal sealed class UnlockService(string instance)
     public const string Protocol = "machine-control-unlock/v0";
     private readonly string _generation = Guid.NewGuid().ToString("n");
     private long _epoch;
+    private readonly SemaphoreSlim _attempt = new(1, 1);
     public void Invalidate() => Interlocked.Increment(ref _epoch);
 
     public async Task RunAsync(CancellationToken stop)
     {
         if (!WindowsIdentity.GetCurrent().IsSystem) throw new UnauthorizedAccessException("LocalSystem required");
-        while (!stop.IsCancellationRequested)
+        var pending = new List<Task>();
+        using var capacity = new SemaphoreSlim(8, 8);
+        var firstInstance = true;
+        try
         {
-            await using var pipe = CreatePipe(UnlockPolicy.Pipe(instance));
-            await pipe.WaitForConnectionAsync(stop);
+            while (!stop.IsCancellationRequested)
+            {
+                await capacity.WaitAsync(stop);
+                NamedPipeServerStream? pipe = null;
+                try
+                {
+                    pipe = CreatePipe(UnlockPolicy.Pipe(instance), firstInstance);
+                    firstInstance = false;
+                    await pipe.WaitForConnectionAsync(stop);
+                    pending.RemoveAll(task => task.IsCompletedSuccessfully);
+                    pending.Add(ServeAsync(pipe));
+                    pipe = null;
+                }
+                finally
+                {
+                    if (pipe is not null) { await pipe.DisposeAsync(); capacity.Release(); }
+                }
+            }
+        }
+        finally { await Task.WhenAll(pending); }
+
+        async Task ServeAsync(NamedPipeServerStream pipe)
+        {
+            await using var owned = pipe;
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(stop);
-            timeout.CancelAfter(TimeSpan.FromSeconds(70));
+            timeout.CancelAfter(TimeSpan.FromSeconds(instance == DesktopLockedUse.Instance ? 920 : 70));
             var progress = new UnlockProgress();
             try { await HandleAsync(pipe, progress, timeout.Token); }
             catch (Exception error)
@@ -88,6 +115,7 @@ internal sealed class UnlockService(string instance)
                 }
                 catch (Exception) { }
             }
+            finally { capacity.Release(); }
         }
     }
 
@@ -106,8 +134,23 @@ internal sealed class UnlockService(string instance)
             await UnlockWire.WriteAsync(pipe, new { stage = "status", protocol = Protocol, state, generation = _generation }, stop);
             return;
         }
-        if (hello.Operation != "unlock" || hello.CredentialKind is not ("password" or "pin"))
+        var desktop = instance == DesktopLockedUse.Instance;
+        if (hello.Operation != (desktop ? "desktop.unlock" : "unlock") ||
+            hello.CredentialKind is not ("password" or "pin") || desktop && hello.CredentialKind != "password")
             throw new InvalidDataException();
+        if (!_attempt.Wait(0))
+        {
+            await RefuseAsync(pipe, "unlock_attempt_active", stop);
+            return;
+        }
+        try { await HandleUnlockAsync(pipe, hello, progress, stop); }
+        finally { _attempt.Release(); }
+    }
+
+    private async Task HandleUnlockAsync(NamedPipeServerStream pipe, UnlockHello hello, UnlockProgress progress, CancellationToken stop)
+    {
+        var desktop = instance == DesktopLockedUse.Instance;
+        await using var control = desktop ? await DesktopUnlockControl.CreateAsync(pipe, hello, stop) : null;
         UnlockGrant grant;
         try { grant = UnlockPolicy.Read(instance); }
         catch (Exception)
@@ -131,13 +174,15 @@ internal sealed class UnlockService(string instance)
             return;
         }
         var challenge = new UnlockChallenge(Protocol, instance, _generation, epoch, session,
-            UnlockNative.ConsoleLogonId(session), grant.Revision, grant.TargetUserSid, UnlockPolicy.Fingerprint(grant), hello.CredentialKind,
-            Convert.ToHexString(RandomNumberGenerator.GetBytes(32)), DateTimeOffset.UtcNow.AddSeconds(45));
+            UnlockNative.ConsoleLogonId(session), grant.Revision, grant.TargetUserSid, UnlockPolicy.Fingerprint(grant), hello.CredentialKind!,
+            Convert.ToHexString(RandomNumberGenerator.GetBytes(32)), DateTimeOffset.UtcNow.AddSeconds(45), control?.Binding);
         var challengeText = Contract.Serialize(challenge);
         var timer = Stopwatch.StartNew();
         await UnlockWire.WriteAsync(pipe, new { stage = "challenge", challenge = challengeText }, stop);
         progress.Phase = "controller_proof";
-        var proof = JsonSerializer.Deserialize<UnlockProof>(await UnlockWire.ReadLineAsync(pipe, first.Token), Contract.Json);
+        using var proofTimeout = CancellationTokenSource.CreateLinkedTokenSource(stop);
+        proofTimeout.CancelAfter(TimeSpan.FromSeconds(15));
+        var proof = JsonSerializer.Deserialize<UnlockProof>(await UnlockWire.ReadLineAsync(pipe, proofTimeout.Token), Contract.Json);
         if (proof is null || !UnlockPolicy.Verify(grant, challengeText, proof.Signature))
         {
             await RefuseAsync(pipe, "controller_signature_denied", stop);
@@ -145,6 +190,7 @@ internal sealed class UnlockService(string instance)
         }
         void Check()
         {
+            control?.Check();
             if (timer.Elapsed > TimeSpan.FromSeconds(45) || DateTimeOffset.UtcNow >= challenge.Deadline ||
                 Interlocked.Read(ref _epoch) != epoch || UnlockPolicy.Read(instance) != grant ||
                 UnlockNative.ConsoleLogonId(session) != challenge.SessionLogonId)
@@ -153,9 +199,12 @@ internal sealed class UnlockService(string instance)
         }
         progress.Phase = "authority_check";
         Check();
-        await ExecuteAsync(pipe, grant, challenge, Check, progress, stop, prepareDesktop: true);
+        if (control is not null) await control.StartAsync(challenge, stop);
+        using var attempt = CancellationTokenSource.CreateLinkedTokenSource(stop, control?.Interrupted ?? CancellationToken.None);
+        await ExecuteAsync(pipe, grant, challenge, Check, progress, attempt.Token, prepareDesktop: true);
         Check();
-        await ExecuteAsync(pipe, grant, challenge, Check, progress, stop);
+        await ExecuteAsync(pipe, grant, challenge, Check, progress, attempt.Token);
+        if (control is not null && progress.UnlockConfirmed) await control.WaitForEndAsync(stop);
     }
 
     private async Task ExecuteAsync(NamedPipeServerStream client, UnlockGrant grant, UnlockChallenge challenge,
@@ -186,6 +235,7 @@ internal sealed class UnlockService(string instance)
                 if (prepareDesktop && message.Stage == "prepared") { check(); return; }
                 if (message.Stage == "result")
                 {
+                    progress.UnlockConfirmed = message.Result?.Effect == "confirmed";
                     await UnlockWire.WriteAsync(client, new { stage = "result", result = message.Result }, stop);
                     return;
                 }
@@ -226,7 +276,7 @@ internal sealed class UnlockService(string instance)
     private static Task RefuseAsync(Stream pipe, string code, CancellationToken stop) =>
         UnlockWire.WriteAsync(pipe, new { stage = "refused", errorCode = code, delivery = "refused", credentialRead = false }, stop);
 
-    private static NamedPipeServerStream CreatePipe(string name)
+    private static NamedPipeServerStream CreatePipe(string name, bool firstInstance)
     {
         var acl = new PipeSecurity();
         acl.SetAccessRuleProtection(true, false);
@@ -234,7 +284,7 @@ internal sealed class UnlockService(string instance)
             PipeAccessRights.FullControl, AccessControlType.Allow));
         acl.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null),
             PipeAccessRights.ReadWrite, AccessControlType.Allow));
-        return NamedPipeServerStreamAcl.Create(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous | PipeOptions.FirstPipeInstance, 4096, 4096, acl);
+        return NamedPipeServerStreamAcl.Create(name, PipeDirection.InOut, 8, PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous | (firstInstance ? PipeOptions.FirstPipeInstance : PipeOptions.None), 4096, 4096, acl);
     }
 }

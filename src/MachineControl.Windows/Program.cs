@@ -31,6 +31,10 @@ internal static class Program
                 case "uac-worker":
                     await DesktopUacWorker.RunAsync(GetOption(args, "--pipe") ?? throw new ArgumentException("--pipe required"), CancellationToken.None);
                     return 0;
+                case "relock-guardian":
+                    return await DesktopRelockGuardian.RunAsync(GetOption(args, "--pipe") ?? throw new ArgumentException("--pipe required"));
+                case "unlock-desktop-setup":
+                    return DesktopUacSetup.RequestUnlockApproval();
                 case "uac-setup":
                     return DesktopUacSetup.Request(args.Contains("--remove"));
                 case "uac-install":

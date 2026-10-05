@@ -15,7 +15,9 @@ internal sealed class DesktopUacWindowsService : ServiceBase
     private readonly CancellationTokenSource _stop = new();
     private Task? _run;
     internal DesktopUacWindowsService() { ServiceName = DesktopUacNative.Service; CanStop = true; CanShutdown = true; }
-    protected override void OnStart(string[] args) => _run = new DesktopUacService().RunAsync(_stop.Token);
+    protected override void OnStart(string[] args) => _run = Task.WhenAll(
+        new DesktopUacService().RunAsync(_stop.Token),
+        new UnlockService(DesktopLockedUse.Instance).RunAsync(_stop.Token));
     protected override void OnStop() { _stop.Cancel(); try { _run?.Wait(TimeSpan.FromSeconds(10)); } catch (AggregateException) { } }
     protected override void OnShutdown() => OnStop();
 }

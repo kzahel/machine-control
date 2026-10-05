@@ -39,6 +39,8 @@ internal static class UnlockAdmin
         RequireProtectedPath(root, Path.GetDirectoryName(root)!);
         var installation = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "MachineControlUnlock");
         var executable = Environment.ProcessPath!;
+        if (instance == DesktopLockedUse.Instance && string.Equals(executable, DesktopUacNative.Executable, StringComparison.OrdinalIgnoreCase))
+            installation = DesktopUacNative.Root;
         if (!executable.StartsWith(installation + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             throw new UnauthorizedAccessException("Run the installed protected setup component");
         RequireProtectedPath(executable, installation);
@@ -58,6 +60,10 @@ internal static class UnlockAdmin
             "The approved controller can unlock this account using its password or PIN, " +
             "without another local prompt. Unlock exposes the desktop. " +
             "The service does not save the Windows credential.\n\nApprove this controller?";
+        if (instance == DesktopLockedUse.Instance)
+            text = text.Replace("using its password or PIN,", "using its password,")
+                .Replace("without another local prompt.", "only during an explicitly enabled, owner-bound desktop task.") +
+                "\n\nThis desktop profile temporarily exposes your screen while the task runs and relocks afterward.";
         if (Forms.MessageBox.Show(text, "Machine Control — approve unattended unlock",
             Forms.MessageBoxButtons.YesNo, Forms.MessageBoxIcon.Warning,
             Forms.MessageBoxDefaultButton.Button2) != Forms.DialogResult.Yes) return 1223;

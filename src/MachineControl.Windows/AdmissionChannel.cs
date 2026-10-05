@@ -45,14 +45,18 @@ internal static class AdmissionChannel
         }
         try
         {
-            Keys(open, ["operation", "schema", "requestId", "reason", "scopes", "durationSeconds", "waitSeconds", "claimId", "requestSequence"]);
+            Keys(open, ["operation", "schema", "requestId", "reason", "scopes", "durationSeconds", "waitSeconds", "claimId", "requestSequence", "preparedConsole"]);
             if (!order.Accept(open)) throw new ArgumentException("invalid_admission_request_order");
             if (open["schema"]?.GetValue<string>() != AccessAdmission.Schema) throw new ArgumentException("unsupported_admission_schema");
             var scopes = open["scopes"]?.Deserialize<string[]>() ?? [];
             if (scopes.Length == 0 || scopes.Distinct().Count() != scopes.Length || scopes.Any(s => !DesktopGrants.SupportedScopes.Contains(s))) throw new ArgumentException("invalid_admission_scopes");
+            var prepared = open["preparedConsole"]?.GetValue<bool>() == true;
+            if (prepared && (!grants.PreparedConsole || !scopes.Order().SequenceEqual(new[] { "control", "observe" })))
+                throw new InvalidOperationException("prepared_console_unavailable");
+            if (!grants.ConsoleReady && !prepared) throw new InvalidOperationException("prepared_console_required");
             var initial = admission.Submit(owner, Required(open, "requestId").GetValue<string>(), ["desktop"],
                 Required(open, "waitSeconds").GetValue<int>(), Required(open, "durationSeconds").GetValue<int>(),
-                Required(open, "reason").GetValue<string>(), () => grants.AdmissionAuthority(scopes), noticeSeconds);
+                Required(open, "reason").GetValue<string>(), () => grants.AdmissionAuthority(scopes), prepared && !grants.ConsoleReady ? 0 : noticeSeconds);
             intentId = JsonSerializer.SerializeToElement(initial).GetProperty("intentId").GetString()!;
             await Reply(Required(open, "requestId").GetValue<string>(), initial);
             while (!lifetime.IsCancellationRequested)
@@ -87,6 +91,7 @@ internal static class AdmissionChannel
                             var effect = Contract.ParseRequest(Required(request, "request").ToJsonString()) with { RequestId = id };
                             var scope = DesktopGrants.ScopeFor(effect.Operation);
                             if (scope is null || !scopes.Contains(scope)) throw new InvalidOperationException("operation_not_permitted_by_control_channel");
+                            if (effect.Operation == "session.unlock.prepare" && !prepared) throw new InvalidOperationException("prepared_console_required");
                             action = Task.Run(async () =>
                             {
                                 try

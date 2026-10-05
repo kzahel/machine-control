@@ -164,22 +164,30 @@ fn spawn_runtime(app: &tauri::AppHandle) -> Result<(), String> {
 
 pub fn command(command: Value) -> Result<Value, String> {
     let app = APP.get().ok_or("Operator unavailable")?;
-    if command["method"] == "permission.uac" {
+    if command["method"] == "permission.uac"
+        || (command["method"] == "permission" && command["permission"] == "lockedUse")
+    {
         let mut setup = UAC_SETUP.lock().map_err(|e| e.to_string())?;
         if setup.is_some() {
-            return Err("UAC helper setup is already running".into());
+            return Err("Protected helper setup is already running".into());
         }
         {
             let mut owner = RUNTIME.lock().map_err(|e| e.to_string())?;
             let runtime = owner.as_mut().ok_or("Resident unavailable")?;
             let reply = runtime.call(&json!({"method":"prepare_update"}))?;
             if reply["ok"] != true {
-                return Err("Stop access and finish approval before UAC helper setup".into());
+                return Err("Stop access and finish approval before protected helper setup".into());
             }
             owner.take();
         }
         let mut launch = Command::new(bundled_runtime(app)?);
-        launch.arg("uac-setup").creation_flags(0x08000000);
+        launch
+            .arg(if command["method"] == "permission.uac" {
+                "uac-setup"
+            } else {
+                "unlock-desktop-setup"
+            })
+            .creation_flags(0x08000000);
         if command["remove"] == true {
             launch.arg("--remove");
         }
@@ -202,7 +210,8 @@ pub fn command(command: Value) -> Result<Value, String> {
                 setup.take();
                 if !status.success() {
                     *UAC_SETUP_ERROR.lock().map_err(|e| e.to_string())? = Some(
-                        "UAC helper setup was cancelled or failed. No access was enabled.".into(),
+                        "Protected helper setup was cancelled or failed. No access was enabled."
+                            .into(),
                     );
                 }
                 spawn_runtime(app)?;

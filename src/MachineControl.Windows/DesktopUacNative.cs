@@ -77,9 +77,9 @@ internal static class DesktopUacNative
         return await ReadAsync(reader, cancellation, 24 * 1024 * 1024);
     }
 
-    internal static async Task<(uint Pid, uint Session)> RequireResidentAsync(NamedPipeServerStream pipe, CancellationToken cancellation)
+    internal static async Task<(uint Pid, uint Session)> RequireResidentAsync(NamedPipeServerStream pipe, CancellationToken cancellation, uint? residentPid = null)
     {
-        var pid = ClientPid(pipe);
+        var pid = residentPid ?? ClientPid(pipe);
         using var process = Process.GetProcessById((int)pid);
         if (!string.Equals(process.MainModule?.FileName, Executable, StringComparison.OrdinalIgnoreCase))
             throw new UnauthorizedAccessException("uac_resident_image_refused");

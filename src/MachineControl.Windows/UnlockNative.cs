@@ -17,7 +17,7 @@ internal static class UnlockNative
     }
 
     public static uint ServiceProcessId(string instance)
-        => NamedServiceProcessId(UnlockPolicy.Service(instance));
+        => NamedServiceProcessId(instance == DesktopLockedUse.Instance ? DesktopUacNative.Service : UnlockPolicy.Service(instance));
 
     internal static uint NamedServiceProcessId(string name)
     {

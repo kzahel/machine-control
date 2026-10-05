@@ -16,6 +16,8 @@ internal static class DesktopHost
         using var stop = new CancellationTokenSource();
         var journal = new DesktopJournal();
         var broker = new DesktopGrants(journal: journal);
+        var lockedUse = new DesktopLockedUse(broker, stop.Token);
+        DesktopLockedUse.Current = lockedUse;
         var updates = new DesktopUpdates();
         DesktopSafety.Broker = broker;
         RuntimeProfile.ConfigureUser("desktop");
@@ -27,7 +29,7 @@ internal static class DesktopHost
             ?? throw new InvalidDataException("Operator handshake missing");
         if (hello["method"]?.GetValue<string>() != "hello") throw new InvalidDataException("Operator handshake required");
         DesktopSafety.OperatorProcessId = hello["processId"]!.GetValue<int>();
-        broker.SetReady(DesktopSafety.Ready());
+        DesktopSafety.RefreshAvailability(broker);
         using var shortcut = new DesktopStopShortcut(broker);
         var browser = new BrowserRelay(broker);
         using var devtools = new BrowserDevToolsBridge(broker, browser);
@@ -39,7 +41,8 @@ internal static class DesktopHost
         {
             while (!stop.IsCancellationRequested)
             {
-                broker.SetReady(DesktopSafety.Ready());
+                DesktopSafety.RefreshAvailability(broker);
+                lockedUse.Tick();
                 broker.Refresh();
                 await Task.Delay(200, stop.Token);
             }
@@ -74,6 +77,7 @@ internal static class DesktopHost
                             state["permissions"] = new JsonObject { ["accessibility"] = ready, ["screenRecording"] = ready };
                             state["browser"] = JsonSerializer.SerializeToNode(browser.State, Contract.Json);
                             state["uac"] = JsonSerializer.SerializeToNode(DesktopUacClient.State(), Contract.Json);
+                            state["lockedUse"] = JsonSerializer.SerializeToNode(lockedUse.State(), Contract.Json);
                             state["socket"] = RuntimeProfile.UserPipe("desktop", RuntimeProfile.SessionId);
                             reply = new { ok = true, state };
                             break;
@@ -91,6 +95,9 @@ internal static class DesktopHost
                             reply = new { ok = true }; break;
                         case "uac.enable":
                             DesktopUacClient.Enable(command["enabled"]?.GetValue<bool>() == true, broker);
+                            reply = new { ok = true }; break;
+                        case "locked_use":
+                            lockedUse.Enable(command["enabled"]?.GetValue<bool>() == true);
                             reply = new { ok = true }; break;
                         case "arm":
                             broker.Arm(command["scopes"]?.Deserialize<string[]>(), command["duration"]?.GetValue<int>() ?? 900,
@@ -129,6 +136,7 @@ internal static class DesktopHost
             try { await devtoolsTask; } catch (OperationCanceledException) { }
             journal.Event("resident.stop");
             DesktopSafety.Broker = null;
+            DesktopLockedUse.Current = null;
         }
         return 0;
     }
