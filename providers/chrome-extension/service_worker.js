@@ -154,7 +154,12 @@ async function onResidentMessage(message) {
     return;
   }
   if (message?.type === "session.open") return openSession(message);
-  if (message?.type === "session.command") return sessionCommand(message);
+  if (message?.type === "session.command") {
+    // A CDP awaitPromise must not hold the resident queue: close/revocation
+    // and other correlated commands need to progress while it is pending.
+    sessionCommand(message).catch(() => {});
+    return;
+  }
   if (message?.type === "session.close") return closeSession(message.id, "closed");
   if (message?.type !== "request") return;
   const reply = { type: "response", id: message.id };
@@ -495,7 +500,10 @@ async function setFiles(tabId, backendNodeId, files) {
 async function openSession(message) {
   const { id, tabId } = message;
   try {
+    const generation = authorityGeneration;
+    if (!devtools) throw new Error("DevTools access is not enabled");
     await ensureAttached(tabId);
+    if (!devtools || generation !== authorityGeneration) throw new Error("DevTools authority changed");
     sessions.set(id, tabId);
     port?.postMessage({ type: "session.opened", id });
   } catch (error) {
@@ -505,16 +513,20 @@ async function openSession(message) {
 
 async function sessionCommand(message) {
   const tabId = sessions.get(message.id);
-  if (tabId === undefined) {
+  if (!devtools || tabId === undefined) {
     port?.postMessage({ type: "session.result", id: message.id, cmdId: message.cmdId,
       error: { code: -32000, message: "session closed" } });
     return;
   }
+  const connection = port;
+  const generation = authorityGeneration;
+  const current = () => devtools && port === connection && generation === authorityGeneration
+    && sessions.get(message.id) === tabId;
   try {
     const result = await chrome.debugger.sendCommand({ tabId }, message.method, message.params || {});
-    port?.postMessage({ type: "session.result", id: message.id, cmdId: message.cmdId, result: result ?? {} });
+    if (current()) connection?.postMessage({ type: "session.result", id: message.id, cmdId: message.cmdId, result: result ?? {} });
   } catch (error) {
-    port?.postMessage({ type: "session.result", id: message.id, cmdId: message.cmdId,
+    if (current()) connection?.postMessage({ type: "session.result", id: message.id, cmdId: message.cmdId,
       error: { code: -32000, message: String(error.message || error) } });
   }
 }

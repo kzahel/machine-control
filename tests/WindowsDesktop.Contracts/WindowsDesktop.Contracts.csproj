@@ -13,6 +13,7 @@
     <Compile Include="../../src/MachineControl.Windows/AccessAdmission.cs" Link="AccessAdmission.cs" />
     <Compile Include="../../src/MachineControl.Windows/DesktopUpdates.cs" Link="DesktopUpdates.cs" />
     <Compile Include="../../src/MachineControl.Windows/BrowserWire.cs" Link="BrowserWire.cs" />
+    <Compile Include="../../src/MachineControl.Windows/BrowserDevToolsBridge.cs" Link="BrowserDevToolsBridge.cs" />
     <Compile Include="../../src/MachineControl.Windows/BrowserUpload.cs" Link="BrowserUpload.cs" />
     <Compile Include="../../src/MachineControl.Windows/Contract.cs" Link="Contract.cs" />
   </ItemGroup>

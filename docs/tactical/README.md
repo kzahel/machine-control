@@ -204,3 +204,7 @@ the commits' `Topic:` trailers and register that exact string in
 - [098 — Windows browser file uploads](098-windows-browser-upload.md):
   browser-scoped direct attachment and chooser interception with target-local
   file validation and independent HTTP upload effects.
+
+- [099 — Windows streaming CDP](099-windows-streaming-cdp.md):
+  owner-bound per-tab WebSockets, streamed events, bounded transport and
+  independent browser effects through the Windows desktop app.

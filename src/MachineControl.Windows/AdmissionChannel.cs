@@ -86,7 +86,7 @@ internal static class AdmissionChannel
                             if (denied is not null) throw new InvalidOperationException(denied);
                             var effect = Contract.ParseRequest(Required(request, "request").ToJsonString()) with { RequestId = id };
                             var scope = DesktopGrants.ScopeFor(effect.Operation);
-                            if (scope is null || !scopes.Contains(scope) || effect.Operation == "browser.endpoint") throw new InvalidOperationException("operation_not_permitted_by_control_channel");
+                            if (scope is null || !scopes.Contains(scope)) throw new InvalidOperationException("operation_not_permitted_by_control_channel");
                             action = Task.Run(async () =>
                             {
                                 try

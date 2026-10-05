@@ -12,23 +12,28 @@ namespace MachineControl.Windows;
 
 /// Only the bundled apphost can register as provider. Browser messages never
 /// enter the public agent pipe or operator approval channel.
-internal sealed class BrowserRelay(DesktopGrants grants)
+internal sealed class BrowserRelay(DesktopGrants grants) : IBrowserDevToolsProvider
 {
-    internal const string Route = "chrome.extension/cdp";
+    internal const string Route = BrowserWire.Route;
     private readonly SemaphoreSlim _writes = new(1, 1);
     private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonObject>> _pending = new();
+    private readonly ConcurrentDictionary<string, Action<JsonObject>> _sessions = new();
+    internal BrowserDevToolsBridge? DevTools { get; set; }
     private NamedPipeServerStream? _provider;
     private JsonObject? _hello;
     private string? _publishedState;
     private string _providerGeneration = Guid.NewGuid().ToString("n");
     internal bool Connected => _provider?.IsConnected == true && _hello is not null;
+    bool IBrowserDevToolsProvider.Connected => Connected;
+    string IBrowserDevToolsProvider.Generation => _providerGeneration;
     internal object State => new
     {
         connected = Connected,
         available = true,
         route = Route,
         extensionVersion = _hello?["extensionVersion"]?.GetValue<string>(),
-        knownOmissions = new[] { "browser-level CDP attachment", "raw CDP WebSocket" },
+        knownOmissions = new[] { "browser-level CDP attachment" },
+        streamingCdp = new { available = DevTools is not null, binding = "live_devtools_owner", transport = "target_loopback_websocket" },
         fileUpload = new { maximumFiles = BrowserUpload.MaximumFiles, paths = "target_local_drive", osDialog = false }
     };
 
@@ -65,6 +70,7 @@ internal sealed class BrowserRelay(DesktopGrants grants)
                 _provider = null; _hello = null;
                 _providerGeneration = Guid.NewGuid().ToString("n");
                 foreach (var entry in _pending.Values) entry.TrySetCanceled();
+                foreach (var entry in _sessions.Values) entry(new JsonObject { ["type"] = "session.closed" });
             }
         }
     }
@@ -97,6 +103,9 @@ internal sealed class BrowserRelay(DesktopGrants grants)
             else if (frame["type"]?.GetValue<string>() == "response" &&
                 frame["id"]?.GetValue<string>() is { } id && _pending.TryGetValue(id, out var completion))
                 completion.TrySetResult(frame);
+            else if (frame["type"]?.GetValue<string>() is { } type && type.StartsWith("session.", StringComparison.Ordinal) &&
+                frame["id"]?.GetValue<string>() is { } session && _sessions.TryGetValue(session, out var receiver))
+                receiver(frame);
         }
     }
 
@@ -109,7 +118,8 @@ internal sealed class BrowserRelay(DesktopGrants grants)
         }
     }
 
-    private async Task SendAsync(JsonObject? frame, CancellationToken cancellation, bool controlled = false)
+    private async Task SendAsync(JsonObject? frame, CancellationToken cancellation, bool controlled = false,
+        Request? authority = null, string? providerGeneration = null)
     {
         await _writes.WaitAsync(cancellation);
         try
@@ -124,12 +134,15 @@ internal sealed class BrowserRelay(DesktopGrants grants)
             if (state != _publishedState)
             {
                 // Ordered with every request, not a delayed UI notification.
-                await BrowserWire.WriteAsync(provider, new JsonObject { ["type"] = "grant", ["browser"] = false, ["devtools"] = false }, timeout.Token);
-                await BrowserWire.WriteAsync(provider, new JsonObject { ["type"] = "grant", ["browser"] = browser, ["devtools"] = devtools }, timeout.Token);
+                await BrowserWire.WriteAsync(provider, new JsonObject { ["type"] = "grant", ["browser"] = false, ["devtools"] = false, ["grantGeneration"] = generation }, timeout.Token);
+                await BrowserWire.WriteAsync(provider, new JsonObject { ["type"] = "grant", ["browser"] = browser, ["devtools"] = devtools, ["grantGeneration"] = generation }, timeout.Token);
                 _publishedState = state;
             }
             if (frame is not null)
             {
+                if (providerGeneration is not null && providerGeneration != _providerGeneration ||
+                    authority is not null && grants.Authorize(authority, frame["grantGeneration"]?.GetValue<string>()) is not null)
+                    throw new OperationCanceledException("Browser owner or provider changed before dispatch");
                 var operation = frame["operation"]?.GetValue<string>();
                 if (operation is not null && grants.Authorize(operation, frame["grantGeneration"]?.GetValue<string>(), controlled) is not null)
                     throw new OperationCanceledException("Browser authority changed before dispatch");
@@ -157,6 +170,8 @@ internal sealed class BrowserRelay(DesktopGrants grants)
         var refusal = grants.Authorize(request, request.ExpectedGeneration);
         if (refusal is not null) return result with { ErrorCode = refusal };
         if (!Connected) return result with { ErrorCode = "browser_provider_unavailable" };
+        if (request.Operation == "browser.endpoint")
+            return DevTools?.Endpoint(request, result) ?? result with { ErrorCode = "browser_stream_unavailable" };
         var parameters = JsonSerializer.SerializeToNode(request, Contract.Json)!.AsObject();
         foreach (var key in new[] { "operation", "requestId", "expectedGeneration", "scopes", "reason" }) parameters.Remove(key);
         if (request.Reference is { } reference)
@@ -190,7 +205,7 @@ internal sealed class BrowserRelay(DesktopGrants grants)
                 ["operation"] = request.Operation,
                 ["grantGeneration"] = generation,
                 ["params"] = parameters
-            }, cancellation, controlled);
+            }, cancellation, controlled, request, providerGeneration);
             dispatched = true;
             var response = await completion.Task.WaitAsync(TimeSpan.FromMilliseconds(request.TimeoutMs ?? 45000), cancellation);
             refusal = grants.Authorize(request, generation);
@@ -238,6 +253,49 @@ internal sealed class BrowserRelay(DesktopGrants grants)
             return dispatched ? Uncertain(result, "browser_completion_unavailable") : result with { ErrorCode = "browser_provider_unavailable" };
         }
         finally { _pending.TryRemove(id, out _); }
+    }
+
+    async Task IBrowserDevToolsProvider.OpenAsync(string id, int tabId, Request authority, string generation,
+        string providerGeneration, Action<JsonObject> receive, CancellationToken cancellation)
+    {
+        if (!_sessions.TryAdd(id, receive)) throw new InvalidOperationException("Duplicate session");
+        try
+        {
+            await SendAsync(new JsonObject
+            {
+                ["type"] = "session.open",
+                ["id"] = id,
+                ["tabId"] = tabId,
+                ["operation"] = "browser.cdp",
+                ["grantGeneration"] = generation
+            }, cancellation, true, authority, providerGeneration);
+        }
+        catch { _sessions.TryRemove(id, out _); throw; }
+    }
+
+    Task IBrowserDevToolsProvider.CommandAsync(string id, JsonObject command, Request authority, string generation,
+        string providerGeneration, CancellationToken cancellation) => SendAsync(new JsonObject
+        {
+            ["type"] = "session.command",
+            ["id"] = id,
+            ["cmdId"] = command["id"]!.DeepClone(),
+            ["method"] = command["method"]!.DeepClone(),
+            ["params"] = command["params"]?.DeepClone() ?? new JsonObject(),
+            ["operation"] = "browser.cdp",
+            ["grantGeneration"] = generation
+        }, cancellation, true, authority, providerGeneration);
+
+    async Task IBrowserDevToolsProvider.CloseAsync(string id, string providerGeneration)
+    {
+        _sessions.TryRemove(id, out _);
+        if (!Connected || providerGeneration != _providerGeneration) return;
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            await SendAsync(new JsonObject { ["type"] = "session.close", ["id"] = id }, timeout.Token,
+                providerGeneration: providerGeneration);
+        }
+        catch (Exception ex) when (ex is IOException or OperationCanceledException or InvalidOperationException) { }
     }
 
     private static Result Uncertain(Result result, string code) => result with

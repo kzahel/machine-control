@@ -15,6 +15,8 @@ test("real worker cleans markers on resident revocation, release and disconnect"
   const markers = new Map();
   const storage = {};
   let next = 1;
+  let releaseHeld;
+  let heldStarted = false;
   const originalInterval = globalThis.setInterval;
   const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
   globalThis.setInterval = () => 0;
@@ -49,6 +51,10 @@ test("real worker cleans markers on resident revocation, release and disconnect"
       async detach({ tabId }) { attached.delete(tabId); chrome.debugger.onDetach.emit({ tabId }); },
       async sendCommand({ tabId }, method, params) {
         assert.ok(attached.has(tabId));
+        if (method === "Runtime.fixturePending") {
+          heldStarted = true;
+          return new Promise((resolve) => { releaseHeld = resolve; });
+        }
         if (method === "Page.getFrameTree") return { frameTree: { frame: { id: String(tabId) } } };
         if (method === "Page.createIsolatedWorld") return { executionContextId: tabId };
         if (method === "Runtime.callFunctionOn") {
@@ -78,15 +84,34 @@ test("real worker cleans markers on resident revocation, release and disconnect"
     assert.equal(created.ok, true);
     const tab = created.data.tab.tabId;
     assert.equal(markers.get(tab), true);
+    native.onMessage.emit({ type: "session.open", id: "browser-only", tabId: tab });
+    await wait(() => replies.find((reply) => reply.type === "session.failed" && reply.id === "browser-only"));
     // Same scopes with a new resident grant must clear prior control state.
     native.onMessage.emit({ type: "grant", browser: true, devtools: true, grantGeneration: "second" });
     await request("browser.tabs");
     assert.equal(markers.get(tab), false);
     assert.equal(tabs.get(tab).groupId, -1);
+    native.onMessage.emit({ type: "session.open", id: "raw", tabId: tab });
+    await wait(() => replies.find((reply) => reply.type === "session.opened" && reply.id === "raw"));
+    native.onMessage.emit({ type: "session.command", id: "raw", cmdId: 42, method: "Runtime.enable", params: {} });
+    await wait(() => replies.find((reply) => reply.type === "session.result" && reply.cmdId === 42 && reply.result));
+    chrome.debugger.onEvent.emit({ tabId: tab }, "Runtime.consoleAPICalled", { type: "log" });
+    assert.ok(replies.find((reply) => reply.type === "session.event" && reply.id === "raw" && reply.method === "Runtime.consoleAPICalled"));
+    native.onMessage.emit({ type: "session.command", id: "raw", cmdId: 44, method: "Runtime.fixturePending" });
+    await wait(() => heldStarted);
+    native.onMessage.emit({ type: "session.command", id: "raw", cmdId: 45, method: "Runtime.enable" });
+    await wait(() => replies.find((reply) => reply.type === "session.result" && reply.cmdId === 45));
+    native.onMessage.emit({ type: "session.close", id: "raw" });
+    await wait(() => replies.find((reply) => reply.type === "session.closed" && reply.id === "raw"));
+    releaseHeld({ privateLateResult: true });
+    await tick(); await tick();
+    assert.equal(replies.some((reply) => reply.type === "session.result" && reply.cmdId === 44), false);
     assert.equal((await request("browser.capture", { tabId: tab })).ok, true);
     assert.equal(markers.get(tab), true);
     assert.equal(tabs.get(tab).groupId, -1);
     native.onMessage.emit({ type: "grant", browser: false, devtools: false });
+    native.onMessage.emit({ type: "session.command", id: "raw", cmdId: 43, method: "Runtime.enable" });
+    await wait(() => replies.find((reply) => reply.type === "session.result" && reply.cmdId === 43 && reply.error));
     await wait(() => markers.get(tab) === false && !attached.has(tab));
     assert.equal(tabs.get(tab).groupId, -1);
     // A following grant/request must wait for the preceding cleanup.

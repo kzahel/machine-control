@@ -32,6 +32,7 @@ tab lifecycle APIs. It is not the approval authority.
 | Windows source-native extension/native messaging | `conformance-tested` | Dedicated x64 VM, browser/devtools enforcement, independent fixture effects and PNG/hash checks; exact installed evidence below |
 | Windows signed Tauri extension/native messaging | `conformance-tested` | Public 0.4.8 x64 VM package: setup/approval, independent effects/capture, restart, production browser-open replacement and ordinary uninstall; local/outside parity and lock revocation recorded on 0.4.7 |
 | Windows staged x64 file upload | `conformance-tested` | Unreleased real desktop UI, browser-only live SDK owner and CLI request parser; Chrome for Testing 154: direct/multiple inputs, intercepted chooser, independent HTTP byte/hash effects and 23 scope/path/reference/Pause/Stop checks |
+| Windows staged x64 per-tab CDP WebSocket | `conformance-tested` | Unreleased real desktop UI and retained DevTools owner, fresh Chrome for Testing 154: commands/events, unresolved-promise concurrency, independent HTTP effects and 28 scope/token/Origin/owner/provider/Pause/Stop checks; signed/ARM64/physical acceptance separate |
 | Linux and other Chromium browsers | `upstream-claimed` facilities only | Owned registration and product acceptance absent |
 
 [Tactical 050](../../docs/tactical/050-macos-host-control-mvp.md) and
@@ -64,8 +65,18 @@ paths, so validation does not contain concurrent same-user replacement.
 [Tactical 098](../../docs/tactical/098-windows-browser-upload.md) owns focused
 x64 candidate evidence; signed/ARM64/physical qualification remains separate.
 
-**Open:** Windows streamed raw CDP WebSockets; browser-level
-target emulation on all platforms; Linux registration; other Chromium browsers;
+**Current, unreleased Windows candidate:** a target-loopback per-tab WebSocket
+relays the shared worker's raw session protocol. DevTools scope and a retained
+live owner are required; owner, grant and provider generations fence both
+commands and forwarded data. The resident bounds transport, outstanding work
+and output queues, records attachment/command metadata without payloads or
+tokens, and closes uncertain streams without replay. Raw commands progress
+concurrently so an awaited page promise does not hold up session cleanup.
+[Tactical 099](../../docs/tactical/099-windows-streaming-cdp.md) owns focused
+x64 evidence and remaining release/platform gates. No browser-level attachment
+or automatic outside WebSocket tunnel is inferred.
+
+**Open:** Browser-level target emulation on all platforms; Linux registration; other Chromium browsers;
 Web Store distribution; signed Mac workstation browser approval acceptance. No Windows ARM64
 execution is inferred from the x64 browser evidence.
 

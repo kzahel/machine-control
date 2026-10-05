@@ -1,5 +1,27 @@
 # Windows conformance
 
+## Streaming CDP acceptance
+
+[`browser-cdp-live.py`](browser-cdp-live.py) runs in the interactive Medium
+session of an exclusively claimed VM. Stage the desktop app, matching runtime
+and pinned provider, Chrome extension, bundled Python, source `client/`, actor
+and [`cdp_socket.py`](cdp_socket.py). Supply `--install`, a separately identified
+Chrome for Testing `--chrome` and private `--output`. Launch through a Limited
+interactive scheduled task or the target-native application route, with the
+installed operator closed. The HTTP oracle listens only on target loopback.
+
+The actor uses actual operator setup/Access/Pause/Stop UI and retained SDK
+ownership. It checks page reads, console events, command correlation, provider
+errors, independent HTTP effects, scope/token/Origin refusals, disconnect and
+native-host restart. Progress and final evidence stay private. Cleanup restores
+registration, closes ownership and reaps the owned app/browser/server. The
+outside caller must independently inspect cleanup, retrieve evidence, remove
+staging/tasks, restore original VM power and release the claim in finally/trap
+cleanup. [Tactical 099](../../docs/tactical/099-windows-streaming-cdp.md) records
+actual candidate evidence; this does not qualify a signed public package.
+Each run creates a fresh browser profile so a retained Manifest V3 worker
+cannot mask changes to the staged extension.
+
 ## Browser upload acceptance
 
 [`browser-upload-live.py`](browser-upload-live.py) runs in the interactive

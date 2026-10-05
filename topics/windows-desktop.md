@@ -41,6 +41,15 @@ Windows support claim.
 
 ## Execution and remaining gates
 
+**Current, unreleased x64 development candidate:** per-tab CDP WebSockets use
+the shared Chrome extension and a retained DevTools owner. Typed commands,
+streamed events, payload-free audit, bounded transport and authority/provider
+fences pass 28 focused VM checks with independent HTTP effects.
+[Tactical 099](../docs/tactical/099-windows-streaming-cdp.md)
+owns focused VM evidence; [the streaming guide](../desktop/WINDOWS-STREAMING-CDP.md)
+owns usage, connection limits and outside forwarding. Browser-level attachment
+and signed/ARM64/physical qualification remain separate.
+
 **Current, unreleased x64 development candidate:** browser-scoped file upload
 passes 23 live checks through the real operator UI and Chrome for Testing in a
 Windows-hosted VM. Both direct inputs and intercepted choosers have independent
@@ -120,7 +129,8 @@ those separate capabilities.
 
 **Current:** Windows browser setup and browser/devtools scopes are implemented.
 Source-native fixture effects and enforcement pass on x64. File uploads have
-focused unreleased acceptance above; raw CDP WebSockets remain unavailable.
+focused unreleased acceptance above; owner-bound CDP WebSockets are also
+implemented in the unreleased candidate.
 The [browser dossier](../research/providers/chrome-extension.md)
 owns route details.
 

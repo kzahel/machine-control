@@ -6,6 +6,7 @@ namespace MachineControl.Windows;
 
 internal static class BrowserWire
 {
+    internal const string Route = "chrome.extension/cdp";
     internal const string Origin = "chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/";
     internal const string Host = "org.machine_control.browser";
     internal const int MaximumInput = 16 * 1024 * 1024;
@@ -14,7 +15,7 @@ internal static class BrowserWire
     [
         "browser.tabs", "browser.wait", "browser.navigate", "browser.snapshot",
         "browser.click", "browser.type", "browser.key", "browser.capture",
-        "browser.upload", "browser.cdp", "browser.eval", "browser.release",
+        "browser.upload", "browser.cdp", "browser.eval", "browser.release", "browser.endpoint",
     ];
     internal static bool Observes(string operation) => operation is
         "browser.tabs" or "browser.wait" or "browser.snapshot" or "browser.capture";

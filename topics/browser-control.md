@@ -93,11 +93,14 @@ enforce it.
 **Decision:** For a live, efficient session an agent connects a raw CDP
 WebSocket. Chrome refuses `--remote-debugging-port` on the signed-in profile,
 so the Machine Control app hosts a loopback WebSocket server and relays frames
-through the extension per tab. `browser.endpoint` (and a `devtools` grant
-result) returns `ws://127.0.0.1:PORT/devtools/page/<tabId>?token=…`. The
-server runs for the resident's lifetime; a per-grant token, cleared when the
-grant ends, gates every connection, and the server also rejects any request
-carrying an `Origin` header so a web page cannot reach it. Events stream back
+through the extension per tab. `browser.endpoint` returns the
+`devtoolsEndpoint` template `ws://127.0.0.1:PORT/devtools/page/<tabId>?token=…`.
+The server runs for the resident's lifetime and rejects every request carrying
+an `Origin` header so a web page cannot reach it. The existing Mac bridge uses
+a per-grant token and refuses reserved ownership. The Windows desktop bridge
+binds its token to a retained live DevTools owner, grant and provider generation;
+Pause, Stop or loss of that authority closes streams and invalidates the URL.
+Single-shot ownership cannot produce a usable endpoint. Events stream back
 over the socket. Tab-level clients and raw CDP libraries work directly;
 browser-level attachment for Playwright and Puppeteer would need target
 emulation and is not built. A separate agent Chrome profile started with
@@ -110,8 +113,9 @@ parameters through `chrome.debugger`, and `browser.eval` evaluates JavaScript
 and returns the value. Both require a separate `devtools` scope, because that
 access can run scripts and read data on every signed-in site, and data read
 that way can outlive the grant. The prompt says so, the badge shows `DEV`,
-and recent activity records each method. Chrome still withholds a few domains
-from extensions. For a live session with streamed events, an agent uses the
+and Windows audit history records payload-free operation/outcome metadata.
+Chrome still withholds a few domains from extensions. For a live session with
+streamed events, an agent uses the
 WebSocket endpoint above rather than these single-shot calls.
 
 **Current (2026-09-30):** Verified on the host and in the guest that a raw CDP
@@ -139,9 +143,12 @@ package and environment boundaries.
   Playwright and Puppeteer `connectOverCDP` work, not only tab-level clients.
 - **Current:** Windows per-user registration, scoped browser operations, and
   single-shot raw CDP/evaluation are implemented. Signed installed acceptance
-  is in [054](../docs/tactical/054-windows-browser-and-arm64.md). Windows raw
-  CDP WebSockets remain unavailable and are reported as an omission; upload is
-  implemented in the unreleased candidate above.
+  is in [054](../docs/tactical/054-windows-browser-and-arm64.md). The unreleased
+  Windows candidate also provides retained-owner per-tab CDP WebSockets,
+  streamed events and bounded, audited commands. [Tactical 099](../docs/tactical/099-windows-streaming-cdp.md)
+  owns focused x64 acceptance and [the streaming guide](../desktop/WINDOWS-STREAMING-CDP.md)
+  owns usage and target-loopback forwarding limits. Signed streaming packages,
+  ARM64 live, physical and other-browser qualification remain separate.
 - **Open:** Linux registration and other Chromium browsers.
 - **Open:** Web Store publication, which changes the extension ID and install
   flow.

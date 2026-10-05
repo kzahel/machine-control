@@ -39,6 +39,10 @@ def complete_session_handoff(target, request, refusal):
     if not isinstance(requirement, dict) or requirement.get("schema") != SCHEMA \
             or requirement.get("scope") not in {"observe", "control", "browser", "devtools"}:
         raise mc.ClientError("admission_unsupported", "Resident requires an unsupported control session")
+    if request.get("operation") == "browser.endpoint":
+        raise mc.ClientError("retained_owner_required",
+                             "Request browser.endpoint through control stream or a retained ControlSession; "
+                             "keep that owner open while using the target-loopback WebSocket")
     started = time.monotonic()
     with ControlSession(target, reason="CLI desktop operation", scopes=[requirement["scope"]]) as session:
         session.wait()

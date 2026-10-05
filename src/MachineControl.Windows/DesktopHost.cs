@@ -30,6 +30,9 @@ internal static class DesktopHost
         broker.SetReady(DesktopSafety.Ready());
         using var shortcut = new DesktopStopShortcut(broker);
         var browser = new BrowserRelay(broker);
+        using var devtools = new BrowserDevToolsBridge(broker, browser);
+        browser.DevTools = devtools;
+        var devtoolsTask = devtools.RunAsync(stop.Token);
         var browserTask = browser.RunAsync(stop.Token);
         var resident = new UserHost("desktop", broker, browser, updates).RunAsync(stop.Token);
         var monitor = Task.Run(async () =>
@@ -47,7 +50,7 @@ internal static class DesktopHost
             while (!stop.IsCancellationRequested)
             {
                 var read = ReadCommandAsync(reader, stop.Token);
-                var completed = await Task.WhenAny(read, resident, browserTask, monitor);
+                var completed = await Task.WhenAny(read, resident, browserTask, devtoolsTask, monitor);
                 if (completed != read) { await completed; break; }
                 var line = await read;
                 if (line is null) break;
@@ -123,6 +126,7 @@ internal static class DesktopHost
             try { await resident; } catch (OperationCanceledException) { }
             try { await monitor; } catch (OperationCanceledException) { }
             try { await browserTask; } catch (OperationCanceledException) { }
+            try { await devtoolsTask; } catch (OperationCanceledException) { }
             journal.Event("resident.stop");
             DesktopSafety.Broker = null;
         }

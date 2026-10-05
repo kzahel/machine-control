@@ -44,7 +44,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         "browser.tabs" or "browser.wait" or "browser.navigate" or "browser.snapshot" or
         "browser.click" or "browser.type" or "browser.key" or "browser.capture" or
         "browser.upload" or "browser.release" => "browser",
-        "browser.cdp" or "browser.eval" => "devtools",
+        "browser.cdp" or "browser.eval" or "browser.endpoint" => "devtools",
         _ => null,
     };
 

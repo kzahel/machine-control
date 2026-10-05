@@ -47,6 +47,15 @@ class ControlSessionTests(unittest.TestCase):
         self.assertIn("control.cancel", events)
         self.assertIn("EOF", events)
 
+    def test_endpoint_requires_retained_owner_before_handoff(self):
+        refusal = self.refusal()
+        refusal["data"]["controlSession"]["scope"] = "devtools"
+        with patch("control_session.ControlSession") as session:
+            with self.assertRaises(mc.ClientError) as error:
+                complete_session_handoff(self.target, {"operation": "browser.endpoint"}, refusal)
+            self.assertEqual(error.exception.code, "retained_owner_required")
+            session.assert_not_called()
+
     def test_handoff_requires_explicit_undispatched_result(self):
         for change in [dict(accepted=True), dict(errorCode="approval_required"), dict(data={}),
                 dict(delivery="confirmed"), dict(effect="unknown"), dict(uncertainty="unknown"),

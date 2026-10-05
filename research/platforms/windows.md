@@ -22,6 +22,13 @@ and
 
 ## Platform acceptance surface
 
+**Current — conformance-tested for staged x64 streaming CDP:**
+[Tactical 099](../../docs/tactical/099-windows-streaming-cdp.md) adds per-tab
+WebSockets through the owned Chrome extension under retained DevTools
+ownership. Focused VM acceptance uses real operator controls, debugger events
+and independent HTTP effects; all 28 checks pass. Browser-level attachment, automatic tunnel
+setup, signed packages and other execution platforms remain separate gates.
+
 **Current — conformance-tested for staged x64 browser upload:**
 [Tactical 098](../../docs/tactical/098-windows-browser-upload.md) proves the
 owned Chrome extension's direct attachment and intercepted chooser with native
