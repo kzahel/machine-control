@@ -37,6 +37,7 @@ internal sealed class DesktopUacService
                 await pipe.WaitForConnectionAsync(cancellation);
                 using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
                 deadline.CancelAfter(TimeSpan.FromSeconds(35));
+                var workerContacted = false;
                 try
                 {
                     using var reader = new StreamReader(pipe, Encoding.UTF8, false, 4096, true);
@@ -55,6 +56,7 @@ internal sealed class DesktopUacService
                         _ = _workerProcess.Handle;
                     }
                     // Only this dedicated service can access the worker pipe.
+                    workerContacted = true;
                     var response = await DesktopUacNative.CallWorkerAsync(_worker.PipeName, (uint)_worker.ProcessId, Contract.Serialize(frame), deadline.Token);
                     await using var writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096, true) { AutoFlush = true };
                     await writer.WriteLineAsync(response.AsMemory(), deadline.Token);
@@ -66,7 +68,7 @@ internal sealed class DesktopUacService
                     // worker also invalidates all of its native references.
                     try { EventLog.WriteEntry(DesktopUacNative.Service, "Protected channel ended: " + ex.GetType().Name, EventLogEntryType.Warning); }
                     catch (Exception logError) when (logError is InvalidOperationException or System.ComponentModel.Win32Exception or System.Security.SecurityException) { }
-                    StopWorker();
+                    if (workerContacted) StopWorker();
                 }
             }
         }

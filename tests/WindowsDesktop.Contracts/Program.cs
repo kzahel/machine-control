@@ -65,9 +65,9 @@ Assert(DesktopUacPolicy.Refusal(consent, true, true, "Default", true) == "uac_pr
 Assert(DesktopUacPolicy.Refusal(consent, true, true, "Winlogon", true) is null, "Typed UAC approval");
 Assert(DesktopUacPolicy.Refusal(consent with { State = "cancel" }, true, true, "Winlogon", true) is null, "Typed UAC cancellation");
 Assert(DesktopGrants.ScopeFor("uac.respond") == "control", "UAC response needs control scope");
-foreach (var forbidden in new[] { "app.launch", "session.login", "session.lock", "service.revoke", "runtime.stop", "browser.eval" })
+foreach (var forbidden in new[] { "app.launch", "app.activate", "session.login", "session.lock", "service.revoke", "runtime.stop", "browser.eval" })
     Assert(DesktopUacPolicy.Refusal(consent with { Operation = forbidden }, true, true, "Default", true) == "protected_operation_refused", "Closed privileged surface: " + forbidden);
-foreach (var forbidden in new[] { "invoke", "click", "key", "type", "set.value", "window.state", "app.activate" })
+foreach (var forbidden in new[] { "invoke", "click", "key", "type", "set.value", "window.state" })
     Assert(DesktopUacPolicy.Refusal(consent with { Operation = forbidden }, true, true, "Winlogon", true) == "secure_desktop_operation_refused", "Secure input is typed: " + forbidden);
 Assert(DesktopUacPolicy.Refusal(consent with { Text = "secret" }, true, true, "Winlogon", true) == "invalid_uac_response", "No secret in UAC response");
 Assert(DesktopUacPolicy.Refusal(consent with { SecretPipe = "secret" }, true, true, "Winlogon", true) == "protected_operation_refused", "No credential transport");

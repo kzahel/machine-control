@@ -5,7 +5,7 @@ internal static class DesktopUacPolicy
 {
     internal static readonly string[] Operations =
     [
-        "windows", "snapshot", "screenshot", "app.activate", "invoke",
+        "windows", "snapshot", "screenshot", "invoke",
         "set.value", "click", "key", "type", "window.state", "uac.respond",
     ];
 

@@ -95,7 +95,10 @@ internal static class DesktopController
             IsBackground = true,
             Name = "MachineControlDesktopRequest",
         };
-        thread.SetApartmentState(ApartmentState.STA);
+        // UIA supports MTA. A protected request must switch desktops before
+        // COM creates any STA window; .NET can initialize STA before our
+        // delegate runs, making even an immediate SetThreadDesktop fail.
+        thread.SetApartmentState(DesktopSafety.ExternalCheck is null ? ApartmentState.STA : ApartmentState.MTA);
         thread.Start();
         _ = Task.Run(() =>
         {
@@ -137,7 +140,9 @@ internal static class DesktopController
              current is not null;
              current = current.InnerException)
         {
-            descriptions.Add($"{current.GetType().Name}: {current.Message}");
+            descriptions.Add(current is System.ComponentModel.Win32Exception native
+                ? $"{current.GetType().Name} ({native.NativeErrorCode}): {current.Message}"
+                : $"{current.GetType().Name}: {current.Message}");
         }
         return string.Join(" -> ", descriptions);
     }
@@ -2225,7 +2230,7 @@ internal static class DesktopController
                 ExpandCollapsePattern.Pattern,
                 out var expand))
         {
-            ((ExpandCollapsePattern)expand).Expand();
+            DesktopAction(() => ((ExpandCollapsePattern)expand).Expand(), element);
             return "windows.native/uia_expand";
         }
         return null;

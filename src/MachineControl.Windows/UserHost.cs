@@ -238,7 +238,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
                     providers = ProviderRouter.DescribeUser(),
                     serviceOperations = Array.Empty<string>(),
                     protectedDesktop = DesktopUacClient.State(),
-                    sessionRequirement = "active unlocked console Default desktop",
+                    sessionRequirement = DesktopUacClient.Enabled ? "same active unlocked console; Default or stock English UAC consent" : "active unlocked console Default desktop",
                     knownOmissions = DesktopUacClient.Enabled ? new[] { "UAC credential prompts", "localized UAC responses", "lock/login", "RDP and other user sessions" }
                         : new[] { "elevated applications", "UAC", "lock/login", "RDP and other user sessions" },
                 };
