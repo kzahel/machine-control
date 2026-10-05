@@ -212,3 +212,7 @@ the commits' `Topic:` trailers and register that exact string in
 - [100 — Browser-level CDP compatibility](100-browser-level-cdp.md):
   shared target discovery, flattened sessions and real browser clients through
   the extension and native desktop bridges.
+
+- [101 — Windows desktop bounded unlock and relock](101-windows-desktop-locked-use.md):
+  installed qualification, explicit protected controller preparation and
+  owner-bound existing-session unlock with an independent relock watchdog.
