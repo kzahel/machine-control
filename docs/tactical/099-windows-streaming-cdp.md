@@ -118,3 +118,15 @@ The [operator guide](../../desktop/WINDOWS-STREAMING-CDP.md) owns usage, limits
 and the target-loopback forwarding boundary. The repeatable actor is
 [`browser-cdp-live.py`](../../tests/windows/browser-cdp-live.py), with its
 standard-library tab client in [`cdp_socket.py`](../../tests/windows/cdp_socket.py).
+
+### Source follow-up — late callback teardown
+
+After the initial VM-qualified streaming implementation, a retained
+provider callback invoked after full connection teardown reproduced
+`ObjectDisposedException`. A provider reader can already hold that receiver
+when close removes its registration; unwinding it could interrupt the shared
+relay. Teardown now ignores frames after cancellation and safely handles an
+already-disposed cancellation source/socket. The regression fails before the
+guard and passes afterward. Format verification, desktop/unlock contracts and
+x64/ARM64 self-contained publishes pass. This callback-only follow-up has not
+been rerun in the VM; the hashes above retain the exact live-tested candidate.

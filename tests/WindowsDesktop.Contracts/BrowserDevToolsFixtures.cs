@@ -232,9 +232,13 @@ internal static class BrowserDevToolsFixtures
         finally
         {
             stop.Cancel(); await server;
-            if (File.Exists(journalRoot)) File.Delete(journalRoot);
-            if (Directory.Exists(journalRoot)) Directory.Delete(journalRoot, true);
-            if (Directory.Exists(journalRoot + "-saved")) Directory.Delete(journalRoot + "-saved", true);
+            try { provider.EmitLateFrame(); }
+            finally
+            {
+                if (File.Exists(journalRoot)) File.Delete(journalRoot);
+                if (Directory.Exists(journalRoot)) Directory.Delete(journalRoot, true);
+                if (Directory.Exists(journalRoot + "-saved")) Directory.Delete(journalRoot + "-saved", true);
+            }
         }
         Console.WriteLine("Windows streaming CDP contracts passed");
     }
@@ -246,6 +250,7 @@ internal static class BrowserDevToolsFixtures
         internal int Opens, Commands, Closes;
         internal bool SuppressResults;
         private Action<JsonObject>? _receive;
+        internal void EmitLateFrame() => _receive!(new() { ["type"] = "session.closed" });
         public Task OpenAsync(string id, int tabId, Request authority, string generation, string providerGeneration,
             Action<JsonObject> receive, CancellationToken cancellation)
         {

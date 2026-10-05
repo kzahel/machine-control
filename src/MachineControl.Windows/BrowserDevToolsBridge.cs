@@ -204,7 +204,13 @@ internal sealed class BrowserDevToolsBridge : IDisposable
         var output = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(64) { SingleReader = true, FullMode = BoundedChannelFullMode.Wait });
         long queuedBytes = 0;
         var pending = new ConcurrentDictionary<int, Pending>();
-        void Abort() { stop.Cancel(); socket.Abort(); }
+        void Abort()
+        {
+            // A provider reader can already hold this callback when CloseAsync
+            // removes its registration. Teardown must remain idempotent.
+            try { stop.Cancel(); } catch (ObjectDisposedException) { }
+            try { socket.Abort(); } catch (ObjectDisposedException) { }
+        }
         void Queue(JsonObject frame)
         {
             var bytes = JsonSerializer.SerializeToUtf8Bytes(frame, Contract.Json);
@@ -227,6 +233,7 @@ internal sealed class BrowserDevToolsBridge : IDisposable
         }) != false;
         void Receive(JsonObject frame)
         {
+            if (stop.IsCancellationRequested) return;
             try
             {
                 if (!Authorized(binding)) { Abort(); return; }
