@@ -223,3 +223,7 @@ the commits' `Topic:` trailers and register that exact string in
 
 - [103 — Windows activity pause and quiet resumption](103-windows-activity-pause.md):
   human-activity monitoring, composed pauses and fresh ownership after quiet.
+
+- [104 — Windows native pointer gestures](104-windows-pointer-gestures.md):
+  native move, bounded drag and signed wheel input with independent effects
+  and button-release interruption checks.

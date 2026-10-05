@@ -46,6 +46,16 @@ Windows support claim.
 
 ## Execution and remaining gates
 
+**Current, unreleased source and focused x64 VM evidence:** [Tactical 104](../docs/tactical/104-windows-pointer-gestures.md)
+adds native pointer movement, bounded left/right drags and signed wheel input.
+The existing common CLI translates these operations on Windows. Per-step
+authority, protected operator paths and release cleanup retain interruption
+fences. [The pointer guide](../desktop/WINDOWS-POINTER-INPUT.md) defines units,
+coordinates and limits. The real operator/native fixture passes 36 checks,
+including wheel axes, drag endpoints and mid-drag Pause/Stop button release.
+Signed installed, live ARM64, hardware and broader transition qualification
+remain separate.
+
 **Current, unreleased source and focused x64 VM evidence:**
 [Tactical 103](../docs/tactical/103-windows-activity-pause.md) adds ordinary
 keyboard/pointer activity pause, conservative locked-session quiet admission

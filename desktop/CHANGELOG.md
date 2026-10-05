@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Add native Windows pointer move, bounded left/right drag and signed vertical
+  and horizontal wheel input. Live control ownership and operator protections
+  apply; interrupted drags release their attempted button without replay.
+
 - Automatically pause Windows desktop control for human keyboard/mouse
   activity while retaining approval. Agents wait for quiet and accept a fresh
   session; injected agent input does not trigger takeover. Covered takeover

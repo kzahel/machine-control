@@ -67,7 +67,7 @@ Assert(DesktopUacPolicy.Refusal(consent with { State = "cancel" }, true, true, "
 Assert(DesktopGrants.ScopeFor("uac.respond") == "control", "UAC response needs control scope");
 foreach (var forbidden in new[] { "app.launch", "app.activate", "session.login", "session.lock", "service.revoke", "runtime.stop", "browser.eval" })
     Assert(DesktopUacPolicy.Refusal(consent with { Operation = forbidden }, true, true, "Default", true) == "protected_operation_refused", "Closed privileged surface: " + forbidden);
-foreach (var forbidden in new[] { "invoke", "click", "key", "type", "set.value", "window.state" })
+foreach (var forbidden in new[] { "invoke", "click", "move", "drag", "scroll", "key", "type", "set.value", "window.state" })
     Assert(DesktopUacPolicy.Refusal(consent with { Operation = forbidden }, true, true, "Winlogon", true) == "secure_desktop_operation_refused", "Secure input is typed: " + forbidden);
 Assert(DesktopUacPolicy.Refusal(consent with { Text = "secret" }, true, true, "Winlogon", true) == "invalid_uac_response", "No secret in UAC response");
 Assert(DesktopUacPolicy.Refusal(consent with { SecretPipe = "secret" }, true, true, "Winlogon", true) == "protected_operation_refused", "No credential transport");
@@ -319,6 +319,20 @@ preparedGrant.SetReady(false, lockedConsole: true);
 Assert(preparedGrant.Admission.Blocks("desktop").Contains("resource_unavailable"), "Disabled preparation never makes lock available");
 await BrowserDevToolsFixtures.RunAsync();
 Console.WriteLine("Windows desktop grant contracts passed");
+
+foreach (var operation in new[] { "move", "drag", "scroll" })
+{
+    Assert(DesktopGrants.ScopeFor(operation) == "control", "Pointer control scope: " + operation);
+    Assert(DesktopUacPolicy.Refusal(new Request { Operation = operation }, true, true, "Default", false) is null, "Native elevated pointer surface: " + operation);
+}
+Assert(PointerGeometry.Intersects(-100, 20, 100, 20, -10, 0, 10, 40), "Drag crossing protected rectangle with safe endpoints");
+Assert(!PointerGeometry.Intersects(-100, 50, 100, 50, -10, 0, 10, 40), "Parallel drag outside protected rectangle");
+Assert(PointerGeometry.Intersects(0, -100, 0, 100, -10, -10, 10, 10), "Vertical protected crossing");
+Assert(PointerGeometry.Intersects(5, 5, 5, 5, 0, 0, 10, 10), "Protected stationary point");
+Assert(!PointerGeometry.Intersects(10, 5, 10, 5, 0, 0, 10, 10), "Stationary point outside exclusive right edge");
+Assert(PointerGeometry.Intersects(int.MinValue, int.MinValue, int.MaxValue, int.MaxValue, -10, -10, 10, 10), "No overflow in hostile coordinates");
+Assert(DesktopUacPolicy.Refusal(consent with { X2 = 1 }, true, true, "Winlogon", true) == "invalid_uac_response", "Pointer fields cannot widen typed UAC response");
+
 
 sealed class TestTime : TimeProvider
 {

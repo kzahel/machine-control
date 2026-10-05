@@ -12,9 +12,14 @@ internal static class Program
         "conformance");
 
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
+        if (args.Length == 2 && args[0] == "--pointer-output")
+        {
+            Application.Run(new PointerForm(Path.GetFullPath(args[1])));
+            return;
+        }
         Directory.CreateDirectory(EvidenceDirectory);
         var marker = Path.Combine(EvidenceDirectory, "elevation-approved.json");
         Application.Run(new FixtureForm(marker));

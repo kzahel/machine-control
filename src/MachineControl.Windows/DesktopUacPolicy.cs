@@ -6,7 +6,7 @@ internal static class DesktopUacPolicy
     internal static readonly string[] Operations =
     [
         "windows", "snapshot", "screenshot", "invoke",
-        "set.value", "click", "key", "type", "window.state", "uac.respond",
+        "set.value", "click", "move", "drag", "scroll", "key", "type", "window.state", "uac.respond",
     ];
 
     internal static string? Refusal(Request request, bool enabled, bool unlocked,
@@ -25,7 +25,8 @@ internal static class DesktopUacPolicy
         if (request.Operation != "uac.respond") return "secure_desktop_operation_refused";
         return request.State is "approve" or "cancel" && request.Text is null &&
             request.Key is null && request.Reference is null && request.Query is null &&
-            request.Hwnd is null && request.ProcessId is null && request.X is null && request.Y is null
+            request.Hwnd is null && request.ProcessId is null && request.X is null && request.Y is null && request.X2 is null && request.Y2 is null &&
+            request.DeltaX is null && request.DeltaY is null && request.Button is null && request.DurationMs is null
             ? null : "invalid_uac_response";
     }
 }

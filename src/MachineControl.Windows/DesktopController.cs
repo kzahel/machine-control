@@ -10,13 +10,15 @@ using System.Windows.Automation;
 
 namespace MachineControl.Windows;
 
-internal static class DesktopController
+internal static partial class DesktopController
 {
     [ThreadStatic] private static Request? _desktopRequest;
     [ThreadStatic] private static string? _desktopGeneration;
     [ThreadStatic] private static bool _desktopEffectStarted;
+    [ThreadStatic] private static CancellationToken _desktopCancellation;
     private static void RequireDesktopAuthority(AutomationElement? element = null)
     {
+        if (_desktopCancellation.IsCancellationRequested) throw new DesktopAccessRefusedException("operation_cancelled");
         if (_desktopRequest is not null && _desktopGeneration is not null)
             DesktopSafety.Require(_desktopRequest, _desktopGeneration, element);
     }
@@ -53,14 +55,15 @@ internal static class DesktopController
                 _desktopRequest = request;
                 _desktopGeneration = generation;
                 _desktopEffectStarted = false;
-                completion.SetResult(Execute(
+                _desktopCancellation = cancellationToken;
+                completion.TrySetResult(Execute(
                     request,
                     generation,
                     out switchedDesktop));
             }
             catch (DesktopAccessRefusedException ex)
             {
-                completion.SetResult(new Result
+                completion.TrySetResult(new Result
                 {
                     RequestId = request.RequestId!,
                     Operation = request.Operation,
@@ -75,7 +78,7 @@ internal static class DesktopController
             }
             catch (Exception ex)
             {
-                completion.SetResult(new Result
+                completion.TrySetResult(new Result
                 {
                     RequestId = request.RequestId!,
                     Operation = request.Operation,
@@ -108,8 +111,10 @@ internal static class DesktopController
                 NativeMethods.CloseDesktop(switchedDesktop);
             }
         });
-        cancellationToken.Register(() =>
-            completion.TrySetCanceled(cancellationToken));
+        // Pointer completion includes release cleanup before returning. Other
+        // operations retain their existing early cancellation behavior.
+        if (request.Operation is not ("move" or "drag" or "scroll" or "click"))
+            cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken));
         return completion.Task;
     }
 
@@ -238,7 +243,8 @@ internal static class DesktopController
                 "invoke" => Invoke(request, generation, desktopName, timer),
                 "set.value" => SetValue(
                     request, generation, desktopName, timer),
-                "click" => Click(request, generation, desktopName, timer),
+                "click" => PointerSerialized(() => Click(request, generation, desktopName, timer)),
+                "move" or "drag" or "scroll" => PointerSerialized(() => Pointer(request, generation, desktopName, timer)),
                 "key" => Key(request, generation, desktopName, timer),
                 "key.timeline" => KeyTimeline(
                     request, generation, desktopName, timer),
@@ -2298,7 +2304,7 @@ internal static class DesktopController
         }
     }
 
-    private static NativeMethods.INPUT MouseInput(int x, int y, uint flags) =>
+    private static NativeMethods.INPUT MouseInput(int x, int y, uint flags, int data = 0) =>
         new()
         {
             type = NativeMethods.INPUT_MOUSE,
@@ -2308,6 +2314,7 @@ internal static class DesktopController
                 {
                     dx = x,
                     dy = y,
+                    mouseData = unchecked((uint)data),
                     dwFlags = flags,
                 },
             },

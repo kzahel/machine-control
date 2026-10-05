@@ -66,6 +66,10 @@ internal sealed record Request
     public int? TimeoutMs { get; init; }
     public int? X { get; init; }
     public int? Y { get; init; }
+    public int? X2 { get; init; }
+    public int? Y2 { get; init; }
+    public int? DeltaX { get; init; }
+    public int? DeltaY { get; init; }
     public string? Key { get; init; }
     public string? SecondaryKey { get; init; }
     public string? KeyMode { get; init; }

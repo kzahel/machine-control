@@ -22,6 +22,16 @@ and
 
 ## Platform acceptance surface
 
+**Current — focused x64 native pointer conformance:** the owned Win32 adapter now includes move,
+bounded drag and both wheel axes. Windows wheel units and absolute virtual-screen
+coordinates follow [MOUSEINPUT](https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-mouseinput).
+[SendInput](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput)
+reports inserted events and remains subject to integrity restrictions; delivery
+does not prove application effect. [Tactical 104](../../docs/tactical/104-windows-pointer-gestures.md)
+owns 36 real desktop/native-fixture checks for independent motion, wheel axes,
+drag endpoints and Pause/Stop release. Signed, live ARM64, multiple-display,
+physical and broader transition qualification remain open.
+
 **Current — focused x64 VM conformance for local activity:**
 [Tactical 103](../../docs/tactical/103-windows-activity-pause.md) owns the native
 Default-desktop monitor and quiet resumption. Win32

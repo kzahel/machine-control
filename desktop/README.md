@@ -13,6 +13,8 @@ execution remains open.
 
 See the [acceptance matrix](../docs/desktop-acceptance.md) for tested behavior
 by package, architecture, and VM/physical environment.
+The [Windows pointer guide](WINDOWS-POINTER-INPUT.md) describes native move,
+drag and scroll requests, units and interruption behavior.
 
 The operator uses a compact settings window with Access, Permissions, Activity,
 and Settings tabs. Labels and status rows replace banners and explanatory

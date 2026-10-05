@@ -42,12 +42,31 @@ internal static class DesktopSafety
             return "self_target_refused";
         if (request.Operation is "key" or "key.timeline" or "key.delayed_hold" or "type" && OwnShellElement(AutomationElement.FocusedElement))
             return "self_target_refused";
-        if (request.Operation == "click")
+        if (request.Operation is "click" or "move" or "drag" or "scroll")
         {
-            if (request.X is not { } x || request.Y is not { } y) return "invalid_request";
+            var gui = new GuiThreadInfo { Size = Marshal.SizeOf<GuiThreadInfo>() };
+            if (!GetGUIThreadInfo(0, ref gui)) return "pointer_routing_unknown";
+            if (OwnWindow(gui.Capture)) return "self_target_refused";
+            int x, y;
+            if (request.Operation == "scroll")
+            {
+                if (!NativeMethods.GetCursorPos(out var cursor)) return "pointer_unavailable";
+                x = cursor.X; y = cursor.Y;
+                if (OwnWindow(NativeMethods.GetForegroundWindow())) return "self_target_refused";
+            }
+            else
+            {
+                if (request.X is not { } rx || request.Y is not { } ry) return "invalid_request";
+                x = rx; y = ry;
+            }
+            var x2 = request.Operation == "drag" ? request.X2 ?? x : x;
+            var y2 = request.Operation == "drag" ? request.Y2 ?? y : y;
             var hit = WindowFromPoint(new Point { X = x, Y = y });
-            if (OwnWindow(hit) && !CoverWindow(hit) || OwnPoint(x, y)) return "self_target_refused";
-            if (OwnShellElement(AutomationElement.FromPoint(new System.Windows.Point(x, y))))
+            var endHit = WindowFromPoint(new Point { X = x2, Y = y2 });
+            if ((OwnWindow(hit) && !CoverWindow(hit)) || (OwnWindow(endHit) && !CoverWindow(endHit)) ||
+                OwnPath(x, y, x2, y2)) return "self_target_refused";
+            if (OwnShellElement(AutomationElement.FromPoint(new System.Windows.Point(x, y))) ||
+                OwnShellElement(AutomationElement.FromPoint(new System.Windows.Point(x2, y2))))
                 return "self_target_refused";
         }
         if (request.Operation == "app.activate" && request.ApplicationId == "org.machine-control.app")
@@ -102,7 +121,7 @@ internal static class DesktopSafety
         name.StartsWith("Machine Control - ", StringComparison.Ordinal) ||
         name.StartsWith("Machine Control Machine Control - ", StringComparison.Ordinal);
 
-    private static bool OwnPoint(int x, int y)
+    private static bool OwnPath(int x, int y, int x2, int y2)
     {
         // A transparent provider cursor overlay can win FromPoint discovery
         // while input passes through it. Guard visible operator regions and
@@ -112,7 +131,7 @@ internal static class DesktopSafety
         {
             if (!CoverWindow(hwnd) && NativeMethods.IsWindowVisible(hwnd) && !NativeMethods.IsIconic(hwnd) &&
                 NativeMethods.GetWindowRect(hwnd, out var rect) &&
-                x >= rect.Left && x < rect.Right && y >= rect.Top && y < rect.Bottom)
+                PointerGeometry.Intersects(x, y, x2, y2, rect.Left, rect.Top, rect.Right, rect.Bottom))
                 windows.Add(hwnd);
             return true;
         }, IntPtr.Zero);
@@ -127,7 +146,8 @@ internal static class DesktopSafety
             {
                 var current = button.Current;
                 if (!current.IsOffscreen && OwnShellIdentity(current.Name, current.AutomationId) &&
-                    current.BoundingRectangle.Contains(new System.Windows.Point(x, y))) return true;
+                    PointerGeometry.Intersects(x, y, x2, y2, current.BoundingRectangle.Left,
+                        current.BoundingRectangle.Top, current.BoundingRectangle.Right, current.BoundingRectangle.Bottom)) return true;
             }
         }
         return false;
@@ -159,6 +179,15 @@ internal static class DesktopSafety
         NativeMethods.GetWindowThreadProcessId(root, out pid);
         return OwnProcess((int)pid);
     }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GuiThreadInfo
+    {
+        public int Size; public uint Flags;
+        public IntPtr Active, Focus, Capture, MenuOwner, MoveSize, Caret;
+        public NativeMethods.RECT CaretRect;
+    }
+    [DllImport("user32.dll")]
+    private static extern bool GetGUIThreadInfo(uint thread, ref GuiThreadInfo info);
     [StructLayout(LayoutKind.Sequential)]
     private struct Point { public int X; public int Y; }
     [DllImport("user32.dll")]
