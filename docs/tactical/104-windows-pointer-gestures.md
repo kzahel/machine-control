@@ -1,6 +1,6 @@
 # Windows native pointer gestures
 
-Status: source and focused x64 VM qualification complete; cleanup in progress.
+Status: source and focused x64 VM qualification complete; cleanup complete.
 Signed installed, ARM64 live and physical qualification remain open.
 Owning topics: [Windows desktop](../../topics/windows-desktop.md),
 [Windows resident control](../../topics/windows-resident-control.md).
@@ -55,11 +55,12 @@ retained consent on Pause, fresh Resume and revoked consent on Stop.
 Unlocked-origin cleanup leaves the console unlocked. API delivery continues
 to report application effect as unverifiable; fixture effects are separate.
 
-Inspection of the first passing report found that a nominal 500 ms drag held
-for about five seconds because every delayed sample was still sent. The
+Inspection of the first passing report found that a nominal 500 ms drag took
+about five seconds because every delayed sample was still sent. The
 scheduler now skips elapsed samples after authority checks, binds display
 geometry and adds independent event timing. The final timing checks require
-each nominal 500 ms hold to finish in under 2500 ms on this VM. This is a
+each nominal 500 ms hold to finish in under 2500 ms on this VM; independently
+measured holds were 514.8 ms and 598.4 ms. This is a
 focused timing bound, not a hard real-time API guarantee.
 
 An initial run reached the input request before the app's next polling tick
@@ -80,3 +81,14 @@ application effects, owner-disconnect/expiry and desktop-transition cleanup
 remain separate qualification gates. Source cancellation/cleanup fences are
 present; the focused live interruption evidence is specifically Pause/Stop.
 Raw observations stay in ignored private evidence, outside public Git history.
+
+Implementation is committed in `9646c7d`. Owned fixture and actor processes,
+the exact scheduled task and guest staging were removed using native
+PowerShell with containment, task-identity and ancestor/child link checks.
+An initial combined controller cleanup command was blocked by command policy;
+separate script preparation and checked execution completed the same cleanup.
+No protected helper or controller grant was installed by this slice, and no
+capture artifact was created. Baseline doctor and canonical stored credential
+verification passed after cleanup. Shutdown reached independently confirmed
+power-off in 38.0 seconds using the declared 30-second scheduler assistance;
+the exact target claim was released. This is assisted shutdown evidence.

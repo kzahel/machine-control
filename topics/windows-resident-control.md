@@ -16,6 +16,13 @@ complete in
 The public-ISO-to-new-base boundary is complete in
 [`Tactical 007`](../docs/tactical/007-windows-iso-factory-acceptance.md).
 
+**Current, unreleased source and focused x64 VM evidence:**
+[Tactical 104](../docs/tactical/104-windows-pointer-gestures.md) completes native
+move, bounded drag and signed wheel operations behind the existing desktop
+owner and common CLI. Independent window-message effects, drag timing and
+Pause/Stop release pass 36 real operator/fixture checks. Signed installed,
+live ARM64, physical and broader transition qualification remain separate.
+
 **Current:**
 [`Tactical 020`](../docs/tactical/020-windows-post-update-and-appliance-certification.md)
 completed minimized post-update audit and bounded candidate-only repair, a

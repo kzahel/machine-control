@@ -69,6 +69,12 @@ activity monitoring and real ordinary/covered virtual-keyboard takeover,
 retained consent and fresh ownership after quiet. Its evidence does not
 qualify physical hardware or owner-unlocked local-use presentation.
 
+[Tactical 104](tactical/104-windows-pointer-gestures.md) adds 36 focused x64
+VM checks for native movement, both signed wheel axes, left/right drag effects
+and timing, operator-path protection and mid-drag Pause/Stop release. This
+unsigned source evidence does not qualify signed installs, live ARM64,
+physical/multiple-display or broader protected-transition behavior.
+
 This historical broad checklist covers macOS ARM64 Tart, Windows x64 VM, and
 Linux x64 GNOME Wayland VM. Focused 0.5.4 ARM64 results are recorded separately
 below; the broad checklist is not a claim that every cell was rerun on 0.5.4.
