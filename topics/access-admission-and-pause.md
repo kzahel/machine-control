@@ -29,6 +29,18 @@ policy.
 
 ## Current foundation
 
+**Current, unreleased Windows source and focused x64 VM evidence:**
+[Tactical 103](../docs/tactical/103-windows-activity-pause.md) adds a Default
+desktop activity monitor and composed 30-second quiet policy. Input injection
+flags distinguish agent input from ordinary takeover; conservative session
+idle is used for locked admission rather than as a human-input classifier.
+Covered takeover retains consent; observed relock plus quiet permits a fresh
+session, while owner-unlocked local use retains its independent pause.
+No existing action or session is restored. Native hooks, real quiet time and
+ordinary/covered virtual-keyboard takeover now have focused VM evidence.
+Physical hardware, owner-unlocked local-use, ARM64 live and signed installed
+qualification remain separate; local-use policy has deterministic coverage.
+
 **Decision:** task-end cleanup may request lock only for a task that started
 locked, using an immutable native observation at ownership acceptance. An
 unlocked-origin task must finish without locking; a later user/idle lock stays
@@ -337,8 +349,10 @@ connection-owned intents with pause/ownership fencing. Mac inner native effects
 and queued claim handoff have independent counter/stale-reference evidence.
 Bounded physical Mac presentation, pause, persistence and Stop are qualified;
 revised protected takeover/quiet resumption remains a separate gate. Windows
-ordinary approval is still timed and memory-only, and native acceptance remains
-unavailable. Native shared outer input now borrows an existing exact VM claim under the
+ordinary approval is memory-only and supports timed or until-stopped access;
+bounded signed ARM64 Pause/Resume/Stop evidence is recorded in the Windows
+topic. New activity behavior has its own Tactical 103 qualification. Native
+shared outer input now borrows an existing exact VM claim under the
 claim-store operation lock and the host desktop fence; socket fixtures cover
 two VM contenders, physical contention and stale input refusal. Actual Tart/UTM
 effect acceptance remains pending in [Tactical 084](../docs/tactical/084-native-outer-desktop-admission.md).

@@ -81,7 +81,14 @@ injected agent input passes through it. This distinction is
 not an authentication boundary against other privileged software. Hook failure
 and monitor stalls fail closed. After a service crash, restart the app and
 enable access again; the old task cannot resume automatically. Manual Pause
-and physical-takeover pauses require explicit Resume.
+requires explicit Resume. Covered physical takeover retains consent and
+permits a fresh task after observed relock and 30 seconds of conservative
+session quiet. If the owner unlocks to work, access stays paused until relock
+plus quiet or explicit Resume. Ordinary human input also pauses admission;
+agent-injected input does not count as takeover. No old action is replayed.
+
+[Tactical 103](../docs/tactical/103-windows-activity-pause.md) owns this
+unreleased activity behavior and its separate qualification gates.
 
 This profile supports the existing local-account, unique-display-name and
 stock-password-field restrictions of the unlock broker. PIN, domain/cloud

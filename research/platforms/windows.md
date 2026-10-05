@@ -22,6 +22,21 @@ and
 
 ## Platform acceptance surface
 
+**Current — focused x64 VM conformance for local activity:**
+[Tactical 103](../../docs/tactical/103-windows-activity-pause.md) owns the native
+Default-desktop monitor and quiet resumption. Win32
+[keyboard](https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-kbdllhookstruct)
+and [mouse](https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-msllhookstruct)
+low-level injection flags distinguish ordinary input from injected events.
+[Session last-input information](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getlastinputinfo)
+is session-local and may have nonmonotonic ticks, including synthetic events;
+the monitor treats newly observed ticks conservatively and never uses idle
+to classify human takeover. Default hooks do not observe Winlogon activity.
+Unknown/stalled monitoring blocks admission; the SYSTEM covered guardian owns
+protected relock. Native injected input and real ordinary/covered virtual-HID
+takeover pass the focused fixtures. Hardware, owner-unlocked local-use,
+remote-human and touch qualification remain open.
+
 **Current — staged x64 bounded desktop locked use:**
 [Tactical 101](../../docs/tactical/101-windows-desktop-locked-use.md) composes
 native opt-in, an independently protected controller grant, exact prepared

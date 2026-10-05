@@ -30,12 +30,15 @@ internal static class ActivityLive
         var generations = active.GetProperty("resourceGenerations").Deserialize<Dictionary<string, long>>()!;
         var keyboardBefore = monitor.InjectedKeyboard; var mouseBefore = monitor.InjectedMouse;
         var keys = new[] {
-            new NativeMethods.INPUT { type = 1, union = new() { keyboard = new() { wVk = 0xFC } } },
-            new NativeMethods.INPUT { type = 1, union = new() { keyboard = new() { wVk = 0xFC, dwFlags = 2 } } }
+            new NativeMethods.INPUT { type = 1, union = new() { keyboard = new() { wVk = 0x10 } } },
+            new NativeMethods.INPUT { type = 1, union = new() { keyboard = new() { wVk = 0x10, dwFlags = 2 } } }
         };
         Check(NativeMethods.SendInput((uint)keys.Length, keys, Marshal.SizeOf<NativeMethods.INPUT>()) == 2, "Target-native injected keyboard pair delivered");
-        var mouse = new[] { new NativeMethods.INPUT { type = 0, union = new() { mouse = new() { dwFlags = 1 } } } };
-        Check(NativeMethods.SendInput(1, mouse, Marshal.SizeOf<NativeMethods.INPUT>()) == 1, "Target-native injected zero-motion mouse delivered");
+        var mouse = new[] {
+            new NativeMethods.INPUT { type = 0, union = new() { mouse = new() { dx = 1, dwFlags = 1 } } },
+            new NativeMethods.INPUT { type = 0, union = new() { mouse = new() { dx = -1, dwFlags = 1 } } }
+        };
+        Check(NativeMethods.SendInput(2, mouse, Marshal.SizeOf<NativeMethods.INPUT>()) == 2, "Target-native injected mouse out-and-back pair delivered");
         await Task.Delay(500);
         Check(monitor.InjectedKeyboard >= keyboardBefore + 2 && monitor.InjectedMouse > mouseBefore, "Native hooks independently observed injected keyboard/mouse flags");
         Check(grants.Admission.Authorize("fixture", id, session, generations) is null, "Injected keyboard/mouse do not pause or retire ownership");

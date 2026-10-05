@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Automatically pause Windows desktop control for human keyboard/mouse
+  activity while retaining approval. Agents wait for quiet and accept a fresh
+  session; injected agent input does not trigger takeover. Covered takeover
+  relocks and waits for locked quiet, while owner-unlocked local use stays
+  paused until relock plus quiet or Resume. Manual Pause remains independent,
+  and interrupted actions are never replayed automatically.
+
 - Add explicit Windows locked-screen preparation with a separately approved
   controller, one-shot password delivery and a finite task owner. An opaque
   single-display cover preserves underlying native capture and injected input.

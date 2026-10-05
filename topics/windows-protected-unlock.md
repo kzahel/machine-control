@@ -40,6 +40,13 @@ console. See [Tactical 102](../docs/tactical/102-windows-covered-control.md),
 [Tactical 101](../docs/tactical/101-windows-desktop-locked-use.md) and the
 [operator guide](../desktop/WINDOWS-LOCKED-USE.md) for qualification and limits.
 
+**Current, focused x64 VM evidence:** activity admission now composes guardian
+takeover with consent retention and fresh ownership after locked quiet.
+[Tactical 103](../docs/tactical/103-windows-activity-pause.md) distinguishes
+virtual-keyboard diagnostics from physical hardware, owner-unlocked local-use
+and signed installed qualification. Credential delivery remains a separate
+one-shot operation; becoming eligible never replays an unlock request.
+
 The existing appliance provides protected desktop control and guarded no-user
 login. Its login command refuses a locked session with an already logged-in
 user. The signed workstation preview provides ordinary unlocked desktop control

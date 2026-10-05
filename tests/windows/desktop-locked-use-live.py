@@ -2,6 +2,8 @@
 
 An outside claimed controller supplies setup consent and the existing dedicated
 unlock relay. Passwords never enter this actor, its mailbox or evidence.
+The activity scenario also requests independently generated virtual HID
+diagnostic input; resident SendInput cannot substitute for that classification.
 """
 from __future__ import annotations
 import argparse
@@ -32,7 +34,7 @@ def main():
     parser.add_argument('--install', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--scenario', choices=('lifecycle', 'stop', 'service-crash', 'resident-crash',
-                                               'covered', 'unlocked', 'idle-lock'), default='lifecycle')
+                                               'covered', 'activity', 'unlocked', 'idle-lock'), default='lifecycle')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     exe = args.install / 'runtime/machine-control-windows.exe'
@@ -110,7 +112,7 @@ def main():
     def new_owner(prepared=True, duration=120, scopes=('observe', 'control')):
         value = ControlSession({'command': [sys.executable, str(Path(__file__).resolve()), '--channel', str(exe), session]},
                                reason='Bounded Windows locked-use fixture', scopes=scopes,
-                               prepared_console=prepared, wait=90, duration=duration)
+                               prepared_console=prepared, wait=300 if args.scenario == 'activity' else 90, duration=duration)
         try:
             value.wait()
         except BaseException:
@@ -181,12 +183,43 @@ def main():
         report['fixturePid'] = fixture.pid
         wait(lambda: marker.exists() and json.loads(marker.read_text())['processId'] == fixture.pid,
              'independent fixture marker')
+        if args.scenario == 'activity':
+            owner = new_owner(prepared=False, duration=300)
+            original_session = owner.status()['sessionId']
+            check(owner.call({'operation': 'snapshot', 'scope': 'system', 'processId': fixture.pid})['accepted'],
+                  'Ordinary owner can observe before activity')
+            external('diagnostic-human-ordinary')
+            wait(lambda: 'physical_activity' in owner.status()['blockingReasons'], 'native human activity pause')
+            check(owner.status()['state'] == 'paused', 'Virtual HID diagnostic input pauses real product ownership')
+            check(ready(), 'Ordinary takeover leaves unlocked console unlocked')
+            check(direct({'operation': 'grant.status'})['data']['grant'] is not None, 'Ordinary takeover retains consent')
+            try:
+                owner.call({'operation': 'snapshot', 'scope': 'system'})
+            except Exception as refusal:
+                check(getattr(refusal, 'code', None) == 'control_interrupted', 'Interrupted action is refused without replay')
+            else:
+                raise AssertionError('Interrupted action unexpectedly dispatched')
+            ui('Pause access')
+            wait(lambda: 'physical_activity' not in owner.status()['blockingReasons'], 'real physical quiet timer', 45)
+            check('manual' in owner.status()['blockingReasons'], 'Quiet does not clear real operator Pause')
+            ui('Resume access')
+            owner.wait()
+            check(owner.status()['sessionId'] != original_session, 'Operator Resume accepts fresh ordinary ownership')
+            check(owner.call({'operation': 'snapshot', 'scope': 'system', 'processId': fixture.pid})['accepted'],
+                  'Fresh ordinary observation succeeds')
+            # Pause/Resume deliberately raised the settings window. Restore
+            # the fixture arrangement; operator overlap must remain protected.
+            ps('Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes;'
+               '$root=[Windows.Automation.AutomationElement]::FromHandle([IntPtr]' + str(operator_hwnd) + ');'
+               '$root.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).SetWindowVisualState('
+               '[Windows.Automation.WindowVisualState]::Minimized)')
+            owner.close(); owner = None
         if args.scenario != 'lifecycle':
             unlock(args.scenario, duration=300)
-            if args.scenario in ('stop', 'covered'):
+            if args.scenario in ('stop', 'covered', 'activity'):
                 windows = owner.call({'operation': 'windows', 'scope': 'system'})
                 hwnd = next(w['hwnd'] for w in windows['data']['windows'] if w['processId'] == fixture.pid)
-                if args.scenario == 'covered':
+                if args.scenario in ('covered', 'activity'):
                     cover = next(w for w in windows['data']['windows'] if w['title'] == 'Machine Control privacy cover')
                     refused = owner.call({'operation': 'window.state', 'hwnd': cover['hwnd'], 'state': 'closed'})
                     check(not refused['accepted'] and refused.get('errorCode') == 'self_target_refused',
@@ -206,7 +239,7 @@ def main():
                 key = owner.call({'operation': 'key', 'key': 'space'})
                 wait(lambda: json.loads(marker.read_text())['counter'] == 2, 'independent keyboard effect')
                 check(key['accepted'] and ready(), 'Injected keyboard input preserves guarded ownership')
-                if args.scenario == 'covered':
+                if args.scenario in ('covered', 'activity'):
                     capture = owner.call({'operation': 'screenshot', 'scope': 'system'})
                     report['coveredCapture'] = capture
                     check(capture['accepted'], 'Full-display native capture accepted behind cover')
@@ -215,7 +248,18 @@ def main():
                                  'try{$count=0; for($y=0;$y -lt $image.Height;$y+=10){for($x=0;$x -lt $image.Width;$x+=10){'
                                  '$p=$image.GetPixel($x,$y);if(($p.R+$p.G+$p.B) -gt 30){$count++}}};$count}finally{$image.Dispose()}')
                     check(int(colored) > 100, 'Captured pixels contain underlying apps while cover is opaque')
-                    external('verify-cover-covered')
+                    external('verify-cover-' + args.scenario)
+                    if args.scenario == 'activity':
+                        original_session = owner.status()['sessionId']
+                        external('diagnostic-human-covered')
+                        wait(lambda: not ready(), 'covered takeover independent relock', 30)
+                        external('verify-relock-activity')
+                        check(direct({'operation': 'grant.status'})['data']['grant'] is not None,
+                              'Covered takeover retains real ordinary consent')
+                        owner.wait()
+                        check(owner.status()['sessionId'] != original_session,
+                              'Locked quiet permits fresh covered ownership without reapproval')
+                        check(not ready(), 'Fresh covered ownership does not itself unlock or replay work')
                     owner.close(); owner = None
                 else:
                     ui('Stop access')

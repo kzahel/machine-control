@@ -64,6 +64,11 @@ one-display VM presentation, underlying native capture/input and initial-state
 cleanup checks. Signed installed, broad Cua post-unlock, ARM64 live and hardware
 takeover acceptance remain open.
 
+[Tactical 103](tactical/103-windows-activity-pause.md) adds focused native
+activity monitoring and real ordinary/covered virtual-keyboard takeover,
+retained consent and fresh ownership after quiet. Its evidence does not
+qualify physical hardware or owner-unlocked local-use presentation.
+
 This historical broad checklist covers macOS ARM64 Tart, Windows x64 VM, and
 Linux x64 GNOME Wayland VM. Focused 0.5.4 ARM64 results are recorded separately
 below; the broad checklist is not a claim that every cell was rerun on 0.5.4.

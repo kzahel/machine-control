@@ -46,6 +46,17 @@ Windows support claim.
 
 ## Execution and remaining gates
 
+**Current, unreleased source and focused x64 VM evidence:**
+[Tactical 103](../docs/tactical/103-windows-activity-pause.md) adds ordinary
+keyboard/pointer activity pause, conservative locked-session quiet admission
+and grant-preserving covered takeover. Resumption requires fresh ownership;
+an owner-unlocked local-use episode stays paused until relock plus quiet or
+operator Resume. Manual Pause and activity uncertainty remain independent.
+The native monitor fixture passes 14 checks, covered regression 15, and real
+ordinary/covered virtual-keyboard takeover 26. Physical hardware, live
+owner-unlocked local-use, ARM64 live and signed installed evidence remain
+separate gates; the local-use policy has deterministic coverage.
+
 **Current, unreleased source and staged x64 evidence:** [Tactical 101](../docs/tactical/101-windows-desktop-locked-use.md)
 binds the existing unlock broker to explicit native preparation and a finite
 desktop task. A SYSTEM guardian owns relock independently of the resident and
