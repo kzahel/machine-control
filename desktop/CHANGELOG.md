@@ -2,13 +2,24 @@
 
 ## [Unreleased]
 
+## [0.5.5]
+
 - Redesign the Access tab around an on/off switch with Pause and Resume
   beside it, so turning access on no longer requires scrolling. Permissions,
   duration and **Also while the screen is locked** sit in one section; the
   locked-screen helper can be set up from there. Disabled controls say why.
 - Move the takeover policy and notice countdown to Settings.
-- Replace the YepAnywhere trust checkbox with an experimental **Only the
-  YepAnywhere app** option that lists its current limits.
+- On Mac, replace the YepAnywhere trust checkbox with an experimental **Only
+  the YepAnywhere app** option that lists its current limits.
+- Explain why **Install and restart** is disabled and offer **Go to Access**
+  when access must be stopped first.
+- On Windows, require live connection ownership for desktop and browser
+  operations and keep one owner across interactive CLI control streams.
+- Add Windows scan-code keyboard input, including bounded overlapping and
+  tap-then-hold key timelines that always release held keys.
+- Keep CLI control-session ownership after a delivered action whose effect
+  cannot be independently verified, and preserve interruption details in
+  client errors.
 
 ## [0.5.4]
 
