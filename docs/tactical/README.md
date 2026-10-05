@@ -216,3 +216,7 @@ the commits' `Topic:` trailers and register that exact string in
 - [101 — Windows desktop bounded unlock and relock](101-windows-desktop-locked-use.md):
   installed qualification, explicit protected controller preparation and
   owner-bound existing-session unlock with an independent relock watchdog.
+
+- [102 — Windows covered control](102-windows-covered-control.md):
+  opaque display covers, underlying capture/input and cleanup governed by
+  the native task-start lock state, including the macOS idle-lock path.
