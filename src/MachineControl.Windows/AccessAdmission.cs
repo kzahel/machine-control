@@ -18,6 +18,8 @@ internal sealed class AccessAdmission(TimeProvider? time = null, object? gate = 
     internal double ActiveHeartbeatSeconds { get; init; } = 5;
     internal event Action<string, string, string>? SessionEnded;
     internal event Action? SessionActivated;
+    internal Action? RefreshAvailability { get; set; }
+    internal bool HasActiveSession { get { lock (Gate) return _intents.Any(i => i.Session is not null); } }
 
     private double Now => (double)_time.GetTimestamp() / _time.TimestampFrequency;
 
@@ -241,6 +243,7 @@ internal sealed class AccessAdmission(TimeProvider? time = null, object? gate = 
             _refreshing = true;
             try
             {
+                RefreshAvailability?.Invoke();
                 var now = Now;
                 foreach (var resource in _resources.Values)
                     foreach (var reason in resource.Pauses.Where(p => p.Value is { } end && now >= end).Select(p => p.Key).ToArray())

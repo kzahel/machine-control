@@ -290,6 +290,7 @@ Assert(broker.Authorize("type") is null, "Update failure restores availability w
 for (var i = 0; i < 150; i++) broker.Record(new Result { RequestId = "test", Operation = "invoke", Accepted = false });
 Assert(State(broker).GetProperty("activity").GetArrayLength() == 30, "Bounded activity projection");
 await AdmissionChannelFixtures.RunAsync();
+DesktopActivityFixtures.Run();
 var preparedGrant = new DesktopGrants(new TestTime());
 preparedGrant.SetReady(true);
 preparedGrant.Arm(["observe", "control"], 300);

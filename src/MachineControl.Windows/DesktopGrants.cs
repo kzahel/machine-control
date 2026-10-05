@@ -33,6 +33,16 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     private string? _lastEnded;
     private readonly Queue<object> _activity = new();
     private AccessAdmission? _admission;
+    private DesktopActivityPolicy? _activityPolicy;
+    internal DesktopActivityPolicy Activity => _activityPolicy ??= new(this, _time);
+    internal void ActivityPause(string reason)
+    {
+        lock (Gate)
+        {
+            _generation = Guid.NewGuid().ToString("n");
+            Admission.Pause("desktop", reason);
+        }
+    }
     internal AccessAdmission Admission
     {
         get
@@ -221,6 +231,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         {
             Admission.Resume("desktop", "manual");
             Admission.Resume("desktop", "operator_deferral");
+            Activity.ResumeFromOperator();
             Admission.Resume("desktop", "physical_takeover");
             Journal?.Event("access.resumed");
         }

@@ -298,7 +298,12 @@ function App() {
   const paused =
     (on || standing) &&
     blocks.some((reason) =>
-      ["manual", "local_use_episode", "operator_deferral"].includes(reason),
+      [
+        "manual",
+        "local_use_episode",
+        "operator_deferral",
+        "physical_takeover",
+      ].includes(reason),
     );
   const agentWaiting =
     on && !paused && (state?.admission?.waiting ?? 0) > 0 && blocks.length > 0;
@@ -347,7 +352,9 @@ function App() {
         ? "Agents wait 1 minute."
         : blocks.includes("local_use_episode")
           ? "Agents wait while you use the computer."
-          : "No agent can start or continue."
+          : blocks.includes("physical_takeover")
+            ? "Control stopped when you used the keyboard or mouse. Agents wait for the locked screen to be quiet, or choose Resume access."
+            : "No agent can start or continue."
       : grant
         ? [
             grant.requester === "local operator"
@@ -466,7 +473,11 @@ function App() {
                 {accessDetail && <p className="grant-detail">{accessDetail}</p>}
                 {agentWaiting && (
                   <p className="grant-detail">
-                    An agent is waiting for you to stop using the computer.
+                    {blocks.includes("activity_unknown")
+                      ? "An agent is waiting because local activity cannot be verified."
+                      : blocks.includes("relock_pending")
+                        ? "An agent is waiting for the screen to lock safely."
+                        : "An agent is waiting for you to stop using the computer."}
                   </p>
                 )}
                 {state?.lockedUse?.pausedUntilManualUnlock && (

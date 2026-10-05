@@ -30,6 +30,7 @@ internal static class DesktopHost
         if (hello["method"]?.GetValue<string>() != "hello") throw new InvalidDataException("Operator handshake required");
         DesktopSafety.OperatorProcessId = hello["processId"]!.GetValue<int>();
         DesktopSafety.RefreshAvailability(broker);
+        using var activity = new DesktopActivityMonitor(broker);
         using var shortcut = new DesktopStopShortcut(broker);
         var browser = new BrowserRelay(broker);
         using var devtools = new BrowserDevToolsBridge(broker, browser);
@@ -78,6 +79,7 @@ internal static class DesktopHost
                             state["browser"] = JsonSerializer.SerializeToNode(browser.State, Contract.Json);
                             state["uac"] = JsonSerializer.SerializeToNode(DesktopUacClient.State(), Contract.Json);
                             state["lockedUse"] = JsonSerializer.SerializeToNode(lockedUse.State(), Contract.Json);
+                            state["physicalAvailability"] = JsonSerializer.SerializeToNode(activity.State, Contract.Json);
                             state["socket"] = RuntimeProfile.UserPipe("desktop", RuntimeProfile.SessionId);
                             reply = new { ok = true, state };
                             break;

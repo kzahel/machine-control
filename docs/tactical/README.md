@@ -220,3 +220,6 @@ the commits' `Topic:` trailers and register that exact string in
 - [102 — Windows covered control](102-windows-covered-control.md):
   opaque display covers, underlying capture/input and cleanup governed by
   the native task-start lock state, including the macOS idle-lock path.
+
+- [103 — Windows activity pause and quiet resumption](103-windows-activity-pause.md):
+  human-activity monitoring, composed pauses and fresh ownership after quiet.

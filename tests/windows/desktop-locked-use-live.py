@@ -110,7 +110,7 @@ def main():
     def new_owner(prepared=True, duration=120, scopes=('observe', 'control')):
         value = ControlSession({'command': [sys.executable, str(Path(__file__).resolve()), '--channel', str(exe), session]},
                                reason='Bounded Windows locked-use fixture', scopes=scopes,
-                               prepared_console=prepared, wait=30, duration=duration)
+                               prepared_console=prepared, wait=90, duration=duration)
         try:
             value.wait()
         except BaseException:

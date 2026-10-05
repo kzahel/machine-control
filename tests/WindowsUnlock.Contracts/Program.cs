@@ -2,6 +2,12 @@ using System.Security.Cryptography;
 using System.Text;
 using MachineControl.Windows;
 
+if (args.Contains("--activity-live"))
+{
+    await ActivityLive.RunAsync();
+    return;
+}
+
 static void Assert(bool value, string message)
 {
     if (!value) throw new Exception(message);
