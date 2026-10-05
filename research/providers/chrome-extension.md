@@ -31,6 +31,7 @@ tab lifecycle APIs. It is not the approval authority.
 | macOS signed Tauri, installed Python CLI and YA local Codex | `conformance-tested` | Chrome for Testing 145 in a claimed appliance: independent HTTP counter effect, tab PNG consumed by the built-in agent image tool, plus 21 existing indicator/worker checks; standing policy, not workstation approval |
 | Windows source-native extension/native messaging | `conformance-tested` | Dedicated x64 VM, browser/devtools enforcement, independent fixture effects and PNG/hash checks; exact installed evidence below |
 | Windows signed Tauri extension/native messaging | `conformance-tested` | Public 0.4.8 x64 VM package: setup/approval, independent effects/capture, restart, production browser-open replacement and ordinary uninstall; local/outside parity and lock revocation recorded on 0.4.7 |
+| Windows staged x64 file upload | `conformance-tested` | Unreleased real desktop UI, browser-only live SDK owner and CLI request parser; Chrome for Testing 154: direct/multiple inputs, intercepted chooser, independent HTTP byte/hash effects and 23 scope/path/reference/Pause/Stop checks |
 | Linux and other Chromium browsers | `upstream-claimed` facilities only | Owned registration and product acceptance absent |
 
 [Tactical 050](../../docs/tactical/050-macos-host-control-mvp.md) and
@@ -54,7 +55,16 @@ revoke or invalidate authority. Same-user shell access is not contained by this
 boundary. Chrome may refuse privileged pages or CDP domains, and debugger
 attachment can display Chrome's own indicator.
 
-**Open:** Windows file upload and streamed raw CDP WebSockets; browser-level
+**Current:** Windows upload uses the shared `DOM.setFileInputFiles` and
+`Page.fileChooserOpened` interception routes. The resident validates 1–20
+readable local-drive regular files before forwarding any, refusing network/
+device/stream paths, reparse links and hidden/private storage. This is browser
+authority; no elevated service or desktop input is required. Chrome reopens
+paths, so validation does not contain concurrent same-user replacement.
+[Tactical 098](../../docs/tactical/098-windows-browser-upload.md) owns focused
+x64 candidate evidence; signed/ARM64/physical qualification remains separate.
+
+**Open:** Windows streamed raw CDP WebSockets; browser-level
 target emulation on all platforms; Linux registration; other Chromium browsers;
 Web Store distribution; signed Mac workstation browser approval acceptance. No Windows ARM64
 execution is inferred from the x64 browser evidence.

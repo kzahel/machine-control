@@ -644,6 +644,12 @@ function App() {
                     );
                   })}
                 </div>
+                {windows &&
+                  shownScopes.some((s) => s === "browser" || s === "devtools") && (
+                    <p className="note group-note">
+                      Browser access can attach local files to websites.
+                    </p>
+                  )}
                 {lockedUse && (
                   <div className="lock-row">
                     <label
@@ -1532,6 +1538,12 @@ function App() {
                 </label>
               ))}
             </div>
+            {windows &&
+              pendingScopes.some((s) => s === "browser" || s === "devtools") && (
+                <p className="note">
+                  Browser access can attach local files to websites.
+                </p>
+              )}
             <label className="duration">
               Duration
               <select

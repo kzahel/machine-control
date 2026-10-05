@@ -140,14 +140,60 @@ broker.Arm(["browser"], 60);
 Assert(broker.Authorize("browser.tabs") is null, "Browser scope authorizes tabs");
 Assert(broker.Authorize("browser.eval") == "approval_required", "Browser is not raw DevTools");
 Assert(broker.Authorize("snapshot") == "approval_required", "Browser is not desktop observation");
+Assert(BrowserWire.Operations.Contains("browser.upload") && !BrowserWire.Observes("browser.upload"), "Upload is an advertised browser mutation");
+Assert(broker.Authorize("browser.upload") is null, "Browser scope permits upload without DevTools");
+Assert(broker.Authorize(new Request { Operation = "browser.upload" }) == "control_session_required", "Upload requires live ownership");
 broker.Stop("test");
 broker.Arm(["devtools"], 60);
 Assert(broker.Authorize("browser.eval") is null && broker.Authorize("browser.tabs") is null, "DevTools includes browser");
 var browserPending = broker.RequestAsync(new Request { Operation = "grant.request", Scopes = ["control"], DurationSeconds = 60, Reason = "Other scope" }, "caller");
 Assert(broker.Authorize("browser.eval") == "approval_prompt_visible" && broker.Authorize("browser.click") == "approval_prompt_visible", "Prompt pauses browser writes and raw evaluation");
 Assert(broker.Authorize("browser.tabs") is null, "Prompt permits browser observation");
+Assert(broker.Authorize("browser.upload") == "approval_prompt_visible", "Prompt fences uploads");
 broker.Stop("test");
+Assert(broker.Authorize("browser.upload") == "approval_required", "Stop revokes uploads");
 Assert((await browserPending).ErrorCode == "test", "Stop cancels browser prompt");
+Assert(Contract.ParseRequest("{\"operation\":\"browser.upload\",\"files\":[\"C:\\\\fixture.txt\"]}").Files?.Single() == @"C:\fixture.txt", "Upload file list survives request parsing");
+Assert(BrowserUpload.Validate(null).ErrorCode == "invalid_request" && BrowserUpload.Validate([]).ErrorCode == "invalid_request", "Upload needs files");
+Assert(BrowserUpload.Validate(Enumerable.Repeat(@"C:\fixture.txt", 21).ToArray()).ErrorCode == "invalid_request", "Upload file count bounded");
+foreach (var invalidPath in new[] { "relative.txt", @"C:relative.txt", @"\fixture.txt", @"\\server\share\fixture.txt", @"\\?\C:\fixture.txt", @"C:\fixture.txt:secret" })
+    Assert(BrowserUpload.Validate([invalidPath]).ErrorCode == "invalid_request", "Reject nonlocal/stream path");
+if (OperatingSystem.IsWindows())
+{
+    var uploadRoot = Path.Combine(Environment.CurrentDirectory, "upload-contract-" + Guid.NewGuid().ToString("n"));
+    Directory.CreateDirectory(uploadRoot);
+    try
+    {
+        var file = Path.Combine(uploadRoot, "space résumé.txt");
+        File.WriteAllText(file, "independent file bytes");
+        Assert(BrowserUpload.Validate([file]).Files?.Single() == file, "Readable Unicode local file accepted");
+        Assert(BrowserUpload.Validate([uploadRoot]).ErrorCode == "upload_file_unavailable", "Directory refused");
+        Assert(BrowserUpload.Validate([Path.Combine(uploadRoot, "missing.txt")]).ErrorCode == "upload_file_unavailable", "Missing file refused");
+        foreach (var folder in new[] { ".private", "AppData" })
+        {
+            var privateFile = Path.Combine(uploadRoot, folder, "private.txt");
+            Directory.CreateDirectory(Path.GetDirectoryName(privateFile)!);
+            File.WriteAllText(privateFile, "fixture");
+            Assert(BrowserUpload.Validate([privateFile]).ErrorCode == "upload_path_not_permitted", "Private folder refused");
+        }
+        File.SetAttributes(file, FileAttributes.Hidden);
+        Assert(BrowserUpload.Validate([file]).ErrorCode == "upload_path_not_permitted", "Hidden file refused");
+        File.SetAttributes(file, FileAttributes.Normal);
+        using (File.Open(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            Assert(BrowserUpload.Validate([file]).ErrorCode == "upload_file_unavailable", "Unreadable/locked file refused");
+        Assert(BrowserUpload.Validate([file, Path.Combine(uploadRoot, "missing.txt")]).Files is null, "Failed batch forwards no files");
+        var link = Path.Combine(uploadRoot, "link.txt");
+        try
+        {
+            File.CreateSymbolicLink(link, file);
+            Assert(BrowserUpload.Validate([link]).ErrorCode == "upload_path_not_permitted", "Reparse file refused");
+        }
+        catch (UnauthorizedAccessException) { Console.WriteLine("File symlink fixture unavailable without OS permission"); }
+        catch (IOException ex) when ((ex.HResult & 0xffff) == 1314) { Console.WriteLine("File symlink fixture unavailable without OS privilege"); }
+        finally { if (File.Exists(link)) File.Delete(link); }
+    }
+    finally { Directory.Delete(uploadRoot, true); }
+}
 await using (var frame = new MemoryStream())
 {
     await BrowserWire.WriteAsync(frame, new System.Text.Json.Nodes.JsonObject { ["type"] = "hello" }, CancellationToken.None);

@@ -109,6 +109,9 @@ sandbox for an agent with unrestricted same-user shell access. Closing the
 operator window keeps the tray and resident running; Quit ends the process.
 Permission changes may require Restart. Browser integration is optional and
 currently uses the bundled unpacked extension, with explicit user setup.
+The unreleased [Windows browser upload](WINDOWS-BROWSER-UPLOAD.md) operation
+attaches validated target-local files through that extension without the OS
+picker, under browser grants and live ownership.
 
 Mac 0.4.9 offers **Until I turn it off** for manually enabled access.
 It removes the timer for the selected scopes; Stop, screen lock/session loss,

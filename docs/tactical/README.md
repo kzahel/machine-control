@@ -200,3 +200,7 @@ the commits' `Topic:` trailers and register that exact string in
 - [096 — Windows owner-session native acceptance](096-windows-owner-session-acceptance.md):
   completed focused ARM64 candidate qualification through the desktop app,
   SDK and retained CLI; signed release qualification remains separate.
+
+- [098 — Windows browser file uploads](098-windows-browser-upload.md):
+  browser-scoped direct attachment and chooser interception with target-local
+  file validation and independent HTTP upload effects.

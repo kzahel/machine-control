@@ -1,5 +1,24 @@
 # Windows conformance
 
+## Browser upload acceptance
+
+[`browser-upload-live.py`](browser-upload-live.py) runs in the interactive
+Medium session of a dedicated, exclusively claimed VM. Stage a desktop app,
+matching runtime/provider and extension, bundled Python, source `client/`, and
+the runner under `tests/windows/`. Pass `--install`, a separately identified
+Chrome for Testing `--chrome`, and a private `--output` outside AppData/hidden
+storage. The output includes synthetic upload files, a dedicated browser
+profile and private result evidence; the HTTP fixture listens only on loopback.
+
+The runner operates the real operator UI, enables only browser access, uses the
+live SDK owner and CLI upload request parser, and checks independent received
+bytes. It covers direct/multiple-file inputs, intercepted single choosers,
+invalid batches, stale references, browser versus DevTools, Pause and Stop.
+Its cleanup restores native-host registration and reaps owned app/browser/
+server processes. The controller must independently inspect cleanup, retrieve
+private evidence, remove owned staging, restore initial VM power and release
+the claim. This runner does not qualify a signed installer or public release.
+
 The Windows suites exercise the same installed facade from two placements:
 
 - `conformance.ps1` drives ordinary system-shell and window behavior through

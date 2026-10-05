@@ -129,12 +129,19 @@ package and environment boundaries.
 
 ## Open
 
+- **Current, unreleased Windows x64 candidate:** `browser.upload` uses the
+  shared extension's direct CDP input/chooser interception with native local-file
+  validation, browser scope and live ownership. All 23 focused VM checks pass,
+  including independent received bytes and Pause/Stop fences.
+  [Tactical 098](../docs/tactical/098-windows-browser-upload.md) owns evidence
+  and remaining signed/ARM64/physical qualification.
 - **Open:** Browser-level CDP attachment (target list plus per-tab attach) so
   Playwright and Puppeteer `connectOverCDP` work, not only tab-level clients.
 - **Current:** Windows per-user registration, scoped browser operations, and
   single-shot raw CDP/evaluation are implemented. Signed installed acceptance
-  is in [054](../docs/tactical/054-windows-browser-and-arm64.md). Windows upload
-  and raw CDP WebSockets remain unavailable and are reported as omissions.
+  is in [054](../docs/tactical/054-windows-browser-and-arm64.md). Windows raw
+  CDP WebSockets remain unavailable and are reported as an omission; upload is
+  implemented in the unreleased candidate above.
 - **Open:** Linux registration and other Chromium browsers.
 - **Open:** Web Store publication, which changes the extension ID and install
   flow.

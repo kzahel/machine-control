@@ -90,6 +90,7 @@ internal sealed record Request
     public string? Method { get; init; }
     public JsonElement? Params { get; init; }
     public string? Expression { get; init; }
+    public string[]? Files { get; init; }
 }
 
 internal sealed record Result

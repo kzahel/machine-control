@@ -41,6 +41,15 @@ Windows support claim.
 
 ## Execution and remaining gates
 
+**Current, unreleased x64 development candidate:** browser-scoped file upload
+passes 23 live checks through the real operator UI and Chrome for Testing in a
+Windows-hosted VM. Both direct inputs and intercepted choosers have independent
+server byte/hash effects. Typed target-local file validation, live ownership,
+scope, stale-reference, Pause and Stop checks pass. [Tactical 098](../docs/tactical/098-windows-browser-upload.md)
+owns the evidence and [the upload guide](../desktop/WINDOWS-BROWSER-UPLOAD.md)
+owns usage and path restrictions. Signed release, ARM64 live, physical and other
+browser qualification remain separate.
+
 **Current, unreleased x64 development candidate:** the optional desktop UAC
 helper passes 21 live checks in a Windows-hosted VirtualBox VM. The actual
 operator UI installs/cancels/removes it; the desktop owner channel captures
@@ -110,8 +119,9 @@ in-place unlock integration. Focused ARM64 execution in 091 does not establish
 those separate capabilities.
 
 **Current:** Windows browser setup and browser/devtools scopes are implemented.
-Source-native fixture effects and enforcement pass on x64. Upload and raw CDP
-WebSockets are explicitly unavailable; the [browser dossier](../research/providers/chrome-extension.md)
+Source-native fixture effects and enforcement pass on x64. File uploads have
+focused unreleased acceptance above; raw CDP WebSockets remain unavailable.
+The [browser dossier](../research/providers/chrome-extension.md)
 owns route details.
 
 [Tactical 054](../docs/tactical/054-windows-browser-and-arm64.md) owns browser

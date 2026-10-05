@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Add Windows browser file uploads through the Chrome extension, using named
+  target-local files and current page references. Browser-only access can
+  attach files without the OS picker; live ownership, Pause/Stop and file-path
+  checks remain enforced. Attachment delivery does not imply website success.
+
 - Add an optional Windows administrator-installed UAC helper with per-run
   opt-in, native grants and live ownership. Approved tasks can observe English
   stock consent prompts, approve/cancel them and control elevated apps. Pause,

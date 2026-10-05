@@ -28,7 +28,8 @@ internal sealed class BrowserRelay(DesktopGrants grants)
         available = true,
         route = Route,
         extensionVersion = _hello?["extensionVersion"]?.GetValue<string>(),
-        knownOmissions = new[] { "file upload", "browser-level CDP attachment", "raw CDP WebSocket" }
+        knownOmissions = new[] { "browser-level CDP attachment", "raw CDP WebSocket" },
+        fileUpload = new { maximumFiles = BrowserUpload.MaximumFiles, paths = "target_local_drive", osDialog = false }
     };
 
     internal async Task RunAsync(CancellationToken cancellation)
@@ -164,6 +165,14 @@ internal sealed class BrowserRelay(DesktopGrants grants)
             if (!reference.StartsWith(prefix, StringComparison.Ordinal))
                 return result with { ErrorCode = "stale_reference" };
             parameters["reference"] = reference[prefix.Length..];
+        }
+        if (request.Operation == "browser.upload")
+        {
+            if (string.IsNullOrWhiteSpace(request.Reference))
+                return result with { ErrorCode = "invalid_request", Message = "A file input or upload button reference is required" };
+            var upload = BrowserUpload.Validate(request.Files);
+            if (upload.ErrorCode is not null) return result with { ErrorCode = upload.ErrorCode };
+            parameters["files"] = JsonSerializer.SerializeToNode(upload.Files, Contract.Json);
         }
         var id = Guid.NewGuid().ToString("n");
         var completion = new TaskCompletionSource<JsonObject>(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -22,6 +22,13 @@ and
 
 ## Platform acceptance surface
 
+**Current — conformance-tested for staged x64 browser upload:**
+[Tactical 098](../../docs/tactical/098-windows-browser-upload.md) proves the
+owned Chrome extension's direct attachment and intercepted chooser with native
+file validation, browser-only live ownership and independent HTTP byte/hash
+effects. All 23 checks pass through the real operator UI; signed packages,
+ARM64 live, physical and other-browser evidence remain separate.
+
 **Current — conformance-tested for the staged x64 desktop UAC route:**
 [Tactical 097](../../docs/tactical/097-windows-desktop-uac.md) proves optional
 administrator-installed helper setup/removal through the real product UI,
