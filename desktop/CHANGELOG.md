@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- Redesign the Access tab around an on/off switch with Pause and Resume
+  beside it, so turning access on no longer requires scrolling. Permissions,
+  duration and **Also while the screen is locked** sit in one section; the
+  locked-screen helper can be set up from there. Disabled controls say why.
+- Move the takeover policy and notice countdown to Settings.
+- Replace the YepAnywhere trust checkbox with an experimental **Only the
+  YepAnywhere app** option that lists its current limits.
+
 ## [0.5.4]
 
 - Offer **Until I turn it off** when manually enabling access on Windows and

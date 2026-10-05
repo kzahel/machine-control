@@ -192,6 +192,26 @@ authorization component outside its authority. The npm client may reuse the
 MC principal/grant protocol later, but needs its own authenticated enrollment
 and launch model; merely shipping the same signed broker is insufficient.
 
+## Operator presentation
+
+**Decision:** The Desktop operator app presents verified-YA trust as an
+experimental "Only the YepAnywhere app" restriction under the ordinary Access
+permissions, not as a peer of target-wide access. The visible caveats state
+the current limits: only agents launched by the signed YA Desktop app in
+`/Applications` qualify, with no authenticated path for the YA CLI or a
+standalone server; scopes are observation and input/app control on the
+unlocked desktop; and trust has no expiry, so it stays on until access is
+turned off. Unavailable browser and locked-screen rows state why they are
+disabled. The operator switch still uses existing Stop semantics, which
+suspend trust. Combined trust plus target-wide consent for a prepared console
+is reachable through native approval rather than the switch.
+
+**Open:** Graduation needs trust expiry so the duration control applies,
+qualified browser-tab delegation and a caller-bound DevTools route. Source
+reading suggests the target-wide grant's DevTools endpoint is not bound to its
+caller; this has not been live-tested. It also needs an authenticated launch
+model for the YA CLI and standalone servers.
+
 ## Completion evidence and constraints
 
 **Decision:** The investigation should produce a threat model, an evidenced

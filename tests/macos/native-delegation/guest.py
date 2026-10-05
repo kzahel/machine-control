@@ -5,7 +5,7 @@ Operator enrollment/controls use the separate appliance resident's native AX.
 No native trust setter or fixture admission is injected into the candidate.
 """
 
-import json, os, pathlib, subprocess, time, socket, urllib.request, urllib.error, signal, sys
+import json, os, pathlib, subprocess, time, socket, urllib.request, urllib.error, signal, sys, threading
 
 root = pathlib.Path(sys.argv[1])
 home = pathlib.Path.home()
@@ -251,14 +251,18 @@ try:
 
     rpc(upstream, {"operation": "application.activate", "target": str(candidate_pid)})
     operator_press("Access")
-    if rpc(standard, {"operation": "grant.status"})["data"]["availability"]["paused"]:
-        operator_press("Resume access")
-        time.sleep(0.3)
     profile = rpc(standard, {"operation": "desktop.delegation.status"})
     if profile["data"]["enabled"]:
-        operator_press("Allow selected YepAnywhere sessions", "AXCheckBox")
+        operator_press("Stop access")
         time.sleep(0.3)
-    operator_press("Allow selected YepAnywhere sessions", "AXCheckBox")
+    operator_press("Only the YepAnywhere app (experimental)", "AXCheckBox")
+    operator_press("Enable access")
+    blocks = rpc(standard, {"operation": "grant.status"})["data"]["availability"][
+        "blockingReasons"
+    ]
+    if {"manual", "operator_deferral", "local_use_episode"} & set(blocks):
+        operator_press("Resume access")
+        time.sleep(0.3)
     end = time.monotonic() + 20
     while (
         not rpc(standard, {"operation": "desktop.delegation.status"})["data"]["enabled"]
@@ -611,7 +615,32 @@ socket.on('end',()=>{clearTimeout(timer)});
         assert negative.stdout, "Signed interpreter refusal was not observed"
         assert json.loads(negative.stdout)["accepted"] is False
         assert fixture()["count"] == before + expected_effects
-        operator_press("Enable access")
+        # The operator switch cannot add target-wide access while YA-only
+        # trust is on; approve a same-user request in the visible sheet.
+        approval = {}
+        requester = threading.Thread(
+            target=lambda: approval.update(
+                rpc(
+                    standard,
+                    {
+                        "operation": "grant.request",
+                        "requestId": "prepared-console-consent",
+                        "scopes": ["observe", "control"],
+                        "reason": "Prepared console consent fixture",
+                        "durationSeconds": 900,
+                        "timeoutSeconds": 60,
+                    },
+                )
+            )
+        )
+        requester.start()
+        end = time.monotonic() + 15
+        while rpc(standard, {"operation": "grant.status"})["data"]["pendingRequest"] is None:
+            assert requester.is_alive() and time.monotonic() < end
+            time.sleep(0.2)
+        operator_press("Allow access")
+        requester.join(timeout=20)
+        assert approval.get("accepted"), "operator approval did not issue a grant"
         refusal = command(10, "accept")
         expect(refusal, "accepted", False)
         expect(refusal, "errorCode", "locked_use_disabled")

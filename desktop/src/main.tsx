@@ -6,11 +6,11 @@ import {
   Activity,
   ArrowUpRight,
   Check,
+  ChevronDown,
   Command,
   Monitor,
   Settings2,
   ShieldCheck,
-  Square,
 } from "lucide-react";
 import "./style.css";
 
@@ -48,6 +48,7 @@ type State = {
     enabled: boolean;
     suspended: boolean;
     storageInvalid: boolean;
+    scopes?: Scope[];
   };
   updates?: UpdateState;
   platform?: string;
@@ -156,7 +157,8 @@ function App() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [scopes, setScopes] = useState<Scope[]>(["observe", "control"]);
-  const [pauseDuration, setPauseDuration] = useState(60);
+  const [yaChoice, setYaChoice] = useState(false);
+  const [pauseMenu, setPauseMenu] = useState(false);
   const [duration, setDuration] = useState(900);
   const [pendingScopes, setPendingScopes] = useState<Scope[]>([]);
   const [pendingDuration, setPendingDuration] = useState(900);
@@ -201,6 +203,12 @@ function App() {
       void listener.then((unlisten) => unlisten());
     };
   }, []);
+  useEffect(() => {
+    if (!pauseMenu) return;
+    const close = () => setPauseMenu(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [pauseMenu]);
   const navigate = (next: string) => {
     setPage(next);
     setNotice("");
@@ -260,9 +268,75 @@ function App() {
               : undefined;
   const trustedAccess = state?.desktopCallerTrust?.enabled === true;
   const availability = state?.deployment.availability;
-  const manuallyPaused = availability?.blockingReasons.some((reason) =>
-    ["manual", "local_use_episode", "operator_deferral"].includes(reason),
-  );
+  const blocks = availability?.blockingReasons ?? [];
+  const on = !!grant || trustedAccess;
+  // Physical activity only delays a waiting agent; these hold access itself.
+  const paused =
+    (on || standing) &&
+    blocks.some((reason) =>
+      ["manual", "local_use_episode", "operator_deferral"].includes(reason),
+    );
+  const agentWaiting =
+    on && !paused && (state?.admission?.waiting ?? 0) > 0 && blocks.length > 0;
+  const trustSupported =
+    mac && !standing && state?.desktopCallerTrust?.supported === true;
+  // Experimental: verified YepAnywhere desktop sessions under separate trust.
+  const yaOnly = grant ? false : trustedAccess || (trustSupported && yaChoice);
+  const trustScopes: Scope[] = ["observe", "control"];
+  const shownScopes = grant
+    ? grant.scopes
+    : trustedAccess
+      ? (state?.desktopCallerTrust?.scopes ?? trustScopes)
+      : scopes;
+  const armScopes = yaOnly
+    ? scopes.filter((s) => trustScopes.includes(s))
+    : scopes;
+  const lockedOff = "Turn access off to change this";
+  const switchReason = standing
+    ? "Managed by appliance policy"
+    : on
+      ? "Turn access off"
+      : armScopes.length === 0
+        ? "Choose at least one permission"
+        : yaOnly && state?.admission?.active
+          ? "Wait for the current agent to finish"
+          : "Turn access on";
+  const lockedUse =
+    mac && state?.deployment.policy.grantMode === "approval"
+      ? state.lockedUse
+      : undefined;
+  const accessTitle = !state
+    ? "Connecting…"
+    : !on && !standing
+      ? "Access is off"
+      : paused
+        ? "Access paused"
+        : (state.admission?.active ?? 0) > 0
+          ? "Agent in control"
+          : standing
+            ? "Access always on"
+            : "Access is on";
+  const accessDetail = standing
+    ? "Managed by appliance policy"
+    : paused
+      ? blocks.includes("operator_deferral")
+        ? "Agents wait 1 minute."
+        : blocks.includes("local_use_episode")
+          ? "Agents wait while you use the computer."
+          : "No agent can start or continue."
+      : grant
+        ? [
+            grant.requester === "local operator"
+              ? "Any app running as you"
+              : grant.requester,
+            grant.lifetime === "until_stopped"
+              ? "until you turn it off"
+              : `${Math.ceil((grant.remainingSeconds ?? 0) / 60)} min left`,
+            ...(trustedAccess ? ["plus YepAnywhere sessions"] : []),
+          ].join(" · ")
+        : trustedAccess
+          ? "YepAnywhere app only (experimental) · until you turn it off"
+          : "";
   const ready =
     state?.permissions.accessibility && state?.permissions.screenRecording;
   const selected = (values: Scope[], setter: (v: Scope[]) => void, s: Scope) =>
@@ -360,49 +434,117 @@ function App() {
                   <span
                     className={
                       "status-dot " +
-                      (grant || standing || trustedAccess ? "on" : "")
+                      (paused ? "paused" : on || standing ? "on" : "")
                     }
                   />
-                  {!state
-                    ? "Connecting…"
-                    : standing
-                      ? "Standing access"
-                      : grant || trustedAccess
-                        ? availability?.paused
-                          ? "Access paused"
-                          : (state.admission?.active ?? 0) > 0
-                            ? "Agent controlling screen"
-                            : "Access allowed"
-                        : "Access off"}
+                  {accessTitle}
                 </h1>
-                {grant && (
+                {accessDetail && <p className="grant-detail">{accessDetail}</p>}
+                {agentWaiting && (
                   <p className="grant-detail">
-                    {grant.requester} ·{" "}
-                    {grant.lifetime === "until_stopped"
-                      ? "Until you turn it off"
-                      : `${Math.ceil((grant.remainingSeconds ?? 0) / 60)} min left`}
+                    An agent is waiting for you to stop using the computer.
                   </p>
                 )}
-                {standing && <p className="grant-detail">Appliance policy</p>}
+                {state?.lockedUse?.pausedUntilManualUnlock && (
+                  <p className="grant-detail">
+                    Locked-screen access paused. Unlock your Mac manually to
+                    continue.
+                  </p>
+                )}
               </div>
-              {(grant || trustedAccess) && (
+              <div className="access-actions">
+                {(on || standing) &&
+                  state?.pauseSupported &&
+                  (paused ? (
+                    <button
+                      disabled={busy}
+                      onClick={() => void act({ method: "resume" })}
+                    >
+                      Resume access
+                    </button>
+                  ) : (
+                    <div className="split-button">
+                      <button
+                        disabled={busy}
+                        onClick={() => void act({ method: "pause" })}
+                      >
+                        Pause access
+                      </button>
+                      <button
+                        aria-label="Pause options"
+                        aria-haspopup="menu"
+                        aria-expanded={pauseMenu}
+                        disabled={busy}
+                        onClick={() => setPauseMenu(!pauseMenu)}
+                      >
+                        <ChevronDown size={13} />
+                      </button>
+                      {pauseMenu && (
+                        <div className="menu" role="menu">
+                          {(
+                            [
+                              [60, "Pause for 1 minute"],
+                              [300, "Pause for 5 minutes"],
+                            ] as const
+                          ).map(([seconds, label]) => (
+                            <button
+                              key={seconds}
+                              role="menuitem"
+                              onClick={() =>
+                                void act({ method: "pause", duration: seconds })
+                              }
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 <button
-                  className="danger"
-                  disabled={busy}
-                  onClick={() => void act({ method: "stop" })}
+                  className={"switch " + (on || standing ? "on" : "")}
+                  aria-label={
+                    standing
+                      ? "Access managed by appliance policy"
+                      : on
+                        ? "Stop access"
+                        : "Enable access"
+                  }
+                  title={switchReason}
+                  disabled={
+                    busy ||
+                    !state ||
+                    standing ||
+                    (!on &&
+                      (armScopes.length === 0 ||
+                        (yaOnly && !!state.admission?.active)))
+                  }
+                  onClick={() =>
+                    void act(
+                      on
+                        ? { method: "stop" }
+                        : yaOnly
+                          ? {
+                              method: "desktop_caller_trust",
+                              enabled: true,
+                              scopes: armScopes,
+                            }
+                          : {
+                              method: "arm",
+                              scopes: armScopes,
+                              duration,
+                              lifetime:
+                                duration === 0 ? "until_stopped" : "timed",
+                            },
+                    )
+                  }
                 >
-                  <Square size={12} /> Stop access
+                  <span className="knob" />
                 </button>
-              )}
+              </div>
             </div>
             {state?.admission && state.admission.requests.length > 0 && (
-              <section className="group" aria-label="Agent computer use">
-                <h2>Agent computer use</h2>
-                <p className="note">
-                  {state.admission.active
-                    ? "An agent is using the computer."
-                    : `${state.admission.waiting} request${state.admission.waiting === 1 ? "" : "s"} waiting.`}
-                </p>
+              <section className="group requests" aria-label="Agent requests">
                 {state.admission.requests.slice(0, 4).map((request) => (
                   <div className="control-request" key={request.intentId}>
                     <p>{request.reason}</p>
@@ -413,7 +555,7 @@ function App() {
                         : ""}{" "}
                       · Maximum {request.maximumDurationSeconds}s
                     </p>
-                    <div className="group-footer">
+                    <div className="request-actions">
                       {request.state === "announcing" && (
                         <button
                           disabled={busy}
@@ -449,188 +591,204 @@ function App() {
                 ))}
               </section>
             )}
-            {state?.controlPolicy?.supported && (
-              <section className="group" aria-label="Polite computer control">
-                <h2>Before an agent takes control</h2>
-                <label className="duration">
-                  Takeover policy
-                  <select
-                    aria-label="Takeover policy"
-                    value={state.controlPolicy.mode}
-                    disabled={busy || !!state.admission?.active}
-                    onChange={(event) =>
-                      void act({
-                        method: "control_policy",
-                        mode: event.target.value,
-                        noticeSeconds: state.controlPolicy?.noticeSeconds ?? 10,
-                      })
-                    }
-                  >
-                    <option value="when_idle">
-                      Wait for quiet, then announce
-                    </option>
-                    <option value="announce">
-                      Announce even when I’m using the computer
-                    </option>
-                  </select>
-                </label>
-                <label className="duration">
-                  Notice countdown
-                  <select
-                    aria-label="Notice countdown"
-                    value={state.controlPolicy.noticeSeconds}
-                    disabled={busy || !!state.admission?.active}
-                    onChange={(event) =>
-                      void act({
-                        method: "control_policy",
-                        mode: state.controlPolicy?.mode ?? "when_idle",
-                        noticeSeconds: Number(event.target.value),
-                      })
-                    }
-                  >
-                    <option value={5}>5 seconds</option>
-                    <option value={10}>10 seconds</option>
-                    <option value={30}>30 seconds</option>
-                    <option value={60}>1 minute</option>
-                  </select>
-                </label>
-                <p className="note">
-                  Local input interrupts active control. Prepared locked use can
-                  start unattended after the computer is quiet.
-                </p>
-              </section>
-            )}
-            {state?.pauseSupported && (
-              <section className="group" aria-label="Pause agent access">
-                <div className="group-footer">
-                  <label className="duration">
-                    Pause for
-                    <select
-                      aria-label="Pause duration"
-                      value={pauseDuration}
-                      onChange={(event) =>
-                        setPauseDuration(Number(event.target.value))
-                      }
-                    >
-                      <option value={60}>1 minute</option>
-                      <option value={300}>5 minutes</option>
-                      <option value={0}>Until I resume</option>
-                    </select>
-                  </label>
-                  {manuallyPaused ? (
-                    <button
-                      disabled={busy}
-                      onClick={() => void act({ method: "resume" })}
-                    >
-                      Resume access
-                    </button>
-                  ) : (
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void act({
-                          method: "pause",
-                          ...(pauseDuration > 0
-                            ? { duration: pauseDuration }
-                            : {}),
-                        })
-                      }
-                    >
-                      Pause access
-                    </button>
-                  )}
-                </div>
-                <p className="note">
-                  {availability?.paused
-                    ? `Waiting: ${availability.blockingReasons.map((reason) => reason.replaceAll("_", " ")).join(", ")}.`
-                    : "Pause keeps your access approval. Stop access turns it off."}
-                </p>
-              </section>
-            )}
-            {mac && !standing && state?.desktopCallerTrust?.supported && (
-              <section
-                className="group"
-                aria-label="Trusted desktop integration"
+            {!standing && (
+              <fieldset
+                className="group access-config"
+                aria-label="Access scopes"
+                disabled={on || !state}
               >
-                <label className="setting-row">
-                  <span className="row-label">
-                    Allow selected YepAnywhere sessions
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={state.desktopCallerTrust.enabled}
-                    disabled={busy || !!state.admission?.active}
-                    onChange={(event) =>
-                      void act({
-                        method: "desktop_caller_trust",
-                        enabled: event.target.checked,
-                        scopes: ["observe", "control"],
-                      })
-                    }
-                  />
-                </label>
-                <p className="note">
-                  Until you turn this off: screen observation and input for
-                  authenticated local sessions on the unlocked desktop. Requires
-                  a compatible signed YepAnywhere app. Pause keeps this choice;
-                  Stop suspends it. Covered locked tasks also require separately
-                  approved desktop access and enabled locked-screen control.
-                </p>
-                {state.desktopCallerTrust.storageInvalid && (
-                  <p className="note">
-                    Trust storage needs attention. Access is blocked.
-                  </p>
+                <div className="scope-list">
+                  {availableScopes.map((s) => {
+                    const unavailable = yaOnly && !trustScopes.includes(s);
+                    return (
+                      <label
+                        className="scope"
+                        key={s}
+                        title={
+                          on
+                            ? lockedOff
+                            : unavailable
+                              ? "Not available with YepAnywhere-only access"
+                              : undefined
+                        }
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!unavailable && shownScopes.includes(s)}
+                          disabled={unavailable}
+                          onChange={() => selected(scopes, setScopes, s)}
+                        />
+                        {labels[s]}
+                      </label>
+                    );
+                  })}
+                </div>
+                {lockedUse && (
+                  <div className="lock-row">
+                    <label
+                      className="scope"
+                      title={
+                        on
+                          ? lockedOff
+                          : !lockedUse.supported
+                            ? "Requires macOS 14 or later"
+                            : yaOnly
+                              ? "Not available with YepAnywhere-only access"
+                              : state?.pending
+                                ? "Answer the pending request first"
+                                : lockedUse.enabled
+                                  ? undefined
+                                  : lockedUse.setupState === "approval"
+                                    ? "Finish approving the helper in System Settings"
+                                    : lockedUse.setupState !== "idle"
+                                      ? "Helper setup is in progress"
+                                      : !lockedUse.permissionReady
+                                        ? "Set up the Machine Control helper first"
+                                        : undefined
+                      }
+                    >
+                      <input
+                        type="checkbox"
+                        checked={lockedUse.enabled && !yaOnly}
+                        disabled={
+                          busy ||
+                          yaOnly ||
+                          !lockedUse.supported ||
+                          (!lockedUse.enabled &&
+                            (!lockedUse.permissionReady ||
+                              lockedUse.setupState !== "idle")) ||
+                          !!state?.pending
+                        }
+                        onChange={(e) =>
+                          void act({
+                            method: "locked_use",
+                            enabled: e.target.checked,
+                          })
+                        }
+                      />
+                      Also while the screen is locked
+                    </label>
+                    <span className="row-status">
+                      {!lockedUse.supported
+                        ? "Requires macOS 14 or later"
+                        : yaOnly
+                          ? "Not with YepAnywhere-only"
+                          : lockedUse.setupState === "approval"
+                            ? "Approve in System Settings"
+                            : lockedUse.setupState === "capture"
+                              ? "Approve the screen capture prompt"
+                              : lockedUse.setupState !== "idle"
+                                ? "Preparing…"
+                                : lockedUse.enabled
+                                  ? "Keep your Mac awake, lid open"
+                                  : ""}
+                    </span>
+                    {!on &&
+                      lockedUse.supported &&
+                      !lockedUse.permissionReady &&
+                      !yaOnly &&
+                      ["idle", "approval"].includes(lockedUse.setupState) && (
+                        <button
+                          aria-label={
+                            lockedUse.setupState === "approval"
+                              ? "Open Machine Control helper settings"
+                              : "Set up Machine Control helper"
+                          }
+                          disabled={
+                            busy ||
+                            !!lockedUse.controlSessionId ||
+                            !!state?.pending
+                          }
+                          onClick={() =>
+                            void act({
+                              method: "permission",
+                              permission: "lockedUse",
+                            })
+                          }
+                        >
+                          {lockedUse.setupState === "approval"
+                            ? "Open Settings"
+                            : "Set up…"}
+                        </button>
+                      )}
+                  </div>
                 )}
-              </section>
-            )}
-            <section className="group" aria-label="Access scopes">
-              <div className="scope-list">
-                {availableScopes.map((s) => (
-                  <label className="scope" key={s}>
-                    <input
-                      type="checkbox"
-                      checked={scopes.includes(s)}
-                      onChange={() => selected(scopes, setScopes, s)}
-                    />
-                    {labels[s]}
-                  </label>
-                ))}
-              </div>
-              <div className="group-footer">
-                <label className="duration">
-                  Duration
-                  <select
-                    aria-label="Access duration"
-                    value={duration}
-                    onChange={(e) => setDuration(Number(e.target.value))}
-                  >
-                    <option value={60}>1 minute</option>
-                    <option value={300}>5 minutes</option>
-                    <option value={900}>15 minutes</option>
-                    <option value={1800}>30 minutes</option>
-                    <option value={3600}>1 hour</option>
-                    {state?.manualUntilStoppedSupported && (
-                      <option value={0}>Until I turn it off</option>
+                {lockedUse?.setupError && !yaOnly && (
+                  <p className="note group-note">{lockedUse.setupError}</p>
+                )}
+                {trustSupported && (
+                  <div className="ya-row">
+                    <label className="scope" title={on ? lockedOff : undefined}>
+                      <input
+                        type="checkbox"
+                        aria-label="Only the YepAnywhere app (experimental)"
+                        checked={yaOnly}
+                        onChange={(e) => setYaChoice(e.target.checked)}
+                      />
+                      Only the YepAnywhere app
+                      <span className="badge">Experimental</span>
+                    </label>
+                    {yaOnly && (
+                      <ul className="note caveats">
+                        <li>
+                          Only agents started by the YepAnywhere desktop app in
+                          /Applications. Not the YepAnywhere CLI or other
+                          servers.
+                        </li>
+                        <li>
+                          View and control the unlocked screen only. No browser
+                          access or locked-screen use.
+                        </li>
+                        <li>
+                          No time limit: stays on until you turn access off.
+                        </li>
+                        <li>
+                          Restart YepAnywhere sessions after changing this.
+                        </li>
+                      </ul>
                     )}
-                  </select>
-                </label>
-                <button
-                  className="primary"
-                  disabled={busy || !state || standing || scopes.length === 0}
-                  onClick={() =>
-                    void act({
-                      method: "arm",
-                      scopes,
-                      duration,
-                      lifetime: duration === 0 ? "until_stopped" : "timed",
-                    })
-                  }
-                >
-                  Enable access
-                </button>
-              </div>
-            </section>
-            <p className="note">Applies to all callers running as your user.</p>
+                  </div>
+                )}
+                {!on && (
+                  <div className="group-footer">
+                    {yaOnly ? (
+                      <span className="note">Until you turn access off</span>
+                    ) : (
+                      <label className="duration">
+                        For
+                        <select
+                          aria-label="Access duration"
+                          value={duration}
+                          onChange={(e) => setDuration(Number(e.target.value))}
+                        >
+                          <option value={60}>1 minute</option>
+                          <option value={300}>5 minutes</option>
+                          <option value={900}>15 minutes</option>
+                          <option value={1800}>30 minutes</option>
+                          <option value={3600}>1 hour</option>
+                          {state?.manualUntilStoppedSupported && (
+                            <option value={0}>Until I turn it off</option>
+                          )}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                )}
+              </fieldset>
+            )}
+            {!standing && (on || !yaOnly) && (
+              <p className="note">
+                {on
+                  ? "Turn access off to change these."
+                  : "Any agent or script running as your user can use this access."}
+              </p>
+            )}
+            {state?.desktopCallerTrust?.storageInvalid && (
+              <p className="note">
+                YepAnywhere trust storage needs attention. YepAnywhere access is
+                blocked.
+              </p>
+            )}
             {state && !ready && (
               <button className="text-button" onClick={() => navigate("setup")}>
                 Permissions needed <ArrowUpRight size={13} />
@@ -819,9 +977,8 @@ function App() {
                       )}
                     </div>
                     <p className="note">
-                      Required to continue approved tasks while locked. Approve
-                      Machine Control in macOS Login Items &amp; Extensions.
-                      This leaves locked use off.
+                      Needed for locked-screen access. Approve Machine Control
+                      in macOS Login Items &amp; Extensions.
                     </p>
                     {state.lockedUse.setupState === "capture" && (
                       <p className="note">
@@ -1071,57 +1228,58 @@ function App() {
         )}
         {page === "settings" && (
           <>
-            {state?.lockedUse &&
-              state.deployment.policy.grantMode === "approval" && (
-                <section className="group" aria-label="Locked use">
-                  <label className="setting-row">
-                    <span className="row-label">
-                      Allow Machine Control while screen is locked
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={state.lockedUse.enabled}
-                      disabled={
-                        busy ||
-                        !state.lockedUse.supported ||
-                        (!state.lockedUse.enabled &&
-                          (!state.lockedUse.permissionReady ||
-                            state.lockedUse.setupState !== "idle")) ||
-                        !!state.pending
-                      }
-                      onChange={(e) =>
-                        void act({
-                          method: "locked_use",
-                          enabled: e.target.checked,
-                        })
-                      }
-                    />
-                  </label>
-                  <p className="note">
-                    Approved tasks can continue while your Mac is locked.
-                    Displays stay covered. Using the keyboard or mouse pauses
-                    control.
-                  </p>
-                  <p className="note">Keep your Mac awake with the lid open.</p>
-                  {!state.lockedUse.supported && (
-                    <p className="note">Requires macOS 14 or later.</p>
-                  )}
-                  {!state.lockedUse.permissionReady &&
-                    state.lockedUse.supported && (
-                      <button
-                        className="text-button"
-                        onClick={() => navigate("setup")}
-                      >
-                        Finish setup in Permissions <ArrowUpRight size={13} />
-                      </button>
-                    )}
-                  {state.lockedUse.pausedUntilManualUnlock && (
-                    <p className="note">
-                      Paused. Unlock your Mac manually before continuing.
-                    </p>
-                  )}
-                </section>
-              )}
+            {state?.controlPolicy?.supported && (
+              <section className="group" aria-label="Polite computer control">
+                <h2 className="group-title">When an agent wants control</h2>
+                <label className="setting-row">
+                  <span className="row-label">Takeover</span>
+                  <select
+                    aria-label="Takeover policy"
+                    value={state.controlPolicy.mode}
+                    disabled={busy || !!state.admission?.active}
+                    onChange={(event) =>
+                      void act({
+                        method: "control_policy",
+                        mode: event.target.value,
+                        noticeSeconds: state.controlPolicy?.noticeSeconds ?? 10,
+                      })
+                    }
+                  >
+                    <option value="when_idle">
+                      Wait for quiet, then announce
+                    </option>
+                    <option value="announce">
+                      Announce even when I’m using the computer
+                    </option>
+                  </select>
+                </label>
+                <label className="setting-row">
+                  <span className="row-label">Notice countdown</span>
+                  <select
+                    aria-label="Notice countdown"
+                    value={state.controlPolicy.noticeSeconds}
+                    disabled={busy || !!state.admission?.active}
+                    onChange={(event) =>
+                      void act({
+                        method: "control_policy",
+                        mode: state.controlPolicy?.mode ?? "when_idle",
+                        noticeSeconds: Number(event.target.value),
+                      })
+                    }
+                  >
+                    <option value={5}>5 seconds</option>
+                    <option value={10}>10 seconds</option>
+                    <option value={30}>30 seconds</option>
+                    <option value={60}>1 minute</option>
+                  </select>
+                </label>
+                <p className="note group-note">
+                  Using the keyboard or mouse interrupts an agent. On a locked
+                  screen, displays stay covered and agents start once the
+                  computer is quiet.
+                </p>
+              </section>
+            )}
             {(windows || linux) && (
               <section className="group" aria-label="Startup">
                 {linux && (

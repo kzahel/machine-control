@@ -89,6 +89,9 @@ choice but ends connections. Notices report verified YA assurance only for a
 verified delegated channel. The installed CLI negotiates the optional feature
 and authenticates the YA proxy before transmitting agent bytes. Missing/invalid
 proxy setup refuses before any ambient resident fallback.
+The operator app now presents this trust as an experimental YepAnywhere-only
+restriction; the [caller-authorization topic](../../topics/caller-authorization.md#operator-presentation)
+owns that decision and its caveats.
 
 **Current, source and fixture evidence:** native launches query the fixed local
 resident's read-only delegation profile each time. Disabled trust, an old

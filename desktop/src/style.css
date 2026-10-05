@@ -370,7 +370,134 @@ select {
   padding-top: 12px;
 }
 
-.trusted-integration > .note {
-  margin: 0;
+.status-dot.paused {
+  background: #aa7525;
+}
+.access-status {
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+.access-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.switch {
+  width: 42px;
+  min-height: 0;
+  height: 24px;
+  padding: 2px;
+  border-radius: 12px;
+  border-color: #c9d0cc;
+  background: #dfe3e0;
+  justify-content: flex-start;
+}
+.switch:hover {
+  background: #d4dad6;
+}
+.switch.on {
+  background: #377454;
+  border-color: #377454;
+  justify-content: flex-end;
+}
+.switch .knob {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px #17251e40;
+}
+.split-button {
+  position: relative;
+  display: flex;
+}
+.split-button > button:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.split-button > button:nth-child(2) {
+  border-left: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding: 5px 6px;
+}
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid #d6dbd8;
+  border-radius: 6px;
+  box-shadow: 0 6px 20px #17251e25;
+}
+.menu button {
+  border: 0;
+  justify-content: flex-start;
+}
+fieldset.group {
+  padding: 0;
+  margin-inline: 0;
+  min-width: 0;
+}
+.ya-row {
+  padding: 0 12px 8px;
+}
+.ya-row .scope {
+  min-height: 28px;
+}
+.badge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8a5a14;
+  background: #f6ecd9;
+  border-radius: 4px;
+  padding: 2px 5px;
+}
+.caveats {
+  margin: 2px 0 0 22px;
+  padding-left: 14px;
+}
+.caveats li + li {
+  margin-top: 2px;
+}
+.access-config .scope-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 12px;
+}
+.scope:has(input:disabled),
+fieldset:disabled .scope {
+  color: #8a948e;
+  cursor: default;
+}
+.lock-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 12px 8px;
+}
+.lock-row .scope {
+  flex: 1;
+}
+.group-title {
+  font-size: 13px;
+  padding: 12px 12px 2px;
+}
+.group-note {
   padding: 0 12px 12px;
+}
+.requests {
+  padding: 12px;
+}
+.request-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
 }
