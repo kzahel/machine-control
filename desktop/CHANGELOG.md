@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Add explicit Windows locked-screen preparation with a separately approved
+  controller, one-shot password delivery and a finite task owner. The console
+  is temporarily visible. An independent guardian requests relock on task end,
+  Pause, Stop, expiry, takeover or heartbeat loss; no password is cached.
+
 - Add Windows browser file uploads through the Chrome extension, using named
   target-local files and current page references. Browser-only access can
   attach files without the OS picker; live ownership, Pause/Stop and file-path
@@ -10,7 +15,7 @@
 - Add an optional Windows administrator-installed UAC helper with per-run
   opt-in, native grants and live ownership. Approved tasks can observe English
   stock consent prompts, approve/cancel them and control elevated apps. Pause,
-  Stop and owner loss still fence effects. Credential prompts and lock/login
+  Stop and owner loss still fence effects. UAC credential prompts and cold login
   remain unavailable; UAC and secure-desktop policy stay enabled.
 
 ## [0.5.5]

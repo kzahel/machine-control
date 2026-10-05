@@ -22,6 +22,15 @@ and
 
 ## Platform acceptance surface
 
+**Current — staged x64 bounded desktop locked use:**
+[Tactical 101](../../docs/tactical/101-windows-desktop-locked-use.md) composes
+native opt-in, an independently protected controller grant, exact prepared
+task ownership and one-shot password transport with an independent SYSTEM
+relock guardian. The first profile temporarily exposes the console and does
+not cache passwords or weaken Windows policy. Its native effects and lifecycle
+evidence are distinct from signed installed, broad Cua post-unlock, ARM64 live,
+physical takeover and opaque-cover qualification.
+
 **Current — conformance-tested for staged x64 streaming CDP:**
 [Tactical 099](../../docs/tactical/099-windows-streaming-cdp.md) adds per-tab
 WebSockets through the owned Chrome extension under retained DevTools

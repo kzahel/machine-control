@@ -257,6 +257,16 @@ merely hiding a scheduling defect. Online resemblance does not close these gaps.
 
 ## Fit and remaining gates
 
+**Current, staged x64 desktop campaign:** extended interactive load also
+produced guest scheduling stalls in the retained Windows-hosted compatibility
+profile. Read-only SSH observations timed out, and the backend recorded long
+timer catch-up intervals. One separately authorized, bounded pause/resume
+recovery restored execution without host desktop input. Subsequent desktop
+feature results qualify their native route; they do not establish unattended
+VM stability or an unassisted lifecycle fix. Exact logs and target identity
+remain private; [Tactical 101](../../docs/tactical/101-windows-desktop-locked-use.md)
+records the feature campaign and its limits.
+
 **Proposal:** qualify this Home-capable provider before implementing common
 production workspaces. Identity/role, claims and operation serialization have
 initial implementation and tests; complete factory/audit coverage and cleanup

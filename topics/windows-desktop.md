@@ -28,7 +28,9 @@ endpoint. Its ordinary profile excludes elevated apps, UAC, lock/login, and
 other users. **Decision:** [Tactical 097](../docs/tactical/097-windows-desktop-uac.md)
 adds an optional separately installed/armed desktop UAC helper. It must retain
 native grants and live ownership and never inherit appliance authority.
-Lock/login and other users remain outside this desktop integration.
+The separately approved [bounded locked-use profile](../desktop/WINDOWS-LOCKED-USE.md)
+adds existing-session password unlock and relock with a temporarily visible
+console. Cold login and other users remain outside this desktop integration.
 
 **Decision:** Reuse the concise Access, Permissions, Activity, and Settings UX.
 Windows permissions report session/integrity availability rather than macOS
@@ -40,6 +42,15 @@ checked-in versioned notes. Exact signed installed acceptance precedes any
 Windows support claim.
 
 ## Execution and remaining gates
+
+**Current, unreleased source and staged x64 evidence:** [Tactical 101](../docs/tactical/101-windows-desktop-locked-use.md)
+binds the existing unlock broker to explicit native preparation and a finite
+desktop task. A SYSTEM guardian owns relock independently of the resident and
+service. Exact signed installed qualification for the accumulated Windows
+changes remains pending authenticated release tooling. Opaque-screen privacy
+and physical takeover have no new acceptance claim. The operator must approve
+the temporarily visible console profile; native task effects and lifecycle
+checks do not establish broader Cua or signed-package acceptance.
 
 **Current, unreleased x64 development candidate:** per-tab CDP WebSockets use
 the shared Chrome extension and a retained DevTools owner. Typed commands,
@@ -73,7 +84,8 @@ afterward. [Tactical 097](../docs/tactical/097-windows-desktop-uac.md) owns the
 execution record; the [operator guide](../desktop/WINDOWS-UAC.md) owns setup,
 per-run opt-in and version replacement. This is unsigned candidate evidence,
 with x64/ARM64 builds; signed release, ARM64 live, physical and localized
-prompt acceptance remain open. Lock/login is outside this integration.
+prompt acceptance remain open. Existing-session unlock has its separate
+qualification in Tactical 101; cold login is outside the desktop integration.
 
 **Current, unreleased candidate acceptance:** ordinary desktop-product native
 and browser dispatch requires a live owner session, even with an idle standing
@@ -127,8 +139,8 @@ engine/package evidence is in
 [native distribution](native-distribution.md) owns shared release decisions.
 
 **Open:** Broader ARM64 browser/lifecycle acceptance, physical hardware, and
-in-place unlock integration. Focused ARM64 execution in 091 does not establish
-those separate capabilities.
+signed installed locked-use qualification. Focused ARM64 execution in 091 does
+not establish those separate capabilities.
 
 **Current:** Windows browser setup and browser/devtools scopes are implemented.
 Source-native fixture effects and enforcement pass on x64. File uploads have

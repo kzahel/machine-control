@@ -90,6 +90,12 @@ Medium desktop resident owns grants and live admission; the helper verifies
 that resident and calls back for each request's authority before effects.
 Permissions owns setup/removal, Settings owns per-run opt-in, and neither
 surface inherits the appliance's protected authority.
+The unreleased [desktop locked-use integration](desktop/WINDOWS-LOCKED-USE.md)
+reuses that protected payload with a separate controller grant. The Medium
+resident owns consent and task admission; the controller owns key and one-shot
+credential custody; an independent SYSTEM guardian owns failure relock for the
+bound console session. This profile temporarily exposes the console and does
+not inherit the Mac covered-display mechanism.
 Consumer acceptance and its limits live in
 [YA's topic](../yepanywhere/topics/optional-computer-control.md); historical
 headless native acceptance remains in

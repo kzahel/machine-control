@@ -29,6 +29,15 @@ policy.
 
 ## Current foundation
 
+**Current, unreleased Windows native integration:**
+[Tactical 101](../docs/tactical/101-windows-desktop-locked-use.md) admits an
+explicitly prepared, finite observation/control owner while the exact local
+console is locked. Ordinary dispatch still refuses until password unlock is
+independently confirmed. An independent SYSTEM guardian owns relock, and a
+relock barrier fences new work after authority loss. The console is temporarily
+visible; physical takeover, opaque privacy and signed installed qualification
+remain distinct gates.
+
 **Current:** [Tactical 075](../docs/tactical/075-admission-contract-and-arbiter.md)
 records the common contract/arbiter checks and Windows builds.
 [Tactical 076](../docs/tactical/076-resident-pause-enforcement.md) owns resident

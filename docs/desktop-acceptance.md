@@ -1,6 +1,6 @@
 # Desktop product acceptance matrix
 
-Reviewed: 2026-10-04.
+Reviewed: 2026-10-05.
 
 This is an index of recorded acceptance for the shared Tauri desktop product,
 with earlier runtime evidence kept separate. Linked tactical records own exact
@@ -53,6 +53,14 @@ replacement, ARM64 live, physical, localized consent or credential support.
 The historical ordinary-profile checklist below retains its own scope.
 
 ## Shared Tauri behavior checklist
+
+Focused unreleased Windows bounded locked-use evidence is recorded in
+[Tactical 101](tactical/101-windows-desktop-locked-use.md), using an unsigned
+x64 development app and the native route in a Windows-hosted VirtualBox VM.
+It adds existing-session unlock and independently guarded relock; it does not
+retroactively qualify the historical signed ordinary-profile cells below.
+Signed installed, broad Cua post-unlock, ARM64 live, hardware takeover and
+opaque-cover acceptance remain open.
 
 This historical broad checklist covers macOS ARM64 Tart, Windows x64 VM, and
 Linux x64 GNOME Wayland VM. Focused 0.5.4 ARM64 results are recorded separately

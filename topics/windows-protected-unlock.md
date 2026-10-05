@@ -3,7 +3,7 @@
 Topic: `windows-protected-unlock`
 
 Status: signed Windows ARM64/x64 preview accepted on disposable local-console
-VMs; consumer integration remains.
+VMs; bounded desktop consumer integration has source and staged x64 evidence.
 
 ## Decision
 
@@ -26,6 +26,16 @@ required. YepAnywhere owns its integration and credential/key custody, while
 Machine Control owns the native protocol and enforcement.
 
 ## Current
+
+**Current, unreleased:** the desktop's optional UAC payload
+also hosts an independently armed `desktop` unlock instance. Native opt-in,
+observation/control consent and a prepared owner session are all required.
+The controller supplies a password once after exact field readiness; the
+desktop stores none. A separately launched SYSTEM guardian binds relock to the
+same account/logon session and fences owner loss, authority changes, deadlines
+and failure. The first profile temporarily exposes the console. See
+[Tactical 101](../docs/tactical/101-windows-desktop-locked-use.md) and the
+[operator guide](../desktop/WINDOWS-LOCKED-USE.md) for qualification and limits.
 
 The existing appliance provides protected desktop control and guarded no-user
 login. Its login command refuses a locked session with an already logged-in
