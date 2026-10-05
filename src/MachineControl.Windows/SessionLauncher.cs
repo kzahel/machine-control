@@ -18,7 +18,8 @@ internal static class SessionLauncher
         string pipeName,
         string generation,
         string? unlockInstance = null,
-        bool prepareUnlock = false)
+        bool prepareUnlock = false,
+        bool desktopUac = false)
     {
         EnablePrivilege("SeAssignPrimaryTokenPrivilege");
         EnablePrivilege("SeIncreaseQuotaPrivilege");
@@ -70,7 +71,7 @@ internal static class SessionLauncher
             sessionId,
             pipeName,
             generation,
-            "LocalSystem", unlockInstance, prepareUnlock);
+            "LocalSystem", unlockInstance, prepareUnlock, desktopUac);
     }
 
     public static SessionProcess LaunchUser(
@@ -101,7 +102,8 @@ internal static class SessionLauncher
         string generation,
         string authority,
         string? unlockInstance = null,
-        bool prepareUnlock = false)
+        bool prepareUnlock = false,
+        bool desktopUac = false)
     {
         var executable = Environment.ProcessPath
             ?? throw new InvalidOperationException("Executable path is unavailable");
@@ -110,6 +112,8 @@ internal static class SessionLauncher
         if (unlockInstance is not null)
             commandLine = $"\"{executable}\" unlock-worker --pipe {pipeName} " +
                 $"--instance {RuntimeProfile.ValidateInstance(unlockInstance)}";
+        if (desktopUac)
+            commandLine = $"\"{executable}\" uac-worker --pipe {pipeName}";
         var startup = new NativeMethods.STARTUPINFO
         {
             cb = Marshal.SizeOf<NativeMethods.STARTUPINFO>(),

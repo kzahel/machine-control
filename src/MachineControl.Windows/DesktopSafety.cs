@@ -8,13 +8,14 @@ internal static class DesktopSafety
 {
     internal static DesktopGrants? Broker { get; set; }
     internal static int OperatorProcessId { get; set; }
+    internal static Func<Request, string, int?, string?>? ExternalCheck { get; set; }
 
     internal static bool Ready()
     {
         try
         {
             return NativeMethods.WTSGetActiveConsoleSessionId() == (uint)RuntimeProfile.SessionId &&
-                DesktopController.GetInputDesktopName() == "Default" &&
+                (DesktopUacClient.Enabled || DesktopController.GetInputDesktopName() == "Default") &&
                 SessionStateInspector.IsLocked((uint)RuntimeProfile.SessionId) == false;
         }
         catch (System.ComponentModel.Win32Exception) { return false; }
@@ -22,6 +23,7 @@ internal static class DesktopSafety
 
     internal static string? Check(Request request, string generation, int? resolvedProcess = null)
     {
+        if (ExternalCheck is { } external) return external(request, generation, resolvedProcess);
         if (Broker is not { } broker) return null;
         broker.SetReady(Ready());
         var refusal = broker.Authorize(request, generation);

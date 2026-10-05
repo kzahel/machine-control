@@ -19,6 +19,8 @@ use windows_sys::Win32::{
 
 static RUNTIME: Mutex<Option<Runtime>> = Mutex::new(None);
 static APP: OnceLock<tauri::AppHandle> = OnceLock::new();
+static UAC_SETUP: Mutex<Option<Child>> = Mutex::new(None);
+static UAC_SETUP_ERROR: Mutex<Option<String>> = Mutex::new(None);
 struct Job(HANDLE);
 // Kernel job handles have no thread affinity; access is owned by RUNTIME.
 unsafe impl Send for Job {}
@@ -68,11 +70,32 @@ impl Drop for Runtime {
 pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
     APP.set(app.clone())
         .map_err(|_| "Operator already initialized")?;
-    let executable = app
+    spawn_runtime(app)
+}
+
+fn bundled_runtime(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(app
         .path()
         .resource_dir()
         .map_err(|e| e.to_string())?
-        .join("runtime/machine-control-windows.exe");
+        .join("runtime/machine-control-windows.exe"))
+}
+
+fn spawn_runtime(app: &tauri::AppHandle) -> Result<(), String> {
+    let bundled = bundled_runtime(app)?;
+    let resolved = Command::new(&bundled)
+        .arg("uac-resolve")
+        .creation_flags(0x08000000)
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !resolved.status.success() {
+        return Err("Could not verify the UAC companion installation".into());
+    }
+    let executable = std::path::PathBuf::from(
+        String::from_utf8(resolved.stdout)
+            .map_err(|e| e.to_string())?
+            .trim(),
+    );
     let job = unsafe {
         let handle = CreateJobObjectW(std::ptr::null(), std::ptr::null());
         if handle.is_null() {
@@ -141,6 +164,53 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
 
 pub fn command(command: Value) -> Result<Value, String> {
     let app = APP.get().ok_or("Operator unavailable")?;
+    if command["method"] == "permission.uac" {
+        let mut setup = UAC_SETUP.lock().map_err(|e| e.to_string())?;
+        if setup.is_some() {
+            return Err("UAC helper setup is already running".into());
+        }
+        {
+            let mut owner = RUNTIME.lock().map_err(|e| e.to_string())?;
+            let runtime = owner.as_mut().ok_or("Resident unavailable")?;
+            let reply = runtime.call(&json!({"method":"prepare_update"}))?;
+            if reply["ok"] != true {
+                return Err("Stop access and finish approval before UAC helper setup".into());
+            }
+            owner.take();
+        }
+        let mut launch = Command::new(bundled_runtime(app)?);
+        launch.arg("uac-setup").creation_flags(0x08000000);
+        if command["remove"] == true {
+            launch.arg("--remove");
+        }
+        match launch.spawn() {
+            Ok(child) => {
+                *setup = Some(child);
+                *UAC_SETUP_ERROR.lock().map_err(|e| e.to_string())? = None;
+            }
+            Err(error) => {
+                spawn_runtime(app)?;
+                return Err(error.to_string());
+            }
+        }
+        return Ok(json!({"ok":true}));
+    }
+    {
+        let mut setup = UAC_SETUP.lock().map_err(|e| e.to_string())?;
+        if let Some(child) = setup.as_mut() {
+            if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
+                setup.take();
+                if !status.success() {
+                    *UAC_SETUP_ERROR.lock().map_err(|e| e.to_string())? = Some(
+                        "UAC helper setup was cancelled or failed. No access was enabled.".into(),
+                    );
+                }
+                spawn_runtime(app)?;
+            } else {
+                return Ok(json!({"ok":true,"setupPending":true}));
+            }
+        }
+    }
     if command["method"] == "startup" {
         match command["enabled"].as_bool() {
             Some(true) => app.autolaunch().enable(),
@@ -169,6 +239,8 @@ pub fn command(command: Value) -> Result<Value, String> {
             .into());
     }
     if command["method"] == "state" {
+        reply["state"]["uac"]["setupError"] =
+            json!(UAC_SETUP_ERROR.lock().map_err(|e| e.to_string())?.clone());
         reply["state"]["sourceRevision"] = json!(env!("MC_SOURCE_REVISION"));
         reply["state"]["version"] = json!(app.package_info().version.to_string());
         reply["state"]["startOnLogin"] =

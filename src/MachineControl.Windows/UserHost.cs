@@ -18,7 +18,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
         "status", "capabilities", "app.launch", "app.activate", "windows",
         "snapshot", "screenshot", "invoke", "set.value", "click", "key",
         "key.timeline", "key.delayed_hold",
-        "type", "window.state", "runtime.stop",
+        "type", "window.state", "runtime.stop", "uac.respond",
     ];
 
     public async Task RunAsync(CancellationToken cancellationToken)
@@ -207,8 +207,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
         string? desktop = null;
         try { desktop = DesktopController.GetInputDesktopName(); }
         catch (System.ComponentModel.Win32Exception) { }
-        var ready = string.Equals(desktop, "Default", StringComparison.OrdinalIgnoreCase) &&
-            NativeMethods.WTSGetActiveConsoleSessionId() == (uint)RuntimeProfile.SessionId;
+        var ready = DesktopSafety.Ready();
         if (request.Operation is "status" or "capabilities")
         {
             object data = request.Operation == "status"
@@ -235,9 +234,10 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
                     controlSession = grants is null ? null : new { schema = AccessAdmission.Schema, required = true },
                     providers = ProviderRouter.DescribeUser(),
                     serviceOperations = Array.Empty<string>(),
-                    protectedDesktop = new { available = false, reason = "not_installed_in_this_profile" },
+                    protectedDesktop = DesktopUacClient.State(),
                     sessionRequirement = "active unlocked console Default desktop",
-                    knownOmissions = new[] { "elevated applications", "UAC", "lock/login", "RDP and other user sessions" },
+                    knownOmissions = DesktopUacClient.Enabled ? new[] { "UAC credential prompts", "localized UAC responses", "lock/login", "RDP and other user sessions" }
+                        : new[] { "elevated applications", "UAC", "lock/login", "RDP and other user sessions" },
                 };
             return result with
             {
@@ -269,6 +269,9 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
                 Message = "Desktop access refused before dispatch",
                 Data = DesktopGrants.RefusalData(request.Operation, refusal)
             };
+            if (grants is not null && DesktopUacPolicy.Operations.Contains(request.Operation, StringComparer.Ordinal) && DesktopUacClient.Enabled)
+                return await DesktopUacClient.ExecuteAsync(request, generation, grants, cancellationToken);
+            if (request.Operation == "uac.respond") return Envelope(request) with { ErrorCode = "uac_access_disabled" };
             return await ProviderRouter.ExecuteAsync(request with { ControlOwnership = ownership }, generation, cancellationToken);
         }
         finally { _providerGate.Release(); }

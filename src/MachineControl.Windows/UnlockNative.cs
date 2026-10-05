@@ -17,12 +17,15 @@ internal static class UnlockNative
     }
 
     public static uint ServiceProcessId(string instance)
+        => NamedServiceProcessId(UnlockPolicy.Service(instance));
+
+    internal static uint NamedServiceProcessId(string name)
     {
         var manager = OpenSCManager(null, null, 1); // SC_MANAGER_CONNECT
         if (manager == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
         try
         {
-            var service = OpenService(manager, UnlockPolicy.Service(instance), 4); // QUERY_STATUS
+            var service = OpenService(manager, name, 4); // QUERY_STATUS
             if (service == IntPtr.Zero) throw new InvalidDataException("unlock_not_installed");
             try
             {

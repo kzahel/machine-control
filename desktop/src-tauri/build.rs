@@ -5,12 +5,23 @@ fn run(command: &mut Command) {
         "native build failed"
     );
 }
+fn source_git(repository: &std::path::Path) -> Command {
+    if cfg!(windows) {
+        let mut command = Command::new("wsl.exe");
+        command.arg("--cd").arg(repository).arg("git");
+        command
+    } else {
+        let mut command = Command::new("git");
+        command.current_dir(repository);
+        command
+    }
+}
 fn main() {
     let root = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let repository = root.join("../..");
     let revision = env::var("GITHUB_SHA").unwrap_or_else(|_| {
         String::from_utf8(
-            Command::new("git")
+            source_git(&repository)
                 .args(["rev-parse", "HEAD"])
                 .current_dir(&repository)
                 .output()
@@ -27,7 +38,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed=PYTHON");
     // Exported source builds can supply GITHUB_SHA without installing Git.
     // When Git is available, retain precise rebuild tracking for local commits.
-    if let Ok(branch) = Command::new("git")
+    if let Ok(branch) = source_git(&repository)
         .args(["symbolic-ref", "-q", "HEAD"])
         .current_dir(&repository)
         .output()
@@ -37,7 +48,7 @@ fn main() {
             .into_iter()
             .filter(|v| !v.is_empty())
         {
-            if let Ok(path) = Command::new("git")
+            if let Ok(path) = source_git(&repository)
                 .args(["rev-parse", "--path-format=absolute", "--git-path", name])
                 .current_dir(&repository)
                 .output()

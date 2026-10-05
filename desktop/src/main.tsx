@@ -99,6 +99,12 @@ type State = {
   manualUntilStoppedSupported?: boolean;
   pauseSupported?: boolean;
   updateInstallSupported?: boolean;
+  uac?: {
+    installed: boolean;
+    enabled: boolean;
+    setupState: string;
+    setupError?: string | null;
+  };
   lockedUse?: {
     permissionReady: boolean;
     helperApproval: string;
@@ -145,6 +151,7 @@ async function native(command: Record<string, unknown>) {
     history?: History;
     preview?: unknown;
     path?: string;
+    setupPending?: boolean;
   }>("operator_command", {
     command,
   });
@@ -155,7 +162,8 @@ function App() {
   const [page, setPage] = useState("access");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [actionBusy, setBusy] = useState(false);
+  const busy = actionBusy || state?.uac?.setupState === "pending";
   const [scopes, setScopes] = useState<Scope[]>(["observe", "control"]);
   const [yaChoice, setYaChoice] = useState(false);
   const [pauseMenu, setPauseMenu] = useState(false);
@@ -216,6 +224,19 @@ function App() {
   const refresh = async () => {
     try {
       const r = await native({ method: "state" });
+      if (r.setupPending) {
+        setState(
+          (previous) =>
+            previous && {
+              ...previous,
+              uac: { ...previous.uac!, setupState: "pending", enabled: false },
+            },
+        );
+        setNotice(
+          "Finish Windows administrator approval to install or remove the UAC helper.",
+        );
+        return;
+      }
       setState(r.state);
       if (r.state?.platform) setPlatform(r.state.platform);
     } catch (e) {
@@ -808,8 +829,34 @@ function App() {
                     </span>
                   </div>
                   <div className="setting-row">
+                    <span className="row-label">UAC and elevated apps</span>
+                    <span className="row-status">
+                      {state?.uac?.installed ? "Installed" : "Not installed"}
+                    </span>
+                    <button
+                      disabled={busy || !!grant || !!state?.pending}
+                      onClick={() =>
+                        void act({
+                          method: "permission.uac",
+                          remove: !!state?.uac?.installed,
+                        })
+                      }
+                    >
+                      {state?.uac?.installed
+                        ? "Remove helper…"
+                        : "Install helper…"}
+                    </button>
+                  </div>
+                  <p className="note">
+                    Windows asks for administrator approval. Installation leaves
+                    UAC control off.
+                  </p>
+                  {state?.uac?.setupError && (
+                    <p className="note">{state.uac.setupError}</p>
+                  )}
+                  <div className="setting-row">
                     <span className="row-label">
-                      Elevated apps and lock screen
+                      Lock screen and other users
                     </span>
                     <span className="row-status">Unavailable</span>
                   </div>
@@ -1277,6 +1324,42 @@ function App() {
                   Using the keyboard or mouse interrupts an agent. On a locked
                   screen, displays stay covered and agents start once the
                   computer is quiet.
+                </p>
+              </section>
+            )}
+            {windows && state?.uac && (
+              <section className="group" aria-label="UAC control">
+                <label className="setting-row">
+                  <span className="row-label">
+                    Allow UAC and elevated app control
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={state.uac.enabled}
+                    disabled={busy || !state.uac.installed || !!state.pending}
+                    onChange={(e) =>
+                      void act({
+                        method: "uac.enable",
+                        enabled: e.target.checked,
+                      })
+                    }
+                  />
+                </label>
+                <p className="note">
+                  Approved tasks can approve or cancel UAC consent prompts and
+                  control elevated apps. Changing this setting stops access. It
+                  starts off each time Machine Control opens.
+                </p>
+                {!state.uac.installed && (
+                  <button
+                    className="text-button"
+                    onClick={() => navigate("setup")}
+                  >
+                    Install the helper in Permissions <ArrowUpRight size={13} />
+                  </button>
+                )}
+                <p className="note">
+                  Password prompts and lock/login control are unavailable.
                 </p>
               </section>
             )}

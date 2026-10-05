@@ -70,6 +70,7 @@ internal static class DesktopHost
                             state["stopShortcut"] = "Ctrl+Alt+Shift+.";
                             state["permissions"] = new JsonObject { ["accessibility"] = ready, ["screenRecording"] = ready };
                             state["browser"] = JsonSerializer.SerializeToNode(browser.State, Contract.Json);
+                            state["uac"] = JsonSerializer.SerializeToNode(DesktopUacClient.State(), Contract.Json);
                             state["socket"] = RuntimeProfile.UserPipe("desktop", RuntimeProfile.SessionId);
                             reply = new { ok = true, state };
                             break;
@@ -84,6 +85,9 @@ internal static class DesktopHost
                             reply = new { ok = true }; break;
                         case "browser.setup":
                             BrowserRegistration.Install();
+                            reply = new { ok = true }; break;
+                        case "uac.enable":
+                            DesktopUacClient.Enable(command["enabled"]?.GetValue<bool>() == true, broker);
                             reply = new { ok = true }; break;
                         case "arm":
                             broker.Arm(command["scopes"]?.Deserialize<string[]>(), command["duration"]?.GetValue<int>() ?? 900,

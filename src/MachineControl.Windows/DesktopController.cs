@@ -23,7 +23,11 @@ internal static class DesktopController
 
     private static T DesktopAction<T>(Func<T> action, AutomationElement? element = null)
     {
-        if (DesktopSafety.Broker is not { } broker) return action();
+        if (DesktopSafety.Broker is not { } broker)
+        {
+            if (DesktopSafety.ExternalCheck is not null) { RequireDesktopAuthority(element); _desktopEffectStarted = true; }
+            return action();
+        }
         lock (broker.Gate) { RequireDesktopAuthority(element); _desktopEffectStarted = true; return action(); }
     }
     private static void DesktopAction(Action action, AutomationElement? element = null) =>
@@ -48,6 +52,7 @@ internal static class DesktopController
             {
                 _desktopRequest = request;
                 _desktopGeneration = generation;
+                _desktopEffectStarted = false;
                 completion.SetResult(Execute(
                     request,
                     generation,
@@ -103,6 +108,26 @@ internal static class DesktopController
         cancellationToken.Register(() =>
             completion.TrySetCanceled(cancellationToken));
         return completion.Task;
+    }
+
+    private static Result UacRespond(Request request, string generation, string desktop, Stopwatch timer)
+    {
+        if (DesktopSafety.ExternalCheck is null || desktop != "Winlogon")
+            return Failure(request, generation, desktop, timer, "uac_prompt_unavailable", "No authorized UAC consent prompt");
+        var pid = DesktopUacWorker.ConsentPid((uint)RuntimeProfile.SessionId);
+        if (pid == 0) return Failure(request, generation, desktop, timer, "uac_prompt_unavailable", "No unique stock consent process");
+        var root = DesktopUacWorker.ConsentUi(pid);
+        var name = request.State == "approve" ? "Yes" : "No";
+        var buttons = root.FindAll(TreeScope.Descendants, new AndCondition(
+            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button), new PropertyCondition(AutomationElement.NameProperty, name)));
+        if (buttons.Count != 1) return Failure(request, generation, desktop, timer, "uac_response_unavailable", "This consent prompt has no unique supported response");
+        var route = TryInvokePattern(buttons[0]);
+        if (route is null) return Failure(request, generation, desktop, timer, "uac_response_unavailable", "Consent button has no supported native action");
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (DateTime.UtcNow < deadline && TryGetInputDesktopName() == "Winlogon") Thread.Sleep(50);
+        var returned = TryGetInputDesktopName() == "Default";
+        return Success(request, generation, desktop, timer, route, "confirmed", returned ? "confirmed" : "unverifiable",
+            new { response = request.State, inputDesktopAfter = TryGetInputDesktopName(), privilege = "LocalSystem" });
     }
 
     private static string DescribeException(Exception exception)
@@ -169,6 +194,7 @@ internal static class DesktopController
             }
 
             var desktopName = inputDesktopName;
+            DesktopSafety.Require(request, generation);
             if (!string.IsNullOrWhiteSpace(request.ExpectedGeneration) &&
                 !string.Equals(
                     request.ExpectedGeneration,
@@ -186,6 +212,7 @@ internal static class DesktopController
 
             return request.Operation.ToLowerInvariant() switch
             {
+                "uac.respond" => UacRespond(request, generation, desktopName, timer),
                 "capabilities" => Capabilities(
                     request, generation, desktopName, timer),
                 "status" => Status(request, generation, desktopName, timer),

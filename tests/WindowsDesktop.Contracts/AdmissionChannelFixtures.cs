@@ -20,7 +20,7 @@ internal static class AdmissionChannelFixtures
         Require(order.Accept(new() { ["requestId"] = "next", ["requestSequence"] = 72001L }), "Next frame remains valid");
         var clock = new TestTime();
         var grants = new DesktopGrants(clock); grants.SetReady(true); grants.Arm(["observe", "control"], 900);
-        foreach (var operation in new[] { "snapshot", "type", "app.launch", "screenshot" })
+        foreach (var operation in new[] { "snapshot", "type", "app.launch", "screenshot", "uac.respond" })
             Require(grants.Authorize(new Request { Operation = operation }) == "control_session_required", "Idle grant cannot authorize unowned " + operation);
         var requirement = JsonNode.Parse(Contract.Serialize(DesktopGrants.RefusalData("type", "control_session_required")))!;
         Require(requirement["controlSession"]!["schema"]!.GetValue<string>() == AccessAdmission.Schema &&

@@ -25,6 +25,21 @@ internal static class Program
                 return await BrowserNativeHost.RunAsync(args[0]);
             switch (args[0].ToLowerInvariant())
             {
+                case "uac-service":
+                    ServiceBase.Run(new DesktopUacWindowsService());
+                    return 0;
+                case "uac-worker":
+                    await DesktopUacWorker.RunAsync(GetOption(args, "--pipe") ?? throw new ArgumentException("--pipe required"), CancellationToken.None);
+                    return 0;
+                case "uac-setup":
+                    return DesktopUacSetup.Request(args.Contains("--remove"));
+                case "uac-install":
+                    return DesktopUacSetup.Install();
+                case "uac-remove":
+                    return DesktopUacSetup.Remove();
+                case "uac-resolve":
+                    Console.WriteLine(DesktopUacSetup.Resolve());
+                    return 0;
                 case "service":
                     ServiceBase.Run(new BrokerWindowsService());
                     return 0;
