@@ -39,12 +39,12 @@ internal sealed class DesktopUacService
                 deadline.CancelAfter(TimeSpan.FromSeconds(35));
                 try
                 {
-                    var peer = await DesktopUacNative.RequireResidentAsync(pipe, deadline.Token);
                     using var reader = new StreamReader(pipe, Encoding.UTF8, false, 4096, true);
                     var frame = JsonSerializer.Deserialize<DesktopUacFrame>(await DesktopUacNative.ReadAsync(reader, deadline.Token), Contract.Json)
                         ?? throw new InvalidDataException("UAC frame required");
-                    if (frame.ResidentPid != peer.Pid || !frame.GuardPipe.StartsWith("machine-control-uac-guard-", StringComparison.Ordinal) ||
-                        frame.GuardPipe.Length > 100 || !DesktopUacPolicy.Operations.Contains(frame.Request.Operation, StringComparer.Ordinal))
+                    var peer = await DesktopUacNative.RequireResidentAsync(pipe, deadline.Token);
+                    if (frame.ResidentPid != peer.Pid || !System.Text.RegularExpressions.Regex.IsMatch(frame.GuardPipe, "\\Amachine-control-uac-guard-[a-f0-9]{32}\\z") ||
+                        !DesktopUacPolicy.Operations.Contains(frame.Request.Operation, StringComparer.Ordinal))
                         throw new UnauthorizedAccessException("uac_frame_refused");
                     if (_worker?.SessionId != peer.Session || _residentPid != peer.Pid || _workerProcess?.HasExited != false)
                     {
@@ -55,7 +55,7 @@ internal sealed class DesktopUacService
                         _ = _workerProcess.Handle;
                     }
                     // Only this dedicated service can access the worker pipe.
-                    var response = await PipeTransport.CallAsync(_worker.PipeName, Contract.Serialize(frame), TimeSpan.FromSeconds(30), deadline.Token);
+                    var response = await DesktopUacNative.CallWorkerAsync(_worker.PipeName, (uint)_worker.ProcessId, Contract.Serialize(frame), deadline.Token);
                     await using var writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096, true) { AutoFlush = true };
                     await writer.WriteLineAsync(response.AsMemory(), deadline.Token);
                 }
@@ -64,6 +64,8 @@ internal sealed class DesktopUacService
                 {
                     // Uncertain operations are never replayed. Dropping a failed
                     // worker also invalidates all of its native references.
+                    try { EventLog.WriteEntry(DesktopUacNative.Service, "Protected channel ended: " + ex.GetType().Name, EventLogEntryType.Warning); }
+                    catch (Exception logError) when (logError is InvalidOperationException or System.ComponentModel.Win32Exception or System.Security.SecurityException) { }
                     StopWorker();
                 }
             }

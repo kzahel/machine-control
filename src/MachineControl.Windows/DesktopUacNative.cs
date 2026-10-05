@@ -66,6 +66,17 @@ internal static class DesktopUacNative
     }
     internal static uint ServicePid() => UnlockNative.NamedServiceProcessId(Service);
 
+    internal static async Task<string> CallWorkerAsync(string name, uint workerPid, string frame, CancellationToken cancellation)
+    {
+        using var pipe = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous, TokenImpersonationLevel.Identification);
+        await pipe.ConnectAsync(10000, cancellation);
+        RequireServer(pipe, workerPid);
+        using var writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096, true) { AutoFlush = true };
+        using var reader = new StreamReader(pipe, Encoding.UTF8, false, 4096, true);
+        await writer.WriteLineAsync(frame.AsMemory(), cancellation);
+        return await ReadAsync(reader, cancellation, 24 * 1024 * 1024);
+    }
+
     internal static async Task<(uint Pid, uint Session)> RequireResidentAsync(NamedPipeServerStream pipe, CancellationToken cancellation)
     {
         var pid = ClientPid(pipe);
@@ -91,6 +102,13 @@ internal static class DesktopUacNative
         using var resident = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
         await resident.ConnectAsync(2000, cancellation);
         RequireServer(resident, pid);
+        using var output = new StreamWriter(resident, new UTF8Encoding(false), 4096, true) { AutoFlush = true };
+        using var input = new StreamReader(resident, Encoding.UTF8, false, 4096, true);
+        await output.WriteLineAsync("{\"operation\":\"status\"}".AsMemory(), cancellation);
+        var status = Contract.ParseResult(await ReadAsync(input, cancellation));
+        var state = System.Text.Json.JsonSerializer.SerializeToElement(status.Data, Contract.Json);
+        if (!status.Accepted || !state.GetProperty("desktopProduct").GetBoolean() || state.GetProperty("processId").GetInt32() != pid)
+            throw new UnauthorizedAccessException("uac_resident_endpoint_refused");
         return (pid, session);
     }
 

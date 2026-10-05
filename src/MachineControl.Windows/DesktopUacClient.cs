@@ -60,7 +60,7 @@ internal static class DesktopUacClient
         var dispatched = false;
         try
         {
-            using var pipe = new NamedPipeClientStream(".", DesktopUacNative.Pipe, PipeDirection.InOut, PipeOptions.Asynchronous);
+            using var pipe = new NamedPipeClientStream(".", DesktopUacNative.Pipe, PipeDirection.InOut, PipeOptions.Asynchronous, System.Security.Principal.TokenImpersonationLevel.Identification);
             await pipe.ConnectAsync(3000, deadline.Token);
             DesktopUacNative.RequireServer(pipe, DesktopUacNative.ServicePid());
             using var writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096, true) { AutoFlush = true };
@@ -105,11 +105,11 @@ internal static class DesktopUacClient
             await pipe.WaitForConnectionAsync(cancellation);
             try
             {
-                DesktopUacNative.RequireSystem(pipe);
                 using var reader = new StreamReader(pipe, Encoding.UTF8, false, 4096, true);
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
                 timeout.CancelAfter(TimeSpan.FromSeconds(3));
                 var check = JsonSerializer.Deserialize<JsonElement>(await DesktopUacNative.ReadAsync(reader, timeout.Token));
+                DesktopUacNative.RequireSystem(pipe);
                 var pid = check.TryGetProperty("processId", out var process) && process.ValueKind == JsonValueKind.Number ? process.GetInt32() : (int?)null;
                 string? error;
                 lock (grants.Gate) error = !Enabled ? "uac_access_disabled" : DesktopSafety.Check(request, generation, pid);

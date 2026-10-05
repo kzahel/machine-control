@@ -64,9 +64,9 @@ internal static class DesktopUacWorker
         {
             using var pipe = DesktopUacNative.Server(name, systemOnly: true);
             await pipe.WaitForConnectionAsync(cancellation);
-            DesktopUacNative.RequireSystem(pipe);
             using var reader = new StreamReader(pipe, Encoding.UTF8, false, 4096, true);
             var frame = JsonSerializer.Deserialize<DesktopUacFrame>(await DesktopUacNative.ReadAsync(reader, cancellation), Contract.Json) ?? throw new InvalidDataException("UAC frame required");
+            DesktopUacNative.RequireSystem(pipe);
             resident ??= Process.GetProcessById((int)frame.ResidentPid);
             string desktop, requestEpoch;
             lock (epochGate)
@@ -89,7 +89,7 @@ internal static class DesktopUacWorker
                 if (desktop == "Winlogon" && DesktopController.GetCurrentDesktopName() == "Winlogon") _ = ConsentUi(consentPid);
                 try
                 {
-                    using var guard = new NamedPipeClientStream(".", frame.GuardPipe, PipeDirection.InOut);
+                    using var guard = new NamedPipeClientStream(".", frame.GuardPipe, PipeDirection.InOut, PipeOptions.None, TokenImpersonationLevel.Identification);
                     guard.Connect(2000);
                     DesktopUacNative.RequireServer(guard, frame.ResidentPid);
                     using var output = new StreamWriter(guard, new UTF8Encoding(false), 4096, true) { AutoFlush = true };
