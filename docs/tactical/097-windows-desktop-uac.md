@@ -100,8 +100,11 @@ and absence of links verified before deletion and absence verified afterward.
 The first wrapped cleanup command had been rejected before execution by the
 controller's command tool; no guest filesystem refusal was observed.
 The VM returns to its original powered-off state and the validation and cleanup
-claims are
-released. The accepted runtime SHA-256 is
+claims are released. Both end-of-run shutdowns completed in roughly 36 seconds
+using the profile's existing thirty-second pause/resume scheduling assist.
+Matching private VirtualBox logs show guest power-off beginning 0.2–0.5 seconds
+after resume; no forced power cut was used. These runs do not establish reliable
+unassisted shutdown. The accepted runtime SHA-256 is
 `2ff7d4bc648b9d554f2f21a01191b660bb63478d5b87cee08a20982167ea8b02`.
 The final native shell SHA-256 is
 `2bd5c109bf6d5f41e0b418e42e0871c05509554362ec69e1ea5fec68681aa53a`.
