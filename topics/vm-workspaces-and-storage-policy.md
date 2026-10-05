@@ -256,6 +256,14 @@ isolated workspaces and measured iteration. VirtualBox now has an experimental
 Home-host route and protected Windows base; continue from its declared
 compatibility profile toward complete factory and isolated-workspace support.
 
+**Decision:** investigate unassisted Windows shutdown using the
+[VirtualBox dossier's evidence and experiment sequence](../research/providers/virtualbox.md#unassisted-shutdown-investigation).
+Idle execution and host/backend wakeup behavior are the leading hypothesis,
+not a confirmed cause. The native command already requests full shutdown,
+so guest Fast Startup and System Restore are not the first settings to change.
+Preserve the protected base and host hypervisor/WSL/security configuration;
+remove assistance only after repeated unassisted lifecycle acceptance.
+
 - Determine whether storage divergence can be measured usefully enough to
   warn on a long-lived copy-on-write workspace without claiming false
   per-workspace precision.

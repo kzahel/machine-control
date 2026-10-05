@@ -3,9 +3,10 @@
 Status: Windows Home x64 hosting is `live-tested` through an experimental
 common adapter. Linux resident conformance and repeated cold boot pass with a
 guest workaround. Windows resident desktop/UAC conformance, unattended unlock
-and two native build/deploy/test cycles pass, but subsequent shutdown and
-media-free cold-start tests stall. Windows lifecycle acceptance and production
-adoption remain blocked.
+and two native build/deploy/test cycles pass. Repeated Windows lifecycle tests
+qualify a bounded compatibility profile with assisted shutdown and a protected
+stopped base; unassisted lifecycle reliability and production adoption remain
+open.
 
 ## Provider and licensing
 
@@ -153,6 +154,80 @@ checks exact VM/disk identities, serializes claimed operations, uses pinned
 loopback SSH and existing credential verifiers, and exposes explicit recovery
 separately from ordinary resident calls. Initial creation and console bootstrap
 still require private factory scripts with manual journal coverage.
+
+## Unassisted shutdown investigation
+
+**Current (2026-10-05), research and local source review:** the adapter requests
+`shutdown.exe /s /t 0`, then independently observes VirtualBox power-off. The
+opt-in scheduling assist runs once after the configured wait. It does not
+request Windows sleep, hibernation, hybrid shutdown or VirtualBox saved state.
+Existing live evidence includes both idle transport stalls and shutdown stalls;
+it does not establish that these have one cause. No new guest experiment or
+host configuration change was performed for this research pass.
+
+**Upstream-claimed:** [issue 722](https://github.com/VirtualBox/virtualbox/issues/722)
+reports Windows 11 guest stalls on a Windows 11 host using Hyper-V, including
+reboot progress that resumes after mouse input. A
+[June 24 commenter](https://github.com/VirtualBox/virtualbox/issues/722#issuecomment-4789072173)
+explicitly reports pause/unpause restoring progress and says removing the host
+Hyper-V dependency resolved their stalls. Other comments describe different
+clipboard/RDP and non-Windows-host failures, so the thread is not evidence of
+one confirmed upstream defect. The original report covers 7.2.6/7.2.10 and
+remains open at this review. [Issue 799](https://github.com/VirtualBox/virtualbox/issues/799)
+separately reports a two-vCPU EFI boot stall under NEM/WHPX that disappears
+with three vCPUs; this is a boot resemblance, not a shutdown diagnosis.
+
+[Oracle's 7.2 troubleshooting guide](https://docs.oracle.com/en/virtualization/virtualbox/7.2/user/Troubleshooting.html)
+documents host Hyper-V coexistence problems and host power-management effects
+on virtualization. Its suggested host-feature removal requires reboot and can
+affect security features. That is not an acceptable routine adjustment to this
+development-host profile, which retains WSL and host security. The guest-facing
+Hyper-V paravirtualization interface is a separate setting from the active
+host execution backend; changing it does not remove the latter.
+
+**Inference:** idle-vCPU wakeup, timer or interrupt delivery in the host/backend
+path is the leading hypothesis because a hypervisor scheduling transition
+restores shutdown progress and ordinary idle use has also stalled. Pausing
+affects several subsystems, so this is not a root-cause finding. Guest service
+or driver teardown, including Guest Additions, remains a competing explanation.
+
+**Upstream-claimed:** Microsoft documents
+[full shutdown as the default for `shutdown.exe /s /t 0`](https://learn.microsoft.com/en-us/troubleshoot/windows-client/setup-upgrade-and-drivers/fast-startup-causes-system-hibernation-shutdown-fail);
+[`/hybrid`](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/shutdown)
+is the explicit Fast Startup option. Consequently, disabling guest Fast Startup
+is a low-priority explanation for this exact command, though menu-based shutdown
+would be a different test. This research found no specific primary-source link
+between System Restore and pause/resume-sensitive shutdown; do not disable it
+without trace evidence implicating restore or VSS activity.
+
+**Proposal:** use an unprotected development candidate for one-variable tests:
+
+1. Acquire its exact-target claim and collect a private baseline: guest build,
+   Guest Additions/driver versions, power configuration, shutdown event logs,
+   provider/backend log and servicing state. Keep the protected base stopped.
+2. Measure an unassisted native shutdown with the existing fifteen-minute
+   budget. Keep intrusive debugger probes out of the timing-only baseline.
+   Run any instrumented reproduction separately: Microsoft provides
+   [WPR shutdown tracing](https://learn.microsoft.com/en-us/windows-hardware/test/wpt/recording-onoff-transitions).
+   Distinguish service/driver waits, continuing I/O and stopped guest execution;
+   the loss of SSH alone does not distinguish them. Keep traces private.
+3. If execution stalls around idle transitions, test guest processor idle
+   behavior, then vCPU count, separately. Microsoft describes
+   [`IDLEDISABLE`](https://devblogs.microsoft.com/sustainable-software/tuning-servers-for-energy-savings/),
+   but its effectiveness here is untested. Read back support and save original
+   values first; temporarily preventing guest CPU idle is a diagnostic with
+   increased CPU/power cost, not a permanent fix or a host power-policy change.
+4. If tracing identifies a guest service or driver, test only that component
+   next. Verify installed Guest Additions compatibility before changing it.
+   Leave host hypervisor, WSL, security and firmware policy intact.
+5. Restore each unsuccessful setting. Require three distinct cold boots with
+   untouched idle intervals and completed unassisted shutdowns before removing
+   assistance from an accepted profile. Instrumented and assisted successes do
+   not qualify the timing-only, unassisted configuration.
+
+**Open:** root cause, a supported fix that retains the host's hypervisor/WSL
+configuration, and whether guest-only power settings improve shutdown without
+merely hiding a scheduling defect. Online resemblance does not close these gaps.
 
 ## Fit and remaining gates
 
