@@ -24,8 +24,11 @@ agent with an unrestricted same-user shell.
 **Decision:** Preserve the headless workstation and protected appliance
 profiles. YA now consumes the installed desktop CLI and has retired its
 separately supervised component. The desktop app owns a distinct instance and
-endpoint. It never installs or arms the protected service. Elevated apps, UAC,
-lock/login, and other users remain outside its ordinary profile.
+endpoint. Its ordinary profile excludes elevated apps, UAC, lock/login, and
+other users. **Decision:** [Tactical 097](../docs/tactical/097-windows-desktop-uac.md)
+adds an optional separately installed/armed desktop UAC helper. It must retain
+native grants and live ownership and never inherit appliance authority.
+Lock/login and other users remain outside this desktop integration.
 
 **Decision:** Reuse the concise Access, Permissions, Activity, and Settings UX.
 Windows permissions report session/integrity availability rather than macOS

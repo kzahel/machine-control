@@ -42,6 +42,9 @@ the commits' `Topic:` trailers and register that exact string in
 
 ## Tactical index
 
+- [097 — Windows desktop UAC](097-windows-desktop-uac.md) (active): optional
+  protected helper, desktop grants/live ownership, and Windows VM acceptance.
+
 | Tactical | Status | Scope |
 | --- | --- | --- |
 | [`076-resident-pause-enforcement.md`](076-resident-pause-enforcement.md) | active | Windows operator pause and dispatch fencing; shared UI and Mac integration/native acceptance gates |
