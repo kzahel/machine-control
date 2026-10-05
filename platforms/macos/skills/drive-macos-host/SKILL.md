@@ -45,6 +45,11 @@ refused until the person at the computer approves a grant.
   characters; use `browser type` for text.
 - After `navigate`, or before reading a tab that was discarded or still
   loading, run `browser wait --tab ID` so the page is ready.
+- To work without taking the person's focus, open the page with
+  `browser navigate --url URL --new-tab --background` and pass `--tab ID`
+  on every later call. Click and type work in a hidden tab, but some pages
+  ignore Enter or a submit-button click while hidden; check the effect and,
+  with a devtools grant, submit the form with `browser eval`.
 - `browser tabs` reports each tab's `status` and `discarded`. A discarded
   tab reloads when Machine Control attaches, so wait for it to load before
   reading it, and remember that a heavy web app may set its title and content

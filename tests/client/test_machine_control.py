@@ -1290,6 +1290,21 @@ class ClientTests(unittest.TestCase):
             "newTab": True,
         })
         result, value = self.run_cli(
+            "--target", "fixture", "browser", "navigate", "--url",
+            "https://example.com/", "--new-tab", "--background",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["data"]["request"], {
+            "operation": "browser.navigate", "url": "https://example.com/",
+            "newTab": True, "active": False,
+        })
+        result, value = self.run_cli(
+            "--target", "fixture", "browser", "navigate", "--url",
+            "https://example.com/", "--background",
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(value["errorCode"], "usage")
+        result, value = self.run_cli(
             "--target", "fixture", "browser", "snapshot", "--tab", "4",
             "--max", "50", "--interactive",
         )

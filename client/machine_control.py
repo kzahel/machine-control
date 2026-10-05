@@ -2634,7 +2634,8 @@ BROWSER_COMMANDS = {
 BROWSER_USAGE = {
     "tabs": "browser tabs — list open tabs (tabId, url, title, status, discarded)",
     "wait": "browser wait [--tab ID] [--timeout D] — wait until the tab finishes loading",
-    "navigate": "browser navigate --url URL [--tab ID] [--new-tab] — open http/https/about:blank",
+    "navigate": "browser navigate --url URL [--tab ID] [--new-tab [--background]] — open "
+                "http/https/about:blank; --background keeps the new tab from taking focus",
     "snapshot": "browser snapshot [--tab ID] [--max N] [--interactive] — compact accessibility tree",
     "click": "browser click --reference R [--tab ID] — click an element from a snapshot",
     "type": "browser type --text T [--reference R] [--tab ID] — insert text (focus R first)",
@@ -2664,6 +2665,7 @@ def browser_request(arguments: list[str], target_platform: str | None = None) ->
     parser.add_argument("--tab", type=int)
     parser.add_argument("--url")
     parser.add_argument("--new-tab", action="store_true")
+    parser.add_argument("--background", action="store_true")
     parser.add_argument("--reference")
     parser.add_argument("--text")
     parser.add_argument("--key")
@@ -2722,8 +2724,12 @@ def browser_request(arguments: list[str], target_platform: str | None = None) ->
         request["expression"] = options.expression
     if options.file:
         request["files"] = options.file
+    if options.background and not options.new_tab:
+        raise ClientError("usage", "browser navigate --background requires --new-tab")
     if options.new_tab:
         request["newTab"] = True
+        if options.background:
+            request["active"] = False
     if options.interactive:
         request["interactiveOnly"] = True
     if command == "wait" and options.timeout is not None:
@@ -3669,7 +3675,7 @@ Commands:
   update check|status             Queue desktop update discovery or read status
   browser tabs|wait|navigate|snapshot|click|type|key|capture|upload|cdp|eval
         |endpoint|release   (browser CMD --help for details)
-        [--tab ID] [--url URL] [--new-tab] [--reference R] [--text T]
+        [--tab ID] [--url URL] [--new-tab] [--background] [--reference R] [--text T]
         [--file PATH]... [--method M --params JSON] [--expression JS]
                                     Operate Chrome through the extension
   control status | call JSON --reason TEXT [--wait 5m] [--duration 5m]
