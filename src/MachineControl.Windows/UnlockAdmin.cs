@@ -63,7 +63,7 @@ internal static class UnlockAdmin
         if (instance == DesktopLockedUse.Instance)
             text = text.Replace("using its password or PIN,", "using its password,")
                 .Replace("without another local prompt.", "only during an explicitly enabled, owner-bound desktop task.") +
-                "\n\nThis desktop profile temporarily exposes your screen while the task runs and relocks afterward.";
+                "\n\nLocked-screen tasks use an opaque privacy cover on one display and relock before removing it. Tasks that start unlocked never lock on completion.";
         if (Forms.MessageBox.Show(text, "Machine Control — approve unattended unlock",
             Forms.MessageBoxButtons.YesNo, Forms.MessageBoxIcon.Warning,
             Forms.MessageBoxDefaultButton.Button2) != Forms.DialogResult.Yes) return 1223;

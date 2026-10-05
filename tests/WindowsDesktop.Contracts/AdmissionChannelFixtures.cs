@@ -19,7 +19,7 @@ internal static class AdmissionChannelFixtures
         Require(!order.Accept(new() { ["requestId"] = "boolean", ["requestSequence"] = true }), "Boolean refused");
         Require(order.Accept(new() { ["requestId"] = "next", ["requestSequence"] = 72001L }), "Next frame remains valid");
         var clock = new TestTime();
-        var grants = new DesktopGrants(clock); grants.SetReady(true); grants.Arm(["observe", "control"], 900);
+        var grants = new DesktopGrants(clock); grants.SetReady(true); grants.PrepareConsole(true); grants.Arm(["observe", "control"], 900);
         foreach (var operation in new[] { "snapshot", "type", "app.launch", "screenshot", "uac.respond" })
             Require(grants.Authorize(new Request { Operation = operation }) == "control_session_required", "Idle grant cannot authorize unowned " + operation);
         var requirement = JsonNode.Parse(Contract.Serialize(DesktopGrants.RefusalData("type", "control_session_required")))!;
@@ -34,7 +34,7 @@ internal static class AdmissionChannelFixtures
         var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
         var owners = new List<Task>();
         var clients = new List<TcpClient>();
-        async Task<(StreamReader Reader, StreamWriter Writer, JsonObject View)> Open(string id)
+        async Task<(StreamReader Reader, StreamWriter Writer, JsonObject View)> Open(string id, bool prepared = false)
         {
             var client = new TcpClient(); clients.Add(client);
             await client.ConnectAsync((IPEndPoint)listener.LocalEndpoint, stop.Token);
@@ -49,6 +49,7 @@ internal static class AdmissionChannelFixtures
                 ["waitSeconds"] = 120,
                 ["scopes"] = new JsonArray("observe", "control")
             };
+            if (prepared) opening["preparedConsole"] = true;
             owners.Add(Task.Run(async () =>
             {
                 using (resident)
@@ -89,6 +90,7 @@ internal static class AdmissionChannelFixtures
             };
             Require(!(await Call(b, "control.dispatch", Action()))["accepted"]!.GetValue<bool>() && effects == 0, "Other owner cannot borrow fence");
             Require((await Call(a, "control.dispatch", Action()))["accepted"]!.GetValue<bool>() && effects == 1, "Owned effect observed");
+            Require(lastFence!.StartedLocked == false, "Native unlocked task origin is carried in private ownership");
             Require(grants.Authorize("type") == "control_session_required", "Legacy callers cannot borrow holder");
             var forged = Contract.ParseRequest("{\"operation\":\"type\",\"controlOwnership\":{\"owner\":\"forged\"}}");
             Require(forged.ControlOwnership is null && grants.Authorize(forged) == "control_session_required", "JSON cannot supply native owner context");
@@ -115,6 +117,19 @@ internal static class AdmissionChannelFixtures
             Require((await Call(d, "control.dispatch", Action()))["accepted"]!.GetValue<bool>() && effects == 3, "Replacement owner alone dispatches");
             clock.Advance(6);
             Require(!(await Call(d, "control.dispatch", Action()))["accepted"]!.GetValue<bool>() && effects == 3, "Expired heartbeat refuses before effect");
+            foreach (var origin in new[] { false, true })
+            {
+                grants.SetReady(true); grants.Arm(["observe", "control"], 900); grants.SetReady(!origin, lockedConsole: origin);
+                var prepared = await Open("prepared-" + origin, prepared: true);
+                active = (await Call(prepared, "control.accept", new() { ["offerGeneration"] = prepared.View["offerGeneration"]!.DeepClone() }))["data"]!.AsObject();
+                grants.SetReady(false, lockedConsole: true);
+                var unlock = Action(); unlock["request"] = new JsonObject { ["operation"] = "session.unlock.prepare" };
+                var response = await Call(prepared, "control.dispatch", unlock);
+                Require(response["accepted"]!.GetValue<bool>() == origin, "Later lock never replaces native task origin");
+                if (origin) Require(lastFence!.StartedLocked == true, "Locked-origin owner retains relock authority");
+                else Require(response["errorCode"]!.GetValue<string>() == "task_did_not_start_locked", "Unlocked origin refuses before credential preparation");
+                await Call(prepared, "control.cancel");
+            }
         }
         finally
         {

@@ -18,6 +18,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     private long _authorizationRevision;
     internal bool PreparedConsole { get { lock (Gate) return _preparedConsole; } }
     internal bool ConsoleReady { get { lock (Gate) return _ready; } }
+    internal bool? TaskStartLocked { get { lock (Gate) return _ready ? false : _lockedConsole ? true : null; } }
     internal long AuthorizationRevision { get { lock (Gate) return _authorizationRevision; } }
     internal void PrepareConsole(bool enabled)
     {

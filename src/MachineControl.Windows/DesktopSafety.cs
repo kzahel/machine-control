@@ -8,6 +8,7 @@ internal static class DesktopSafety
 {
     internal static DesktopGrants? Broker { get; set; }
     internal static int OperatorProcessId { get; set; }
+    internal static int CoverProcessId { get; set; }
     internal static Func<Request, string, int?, string?>? ExternalCheck { get; set; }
 
     internal static bool Ready()
@@ -44,7 +45,8 @@ internal static class DesktopSafety
         if (request.Operation == "click")
         {
             if (request.X is not { } x || request.Y is not { } y) return "invalid_request";
-            if (OwnWindow(WindowFromPoint(new Point { X = x, Y = y })) || OwnPoint(x, y)) return "self_target_refused";
+            var hit = WindowFromPoint(new Point { X = x, Y = y });
+            if (OwnWindow(hit) && !CoverWindow(hit) || OwnPoint(x, y)) return "self_target_refused";
             if (OwnShellElement(AutomationElement.FromPoint(new System.Windows.Point(x, y))))
                 return "self_target_refused";
         }
@@ -108,7 +110,7 @@ internal static class DesktopSafety
         var windows = new List<IntPtr>();
         NativeMethods.EnumDesktopWindows(IntPtr.Zero, (hwnd, _) =>
         {
-            if (NativeMethods.IsWindowVisible(hwnd) && !NativeMethods.IsIconic(hwnd) &&
+            if (!CoverWindow(hwnd) && NativeMethods.IsWindowVisible(hwnd) && !NativeMethods.IsIconic(hwnd) &&
                 NativeMethods.GetWindowRect(hwnd, out var rect) &&
                 x >= rect.Left && x < rect.Right && y >= rect.Top && y < rect.Bottom)
                 windows.Add(hwnd);
@@ -141,7 +143,13 @@ internal static class DesktopSafety
         "Shell_TrayWnd" or "Shell_SecondaryTrayWnd" or "TopLevelWindowForOverflowXamlIsland" or "NotifyIconOverflowWindow";
 
     private static bool OwnProcess(int? processId) => processId is > 0 &&
-        (processId == OperatorProcessId || processId == Environment.ProcessId);
+        (processId == OperatorProcessId || processId == Environment.ProcessId || processId == CoverProcessId);
+    private static bool CoverWindow(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero || CoverProcessId == 0) return false;
+        NativeMethods.GetWindowThreadProcessId(hwnd, out var pid);
+        return pid == CoverProcessId;
+    }
     private static bool OwnWindow(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero) return false;

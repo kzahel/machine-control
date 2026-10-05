@@ -713,7 +713,7 @@ function App() {
                                 ? "Preparing…"
                                 : lockedUse.enabled
                                   ? windows
-                                    ? "Tasks temporarily expose your desktop, then relock"
+                                    ? "Locked-screen tasks run behind an opaque cover"
                                     : "Keep your Mac awake, lid open"
                                   : ""}
                     </span>
@@ -754,8 +754,9 @@ function App() {
                 {windows && lockedUse && (
                   <p className="note group-note">
                     An approved controller supplies your password once per task.
-                    The screen is visible while unlocked; it relocks when the
-                    task ends or loses access. No password is saved. Install the
+                    Locked-screen tasks use an opaque cover on one display and
+                    relock before removing it. Tasks that start unlocked stay
+                    unlocked when they finish. No password is saved. Install the
                     helper in Permissions, then choose the controller's public
                     approval.
                   </p>

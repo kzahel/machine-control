@@ -100,6 +100,19 @@ final class LockedUseTests: XCTestCase {
         XCTAssertEqual(lease.refusal(now:10, grantID:"grant", session:[:]), "session_changed")
     }
 
+    func testOnlyLockedOriginTasksCanAcquireCoveredRelockAuthority() {
+        for origin in ["unlocked", "locked", "unknown"] {
+            var observation = session; observation["desktopState"] = origin
+            let lease = ControlSessionLease(id:"session", grantID:"grant", session:observation,
+                deadline:100, heartbeatDeadline:20)
+            XCTAssertEqual(lease.startedLocked, origin == "locked")
+            XCTAssertEqual(lease.mayActivateCovered(observedState:"locked"), origin == "locked",
+                "A later idle lock cannot turn an unlocked-origin task into covered control")
+            XCTAssertFalse(lease.mayActivateCovered(observedState:"unlocked"))
+            XCTAssertFalse(lease.mayActivateCovered(observedState:"unknown"))
+        }
+    }
+
     func testUntilStoppedAccessStillHasAFiniteControlLease() {
         let broker = GrantBroker(policy:.workstation(issue:nil))
         let grant = broker.issueUntilStopped(scopes:[.control,.observe], reason:"test", requester:"local", approver:"local")

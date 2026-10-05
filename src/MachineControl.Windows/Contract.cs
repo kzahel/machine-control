@@ -39,7 +39,7 @@ internal static class Contract
         ?? throw new InvalidDataException("Result JSON was null");
 }
 
-internal sealed record ControlOwnership(string Owner, string Intent, string Session, Dictionary<string, long> Generations);
+internal sealed record ControlOwnership(string Owner, string Intent, string Session, Dictionary<string, long> Generations, bool? StartedLocked = null);
 
 internal sealed record Request
 {

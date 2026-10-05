@@ -31,7 +31,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--install', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--scenario', choices=('lifecycle', 'stop', 'service-crash', 'resident-crash'), default='lifecycle')
+    parser.add_argument('--scenario', choices=('lifecycle', 'stop', 'service-crash', 'resident-crash',
+                                               'covered', 'unlocked', 'idle-lock'), default='lifecycle')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     exe = args.install / 'runtime/machine-control-windows.exe'
@@ -149,6 +150,27 @@ def main():
         ui('Enable access')
         check(direct({'operation': 'capabilities'})['data']['lockedUse']['enabled'], 'Explicit operator opt-in enabled')
         check(not direct({'operation': 'session.unlock.prepare'})['accepted'], 'An unowned caller cannot prepare unlock')
+        if args.scenario in ('unlocked', 'idle-lock'):
+            owner = new_owner()
+            check(ready(), 'Task starts with an unlocked console')
+            if args.scenario == 'idle-lock':
+                external('lock-idle-origin')
+                try:
+                    response = owner.call({'operation': 'session.unlock.prepare'})
+                except Exception as refusal:
+                    check(getattr(refusal, 'code', None) == 'task_did_not_start_locked',
+                          'Later idle lock refuses before credential preparation')
+                else:
+                    check(not response['accepted'], 'Unlocked-origin task cannot unlock after idle lock')
+                owner.close(); owner = None
+                external('verify-relock-idle-origin')
+            else:
+                owner.close(); owner = None
+                time.sleep(1)
+                external('verify-unlocked-origin')
+                check(ready(), 'Unlocked-origin task completion leaves console unlocked')
+            report['passed'] = True
+            return
         # The operator UI is protected even where another window overlaps it.
         # Arrange the fixture desktop through the operator actor before input.
         ps('Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes;'
@@ -161,7 +183,7 @@ def main():
              'independent fixture marker')
         if args.scenario != 'lifecycle':
             unlock(args.scenario, duration=300)
-            if args.scenario == 'stop':
+            if args.scenario in ('stop', 'covered'):
                 windows = owner.call({'operation': 'windows', 'scope': 'system'})
                 hwnd = next(w['hwnd'] for w in windows['data']['windows'] if w['processId'] == fixture.pid)
                 owner.call({'operation': 'window.state', 'hwnd': hwnd, 'state': 'maximized'})
@@ -179,7 +201,19 @@ def main():
                 key = owner.call({'operation': 'key', 'key': 'space'})
                 wait(lambda: json.loads(marker.read_text())['counter'] == 2, 'independent keyboard effect')
                 check(key['accepted'] and ready(), 'Injected keyboard input preserves guarded ownership')
-                ui('Stop access')
+                if args.scenario == 'covered':
+                    capture = owner.call({'operation': 'screenshot', 'scope': 'system'})
+                    report['coveredCapture'] = capture
+                    check(capture['accepted'], 'Full-display native capture accepted behind cover')
+                    path = quote(capture['data']['targetLocalPath'])
+                    colored = ps('Add-Type -AssemblyName System.Drawing; $image=[Drawing.Bitmap]::new('+path+');'
+                                 'try{$count=0; for($y=0;$y -lt $image.Height;$y+=10){for($x=0;$x -lt $image.Width;$x+=10){'
+                                 '$p=$image.GetPixel($x,$y);if(($p.R+$p.G+$p.B) -gt 30){$count++}}};$count}finally{$image.Dispose()}')
+                    check(int(colored) > 100, 'Captured pixels contain underlying apps while cover is opaque')
+                    external('verify-cover-covered')
+                    owner.close(); owner = None
+                else:
+                    ui('Stop access')
             else:
                 external('crash-' + args.scenario)
             external('verify-relock-' + args.scenario)

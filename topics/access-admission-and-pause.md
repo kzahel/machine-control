@@ -29,6 +29,13 @@ policy.
 
 ## Current foundation
 
+**Decision:** task-end cleanup may request lock only for a task that started
+locked, using an immutable native observation at ownership acceptance. An
+unlocked-origin task must finish without locking; a later user/idle lock stays
+in place and cannot supply temporary-unlock authority to that original task.
+Acquire a new locked-origin owner for covered work. [Tactical 102](../docs/tactical/102-windows-covered-control.md)
+implements this fence on Windows and corrects the macOS legacy lease path.
+
 **Current, unreleased Windows native integration:**
 [Tactical 101](../docs/tactical/101-windows-desktop-locked-use.md) admits an
 explicitly prepared, finite observation/control owner while the exact local

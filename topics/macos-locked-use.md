@@ -22,6 +22,14 @@ This follows the documented [OpenAI locked-use flow](https://learn.chatgpt.com/d
 Product wording and task-end relock are Machine Control decisions, rather than
 claims about undocumented OpenAI UI or implementation details.
 
+**Decision, current source:** cleanup may request lock only when the task's
+native starting observation was locked. An unlocked-origin legacy control
+lease ends when a later idle lock occurs; it cannot enter covered unlock or
+inherit relock authority. Ordinary completion leaves an unlocked console
+unlocked. The new regression is in `LockedUseTests`; native Mac execution of
+this adjustment remains pending. [Tactical 102](../docs/tactical/102-windows-covered-control.md)
+owns the cross-platform correction and Windows cover slice.
+
 **Current source:** physical keyboard/pointer activity cancels control and
 requests immediate relock while preserving otherwise valid ordinary access.
 Manual Pause gates observations/actions and ends covered control without

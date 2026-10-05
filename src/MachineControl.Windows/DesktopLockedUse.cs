@@ -58,7 +58,9 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
             phase = _lease is null ? "idle" : _lease.Ending ? "relocking" : "task_owned",
             controlSessionId = _lease?.Request.ControlOwnership?.Session,
             pausedUntilManualUnlock = false,
-            privacy = "temporarily_visible_console",
+            privacy = "opaque_single_display_cover",
+            supportedDisplays = 1,
+            relockPolicy = "only_if_task_started_locked",
             credentialSource = "approved_controller_one_shot",
         };
     }
@@ -88,6 +90,7 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
             if (lease.Ending && (lease.Complete || !lease.ServiceStarted) && SessionStateInspector.IsLocked((uint)RuntimeProfile.SessionId) == true)
             {
                 _lease = null;
+                DesktopSafety.CoverProcessId = 0;
                 grants.Admission.Resume("desktop", "relock_pending");
             }
         }
@@ -99,6 +102,7 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
         {
             var denied = grants.Authorize(request, generation);
             if (denied is not null || !Prepared() || !grants.PreparedConsole ||
+                request.ControlOwnership?.StartedLocked != true ||
                 SessionStateInspector.IsLocked((uint)RuntimeProfile.SessionId) != true || _lease is not null)
                 return new Result
                 {
@@ -128,7 +132,8 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
                     instance = Instance,
                     guardPipe = lease.Pipe,
                     residentPid = Environment.ProcessId,
-                    privacy = "temporarily_visible_console",
+                    privacy = "opaque_single_display_cover",
+                    startedLocked = true,
                     credentialTransport = "separate_unlock_relay"
                 }
             };
@@ -156,6 +161,8 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
                         Tick();
                         if (frame.RootElement.TryGetProperty("attemptStarted", out var started) && started.GetBoolean())
                             lease.ServiceStarted = true;
+                        if (frame.RootElement.TryGetProperty("guardianPid", out var guardian) && guardian.ValueKind == JsonValueKind.Number)
+                            DesktopSafety.CoverProcessId = guardian.GetInt32();
                         if (frame.RootElement.TryGetProperty("physicalTakeover", out var takeover) && takeover.GetBoolean())
                             grants.Admission.Pause("desktop", "physical_takeover");
                         if (frame.RootElement.TryGetProperty("complete", out var complete) && complete.GetBoolean())

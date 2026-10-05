@@ -23,7 +23,8 @@ internal static class DesktopRelockGuardian
         DesktopUacNative.RequireServer(pipe, DesktopUacNative.ServicePid());
         var start = JsonSerializer.Deserialize<RelockStart>(await UnlockWire.ReadLineAsync(pipe, setup.Token), Contract.Json)
             ?? throw new InvalidDataException();
-        if (start.SessionId != Process.GetCurrentProcess().SessionId || !SameConsole(start)) throw new UnauthorizedAccessException();
+        if (!start.StartedLocked || start.SessionId != Process.GetCurrentProcess().SessionId || !SameConsole(start) ||
+            SessionStateInspector.IsLocked(start.SessionId) != true) throw new UnauthorizedAccessException();
         var result = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         var prepared = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var ending = 0;
@@ -35,6 +36,7 @@ internal static class DesktopRelockGuardian
         var thread = new Thread(() =>
         {
             using var context = new Forms.ApplicationContext();
+            using var covers = new DesktopDisplayCovers();
             using var timer = new Forms.Timer { Interval = 100 };
             Hook callback = (code, message, data) =>
             {
@@ -43,17 +45,28 @@ internal static class DesktopRelockGuardian
                     var keyboard = message.ToInt64() is >= 0x100 and <= 0x109;
                     var flags = Marshal.ReadInt32(data, keyboard ? 8 : 12);
                     if ((flags & (keyboard ? 0x12 : 0x03)) == 0)
-                    { Interlocked.Exchange(ref physical, 1); Interlocked.Exchange(ref ending, 1); }
+                    {
+                        Interlocked.Exchange(ref physical, 1); Interlocked.Exchange(ref ending, 1);
+                        // Swallow the entire physical sequence until relock;
+                        // an interrupt must not click/type into a hidden app.
+                        return new IntPtr(1);
+                    }
                 }
                 return CallNextHookEx(IntPtr.Zero, code, message, data);
             };
             var keyboardHook = SetWindowsHookEx(13, callback, GetModuleHandle(null), 0);
             var mouseHook = SetWindowsHookEx(14, callback, GetModuleHandle(null), 0);
             if (keyboardHook == IntPtr.Zero || mouseHook == IntPtr.Zero) Interlocked.Exchange(ref ending, 1);
-            prepared.TrySetResult(keyboardHook != IntPtr.Zero && mouseHook != IntPtr.Zero);
+            try
+            {
+                covers.Install();
+                prepared.TrySetResult(keyboardHook != IntPtr.Zero && mouseHook != IntPtr.Zero && covers.Healthy);
+            }
+            catch (Exception) { prepared.TrySetResult(false); Interlocked.Exchange(ref ending, 1); }
             timer.Tick += (_, _) =>
             {
                 Interlocked.Exchange(ref monitorTick, Stopwatch.GetTimestamp());
+                if (!covers.Maintain()) Interlocked.Exchange(ref ending, 1);
                 if (result.Task.IsCompleted) context.ExitThread();
             };
             try { timer.Start(); Forms.Application.Run(context); }
@@ -66,6 +79,10 @@ internal static class DesktopRelockGuardian
                 // The independent watchdog must still lock if this message
                 // loop exits unexpectedly after admitting credential delivery.
                 Interlocked.Exchange(ref ending, 1);
+                // Keep the native windows alive even if the message loop dies.
+                // The independent watchdog must observe lock before disposal.
+                if (prepared.Task.IsCompletedSuccessfully && prepared.Task.Result)
+                    _ = result.Task.GetAwaiter().GetResult();
             }
         })
         { IsBackground = true, Name = "Machine Control relock guardian" };

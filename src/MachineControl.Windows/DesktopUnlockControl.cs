@@ -29,7 +29,7 @@ internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, u
         return control;
     }
 
-    private async Task<bool> QueryAsync(CancellationToken stop, bool physicalTakeover = false, bool complete = false, bool attemptStarted = false)
+    private async Task<bool> QueryAsync(CancellationToken stop, bool physicalTakeover = false, bool complete = false, bool attemptStarted = false, int? guardianPid = null)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(stop);
         timeout.CancelAfter(TimeSpan.FromSeconds(2));
@@ -37,7 +37,7 @@ internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, u
             System.Security.Principal.TokenImpersonationLevel.Identification);
         await pipe.ConnectAsync(timeout.Token);
         DesktopUacNative.RequireServer(pipe, residentPid);
-        await UnlockWire.WriteAsync(pipe, new { physicalTakeover, complete, attemptStarted }, timeout.Token);
+        await UnlockWire.WriteAsync(pipe, new { physicalTakeover, complete, attemptStarted, guardianPid }, timeout.Token);
         using var reply = JsonDocument.Parse(await UnlockWire.ReadLineAsync(pipe, timeout.Token));
         return reply.RootElement.GetProperty("allowed").GetBoolean();
     }
@@ -56,12 +56,13 @@ internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, u
         var child = SessionLauncher.LaunchSystem(session, name, challenge.ServiceGeneration, relockGuardian: true);
         _process = Process.GetProcessById(child.ProcessId);
         _ = _process.Handle;
+        if (!await QueryAsync(stop, guardianPid: child.ProcessId)) throw new UnauthorizedAccessException("desktop_unlock_authority_changed");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(stop);
         timeout.CancelAfter(TimeSpan.FromSeconds(5));
         await _guardian.WaitForConnectionAsync(timeout.Token);
         DesktopUacNative.RequireSystem(_guardian);
         if (DesktopUacNative.ClientPid(_guardian) != child.ProcessId) throw new UnauthorizedAccessException("relock_guardian_identity_mismatch");
-        await UnlockWire.WriteAsync(_guardian, new RelockStart(session, challenge.TargetUserSid, challenge.SessionLogonId), timeout.Token);
+        await UnlockWire.WriteAsync(_guardian, new RelockStart(session, challenge.TargetUserSid, challenge.SessionLogonId, StartedLocked: true), timeout.Token);
         using var ready = JsonDocument.Parse(await UnlockWire.ReadLineAsync(_guardian, timeout.Token));
         if (ready.RootElement.GetProperty("stage").GetString() != "ready") throw new IOException("relock_guardian_unavailable");
         _watch = WatchAsync();
@@ -126,4 +127,4 @@ internal sealed class DesktopUnlockControl(string guardPipe, uint residentPid, u
     }
 }
 
-internal sealed record RelockStart(uint SessionId, string UserSid, string LogonId);
+internal sealed record RelockStart(uint SessionId, string UserSid, string LogonId, bool StartedLocked);

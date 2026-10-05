@@ -84,7 +84,8 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
             {
                 if (!GetNamedPipeClientProcessId(server.SafePipeHandle, out _)) throw new InvalidDataException("Unknown channel peer");
                 await AdmissionChannel.RunAsync(server, reader, opening, grants,
-                    (request, fence, cancellation) => ExecuteAsync(request, caller, cancellation, fence), stop.Token);
+                    (request, fence, cancellation) => ExecuteAsync(request, caller, cancellation, fence), stop.Token,
+                    refreshConsole: () => DesktopSafety.RefreshAvailability(grants));
                 return;
             }
             var request = Contract.ParseRequest(text.ToString());

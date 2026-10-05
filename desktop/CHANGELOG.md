@@ -3,9 +3,11 @@
 ## [Unreleased]
 
 - Add explicit Windows locked-screen preparation with a separately approved
-  controller, one-shot password delivery and a finite task owner. The console
-  is temporarily visible. An independent guardian requests relock on task end,
+  controller, one-shot password delivery and a finite task owner. An opaque
+  single-display cover preserves underlying native capture and injected input.
+  An independent guardian requests relock on locked-origin task end,
   Pause, Stop, expiry, takeover or heartbeat loss; no password is cached.
+  Tasks that start unlocked finish without requesting lock on Windows and Mac.
 
 - Add Windows browser file uploads through the Chrome extension, using named
   target-local files and current page references. Browser-only access can

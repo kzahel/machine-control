@@ -15,6 +15,13 @@ struct ControlSessionLease {
     let deadline: TimeInterval
     var heartbeatDeadline: TimeInterval
 
+    // This native observation belongs to the original task, not a later idle
+    // lock. Ordinary tasks must never acquire unlock/relock authority mid-task.
+    var startedLocked: Bool { session["desktopState"] as? String == "locked" }
+    func mayActivateCovered(observedState: String) -> Bool {
+        startedLocked && observedState == "locked"
+    }
+
     static func duration(_ value: Any?) -> Int? {
         guard let number = value as? NSNumber,
               CFGetTypeID(number) != CFBooleanGetTypeID(),
@@ -498,7 +505,10 @@ final class MacLockedUse {
         if !enabled { end("disabled"); return }
         let screen = observation["desktopState"] as? String ?? "unknown"
         if phase == "waiting_for_lock" {
-            if screen == "locked" { activate() }
+            if screen == "locked" {
+                if current.mayActivateCovered(observedState:screen) { activate() }
+                else { end("desktop_locked") }
+            }
             else if screen != "unlocked" { end("session_state_unknown") }
             return
         }
@@ -515,6 +525,7 @@ final class MacLockedUse {
 
     private func activate() {
         guard let lease else { return }
+        guard lease.startedLocked else { end("desktop_locked"); return }
         phase = "unlocking"; safety.arm()
         do {
             // Preserve self-interface protection without leaving invisible

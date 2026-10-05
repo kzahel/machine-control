@@ -12,11 +12,13 @@ internal static class AdmissionChannel
     internal const string Schema = "machine-control-admission-channel/v1";
     internal static async Task RunAsync(Stream stream, StreamReader reader, JsonObject open,
         DesktopGrants grants, Func<Request, ControlOwnership, CancellationToken, Task<Result>> dispatch,
-        CancellationToken stop, double noticeSeconds = 10)
+        CancellationToken stop, double noticeSeconds = 10, Action? refreshConsole = null)
     {
         var owner = Guid.NewGuid().ToString("n");
         var admission = grants.Admission;
         string? intentId = null;
+        string? initialSession = null;
+        bool? startedLocked = null;
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(stop);
         using var writes = new SemaphoreSlim(1, 1);
         await using var writer = new StreamWriter(stream, new UTF8Encoding(false), 4096, leaveOpen: true);
@@ -79,19 +81,29 @@ internal static class AdmissionChannel
                         case "control.heartbeat":
                             await Reply(id, admission.Inspect(owner, intentId, operation == "control.heartbeat")); break;
                         case "control.accept":
-                            await Reply(id, admission.Accept(owner, intentId, Required(request, "offerGeneration").GetValue<long>())); break;
+                            object accepted;
+                            lock (grants.Gate)
+                            {
+                                refreshConsole?.Invoke();
+                                var initialLock = grants.TaskStartLocked;
+                                accepted = admission.Accept(owner, intentId, Required(request, "offerGeneration").GetValue<long>());
+                                var session = JsonSerializer.SerializeToElement(accepted, Contract.Json).GetProperty("sessionId").GetString();
+                                if (initialSession != session) { initialSession = session; startedLocked = initialLock; }
+                            }
+                            await Reply(id, accepted); break;
                         case "control.cancel":
                             admission.Cancel(owner, intentId); await Reply(id, admission.Inspect(owner, intentId)); break;
                         case "control.dispatch":
                             if (action is { IsCompleted: false }) throw new InvalidOperationException("control_action_in_progress");
                             var fence = new ControlOwnership(owner, intentId, Required(request, "sessionId").GetValue<string>(),
-                                Required(request, "resourceGenerations").Deserialize<Dictionary<string, long>>()!);
+                                Required(request, "resourceGenerations").Deserialize<Dictionary<string, long>>()!, startedLocked);
                             var denied = admission.Authorize(owner, intentId, fence.Session, fence.Generations);
                             if (denied is not null) throw new InvalidOperationException(denied);
                             var effect = Contract.ParseRequest(Required(request, "request").ToJsonString()) with { RequestId = id };
                             var scope = DesktopGrants.ScopeFor(effect.Operation);
                             if (scope is null || !scopes.Contains(scope)) throw new InvalidOperationException("operation_not_permitted_by_control_channel");
                             if (effect.Operation == "session.unlock.prepare" && !prepared) throw new InvalidOperationException("prepared_console_required");
+                            if (effect.Operation == "session.unlock.prepare" && fence.StartedLocked != true) throw new InvalidOperationException("task_did_not_start_locked");
                             action = Task.Run(async () =>
                             {
                                 try
