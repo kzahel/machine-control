@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [0.5.6]
+## [0.5.7]
 
 - Add native Windows pointer move, bounded left/right drag and signed vertical
   and horizontal wheel input. Live control ownership and operator protections

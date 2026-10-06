@@ -233,9 +233,11 @@ internal static class BrowserDevToolsFixtures
             using (var socket = await Connect(browser))
             {
                 await Refuse(browser); await Refuse(next);
-                Require(provider.LastTab == 0, "browser endpoint selects root provider session");
                 await Send(socket, "{\"id\":21,\"method\":\"Runtime.enable\",\"sessionId\":\"mc-session-1\"}");
                 Require((await Read(socket))["sessionId"]!.GetValue<string>() == "mc-session-1", "subsession result preserves routing");
+                // The HTTP upgrade can finish before the provider opens.
+                // A correlated response proves that initialization completed.
+                Require(provider.LastTab == 0, "browser endpoint selects root provider session");
                 Require((await Read(socket))["sessionId"]!.GetValue<string>() == "mc-session-1", "subsession event preserves routing");
                 grants.Pause(); await Closed(socket); await Refuse(browser);
             }
