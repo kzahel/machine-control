@@ -200,6 +200,8 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
         required.add("linux-runtime/updates.py")
     if tuple(map(int, version.split("."))) >= (0, 5, 4):
         required.add("linux-runtime/journal.py")
+    if tuple(map(int, version.split("."))) >= (0, 5, 7):
+        required.add("linux-runtime/extension/browser_cdp.js")
     for record in records:
         found = set()
         for item in record.get("files", []):

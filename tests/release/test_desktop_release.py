@@ -356,6 +356,49 @@ class LinuxUnifiedReleaseTests(unittest.TestCase):
                         with self.assertRaisesRegex(ValueError, 'missing=.*linux-runtime/journal.py'):
                             release.linux_package.verify(folder, target, '0.5.4', REVISION, '123.1')
 
+    def test_linux_browser_cdp_inventory_is_required_for_new_releases(self):
+        target = 'x86_64-unknown-linux-gnu'
+        version = '0.5.7'
+        folder = self.candidates / ('linux-desktop-' + target)
+        payload_path = folder / 'payload.json'
+        payload = json.loads(payload_path.read_text())
+        payload['version'] = version
+        names = ['client-runtime.json', 'files.json', 'launch.py',
+                 'commands/machine-control', 'python/bin/python3']
+        module = 'linux-runtime/extension/browser_cdp.js'
+        for record in payload['packages']:
+            record['package'] = record['package'].replace('0.5.0', version)
+            path = folder / record['package']
+            path.write_bytes(b'authenticated release fixture container')
+            subprocess.run(['minisign', '-S', '-s', str(self.root / 'key'),
+                            '-m', str(path), '-t', 'timestamp:0\tversion:' + version],
+                           check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            Path(str(path) + '.sig').write_bytes(base64.b64encode(
+                Path(str(path) + '.minisig').read_bytes()))
+            record['files'].extend({'name': 'mc-cli/' + name, 'size': 1, 'sha256': 'b' * 64}
+                                   for name in names)
+            record['files'].extend({'name': name, 'size': 1, 'sha256': 'b' * 64}
+                                   for name in ['linux-runtime/updates.py', 'linux-runtime/journal.py', module])
+        receipt_path = folder / 'build.json'
+        receipt = json.loads(receipt_path.read_text()); receipt['version'] = version
+        packages = [record['package'] for record in payload['packages']]
+        for include_module in (True, False):
+            with self.subTest(include_module=include_module):
+                if not include_module:
+                    for record in payload['packages']:
+                        record['files'] = [item for item in record['files'] if item['name'] != module]
+                payload_path.write_text(json.dumps(payload))
+                receipt['artifacts'] = [{'name': name, 'size': (folder / name).stat().st_size,
+                                         'sha256': release.sha256(folder / name)}
+                                        for name in [*packages, *[n + '.sig' for n in packages], 'payload.json']]
+                receipt_path.write_text(json.dumps(receipt))
+                with patch.object(release.linux_package, 'ROOT', self.root):
+                    if include_module:
+                        release.linux_package.verify(folder, target, version, REVISION, '123.1')
+                    else:
+                        with self.assertRaisesRegex(ValueError, 'missing=.*browser_cdp.js'):
+                            release.linux_package.verify(folder, target, version, REVISION, '123.1')
+
     def test_cli_release_refuses_a_completely_omitted_linux_cli(self):
         target = 'x86_64-unknown-linux-gnu'
         folder = self.candidates / ('linux-desktop-' + target)
