@@ -58,7 +58,13 @@ internal static class ActivityLive
         Check(grants.Admission.Authorize("fixture", id, session, generations) is not null, "Retired action fence remains unusable");
         Check(SessionStateInspector.IsLocked((uint)RuntimeProfile.SessionId) == false, "Unlocked fixture remains unlocked");
         grants.Stop("fixture_complete");
-        Console.WriteLine(JsonSerializer.Serialize(new { schema = "machine-control-activity-live/v0", passed = true,
-            checks, physicalSignal = "in_process_policy_fixture", physicalHidQualified = false }, Contract.Json));
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            schema = "machine-control-activity-live/v0",
+            passed = true,
+            checks,
+            physicalSignal = "in_process_policy_fixture",
+            physicalHidQualified = false
+        }, Contract.Json));
     }
 }
