@@ -2,6 +2,7 @@
 #import "Session.h"
 #import "Relock.h"
 #import "QuietResume.h"
+#import "ScreenUnlockRule.h"
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/poll.h>
@@ -191,8 +192,9 @@ static BOOL managePermission(int fd, NSDictionary *request, NSDictionary *receip
     task.arguments = [operation isEqual:@"permission.prepare"]
         ? @[@"install", @"--locked-use-uid", [NSString stringWithFormat:@"%u",uid], resident, @"--service-managed"]
         : @[@"uninstall", @"--service-managed"];
+    NSPipe *output = [NSPipe pipe];
     task.standardInput = NSFileHandle.fileHandleWithNullDevice;
-    task.standardOutput = NSFileHandle.fileHandleWithNullDevice;
+    task.standardOutput = output;
     task.standardError = NSFileHandle.fileHandleWithNullDevice;
     NSError *error = nil;
     if (![task launchAndReturnError:&error]) {
@@ -211,7 +213,16 @@ static BOOL managePermission(int fd, NSDictionary *request, NSDictionary *receip
     [task waitUntilExit];
     [files removeItemAtPath:stage error:NULL];
     if (timedOut) { sendJSON(fd, @{@"errorCode":@"helper_setup_timeout"}); return YES; }
-    sendJSON(fd, task.terminationStatus == 0 ? @{@"completed":@YES} : @{@"errorCode":@"helper_setup_failed"});
+    if (task.terminationStatus == 0) { sendJSON(fd, @{@"completed":@YES}); return YES; }
+    // The verified installer prints one short JSON line; relay only a bounded
+    // lowercase code from it so Permissions can explain the actual refusal.
+    [output.fileHandleForWriting closeAndReturnError:NULL];
+    NSData *line = [output.fileHandleForReading readDataUpToLength:512 error:NULL];
+    id reply = line ? [NSJSONSerialization JSONObjectWithData:line options:0 error:NULL] : nil;
+    NSString *code = [reply isKindOfClass:NSDictionary.class] ? reply[@"errorCode"] : nil;
+    BOOL valid = [code isKindOfClass:NSString.class] && code.length > 0 && code.length <= 64 &&
+        [code rangeOfString:@"^[a-z_]+$" options:NSRegularExpressionSearch].location != NSNotFound;
+    sendJSON(fd, @{@"errorCode":valid ? code : @"helper_setup_failed"});
     return YES;
 }
 static NSString *installationIssue(NSDictionary *receipt) {
@@ -219,8 +230,12 @@ static NSString *installationIssue(NSDictionary *receipt) {
     if (![receipt[@"enabled"] boolValue]) return @"unlock_disabled";
     if (!artifactMatches(@"/Library/Security/SecurityAgentPlugins/MCUnlock.bundle", receipt[@"pluginCDHash"]) ||
         !artifactMatches(@STATE_DIR "/broker", receipt[@"brokerCDHash"])) return @"unlock_artifact_mismatch";
-    if (![right("system.login.screensaver") isEqual:receipt[@"installedPolicy"]] ||
-        ![right(rightName) isEqual:receipt[@"dedicatedPolicy"]]) return @"unlock_policy_conflict";
+    if (![right(rightName) isEqual:receipt[@"dedicatedPolicy"]]) return @"unlock_policy_conflict";
+    // Other plug-ins may share the screensaver rule; only our entry matters.
+    NSDictionary *screensaver = right("system.login.screensaver");
+    if (!screenUnlockRuleContains(screensaver, @(rightName))) {
+        return screenUnlockEntries(screensaver) ? @"unlock_policy_entry_missing" : @"unlock_policy_conflict";
+    }
     return nil;
 }
 static void requestRelock(NSString *reason) {
@@ -320,6 +335,7 @@ static BOOL handle(int fd) {
             @"helperGeneration": epoch, @"helperDesktopGeneration": desktopEpoch,
             @"profile":profile, @"lockedUsePaused":@(paused), @"relockAvailable":@(lockConsoleAvailable()),
             @"coveredSession":@(coveredState != nil),
+            @"unlockRulePeers":screenUnlockPeers(right("system.login.screensaver"), @(rightName)),
             @"lockedUsePauseReason":paused ? (readPlist(@PAUSE_PATH)[@"pauseReason"] ?: @"safety_fault") : @"",
             @"errorCode": issue ?: (allowed ? @"" : @"unlock_caller_denied")});
         return NO;

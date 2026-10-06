@@ -10,6 +10,7 @@ let label = "org.machine-control.unlock"
 let daemon = "/Library/LaunchDaemons/\(label).plist"
 let publicStatus = "/Library/Preferences/org.machine-control.unlock.plist"
 let rightName = "org.machine-control.screen-unlock"
+let screensaver = "system.login.screensaver"
 let fm = FileManager.default
 struct Failure: Error { let code: String }
 func run(_ command: String, _ args: [String], input: Data? = nil, allowFailure: Bool = false) throws -> Data {
@@ -44,10 +45,26 @@ func policy(_ name: String) throws -> [String: Any] {
     return value
 }
 func equal(_ a: [String: Any], _ b: [String: Any]) -> Bool { NSDictionary(dictionary: a).isEqual(to: b) }
-func writePolicy(_ name: String, _ value: [String: Any]) throws {
+func writePolicy(_ name: String, _ value: [String: Any], confirm: Bool = true) throws {
     _ = try run("/usr/bin/security", ["authorizationdb", "write", name], input: PropertyListSerialization.data(fromPropertyList: value, format: .xml, options: 0))
-    guard equal(try policy(name), value) else { throw Failure(code: "policy_readback_failed") }
+    if confirm, !equal(try policy(name), value) { throw Failure(code: "policy_readback_failed") }
 }
+// The shared screensaver rule has no compare-and-swap. Apply only our entry to
+// a fresh read and confirm it landed; on interleaving re-read and reapply.
+// A writer can still interleave after confirmation: the broker's status check
+// reports a missing entry and Permissions repairs it.
+func updateScreensaver(_ change: ([String: Any]) -> [AnyHashable: Any]?) throws {
+    for _ in 0..<5 {
+        let current = try policy(screensaver)
+        guard let next = change(current) as? [String: Any] else { throw Failure(code: "unlock_policy_conflict") }
+        if equal(current, next) { return }
+        try writePolicy(screensaver, next, confirm: false)
+        if equal(try policy(screensaver), next) { return }
+    }
+    throw Failure(code: "unlock_policy_contended")
+}
+func addEntry() throws { try updateScreensaver { screenUnlockRuleAdding($0, rightName) } }
+func removeEntry() throws { try updateScreensaver { screenUnlockRuleRemoving($0, rightName) } }
 func secureDirectory(_ path: String) throws {
     var s = stat()
     if lstat(path, &s) != 0 {
@@ -70,13 +87,6 @@ func stop() throws {
     _ = try run("/bin/launchctl", ["bootout", "system/" + label], allowFailure: true)
 }
 func start() throws { if !serviceManaged { _ = try run("/bin/launchctl", ["bootstrap", "system", daemon]) } }
-func restore(_ receipt: [String: Any]) throws {
-    guard let original = receipt["originalPolicy"] as? [String: Any],
-          let installed = receipt["installedPolicy"] as? [String: Any] else { throw Failure(code: "invalid_receipt") }
-    let current = try policy("system.login.screensaver")
-    guard equal(current, original) || equal(current, installed) else { throw Failure(code: "unlock_policy_conflict") }
-    try writePolicy("system.login.screensaver", original)
-}
 let inputArguments = Array(CommandLine.arguments.dropFirst())
 let serviceManaged = inputArguments.last == "--service-managed"
 let args = serviceManaged ? Array(inputArguments.dropLast()) : inputArguments
@@ -90,10 +100,10 @@ do {
         if !present { print("{\"installation\":\"missing\"}"); exit(0) }
         try secureDirectory(state)
         let receipt = try load(receiptPath)
-        let installed = receipt["installedPolicy"] as? [String: Any] ?? [:]
         let enabled = receipt["enabled"] as? Bool == true
-        let expected = enabled ? installed : receipt["originalPolicy"] as? [String: Any] ?? [:]
-        let healthy = equal(try policy("system.login.screensaver"), expected)
+        let rule = try policy(screensaver)
+        let listed = (rule["rule"] as? [Any] ?? []).contains { $0 as? String == rightName }
+        let healthy = (enabled ? screenUnlockRuleContains(rule, rightName) : !listed)
             && (try? cdhash(bundle)) == receipt["pluginCDHash"] as? Data
             && (try? cdhash(state + "/broker")) == receipt["brokerCDHash"] as? Data
         print("{\"installation\":\"\(healthy ? "healthy" : "inconsistent")\",\"policy\":\"\(enabled ? "enabled" : "disabled")\"}")
@@ -105,10 +115,10 @@ do {
         try secureDirectory(state)
         var receipt = try load(receiptPath)
         guard !serviceManaged || receipt["management"] as? String == "service_managed" else { throw Failure(code:"unlock_management_conflict") }
-        // Refuse conflicts before modifying policy. Disable the grant path even
-        // if external policy drift prevents completing removal.
+        // Disable the grant path before touching shared policy, even if an
+        // unsupported rule shape prevents removing our entry from it.
         receipt["enabled"] = false; try save(receipt, receiptPath)
-        try stop(); try restore(receipt)
+        try stop(); try removeEntry()
         if operation == "uninstall" {
             let dedicated = receipt["dedicatedPolicy"] as? [String: Any] ?? [:]
             if let current = try? policy(rightName) {
@@ -136,30 +146,25 @@ do {
     try secureDirectory(state)
     let previous = present ? try load(receiptPath) : nil
     if serviceManaged, previous != nil, previous?["management"] as? String != "service_managed" { throw Failure(code:"unlock_management_conflict") }
-    let current = try policy("system.login.screensaver")
-    var original = current
-    if let previous {
-        guard let old = previous["originalPolicy"] as? [String: Any],
-              let installed = previous["installedPolicy"] as? [String: Any],
-              equal(current, old) || equal(current, installed) else { throw Failure(code: "unlock_policy_conflict") }
-        original = old
-    } else {
-        guard current["class"] as? String == "rule", current["rule"] as? [String] == ["use-login-window-ui"],
-              (current["k-of-n"] as? Int ?? 1) == 1,
-              !fm.fileExists(atPath: bundle), !fm.fileExists(atPath: daemon),
-              (try? policy(rightName)) == nil else { throw Failure(code: "unlock_policy_conflict") }
+    // Other plug-ins may share the screensaver rule. Refuse only a shape our
+    // entry cannot join; the receipt's original policy is diagnostic only.
+    let current = try policy(screensaver)
+    guard screenUnlockRuleAdding(current, rightName) != nil else { throw Failure(code: "unlock_policy_conflict") }
+    if previous == nil {
+        guard !fm.fileExists(atPath: bundle), !fm.fileExists(atPath: daemon),
+              (try? policy(rightName)) == nil else { throw Failure(code: "unlock_untracked_installation") }
     }
-    var installed = original; installed["rule"] = [rightName, "use-login-window-ui"]; installed["k-of-n"] = 1
+    let original = previous?["originalPolicy"] as? [String: Any] ?? current
     let dedicated: [String: Any] = ["class":"evaluate-mechanisms", "mechanisms":["MCUnlock:unlock,privileged"], "shared":false, "tries":1, "version":0,
         "identifier":"com.apple.security", "requirement":"identifier \"com.apple.security\" and anchor apple"]
     if let existing = try? policy(rightName), !equal(existing, dedicated) { throw Failure(code: "unlock_policy_conflict") }
     var receipt: [String: Any] = ["version":2, "profile":profile, "management":serviceManaged ? "service_managed" : "legacy", "enabled":false, "allowedUID":uid, "residentCDHash":hash,
-        "originalPolicy":original, "installedPolicy":installed, "dedicatedPolicy":dedicated,
+        "originalPolicy":original, "dedicatedPolicy":dedicated,
         "pluginCDHash":pluginHash, "brokerCDHash":brokerHash]
     // The receipt precedes all policy writes, so interrupted setup can be removed.
     try save(receipt, receiptPath)
     do {
-        try stop(); try restore(receipt)
+        try stop(); try removeEntry()
         // Stage a complete bundle before replacing the disabled owned copy.
         let staging = state + "/staged.bundle"
         if fm.fileExists(atPath: staging) { try fm.removeItem(atPath: staging) }
@@ -179,11 +184,11 @@ do {
         }
         try writePolicy(rightName, dedicated)
         try start()
-        try writePolicy("system.login.screensaver", installed)
+        try addEntry()
         receipt["enabled"] = true; try save(receipt, receiptPath)
     } catch {
         receipt["enabled"] = false; try? save(receipt, receiptPath)
-        try? stop(); try? restore(receipt)
+        try? stop(); try? removeEntry()
         throw error
     }
     print("{\"completed\":true,\"profile\":\"\(profile)\"}")

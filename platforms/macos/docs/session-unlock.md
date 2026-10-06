@@ -108,7 +108,9 @@ mc-unlock-install uninstall
 ```
 
 The native installer ships beside `MCUnlock.bundle` and `mc-unlock-broker`.
-It backs up the original policy and preserves password fallback. No reboot or
+It records the original policy for diagnosis, adds only its own entry to the
+shared screensaver rule, and preserves password fallback and other plug-ins'
+entries. No reboot or
 SIP change was needed in the tested guest. Local ad-hoc signing evidence does
 not establish notarized distribution or physical-Mac support. Reinstall after
 a resident rebuild to approve its new exact code hash; TCC consent and broker
@@ -157,8 +159,9 @@ $mc --target macos --claim "$claim_id" testbed -- unlock-provider disable
 $mc --target macos --claim "$claim_id" testbed -- unlock-provider uninstall
 ```
 
-An external authorization-policy change causes conflict-aware refusal instead
-of overwriting another integration. Failed install/removal retains the receipt
+Disable and uninstall remove only Machine Control's entry from the shared
+screensaver rule. An unrecognized rule shape causes refusal instead of
+overwriting another integration. Failed install/removal retains the receipt
 for recovery and disables grants where possible. After removal, verify normal
 password unlock through an authorized native channel. Routine maintenance audit
 checks an enabled provider; maintenance repair never opts in or repins it.

@@ -15,7 +15,8 @@ xcrun clang "${flags[@]}" -bundle "$source_dir/Plugin.m" "${frameworks[@]}" -o "
 xcrun clang "${flags[@]}" "$source_dir/Broker.m" "${frameworks[@]}" -o "$output/mc-unlock-broker"
 swift_flags=(-O)
 if [[ -n "${MC_UNLOCK_ARCH:-}" ]]; then swift_flags+=(-target "$MC_UNLOCK_ARCH-apple-macos13.0"); fi
-xcrun swiftc "${swift_flags[@]}" "$source_dir/Installer.swift" -o "$output/mc-unlock-install"
+xcrun swiftc "${swift_flags[@]}" -import-objc-header "$source_dir/ScreenUnlockRule.h" \
+    "$source_dir/Installer.swift" -o "$output/mc-unlock-install"
 cat > "$bundle/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

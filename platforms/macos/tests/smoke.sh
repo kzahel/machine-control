@@ -500,6 +500,10 @@ fi
     "$REPO_DIR/../../tests/macos/session-observation.m" \
     -framework Foundation -framework IOKit -o "$temporary/session-observation"
 "$temporary/session-observation"
+/usr/bin/xcrun clang -fobjc-arc -Wall -Wextra -Werror -Wno-unused-function \
+    "$REPO_DIR/../../tests/macos/screen-unlock-rule.m" \
+    -framework Foundation -o "$temporary/screen-unlock-rule"
+"$temporary/screen-unlock-rule"
 
 python3 "$REPO_DIR/../../tests/macos/doctor-state.py"
 python3 "$REPO_DIR/../../tests/macos/lock-screen-projection.py"

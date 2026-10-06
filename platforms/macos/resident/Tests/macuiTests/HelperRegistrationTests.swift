@@ -20,6 +20,18 @@ final class HelperRegistrationTests: XCTestCase {
     }
     private var transition: NSError { NSError(domain:"SMAppServiceErrorDomain", code:1) }
 
+    func testHelperRefusalCodesStayVisibleInOperatorMessages() {
+        let conflict = HelperSetupMessage.text(MacUIError.action("unlock_policy_conflict"))
+        XCTAssertTrue(conflict.contains("lock screen rule") && conflict.hasSuffix("(unlock_policy_conflict)"))
+        XCTAssertTrue(HelperSetupMessage.text(MacUIError.action("unlock_policy_contended"), action:"removal")
+            .contains("during helper removal"))
+        XCTAssertTrue(HelperSetupMessage.text(MacUIError.action("installer_command_failed"))
+            .hasSuffix("(installer_command_failed)"))
+        XCTAssertNotNil(HelperSetupMessage.note(issue:"unlock_policy_entry_missing"))
+        XCTAssertNil(HelperSetupMessage.note(issue:"unlock_caller_denied"))
+        XCTAssertNil(HelperSetupMessage.note(issue:nil))
+    }
+
     func testRepairWaitsForUnregisterAndRunLoopBeforeRegistering() {
         let service = Service(); var completed = false
         service.registration.start(restart:true) { result in

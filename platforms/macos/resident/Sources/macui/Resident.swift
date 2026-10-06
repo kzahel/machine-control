@@ -682,7 +682,8 @@ final class ResidentService {
             try writeSocket(fd, data: encodeJSONLine(["operation": "status"]))
             let reply = try brokerReply(fd)
             for key in ["installation", "policy", "callerEligibility", "helperGeneration", "helperDesktopGeneration",
-                        "profile", "lockedUsePaused", "lockedUsePauseReason", "relockAvailable", "coveredSession"] {
+                        "profile", "lockedUsePaused", "lockedUsePauseReason", "relockAvailable", "coveredSession",
+                        "unlockRulePeers"] {
                 if let value = reply[key] { status[key] = value }
             }
             issue = reply["errorCode"] as? String ?? "unlock_helper_invalid_response"

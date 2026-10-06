@@ -90,6 +90,35 @@ enum HelperUpdatePolicy {
     }
 }
 
+/// Operator wording for root helper refusal codes. Unknown codes stay visible.
+enum HelperSetupMessage {
+    static func text(_ error: Error, action: String = "setup") -> String {
+        let code = "\(error)"
+        switch code {
+        case "unlock_policy_conflict":
+            return "Machine Control helper \(action) stopped: the macOS lock screen rule has a shape Machine Control cannot safely change. (\(code))"
+        case "unlock_policy_contended":
+            return "Another app kept changing the macOS lock screen rule during helper \(action). Try again. (\(code))"
+        case "unlock_untracked_installation":
+            return "Parts of an earlier Machine Control helper are installed without a record. Remove them before setting up again. (\(code))"
+        case "unlock_management_conflict":
+            return "The Machine Control helper was installed by the command-line tool. Uninstall it there first. (\(code))"
+        case "helper_bundle_invalid":
+            return "This copy of Machine Control failed its signature check. Reinstall it, then try again. (\(code))"
+        case "helper_setup_timeout":
+            return "Machine Control helper \(action) timed out. Try again in Permissions. (\(code))"
+        default:
+            return "Machine Control helper \(action) failed. Open Permissions to try again. (\(code))"
+        }
+    }
+    /// A status issue the operator can repair with Set up, if any.
+    static func note(issue: String?) -> String? {
+        issue == "unlock_policy_entry_missing"
+            ? "Another app removed Machine Control from the macOS lock screen rule. Set up again to restore it."
+            : nil
+    }
+}
+
 /// Permission preparation is local operator work. The preference never calls
 /// this request path, and the public desktop socket never dispatches it.
 final class MacLockedUsePermission: LockedUsePermissionManaging {
@@ -210,7 +239,7 @@ final class MacLockedUsePermission: LockedUsePermissionManaging {
             guard let self else { return }
             let issue: String? = {
                 do { try self.service.removeUnlockPermission(); return nil }
-                catch { return "Unable to remove the helper: \(error)" }
+                catch { return HelperSetupMessage.text(error, action:"removal") }
             }()
             DispatchQueue.main.async {
                 guard self.attempt == generation else { return }
@@ -240,7 +269,7 @@ final class MacLockedUsePermission: LockedUsePermissionManaging {
                     }
                     return "The Machine Control helper did not start. Try again in Permissions."
                 }
-                catch { return "Machine Control helper setup failed. Open Permissions to try again. \(error)" }
+                catch { return HelperSetupMessage.text(error) }
             }()
             DispatchQueue.main.async {
                 guard self.attempt == generation else { return }

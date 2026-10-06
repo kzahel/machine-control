@@ -231,3 +231,7 @@ the commits' `Topic:` trailers and register that exact string in
 - [105 — Desktop 0.5.7 release](105-desktop-0.5.7-release.md):
   all six signed targets published from one verified candidate, with public
   download/update verification and bounded qualification repairs.
+
+- [106 — macOS shared screen-unlock rule](106-macos-shared-screen-unlock-rule.md):
+  helper refusal codes in Permissions and own-entry composition of the
+  screensaver rule beside other authorization plug-ins.

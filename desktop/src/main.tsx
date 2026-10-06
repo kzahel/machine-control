@@ -114,6 +114,8 @@ type State = {
     setupState: string;
     setupError: string | null;
     helperHealthy: boolean;
+    helperNote?: string | null;
+    unlockRulePeers?: string[];
     pausedUntilManualUnlock: boolean;
     controlSessionId: string | null;
   };
@@ -1074,6 +1076,15 @@ function App() {
                     )}
                     {state.lockedUse.setupError && (
                       <p className="note">{state.lockedUse.setupError}</p>
+                    )}
+                    {state.lockedUse.helperNote && (
+                      <p className="note">{state.lockedUse.helperNote}</p>
+                    )}
+                    {!!state.lockedUse.unlockRulePeers?.length && (
+                      <p className="note">
+                        Other lock screen plug-ins can also unlock this Mac:{" "}
+                        {state.lockedUse.unlockRulePeers.join(", ")}
+                      </p>
                     )}
                   </>
                 )}

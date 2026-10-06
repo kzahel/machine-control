@@ -413,6 +413,8 @@ final class MacLockedUse {
             "permissionReady":ready, "helperApproval":approval,
             "setupState":setupState, "setupError":setupError.map { $0 as Any } ?? NSNull(),
             "helperHealthy":helper["installation"] as? String == "healthy" && helper["callerEligibility"] as? String == "allowed",
+            "helperNote":HelperSetupMessage.note(issue:(helper["reasons"] as? [String])?.first).map { $0 as Any } ?? NSNull(),
+            "unlockRulePeers":helper["unlockRulePeers"] as? [String] ?? [],
             "pauseReason":helper["lockedUsePauseReason"] ?? NSNull(),
             "pausedUntilManualUnlock":helper["lockedUsePaused"] as? Bool == true &&
                 !["physical_presence", "local_use_episode"].contains(helper["lockedUsePauseReason"] as? String ?? ""),

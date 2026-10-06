@@ -30,9 +30,16 @@ owns implementation acceptance. The earlier experiment remains in
   at most one successful consumer.
 - `Installer.swift` is an explicit administrator executable, never setuid or
   reachable through the broker. It owns fixed destinations, validates signed
-  artifacts, records original/installed policy, and retains the password
-  branch. Failed installation disables the alternate path and attempts
-  conflict-aware restoration; the receipt remains for recovery.
+  artifacts, records the original policy for diagnosis, and retains the
+  password branch. Failed installation disables the alternate path and
+  removes its rule entry; the receipt remains for recovery.
+- `ScreenUnlockRule.h` is the pure shared-rule composition used by the
+  installer and broker. `system.login.screensaver` is a one-of-n rule that
+  other authorization plug-ins may also join. macOS replaces whole rights, so
+  every change re-reads the rule, adds or removes only our entry before
+  `use-login-window-ui`, writes, confirms and retries a bounded number of times.
+  A later writer can still drop the entry; the broker reports that as
+  `unlock_policy_entry_missing` and lists other entries in `unlockRulePeers`.
 - `build.sh OUTPUT` builds and signs only; it does not install or alter the
   controller. Signing defaults to ad-hoc for the tested local appliance.
   `MC_UNLOCK_SIGN_IDENTITY` can select an available signing identity, but
@@ -68,9 +75,11 @@ resident can preserve its TCC identity while changing its unlock authorization:
 rerun explicit provider installation to authorize the new hash. Ordinary
 bootstrap and maintenance repair never grant that authority implicitly.
 
-Disable revokes authority and restores the original screensaver policy while
+Disable revokes authority and removes our screensaver rule entry while
 retaining components/receipt. Uninstall then removes the owned dedicated right,
-plug-in, daemon, and state. Both refuse to overwrite unrelated policy changes.
+plug-in, daemon, and state. Neither restores a policy snapshot, so another
+plug-in's later entries survive; an unsupported rule shape refuses removal.
+The broker relays the installer's specific refusal code to Permissions.
 If restoration conflicts, the grant path remains disabled and the retained
 receipt permits administrator diagnosis. Reinstallation is convergent and may
 restart the helper, invalidating its generation even when the payload matches.

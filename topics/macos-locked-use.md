@@ -128,6 +128,16 @@ released on readiness or bounded failure; no standing sleep-prevention policy
 is installed. That signed update again maintained the helper automatically and
 preserved the enabled checkbox. Tactical 073 records the earlier readiness gap
 and bounded physical fix.
+**Decision, current source:** `system.login.screensaver` is shared with
+other authorization plug-ins, such as Codex Computer Use's locked-use entry.
+Setup, disable and removal change only Machine Control's entry in that
+one-of-n rule, before the password fallback, and never restore a snapshot.
+Health checks only our entry; another writer's removal reports
+`unlock_policy_entry_missing` for operator repair, and status lists the other
+entries. Helper refusal codes now reach Permissions.
+[Tactical 106](../docs/tactical/106-macos-shared-screen-unlock-rule.md) owns
+this slice; signed coexistence acceptance is open.
+
 **Open:** a full scripted physical takeover cell with independent lock readback
 before recovery, multiple displays, additional OS revisions, Intel execution
 and distribution qualification.

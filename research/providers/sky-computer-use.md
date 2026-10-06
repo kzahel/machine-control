@@ -309,6 +309,16 @@ The absence of a bearer credential in the inspected local envelope does not
 prove the product never uses account authentication, cryptography or backend
 policy elsewhere. The TextEdit test reused existing account state.
 
+**Current, locked-use footprint (read-only local observation, macOS 27.0):**
+an installed Codex Computer Use adds
+`/Library/Security/SecurityAgentPlugins/CodexComputerUseAuthorizationPlugin.bundle`
+and joins `system.login.screensaver` as
+`com.openai.sky.CUAService.AuthorizationPlugin.remote` ahead of
+`use-login-window-ui` with `k-of-n = 1`. Any other locked-use provider must
+therefore share that rule rather than assume the stock shape; see
+[Tactical 106](../../docs/tactical/106-macos-shared-screen-unlock-rule.md).
+How the product's own removal edits the rule was not observed.
+
 **Current, capability limits:** app menus worked, and typed text persisted.
 One shortcut instead changed formatting; an absolute path in a save-name
 field became a literal filename. API acceptance alone would have hidden both

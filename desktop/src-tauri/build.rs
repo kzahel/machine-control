@@ -171,6 +171,7 @@ fn main() {
             "Session.h",
             "QuietResume.h",
             "Relock.h",
+            "ScreenUnlockRule.h",
             "Installer.swift",
             "Probe.m",
             "build.sh",

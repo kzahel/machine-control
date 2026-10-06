@@ -144,10 +144,18 @@ Same-user shell access is not contained. The short authorization grant is
 session-wide rather than authenticating an individual agent.
 
 For the native workstation installation, use **Remove** beside **Machine
-Control helper** in Permissions. It disables locked use, restores the original
-authorization policy if still owned, removes the plug-in, and unregisters the
-macOS service. Policy conflicts refuse removal instead of overwriting another
-owner's changes.
+Control helper** in Permissions. It disables locked use, removes only Machine
+Control's entry from the shared screensaver authorization rule, removes the
+plug-in, and unregisters the macOS service. Other plug-ins' entries in that
+rule are preserved; an unrecognized rule shape refuses removal instead of
+overwriting another owner's changes.
+
+Other products, such as Codex Computer Use, can install their own entries in
+`system.login.screensaver`. Setup joins that shared one-of-n rule immediately
+before the password fallback and Permissions lists the other entries, each of
+which can independently unlock the Mac. If another product later drops
+Machine Control's entry, the helper reports `unlock_policy_entry_missing` and
+**Set up** restores it. Helper refusals show their specific code.
 
 The legacy administrator installer remains available for explicit cleanup of
 legacy installations. For that profile, unlock and quit the app, then invoke
@@ -157,9 +165,9 @@ the bundled installer through native administrator authentication:
 mc-sudo -- <app-resources>/unlock/mc-unlock-install uninstall
 ```
 
-The explicit administrator installer restores its original policy snapshot only if the current policy
-still matches what it installed; conflicts refuse rather than overwrite another
-owner's policy. No SIP, password, or lockout policy is weakened. The separate
+The explicit administrator installer likewise edits only its own rule entry
+and refuses an unsupported rule shape rather than overwrite another owner's
+policy. No SIP, password, or lockout policy is weakened. The separate
 [appliance unlock guide](session-unlock.md) describes the explicit test-appliance
 profile, which leaves the desktop exposed after one-shot unlock.
 
