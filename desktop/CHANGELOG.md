@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.8]
+
 - Fix Mac locked-use helper setup when another product, such as Codex
   Computer Use, already has a lock screen plug-in. Setup and removal now
   change only Machine Control's entry in the shared unlock rule, and
