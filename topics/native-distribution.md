@@ -3,7 +3,7 @@
 Topic: `native-distribution`
 
 Status: signed Windows headless workstation preview remains available; YA now
-consumes the installed desktop CLI and has retired its component lifecycle. Unified Mac/Windows/Linux desktop `0.5.4` is published; package
+consumes the installed desktop CLI and has retired its component lifecycle. Unified Mac/Windows/Linux desktop `0.5.7` is published; package
 signatures, public downloads, and production metadata are verified for all six
 architectures.
 ARM64 Tart has targeted signed browser-indicator evidence; Windows x64 retains
@@ -42,6 +42,15 @@ its authority or silently installing it on personal machines.
 
 ## Current implementation
 
+**Current:** [Public desktop 0.5.7](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.7)
+promotes one authenticated six-target candidate. Public asset signatures,
+source/run identities, download redirects and both production metadata routes
+pass verification. [Tactical 105](../docs/tactical/105-desktop-0.5.7-release.md)
+owns the release evidence and qualification repairs. Windows UAC, bounded
+covered unlock, activity pause, pointer gestures, upload and CDP features ship
+with their existing focused unsigned VM evidence; publication does not add
+signed installed feature or broader architecture/hardware execution coverage.
+
 **Decision:** Adopt Desktop Release Kit's Stable discovery cadence: a silent
 check after five seconds and daily while running, with a bounded timeout and
 deduplication. The native desktop process owns scheduling/results independently
@@ -50,7 +59,7 @@ requests use that same controller. Discovery does not focus, download, install,
 restart, approve, or revoke access. Installation stays an explicit local operator
 action behind the resident's access/approval replacement gate.
 
-**Current (source; not yet released):** The shared Settings UI explains why
+**Current (public 0.5.5 and later):** The shared Settings UI explains why
 an available update cannot be installed, including enabled access, standing
 appliance policy, pending
 approval, and an operation in progress. Enabled access includes a Go to Access
@@ -217,7 +226,7 @@ then published the same draft by ID without replacing bytes or its tag. Future
 CI publication now resolves and verifies the draft by ID. Both re-downloaded
 public DMGs and archives passed publisher signatures, notarization/stapling,
 updater signature/version and tamper rejection. The live download page selects
-unified `0.5.4` for all eight installer/package routes. Both the shared server and website proxy return signed
+unified `0.5.7` for all eight installer/package routes. Both the shared server and website proxy return signed
 archive metadata with cumulative required changelogs for older clients and 204
 for current clients. Product registration and the website proxy preserve the
 endpoint already embedded in 0.3.3.

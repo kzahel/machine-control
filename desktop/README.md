@@ -84,9 +84,9 @@ authorize operations.
 Windows uses a separate `desktop` instance and inherited private operator
 channel. Its public pipe enforces grants and cannot approve them. Ordinary
 control does not cross UAC, elevated apps, lock/login, or other user sessions.
-The unreleased [optional UAC helper](WINDOWS-UAC.md) adds administrator-approved,
+The 0.5.7 [optional UAC helper](WINDOWS-UAC.md) adds administrator-approved,
 default-off UAC consent and elevated application control behind native grants
-and a live owner session. The unreleased [bounded locked-use profile](WINDOWS-LOCKED-USE.md)
+and a live owner session. The 0.5.7 [bounded locked-use profile](WINDOWS-LOCKED-USE.md)
 adds separately approved, owner-bound existing-session password unlock and
 independent relock behind an opaque single-display cover. Tasks that start
 unlocked finish without requesting lock. Cold login and other users remain
@@ -115,10 +115,10 @@ sandbox for an agent with unrestricted same-user shell access. Closing the
 operator window keeps the tray and resident running; Quit ends the process.
 Permission changes may require Restart. Browser integration is optional and
 currently uses the bundled unpacked extension, with explicit user setup.
-The unreleased [Windows browser upload](WINDOWS-BROWSER-UPLOAD.md) operation
+The 0.5.7 [Windows browser upload](WINDOWS-BROWSER-UPLOAD.md) operation
 attaches validated target-local files through that extension without the OS
 picker, under browser grants and live ownership.
-The unreleased [Windows streaming CDP](WINDOWS-STREAMING-CDP.md) bridge adds
+The 0.5.7 [Windows streaming CDP](WINDOWS-STREAMING-CDP.md) bridge adds
 per-tab and browser-level WebSockets, debugger events and flattened target
 sessions under a retained DevTools owner. Real Playwright/Puppeteer tasks use
 the existing default profile; unsupported browser-wide operations refuse.
@@ -166,11 +166,11 @@ rebuilding its signed bytes. The website resolves the
 latest desktop release separately from Windows component releases. See the
 [release process](../release/desktop.md) and [changelog](CHANGELOG.md).
 
-The latest public release is [0.5.3](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.3),
+The latest public release is [0.5.7](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.7),
 with Mac, Windows, and Linux packages for both architectures and production
 metadata through the existing shared service. Current public package and
 delivery verification are recorded in
-[Tactical 063](../docs/tactical/063-six-platform-desktop-release.md); Linux
+[Tactical 105](../docs/tactical/105-desktop-0.5.7-release.md); Linux
 installed GUI acceptance retains its exact 0.5.0 evidence in
 [Tactical 059](../docs/tactical/059-public-linux-desktop.md). Manual checks are
 available in Settings and the tray. ARM64 Tart passes

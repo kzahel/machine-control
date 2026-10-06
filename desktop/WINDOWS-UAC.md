@@ -1,7 +1,7 @@
 # Windows desktop UAC control
 
-This optional integration is an unreleased development feature. Public desktop
-0.5.4 retains its ordinary-user boundary. Exact signed-package, ARM64 live,
+This optional integration ships in public desktop 0.5.7 and starts disabled.
+Focused unsigned x64 VM acceptance passes. Signed installed feature, ARM64 live,
 physical hardware, and localized prompt acceptance remain separate gates.
 
 ## Operator setup

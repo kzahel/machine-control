@@ -1,6 +1,6 @@
 # Windows desktop bounded locked use
 
-This is an unreleased development feature. Signed installed-package, ARM64
+This feature ships in public desktop 0.5.7. Signed installed feature, ARM64
 live and physical takeover acceptance remain separate gates. The current
 source profile places an **opaque cover on one display** before possible
 password submission. Windows 10 version 2004 or newer, active DWM composition
@@ -88,7 +88,7 @@ plus quiet or explicit Resume. Ordinary human input also pauses admission;
 agent-injected input does not count as takeover. No old action is replayed.
 
 [Tactical 103](../docs/tactical/103-windows-activity-pause.md) owns this
-unreleased activity behavior and its separate qualification gates.
+activity behavior shipped in 0.5.7 and its separate qualification gates.
 
 This profile supports the existing local-account, unique-display-name and
 stock-password-field restrictions of the unlock broker. PIN, domain/cloud

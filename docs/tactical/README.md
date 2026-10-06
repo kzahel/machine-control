@@ -227,3 +227,7 @@ the commits' `Topic:` trailers and register that exact string in
 - [104 — Windows native pointer gestures](104-windows-pointer-gestures.md):
   native move, bounded drag and signed wheel input with independent effects
   and button-release interruption checks.
+
+- [105 — Desktop 0.5.7 release](105-desktop-0.5.7-release.md):
+  all six signed targets published from one verified candidate, with public
+  download/update verification and bounded qualification repairs.

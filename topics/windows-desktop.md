@@ -2,7 +2,7 @@
 
 Topic: `windows-desktop`
 
-Status: public 0.5.4 preview published for x64 and ARM64. Signed ARM64 VM
+Status: public 0.5.7 preview published for x64 and ARM64. Signed ARM64 0.5.4 VM
 indefinite-access, Pause/Resume, Stop and production-update acceptance passes.
 Earlier x64 coverage remains; full ARM64 and physical acceptance remain open.
 
@@ -46,7 +46,13 @@ Windows support claim.
 
 ## Execution and remaining gates
 
-**Current, unreleased source and focused x64 VM evidence:** [Tactical 104](../docs/tactical/104-windows-pointer-gestures.md)
+**Current:** Public 0.5.7 packages and installed CLI payloads pass authentication
+on x64/ARM64; production downloads and update metadata are verified.
+[Tactical 105](../docs/tactical/105-desktop-0.5.7-release.md) owns publication.
+The feature execution records below retain their exact development candidates;
+signed installed feature qualification remains separate.
+
+**Current, shipped in 0.5.7 with focused unsigned x64 VM evidence:** [Tactical 104](../docs/tactical/104-windows-pointer-gestures.md)
 adds native pointer movement, bounded left/right drags and signed wheel input.
 The existing common CLI translates these operations on Windows. Per-step
 authority, protected operator paths and release cleanup retain interruption
@@ -56,7 +62,7 @@ including wheel axes, drag endpoints and mid-drag Pause/Stop button release.
 Signed installed, live ARM64, hardware and broader transition qualification
 remain separate.
 
-**Current, unreleased source and focused x64 VM evidence:**
+**Current, shipped in 0.5.7 with focused unsigned x64 VM evidence:**
 [Tactical 103](../docs/tactical/103-windows-activity-pause.md) adds ordinary
 keyboard/pointer activity pause, conservative locked-session quiet admission
 and grant-preserving covered takeover. Resumption requires fresh ownership;
@@ -67,18 +73,18 @@ ordinary/covered virtual-keyboard takeover 26. Physical hardware, live
 owner-unlocked local-use, ARM64 live and signed installed evidence remain
 separate gates; the local-use policy has deterministic coverage.
 
-**Current, unreleased source and staged x64 evidence:** [Tactical 101](../docs/tactical/101-windows-desktop-locked-use.md)
+**Current, shipped in 0.5.7 with staged unsigned x64 evidence:** [Tactical 101](../docs/tactical/101-windows-desktop-locked-use.md)
 binds the existing unlock broker to explicit native preparation and a finite
 desktop task. A SYSTEM guardian owns relock independently of the resident and
-service. Exact signed installed qualification for the accumulated Windows
-changes remains pending authenticated release tooling. The successor in
+service. Exact signed installed feature qualification for the accumulated
+Windows changes remains pending. The successor in
 [Tactical 102](../docs/tactical/102-windows-covered-control.md) proves opaque
 one-display VM presentation with underlying native capture and injected
 pointer/keyboard effects. It also fences unlock to locked-origin tasks and
 proves that ordinary completion does not newly lock the console. Physical
 takeover, broader Cua and signed-package qualification remain separate gates.
 
-**Current, unreleased x64 development candidate:** per-tab CDP WebSockets use
+**Current, shipped in 0.5.7 with unsigned x64 candidate evidence:** per-tab CDP WebSockets use
 the shared Chrome extension and a retained DevTools owner. Typed commands,
 streamed events, payload-free audit, bounded transport and authority/provider
 fences pass 28 focused VM checks with independent HTTP effects.
@@ -90,16 +96,16 @@ child sessions. [Tactical 100](../docs/tactical/100-browser-level-cdp.md) owns
 real Playwright/Puppeteer qualification and the supported default-profile
 subset. Signed/ARM64/physical qualification remains separate.
 
-**Current, unreleased x64 development candidate:** browser-scoped file upload
+**Current, shipped in 0.5.7 with unsigned x64 candidate evidence:** browser-scoped file upload
 passes 23 live checks through the real operator UI and Chrome for Testing in a
 Windows-hosted VM. Both direct inputs and intercepted choosers have independent
 server byte/hash effects. Typed target-local file validation, live ownership,
 scope, stale-reference, Pause and Stop checks pass. [Tactical 098](../docs/tactical/098-windows-browser-upload.md)
 owns the evidence and [the upload guide](../desktop/WINDOWS-BROWSER-UPLOAD.md)
-owns usage and path restrictions. Signed release, ARM64 live, physical and other
+owns usage and path restrictions. Signed installed feature, ARM64 live, physical and other
 browser qualification remain separate.
 
-**Current, unreleased x64 development candidate:** the optional desktop UAC
+**Current, shipped in 0.5.7 with unsigned x64 candidate evidence:** the optional desktop UAC
 helper passes 21 live checks in a Windows-hosted VirtualBox VM. The actual
 operator UI installs/cancels/removes it; the desktop owner channel captures
 secure consent, cancels/approves it, and controls an independently observed
@@ -109,17 +115,17 @@ UAC policy is unchanged. The helper/service and test processes are removed
 afterward. [Tactical 097](../docs/tactical/097-windows-desktop-uac.md) owns the
 execution record; the [operator guide](../desktop/WINDOWS-UAC.md) owns setup,
 per-run opt-in and version replacement. This is unsigned candidate evidence,
-with x64/ARM64 builds; signed release, ARM64 live, physical and localized
+with x64/ARM64 builds; signed installed feature, ARM64 live, physical and localized
 prompt acceptance remain open. Existing-session unlock has its separate
 qualification in Tactical 101; cold login is outside the desktop integration.
 
-**Current, unreleased candidate acceptance:** ordinary desktop-product native
+**Current, shipped in 0.5.5 with candidate acceptance:** ordinary desktop-product native
 and browser dispatch requires a live owner session, even with an idle standing
 grant. The common CLI negotiates short ownership or retains it with
 `control stream`. [Tactical 095](../docs/tactical/095-windows-required-owner-session.md)
 owns the implementation. [Tactical 096](../docs/tactical/096-windows-owner-session-acceptance.md)
 proves the focused ARM64 native/browser workflow and owner lifecycle with a
-staged runtime and the real operator UI. Full signed-package release and broader
+staged runtime and the real operator UI. Full signed installed feature and broader
 lifecycle acceptance remain separate gates.
 
 **Current, public 0.5.4:** the native operator supports **Until I turn it
@@ -170,8 +176,8 @@ not establish those separate capabilities.
 
 **Current:** Windows browser setup and browser/devtools scopes are implemented.
 Source-native fixture effects and enforcement pass on x64. File uploads have
-focused unreleased acceptance above; owner-bound CDP WebSockets are also
-implemented in the unreleased candidate.
+focused unsigned acceptance above; owner-bound CDP WebSockets also ship
+in public 0.5.7.
 The [browser dossier](../research/providers/chrome-extension.md)
 owns route details.
 

@@ -1,6 +1,6 @@
 # Windows streaming CDP
 
-This is an unreleased desktop development feature. The resident exposes a
+This feature ships in public desktop 0.5.7. The resident exposes
 target-loopback, per-tab and browser-level CDP WebSockets through the existing Chrome extension.
 Commands and events use ordinary CDP JSON. No browser debug port or UAC helper
 is required.

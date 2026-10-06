@@ -1,6 +1,6 @@
 # Windows browser file uploads
 
-This is an unreleased desktop development feature. Browser file attachment
+This feature ships in public desktop 0.5.7. Browser file attachment
 uses the existing Machine Control Chrome extension; no UAC helper is needed.
 
 ## Usage
