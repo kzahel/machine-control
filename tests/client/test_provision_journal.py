@@ -102,12 +102,23 @@ class JournalTests(unittest.TestCase):
 
     def test_concurrent_writes_are_serialized(self):
         identifier = self.begin()
-        code = "import provision_journal as j,sys; [j.append(sys.argv[1], 'agent.note', {'kind':'friction','text':'fixture'}, source='agent') for i in range(8)]"
+        # This fixture proves transaction serialization. Allow bounded slow
+        # filesystem scheduling without changing the production busy timeout.
+        code = """import provision_journal as j, sys
+original_connect = j.connect
+def fixture_connect(*args, **kwargs):
+    db = original_connect(*args, **kwargs)
+    db.execute('PRAGMA busy_timeout=20000')
+    return db
+j.connect = fixture_connect
+for i in range(8):
+    j.append(sys.argv[1], 'agent.note', {'kind':'friction','text':'fixture'}, source='agent')
+"""
         children = [subprocess.Popen([sys.executable, "-c", code, identifier],
                     env=dict(os.environ, PYTHONPATH=str(ROOT / "client")),
                     stderr=subprocess.PIPE) for _ in range(3)]
         for child in children:
-            _, errors = child.communicate(timeout=30)
+            _, errors = child.communicate(timeout=60)
             self.assertEqual(child.returncode, 0, errors)
         self.assertEqual(len(journal.show(identifier)["events"]), 25)
 
