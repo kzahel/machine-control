@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.6]
+
 - Add native Windows pointer move, bounded left/right drag and signed vertical
   and horizontal wheel input. Live control ownership and operator protections
   apply; interrupted drags release their attempted button without replay.
@@ -25,11 +27,22 @@
   attach files without the OS picker; live ownership, Pause/Stop and file-path
   checks remain enforced. Attachment delivery does not imply website success.
 
+- Add owner-bound Windows streaming CDP and shared browser-level target
+  discovery with flattened sessions for Playwright and Puppeteer. DevTools
+  approval and live ownership remain required; Pause, Stop and owner loss
+  invalidate endpoints. Add background navigation for unfocused new tabs.
+
 - Add an optional Windows administrator-installed UAC helper with per-run
   opt-in, native grants and live ownership. Approved tasks can observe English
   stock consent prompts, approve/cancel them and control elevated apps. Pause,
   Stop and owner loss still fence effects. UAC credential prompts and cold login
   remain unavailable; UAC and secure-desktop policy stay enabled.
+
+This release includes Mac Apple silicon/Intel, Windows x64/ARM64, and Linux
+x64/ARM64 Debian/AppImage packages. New Windows features have focused unsigned
+x64 VM acceptance; signed installed feature, ARM64 and physical execution
+remain separate coverage gaps. Protected helpers require explicit setup and
+approval. Reload the unpacked Chrome extension after updating.
 
 ## [0.5.5]
 
