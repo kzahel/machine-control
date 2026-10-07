@@ -2,99 +2,87 @@
 import SiteFooter from "../components/SiteFooter.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import SiteLayout from "../layouts/SiteLayout.astro";
+import "../styles/product.css";
 
 const title = "Getting started — Machine Control";
 const description =
-  "Clone Machine Control, point your coding agent at the repository, and let it discover, claim, operate, and verify applications on configured VMs and physical devices.";
-const agentPrompt = `Use Machine Control in this repository to develop and test <application>
-on <targets>.
+  "Install Machine Control on your computer or VM, choose permissions, and connect your AI agent. Find setup guides for physical iPhones, Chromebooks, and other devices.";
+const agentPrompt = `Use the installed Machine Control app to help me with <task> on <target>.
 
-Read AGENTS.md and README.md first. Use bin/machine-control as the common
-interface. Start by listing the configured targets. If this controller uses a
-private inventory provider, also check inventory status.
+Find its bundled control CLI and read its agent instructions. If discovery
+is unclear, use https://machinecontrol.dev/getting-started/ and the linked
+installed-CLI guide. Inspect target readiness and available capabilities.
 
-Before meaningful use of a target, run its read-only doctor. For an accepted
-VM, acquire an exclusive claim with a truthful authority, claimant ID, and
-reason; carry the claim ID through every operation and release it promptly. For
-a physical device, follow its platform guide's exact selection and lease rules.
+Use only the scopes I authorize. Request approval when needed, respect Pause
+and Stop, and obtain control-session ownership where the platform requires it.
+Prefer native UI and browser controls, with screenshots and input as needed.
+Verify the observed result of your actions and report any uncertainty.
 
-Build and deploy the application, exercise the relevant native workflows, and
-verify the observed application effect. Prefer target-native semantic control,
-capture, and input. Do not use host-console input except for explicit bootstrap
-or recovery.
-
-Report the actual provider route, delivery, observed effect, evidence, and any
-uncertainty for each target.`;
+For a configured VM, run the read-only doctor and acquire an exclusive claim
+before meaningful use. Renew it while working and release it during cleanup.
+For physical devices, follow their setup, exact selection, and lease rules.
+Use outer console input only for explicitly authorized bootstrap or recovery.`;
 ---
 
 <SiteLayout title={title} description={description} canonicalPath="/getting-started/">
   <SiteHeader />
-  <main class="getting-started-page">
+  <main class="product-page product-start">
     <section class="page-intro start-intro">
       <div class="shell start-shell">
-        <p class="eyebrow">Getting started · Python 3.10+</p>
-        <h1>Clone the repository. Point your agent at it.</h1>
+        <p class="eyebrow">Computer or VM · Mac, Windows &amp; Linux</p>
+        <h1>Install the app. Connect your agent.</h1>
         <p class="lede">
-          If your machines and devices are already configured, that is almost
-          the entire handoff. Machine Control gives the agent the project
-          guidance and one common entry point for the lab.
+          Start with Machine Control on the computer you want to use. The desktop
+          app includes the control CLI and its Python runtime, so your agent can
+          use it without cloning the repository or installing Python separately.
         </p>
         <div class="actions">
-          <a class="button button-primary" href="#agent-prompt">Copy the agent prompt ↓</a>
-          <a class="button button-secondary" href="https://github.com/kzahel/machine-control">View the repository</a>
+          <a class="button button-primary" href="/downloads/">Download Machine Control</a>
+          <a class="button button-secondary" href="#agent-prompt">Copy the agent prompt ↓</a>
         </div>
-        <ul class="proof-list" aria-label="Getting-started facts">
-          <li>No common-client package install</li>
-          <li>Standard-library client</li>
-          <li>Works with any coding agent</li>
-        </ul>
       </div>
     </section>
 
     <section class="section" id="first-session">
       <div class="shell start-shell">
         <div class="section-heading">
-          <p class="eyebrow">The short path</p>
-          <h2>Already have a configured lab?</h2>
-          <p>Clone, inspect the available targets, and hand the repository to the agent that is working on your application.</p>
+          <p class="eyebrow">Your first desktop session</p>
+          <h2>Four steps to useful control.</h2>
         </div>
-
-        <div class="start-paths">
-          <article class="start-path start-path-primary">
-            <span>Configured targets</span>
-            <h3>This is the whole setup.</h3>
-            <pre><code>git clone https://github.com/kzahel/machine-control.git
-cd machine-control
-
-bin/machine-control targets
-python3 bin/check --portable</code></pre>
-            <p>
-              On Windows, use <code>py -3 bin/machine-control</code> and
-              <code>py -3 bin/check --portable</code>.
-            </p>
-            <p>
-              If the controller uses a private inventory provider, also run
-              <code>bin/machine-control inventory status</code>. Local registry
-              and <code>config.local</code> setups do not require that provider.
-            </p>
-          </article>
-
-          <article class="start-path">
-            <span>What “point the agent at it” means</span>
-            <h3>Open the checkout in the coding session.</h3>
-            <p>
-              The repository’s <code>AGENTS.md</code> and <code>README.md</code>
-              explain target selection, safety, platform routes, claims, and
-              evidence. The common command is:
-            </p>
-            <pre><code>bin/machine-control --target &lt;name&gt; ...</code></pre>
-            <p>
-              Tell the agent what application to work on and which configured
-              targets matter. It can discover the rest from the repository and
-              the private inventory available on the controller.
-            </p>
-          </article>
-        </div>
+        <ol class="product-setup-steps">
+          <li>
+            <span>01</span>
+            <div><h3>Install and open Machine Control</h3>
+              <p>Choose the download for your operating system and architecture.
+                Install on your physical computer or inside the VM you want to
+                control. The app runs in the menu bar or tray.</p></div>
+          </li>
+          <li>
+            <span>02</span>
+            <div><h3>Follow Permissions</h3>
+              <p>On Mac, enable Accessibility and Screen Recording. On Linux,
+                approve GNOME screen/input sharing when needed. For browser
+                control, follow Chrome extension setup in the app.</p></div>
+          </li>
+          <li>
+            <span>03</span>
+            <div><h3>Point your agent to the bundled CLI</h3>
+              <p>Give an agent that can run commands the prompt below. It can read
+                the CLI's agent instructions and discover your installed control
+                surface. <a href="https://github.com/kzahel/machine-control/blob/main/topics/installed-agent-cli.md#contract">Installed CLI locations and discovery</a></p></div>
+          </li>
+          <li>
+            <span>04</span>
+            <div><h3>Choose access, then start the task</h3>
+              <p>Enable selected scopes and duration in Access, or approve a
+                native request. Turn access off whenever you need to. On Mac and
+                Windows, Pause and Resume let you temporarily stop control.
+                Review activity in the app.</p></div>
+          </li>
+        </ol>
+        <p class="product-scope-note">Desktop grants normally apply to callers
+          running as your user. They do not contain an agent with an unrestricted
+          same-user shell. <a href="https://github.com/kzahel/machine-control/blob/main/desktop/README.md#approval-and-control-boundaries">Read the access boundaries</a>.</p>
       </div>
     </section>
 
@@ -102,19 +90,15 @@ python3 bin/check --portable</code></pre>
       <div class="shell start-shell">
         <div class="prompt-heading">
           <div>
-            <p class="eyebrow">Agent handoff</p>
-            <h2>Give the coding agent this prompt.</h2>
+            <p class="eyebrow">Your choice of agent</p>
+            <h2>Give your agent a task and a target.</h2>
           </div>
-          <p>
-            Replace the two angle-bracket placeholders. The prompt preserves
-            the safe operating loop without requiring you to explain every
-            command yourself.
-          </p>
+          <p>Replace the two placeholders. Use your computer, a configured VM,
+            or a prepared physical device as the target.</p>
         </div>
-
         <div class="agent-prompt-card">
           <div class="agent-prompt-toolbar">
-            <span>machine-control handoff</span>
+            <span>Machine Control handoff</span>
             <button type="button" data-copy-prompt aria-describedby="copy-status">Copy prompt</button>
           </div>
           <pre data-agent-prompt><code>{agentPrompt}</code></pre>
@@ -123,85 +107,58 @@ python3 bin/check --portable</code></pre>
       </div>
     </section>
 
-    <section class="section section-white" id="operating-loop">
+    <section class="section section-white" id="devices">
       <div class="shell start-shell">
         <div class="section-heading">
-          <p class="eyebrow">Every target session</p>
-          <h2>The agent follows one guarded loop.</h2>
-          <p>
-            The target may be a desktop VM, a physical Chromebook, or a phone.
-            The provider changes; the surrounding development discipline stays
-            recognizable.
-          </p>
+          <p class="eyebrow">Physical devices and remote computers</p>
+          <h2>Prepare the device you want to reach.</h2>
+          <p>iPhone and Chromebook control have their own setup. These routes use
+            native device tools and the common CLI, rather than a desktop
+            installer on the device.</p>
         </div>
-        <div class="session-flow" aria-label="Discover, doctor, reserve, operate, verify, and release the target">
-          <div><strong>Discover</strong><span>eligible targets</span></div>
-          <i aria-hidden="true">→</i>
-          <div><strong>Doctor</strong><span>read-only readiness</span></div>
-          <i aria-hidden="true">→</i>
-          <div><strong>Reserve</strong><span>claim or device lease</span></div>
-          <i aria-hidden="true">→</i>
-          <div><strong>Operate</strong><span>build · deploy · test</span></div>
-          <i aria-hidden="true">→</i>
-          <div><strong>Verify</strong><span>effect and evidence</span></div>
-          <i aria-hidden="true">→</i>
-          <div><strong>Release</strong><span>prompt cleanup</span></div>
+        <div class="product-device-grid">
+          <article class="product-card">
+            <h3>Physical iPhone</h3>
+            <p>Prepare an authorized Mac, pair the device, enable Developer Mode,
+              and provision the signed XCTest runner. Device trust and protected
+              authentication keep their native requirements.</p>
+            <a class="text-link" href="https://github.com/kzahel/machine-control/tree/main/platforms/ios">iPhone setup guide →</a>
+          </article>
+          <article class="product-card">
+            <h3>Chromebook</h3>
+            <p>Use a dedicated developer-mode Chromebook and follow its bootstrap
+              guide for native desktop, browser, capture, and input access.</p>
+            <a class="text-link" href="https://github.com/kzahel/machine-control/tree/main/platforms/chromeos">Chromebook setup guide →</a>
+          </article>
         </div>
-        <div class="loop-notes">
-          <p><strong>Doctor is read-only.</strong> It proves exact identity and readiness before the agent changes a shared target.</p>
-          <p><strong>Reservations are explicit.</strong> The agent carries a VM claim or follows the device route’s lease model, then releases it in finally-style cleanup.</p>
-          <p><strong>Delivery is not effect.</strong> Results keep the attempted action separate from what the application demonstrably did.</p>
+        <div class="product-card-links product-guide-links">
+          <a href="https://github.com/kzahel/machine-control/tree/main/platforms/android">Android</a>
+          <a href="https://github.com/kzahel/machine-control/tree/main/platforms/quest">Quest</a>
+          <a href="https://github.com/kzahel/machine-control/tree/main/platforms/steamdeck">Steam Deck</a>
+          <a href="https://github.com/kzahel/machine-control/blob/main/docs/controller-host-support.md">VM and remote setup</a>
+          <a href="https://github.com/kzahel/machine-control/blob/main/docs/target-registry.md">Target configuration</a>
         </div>
       </div>
     </section>
 
-    <section class="section" id="new-lab">
-      <div class="shell start-shell setup-grid">
-        <div>
-          <p class="eyebrow">One-time setup</p>
-          <h2>Starting without a configured lab?</h2>
-          <p>
-            This is the longer path. Choose the target, prepare its VM host or
-            authorized device controller, install the platform-owned components,
-            and keep concrete machine identity in private configuration.
-          </p>
-          <a class="text-link" href="https://github.com/kzahel/machine-control/blob/main/docs/controller-host-support.md">Check VM controller-host support →</a>
+    <section class="section" id="advanced">
+      <div class="shell start-shell product-advanced">
+        <div class="section-heading">
+          <p class="eyebrow">Optional capabilities</p>
+          <h2>Go further when you need it.</h2>
+          <p>Locked-screen access on Mac and Windows requires explicit opt-in,
+            helper preparation, and supported platform conditions. Use the
+            <a href="https://github.com/kzahel/machine-control/blob/main/platforms/macos/docs/locked-use.md">Mac guide</a>
+            or <a href="https://github.com/kzahel/machine-control/blob/main/desktop/WINDOWS-LOCKED-USE.md">Windows guide</a>
+            before enabling it.</p>
         </div>
-        <div class="setup-steps">
-          <article>
-            <strong>Choose a platform guide</strong>
-            <p>Follow the target’s prerequisites, bootstrap, resident or device-runner, and recovery guidance.</p>
-            <nav aria-label="Platform setup guides">
-              <a href="https://github.com/kzahel/machine-control/tree/main/platforms/windows">Windows</a>
-              <a href="https://github.com/kzahel/machine-control/tree/main/platforms/macos">macOS</a>
-              <a href="https://github.com/kzahel/machine-control/tree/main/platforms/linux">Linux</a>
-              <a href="https://github.com/kzahel/machine-control/tree/main/platforms/chromeos">ChromeOS</a>
-              <a href="https://github.com/kzahel/machine-control/tree/main/platforms/ios">iOS</a>
-              <a href="https://github.com/kzahel/machine-control/tree/main/platforms/android">Android</a>
-            </nav>
-          </article>
-          <article>
-            <strong>Keep target identity private</strong>
-            <p>Machine names, endpoints, device identifiers, credentials, and concrete routes belong in ignored local configuration or a private inventory provider—not the public checkout.</p>
-            <a class="text-link" href="https://github.com/kzahel/machine-control/blob/main/docs/target-registry.md">Choose a registry setup →</a>
-          </article>
-          <article>
-            <strong>Prove the route before using it</strong>
-            <p>List the logical target, run its read-only doctor, repair identity or readiness when necessary, then let the normal claim-and-control loop begin.</p>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section class="section start-cta">
-      <div class="shell start-shell start-cta-inner">
-        <div>
-          <p class="eyebrow">Ready</p>
-          <h2>Give the agent the repository and a real target.</h2>
-        </div>
+        <p>For source checkouts, headless use, scripts, claims, and isolated VM
+          workspaces, follow the <a href="https://github.com/kzahel/machine-control/blob/main/docs/cli-guide.md">CLI guide</a>.
+          Linux dependencies and installation details are in the
+          <a href="https://github.com/kzahel/machine-control/blob/main/desktop/LINUX.md">Linux guide</a>.</p>
         <div class="actions">
-          <a class="button button-primary" href="https://github.com/kzahel/machine-control">Clone Machine Control</a>
-          <a class="button button-secondary" href="/#targets">See current targets</a>
+          <a class="button button-primary" href="/downloads/">Download the app</a>
+          <a class="button button-secondary" href="/#targets">Explore devices</a>
         </div>
       </div>
     </section>

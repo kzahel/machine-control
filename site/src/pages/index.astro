@@ -3,426 +3,230 @@ import SiteFooter from "../components/SiteFooter.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import NewsletterSignup from "../components/NewsletterSignup.astro";
 import SiteLayout from "../layouts/SiteLayout.astro";
+import appScreenshot from "../../../docs/images/desktop-access-macos.png";
+import "../styles/product.css";
 
-const title = "Machine Control — One agent session across every target";
+const title = "Machine Control — Your agent. Your devices. Your control.";
 const description =
-  "Machine Control lets coding agents build, launch, inspect, and verify applications across Windows, macOS, Linux, ChromeOS, iOS, and Android VMs and physical devices.";
+  "Give your choice of AI agent desktop and browser control on a physical computer or VM. Install for Mac, Windows, or Linux, and reach real iPhones, Chromebooks, and other devices.";
 ---
 
-<SiteLayout title={title} description={description} canonicalPath="/">
+<SiteLayout title={title} description={description} canonicalPath="/" image={appScreenshot.src}>
   <SiteHeader />
-  <main>
-    <section class="hero">
+  <main class="product-page">
+    <section class="hero product-hero">
       <div class="shell hero-grid">
         <div class="hero-copy">
-          <p class="eyebrow">Virtual machines · physical devices · one agent session</p>
-          <h1>Let one coding agent test every platform you ship.</h1>
+          <p class="eyebrow">Desktop app · real devices · your choice of agent</p>
+          <h1>Let AI agents use your computers and devices.</h1>
           <p class="lede">
-            Build anywhere, then let the agent install, launch, inspect, and
-            verify the real application across Windows, macOS, Linux, ChromeOS,
-            iOS, and Android through one target-native interface.
+            Install Machine Control on a Mac, Windows PC, or Linux computer—physical
+            or virtual. Give agents access to apps, browser tabs, screenshots,
+            keyboard, and mouse, with controls you can see and stop.
+          </p>
+          <p class="hero-device-note">
+            Reach real iPhones, Chromebooks, Android devices, and more through
+            their native control routes.
           </p>
           <div class="actions">
-            <a class="button button-primary" href="/downloads/">
-              Download for Mac
-            </a>
-            <a class="button button-secondary" href="/getting-started/">
-              Get started
-            </a>
+            <a class="button button-primary" href="/downloads/">Download for Mac, Windows &amp; Linux</a>
+            <a class="button button-secondary" href="#targets">Explore devices ↓</a>
           </div>
-          <ul class="proof-list" aria-label="Project facts">
-            <li>Desktop · mobile · ChromeOS</li>
-            <li>VMs and physical hardware</li>
-            <li>Native semantics and input</li>
+          <ul class="proof-list" aria-label="Product facts">
             <li>Open source</li>
+            <li>Provider independent</li>
+            <li>Physical computers and VMs</li>
           </ul>
         </div>
-
-        <div class="terminal-card" aria-label="Example Machine Control session">
-          <div class="terminal-heading">
-            <span>release check</span>
-            <span>VM + physical</span>
-          </div>
-          <pre><code><span class="prompt">$</span> mc targets
-windows    vm         ready
-macos      vm         ready
-linux      vm         ready
-chromeos   physical   ready
-ios        physical   ready
-android    physical   ready
-
-<span class="prompt">$</span> mc --target ios ios snapshot --interactive
-
-provider        XCTest
-device          physical
-observation     semantic + screenshot
-diagnostics     app logs + os_log + crashes</code></pre>
-        </div>
+        <figure class="product-screenshot">
+          <img
+            src={appScreenshot.src}
+            width={appScreenshot.width}
+            height={appScreenshot.height}
+            alt="Machine Control on macOS, showing access scopes, Pause access, and the Permissions, Activity, and Settings tabs."
+            loading="eager"
+            fetchpriority="high"
+          />
+          <figcaption>The Mac app. Choose access scopes and pause control at any time.</figcaption>
+        </figure>
       </div>
     </section>
 
-    <section class="section target-section" id="targets">
+    <section class="section" id="features">
       <div class="shell">
         <div class="section-heading">
-          <p class="eyebrow">The whole test lab</p>
-          <h2>VMs when isolation matters. Physical devices when hardware matters.</h2>
+          <p class="eyebrow">Why Machine Control</p>
+          <h2>Your choice of agent. Your whole desktop.</h2>
           <p>
-            A virtual machine is ideal for repeatable desktop builds and clean
-            workspaces. A real Chromebook, iPhone, Android device, headset, or
-            handheld exposes hardware, security, drivers, and lifecycle behavior
-            that simulation cannot prove.
+            Use an OpenAI or Anthropic agent, another provider, or your own.
+            Any agent that can run commands can use Machine Control's CLI.
+            You choose the agent, the machine, and the access.
           </p>
         </div>
-        <div class="target-families">
-          <article class="target-family">
-            <header>
-              <span>Virtual targets</span>
-              <strong>Repeatable desktop environments</strong>
-            </header>
-            <div class="target-cards">
-              <div>
-                <strong>Windows</strong>
-                <span>UIA · Cua · Win32</span>
-                <small>First complete vertical slice</small>
-              </div>
-              <div>
-                <strong>macOS</strong>
-                <span>AX · Cua · Quartz</span>
-                <small>Accepted VM appliance</small>
-              </div>
-              <div>
-                <strong>Linux</strong>
-                <span>AT-SPI · Cua · Wayland</span>
-                <small>Accepted VM appliance</small>
-              </div>
-            </div>
+        <div class="product-feature-grid">
+          <article class="product-card">
+            <span class="product-card-label">Desktop</span>
+            <h3>Full desktop control</h3>
+            <p>Work across applications and system UI. Agents can read UI elements,
+              operate controls, enter text, and capture the screen using the
+              platform's native capabilities and your selected permissions.</p>
           </article>
-          <article class="target-family target-family-physical">
-            <header>
-              <span>Physical targets</span>
-              <strong>Real hardware and native device runners</strong>
-            </header>
-            <div class="target-cards">
-              <div>
-                <strong>ChromeOS</strong>
-                <span>chrome.automation · CDP · native capture/input</span>
-                <small>Working physical reference</small>
-              </div>
-              <div>
-                <strong>iOS</strong>
-                <span>CoreDevice · XCTest UI · deploy · logs · crashes</span>
-                <small>Live-tested physical-device route</small>
-              </div>
-              <div>
-                <strong>Android</strong>
-                <span>ADB · deploy · capture · input · logs</span>
-                <small>Working handheld foundation</small>
-              </div>
-              <div>
-                <strong>Quest · Steam Deck</strong>
-                <span>Device-specific native operations</span>
-                <small>Working specialized routes</small>
-              </div>
+          <article class="product-card">
+            <span class="product-card-label">Browser</span>
+            <h3>Native browser control</h3>
+            <p>Control existing Chrome tabs, including signed-in sites, through
+              the optional extension. Grant browser access separately from
+              scripts and DevTools for deeper automation.</p>
+            <a class="text-link" href="https://github.com/kzahel/machine-control/blob/main/topics/browser-control.md">Browser setup and capabilities →</a>
+          </article>
+          <article class="product-card">
+            <span class="product-card-label">Permission</span>
+            <h3>Ask first. Work on your terms.</h3>
+            <p>Agents can request permission in a native prompt. Choose scopes
+              and duration, and turn access off at any time. On Mac and Windows,
+              pause access while you work and resume when you're ready.</p>
+          </article>
+          <article class="product-card">
+            <span class="product-card-label">Locked screen</span>
+            <h3>Keep working while you're away</h3>
+            <p>Opt in to approved tasks on an awake computer while its screen is
+              locked. Mac and Windows profiles use covered control and task-end
+              relock, with additional helper setup and platform requirements.</p>
+            <div class="product-card-links">
+              <a href="https://github.com/kzahel/machine-control/blob/main/platforms/macos/docs/locked-use.md">Mac setup</a>
+              <a href="https://github.com/kzahel/machine-control/blob/main/desktop/WINDOWS-LOCKED-USE.md">Windows setup</a>
             </div>
           </article>
         </div>
-
-        <div class="ios-proof" id="ios">
-          <div class="ios-proof-copy">
-            <p class="eyebrow">Physical iOS · stock device</p>
-            <h3>Debug a real iPhone, end to end.</h3>
-            <p>
-              From one coding session, install and launch a development build,
-              inspect its XCTest accessibility state, act on the real UI, move
-              bounded test files, and collect the evidence that explains a
-              failure—not just a final screenshot.
-            </p>
-            <div class="ios-capabilities" aria-label="Current physical iOS capabilities">
-              <div><strong>Deploy and manage</strong><span>install · launch · terminate · uninstall</span></div>
-              <div><strong>Observe and act</strong><span>semantic UI · screenshots · tap · fill · home</span></div>
-              <div><strong>Diagnose</strong><span>app logs · system os_log · crash reports</span></div>
-              <div><strong>Exchange test data</strong><span>deep-link payloads · app-container files</span></div>
-            </div>
-            <p class="ios-constraint">
-              Uses CoreDevice and XCTest through an authorized Mac, plus a
-              narrow libimobiledevice system-log route. The phone stays stock:
-              no jailbreak or general shell, and passcodes, biometrics, and
-              protected credentials remain local to the device.
-            </p>
-            <a class="text-link" href="https://github.com/kzahel/machine-control/tree/main/platforms/ios">
-              Explore the physical iOS guide →
-            </a>
-          </div>
-          <div class="ios-proof-terminal" aria-label="Example physical iOS debugging workflow">
-            <div class="terminal-heading">
-              <span>real iPhone debug loop</span>
-              <span>CoreDevice + XCTest</span>
-            </div>
-            <pre><code><span class="prompt">$</span> mc --target ios target doctor
-ready             true
-device             physical
-
-<span class="prompt">$</span> mc --target ios ios system-logs start
-<span class="prompt">$</span> mc --target ios ios application launch \
-    com.example.app --relaunch
-<span class="prompt">$</span> mc --target ios ios snapshot --interactive
-observation        semantic + screenshot
-
-<span class="prompt">$</span> mc --target ios ios system-logs collect \
-    /tmp/ios-system.log
-<span class="prompt">$</span> mc --target ios ios crashes list
-evidence           bounded + route-reported</code></pre>
-          </div>
-        </div>
-
-        <div class="host-support" id="vm-hosts">
-          <div class="host-support-heading">
-            <div>
-              <p class="eyebrow">VM controller hosts</p>
-              <h3>Run the VM lab from macOS or Linux today.</h3>
-            </div>
-            <p>
-              The controller host runs the hypervisor adapter; the target is the
-              guest being tested. Windows already runs the portable coordinator,
-              while its local Hyper-V host route is the next planned addition.
-            </p>
-          </div>
-          <div class="host-matrix-wrap">
-            <table class="host-matrix" aria-label="Current desktop virtual-machine controller-host support">
-              <thead>
-                <tr>
-                  <th scope="col">Controller host</th>
-                  <th scope="col">Host status</th>
-                  <th scope="col">Windows guest</th>
-                  <th scope="col">macOS guest</th>
-                  <th scope="col">Linux guest</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th scope="row"><strong>macOS</strong><small>Apple hardware</small></th>
-                  <td data-label="Host status"><span class="matrix-state matrix-live">Supported</span><small>Current baseline</small></td>
-                  <td data-label="Windows guest"><span>Supported</span><small>UTM / QEMU</small></td>
-                  <td data-label="macOS guest"><span>Supported</span><small>Tart</small></td>
-                  <td data-label="Linux guest"><span>Supported</span><small>UTM / QEMU</small></td>
-                </tr>
-                <tr>
-                  <th scope="row"><strong>Linux</strong><small>native x86_64 KVM</small></th>
-                  <td data-label="Host status"><span class="matrix-state matrix-live">Supported</span><small>Live accepted</small></td>
-                  <td data-label="Windows guest"><span>Supported</span><small>libvirt / KVM</small></td>
-                  <td data-label="macOS guest"><span class="matrix-muted">Apple hardware only</span><small>Remote route instead</small></td>
-                  <td data-label="Linux guest"><span>Supported</span><small>libvirt / KVM</small></td>
-                </tr>
-                <tr>
-                  <th scope="row"><strong>Windows</strong><small>eligible editions</small></th>
-                  <td data-label="Host status"><span class="matrix-state matrix-soon">Coming soon</span><small>Coordinator works today</small></td>
-                  <td data-label="Windows guest"><span>Planned</span><small>Hyper-V</small></td>
-                  <td data-label="macOS guest"><span class="matrix-muted">Apple hardware only</span><small>Remote route instead</small></td>
-                  <td data-label="Linux guest"><span>Planned</span><small>Hyper-V</small></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <p class="table-note">
-            This matrix describes desktop VM hosting, not where the agent may
-            run or which physical devices it can control.
-            <a href="https://github.com/kzahel/machine-control/blob/main/docs/controller-host-support.md">Full controller-host details →</a>
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <section class="section section-white" id="projects">
-      <div class="shell project-grid">
-        <div class="project-intro">
-          <p class="eyebrow">Why it exists</p>
-          <h2>One development session for every app we ship.</h2>
-          <p>
-            At Graehl Arts, an agent can make a code change, send the build to
-            the right VM or physical device, exercise the real application, and
-            bring back evidence—without the developer juggling six separate
-            consoles and tool vocabularies.
-          </p>
-          <div class="release-path" aria-label="One agent session reaches Windows, macOS, Linux, ChromeOS, iOS, and Android">
-            <strong>one agent session</strong>
-            <span>→</span>
-            <em>Win</em><em>Mac</em><em>Linux</em><em>ChromeOS</em><em>iOS</em><em>Android</em>
-          </div>
-          <a class="text-link" href="https://graehlarts.com">Visit Graehl Arts →</a>
-        </div>
-        <div class="project-list">
-          <a href="https://jstorrent.com"><strong>JSTorrent</strong><span>Shared TypeScript product across desktop, browser, Android, ChromeOS, and iOS.</span></a>
-          <a href="https://github.com/kzahel/rstorrent"><strong>RSTorrent</strong><span>Rust engine with maintained desktop, Android, and iOS clients.</span></a>
-          <a href="https://at-piano.com"><strong>Atpiano</strong><span>Native macOS and Windows application packaging and UI workflows.</span></a>
-          <a href="https://ok200.app"><strong>200 OK Web Server</strong><span>Cross-platform web-server application for desktop, Android, and ChromeOS.</span></a>
-        </div>
-      </div>
-    </section>
-
-    <section class="section" id="how-it-works">
-      <div class="shell">
-        <div class="section-heading">
-          <p class="eyebrow">One workflow, native controls</p>
-          <h2>The interface is shared. The platform stays real.</h2>
-          <p>
-            Machine Control normalizes target selection, observations, actions,
-            and results without pretending that every operating system works the
-            same way.
-          </p>
-        </div>
-
-        <div class="architecture" role="img" aria-label="A coding agent calls Machine Control, which routes work to desktop virtual machines, physical ChromeOS hardware, and mobile devices, then returns evidence about the outcome">
-          <div class="diagram-node diagram-agent">
-            <span class="node-label">CALLER</span>
-            <strong>Coding agent</strong>
-            <small>build · deploy · test</small>
-          </div>
-          <div class="diagram-arrow" aria-hidden="true">→</div>
-          <div class="diagram-node diagram-core">
-            <span class="node-label">COMMON INTERFACE</span>
-            <strong>Machine Control</strong>
-            <small>target · claim · observe · act</small>
-          </div>
-          <div class="diagram-arrow" aria-hidden="true">→</div>
-          <div class="target-stack">
-            <div><strong>Desktop VMs</strong><span>Windows · macOS · Linux</span></div>
-            <div><strong>ChromeOS</strong><span>physical · target-native</span></div>
-            <div><strong>Devices</strong><span>iOS · Android · Quest</span></div>
-          </div>
-          <div class="diagram-return">
-            <span class="node-label">RESULT</span>
-            actual route · delivery · effect · evidence · uncertainty
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section section-ink" id="development-loop">
-      <div class="shell">
-        <div class="section-heading">
-          <p class="eyebrow">A release loop one agent can finish</p>
-          <h2>Build once. Visit every target. Come back with evidence.</h2>
-          <p>
-            The coding session does not end when compilation succeeds. The same
-            agent can move through the configured lab and finish the platform
-            work on each real target.
-          </p>
-        </div>
-        <ul class="workflow">
-          <li>
-            <strong>Choose a target</strong>
-            <p>Find the right VM or physical device and inspect its real capabilities.</p>
-          </li>
-          <li>
-            <strong>Reserve and prepare it</strong>
-            <p>Claim an exact shared target or acquire an isolated workspace, then prove readiness.</p>
-          </li>
-          <li>
-            <strong>Install and launch</strong>
-            <p>Send the build to the target and start the application in the real operating system.</p>
-          </li>
-          <li>
-            <strong>Inspect and exercise</strong>
-            <p>Use semantic UI, screenshots, keyboard, pointer, and platform-native operations.</p>
-          </li>
-          <li>
-            <strong>Verify and release</strong>
-            <p>Confirm the application effect, retain useful evidence, and cleanly release the target.</p>
-          </li>
-        </ul>
-      </div>
-    </section>
-
-    <section class="section section-white" id="compact-observations">
-      <div class="shell context-grid">
-        <div class="context-copy">
-          <p class="eyebrow">Context is part of the system</p>
-          <h2>Send useful state, not an endless desktop stream.</h2>
-          <p>
-            Compact semantic projections keep stable roles, labels, values,
-            bounds, and actions while filtering provider noise. Content digests
-            let an unchanged observation return without repeating the element
-            tree.
-          </p>
-          <p class="fine-print">
-            These are measured response bytes from current Windows fixtures,
-            not a claim about exact model-token savings. A cross-provider token
-            benchmark is planned.
-          </p>
-          <a class="text-link" href="https://github.com/kzahel/machine-control/blob/main/topics/capabilities-and-results.md">
-            Read the measurements →
-          </a>
-        </div>
-        <div class="measurements" aria-label="Measured semantic response sizes">
-          <article>
-            <div class="measurement-heading"><strong>Calculator</strong><span>response bytes</span></div>
-            <div class="bar-row"><span>full</span><i class="bar-100"></i><b>9,971</b></div>
-            <div class="bar-row"><span>compact</span><i class="bar-66"></i><b>6,577</b></div>
-            <div class="bar-row"><span>unchanged</span><i class="bar-12"></i><b>1,165</b></div>
-          </article>
-          <article>
-            <div class="measurement-heading"><strong>Settings</strong><span>response bytes</span></div>
-            <div class="bar-row"><span>full</span><i class="bar-100"></i><b>4,971</b></div>
-            <div class="bar-row"><span>compact</span><i class="bar-77"></i><b>3,843</b></div>
-            <div class="bar-row"><span>unchanged</span><i class="bar-20"></i><b>986</b></div>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section class="section" id="status">
-      <div class="shell">
-        <div class="section-heading status-heading">
-          <div>
-            <p class="eyebrow">Target-platform status</p>
-            <h2>Broad target support. Honest maturity.</h2>
-          </div>
-          <p>Desktop VMs and physical devices have different maturity, but both are part of the product—not a future category bolted onto a desktop-only design.</p>
-        </div>
-        <div class="status-table" role="table" aria-label="Current platform status">
-          <div class="status-row status-header" role="row"><span>Target</span><span>Current route</span><span>Status</span></div>
-          <div class="status-row" role="row"><strong>Windows</strong><span>Common desktop · UIA / Cua / Win32</span><em>First complete vertical slice</em></div>
-          <div class="status-row" role="row"><strong>macOS</strong><span>Common desktop · AX / Quartz / Cua</span><em>Accepted VM appliance</em></div>
-          <div class="status-row" role="row"><strong>Linux</strong><span>Common desktop · AT-SPI / Wayland</span><em>Accepted VM appliance</em></div>
-          <div class="status-row" role="row"><strong>ChromeOS</strong><span>Desktop accessibility · CDP · native capture/input</span><em>Working physical reference</em></div>
-          <div class="status-row" role="row"><strong>iOS</strong><span>CoreDevice deploy/lifecycle · XCTest UI · app/system logs · crash reports</span><em>Live-tested physical-device route</em></div>
-          <div class="status-row" role="row"><strong>Android</strong><span>ADB administration · deploy · capture/input/logs</span><em>Working handheld foundation</em></div>
-          <div class="status-row" role="row"><strong>Other</strong><span>Quest · Steam Deck</span><em>Working specialized native routes</em></div>
-        </div>
-        <p class="table-note">
-          “Accepted” means exercised against the repository’s conformance and
-          real-application workflows. It is not a production support SLA.
-          <a href="https://github.com/kzahel/machine-control#what-works-today">Full platform status →</a>
+        <p class="product-scope-note">
+          Capabilities vary by platform. Locked-screen profiles are opt-in and
+          experimental; Linux currently targets Ubuntu GNOME Wayland.
+          <a href="https://github.com/kzahel/machine-control/blob/main/docs/desktop-acceptance.md">See feature and testing coverage</a>.
         </p>
-        <div class="compare-callout">
-          <div>
-            <span>Choosing the rest of the stack?</span>
-            <strong>See how Machine Control works alongside Playwright, Appium, Cua, and BrowserStack.</strong>
-          </div>
-          <a class="button button-secondary" href="/compare/">Open the comparison →</a>
+      </div>
+    </section>
+
+    <section class="section section-white" id="desktop">
+      <div class="shell">
+        <div class="section-heading">
+          <p class="eyebrow">Install where the work happens</p>
+          <h2>Your computer. A test VM. A remote machine.</h2>
+          <p>
+            Install the desktop app on a physical computer or inside a VM.
+            It runs in the menu bar or tray and includes the control CLI.
+            Configured remote targets use the same native controls.
+          </p>
+        </div>
+        <div class="product-platform-grid">
+          <article class="product-card product-platform">
+            <h3>macOS</h3>
+            <p>Apple silicon and Intel.<br />Menu bar app with native permissions.</p>
+            <a class="button button-secondary" href="/downloads/#mac-download">Download for Mac</a>
+          </article>
+          <article class="product-card product-platform">
+            <h3>Windows</h3>
+            <p>Intel / AMD x64 and ARM64.<br />Tray app with visible access controls.</p>
+            <a class="button button-secondary" href="/downloads/#windows-download">Download for Windows</a>
+          </article>
+          <article class="product-card product-platform">
+            <h3>Linux</h3>
+            <p>Ubuntu GNOME Wayland, x64 and ARM64.<br />Debian and AppImage packages.</p>
+            <a class="button button-secondary" href="/downloads/#linux-download">Download for Linux</a>
+          </article>
+        </div>
+        <p class="product-scope-note">
+          VM control runs inside the guest, so ordinary tasks don't need to focus
+          a hypervisor window on your desktop. Remote access requires a configured,
+          authenticated route. <a href="https://github.com/kzahel/machine-control/blob/main/docs/controller-host-support.md">VM and remote setup</a>
+        </p>
+      </div>
+    </section>
+
+    <section class="section" id="targets">
+      <div class="shell">
+        <div class="section-heading">
+          <p class="eyebrow">Real devices, too</p>
+          <h2>Reach beyond the desktop.</h2>
+          <p>
+            Let the same agent work with real phones, Chromebooks, headsets,
+            and handhelds. Each uses its native controls and device-specific setup.
+          </p>
+        </div>
+        <div class="product-device-grid">
+          <article class="product-card product-device" id="ios">
+            <span class="product-card-label">Physical iOS</span>
+            <h3>A real iPhone, in your workflow</h3>
+            <p>Install and launch apps, inspect and act on the real UI, take
+              screenshots, and collect app logs, system logs, crash reports,
+              and test files.</p>
+            <p class="product-card-detail">Uses an authorized Mac with pairing,
+              Developer Mode, and a signed XCTest runner. Protected authentication
+              stays on the device.</p>
+            <a class="text-link" href="https://github.com/kzahel/machine-control/tree/main/platforms/ios">Set up iPhone control →</a>
+          </article>
+          <article class="product-card product-device" id="chromeos">
+            <span class="product-card-label">ChromeOS</span>
+            <h3>The Chromebook desktop, connected</h3>
+            <p>Operate desktop controls and browser tabs, capture screenshots,
+              send keyboard and pointer input, and deploy software—all through
+              controls running on the Chromebook.</p>
+            <p class="product-card-detail">Uses a dedicated developer-mode
+              Chromebook and configured remote access.</p>
+            <a class="text-link" href="https://github.com/kzahel/machine-control/tree/main/platforms/chromeos">Set up Chromebook control →</a>
+          </article>
+        </div>
+        <div class="product-other-devices" aria-label="Other native device routes">
+          <a href="https://github.com/kzahel/machine-control/tree/main/platforms/android"><strong>Android</strong><span>Deploy apps, capture, input, and logs</span></a>
+          <a href="https://github.com/kzahel/machine-control/tree/main/platforms/quest"><strong>Quest</strong><span>Device selection, deployment, and lifecycle</span></a>
+          <a href="https://github.com/kzahel/machine-control/tree/main/platforms/steamdeck"><strong>Steam Deck</strong><span>Administration and native session operations</span></a>
         </div>
       </div>
     </section>
 
-    <section class="section section-ink notes-preview">
-      <div class="shell notes-grid">
+    <section class="section section-ink" id="get-started">
+      <div class="shell">
+        <div class="section-heading">
+          <p class="eyebrow">Start with the app</p>
+          <h2>Install. Choose access. Connect your agent.</h2>
+          <p>Keep access off until you're ready. Approve an agent's request or
+            enable the scopes you want, for a timed session or until you turn it off.</p>
+        </div>
+        <ol class="product-steps">
+          <li><span>01</span><strong>Install the app</strong><p>Download for your computer or VM and open Machine Control.</p></li>
+          <li><span>02</span><strong>Enable permissions</strong><p>Follow Permissions for desktop access and optional Chrome setup.</p></li>
+          <li><span>03</span><strong>Give your agent a task</strong><p>Point it to the installed CLI and approve the access it needs.</p></li>
+        </ol>
+        <div class="actions">
+          <a class="button button-on-dark" href="/getting-started/">Installation and agent handoff →</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-white" id="automation">
+      <div class="shell product-automation">
         <div>
-          <p class="eyebrow">Project story</p>
-          <h2>From a ChromeOS testbed to agent-native development.</h2>
-          <p>
-            Machine Control began because an agent needed to test an application
-            on a real Chromebook. That exposed a much bigger opportunity: let
-            the same development session finish its work across every target.
-          </p>
-          <a class="button button-on-dark" href="/blog/from-chromeos-testbed-to-agent-native-development/">
-            Read the story →
-          </a>
+          <p class="eyebrow">For developers and automation</p>
+          <h2>A desktop app with a CLI underneath.</h2>
+          <p>Use the bundled CLI from your agent, terminal, or scripts.
+            Headless deployments, remote targets, and isolated VM workspaces
+            have focused guides.</p>
+          <div class="product-card-links">
+            <a href="https://github.com/kzahel/machine-control/blob/main/docs/cli-guide.md">CLI guide</a>
+            <a href="https://github.com/kzahel/machine-control/tree/main/platforms">Platform guides</a>
+            <a href="https://github.com/kzahel/machine-control/blob/main/topics/architecture.md">Architecture</a>
+            <a href="/compare/">Compare tools</a>
+          </div>
         </div>
-        <div class="note-meta">
-          <p>Project story</p>
-          <p>6 minute read</p>
-          <p>August 25, 2026</p>
-        </div>
+        <aside class="product-origin">
+          <h3>Built for real software</h3>
+          <p>Developed at <a href="https://graehlarts.com">Graehl Arts</a> for
+            applications that span desktop, browser, and physical devices.</p>
+          <p><a href="https://jstorrent.com">JSTorrent</a> ·
+            <a href="https://github.com/kzahel/rstorrent">RSTorrent</a> ·
+            <a href="https://at-piano.com">Atpiano</a> ·
+            <a href="https://ok200.app">200 OK Web Server</a></p>
+          <a class="text-link" href="/blog/from-chromeos-testbed-to-agent-native-development/">How it started on a Chromebook →</a>
+        </aside>
       </div>
     </section>
 
@@ -430,11 +234,8 @@ evidence           bounded + route-reported</code></pre>
       <div class="shell newsletter-grid">
         <div>
           <p class="eyebrow">Occasional updates</p>
-          <h2>Follow the work as the lab grows.</h2>
-          <p>
-            New platform evidence, compact-control measurements, and useful
-            development workflows. No cadence promises and no marketing drip.
-          </p>
+          <h2>Follow the app and device work.</h2>
+          <p>New releases, platform improvements, and useful agent workflows.</p>
         </div>
         <NewsletterSignup source="homepage" />
       </div>
