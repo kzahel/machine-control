@@ -1,8 +1,11 @@
 # Linux desktop preview
 
 The first supported profile is Ubuntu 24.04 with GNOME 46 on Wayland. x64 and
-ARM64 packages are built natively. Desktop execution is accepted on an x64 VM;
-ARM64 desktop execution, other desktops, and physical hardware remain untested.
+ARM64 packages are built natively. Installed x64 Debian/AppImage execution
+and focused ARM64 Debian access,
+semantic-effect, and Stop checks pass on GNOME Wayland VMs. Broader ARM64
+portal/browser/lifecycle coverage, other desktops, and physical hardware remain
+open.
 See the [acceptance matrix](../docs/desktop-acceptance.md).
 
 ## Install

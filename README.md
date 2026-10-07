@@ -1,553 +1,149 @@
 # Machine Control
 
-**Target-native automation for computers and devices.**
+**Let AI agents use your computers and devices—with access you control.**
 
-[machinecontrol.dev](https://machinecontrol.dev) presents the project for
-cross-platform application developers; this repository contains the complete
-source, contracts, evidence, and implementation.
+Machine Control is a desktop app for macOS, Windows, and Linux that gives
+agents access to applications, browser tabs, screenshots, keyboard, and mouse.
+Choose what they can access, pause control, and review activity. It also
+provides a CLI for automation and remote targets, including physical iPhones,
+Chromebooks, Android devices, and more.
 
-Machine Control gives software agents one target-oriented interface for
-operating Windows, macOS, Linux, ChromeOS, iOS, Android, and other devices. It
-combines system administration, semantic UI automation, screen capture, input,
-application control, lifecycle, and recovery without reducing every platform
-to screenshots and coordinates.
+[Download](https://machinecontrol.dev/downloads/) ·
+[Desktop guide](desktop/README.md) · [CLI guide](docs/cli-guide.md) ·
+[Device setup](platforms/README.md)
 
-The important distinction is where control happens. A Windows VM is driven
-through Windows services and UI Automation inside the guest. A Mac uses
-Accessibility and native application APIs. A Chromebook exposes its own
-desktop accessibility tree. An iPhone uses CoreDevice and XCTest from an
-authorized device host. Hypervisor windows and external keyboard/video routes
-remain available for bootstrap and recovery, not ordinary application testing.
+![Machine Control on macOS, showing access scopes, Pause access, and the Permissions, Activity, and Settings tabs.](docs/images/desktop-access-macos.png)
 
-```bash
-mc=bin/machine-control
+*Machine Control on macOS. Choose access scopes and pause control at any time.*
 
-$mc targets
-$mc --target windows target doctor
-claim="$($mc --target windows claim acquire --duration 30m \
-  --reason 'exercise the application workflow' \
-  --claimant-authority example-agent --claimant-id session-42)"
-claim_id="$(jq -er 'select(.accepted == true) | .data.claim.claimId' <<<"$claim")" || exit 1
-$mc --target windows --claim "$claim_id" desktop applications
-$mc --target windows claim release "$claim_id"
-```
+## What you can do
 
-Machine Control is an active, pre-1.0 project. Windows, macOS, and Linux
-already share an exercised desktop contract; ChromeOS and several physical
-device families have working native implementations with different levels of
-common-facade coverage.
+- **Use desktop applications:** inspect windows and UI elements, click controls,
+  enter text, and capture screenshots.
+- **Control the browser:** inspect and operate tabs through the optional Chrome
+  extension, with separate access for browser scripts and DevTools.
+- **Work with real devices:** install and exercise apps on a physical iPhone,
+  operate a Chromebook's desktop and browser, or deploy to Android and Quest.
+- **Test locally or remotely:** drive your own computer, a VM, or a configured
+  physical device from the agent's existing session.
+- **Keep access visible:** select scopes and duration in the desktop app, pause
+  supported control sessions, stop access, and inspect activity.
 
-## Why Machine Control?
+Available controls depend on the platform and selected permissions. Machine
+Control combines native UI information with screenshots and input, so agents
+can inspect what a button means as well as where it appears.
 
-Most UI automation tools solve one layer or one platform. Remote-desktop tools
-usually expose pixels and input. Accessibility tools expose semantics but not
-lifecycle, administration, protected desktops, or recovery. Device tools such
-as ADB and XCTest are powerful but have unrelated interfaces.
+## Get the desktop app
 
-Machine Control puts those capabilities behind one honest target model:
+[Download for Mac, Windows, or Linux](https://machinecontrol.dev/downloads/).
+The app includes the control CLI and its Python runtime; using the installed
+CLI does not require a source checkout or a separate Python installation.
 
-- **Rich native control:** use UIA, AX, AT-SPI, Chrome accessibility, XCTest,
-  ADB, and platform services instead of choosing pixels as the universal
-  denominator.
-- **The same experience locally and remotely:** an agent can run on the target
-  or reach the target-native controller through an authenticated transport.
-- **No routine host interference:** normal VM testing does not focus a
-  hypervisor window, steal the host pointer, or type through the controller's
-  desktop.
-- **Cooperative exclusive use:** expiring claims tell concurrent callers who
-  is using an exact VM, for what reason, and until when.
-- **Truthful results:** request acceptance, action delivery, observed effect,
-  evidence, and uncertainty remain separate.
-- **Recovery without architectural confusion:** outer VM, device-host, and KVM
-  routes are explicit when the native route is unavailable.
+1. Install and open Machine Control.
+2. Follow Permissions to enable the platform's required access and optional
+   browser integration.
+3. Choose access scopes and duration, or approve an agent's request.
 
-## North Star
-
-The North Star is simple: an authorized agent should be able to select any
-supported computer or device and use the richest practical controls native to
-that target, regardless of where the agent itself is running.
-
-```text
-control(target=self, ...)
-control(target=windows, ...)
-control(target=macos, ...)
-control(target=chromeos, ...)
-control(target=ios, ...)
-control(target=android, ...)
-```
-
-Changing the target may change transport, latency, available capabilities, or
-the evidence an operation can produce. It should not require inventing a new
-workflow for every operating system.
-
-This direction has a few durable consequences:
-
-1. **Target-native first.** Administration, semantics, capture, input, and
-   application control execute in the target OS whenever the platform permits.
-2. **Outside control is first-class.** An authorized outside agent can drive a
-   resident controller directly. Spawning another agent inside the target is
-   optional and useful for local development context, not a prerequisite.
-3. **Devices use their strongest native model.** Stock iOS uses an XCTest
-   runner and CoreDevice on an authorized Mac; Android begins with ADB and
-   UIAutomator/accessibility. They are not forced into a misleading desktop
-   service design.
-4. **Outer control is explicit.** Hypervisor consoles, host input, hardware
-   KVM, and similar routes are for installation, bootstrap, independent
-   diagnosis, and recovery.
-5. **The contract belongs to this project.** Cua and platform-specific
-   providers are replaceable implementations behind an owned facade and
-   conformance corpus.
-6. **Capabilities and outcomes are reported honestly.** A successful API call
-   is not proof that an application changed state.
-
-Windows is the first complete implementation vertical slice. That is the
-project's sequencing strategy, not a limit on its platform scope. ChromeOS is
-the current architectural reference for rich remote access to control that
-still executes entirely on the target.
+The app runs in the menu bar or tray. Closing its settings window keeps it
+running; Quit ends it. Access starts off, and you can stop it from the app.
+Grants normally apply to callers running as your user; an agent with an
+unrestricted shell under that same account is not contained by those grants.
+See [security and authorization](SECURITY.md) for the boundaries.
 
 ## What works today
 
-The project deliberately shares an experience rather than pretending every
-platform has the same implementation.
+**Current:** desktop packages are available for both architectures on all three
+platforms. The app is actively used and developed; the release remains
+pre-1.0, and testing coverage varies by platform and environment.
 
-The optional [Tauri desktop app](desktop/README.md) supplies setup, visible
-approval, activity, and tray controls over the native resident. Public 0.5.4
-includes Mac ARM64/Intel, Windows x64/ARM64, and Linux x64/ARM64 packages, plus
-the bundled Python CLI, native update discovery, and Mac sudo helpers. All six
-packages and production update routes are authenticated. Version-specific GUI
-execution evidence covers ARM64 Tart, Windows x64/ARM64, and Linux x64/ARM64
-GNOME VMs. Version 0.5.4 adds indefinite manual access on Windows and Linux,
-with focused installed acceptance on all three ARM64 VMs and a production
-Windows upgrade. Intel GUI and full physical-host acceptance remain open.
-The [desktop acceptance matrix](docs/desktop-acceptance.md) distinguishes
-these product results from earlier native runtime evidence.
-Headless control remains independent.
-The [desktop release process](release/desktop.md) owns one tagged publication flow
-and [latest Mac, Windows, and Linux downloads](https://machinecontrol.dev/downloads/).
+| Platform | Desktop app availability |
+| --- | --- |
+| macOS | Apple silicon and Intel; native app control, capture/input, browser integration, and signed updates. Recorded execution coverage is strongest on Apple silicon. |
+| Windows | x64 and ARM64; native app control, capture/input, browser integration, and signed updates, with installed GUI acceptance on both architectures. Optional UAC and locked-screen helpers require separate setup. |
+| Linux | x64 and ARM64 Debian/AppImage packages for Ubuntu GNOME Wayland. App control uses accessibility; screen/input sharing uses visible portal consent. Broader Linux desktops remain open. |
 
-| Platform | Current control surface | Maturity |
-| --- | --- | --- |
-| Windows | Common desktop facade, administration, UIA/Cua semantics, capture/input, application and session control, UAC/lock/login, lifecycle, workspaces, and appliance maintenance | First complete vertical slice; live ARM64 VM and physical x64 evidence |
-| macOS | Common desktop facade using Accessibility, Workspace, Quartz/CoreGraphics, and selected Cua routes; application UI, system surfaces, administrator sheets, capture/input, lifecycle, workspaces, and maintenance | Accepted Aqua/Tart appliance and explicit existing-session unlock on a SIP-enabled VM; experimental [covered locked use](topics/macos-locked-use.md) with bounded physical evidence; fresh login, preboot, and broader physical-Mac profiles remain |
-| Linux | Common desktop facade using AT-SPI, GNOME capture, target-local input, application lifecycle, workspaces, and maintenance | Accepted Ubuntu 24.04 GNOME 46 Wayland appliance; GDM, lock, other compositors, and physical hardware remain |
-| ChromeOS | Target-native administration, desktop accessibility, per-page CDP, capture/input, readiness, and guarded runtime maintenance | Working physical reference implementation; broader common desktop projection remains |
-| iOS | CoreDevice lifecycle, deployment, container exchange, and crash reports; semantic XCTest; bounded application/system logs; screenshots, input, leases, and recovery | Working physical-device route with explicit protected-authentication limits |
-| Android | Guarded ADB discovery, administration, deployment, lifecycle, capture, input, logs, and shared transport primitives | Implemented handheld foundation; richer semantic/profile coverage remains |
-| Quest | Exact-device ADB selection, lifecycle, deployment, wake/proximity policy, leases, and recovery | Working device-specific route sharing the Android transport foundation |
-| Steam Deck | Direct SteamOS/Devkit administration and session-aware native operations | Working native platform interface; common facade coverage remains |
+The [desktop acceptance matrix](docs/desktop-acceptance.md) records exact
+package, architecture, VM, and physical-machine coverage. Setup and feature
+limits live in the [desktop guide](desktop/README.md) and
+[Linux installation guide](desktop/LINUX.md). Release changes live in the
+[changelog](desktop/CHANGELOG.md).
 
-“Accepted” here means exercised against this repository's conformance and
-real-application workflows. It is not a claim of universal hardware coverage
-or a production support SLA. Platform-specific status, limitations, and setup
-live under [`platforms/`](platforms/README.md).
+## Physical devices and remote targets
 
-## Controller-host support
+Machine Control also works beyond the computer running the desktop app.
+These routes use platform-specific setup and native runners through the common
+CLI; they are not additional desktop app installers.
 
-The **target platform** is the OS being controlled. The **controller host** is
-the machine that executes the selected adapter and is physically or logically
-attached to its hypervisor or device. These are independent: coordinator code
-running on Linux is not by itself a Linux-hosted route to a Windows VM.
+- **[Physical iOS devices](platforms/ios/README.md):** control a real iPhone
+  from an authorized Mac using CoreDevice and XCTest. Install and launch apps,
+  inspect and act on UI elements, take screenshots, and collect app/system logs,
+  crash reports, and app-container files. Developer Mode, pairing, and runner
+  signing are part of setup; protected authentication retains its native limits.
+- **[ChromeOS](platforms/chromeos/README.md):** control a dedicated
+  developer-mode Chromebook's desktop accessibility tree, browser tabs,
+  screenshots, and input remotely, with the controls running on the Chromebook.
+- **[Android](platforms/android/README.md) and
+  [Quest](platforms/quest/README.md):** native device discovery, deployment,
+  lifecycle, capture/input, and diagnostics through their ADB-based routes.
+- **[Steam Deck](platforms/steamdeck/README.md):** device administration and
+  session-aware native operations.
 
-The common coordinator and its fixture-backed checks run on macOS, Linux, and
-Windows. Live desktop-VM hosting remains provider-specific:
+For desktop VMs and remote computers, see the
+[platform guides](platforms/README.md) and
+[controller-host support](docs/controller-host-support.md). Ordinary VM control
+runs inside the guest and does not require focusing its hypervisor window.
 
-| Controller host | Coordinator evidence | Live-tested desktop VM routes | Planned desktop VM routes |
-| --- | --- | --- | --- |
-| macOS | Portable and native checks; current live controller | UTM/QEMU for Windows and Linux; Tart for macOS | Current baseline |
-| Linux | Portable and native checks plus exact-source execution inside both native guests | libvirt with QEMU/KVM for native x86_64 Windows and Linux guests | Broader host and guest-profile coverage |
-| Windows | Hosted CI, native runtime builds and experimental host execution | Experimental VirtualBox guests on Home; protected Windows base and development copy | VirtualBox factory/isolated workspaces; unassisted lifecycle; QEMU/WHPX blocked on Windows 11 TPM; Hyper-V remains a candidate on eligible editions |
+## Command-line automation
 
-The Linux row is live-accepted only for native x86_64 KVM domains. Its provider
-refuses software emulation and cross-architecture domains before start or
-derivation. The Windows row has an opt-in local adapter and bounded Linux
-resident evidence, not a supported production factory/workspace provider.
-Each new provider must independently
-prove exact target identity, guarded lifecycle, administration, workspace
-isolation and cleanup, resident desktop conformance, explicit recovery, and
-host non-interference before being documented as supported.
-
-macOS guests remain on Apple hardware. A Linux or Windows caller will reach a
-physical Mac, its target-resident controller, or an Apple-hosted Tart provider
-through an authenticated remote route; the plan does not emulate macOS under
-KVM or Hyper-V. Device routes have their own controller-host constraints—iOS,
-for example, requires an authorized Mac—so `machine-control targets` reports
-eligibility for the concrete selected route rather than inferring it from the
-target OS.
-
-The provider direction and adoption gates are maintained in
-[`vm-workspaces-and-storage-policy.md`](topics/vm-workspaces-and-storage-policy.md),
-while coordinator-versus-route portability is maintained in
-[`cross-platform-coordinator.md`](topics/cross-platform-coordinator.md).
-
-## Capabilities
-
-Depending on the target, Machine Control can provide:
-
-- target discovery, readiness diagnostics, and lifecycle;
-- shell, files, processes, packages, services, logs, and deployment;
-- application and window inventory, launch, activation, and termination;
-- compact semantic snapshots and generation-scoped element actions;
-- target-local display or exact-window capture;
-- target-local keyboard, pointer, clipboard, and window management;
-- truthful login, lock, interactive-session, integrity, and desktop state;
-- explicitly authorized protected operations on dedicated test appliances;
-- persistent, isolated, and retained-candidate VM workspaces;
-- exclusive, expiring ordinary/disruptive VM-use claims with visible caller
-  attribution;
-- bounded maintenance, reboot proof, candidate validation, and image
-  certification; and
-- route, delivery, effect, evidence, host-interference, and uncertainty
-  reporting.
-
-Capabilities are discovered, not assumed. Unsupported or unsafe operations
-return typed refusals rather than silently switching to a weaker or more
-disruptive route.
-
-## How it works
-
-```text
-agent on the target -------------------- local IPC ----+
-                                                       |
-agent somewhere else -------- authenticated transport +--->
-                                                       |    target adapter
-                                                       |      |
-                                                       |      +-- desktop resident
-                                                       |      |     semantics
-                                                       |      |     capture/input
-                                                       |      |     apps/sessions
-                                                       |      |
-authorized device host -------- CoreDevice / ADB ------+      +-- device-native runner
-
-explicit recovery request -------------------------------> outer VM / KVM route
-```
-
-[`bin/machine-control`](bin/machine-control) is the common local entry point.
-It selects a logical target and delegates to the authoritative platform
-adapter. Desktop adapters then reach the target-resident facade; device
-adapters use the strongest native runner available to that device class.
-
-The common interface normalizes target selection, capability discovery,
-requests, results, and evidence. It does not erase meaningful platform
-differences. Windows UIA, macOS Accessibility, Linux AT-SPI, Chrome
-accessibility, XCTest, and ADB keep their real authority and failure modes.
-
-Agent coordination is a separate layer. YepAnywhere is the current surrounding
-coordination plane for agent sessions and cross-host delegation, but it does
-not own machine lifecycle or the machine-control contract. Machine Control
-accepts generic caller-supplied claim metadata from any coordinator, CI job,
-terminal, or other environment. See the [system map](SYSTEM-MAP.md) for
-ownership boundaries.
-
-## Quick start
-
-For the shortest agent-oriented handoff, use the
-[website getting-started guide](https://machinecontrol.dev/getting-started/).
-The details below cover the same path at operator depth.
-
-The common client requires Python 3.10 or later and uses only the standard
-library.
+The CLI supports desktop operations, physical devices, remote targets, and
+headless deployments. From a source checkout, start with read-only discovery:
 
 ```bash
 git clone https://github.com/kzahel/machine-control.git
 cd machine-control
-
 bin/machine-control targets
-python3 bin/check --portable
 ```
 
-On Windows, use `py -3 bin/machine-control targets` and
-`py -3 bin/check --portable`. Portable checks do not contact a VM or physical
-device.
+On Windows, use `py -3 bin/machine-control targets`. The source client requires
+Python 3.10 or later. Follow the [CLI guide](docs/cli-guide.md) for target setup,
+desktop and iOS examples, scoped tasks, and VM workspaces. Before operating an
+accepted VM, run its read-only doctor and acquire an exclusive target-use claim;
+scoped tasks manage claim renewal and cleanup.
 
-To connect a real target:
+## North Star
 
-1. Choose its guide from the [platform index](platforms/README.md).
-2. Install that platform's prerequisites and target-resident components.
-3. Put concrete selectors, endpoints, paths, policy, and locators for any
-   host-held credentials in ignored local configuration or an optional private
-   inventory provider, following the
-   [target-registry guide](docs/target-registry.md). Keep credential values in
-   its declared local secret store, not in this repository or the target
-   registry.
-4. Always inspect `inventory credentials TARGET` before VM login/unlock or
-   asking for human password entry. In registry-only setups, resolve the
-   adapter's declared secret-file locator. Use stored appliance credentials
-   through the supported secret transport. A missing locator/file or unsupported
-   delivery route is a specific handoff/capability gap; do not assume a locked
-   disposable VM requires manual entry. Then run the read-only doctor, repair
-   private identity if necessary, and claim the target before meaningful use.
+**Decision:** an authorized agent should be able to select a supported computer
+or device and use its richest practical native controls, whether the agent runs
+locally or elsewhere. Desktop control executes in the target OS; constrained
+devices use their strongest native runner and authorized device host. Another
+agent inside the target is optional. Hypervisor consoles and external KVM/input
+are explicit bootstrap and recovery routes.
 
-On a controller with a private inventory provider:
+The project owns a common control experience over replaceable providers, while
+preserving platform capabilities and limits. Results distinguish action delivery
+from observed effects. See [architecture](topics/architecture.md),
+[inner-first routing](topics/inner-first-routing.md), and
+[capabilities and results](topics/capabilities-and-results.md).
 
-```bash
-bin/machine-control inventory status
-bin/machine-control inventory credentials winvm
-bin/machine-control --target windows target doctor
-claim="$(bin/machine-control --target windows claim acquire \
-  --duration 30m --reason 'validate the Windows appliance' \
-  --claimant-authority example-agent --claimant-id session-42)"
-claim_id="$(jq -r '.data.claim.claimId' <<<"$claim")"
-bin/machine-control --target windows --claim "$claim_id" target ensure-ready
-bin/machine-control --target windows claim release "$claim_id"
-```
+## Documentation and development
 
-`doctor` is read-only. `ensure-ready` is the explicit mutating composition: it
-records the initial doctor result, performs only an adapter-declared ordinary
-start when appropriate, and observes readiness again. It does not guess a
-repair for a running unhealthy target.
+- [Desktop guide](desktop/README.md): setup, permissions, platform boundaries,
+  and building the app.
+- [CLI guide](docs/cli-guide.md) and [target configuration](docs/target-registry.md):
+  local/remote operation and private inventory.
+- [Platform guides](platforms/README.md): native setup, lifecycle, and recovery.
+- [Topics](topics/README.md): current decisions, status, and remaining work.
+- [Research](research/README.md): provider comparisons and evidence.
+- [Contracts](contracts/README.md), [glossary](GLOSSARY.md), and
+  [system map](SYSTEM-MAP.md): interface guarantees, vocabulary, and ownership.
+- [Execution records](docs/tactical/README.md) and
+  [release process](release/desktop.md): implementation and publication detail.
 
-Local target registries use the
-[`machine-control-targets/v0`](contracts/targets-v0.schema.json) schema. Logical
-target names are selectors, not credentials or bearer authority. The
-[target-registry guide](docs/target-registry.md) documents standalone
-`config.local`, ignored registry files, the per-user controller configuration,
-provider setup, resolution precedence, and the provider command contract.
-
-## Common workflows
-
-### Run a bounded task under a claim
-
-```bash
-bin/machine-control --target windows run \
-  --reason 'inspect the application desktop' \
-  --claimant-authority example-agent --claimant-id task-42 \
-  -- bin/machine-control desktop applications
-```
-
-The runner performs read-only doctor and exact-identity preflight, acquires and
-renews the claim, passes selection to nested common-client commands, and
-releases after task cleanup. Add `--intent isolated` to own a workspace and
-its claim together. Supply a script for a sequence of operations. The program
-runs locally; use `machine-control os -- …` inside it for guest commands.
-Plain scopes do not stop the VM; tasks still own any required lifecycle
-cleanup. See [scoped tasks](docs/scoped-runs.md) for signals, audit output,
-workspace retention, and unresolved-release recovery.
-
-### Claim a VM for exclusive use
-
-Use the lower-level commands when ownership must span independent processes:
-
-```bash
-mc=bin/machine-control
-
-$mc --target windows claim capabilities
-$mc --target windows claim status
-claim="$($mc --target windows claim acquire --duration 30m \
-  --reason 'test the save workflow' \
-  --claimant-authority example-agent --claimant-id session-42 \
-  --session-id task-7 --metadata purpose=acceptance)"
-claim_id="$(jq -r '.data.claim.claimId' <<<"$claim")"
-
-$mc --target windows --claim "$claim_id" target ensure-ready
-$mc --target windows --claim "$claim_id" desktop applications
-$mc --target windows claim renew "$claim_id" --duration 30m
-$mc --target windows claim release "$claim_id"
-```
-
-The authority and identifiers are caller-chosen, bounded, and self-asserted;
-they do not need to come from a particular agent system. Use values your
-current environment can truthfully expose, plus a useful reason. Do not put
-credentials, private endpoints, or provider identities in claim metadata.
-
-Claims are exclusive and expire after a reported interval, so an abandoned
-session cannot block a VM forever. Release promptly in a `finally` block or
-shell trap; renew only while work remains active. The opaque claim ID selects
-the current lease but is not a credential or authorization grant.
-
-### Inspect and control a desktop
-
-```bash
-mc=bin/machine-control
-
-$mc --target windows --claim "$claim_id" desktop status
-$mc --target windows --claim "$claim_id" desktop capabilities
-$mc --target windows --claim "$claim_id" desktop applications
-$mc --target windows --claim "$claim_id" desktop windows
-$mc --target windows --claim "$claim_id" desktop snapshot \
-  --target org.example.Application --query Save
-$mc --target windows --claim "$claim_id" desktop capture \
-  --scope window --target active_window
-```
-
-A semantic snapshot returns ephemeral, generation-scoped element references.
-Use those references for actions and rediscover them after navigation, process
-restart, or window recreation.
-
-### Use a physical iOS target
-
-```bash
-$mc --target ios target doctor
-$mc --target ios ios runner prepare
-$mc --target ios ios application launch Settings --relaunch
-$mc --target ios ios snapshot --interactive
-```
-
-iOS has a device-shaped operation family rather than pretending to be a
-desktop. Android, Quest, ChromeOS, and Steam Deck likewise retain explicit
-native operations where a common projection would hide important semantics.
-
-### Request a VM workspace
-
-```bash
-workspace="$($mc --target macos workspace acquire --intent isolated \
-  --reason 'run an isolated application test' \
-  --claimant-authority example-agent --claimant-id session-42)"
-handle="$(jq -r '.data.handle' <<<"$workspace")"
-claim_id="$(jq -r '.data.claim.claimId' <<<"$workspace")"
-$mc --target macos --workspace "$handle" --claim "$claim_id" desktop status
-$mc --target macos --claim "$claim_id" workspace release "$handle"
-```
-
-Callers request intent—`persistent`, `isolated`, or `candidate`—while the
-platform adapter chooses the safe provider mechanism. Workspace handles are
-opaque selectors backed by private exact-identity receipts. Acquisition also
-returns the workspace's live exclusive-use claim. Release requires that claim,
-performs receipt-bound retain/discard cleanup, and then relinquishes it.
-
-### Reach a platform-specific operation
-
-```bash
-$mc --target windows testbed -- help
-$mc --target chromeos maintenance capabilities
-$mc --target chromeos maintenance audit --profile runtime
-```
-
-`testbed --` keeps platform lifecycle, bootstrap, recovery, and specialized
-operations available without flattening them into a misleading universal
-interface. `os --` provides an explicit guest-administration escape on
-supported desktops.
-
-## Safety model
-
-Machine Control is designed for powerful automation without obscuring where
-that power comes from.
-
-- **Read-only diagnostics stay read-only.** Doctor does not boot, log in,
-  deploy, repair, grant consent, or fall back to host input.
-- **Mutations require exact targets.** Platform adapters bind state-changing
-  operations to private provider identities, target roles, and fresh
-  observations.
-- **Accepted VMs require live claims.** The authoritative adapter rechecks an
-  expiring exclusive-use claim against exact private identity before ordinary
-  target use. Status, doctor, and claim inspection remain available for
-  coordination and repair.
-- **No silent route escalation.** An inner operation may recommend recovery,
-  but it does not silently focus a VM window or invoke a more privileged route.
-- **Delivery is not effect.** Results distinguish request acceptance, action
-  delivery, independently observed effects, evidence, and uncertainty.
-- **Secrets do not belong in ordinary requests.** Credential operations use
-  dedicated one-shot transports and refuse before reading a secret when field
-  discovery is uncertain.
-- **Deployment posture is explicit.** A disposable test appliance may
-  authorize stronger protected control than a personal or shared workstation.
-
-The current Windows `dedicated-test-appliance` profile is intentionally
-powerful. Read [SECURITY.md](SECURITY.md) before installing or arming protected
-operations. The deeper routing and authorization policy is in
-[inner-first routing](topics/inner-first-routing.md).
-
-**High-priority validation:** [caller authorization](topics/caller-authorization.md).
-Desktop preview grants currently arm access for same-user callers, rather than
-an individual YA session. The Desktop-first plan has passed a bounded native
-identity experiment; authenticated session delegation and automatic grants
-remain pending. Publisher trust alone does not establish caller isolation.
-
-**Proposed follow-up:** [access admission and pause](topics/access-admission-and-pause.md)
-separates standing authorization from temporary pauses, waiting queues and
-finite active control. Its [staged plan](docs/tactical/074-access-admission-and-pause.md)
-includes polite activation, cancellation and shared host-desktop arbitration
-for physical control and explicit outer recovery. These features are not yet
-implemented.
-
-## Project structure
-
-| Path | Purpose |
-| --- | --- |
-| [`bin/machine-control`](bin/machine-control) | Common target-selecting CLI |
-| [`client/`](client/) | Portable coordinator and request translation |
-| [`contracts/`](contracts/README.md) | Exercised request, result, doctor, workspace, and maintenance schemas |
-| [`platforms/`](platforms/README.md) | Canonical platform lifecycle, native control, recovery, fixtures, and operating guides |
-| [`src/`](src/) | Reusable resident runtime code; currently the Windows service/session implementation |
-| [`providers/`](providers/) | Shared provider components such as workspace and ADB foundations |
-| [`tests/`](tests/) | Cross-platform client and resident conformance |
-| [`topics/`](topics/README.md) | Living architectural decisions and current direction |
-| [`research/`](research/README.md) | Provider dossiers and platform comparisons with evidence levels |
-| [`docs/tactical/`](docs/tactical/README.md) | Bounded implementation plans and completed execution records |
-| [`site/`](site/README.md) | Astro source for machinecontrol.dev |
-
-Concrete machine inventory, credentials, private routes, and deployment state
-do not belong in this public repository.
-
-## Documentation
-
-Start with the document that matches your question:
-
-- **How do I configure targets?** Read the
-  [target-registry and private-inventory guide](docs/target-registry.md).
-- **How do I operate a target?** Use the
-  [platform implementation index](platforms/README.md) and the selected
-  platform's README or agent guide.
-- **What does the common interface guarantee?** Read the
-  [contract projections](contracts/README.md),
-  [unified desktop client](topics/unified-desktop-client.md), and
-  [capabilities and results](topics/capabilities-and-results.md). For
-  multi-caller VM coordination, read
-  [target-use claims](topics/target-use-claims.md).
-- **Why is the system shaped this way?** Read
-  [architecture](topics/architecture.md),
-  [inner-first routing](topics/inner-first-routing.md), and the
-  [glossary](GLOSSARY.md).
-- **What owns each part?** Read the [system map](SYSTEM-MAP.md).
-- **What has been evaluated?** Enter through the
-  [research corpus](research/README.md).
-- **What is the current decision or next direction?** Use the
-  [topic index](topics/README.md).
-- **How was a completed slice executed?** Use the
-  [tactical index](docs/tactical/README.md).
-
-The documentation deliberately separates durable architecture, evidence,
-current decisions, and execution history. This README owns the product promise
-and repository-level synthesis; linked documents own implementation detail.
-
-## Development and validation
-
-Run the dependency-light checks from one entry point:
-
-```bash
-python3 bin/check --portable
-python3 bin/check --native
-```
-
-Portable checks run on macOS, Linux, and Windows without contacting configured
-targets. Native checks select the applicable platform build and static
-validation. The common client tests and guarded live desktop workflow are
-documented under [`tests/client`](tests/client/README.md); each platform guide
-names its deeper conformance suites.
-
-Research changes should preserve the repository's evidence levels. Continuing
-architectural concerns belong in a topic; bounded implementation programs
-belong in a tactical. See the [topic index](topics/README.md) and
-[research guide](research/README.md) before extending those corpora.
-
-## Scope and non-goals
-
-Machine Control is not trying to:
-
-- flatten platform-specific semantics into one lowest-common-denominator
-  implementation;
-- replace mature native facilities such as UIA, Accessibility, AT-SPI, XCTest,
-  CoreDevice, ADB, or Chrome accessibility;
-- make screenshot-and-coordinate control the default;
-- give ordinary workers generic access to hypervisors, hardware KVM, or
-  privileged system shells;
-- require an agent process inside every target;
-- treat secrets, biometrics, or protected authorization as ordinary JSON; or
-- claim that one successful provider call proves an application effect.
-
-The common schemas are currently `v0` and intentionally evolving. The project
-owns a stable ergonomic direction without prematurely freezing one universal
-wire protocol.
+Run `python3 bin/check --portable` for dependency-light checks that do not contact
+configured targets. Use `python3 bin/check --native` for applicable platform
+builds and static validation; deeper suites are in the platform guides and
+[client tests](tests/client/README.md).
 
 ## License
 
-Machine Control is available under the [MIT License](LICENSE).
+[MIT](LICENSE).

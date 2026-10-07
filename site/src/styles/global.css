@@ -2109,6 +2109,8 @@ h1 {
 
 .downloads-page { padding: 52px 0 64px; }
 .downloads-page h1 { font-size: 36px; margin-bottom: 24px; }
+.download-platforms { margin: 20px 0 28px; }
+.download-formats { margin-top: 18px; }
 .download-panel { border: 1px solid var(--line); background: var(--paper-bright); padding: 24px; margin-bottom: 20px; }
 .download-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
 .download-heading h2 { font-size: 22px; margin: 0; }

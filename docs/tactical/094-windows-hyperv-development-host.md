@@ -37,7 +37,7 @@ authorize declaring a supported provider from low-level smoke tests.
 
 **Current:** the coordinator and local Windows desktop adapter exist. Windows
 VM hosting is implemented for UTM on macOS and libvirt/KVM on Linux; there is
-no implemented Hyper-V provider. See the [host matrix](../../README.md#controller-host-support)
+no implemented Hyper-V provider. See the [host matrix](../controller-host-support.md)
 and the [Linux provider precedent](028-linux-libvirt-controller-host.md).
 
 **Current:** the desktop product contains a React/TypeScript UI, Rust/Tauri

@@ -4,7 +4,7 @@ import SiteHeader from "../components/SiteHeader.astro";
 import SiteLayout from "../layouts/SiteLayout.astro";
 import { loadDesktopRelease } from "../lib/desktop-release";
 const title = "Downloads — Machine Control";
-const description = "Download the Machine Control desktop preview.";
+const description = "Download Machine Control for Mac, Windows, or Ubuntu GNOME Wayland, with the control CLI included.";
 let release;
 let unavailable = false;
 try { release = await loadDesktopRelease(); } catch { unavailable = true; }
@@ -20,6 +20,12 @@ if (unavailable) {
   <main class="downloads-page">
     <div class="shell start-shell">
       <h1>Downloads</h1>
+      <p>Get the desktop app and bundled control CLI for your computer.</p>
+      <nav class="actions download-platforms" aria-label="Choose your platform">
+        <a class="button button-secondary" href="#mac-download">Mac</a>
+        <a class="button button-secondary" href="#windows-download">Windows</a>
+        <a class="button button-secondary" href="#linux-download">Linux</a>
+      </nav>
       <section class="download-panel" aria-labelledby="mac-download">
         <div class="download-heading">
           <h2 id="mac-download">Mac desktop</h2>
@@ -37,7 +43,7 @@ if (unavailable) {
             <li>Open the app. Grant Accessibility and Screen Recording in Permissions.</li>
             <li>Choose access scopes and a duration, or approve an agent request.</li>
           </ol>
-          <p class="download-note">Grants apply to all callers running as your user. Live tests cover Apple silicon Tart; physical Mac and Intel runtime acceptance remain open.</p>
+          <p class="download-note">Grants apply to callers running as your user. Recorded execution covers Apple silicon VMs and a focused physical-Mac smoke test; Intel GUI execution remains open. <a href="https://github.com/kzahel/machine-control/blob/main/docs/desktop-acceptance.md">Testing coverage</a></p>
         </> : <p class="download-state">{unavailable ? "Downloads temporarily unavailable. Try again shortly." : "No public Mac release yet."}</p>}
       </section>
       <section class="download-panel" aria-labelledby="windows-download">
@@ -48,8 +54,8 @@ if (unavailable) {
         <p>Tray app with visible access controls. Windows 11.</p>
         {release?.windowsDownloads ? <>
           <div class="actions">
-            <a class="button button-primary" href="/download/windows/x64">x64 .exe</a>
-            <a class="button button-secondary" href="/download/windows/arm64">ARM64 .exe</a>
+            <a class="button button-primary" href="/download/windows/x64">Intel / AMD x64 .exe</a>
+            <a class="button button-secondary" href="/download/windows/arm64">Windows on ARM .exe</a>
           </div>
           <p class="download-note">Signed. <a href={release.url}>Release notes</a></p>
           <ol class="download-steps">
@@ -57,7 +63,7 @@ if (unavailable) {
             <li>Choose access scopes and a duration, or approve an agent request.</li>
             <li>For Chrome, use browser setup in Permissions.</li>
           </ol>
-          <p class="download-note">Grants apply to callers running as your user. x64 passes VM testing. ARM64 packages are verified; native ARM64 execution remains untested.</p>
+          <p class="download-note">Grants apply to callers running as your user. Installed GUI acceptance covers x64 and focused ARM64 VM workflows. Physical-machine and optional protected-feature coverage remain separate. <a href="https://github.com/kzahel/machine-control/blob/main/docs/desktop-acceptance.md">Testing coverage</a></p>
         </> : <p class="download-state">{unavailable ? "Downloads temporarily unavailable. Try again shortly." : "No public Windows release yet."}</p>}
       </section>
       <section class="download-panel" aria-labelledby="linux-download">
@@ -65,17 +71,22 @@ if (unavailable) {
           <h2 id="linux-download">Linux desktop</h2>
           <span>{release?.linuxDownloads ? `v${release.version} · Preview` : "Preview"}</span>
         </div>
-        <p>Ubuntu GNOME Wayland. Screen and input sharing requires portal consent.</p>
+        <p>Ubuntu 24.04 GNOME 46 on Wayland. Screen and input sharing requires portal consent.</p>
         {release?.linuxDownloads ? <>
           <div class="actions">
+            <a class="button button-primary" href="/download/linux/amd64/deb">x64 .deb</a>
+            <a class="button button-secondary" href="/download/linux/arm64/deb">ARM64 .deb</a>
+          </div>
+          <p class="download-note">Debian packages install runtime dependencies through APT.</p>
+          <div class="actions download-formats">
             <a class="button button-primary" href="/download/linux/amd64/appimage">x64 AppImage</a>
             <a class="button button-secondary" href="/download/linux/arm64/appimage">ARM64 AppImage</a>
           </div>
-          <p class="download-note">Debian packages: <a href="/download/linux/amd64/deb">x64 .deb</a> · <a href="/download/linux/arm64/deb">ARM64 .deb</a>. <a href={release.url}>Release notes</a></p>
+          <p class="download-note"><a href={release.url}>Release notes</a></p>
           <p class="download-note">AppImage supports signed in-app updates. See the <a href="https://github.com/kzahel/machine-control/blob/main/desktop/LINUX.md">installation guide</a> for dependencies. Other desktops and physical hardware require separate validation.</p>
         </> : <p class="download-state">{unavailable ? "Downloads temporarily unavailable. Try again shortly." : "No public Linux release yet."}</p>}
       </section>
-      <p class="download-note">For testbeds and the common CLI, see <a href="/getting-started/">Getting started</a>.</p>
+      <p class="download-note">For CLI automation and remote targets, see the <a href="https://github.com/kzahel/machine-control/blob/main/docs/cli-guide.md">CLI guide</a>. Physical <a href="https://github.com/kzahel/machine-control/tree/main/platforms/ios">iOS devices</a>, <a href="https://github.com/kzahel/machine-control/tree/main/platforms/chromeos">Chromebooks</a>, and <a href="https://github.com/kzahel/machine-control/tree/main/platforms/android">Android devices</a> use their native setup guides.</p>
     </div>
   </main>
   <SiteFooter />

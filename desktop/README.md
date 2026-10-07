@@ -1,15 +1,17 @@
 # Machine Control desktop
 
-A shared Tauri operator application with the existing Mac resident embedded
-as a Swift framework in its native process. Windows bundles the existing .NET
-resident as a supervised companion with native grants. The signed Windows x64
-preview passes installed VM acceptance; ARM64 native desktop execution remains
-open. Linux uses a supervised Python/GI companion with native AT-SPI semantics
-and visible GNOME Wayland portal consent for screen capture and input. It never
-uses the dedicated appliance's root input broker. Source-native control and
-browser tests pass; exact signed x64 Debian/AppImage acceptance passes.
-Public 0.5.0 packages are available for both architectures; ARM64 desktop
-execution remains open.
+The desktop app provides access controls, permissions, activity, and settings
+on macOS, Windows, and Ubuntu GNOME Wayland. Public packages cover Apple
+silicon/Intel on Mac and x64/ARM64 on Windows and Linux, and include the control
+CLI and its Python runtime. [Download the app](https://machinecontrol.dev/downloads/).
+
+The shared Tauri application embeds the Mac Swift resident. Windows bundles
+the .NET resident as a supervised companion with native grants; installed GUI
+acceptance is recorded on x64 and ARM64 VMs. Linux uses an ordinary-user
+Python/GI companion with AT-SPI semantics and visible GNOME portal consent for
+capture/input, independently of the appliance's root input broker. Installed
+x64 Debian/AppImage acceptance and focused ARM64 Debian semantic/access checks
+pass; broader ARM64 portal/browser/lifecycle coverage remains open.
 
 See the [acceptance matrix](../docs/desktop-acceptance.md) for tested behavior
 by package, architecture, and VM/physical environment.
@@ -137,8 +139,9 @@ passed ARM64 Tart approval, fixture effects, Stop, tray Quit, and a `0.3.2` to
 `0.3.3` installed upgrade with permissions retained and grants revoked.
 Candidate `0.3.2` supplied the earlier signing and native acceptance baseline.
 [Tactical 051](../docs/tactical/051-tauri-macos-desktop.md) records the exact run
-and omissions. The application remains a developer preview; physical-host and
-Intel runtime acceptance are still open.
+and omissions. This is historical release evidence. Current environment
+coverage is recorded
+in the [acceptance matrix](../docs/desktop-acceptance.md).
 
 `.github/workflows/macos-desktop.yml` runs unsigned source checks on changes.
 A manual main-only dispatch builds Apple silicon and Intel candidates in the
@@ -166,10 +169,11 @@ rebuilding its signed bytes. The website resolves the
 latest desktop release separately from Windows component releases. See the
 [release process](../release/desktop.md) and [changelog](CHANGELOG.md).
 
-The latest public release is [0.5.7](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.7),
-with Mac, Windows, and Linux packages for both architectures and production
-metadata through the existing shared service. Current public package and
-delivery verification are recorded in
+Current public downloads are available from
+[the download page](https://machinecontrol.dev/downloads/), with Mac, Windows,
+and Linux packages for both architectures. The [changelog](CHANGELOG.md) owns
+versioned changes. Six-target 0.5.7 package and delivery verification is
+recorded in
 [Tactical 105](../docs/tactical/105-desktop-0.5.7-release.md); Linux
 installed GUI acceptance retains its exact 0.5.0 evidence in
 [Tactical 059](../docs/tactical/059-public-linux-desktop.md). Manual checks are
@@ -177,8 +181,9 @@ available in Settings and the tray. ARM64 Tart passes
 public 0.3.5 to 0.4.8 replacement with automatic relaunch and retained permissions;
 Windows x64 passes 0.4.7 to public 0.4.8 with Chrome open. Mac 0.3.3/0.3.4 clients
 may need to reopen after their first update. Windows ARM64 packages are signed
-and verified, with native ARM64 installed CLI smoke; Tauri GUI execution remains
-untested. Exact evidence is in
+and verified, with native installed CLI
+smoke and focused signed 0.5.4 GUI acceptance; broader browser/lifecycle
+coverage remains separate in the acceptance matrix. Exact evidence is in
 [tactical 055](../docs/tactical/055-unified-desktop-publication.md), with earlier
 Mac update history in [052](../docs/tactical/052-macos-production-updates.md).
 No automatic update installation is enabled. Native code rechecks that no
