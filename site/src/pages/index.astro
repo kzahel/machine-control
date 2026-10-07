@@ -8,7 +8,7 @@ import "../styles/product.css";
 
 const title = "Machine Control — Your agent. Your devices. Your control.";
 const description =
-  "Give your choice of AI agent desktop and browser control on a physical computer or VM. Install for Mac, Windows, or Linux, and reach real iPhones, Chromebooks, and other devices.";
+  "A desktop, device, and VM toolbox for your choice of AI agent. Control apps and browsers, create and validate Windows, macOS, and Linux guests, and reach real iPhones and Chromebooks.";
 ---
 
 <SiteLayout title={title} description={description} canonicalPath="/" image={appScreenshot.src}>
@@ -25,17 +25,17 @@ const description =
             keyboard, and mouse, with controls you can see and stop.
           </p>
           <p class="hero-device-note">
-            Reach real iPhones, Chromebooks, Android devices, and more through
-            their native control routes.
+            Create and coordinate Windows, macOS, and Linux VMs. Reach real
+            iPhones, Chromebooks, Android devices, and more through native controls.
           </p>
           <div class="actions">
             <a class="button button-primary" href="/downloads/">Download for Mac, Windows &amp; Linux</a>
             <a class="button button-secondary" href="#targets">Explore devices ↓</a>
           </div>
           <ul class="proof-list" aria-label="Product facts">
-            <li>Open source</li>
+            <li><a href="https://github.com/kzahel/machine-control">Open source</a></li>
             <li>Provider independent</li>
-            <li>Physical computers and VMs</li>
+            <li>Desktop, device, and VM tools</li>
           </ul>
         </div>
         <figure class="product-screenshot">
@@ -137,8 +137,62 @@ const description =
         <p class="product-scope-note">
           VM control runs inside the guest, so ordinary tasks don't need to focus
           a hypervisor window on your desktop. Remote access requires a configured,
-          authenticated route. <a href="https://github.com/kzahel/machine-control/blob/main/docs/controller-host-support.md">VM and remote setup</a>
+          authenticated route. <a href="/virtual-machines/">Explore the VM tools</a>
         </p>
+      </div>
+    </section>
+
+    <section class="section" id="virtual-machines">
+      <div class="shell">
+        <div class="section-heading">
+          <p class="eyebrow">A toolbox for the whole VM lifecycle</p>
+          <h2>Create the guest. Get it ready. Put it to work.</h2>
+          <p>
+            Machine Control helps create, set up, validate, and coordinate
+            Windows, macOS, and Linux VMs. Native utilities inside each guest
+            let an agent operate it without opening or focusing a VM window
+            on your desktop.
+          </p>
+        </div>
+        <div class="product-feature-grid">
+          <article class="product-card">
+            <span class="product-card-label">Provision</span>
+            <h3>Create and prepare guests</h3>
+            <p>Use platform tools for OS installation or prepared images,
+              guest administration, and resident control setup. Stage checks
+              show what is ready and what still needs attention.</p>
+          </article>
+          <article class="product-card">
+            <span class="product-card-label">Operate</span>
+            <h3>Guest-side tools. Headless operation.</h3>
+            <p>Administration, app control, screenshots, and input run inside
+              the guest. An agent can reach those tools remotely while the VM
+              runs without a visible hypervisor window on your computer.</p>
+          </article>
+          <article class="product-card">
+            <span class="product-card-label">Validate</span>
+            <h3>Prove the guest is ready</h3>
+            <p>Check guest administration, desktop state, and control readiness.
+              Audit runtime health, verify reboot recovery, and certify
+              candidates through the supported maintenance workflows.</p>
+          </article>
+          <article class="product-card">
+            <span class="product-card-label">Coordinate</span>
+            <h3>Share guests and isolate work</h3>
+            <p>Exclusive, expiring reservations coordinate agents using a shared
+              VM. Reuse a development guest, discard an isolated workspace,
+              or retain a candidate. Scoped tasks renew reservations and release
+              them during cleanup.</p>
+          </article>
+        </div>
+        <p class="product-scope-note">
+          Provisioning uses the CLI and platform setup tools. Supported hosting
+          routes depend on the guest and controller OS; macOS guests require
+          Apple hardware. Host-console input remains a bootstrap or recovery route.
+        </p>
+        <div class="actions product-guide-links">
+          <a class="button button-primary" href="/virtual-machines/">Explore VM setup and workflows →</a>
+        </div>
       </div>
     </section>
 
@@ -234,7 +288,7 @@ const description =
       <div class="shell newsletter-grid">
         <div>
           <p class="eyebrow">Occasional updates</p>
-          <h2>Follow the app and device work.</h2>
+          <h2>Follow the app, device, and VM work.</h2>
           <p>New releases, platform improvements, and useful agent workflows.</p>
         </div>
         <NewsletterSignup source="homepage" />

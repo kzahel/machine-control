@@ -1,0 +1,150 @@
+---
+import SiteFooter from "../components/SiteFooter.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteLayout from "../layouts/SiteLayout.astro";
+import "../styles/product.css";
+
+const title = "VM toolbox — Machine Control";
+const description =
+  "Create, prepare, validate, and coordinate Windows, macOS, and Linux VMs. Guest-side Machine Control utilities let agents operate them without interrupting your host desktop.";
+---
+
+<SiteLayout title={title} description={description} canonicalPath="/virtual-machines/">
+  <SiteHeader />
+  <main class="product-page product-start">
+    <section class="page-intro start-intro">
+      <div class="shell start-shell">
+        <p class="eyebrow">Windows · macOS · Linux guests</p>
+        <h1>A VM toolbox your agent can put to work.</h1>
+        <p class="lede">
+          Create a guest, set up its native control utilities, validate readiness,
+          and coordinate tasks across your VM lab. Machine Control covers the
+          environment around the application as well as the application itself.
+        </p>
+        <div class="actions">
+          <a class="button button-primary" href="#setup">Choose a VM setup guide ↓</a>
+          <a class="button button-secondary" href="/#desktop">Explore the desktop app</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="guest-control">
+      <div class="shell start-shell">
+        <div class="section-heading">
+          <p class="eyebrow">Tools inside the guest</p>
+          <h2>Your host desktop stays yours.</h2>
+          <p>
+            Once provisioned, a guest's Machine Control utilities handle
+            administration, apps, browser control, screenshots, and input inside
+            that guest. Your agent can stay in its existing session and reach
+            those tools through the configured transport.
+          </p>
+        </div>
+        <div class="product-device-grid">
+          <article class="product-card">
+            <h3>Operate without a VM window</h3>
+            <p>Ordinary tasks can use the guest's running desktop without opening
+              or focusing a hypervisor window, moving your host pointer, or typing
+              into your own desktop. The VM's interactive session and native
+              control services still need to be ready.</p>
+          </article>
+          <article class="product-card">
+            <h3>Use the same controls locally or remotely</h3>
+            <p>An agent inside the guest can call its resident utilities locally;
+              an outside agent reaches the same control surface through an
+              authenticated route. Running another agent inside the VM is optional.</p>
+          </article>
+        </div>
+        <p class="product-scope-note">Host-console observation and input are
+          explicit tools for initial setup, diagnosis, and recovery. Ordinary
+          application control uses the guest-side route.</p>
+      </div>
+    </section>
+
+    <section class="section section-white" id="lifecycle">
+      <div class="shell start-shell">
+        <div class="section-heading">
+          <p class="eyebrow">From fresh guest to reusable environment</p>
+          <h2>Prepare it. Validate it. Coordinate the work.</h2>
+        </div>
+        <div class="product-feature-grid">
+          <article class="product-card">
+            <h3>Create and bootstrap</h3>
+            <p>Platform tools support Windows image factories, Ubuntu installation,
+              and prepared or fresh macOS images. Bootstrap guest administration
+              and resident controls, then recheck each setup stage.</p>
+          </article>
+          <article class="product-card">
+            <h3>Check and maintain readiness</h3>
+            <p>Read-only doctor checks report power, administration, session, and
+              control readiness separately. Supported maintenance workflows audit
+              runtime health, make explicit repairs, prove reboot recovery, and
+              certify candidates.</p>
+            <a class="text-link" href="https://github.com/kzahel/machine-control/blob/main/topics/target-lifecycle-and-readiness.md">Lifecycle and readiness guide →</a>
+          </article>
+          <article class="product-card">
+            <h3>Coordinate shared VM use</h3>
+            <p>Exclusive, expiring claims reserve an exact VM for one task.
+              Scoped runs perform readiness preflight, renew the reservation
+              while work continues, and release it during cleanup.</p>
+            <a class="text-link" href="https://github.com/kzahel/machine-control/blob/main/docs/scoped-runs.md">Scoped task guide →</a>
+          </article>
+          <article class="product-card">
+            <h3>Choose what to keep</h3>
+            <p>Reuse a persistent development VM, run an isolated workspace and
+              discard its changes, or retain a candidate for validation and
+              promotion. The provider chooses the supported clone or overlay
+              mechanism and handles owned-workspace cleanup.</p>
+            <a class="text-link" href="https://github.com/kzahel/machine-control/blob/main/topics/vm-workspaces-and-storage-policy.md">Workspace guide →</a>
+          </article>
+        </div>
+        <p class="product-scope-note">Releasing a reservation does not shut down
+          a VM. Tasks arrange their intended power-state cleanup separately;
+          isolated workspace cleanup follows its provider's retain/discard policy.</p>
+      </div>
+    </section>
+
+    <section class="section" id="setup">
+      <div class="shell start-shell">
+        <div class="section-heading">
+          <p class="eyebrow">Choose the guest and its host</p>
+          <h2>Start with a supported setup route.</h2>
+          <p>VM creation and coordination use the repository's CLI and platform
+            tools. The desktop installer supplies control for an existing
+            computer or guest; it does not create a VM by itself.</p>
+        </div>
+        <div class="product-platform-grid">
+          <article class="product-card product-platform">
+            <h3>Windows guest</h3>
+            <p>ARM64 under UTM on Mac, or native x64 under libvirt/KVM on Linux.
+              Image factory, guest bootstrap, and candidate validation.</p>
+            <a class="text-link" href="https://github.com/kzahel/machine-control/blob/main/platforms/windows/docs/image-factory.md">Windows factory guide →</a>
+          </article>
+          <article class="product-card product-platform">
+            <h3>macOS guest</h3>
+            <p>Tart on Apple hardware. Prepared images or fresh IPSW guests,
+              native permissions, and guest readiness checks.</p>
+            <a class="text-link" href="https://github.com/kzahel/machine-control/blob/main/platforms/macos/docs/bootstrap.md">Mac bootstrap guide →</a>
+          </article>
+          <article class="product-card product-platform">
+            <h3>Linux guest</h3>
+            <p>Ubuntu under UTM on Mac or native x64 libvirt/KVM on Linux.
+              Installation, guest tools, and resident setup.</p>
+            <a class="text-link" href="https://github.com/kzahel/machine-control/blob/main/platforms/linux/docs/bootstrap.md">Linux bootstrap guide →</a>
+          </article>
+        </div>
+        <p class="product-scope-note">Host and guest support are separate.
+          Windows-hosted VM routes remain experimental; factory and workspace
+          qualification is still open. See
+          <a href="https://github.com/kzahel/machine-control/blob/main/docs/controller-host-support.md">controller-host support</a>
+          for the current route coverage.</p>
+        <div class="product-card-links product-guide-links">
+          <a href="https://github.com/kzahel/machine-control/blob/main/docs/cli-guide.md">CLI setup and examples</a>
+          <a href="https://github.com/kzahel/machine-control/blob/main/docs/target-registry.md">Configure targets</a>
+          <a href="/getting-started/">Connect your agent</a>
+        </div>
+      </div>
+    </section>
+  </main>
+  <SiteFooter />
+</SiteLayout>
