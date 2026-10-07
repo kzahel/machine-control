@@ -9,7 +9,8 @@ Use the public testbed CLI for headset transport and lifecycle. Keep compiling,
 assets, app-specific startup policy, host XR runtimes, performance criteria,
 and acceptance assertions in the consuming project.
 
-Tool path: `~/code/machine-control/platforms/quest/bin/quest`
+Tool path: `platforms/quest/bin/quest`, relative to the root of the
+machine-control checkout that contains this skill
 
 ## Start safely
 

@@ -34,7 +34,7 @@ cloud image without changing the daily command or UI contracts.
 ## Quick Start With The Existing VM
 
 ```bash
-cd ~/code/machine-control/platforms/linux
+cd platforms/linux  # from the machine-control checkout root
 # Copy config.example to ignored config.local, then bind the selected VM's
 # exact name and UUID with LINUXVM_TARGET_ROLE=candidate.
 claim="$(../../bin/machine-control --target linux claim acquire \

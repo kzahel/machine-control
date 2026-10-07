@@ -33,7 +33,7 @@ Prerequisites and one-time phone preparation are in [docs/setup.md](docs/setup.m
 Install the pinned host dependency:
 
 ```bash
-cd ~/code/machine-control/platforms/ios
+cd platforms/ios  # from the machine-control checkout root
 pnpm install
 cp config.example config.local
 ```
@@ -160,10 +160,10 @@ passcode, biometric response, account credential, or another protected secret.
 
 Use one transactional session for a multi-step flow. It holds the device lease,
 provides one Agent Device session name to child commands, and cleans up the
-runner and daemon on exit:
+runner and daemon on exit. From the machine-control checkout root:
 
 ```bash
-~/code/machine-control/platforms/ios/bin/ios-device session -- bash -lc '
+platforms/ios/bin/ios-device session -- bash -lc '
   set -euo pipefail
   ios="$IOS_DEVICE_TESTBED_ROOT/bin/ios-device"
   "$ios" launch com.example.app

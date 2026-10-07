@@ -30,7 +30,7 @@ Install Tart and clone this repository:
 
 ```bash
 brew install cirruslabs/cli/tart
-cd ~/code/machine-control/platforms/macos
+cd platforms/macos  # from the machine-control checkout root
 ```
 
 Copy `config.example` to ignored `config.local` before a lifecycle mutation.

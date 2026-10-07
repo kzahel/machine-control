@@ -67,10 +67,12 @@ trigger, not a proven Horizon OS cause.
 
 ## Start safely
 
+From the machine-control checkout root:
+
 ```bash
-~/code/machine-control/platforms/quest/bin/quest doctor
-~/code/machine-control/platforms/quest/bin/quest status
-~/code/machine-control/platforms/quest/bin/quest probe
+platforms/quest/bin/quest doctor
+platforms/quest/bin/quest status
+platforms/quest/bin/quest probe
 ```
 
 On Windows PowerShell:
@@ -151,7 +153,7 @@ lease and pass the script's PID. Always arrange `end` in the script's cleanup
 trap or `finally` block:
 
 ```bash
-quest=~/code/machine-control/platforms/quest/bin/quest
+quest="$PWD/platforms/quest/bin/quest"  # from the checkout root
 serial="$($quest serial)"
 $quest --serial "$serial" begin --owner-pid "$$" \
   --stop-package com.example.game

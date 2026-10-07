@@ -37,7 +37,7 @@ integrity boundaries still apply.
 ```bash
 brew install cirruslabs/cli/tart
 tart clone ghcr.io/cirruslabs/macos-tahoe-base:latest tahoe-base
-cd ~/code/machine-control/platforms/macos
+cd platforms/macos  # from the machine-control checkout root
 # Copy config.example to ignored config.local, then bind the selected VM as
 # an exact candidate with matching MACVM_NAME and MACVM_EXPECTED_NAME.
 claim="$(../../bin/machine-control --target macos claim acquire \

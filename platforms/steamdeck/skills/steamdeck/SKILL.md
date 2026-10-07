@@ -9,7 +9,8 @@ Use the public testbed CLI for device transport and lifecycle. Keep compiling,
 assets, game-specific launch policy, persistence, and acceptance assertions in
 the consuming project.
 
-Tool path: `~/code/machine-control/platforms/steamdeck/bin/steamdeck`
+Tool path: `platforms/steamdeck/bin/steamdeck`, relative to the root of the
+machine-control checkout that contains this skill
 
 ## Start safely
 

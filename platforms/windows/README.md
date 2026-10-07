@@ -50,10 +50,9 @@ elevation, so it cannot bypass Windows secure desktops or UIPI.
 ## Quick Start
 
 From a `machine-control` checkout, inspect the resolved logical targets and
-the configured machine:
+the configured machine from the checkout root:
 
 ```bash
-cd ~/code/machine-control
 bin/machine-control targets
 bin/machine-control --target windows target doctor
 bin/machine-control --target windows testbed -- help

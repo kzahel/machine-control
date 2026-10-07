@@ -505,8 +505,10 @@ Other projects can reference the skill for ChromeOS device management. Add to yo
 
 ```
 For ChromeOS device management, see
-`~/code/machine-control/platforms/chromeos/skills/SKILL.md`.
+`/path/to/machine-control/platforms/chromeos/skills/SKILL.md`.
 ```
+
+Substitute the path to your machine-control checkout.
 
 ## File structure
 

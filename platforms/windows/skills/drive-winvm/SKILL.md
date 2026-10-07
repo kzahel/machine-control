@@ -8,7 +8,8 @@ description: Start, diagnose, administer, inspect, and interact with a Windows V
 Use the repository's deterministic CLI instead of reimplementing UTM,
 PowerShell, or UI relay commands.
 
-**Common tool path:** `~/code/machine-control/bin/machine-control`
+**Common tool path:** `bin/machine-control`, relative to the root of the
+machine-control checkout that contains this skill
 
 The common client auto-discovers an adjacent private dotfiles inventory when
 available and injects its ignored target configuration into the public Windows
@@ -17,8 +18,9 @@ already configured.
 
 ## Begin Every Task
 
+From the machine-control checkout root:
+
 ```bash
-cd ~/code/machine-control
 bin/machine-control inventory status
 bin/machine-control inventory credentials winvm
 bin/machine-control --target windows target doctor
@@ -100,7 +102,7 @@ credentials winvm` reports the declared file as `ready`.
 ## Quick Reference
 
 ```bash
-mc=~/code/machine-control/bin/machine-control
+mc="$PWD/bin/machine-control"  # from the checkout root
 $mc --target windows target status
 $mc --target windows target ensure-ready
 $mc --target windows target capabilities

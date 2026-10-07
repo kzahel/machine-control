@@ -44,10 +44,12 @@ Do not commit the address, private key, or local overrides here.
 
 ## Quick start
 
+From the machine-control checkout root:
+
 ```bash
-~/code/machine-control/platforms/steamdeck/bin/steamdeck doctor
-~/code/machine-control/platforms/steamdeck/bin/steamdeck status
-~/code/machine-control/platforms/steamdeck/bin/steamdeck power-status
+platforms/steamdeck/bin/steamdeck doctor
+platforms/steamdeck/bin/steamdeck status
+platforms/steamdeck/bin/steamdeck power-status
 ```
 
 Override the SSH alias without changing the repository:
