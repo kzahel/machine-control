@@ -297,6 +297,14 @@ guest-agent channel, a USB tablet, and a private SPICE display for explicit
 bootstrap/recovery. Creation refuses an existing name or volume and rolls back
 only its exact newly owned domain and volume after a failed definition.
 
+On Linux, `bin/winvm delete --confirm PRIVATE_NAME` removes only the pinned,
+stopped candidate after the exact name, UUID, KVM/Q35/Secure-Boot/TPM profile,
+primary QCOW2 path, and any attached factory media volumes match the configured
+private pool. The typed deletion removes that domain's NVRAM, TPM state, and
+attached factory-owned pool volumes; unknown storage or a running domain blocks
+the operation. Acquire the common target-use claim first and verify that no
+workspace owns the candidate.
+
 Windows Setup restarts after laying down the system disk, while first logon
 still needs the seed. With the system disk listed first, the 2026-09-26 run
 booted the installed disk after that restart and completed specialization,

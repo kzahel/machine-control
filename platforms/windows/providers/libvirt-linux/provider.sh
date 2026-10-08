@@ -465,6 +465,14 @@ case "$command" in
         fi
         factory create-windows "$@"
         ;;
+    delete)
+        if (( $# != 2 )) || [[ "$1" != --confirm ]]; then
+            printf 'Usage: winvm delete --confirm NAME\n' >&2
+            exit 2
+        fi
+        assert_target delete >/dev/null
+        factory delete-windows "$2"
+        ;;
     factory-preflight)
         (( $# == 1 )) || { printf 'Usage: winvm factory-preflight NAME\n' >&2; exit 2; }
         factory preflight windows "$1"
@@ -492,7 +500,7 @@ case "$command" in
         printf 'Raw scan-code recovery is unavailable; use typed key names.\n' >&2
         exit 1
         ;;
-    repair-registration|suspend|seal|disposable-up|export-image|delete)
+    repair-registration|suspend|seal|disposable-up|export-image)
         unsupported
         ;;
     *) usage >&2; exit 2 ;;

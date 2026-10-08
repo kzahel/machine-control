@@ -630,6 +630,101 @@ def detach_media(
         print("factory media detached: remaining=0")
 
 
+def delete_windows_candidate(
+    configuration: Configuration, provider: Libvirt, name_value: str,
+) -> None:
+    """Delete only the pinned, stopped Windows candidate and its owned volumes."""
+    name = require_name(configuration, name_value)
+    inspected = inspect_domain(configuration, provider)
+    if provider.text("domstate", configuration.expected_uuid).lower() != "shut off":
+        raise ProviderError(
+            "lifecycle_state_invalid", "Candidate deletion requires a stopped target"
+        )
+
+    pool_path = require_local_pool_path(provider, configuration.pool)
+    xml_text = provider.text("dumpxml", "--inactive", configuration.expected_uuid)
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError as error:
+        raise ProviderError(
+            "domain_xml_invalid", "The provider returned invalid domain XML"
+        ) from error
+
+    expected_system = f"{name}.qcow2"
+    expected_media = {f"{name}.installer.iso", f"{name}.seed.iso"}
+    attached_volumes: set[str] = set()
+    disks = root.findall("./devices/disk")
+    if len([disk for disk in disks if disk.get("device") == "disk"]) != 1:
+        raise ProviderError(
+            "domain_incompatible", "Candidate deletion requires one primary system disk"
+        )
+    for disk in disks:
+        device = disk.get("device")
+        source = disk.find("source")
+        source_path = source.get("file") if source is not None else None
+        if device == "disk":
+            expected_volume = expected_system
+        elif device == "cdrom":
+            if not source_path:
+                continue
+            expected_volume = Path(source_path).name
+            if expected_volume not in expected_media:
+                raise ProviderError(
+                    "factory_storage_identity_mismatch",
+                    "Candidate has an unrecognized attached media volume",
+                )
+        else:
+            raise ProviderError(
+                "domain_incompatible", "Candidate has an unrecognized disk device"
+            )
+        if not source_path:
+            raise ProviderError(
+                "factory_storage_identity_mismatch",
+                "Candidate storage source is unavailable",
+            )
+        try:
+            expected_entry = pool_path / expected_volume
+            if expected_entry.is_symlink():
+                raise ProviderError(
+                    "factory_storage_identity_mismatch",
+                    "Candidate storage volume must not be a symbolic link",
+                )
+            actual_path = Path(source_path).resolve(strict=True)
+            exact_path = expected_entry.resolve(strict=True)
+        except OSError as error:
+            raise ProviderError(
+                "factory_storage_identity_mismatch",
+                "Candidate storage is unavailable for exact verification",
+            ) from error
+        if actual_path != exact_path or exact_path.parent != pool_path:
+            raise ProviderError(
+                "factory_storage_identity_mismatch",
+                "Candidate storage is outside its exact factory volumes",
+            )
+        attached_volumes.add(expected_volume)
+
+    if expected_system not in attached_volumes or not inspected.get("identityVerified"):
+        raise ProviderError(
+            "factory_storage_identity_mismatch",
+            "Candidate identity or system-volume ownership is unverified",
+        )
+
+    provider.command("undefine", configuration.expected_uuid, "--nvram", "--tpm")
+    if provider.command("domuuid", name, check=False).returncode == 0:
+        raise ProviderError(
+            "factory_delete_unverified", "Candidate domain removal was not verified"
+        )
+    for volume in sorted(attached_volumes):
+        delete_volume(provider, configuration.pool, volume)
+        if (pool_path / volume).exists() or provider.command(
+            "vol-info", "--pool", configuration.pool, volume, check=False
+        ).returncode == 0:
+            raise ProviderError(
+                "factory_delete_unverified", "Candidate volume removal was not verified"
+            )
+    print("Windows candidate deleted: exact_domain_and_attached_volumes_verified")
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -648,6 +743,8 @@ def parse_arguments() -> argparse.Namespace:
     subparsers.add_parser("detach-media")
     subparsers.add_parser("media-status")
     subparsers.add_parser("linux-media-status")
+    delete = subparsers.add_parser("delete-windows")
+    delete.add_argument("name")
     return parser.parse_args()
 
 
@@ -693,6 +790,8 @@ def main() -> int:
             print(json.dumps(media_stage(configuration, provider), sort_keys=True))
         elif arguments.command == "linux-media-status":
             print(json.dumps(media_stage(configuration, provider, kind="linux"), sort_keys=True))
+        elif arguments.command == "delete-windows":
+            delete_windows_candidate(configuration, provider, arguments.name)
         return 0
     except ProviderError as error:
         print(f"{error.code}: {error.message}", file=sys.stderr)
