@@ -65,6 +65,11 @@ native brightness floor can reduce wake brightness without disabling capture;
 automatic physical-lid backlight-off control remains open. See the
 [backlight evidence and limits](../research/platforms/chromeos.md#closed-lid-backlight-behavior).
 
+**Current:** Explicit platform `wake` exposes the existing target-native
+modifier-only display input through common target selection/passthrough.
+Delivery does not prove ARC foreground/application readiness and does not
+change the appliance sleep/lid baseline; use fresh app observations afterward.
+
 **Decision:** Wrap and preserve the adopted stack before considering a rewrite
 or common-provider backend. Do not classify ChromeOS as generic Linux.
 

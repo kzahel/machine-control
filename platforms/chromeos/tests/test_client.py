@@ -71,6 +71,13 @@ class DrmWakeRetryTests(unittest.TestCase):
         wake.assert_called_once_with()
 
 
+class ExplicitWakeTest(unittest.TestCase):
+    def test_explicit_wake_only_presses_and_releases_shift(self):
+        with mock.patch.object(client, "press_keys") as keys, mock.patch.object(client.time, "sleep"):
+            self.assertEqual(client.cmd_wake({}), {"ok": True})
+        keys.assert_called_once_with([42])
+
+
 class ShortcutTest(unittest.TestCase):
     def setUp(self):
         self.layout = mock.patch.object(client, "_kb_layout", "qwerty")

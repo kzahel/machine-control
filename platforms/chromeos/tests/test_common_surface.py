@@ -17,6 +17,40 @@ POST_UPDATE_SOURCE = (
 )
 
 
+@unittest.skipIf(os.name == "nt", "Requires POSIX shell adapter")
+class ExplicitWakeDeliveryTests(unittest.TestCase):
+    def run_wake(self, response, ensure_returncode=0):
+        source = CLI.read_text()
+        def function(name):
+            return name + "() {" + source.split(name + "() {", 1)[1].split("\n}", 1)[0] + "\n}"
+        script = "\n".join([
+            "set -e",
+            function("send_cmd_checked"), function("cmd_wake"),
+            "ensure_client() { return \"$FAKE_ENSURE_RC\"; }",
+            "print_client_warning() { :; }",
+            "send_cmd() { test \"$1\" = '{\"cmd\":\"wake\"}' || return 2; printf '%s\\n' \"$FAKE_RESPONSE\"; }",
+            "cmd_wake",
+        ])
+        return subprocess.run(["bash", "-c", script], text=True, capture_output=True,
+                              env={**os.environ, "FAKE_RESPONSE": response,
+                                   "FAKE_ENSURE_RC": str(ensure_returncode)})
+
+    def test_checked_wake_preserves_provider_response(self):
+        result = self.run_wake('{"ok":true}')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), {"ok": True})
+
+    def test_refused_or_malformed_delivery_cannot_report_success(self):
+        for response in ['{"error":"input refused"}', 'not JSON']:
+            result = self.run_wake(response)
+            self.assertNotEqual(result.returncode, 0)
+
+    def test_failed_client_readiness_never_sends_wake(self):
+        result = self.run_wake('{"ok":true}', ensure_returncode=1)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+
+
 @unittest.skipIf(
     os.name == "nt",
     "ChromeOS shell-adapter composition requires a POSIX controller",

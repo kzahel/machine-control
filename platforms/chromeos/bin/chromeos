@@ -17,6 +17,7 @@
 #   fix-devtools        Re-enable --remote-debugging-port=9222
 #   deploy              Deploy/update client.py on Chromebook
 #   screenshot [file] [--method egl|gbm|keyboard] [--jpeg|--png] [-q N]  Take screenshot
+#   wake                Wake display with modifier-only native input
 #   tap X Y             Tap at raw touchscreen coordinates
 #   swipe X1 Y1 X2 Y2 [MS]  Swipe gesture (default 200ms)
 #   mouse-move X Y      Experimental virtual relative mouse (best effort)
@@ -422,6 +423,11 @@ cmd_login() {
     echo "[FAIL] ChromeOS login was not confirmed after ${timeout}s." >&2
     echo "       Check the selected profile and PIN on the Chromebook; no retry was attempted." >&2
     return 1
+}
+
+cmd_wake() {
+    ensure_client
+    send_cmd_checked '{"cmd":"wake"}'
 }
 
 cmd_shortcut() {
@@ -1621,6 +1627,7 @@ case "$cmd" in
     fix-devtools) cmd_fix_devtools "$@" ;;
     deploy)       cmd_deploy "$@" ;;
     screenshot)   cmd_screenshot "$@" ;;
+    wake)         cmd_wake "$@" ;;
     tap)          cmd_tap "$@" ;;
     swipe)        cmd_swipe "$@" ;;
     mouse-move)   cmd_mouse_move "$@" ;;

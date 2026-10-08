@@ -291,6 +291,20 @@ possible authorization prompt are intended.
 `chromeos smoke-test` performs a restoring UI exercise and stores every result
 and screenshot in a timestamped artifact directory.
 
+### Display wake
+
+```bash
+chromeos wake
+# Through the common target selector:
+bin/machine-control --target chromeos testbed -- wake
+```
+
+This presses/releases only target-native Left Shift. It wakes display scanout
+without typing or activating a control; it does not change sleep preferences,
+unlock a profile or prove an application resumed. Observe the actual window
+and fresh controls after delivery. Android `am start` does not prove the
+ChromeOS display or ARC activity is awake.
+
 ### Power and closed-lid operation
 
 ```bash
