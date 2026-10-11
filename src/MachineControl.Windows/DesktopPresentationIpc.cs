@@ -9,6 +9,8 @@ namespace MachineControl.Windows;
 /// The public agent pipe cannot change presentation or approve requests.
 internal static class DesktopPresentationIpc
 {
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+    private static extern bool WaitNamedPipe(string name, uint milliseconds);
     internal static string PathFor(string instance) => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "MachineControl", "presentation", RuntimeProfile.ValidateInstance(instance) + ".json");
@@ -43,12 +45,15 @@ internal static class DesktopPresentationIpc
                     frame.Append(bytes[0]);
                 }
                 object reply;
-                try { reply = new { ok = true, presentation = Apply(presentation, broker, JsonNode.Parse(frame.ToString())!.AsObject()), runtimeId = Environment.ProcessId }; }
+                try { reply = new { ok = true, presentation = Apply(presentation, broker, JsonNode.Parse(frame.ToString()) as JsonObject ?? throw new ArgumentException("Object required")), runtimeId = Environment.ProcessId }; }
                 catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException or System.Text.Json.JsonException or UnauthorizedAccessException)
                 { reply = new { ok = false, error = ex.Message }; }
                 await using var writer = new StreamWriter(listener, new UTF8Encoding(false), leaveOpen: true);
                 await writer.WriteLineAsync(Contract.Serialize(reply).AsMemory(), timeout.Token);
                 await writer.FlushAsync(timeout.Token);
+                // Disconnect discards unread named-pipe bytes. The caller
+                // acknowledges consumption before we reuse the listener.
+                await reader.ReadAsync(bytes.AsMemory(), timeout.Token);
             }
             catch (Exception ex) when (ex is IOException or OperationCanceledException or System.Text.Json.JsonException) { }
             finally { listener.Disconnect(); }
@@ -69,7 +74,12 @@ internal static class DesktopPresentationIpc
         var connected = false;
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
         try { await pipe.ConnectAsync(250, timeout.Token); connected = true; }
-        catch (TimeoutException) { }
+        catch (TimeoutException)
+        {
+            WaitNamedPipe(@"\\.\pipe\" + Pipe(instance), 1);
+            if (System.Runtime.InteropServices.Marshal.GetLastWin32Error() != 2)
+                throw new IOException("Presentation endpoint is busy; no offline edit was attempted");
+        }
         object reply;
         if (connected)
         {
@@ -77,8 +87,15 @@ internal static class DesktopPresentationIpc
             using var reader = new StreamReader(pipe, Encoding.UTF8, leaveOpen: true);
             await writer.WriteLineAsync(command.ToJsonString().AsMemory(), timeout.Token);
             // Never retry a mutation through the file after uncertain delivery.
-            var line = await reader.ReadLineAsync(timeout.Token) ?? throw new IOException("Presentation reply missing");
-            var value = JsonNode.Parse(line)!;
+            var frame = new StringBuilder();
+            var character = new char[1];
+            while (await reader.ReadAsync(character.AsMemory(), timeout.Token) != 0 && character[0] != '\n')
+            {
+                if (frame.Length >= 4096) throw new IOException("Presentation reply exceeds bounds");
+                frame.Append(character[0]);
+            }
+            var value = JsonNode.Parse(frame.ToString()) as JsonObject ?? throw new IOException("Presentation reply missing");
+            await writer.WriteLineAsync("ack".AsMemory(), timeout.Token);
             Console.WriteLine(value.ToJsonString());
             return value["ok"]?.GetValue<bool>() == true ? 0 : 1;
         }

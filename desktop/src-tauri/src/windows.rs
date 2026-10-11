@@ -418,4 +418,62 @@ mod tests {
         assert!(read_reply(&mut remaining).is_err());
         assert!(remaining.len() >= 1024 * 1024 - 1);
     }
+
+    #[test]
+    fn blocked_companion_write_has_a_deadline_and_owned_cleanup() {
+        let handle = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
+        assert!(!handle.is_null());
+        let job = Arc::new(Job(handle));
+        let mut child = Command::new("powershell.exe")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Start-Sleep -Seconds 30",
+            ])
+            .creation_flags(0x08000000)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        assert_ne!(
+            unsafe { AssignProcessToJobObject(job.0, child.as_raw_handle() as HANDLE) },
+            0
+        );
+        let input = child.stdin.take().unwrap();
+        let (_keep_reply_open, replies) = mpsc::sync_channel(1);
+        let mut runtime = Runtime {
+            child,
+            input,
+            replies,
+            _job: job,
+        };
+        let started = std::time::Instant::now();
+        assert!(runtime.call(&json!({"payload":"x".repeat(65000)})).is_err());
+        assert!(started.elapsed() < Duration::from_secs(9));
+        // The caller treats every protocol failure as terminal and drops the
+        // owner. Keep the kernel process handle to independently prove exit.
+        let process = unsafe {
+            windows_sys::Win32::System::Threading::OpenProcess(
+                windows_sys::Win32::System::Threading::PROCESS_SYNCHRONIZE,
+                0,
+                runtime.child.id(),
+            )
+        };
+        assert!(!process.is_null());
+        drop(runtime);
+        assert_eq!(
+            unsafe { windows_sys::Win32::System::Threading::WaitForSingleObject(process, 1000) },
+            0
+        );
+        unsafe {
+            CloseHandle(process);
+        }
+        // Stop posts directly even while the IPC owner is held.
+        let _owner = RUNTIME.lock().unwrap();
+        let stopped = std::time::Instant::now();
+        let _ = stop();
+        assert!(stopped.elapsed() < Duration::from_millis(250));
+    }
 }
