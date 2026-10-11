@@ -124,6 +124,11 @@ final class BrowserDevToolsBridge {
         reconcile()
     }
 
+    func stop() {
+        revokeToken(reason:"resident_stopping")
+        server?.stop(); server = nil
+    }
+
     /// Syncs the token to the grant and drops connections when it ends.
     @discardableResult
     func reconcile() -> String? {

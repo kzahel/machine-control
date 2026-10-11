@@ -395,9 +395,12 @@ final class GrantBroker {
         end(reason: reason)
     }
 
+    /// Local authority ends before protected cleanup or durable writes wait.
+    func fence() { grant = nil }
+
     private func end(reason: String) {
-        journal?.event("access." + DesktopJournal.token(reason))
         grant = nil
+        journal?.event("access." + DesktopJournal.token(reason))
         if !["operator_quit", "operator_disconnected", "resident_stopping", "desktop_locked", "watchdog_interrupted", "helper_stopping", "helper_restarted", "system_sleep", "display_sleep", "display_changed", "owner_disconnected", "input_guard_unavailable"].contains(reason) {
             do { try consentStore?.disable() } catch { consentStorageError = String(describing:error) }
         }

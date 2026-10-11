@@ -133,5 +133,7 @@ behavior evidence, and successful Mac acceptance does not cover either OS.
 nonoverlapping UI refresh and asynchronous operator completion. Swift tests
 include blocked dependency, main-queue Stop, expired snapshot and late-result
 refusal. Existing approval/session suites pass. Installed acceptance and the
+shared runtime startup/lifecycle and closed native operator dispatch now replace
+duplicated shell construction. Duplicate-endpoint and shutdown tests pass. The
 remaining runtime/presentation milestones are still in progress; the host
 installation and public release are unchanged.

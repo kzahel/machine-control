@@ -298,6 +298,7 @@ final class ResidentServer {
 
     func stop() {
         service.stopObservations()
+        devtools.stop()
         ticker?.cancel(); ticker = nil
         acceptSource?.cancel(); acceptSource = nil
         for channel in Array(channels.values) { channel.close() }
@@ -692,6 +693,7 @@ final class ResidentServer {
 
     /// Ends the grant from a trusted local surface such as the menu.
     func revoke(reason: String) {
+        broker.fence()
         if ["stopped_by_person", "stopped_from_menu", "stopped_by_hotkey", "revoked_by_caller"].contains(reason) { callerTrust.stop() }
         lockedUse.end(reason)
         broker.revoke(reason: reason)
@@ -827,20 +829,12 @@ func openedAsApplication() -> Never {
 func runResident(socketPath: String) throws -> Never {
     // A server never wants a stray write to a closed peer to kill it.
     signal(SIGPIPE, SIG_IGN)
-    let broker = GrantBroker(policy: DeploymentPolicy.load())
-    broker.journal = DesktopJournal()
-    try FileManager.default.createDirectory(atPath:(socketPath as NSString).deletingLastPathComponent,
-        withIntermediateDirectories:true, attributes:[.posixPermissions:0o700])
-    if broker.policy.grantMode == .approval { attachOperatorConsent(broker, socketPath:socketPath) }
-    let server = ResidentServer(socketPath: socketPath, service: ResidentService(),
-                                broker: broker)
-    try server.start()
-    server.devtools.start()
+    let runtime = try ResidentRuntime(socketPath:socketPath)
+    let server = runtime.server
+    let broker = server.broker
+    try runtime.start()
     let application = NSApplication.shared
     application.setActivationPolicy(.accessory)
-    server.notice = AdmissionNotice(server:server)
-    // Inner appliance input does not reserve or observe the controller desktop.
-    if broker.policy.grantMode == .approval { server.activity.enable() }
     let approval = ApprovalPanelController()
     let setup = SetupWindowController()
     setup.browserConnected = { [weak server] in server?.browser.connected == true }
@@ -894,7 +888,7 @@ func runResident(socketPath: String) throws -> Never {
     } else if broker.policy.grantMode == .approval && !setup.state.complete {
         DispatchQueue.main.async { setup.show() }
     }
-    withExtendedLifetime((server, menu, approval, setup)) { application.run() }
+    withExtendedLifetime((runtime, menu, approval, setup)) { application.run() }
     exit(0)
 }
 
