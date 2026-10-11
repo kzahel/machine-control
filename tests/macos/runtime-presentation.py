@@ -31,6 +31,7 @@ binary = a.candidate_app + '/Contents/MacOS/macui'
 pid = None
 pending = None
 guest_claim = None
+notice_child = None
 fixture = 'org.machine-control.fixture'
 
 
@@ -125,7 +126,7 @@ def close_settings():
 def approval(scopes):
     global pending
     value = dict(operation='grant.request', requestId=str(uuid.uuid4()), scopes=scopes,
-        reason='Verify native runtime presentation', durationSeconds=300, timeoutSeconds=120)
+        reason='Verify native runtime presentation', durationSeconds=900, timeoutSeconds=120)
     pending = subprocess.Popen(mc + ['os', '--', binary, 'request', a.candidate_socket, json.dumps(value)],
         stdout=subprocess.PIPE, text=True)
     wait(lambda: accepted(request(dict(operation='grant.status')))['pendingRequest'], 'native approval')
@@ -200,6 +201,24 @@ try:
     assert call('os', '--', '/usr/bin/xxd', '-l', '8', '-p', capture['artifactPath']).strip() == '89504e470d0a1a0a'
     call('os', '--', '/bin/rm', '-f', capture['artifactPath'])
 
+    settings(); press('Access'); press('Pause access')
+    wait(lambda: accepted(request(dict(operation='grant.status')))['availability']['paused'], 'operator pause')
+    assert request(dict(operation='snapshot', target=fixture))['errorCode'] == 'access_paused'
+    press('Resume access')
+    wait(lambda: not accepted(request(dict(operation='grant.status')))['availability']['paused'], 'operator resume')
+    close_settings()
+    notice_child = subprocess.Popen(mc + ['os', '--', '/usr/bin/env',
+        'MACHINE_CONTROL_HOST_SOCKET=' + a.candidate_socket, a.candidate_client,
+        '--target', 'host', '--claim', guest_claim, 'control', 'call',
+        json.dumps(dict(operation='snapshot', target=fixture)), '--reason', 'Verify native notice without Settings', '--scope', 'observe'],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    wait(lambda: any(e['label'] == 'Computer control is about to start' for e in elements()), 'native admission notice')
+    output, error = notice_child.communicate(timeout=120)
+    assert notice_child.returncode == 0, error
+    accepted(json.loads(output)); notice_child = None
+    assert status()['presentation']['settingsWebViews'] == 0
+    print('Operator Pause/Resume and native admission notice passed', flush=True)
+
     # Supported reset is live, preserves authority, and never requires deleting
     # a special file. Settings itself survives a profile change.
     settings()
@@ -221,10 +240,32 @@ try:
     assert accepted(request(dict(operation='grant.status')))['grant'] is None
     assert request(dict(operation='snapshot', target=fixture))['errorCode'] == 'approval_required'
     settings()
+    preference('set', a.profile)
+    wait(lambda: status()['presentation']['profile'] == a.profile, 'profile saved before restart')
+    old_pid = pid
+    old_generation = request(dict(operation='status'))['generation']
+    press('Permissions'); press('Restart')
+    changed = wait(lambda: (value if (value := status())['processId'] != old_pid else None), 'signed restart')
+    pid = changed['processId']
+    assert changed['presentation']['profile'] == a.profile
+    assert changed['nativeSemanticState'] == 'ready' and changed['nativeCaptureState'] == 'ready'
+    assert request(dict(operation='status'))['generation'] != old_generation
+    assert accepted(request(dict(operation='grant.status')))['grant'] is None
+    wait(lambda: status()['presentation']['settingsWebViews'] == expected, 'restart presentation')
+    if expected: close_settings()
+    approval(['observe', 'control']); accepted(decide('Allow'))
+    assert request(dict(operation='action', reference=reference, action='press'))['errorCode'] == 'stale_reference'
+    assert json.loads(call('testbed', '--', 'fixture-state'))['count'] == before + 2
+    tray('Stop access')
+    settings()
     print(json.dumps({'schema':'machine-control-mac-presentation-acceptance/v1', 'profile':a.profile,
+        'restartAndSignedPermissions':True, 'staleReferences':True, 'pauseResume':True, 'nativeNotice':True,
         'startup':True, 'lazySettings':True, 'singleInstanceRecovery':True, 'nativeApproval':True,
         'deferredPreference':True, 'outsideAndLocalEffects':True, 'capture':True, 'settingsSelector':True, 'liveReset':True, 'stop':True}, sort_keys=True))
 finally:
+    if notice_child is not None:
+        if notice_child.poll() is None: notice_child.terminate()
+        notice_child.wait(timeout=15)
     if pending is not None:
         try:
             press('Deny')

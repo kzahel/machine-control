@@ -11,6 +11,8 @@ use tauri_plugin_updater::UpdaterExt;
 mod diagnostics;
 #[cfg(target_os = "linux")]
 mod linux;
+#[cfg(target_os = "macos")]
+mod mac_instance;
 mod native_queue;
 mod restart;
 mod updates;
@@ -331,22 +333,44 @@ fn main() {
     } else {
         String::new()
     };
+    #[cfg(target_os = "macos")]
+    let socket = if socket.is_empty() {
+        let account = unsafe { libc::getpwuid(libc::getuid()) };
+        if account.is_null() {
+            eprintln!("Local account home unavailable");
+            std::process::exit(1);
+        }
+        let home = unsafe { CStr::from_ptr((*account).pw_dir) }.to_string_lossy();
+        format!("{home}/Library/Application Support/MachineControl/control.sock")
+    } else {
+        socket
+    };
+    #[cfg(target_os = "macos")]
+    let instance = match mac_instance::Instance::acquire(
+        &socket,
+        !args.iter().any(|arg| arg == "--background") || args.iter().any(|arg| arg == "--settings"),
+    ) {
+        Ok(mac_instance::Acquisition::Primary(instance)) => instance,
+        Ok(mac_instance::Acquisition::Forwarded) => return,
+        Err(error) => {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+    };
     let builder = tauri::Builder::default();
     #[cfg(target_os = "windows")]
     let builder = builder.plugin(tauri_plugin_autostart::init(
         tauri_plugin_autostart::MacosLauncher::LaunchAgent,
         Some(vec!["--background"]),
     ));
+    #[cfg(not(target_os = "macos"))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _| {
+        if args.iter().any(|arg| arg == "--background") {
+            return;
+        }
+        let _ = show_settings(app, None);
+    }));
     builder
-        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
-            if args.iter().any(|arg| arg == "--background") {
-                return;
-            }
-            #[cfg(target_os = "macos")]
-            let _ = show_settings(app, Some("settings"));
-            #[cfg(not(target_os = "macos"))]
-            let _ = show_settings(app, None);
-        }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             operator_command,
@@ -387,6 +411,34 @@ fn main() {
                     )
                     .into());
                 }
+                let operator = app.handle().clone();
+                app.manage(instance.start(move || {
+                    let Ok(permit) = native_queue::Permit::acquire() else {
+                        return false;
+                    };
+                    let (send, receive) = std::sync::mpsc::channel();
+                    let cancelled = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+                    let guard = cancelled.clone();
+                    let ui = operator.clone();
+                    if operator
+                        .run_on_main_thread(move || {
+                            let _permit = permit;
+                            if !guard.load(std::sync::atomic::Ordering::Acquire) {
+                                let _ = send.send(show_settings(&ui, Some("settings")).is_ok());
+                            }
+                        })
+                        .is_err()
+                    {
+                        return false;
+                    }
+                    match receive.recv_timeout(std::time::Duration::from_secs(3)) {
+                        Ok(result) => result,
+                        Err(_) => {
+                            cancelled.store(true, std::sync::atomic::Ordering::Release);
+                            false
+                        }
+                    }
+                }));
                 if args.iter().any(|arg| arg == "--settings")
                     || (start["presentation"]["profile"] == "personal"
                         && !args.iter().any(|arg| arg == "--background"))

@@ -168,7 +168,10 @@ require deleting files. Unsafe ownership, directories and symlinks refuse writes
 A running resident reads saved changes without restarting, deferring during an
 approval. A temporary `--presentation personal|minimal|appliance` launch override
 lasts until restart or an explicit Settings choice and does not write the file.
-Launch flags follow `serve SOCKET` for isolated candidates.
+Launch flags follow `serve SOCKET` for isolated candidates. Mac second-launch
+forwarding is bound to the resolved resident endpoint, so candidates on
+separate sockets do not attach to the installed app. The private same-user
+forwarding channel supports only Settings recovery and liveness.
 
 Presentation is separate from the root-owned deployment policy displayed in
 Settings. Selecting appliance presentation on a workstation still requires
