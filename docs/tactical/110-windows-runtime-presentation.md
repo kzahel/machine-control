@@ -152,15 +152,21 @@ OS/session transitions require separate bounded campaigns.
 No public release or operator installed-app replacement occurred. All native
 effects used a claimed dedicated target and a separately identified test
 browser. Raw reports, trust material, infrastructure details and failed-run
-logs remain ignored/private. Independent cleanup confirms no owned test processes remain, browser
-registration is restored, owned scheduled tasks are removed, and temporary
-guest trust plus the host signing certificate/private key are removed. The
-canonical stored login credential is verified. The initial installed-app
-presence is unchanged. Automatic approval review rejected combined recursive
-cleanup as blocked by policy; the inert, uninstalled staging directory is
-retained as a private artifact. Graceful shutdown succeeds in 32.1 seconds through the target's declared
-bounded scheduler assistance. Final power is off, restoring the initial state;
-the disruptive restoration claim is released and claim state is available.
+logs remain ignored/private. Independent cleanup confirms no owned test
+processes remain, browser registration is restored, owned scheduled tasks are
+removed, and temporary guest trust plus the host signing certificate/private
+key are removed. The canonical stored login credential is verified. The initial
+installed-app presence is unchanged.
+
+Initial combined recursive cleanup was rejected by automatic command review.
+On the operator's explicit follow-up, a short literal-path guest-native command
+removed the owned staging directory; independent absence and trust checks pass.
+The read-only inspection cancelled during cleanup was reaped with its owned
+adapter/transport children. Private reports remain on the controller.
+
+Initial graceful shutdown succeeded in 32.1 seconds through the target's
+declared bounded scheduler assistance. Final cleanup again restores power off
+and releases its exclusive disruptive claim; claim state is available.
 No credential rotation, helper installation or policy weakening occurred.
 
 ## Native Linux handoff prompt
