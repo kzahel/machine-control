@@ -1326,19 +1326,7 @@ final class ResidentService {
     private func sendText(_ text: String) throws {
         for character in text {
             if let reason = inputCancellation() { throw MacUIError.action(reason) }
-            let units = Array(String(character).utf16)
-            guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 0,
-                                     keyDown: true),
-                  let up = CGEvent(keyboardEventSource: nil, virtualKey: 0,
-                                   keyDown: false) else {
-                throw MacUIError.action("Unable to create text event")
-            }
-            units.withUnsafeBufferPointer { buffer in
-                down.keyboardSetUnicodeString(stringLength: units.count,
-                                              unicodeString: buffer.baseAddress!)
-                up.keyboardSetUnicodeString(stringLength: units.count,
-                                            unicodeString: buffer.baseAddress!)
-            }
+            let (down, up) = try literalTextEvents(character)
             if let reason = inputCancellation() { throw MacUIError.action(reason) }
             down.post(tap: .cghidEventTap)
             up.post(tap: .cghidEventTap)

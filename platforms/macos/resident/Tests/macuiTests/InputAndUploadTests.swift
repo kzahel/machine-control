@@ -1,7 +1,26 @@
 import XCTest
+import CoreGraphics
 @testable import macui
 
 final class InputAndUploadTests: XCTestCase {
+    func testLiteralTextClearsInheritedShortcutsAndPreservesUnicode() throws {
+        for character in Array("aAé👩‍💻") {
+            let events = try literalTextEvents(character) { down in
+                let event = CGEvent(keyboardEventSource:nil, virtualKey:0, keyDown:down)
+                event?.flags = [.maskCommand, .maskAlternate, .maskControl, .maskShift, .maskAlphaShift]
+                return event
+            }
+            for event in [events.0, events.1] {
+                XCTAssertEqual(event.flags.rawValue, 0)
+                var units = [UniChar](repeating:0, count:32)
+                var count = 0
+                event.keyboardGetUnicodeString(maxStringLength:units.count,
+                    actualStringLength:&count, unicodeString:&units)
+                XCTAssertEqual(Array(units.prefix(count)), Array(String(character).utf16))
+            }
+        }
+    }
+
     func testKeyChordAcceptsPlusSeparators() {
         XCTAssertEqual(normalizedKeyChord("cmd+shift+g"), "cmd-shift-g")
         XCTAssertEqual(normalizedKeyChord("cmd-shift-g"), "cmd-shift-g")
