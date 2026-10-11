@@ -137,3 +137,11 @@ shared runtime startup/lifecycle and closed native operator dispatch now replace
 duplicated shell construction. Duplicate-endpoint and shutdown tests pass. The
 remaining runtime/presentation milestones are still in progress; the host
 installation and public release are unchanged.
+
+Native provider effects now use one serial worker with worker-owned AX
+references and credential leases. The coordinator rechecks authority after
+fresh preflight, invalidates cancellation generations on session/availability
+changes, and reports late confirmed delivery as uncertain rather than replaying.
+One-shot replies own nonblocking duplicate descriptors with bounded lifetime.
+The 154 Swift tests and Tauri native build pass; installed acceptance remains
+pending. An already dispatched native call cannot always be interrupted.

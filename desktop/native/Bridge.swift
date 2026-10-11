@@ -50,7 +50,7 @@ public func mcDesktopStart(_ path: UnsafePointer<CChar>) -> UnsafeMutablePointer
             let own = OwnInterface(processID: pid, identifiers: identifiers,
                 windowFrames: ownWindowFrames(pid, excluding:server?.lockedUse.coveredWindowIDs ?? []), hasKeyWindow: NSApp.keyWindow != nil,
                 menuOpen: desktopMenuTracking, pointer: CGEvent(source: nil)?.location)
-            let reference = (request["reference"] as? String).flatMap { server?.service.referencedProcess($0) }
+            let reference = (request["reference"] as? String).flatMap { server?.referencedProcess($0) }
             return selfTargetRefusal(request, own: own, referencedProcess: reference)
         }
         try runtime.start()

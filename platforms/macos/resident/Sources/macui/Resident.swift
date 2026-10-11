@@ -541,6 +541,7 @@ final class ResidentService {
     private var usedUnlockRequests = Set<String>()
     var coveredWindowIDs: () -> Set<Int> = { [] }
     var inputCancellation: () -> String? = { nil }
+    var referencesInvalidated: (() -> Void)?
 
     lazy var sessionObservation = BackgroundObservation<[String:Any]>(
         label:"machine-control.session-observation", interval:0, timeout:2.5, lifetime:1,
@@ -575,6 +576,7 @@ final class ResidentService {
             references.removeAll(); cuaReferences.removeAll()
             referenceOrder.removeAll(); authorizationLeases.removeAll()
             observedSession = next
+            referencesInvalidated?()
         }
     }
 
@@ -589,6 +591,15 @@ final class ResidentService {
         desktopGeneration = UUID().uuidString.lowercased()
         references.removeAll(); cuaReferences.removeAll()
         referenceOrder.removeAll(); authorizationLeases.removeAll()
+        referencesInvalidated?()
+    }
+
+    /// Worker-owned reference attribution for native self-interface screening.
+    func referenceOwnerProjection() -> [String:pid_t] {
+        references.reduce(into:[:]) { result, item in
+            var pid: pid_t = 0
+            if AXUIElementGetPid(item.value, &pid) == .success { result[item.key] = pid }
+        }
     }
 
     /// The process owning an element reference, when it is a native one.
@@ -920,6 +931,7 @@ final class ResidentService {
         process.arguments = ["call", tool, String(decoding: argumentData, as: UTF8.self)]
         process.standardOutput = output
         process.standardError = errors
+        if let reason = inputCancellation() { throw MacUIError.action(reason) }
         try process.run()
         let outputData = output.fileHandleForReading.readDataToEndOfFile()
         let errorData = errors.fileHandleForReading.readDataToEndOfFile()
@@ -1709,6 +1721,9 @@ final class ResidentService {
         let started = DispatchTime.now().uptimeNanoseconds
         var result: [String: Any]
         refreshSession()
+        if let reason = inputCancellation() {
+            return refused(request, code:reason, message:"Credential authority changed")
+        }
         guard observedSession["desktopState"] as? String == "unlocked" else {
             return refused(request, code: "desktop_not_unlocked", message: "Authorization sheet is no longer on an unlocked desktop")
         }
@@ -1725,6 +1740,9 @@ final class ResidentService {
                         expectedRequester: lease.requester),
                       sheet.processID == lease.processID,
                       sheet.windowID == lease.windowID {
+                if let reason = inputCancellation() {
+                    return refused(request, code:reason, message:"Credential authority changed")
+                }
                 let activated = NSRunningApplication(
                     processIdentifier: sheet.processID)?
                     .activate() == true
@@ -1761,6 +1779,7 @@ final class ResidentService {
                         }
                         try sendCredential(credential, sheet: sheet)
                         usleep(120_000)
+                        if let reason = inputCancellation() { throw MacUIError.action(reason) }
                         let pressed = AXUIElementPerformAction(
                             sheet.confirmButton, kAXPressAction as CFString)
                         guard pressed == .success else {
@@ -1994,6 +2013,7 @@ final class ResidentService {
                         route: "guest.user/macos.authorization")
                     break
                 }
+                if let reason = inputCancellation() { throw MacUIError.action(reason) }
                 consumeAuthorizationLease(lease)
                 let delivery = AXUIElementPerformAction(
                     sheet.cancelButton, kAXPressAction as CFString)
@@ -2201,6 +2221,7 @@ final class ResidentService {
                 guard AXUIElementGetPid(element, &effectPID) == .success,
                       effectPID > 0 else { throw MacUIError.action("effect_target_unavailable") }
                 let before = observationFingerprint(targetPID:effectPID)
+                if let reason = inputCancellation() { throw MacUIError.action(reason) }
                 var delivery: AXError?
                 switch action {
                 case "press":
@@ -2263,6 +2284,7 @@ final class ResidentService {
                     }
                     break
                 }
+                if let reason = inputCancellation() { throw MacUIError.action(reason) }
                 let app = try launchApplication(
                     query, argument: requestString(request, "arguments"))
                 result = base(request, route: "guest.user/macos.workspace")
@@ -2279,6 +2301,7 @@ final class ResidentService {
                 }
                 let app = try resolveApplication(query)
                 let pid = app.processIdentifier
+                if let reason = inputCancellation() { throw MacUIError.action(reason) }
                 let delivered = app.terminate()
                 for _ in 0..<20 where !app.isTerminated { usleep(100_000) }
                 result = base(request, route: "guest.user/macos.workspace")
@@ -2307,6 +2330,7 @@ final class ResidentService {
                     break
                 }
                 let app = try resolveApplication(query)
+                if let reason = inputCancellation() { throw MacUIError.action(reason) }
                 let delivered = app.activate()
                 usleep(150_000)
                 result = base(request, route: "guest.user/macos.workspace")
@@ -2366,6 +2390,7 @@ final class ResidentService {
                     break
                 }
                 let closeElement = unsafeBitCast(closeButton, to: AXUIElement.self)
+                if let reason = inputCancellation() { throw MacUIError.action(reason) }
                 let delivery = AXUIElementPerformAction(
                     closeElement, kAXPressAction as CFString)
                 result = base(request, route: "guest.user/macos.ax")

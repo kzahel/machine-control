@@ -96,6 +96,8 @@ final class ResidentServer {
     var callerTrust: DesktopCallerTrust
     let updates = DesktopUpdates()
     let activity = PhysicalAvailability()
+    let nativeProvider = NativeProviderExecutor()
+    func referencedProcess(_ reference: String) -> pid_t? { nativeProvider.referenceOwners[reference] }
     var noticeSeconds = 10.0
     var coveredActivation: ((AdmissionChannel, [String:Any]) throws -> Void)?
     var controlledProvider: (([String:Any]) -> [String:Any])?
@@ -106,6 +108,7 @@ final class ResidentServer {
     private var noticePolicyState = ""
     var notice: AdmissionNotice?
     private var handshakes: [Int32:RequestHandshake] = [:]
+    private var replies: [UUID:SocketReply] = [:]
     func callerSummary(for intent: String) -> String {
         guard let channel = channels.values.first(where:{ $0.intentID == intent }) else { return "Local process" }
         return channel.delegation.map { "YepAnywhere session " + $0.session } ?? channel.caller.summary
@@ -233,7 +236,18 @@ final class ResidentServer {
             if let refusal = browser.forward(-1, action, caller:channel.caller, claimID:nil, completion:finish) { finish(refusal) }
         } else {
             if lockedUse.isCovered { action["provider"] = "macos-native" }
-            finish(controlledProvider?(action) ?? service.handle(action))
+            let request = action
+            nativeProvider.execute(request, coveredWindows:service.coveredWindowIDs(),
+                cancellation:service.inputCancellation,
+                observed:{ [weak self] observation in
+                    self?.service.applySessionObservation(observation); self?.reconcileObservedSession()
+                }, authorize:{ [weak self, weak channel] in
+                    guard let self, let channel else { return GrantRefusal("owner_disconnected", "Owner disconnected") }
+                    if let code = self.broker.admission.authorize(owner:channel.owner, id:channel.intentID,
+                        session:session, generations:generations) { return GrantRefusal(code, "Control owner changed") }
+                    return self.broker.authorize(operation, controlled:true, delegatedScopes:channel.delegation == nil ? nil : channel.scopes)
+                        ?? self.lockedUse.refusal(request) ?? self.guardRequest?(request)
+                }, custom:controlledProvider, completion:finish)
         }
     }
     weak var approver: GrantApprover?
@@ -262,6 +276,7 @@ final class ResidentServer {
         self.socketPath = socketPath
         callerTrust = DesktopCallerTrust(directory:(socketPath as NSString).deletingLastPathComponent)
         self.service = service
+        service.referencesInvalidated = { [weak nativeProvider] in nativeProvider?.invalidate() }
         self.broker = broker
         approvalDesktopUnlocked = { service.observedDesktopState == "unlocked" }
         grantConsoleObservation = { service.observedConsoleSession }
@@ -297,6 +312,9 @@ final class ResidentServer {
     }
 
     func stop() {
+        for reply in Array(replies.values) { reply.cancel() }
+        replies.removeAll()
+        nativeProvider.stop()
         service.stopObservations()
         devtools.stop()
         ticker?.cancel(); ticker = nil
@@ -366,6 +384,10 @@ final class ResidentServer {
 
     private func tick() {
         service.refreshObservations()
+        reconcileObservedSession()
+    }
+
+    private func reconcileObservedSession() {
         restoreOperatorConsent()
         let observation = grantConsoleObservation()
         let state = observation["desktopState"] as? String ?? "unknown"
@@ -579,59 +601,44 @@ final class ResidentServer {
             }
             return
         }
-        do {
-            var response: [String: Any]
-            if operation == "authorization.submit" {
-                if let refusal = service.credentialPreflight(request) {
-                    respond(client, request, refusal, caller: caller, claimID: claimID)
-                    return
+        keepOpen = true
+        nativeProvider.execute(request, coveredWindows:service.coveredWindowIDs(),
+            cancellation:service.inputCancellation,
+            observed:{ [weak self] observation in
+                self?.service.applySessionObservation(observation); self?.reconcileObservedSession()
+            }, authorize:{ [weak self] in
+                guard let self else { return GrantRefusal("resident_stopping", "Resident is stopping") }
+                return self.broker.authorize(operation) ?? self.lockedUse.refusal(request) ?? self.guardRequest?(request)
+            }, credentialSocket:operation == "authorization.submit" ? client : nil,
+            completion:{ [weak self] original in
+                defer { Darwin.close(client) }
+                guard let self else { return }
+                var response = original
+                if ["input.key", "input.text"].contains(operation), response["accepted"] as? Bool == true {
+                    var data = response["data"] as? [String:Any] ?? [:]
+                    data["keyboardReceiver"] = keyboardReceiver(); response["data"] = data
                 }
-                try writeSocket(client, data: Data([0x06]))
-                var credential = try readSocket(client, limit: 257)
-                defer {
-                    credential.resetBytes(in: 0..<credential.count)
-                    credential.removeAll(keepingCapacity: false)
+                if ["status", "capabilities"].contains(operation), var data = response["data"] as? [String:Any] {
+                    data["deployment"] = self.broker.statusJSON
+                    data["lockedUse"] = self.lockedUse.status
+                    data["physicalActivity"] = self.activity.status
+                    data["admission"] = self.broker.admission.status
+                    data["admissionChannel"] = ["schema":AdmissionChannel.schema, "ownerBinding":"live_same_user_transport", "callerAssurance":"unverified_same_user", "delegatedAutomaticAccess":false, "outerRecovery":"borrowed_exact_claim/v1", "preparedConsole":"explicit_consent_and_prepared_helper/v1"]
+                    var browser = self.browser.statusJSON
+                    browser["devtoolsEndpoint"] = self.devtools.endpoint ?? NSNull()
+                    browser["browserEndpoint"] = self.devtools.browserEndpoint ?? NSNull()
+                    data["browser"] = browser
+                    if self.updates.request(check:false) != nil {
+                        data["updateDiscovery"] = ["operations":["update.check", "update.status"], "route":"desktop.native-updater", "installation":"local_operator_only"]
+                    }
+                    response["data"] = data
                 }
-                response = service.handleCredential(request, credential: credential)
-            } else {
-                response = service.handle(request)
-            }
-            if operation == "input.key" || operation == "input.text",
-               response["accepted"] as? Bool == true {
-                // Untargeted keystrokes go wherever focus is; say where.
-                var data = response["data"] as? [String: Any] ?? [:]
-                data["keyboardReceiver"] = keyboardReceiver()
-                response["data"] = data
-            }
-            if operation == "status" || operation == "capabilities",
-               var data = response["data"] as? [String: Any] {
-                data["deployment"] = broker.statusJSON
-                data["lockedUse"] = lockedUse.status
-                data["physicalActivity"] = activity.status
-                data["admission"] = broker.admission.status
-                data["admissionChannel"] = ["schema":AdmissionChannel.schema, "ownerBinding":"live_same_user_transport", "callerAssurance":"unverified_same_user", "delegatedAutomaticAccess":false, "outerRecovery":"borrowed_exact_claim/v1", "preparedConsole":"explicit_consent_and_prepared_helper/v1"]
-                var browserStatus = browser.statusJSON
-                browserStatus["devtoolsEndpoint"] = devtools.endpoint ?? NSNull()
-                browserStatus["browserEndpoint"] = devtools.browserEndpoint ?? NSNull()
-                data["browser"] = browserStatus
-                if updates.request(check: false) != nil {
-                    data["updateDiscovery"] = ["operations": ["update.check", "update.status"],
-                        "route": "desktop.native-updater", "installation": "local_operator_only"]
+                self.respond(client, request, response, caller:caller, claimID:claimID)
+                if operation == "server.stop" {
+                    self.broker.journal?.event("resident.stop"); self.revoke(reason:"resident_stopping")
+                    self.stop(); exit(0)
                 }
-                response["data"] = data
-            }
-            respond(client, request, response, caller: caller, claimID: claimID)
-            if operation == "server.stop" {
-                broker.journal?.event("resident.stop")
-                lockedUse.end("resident_stopping")
-                Darwin.close(listener)
-                unlink(socketPath)
-                exit(0)
-            }
-        } catch {
-            respond(client, request, service.refusal(request, code: "operation_failed",
-                message: String(describing: error)), caller: caller, claimID: claimID)
-        }
+            })
     }
 
     /// Returns a response now, or nil when the client stays open for a
@@ -757,7 +764,13 @@ final class ResidentServer {
                           errorCode: response["errorCode"] as? String, caller: caller,
                           claimID: claimID, detail: detail)
         }
-        try? writeSocket(client, data: encodeJSONLine(response))
+        do {
+            let id = UUID()
+            let reply = try SocketReply(client:client, data:encodeJSONLine(response))
+            replies[id] = reply
+            reply.completed = { [weak self] in self?.replies.removeValue(forKey:id) }
+            reply.start()
+        } catch { broker.journal?.diagnostic("resident.reply", code:"reply_transport_unavailable") }
     }
 }
 
@@ -873,7 +886,7 @@ func runResident(socketPath: String) throws -> Never {
                                hasKeyWindow: NSApp.keyWindow != nil,
                                menuOpen: menu?.menuOpen == true,
                                pointer: CGEvent(source: nil)?.location)
-        let reference = (request["reference"] as? String).flatMap { server?.service.referencedProcess($0) }
+        let reference = (request["reference"] as? String).flatMap { server?.referencedProcess($0) }
         return selfTargetRefusal(request, own: own, referencedProcess: reference)
     }
     // A personal Mac opens the checklist while macOS permissions are
