@@ -37,12 +37,25 @@ state every second without an in-flight guard. A receiver timeout does not
 cancel the scheduled native task. These are specific owned-runtime execution
 gaps, not limitations of AX or Tauri's ability to host background work.
 
-**Open:** why the helper replied slowly, the exact displayed error, and
-responsiveness under injected dependency faults. No asynchronous repair,
-headless profile or fresh conformance result is established by these samples.
+**Current, unreleased candidate:** bounded helper/session observations and
+serialized native provider work now execute outside the main UI thread.
+Deterministic stalled-dependency, expiry, cancellation, slow-reader and Stop
+fixtures pass. An exact signed ARM64 candidate on an isolated physical-host
+endpoint opened Settings in 127 ms during status work; its main-thread sample
+showed the ordinary AppKit/CF event loop. The installed host app, policy and
+helper configuration were unchanged. This bounded observation does not measure
+all possible dependency delays or prove the original helper healthy.
+
 [Runtime and presentation](../../topics/runtime-and-presentation.md) owns the
-resulting execution boundary and [Tactical 107](../../docs/tactical/107-runtime-and-presentation.md)
-owns the planned migration. Exact process samples remain private.
+execution boundary; [Tactical 108](../../docs/tactical/108-macos-runtime-presentation.md)
+owns exact signed profile, fixture, browser and restoration evidence. Both Mac
+bundle architectures build and pass local signing verification; GUI execution
+is ARM64 only. Exact process samples remain private.
+
+**Open:** why the original helper replied slowly and the exact displayed error.
+Explicit protected setup/resume and update installation retain their native
+lifecycle paths, including some synchronous calls. Full protected/physical
+recertification and broader responsiveness soak remain separate.
 
 ## Resumable admission
 

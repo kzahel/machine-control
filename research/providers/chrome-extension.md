@@ -27,7 +27,8 @@ tab lifecycle APIs. It is not the approval authority.
 | Platform and route | Evidence | Boundary |
 | --- | --- | --- |
 | macOS source-native extension/native messaging | `conformance-tested` | Fixture effects, navigation, capture and provider refusal in a Tart guest; predates signed Tauri acceptance |
-| macOS per-tab raw CDP WebSocket | `live-tested` | Reads/actions/events on physical and guest Chrome; browser-root native changes are source-only pending build/live qualification |
+| macOS per-tab raw CDP WebSocket | `live-tested` | Reads/actions/events on physical and guest Chrome; browser-root native changes build in the signed candidate; focused live qualification remains open |
+| macOS unreleased signed ARM64 runtime/presentation candidate | `conformance-tested` | Chrome for Testing 154, workstation native approval and no Settings WebView: 21 page/indicator/capture/worker checks through the packaged CLI; no YA agent probe or browser-root streaming qualification |
 | macOS signed Tauri, installed Python CLI and YA local Codex | `conformance-tested` | Chrome for Testing 145 in a claimed appliance: independent HTTP counter effect, tab PNG consumed by the built-in agent image tool, plus 21 existing indicator/worker checks; standing policy, not workstation approval |
 | Windows source-native extension/native messaging | `conformance-tested` | Dedicated x64 VM, browser/devtools enforcement, independent fixture effects and PNG/hash checks; exact installed evidence below |
 | Windows signed Tauri extension/native messaging | `conformance-tested` | Public 0.4.8 x64 VM package: setup/approval, independent effects/capture, restart, production browser-open replacement and ordinary uninstall; local/outside parity and lock revocation recorded on 0.4.7 |
@@ -39,6 +40,8 @@ tab lifecycle APIs. It is not the approval authority.
 [Tactical 050](../../docs/tactical/050-macos-host-control-mvp.md) and
 [Tactical 054](../../docs/tactical/054-windows-browser-and-arm64.md) and
 [055](../../docs/tactical/055-unified-desktop-publication.md) own execution.
+[Tactical 108](../../docs/tactical/108-macos-runtime-presentation.md) adds
+signed unreleased workstation approval with Settings absent.
 The [desktop matrix](../../docs/desktop-acceptance.md) separates source-native
 and exact installed product evidence.
 
@@ -85,11 +88,13 @@ native browser CDP. Root attachment reports already-running targets;
 before-first-script popup interception is unavailable. Playwright 1.63 uses
 `noDefaults: true`; isolated contexts, downloads and shutdown refuse.
 [Tactical 100](../../docs/tactical/100-browser-level-cdp.md) owns real-client
-evidence. macOS native changes remain source-only, Linux registration absent.
+evidence. macOS native changes build in the signed candidate, but browser-root
+live qualification remains open; Linux registration is absent.
 
-**Open:** macOS browser-root build/live qualification; Linux registration; other Chromium browsers;
-Web Store distribution; signed Mac workstation browser approval acceptance. No Windows ARM64
-execution is inferred from the x64 browser evidence.
+**Open:** macOS browser-root live qualification; Linux registration; other
+Chromium browsers; Web Store distribution; broader physical/Intel Mac
+workstation browser acceptance. No Windows ARM64 execution is inferred from
+the x64 browser evidence.
 
 ## Fit and next evidence
 

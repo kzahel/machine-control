@@ -272,3 +272,8 @@ for independent effects, Stop/Resume, stale references and personal recovery;
 it preserves the separately provisioned standing policy.
 The caller owns signed installation, TCC consent, temporary policy restoration,
 fixture lifecycle, target power and claim cleanup. Do not use on a personal Mac.
+
+For an additional OS reboot/cold-boot trial, use persistent guest staging and
+keep controller-side copies of every file needed for restoration. macOS clears
+`/tmp` at startup; neither an app nor its backups there can survive that test.
+The runner's Restart checks restart the app, not the operating system.

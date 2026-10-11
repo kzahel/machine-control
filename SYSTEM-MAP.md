@@ -40,9 +40,10 @@ into a raw proxy for every testbed CLI.
 **Decision:** [Runtime and presentation](topics/runtime-and-presentation.md)
 keeps Machine Control's runtime authority independent of its settings, native
 notice and tray presentation. Personal, minimal and appliance presentation are
-planned modes of one package, not new coordinators or authorization providers.
-Current platform process placement remains unchanged during the first
-responsiveness milestone.
+modes of one package, not new coordinators or authorization providers. The
+unreleased Mac implementation passes its bounded signed campaign; Windows/Linux
+integration remains separate. Platform process placement is unchanged.
+[Tactical 108](docs/tactical/108-macos-runtime-presentation.md) owns Mac evidence.
 
 | Repository | Current role | Does not own |
 | --- | --- | --- |

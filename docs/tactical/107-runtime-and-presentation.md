@@ -1,6 +1,6 @@
 # 107 — Runtime and presentation
 
-Status: active; Mac implementation and qualification underway.
+Status: active; Mac milestones 1–4 complete, Windows/Linux qualification open.
 Owning topics: [runtime and presentation](../../topics/runtime-and-presentation.md),
 [host control](../../topics/host-control.md), and
 [native distribution](../../topics/native-distribution.md).
@@ -129,27 +129,15 @@ behavior evidence, and successful Mac acceptance does not cover either OS.
 
 ## Validation and final result
 
-**Current:** First source slice implemented: bounded background observations,
-nonoverlapping UI refresh and asynchronous operator completion. Swift tests
-include blocked dependency, main-queue Stop, expired snapshot and late-result
-refusal. Existing approval/session suites pass. Installed acceptance and the
-shared runtime startup/lifecycle and closed native operator dispatch now replace
-duplicated shell construction. Duplicate-endpoint and shutdown tests pass. The
-remaining runtime/presentation milestones are still in progress; the host
-installation and public release are unchanged.
+**Current:** Mac milestones 1–4 are implemented and pass the bounded signed
+ARM64 campaign. [Tactical 108](108-macos-runtime-presentation.md) owns exact
+source, deterministic checks, both Mac bundle architectures, VM effects,
+browser-without-Settings, standing-policy preservation, host observations and
+restoration. It also records fixes found during live acceptance and remaining
+protected/physical limits. The host installation and public release are
+unchanged.
 
-Native provider effects now use one serial worker with worker-owned AX
-references and credential leases. The coordinator rechecks authority after
-fresh preflight, invalidates cancellation generations on session/availability
-changes, and reports late confirmed delivery as uncertain rather than replaying.
-One-shot replies own nonblocking duplicate descriptors with bounded lifetime.
-The 154 Swift tests and Tauri native build pass; installed acceptance remains
-pending. An already dispatched native call cannot always be interrupted.
-
-Mac presentation source now creates Settings on demand and destroys it on close.
-Native approval and admission notices do not require a WebView. All profiles
-use one owner-only versioned atomic preference; Settings, native provisioning
-commands and the packaged CLI share it. Launch recovery and temporary overrides
-are validated by Rust argument tests. Preference tests cover corruption, size,
-symlinks, modes, reset, temporary overrides and unchanged approval authority.
-Installed signed profile acceptance is underway; this is source/build evidence.
+Milestone 5 remains active for Windows/Linux native integration and their
+profile qualification. Mac evidence does not qualify those platforms, Intel
+GUI execution or a new public package. Continue with existing resident/session
+boundaries and select appropriate native build hosts or CI before deployment.

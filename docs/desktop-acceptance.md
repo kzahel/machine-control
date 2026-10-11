@@ -1,11 +1,11 @@
 # Desktop product acceptance matrix
 
-Reviewed: 2026-10-06.
+Reviewed: 2026-10-11.
 
 This is an index of recorded acceptance for the shared Tauri desktop product,
 with earlier runtime evidence kept separate. Linked tactical records own exact
 versions, source identity, workflow artifacts, procedures, and limitations.
-Current public 0.5.7 package verification for all six targets is recorded in
+Public 0.5.7 package verification for all six targets is recorded in
 [105](tactical/105-desktop-0.5.7-release.md); execution keeps its specific
 versions. All six installed CLI payloads authenticate and pass hosted offline
 relocation smoke, including native Windows ARM64; this is separate from GUI
@@ -37,6 +37,31 @@ immediately. Concrete targets and raw evidence stay in private inventory/storage
 | Windows x64, physical Windows | New candidate package verification does not establish physical execution | New Tauri operator acceptance not recorded; earlier appliance engine evidence below | [physical engine record](evidence/windows-physical-x64.md) |
 | Linux x64, Ubuntu GNOME Wayland VM | Exact signed public 0.5.7 Debian/AppImage bytes, signatures and inventories verified | Public 0.5.0 fresh installed UI/grants/effects/lifecycle and signed replacement with browser tasks pass; earlier same-core lock, reboot/startup and removal evidence remains in 056 | [056](tactical/056-linux-desktop.md), [059](tactical/059-public-linux-desktop.md); [063](tactical/063-six-platform-desktop-release.md), [091](tactical/091-desktop-until-stopped.md); [105](tactical/105-desktop-0.5.7-release.md) |
 | Linux ARM64, Ubuntu GNOME Wayland VM | Public 0.5.7 native Ubuntu CI builds, compiled identity, container inventories/signatures and tamper rejection verified | Exact 0.5.4 Debian visible indefinite access/status, null countdown, AT-SPI delivery, independent GTK counter effect and Stop pass; portal/browser/lifecycle execution remains separate | [056](tactical/056-linux-desktop.md), [059](tactical/059-public-linux-desktop.md); [063](tactical/063-six-platform-desktop-release.md), [091](tactical/091-desktop-until-stopped.md); [105](tactical/105-desktop-0.5.7-release.md) |
+
+## Focused Mac runtime and presentation candidate acceptance
+
+Unreleased runtime source `72a2eef` (development version `0.3.0`) builds and
+passes local Developer ID signing verification for ARM64 and Intel. Signed
+ARM64 Tart execution passes personal, minimal and appliance presentation under
+a healthy trusted workstation policy, native approvals/notices, lazy Settings,
+second-launch recovery, live selection/reset, local/outside fixture effects,
+PNG bytes, native input, Pause/Stop, restart with TCC retained and stale-reference
+refusal. Temporary overrides expire on Restart. A persistent staged appliance
+also passes actual cold-boot startup, native effect and Settings recovery. A
+separate trial preserves standing appliance policy through Stop/Resume and personal recovery.
+
+The existing 21-check Chrome for Testing 154 corpus passes under native
+workstation approval with Settings absent, including independent page/icon
+effects, packaged CLI capture retrieval and worker/native-host reconnect.
+Update discovery and active-access installation exclusion pass; no update was
+installed. Bounded physical-host UI/read-only checks use an isolated endpoint
+with no grant and leave the installed app/policy/helpers unchanged. The original
+VM resident and standing policy are recovered, and its powered-off state is restored. Delegated caller trust remains suspended after
+a temporary-backup loss; the tactical records the restoration limit.
+[Tactical 108](tactical/108-macos-runtime-presentation.md) owns exact evidence,
+friction and limits. Intel GUI, Windows/Linux integration, full protected-session
+recertification, notarization and public publication remain separate. Historical
+public-package cells below retain their own versions and scope.
 
 ## Focused Windows desktop UAC candidate acceptance
 

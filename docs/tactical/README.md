@@ -42,11 +42,11 @@ the commits' `Topic:` trailers and register that exact string in
 
 ## Tactical index
 
-- [108 — Mac runtime and presentation acceptance](108-macos-runtime-presentation.md) (active):
+- [108 — Mac runtime and presentation acceptance](108-macos-runtime-presentation.md) (completed Mac slice):
   Mac implementation, signed three-profile acceptance and bounded host checks.
 - [107 — Runtime and presentation](107-runtime-and-presentation.md) (active):
-  first remove Mac status stalls, then separate presentation and qualify three
-  configurable profiles in the shared package.
+  Mac nonblocking runtime and three profiles complete; Windows/Linux native
+  integration and shared-package qualification remain open.
 
 - [097 — Windows desktop UAC](097-windows-desktop-uac.md) (completed slice):
   optional protected helper, desktop grants/live ownership and 21 x64 VM checks;

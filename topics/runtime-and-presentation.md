@@ -2,8 +2,10 @@
 
 Topic: `runtime-and-presentation`
 
-Status: Mac source implementation complete; signed qualification active. [Tactical 107](../docs/tactical/107-runtime-and-presentation.md)
-coordinates the migration.
+Status: Mac implementation and bounded signed qualification complete;
+Windows/Linux integration remains separate.
+[Tactical 107](../docs/tactical/107-runtime-and-presentation.md) coordinates the
+migration.
 
 ## Current boundary and evidence
 
@@ -27,7 +29,8 @@ observations to bounded workers, exposes expiring display snapshots, preserves
 protected pauses when helper state is unknown, coalesces frontend refreshes,
 and awaits native operator completion without blocking the async executor.
 Fresh action checks remain separate. Fault fixtures hold a helper open while
-resident ticks and local Stop continue; installed acceptance follows later.
+resident ticks and local Stop continue. Signed candidate qualification is
+recorded in [Mac acceptance](../docs/tactical/108-macos-runtime-presentation.md).
 
 ## Product direction
 
@@ -71,7 +74,7 @@ and asynchronous continuations rather than blocking socket/process/provider
 waits. Main-thread-only OS/UI work remains bounded and explicit. Initially
 retain existing process placement and signed identities.
 
-**Proposal:** Use three responsibilities:
+**Current (Mac source):** The implementation uses three responsibilities:
 
 - A control coordinator owns grants, admission, operation ordering, generations,
   cancellation, update exclusion and runtime lifecycle.
@@ -108,11 +111,12 @@ configuration/reset CLI so recovery never depends on locating or deleting a
 special file. Configuration mutation belongs to the operator/admin surface,
 not the public agent action endpoint.
 
-**Proposal:** A versioned per-installation presentation preference has explicit
-defaults and atomic updates. Settings and the provisioning CLI use one
+**Current (Mac source):** A versioned per-installation presentation preference
+has explicit defaults and atomic updates. Settings and the provisioning CLI use one
 implementation. A temporary launch override takes precedence over the saved
-preference and does not write it. Single-instance forwarding opens Settings in
-the existing runtime rather than starting a second resident. Invalid values
+preference and does not write it; it expires on Restart. Endpoint-specific
+forwarding opens Settings in the existing runtime rather than starting a second
+resident. Invalid values
 produce a diagnostic and fall back to personal presentation.
 
 **Current (source/built):** Mac uses `machine-control-presentation/v1` in an
@@ -143,9 +147,16 @@ native/CI or VM facilities. Keep defaults and release behavior unchanged until
 each new profile passes its acceptance gates; Mac proof alone is not
 cross-platform qualification.
 
-**Current (source/built):** The Mac runtime and three profiles are implemented;
-[Mac acceptance](../docs/tactical/108-macos-runtime-presentation.md) is underway.
-**Open:** Signed installed three-profile qualification is not yet complete. Process separation on Mac is a later evidence-based choice:
+**Current:** The Mac runtime and all three profiles pass bounded signed ARM64
+VM acceptance, native approvals/effects/restart and Settings recovery. Browser
+control works with Settings absent; standing policy survives Stop/Resume and
+personal recovery. Intel packaging and bounded physical-host responsiveness
+checks pass. [Mac acceptance](../docs/tactical/108-macos-runtime-presentation.md)
+owns exact candidate evidence and limits; no public release was performed.
+
+**Open:** Windows/Linux native profile integration, Intel GUI execution and
+broader protected/physical qualification. Process separation on Mac remains an
+evidence-based choice:
 account for TCC ownership, code identity, authenticated operator IPC, updater
 lifecycle and browser integration before changing it. A runtime remaining
 responsive with a deliberately stalled dependency is the first completion

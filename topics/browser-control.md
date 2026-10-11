@@ -22,6 +22,15 @@ and result vocabulary as desktop control. This applies to physical hosts
 
 ## Current
 
+**Current (2026-10-11):** The unreleased signed ARM64 Mac candidate passes
+21 Chrome for Testing 154 checks under native workstation approval with no
+Settings WebView. Packaged CLI PNG retrieval, independent page/icon effects,
+marker lifecycle and native-host reconnect after worker restart pass.
+[Tactical 108](../docs/tactical/108-macos-runtime-presentation.md) owns the
+bounded campaign. This adds ordinary workstation approval evidence; it does
+not qualify browser-root streaming, a YA model probe, physical/Intel execution
+or a public release.
+
 **Current (2026-10-02):** A source-independent YA Codex provider in the Mac
 appliance consumes the signed installed Python CLI for a browser fixture:
 tabs/snapshot, one semantic click, tab capture, artifact fetch and built-in
@@ -105,7 +114,8 @@ over the socket. `browserEndpoint` adds a browser-root connection alongside
 the tab template. Shared extension logic exposes supported default-profile
 page targets, discovery, tab lifecycle, facade tab wrappers and flattened
 native child sessions. Windows and macOS native bridges preserve session
-routing; macOS browser-root changes are source-only pending qualification.
+routing; macOS browser-root changes build in the signed candidate but await
+focused live qualification.
 Playwright requires `noDefaults: true` because browser-wide download policy
 is unavailable. Isolated contexts, browser shutdown and restricted operations
 refuse explicitly. A separate agent Chrome profile started with
@@ -148,8 +158,8 @@ package and environment boundaries.
   default-profile target discovery and flattened sessions for real Playwright
   and Puppeteer clients. [Tactical 100](../docs/tactical/100-browser-level-cdp.md)
   owns qualification and the supported subset. Shared extension behavior is
-  reusable; macOS native build/live, Linux registration, isolated contexts and
-  browser-wide operations remain separate gaps.
+  reusable; macOS browser-root live qualification, Linux registration, isolated
+  contexts and browser-wide operations remain separate gaps.
 - **Current:** Windows per-user registration, scoped browser operations, and
   single-shot raw CDP/evaluation are implemented. Signed installed acceptance
   is in [054](../docs/tactical/054-windows-browser-and-arm64.md). The unreleased
