@@ -413,6 +413,21 @@ storage-failure acceptance runs on the platform's dedicated VM. The shared
 platform/architecture results. This does not broaden provider privilege or
 signed-package acceptance.
 
+## Resident responsiveness and optional presentation
+
+**Current, source-reviewed and native candidate-tested:** The existing .NET
+resident supplies all three presentation profiles without changing grant,
+owner-session or protected-helper authority. Tauri companion work runs away
+from the event thread. Native Stop and safety presentation remain independent
+of Settings and provider waits. Discovery load, real window recovery and
+independent native pointer effects are covered by the bounded Windows campaign
+in [tactical 110](../../docs/tactical/110-windows-runtime-presentation.md).
+
+This evidence concerns an isolated development candidate. It does not qualify
+a public release, ARM64 desktop execution, publisher-signed installer/update
+replacement, or a new protected-session campaign. The tactical owns measured
+results and the remaining build/signing limits.
+
 ## Controller CLI reliability
 
 **Current:** the full Hyper-V role excludes Windows Home. A bounded

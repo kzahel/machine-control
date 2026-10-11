@@ -172,7 +172,8 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
         if (request.SecretPipe is not null || request.CredentialKind is not null)
             return result with { ErrorCode = "profile_refused", Message = "Workstation mode has no credential transport" };
         if (request.Operation == "session.unlock.prepare" && DesktopLockedUse.Current is { } lockedUse)
-            return lockedUse.Prepare(request, Generation);
+            return await _providerWork.RunAsync(request, admittedGeneration,
+                token => Task.FromResult(lockedUse.Prepare(request, admittedGeneration, token)), cancellationToken);
         if (updates is not null && request.Operation is "update.check" or "update.status")
         {
             try

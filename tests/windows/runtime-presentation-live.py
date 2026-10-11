@@ -6,6 +6,7 @@ Operator actions use UIA; agent effects use the ordinary retained channel.
 import argparse
 import base64
 import concurrent.futures
+import ctypes
 import hashlib
 import json
 import os
@@ -126,7 +127,7 @@ def main():
                 ui('Machine Control access request', 'Allow')
                 check(requested.result(timeout=30)['accepted'], profile + ': native approval without Settings')
             owner = ControlSession({'command': [sys.executable, str(Path(__file__).resolve()), '--channel', str(exe), session]},
-                                   reason='Native presentation fixture effect', scopes=('observe', 'control'), wait=60, duration=120)
+                                   reason='Native presentation fixture effect', scopes=('observe', 'control'), wait=120, duration=300)
             wait(lambda: windows(runtime, 'Machine Control is ready to use the desktop'), 'native activation notice')
             ui('Machine Control is ready to use the desktop', 'Start now')
             owner.wait()
@@ -144,7 +145,7 @@ def main():
             old_fence = dict(owner.view)
             owner.close(); owner = None
             replacement = ControlSession({'command': [sys.executable, str(Path(__file__).resolve()), '--channel', str(exe), session]},
-                                         reason='Owner loss replacement fixture', scopes=('observe', 'control'), wait=60, duration=120)
+                                         reason='Owner loss replacement fixture', scopes=('observe', 'control'), wait=120, duration=300)
             owner = replacement
             owner.wait()
             check(owner.view['sessionId'] != old_fence['sessionId'], profile + ': disconnect releases owner and replaces session')
@@ -158,8 +159,14 @@ def main():
             wait(lambda: windows(app.pid, 'Machine Control'), 'same-runtime recovery')
             check(config('status')['runtimeId'] == runtime, profile + ': second launch retains resident')
             ui('Machine Control', 'Pause access')
-            check(owner.status()['state'] != 'active', profile + ': Pause removes active ownership')
+            wait(lambda: owner.status()['state'] != 'active', 'Pause acknowledgement', 10)
+            paused = owner.status()
+            report['pauseStatus'] = paused
+            check(paused['state'] != 'active', profile + ': Pause removes active ownership')
+            owner.close(); owner = None
             ui('Machine Control', 'Resume access')
+            owner = ControlSession({'command': [sys.executable, str(Path(__file__).resolve()), '--channel', str(exe), session]},
+                                   reason='Resume replacement fixture', scopes=('observe', 'control'), wait=120, duration=300)
             owner.wait()
             ui('Machine Control')
             if profile == 'minimal':
@@ -172,6 +179,36 @@ def main():
                 with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
                     check(all(pool.map(discovery, range(60))), 'Load: 60 discovery requests across six clients')
                 report['discoveryLatencyMs'] = {'maximum': max(timings), 'p95': sorted(timings)[int(len(timings)*.95)-1]}
+                # Exhaust public handshake capacity without completing frames.
+                # The inherited operator and local configuration pipes remain
+                # independent of these six stalled peers plus the owner.
+                sid = ps('[Security.Principal.WindowsIdentity]::GetCurrent().User.Value')
+                pipe_name = '\\\\.\\pipe\\machine-control-user-' + sid + '-' + session + '-' + instance
+                kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+                kernel.CreateFileW.argtypes = [ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
+                kernel.CreateFileW.restype = ctypes.c_void_p
+                kernel.CloseHandle.argtypes = [ctypes.c_void_p]
+                peers = []
+                try:
+                    for _ in range(6):
+                        until = time.monotonic() + 3
+                        while True:
+                            handle = kernel.CreateFileW(pipe_name, 0xC0000000, 0, None, 3, 0, None)
+                            if handle not in (None, ctypes.c_void_p(-1).value):
+                                break
+                            if ctypes.get_last_error() != 231 or time.monotonic() >= until:
+                                raise OSError(ctypes.get_last_error(), 'Handshake peer connect failed')
+                            time.sleep(.02)
+                        peers.append(handle)
+                    recovery_start = time.monotonic()
+                    subprocess.run([str(app_exe), '--instance', instance, '--settings'], timeout=10, check=True)
+                    wait(lambda: windows(app.pid, 'Machine Control'), 'Settings recovery under handshake load', 10)
+                    report['handshakeRecoveryMs'] = (time.monotonic() - recovery_start) * 1000
+                    check(config('status')['runtimeId'] == runtime, 'Stalled public handshakes preserve Settings and configuration recovery')
+                    ui('Machine Control')
+                finally:
+                    for handle in peers:
+                        kernel.CloseHandle(handle)
             baseline = len([e for e in json.loads(marker.read_text())['events'] if e['kind'] == 'down'])
             with concurrent.futures.ThreadPoolExecutor() as pool:
                 dragging = pool.submit(owner.call, {'operation': 'drag', 'x': x, 'y': y, 'x2': x + 150, 'y2': y + 100, 'durationMs': 5000})

@@ -90,7 +90,7 @@ fn run(args: &[OsString]) -> io::Result<i32> {
         })
         .status()?;
     if status.success() && (args == ["--help"] || args == ["-h"]) {
-        println!("\nWindows desktop: bare command or --start starts the app and prints guidance.\nUse --gui to open the operator window. agent identity --paths shows this installation.");
+        println!("\nWindows desktop: bare command or --start starts the app and prints guidance.\nUse --settings to recover Settings in the existing runtime; --gui remains supported.\nUse presentation status|set personal|minimal|appliance|reset for local configuration.\nagent identity --paths shows this installation.");
     }
     Ok(status.code().unwrap_or(1))
 }

@@ -262,6 +262,44 @@ Adopt Desktop Release Kit's update contract when
 publishing; the application owns its lifecycle and native acceptance rather
 than treating a canary pass as Machine Control acceptance.
 
+## Windows presentation and recovery
+
+The Windows development candidate reuses the .NET resident and its existing
+authorization. Personal opens Settings; Minimal starts with the tray;
+Appliance hides its idle tray and starts quietly. Required native approvals,
+activation notices and Stop remain available in all three modes. Appliance
+presentation does not provision standing access or a protected provider.
+
+Closing Settings destroys its WebView and leaves the runtime and owner
+channels running. Open the same executable with `--settings` to recover
+Settings in that runtime. `--gui` remains a compatibility spelling. A temporary
+`--presentation personal|minimal|appliance` launch override expires on Restart;
+Restart reloads the saved choice and revokes volatile control.
+
+In an interactive Windows terminal, the packaged executable supports:
+
+```powershell
+machine-control presentation status
+machine-control presentation set minimal
+machine-control presentation reset
+machine-control --settings
+```
+
+The local operator CLI uses a separate same-user pipe when the resident is
+running, and an atomic preference file when it is absent. A busy endpoint
+refuses an offline edit; uncertain delivery is never replayed. Changes defer
+while approval is pending. Invalid preferences default to Personal and expose
+a diagnostic. Settings also offers the presentation selector. These controls
+do not change grants, permissions or administrator deployment policy.
+
+`Ctrl+Alt+Shift+.` stops access independently of Settings and provider work.
+Stop availability is reported explicitly; Quit terminates the operator's owned
+resident job if its private transport is broken. Tests may use a separate
+`--instance NAME`; browser registration remains the standard desktop route.
+[Windows acceptance](../docs/tactical/110-windows-runtime-presentation.md)
+distinguishes local development signing, native execution and remaining
+publisher/architecture qualification.
+
 ## Native administrator commands on Mac
 
 The Mac bundle includes the signed `mc-sudo` and `mc-sudo-askpass` executables

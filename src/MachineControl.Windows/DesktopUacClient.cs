@@ -111,8 +111,13 @@ internal static class DesktopUacClient
                 var check = JsonSerializer.Deserialize<JsonElement>(await DesktopUacNative.ReadAsync(reader, timeout.Token));
                 DesktopUacNative.RequireSystem(pipe);
                 var pid = check.TryGetProperty("processId", out var process) && process.ValueKind == JsonValueKind.Number ? process.GetInt32() : (int?)null;
+                // UIA/OS preflight may stall. Never hold the consent lock
+                // across it; revalidate the exact authority before replying.
+                var preflight = DesktopSafety.Check(request, generation, pid);
+                timeout.Token.ThrowIfCancellationRequested();
                 string? error;
-                lock (grants.Gate) error = !Enabled ? "uac_access_disabled" : DesktopSafety.Check(request, generation, pid);
+                lock (grants.Gate) error = !Enabled ? "uac_access_disabled" :
+                    grants.Authorize(request, generation) ?? preflight;
                 await using var writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096, true) { AutoFlush = true };
                 await writer.WriteLineAsync(Contract.Serialize(new { error }).AsMemory(), timeout.Token);
             }

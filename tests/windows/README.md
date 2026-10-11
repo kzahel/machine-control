@@ -1,5 +1,25 @@
 # Windows conformance
 
+## Runtime and presentation acceptance
+
+[`runtime-presentation-live.py`](runtime-presentation-live.py) runs in a
+claimed dedicated target's interactive Medium session. Supply a caller-owned
+staged `--install` containing the desktop app, runtime, pinned provider,
+pointer fixture and bundled Python; stage source `client/` and this runner in
+the same relative layout. Store `--output` outside Git. Use an interactive
+Limited scheduled task or a target-native launch route; no approval hook or
+installed operator replacement is required.
+
+The runner uses a separate instance and real native UIA operator actions.
+It checks offline/live preferences, startup policy, destroyed Settings,
+native approvals and notices, independent pointer effects, owner loss, stale
+ownership, Pause, running-drag Stop/release, discovery and handshake load,
+same-runtime recovery and restart expiration of temporary overrides. It
+restores its preference and reaps processes in its owned staging directory.
+The outside caller must verify cleanup, remove its task/staging and temporary
+test trust, restore original target power and release its claim. This runner
+does not qualify protected UAC/lock behavior or publisher signing.
+
 ## Streaming CDP acceptance
 
 [`browser-cdp-live.py`](browser-cdp-live.py) runs in the interactive Medium

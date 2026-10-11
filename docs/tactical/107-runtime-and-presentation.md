@@ -142,7 +142,9 @@ the Windows handoff: asynchronous Resume, preflight deadlines and fencing,
 reply/handshake bounds, audit-free delegation discovery and signed host load.
 Protected lifecycle/update paths and broader physical qualification remain open.
 
-Milestone 5 remains active for Windows/Linux native integration and their
-profile qualification. Mac evidence does not qualify those platforms, Intel
+Windows integration and its bounded development-candidate campaign are
+recorded in [tactical 110](110-windows-runtime-presentation.md). Milestone 5
+remains active for Linux integration and remaining platform qualification.
+Mac evidence does not qualify those platforms, Intel
 GUI execution or a new public package. Continue with existing resident/session
 boundaries and select appropriate native build hosts or CI before deployment.

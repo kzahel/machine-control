@@ -81,9 +81,13 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
 
     internal void Tick()
     {
+        Lease? observed;
+        lock (grants.Gate) observed = _lease;
+        if (observed is null) return;
+        var locked = SessionStateInspector.IsLocked((uint)RuntimeProfile.SessionId) == true;
         lock (grants.Gate)
         {
-            if (_lease is not { } lease) return;
+            if (_lease is not { } lease || lease != observed) return;
             var owner = lease.Request.ControlOwnership!;
             if (!lease.Ending && (!grants.PreparedConsole || grants.AuthorizationRevision != lease.Revision ||
                 grants.Admission.Authorize(owner.Owner, owner.Intent, owner.Session, owner.Generations) is not null))
@@ -91,7 +95,7 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
                 lease.Ending = true;
                 grants.Admission.Pause("desktop", "relock_pending");
             }
-            if (lease.Ending && (lease.Complete || !lease.ServiceStarted) && SessionStateInspector.IsLocked((uint)RuntimeProfile.SessionId) == true)
+            if (lease.Ending && (lease.Complete || !lease.ServiceStarted) && locked)
             {
                 _lease = null;
                 DesktopSafety.CoverProcessId = 0;
@@ -100,14 +104,21 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
         }
     }
 
-    internal Result Prepare(Request request, string generation)
+    internal Result Prepare(Request request, string generation, CancellationToken cancellation = default)
     {
+        // Protected installation/policy and WTS observations can wait. The
+        // captured request generation is checked after all preparation.
+        var prepared = Prepared();
+        var locked = SessionStateInspector.IsLocked((uint)RuntimeProfile.SessionId) == true;
+        var policy = prepared ? UnlockPolicy.Read(Instance) : null;
+        cancellation.ThrowIfCancellationRequested();
         lock (grants.Gate)
         {
+            cancellation.ThrowIfCancellationRequested();
             var denied = grants.Authorize(request, generation);
-            if (denied is not null || !Prepared() || !grants.PreparedConsole ||
+            if (denied is not null || !prepared || policy is null || !grants.PreparedConsole ||
                 request.ControlOwnership?.StartedLocked != true ||
-                SessionStateInspector.IsLocked((uint)RuntimeProfile.SessionId) != true || _lease is not null)
+                !locked || _lease is not null)
                 return new Result
                 {
                     RequestId = request.RequestId!,
@@ -117,9 +128,9 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
                     Delivery = "refused",
                     Effect = "refused"
                 };
-            var lease = new Lease(request, grants.AuthorizationRevision, UnlockPolicy.Read(Instance));
+            var lease = new Lease(request, grants.AuthorizationRevision, policy);
             _lease = lease;
-            _ = ServeGuardAsync(lease);
+            _ = Task.Run(() => ServeGuardAsync(lease));
             return new Result
             {
                 RequestId = request.RequestId!,
@@ -159,10 +170,13 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
                 {
                     DesktopUacNative.RequireSystem(pipe);
                     using var frame = JsonDocument.Parse(await UnlockWire.ReadLineAsync(pipe, deadline.Token));
+                    Tick();
+                    var prepared = Prepared();
+                    var policy = prepared ? UnlockPolicy.Read(Instance) : null;
+                    deadline.Token.ThrowIfCancellationRequested();
                     object reply;
                     lock (grants.Gate)
                     {
-                        Tick();
                         if (frame.RootElement.TryGetProperty("attemptStarted", out var started) && started.GetBoolean())
                             lease.ServiceStarted = true;
                         if (frame.RootElement.TryGetProperty("guardianPid", out var guardian) && guardian.ValueKind == JsonValueKind.Number)
@@ -174,8 +188,8 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
                         var owner = lease.Request.ControlOwnership!;
                         reply = new
                         {
-                            allowed = _lease == lease && !lease.Ending && Prepared() &&
-                            UnlockPolicy.Read(Instance) == lease.ProtectedGrant &&
+                            allowed = _lease == lease && !lease.Ending && prepared &&
+                            policy == lease.ProtectedGrant &&
                             grants.PreparedConsole && grants.AuthorizationRevision == lease.Revision &&
                             grants.Admission.Authorize(owner.Owner, owner.Intent, owner.Session, owner.Generations) is null
                         };

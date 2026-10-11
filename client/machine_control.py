@@ -3689,7 +3689,8 @@ Commands:
   target status|up|suspend|shutdown|force-stop|reboot|doctor|capabilities
          ensure-ready|validate-candidate|prepare-promotion
   presentation status|set personal|minimal|appliance|reset [--socket SOCKET]
-                           Local Mac operator preference, independent of grants
+                           Local Mac/Windows operator preference; Windows accepts
+                           --instance NAME; independent of grants
   claim capabilities|status|acquire|renew|release
                                     Use `claim --help` for attribution syntax
   run [CLAIM OPTIONS] [--intent INTENT] -- PROGRAM ARG...

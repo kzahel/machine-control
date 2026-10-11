@@ -2,8 +2,9 @@
 
 Topic: `runtime-and-presentation`
 
-Status: Mac implementation and bounded signed qualification complete;
-Windows/Linux integration remains separate.
+Status: Mac and Windows presentation implementations are in place;
+bounded native qualification and remaining limits are platform-specific.
+Linux integration remains separate.
 [Tactical 107](../docs/tactical/107-runtime-and-presentation.md) coordinates the
 migration.
 
@@ -41,6 +42,17 @@ ARM64 host load/recovery pass; [hardening](../docs/tactical/109-macos-runtime-ha
 owns measurements and remaining synchronous lifecycle paths.
 
 ## Product direction
+
+**Current (Windows):** Tauri schedules companion IPC and lifecycle work away
+from its event thread. One bounded provider worker retains capacity through
+late completion, and admission-time authority fences prevent replacement
+grants from reviving old work. Stop posts to an inherited, process-bound
+native message window independently of IPC; Quit terminates the owned job.
+The .NET resident owns native approvals and notices with Settings absent.
+Windows implements lazy Settings, personal/minimal/appliance preferences,
+same-runtime recovery, local configuration and restart-expiring overrides.
+[Windows acceptance](../docs/tactical/110-windows-runtime-presentation.md)
+owns exact-source builds, native fixture evidence and signing limits.
 
 **Decision:** One reusable logical runtime serves three presentation profiles
 within the same app/package and release stream. Reuse platform providers,
@@ -162,8 +174,9 @@ personal recovery. Intel packaging and bounded physical-host responsiveness
 checks pass. [Mac acceptance](../docs/tactical/108-macos-runtime-presentation.md)
 owns exact candidate evidence and limits; no public release was performed.
 
-**Open:** Windows/Linux native profile integration, Intel GUI execution and
-broader protected/physical qualification. Process separation on Mac remains an
+**Open:** Linux native profile integration, Windows publisher signing and full
+ARM64 desktop qualification, Intel Mac GUI execution and broader
+protected/physical qualification. Process separation on Mac remains an
 evidence-based choice:
 account for TCC ownership, code identity, authenticated operator IPC, updater
 lifecycle and browser integration before changing it. A runtime remaining
