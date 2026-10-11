@@ -1,6 +1,21 @@
 #[cfg(target_os = "macos")]
 use tauri::Manager;
 
+/// Presentation overrides apply to one launch; restart uses the saved choice.
+#[cfg(target_os = "macos")]
+fn restart_launch_args(args: &[std::ffi::OsString]) -> Vec<std::ffi::OsString> {
+    let mut result = Vec::new();
+    let mut input = args.iter();
+    while let Some(arg) = input.next() {
+        if arg == "--presentation" {
+            input.next();
+        } else {
+            result.push(arg.clone());
+        }
+    }
+    result
+}
+
 pub fn valid_launch_args(args: &[String]) -> bool {
     #[cfg(target_os = "windows")]
     if args == ["--gui"] {
@@ -74,7 +89,7 @@ exec "$@"
         .args(["-c", HANDOFF, "mc-restart"])
         .arg(std::process::id().to_string())
         .arg(binary)
-        .args(env.args_os.iter().skip(1))
+        .args(restart_launch_args(&env.args_os[1..]))
         .process_group(0)
         .spawn()
         .map_err(|e| e.to_string())?;
@@ -94,12 +109,12 @@ pub fn request(app: &tauri::AppHandle) -> Result<(), String> {
 
 #[cfg(all(test, target_os = "macos"))]
 mod tests {
-    use super::valid_launch_args;
+    use super::{restart_launch_args, valid_launch_args};
     fn valid(args: &[&str]) -> bool {
         valid_launch_args(&args.iter().map(|arg| (*arg).to_owned()).collect::<Vec<_>>())
     }
     #[test]
-    fn settings_and_temporary_modes_survive_restart() {
+    fn settings_and_temporary_modes_are_valid_launch_arguments() {
         assert!(valid(&["--settings"]));
         for profile in ["personal", "minimal", "appliance"] {
             assert!(valid(&[
@@ -115,5 +130,33 @@ mod tests {
         assert!(!valid(&["--presentation", "unknown"]));
         assert!(!valid(&["--settings", "--settings"]));
         assert!(!valid(&["serve", "/tmp/example.sock", "extra"]));
+    }
+
+    #[test]
+    fn restart_expires_override_and_preserves_endpoint_and_recovery() {
+        for profile in ["personal", "minimal", "appliance"] {
+            let args: Vec<std::ffi::OsString> = [
+                "serve",
+                "/private/tmp/example with spaces.sock",
+                "--presentation",
+                profile,
+                "--settings",
+                "--background",
+            ]
+            .iter()
+            .map(std::ffi::OsString::from)
+            .collect();
+            let expected: Vec<std::ffi::OsString> = [
+                "serve",
+                "/private/tmp/example with spaces.sock",
+                "--settings",
+                "--background",
+            ]
+            .iter()
+            .map(std::ffi::OsString::from)
+            .collect();
+            assert_eq!(restart_launch_args(&args), expected);
+            assert_eq!(restart_launch_args(&expected), expected);
+        }
     }
 }
