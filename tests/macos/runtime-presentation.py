@@ -51,6 +51,7 @@ def request(value, packaged=False):
         args = ['os', '--', binary, 'request', a.candidate_socket, json.dumps(value)]
     result = subprocess.run(mc + args, text=True, capture_output=True, timeout=60)
     assert result.returncode in (0, 1), result.stderr
+    assert result.stdout.strip(), ("Empty candidate reply", result.returncode, result.stderr)
     return json.loads(result.stdout)
 
 
@@ -153,11 +154,13 @@ try:
     assert request(dict(operation='status'))['generation'] == request(dict(operation='grant.status'))['generation']
     assert initial['deployment']['policy']['grantMode'] == 'approval', initial['deployment']
     assert initial['presentation']['profile'] == a.profile, initial['presentation']
+    print("Signed startup and runtime identity passed", flush=True)
     expected = 1 if a.profile == 'personal' else 0
     wait(lambda: status()['presentation']['settingsWebViews'] == expected, 'profile startup')
     if expected:
         close_settings()
     settings(); close_settings(); settings(); close_settings()
+    print("Lazy Settings and single-instance recovery passed", flush=True)
 
     # Approval works with no Settings WebView. Saving a profile during approval
     # defers its live application without dismissing or replacing the prompt.
@@ -184,6 +187,7 @@ try:
     accepted(request(dict(operation='action', reference=reference, action='press')))
     assert json.loads(call('testbed', '--', 'fixture-state'))['count'] == before + 1
 
+    print("Native approvals and outside fixture effect passed", flush=True)
     acquired = json.loads(call('os', '--', a.candidate_client, '--target', 'host', 'claim', 'acquire',
         '--duration', '30m', '--claimant-authority', 'mc-conformance', '--claimant-id', 'presentation',
         '--reason', 'Verify packaged local and outside access'))
@@ -199,6 +203,15 @@ try:
     # Supported reset is live, preserves authority, and never requires deleting
     # a special file. Settings itself survives a profile change.
     settings()
+    choices = wait(lambda: [e for e in elements('Presentation mode') if e['role'] == 'AXPopUpButton'], 'presentation selector')
+    assert len(choices) == 1
+    accepted(base(dict(operation='action', reference=choices[0]['reference'], action='press')))
+    selected = 'personal' if a.profile == 'minimal' else 'minimal'
+    accepted(base(dict(operation='input.key', target=str(pid), key='p' if selected == 'personal' else 'm')))
+    accepted(base(dict(operation='input.key', target=str(pid), key='enter')))
+    wait(lambda: status()['presentation']['profile'] == selected, 'Settings mode selection applied')
+    assert preference('status')['profile'] == selected
+    assert accepted(request(dict(operation='grant.status')))['grant']['grantId'] == approved['grantId']
     preference('reset')
     wait(lambda: status()['presentation']['profile'] == 'personal', 'reset applied')
     assert accepted(request(dict(operation='grant.status')))['grant']['grantId'] == approved['grantId']
@@ -210,7 +223,7 @@ try:
     settings()
     print(json.dumps({'schema':'machine-control-mac-presentation-acceptance/v1', 'profile':a.profile,
         'startup':True, 'lazySettings':True, 'singleInstanceRecovery':True, 'nativeApproval':True,
-        'deferredPreference':True, 'outsideAndLocalEffects':True, 'capture':True, 'liveReset':True, 'stop':True}, sort_keys=True))
+        'deferredPreference':True, 'outsideAndLocalEffects':True, 'capture':True, 'settingsSelector':True, 'liveReset':True, 'stop':True}, sort_keys=True))
 finally:
     if pending is not None:
         try:
@@ -223,7 +236,7 @@ finally:
         try:
             request(dict(operation='grant.revoke'))
             accepted(base(dict(operation='application.terminate', target=str(pid))))
-        except (subprocess.SubprocessError, AssertionError, OSError):
-            call('os', '--', '/bin/kill', '-TERM', str(pid))
+        except (subprocess.SubprocessError, AssertionError, OSError, ValueError):
+            subprocess.run(mc + ["os", "--", "/bin/kill", "-TERM", str(pid)], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if guest_claim is not None:
         call('os', '--', a.candidate_client, '--target', 'host', 'claim', 'release', guest_claim)

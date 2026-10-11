@@ -562,6 +562,17 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("Machine Control could not start")
         .run(|_, event| {
+            // Wry asks to exit when its final window is destroyed, even with
+            // a live tray. Mac Settings is disposable; only explicit exits
+            // (with a code) may end the resident.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::ExitRequested {
+                code: None, api, ..
+            } = &event
+            {
+                api.prevent_exit();
+                return;
+            }
             // The native application menu and Cmd-Q bypass the tray handler.
             // Finish volatile control while the event loop and native broker
             // still exist, preserving only the operator's durable choices.

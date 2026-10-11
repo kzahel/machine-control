@@ -130,14 +130,16 @@ final class MacLockedUsePermission: LockedUsePermissionManaging {
         unregister:{ [daemon] done in daemon.unregister(completionHandler:done) })
     private var preparing = false
     private var maintaining = false
+    private let automaticMaintenance: Bool
     private var updateAttempted = false
     private var attempt = UUID()
     private(set) var setupState = "idle"
     private(set) var setupError: String?
     private var lastPoll: TimeInterval = 0
 
-    init(service: ResidentService, preferences: UserDefaults) {
+    init(service: ResidentService, preferences: UserDefaults, automaticMaintenance: Bool = true) {
         self.service = service; self.preferences = preferences
+        self.automaticMaintenance = automaticMaintenance
     }
     var approvalState: String {
         approvalObservation.refresh()
@@ -205,7 +207,7 @@ final class MacLockedUsePermission: LockedUsePermissionManaging {
             if setupState == "approval", approvalState == "granted" { startPreparation() }
             return
         }
-        guard #available(macOS 14.0, *), !updateAttempted, setupState == "idle",
+        guard #available(macOS 14.0, *), automaticMaintenance, !updateAttempted, setupState == "idle",
               CGPreflightScreenCaptureAccess(), AXIsProcessTrusted(), CGPreflightPostEventAccess(),
               HelperUpdatePolicy.eligible(approved:approvalState == "granted",
                 capturePrepared:preferences.bool(forKey:"lockedUseCapturePrepared"),

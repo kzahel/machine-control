@@ -267,7 +267,8 @@ final class ResidentServer {
 
     let browser: BrowserRelay
     let devtools: BrowserDevToolsBridge
-    lazy var lockedUse = MacLockedUse(broker: broker, service: service)
+    lazy var lockedUse = MacLockedUse(broker: broker, service: service,
+        automaticMaintenance:socketPath == defaultResidentSocket)
     // Tests provide a desktop observation without relying on host lock state.
     var approvalDesktopUnlocked: () -> Bool
     var grantConsoleObservation: () -> [String:Any]

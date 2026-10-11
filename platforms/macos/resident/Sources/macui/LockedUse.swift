@@ -377,10 +377,10 @@ final class MacLockedUse {
     }
 
     init(broker: GrantBroker, service: ResidentService, preferences: UserDefaults = .standard,
-         permission: LockedUsePermissionManaging? = nil,
+         permission: LockedUsePermissionManaging? = nil, automaticMaintenance: Bool = true,
          setupObservation: @escaping () -> [String:Any] = { nativeSessionObservation() }) {
         self.broker = broker; self.service = service; self.preferences = preferences
-        self.permission = permission ?? MacLockedUsePermission(service:service, preferences:preferences)
+        self.permission = permission ?? MacLockedUsePermission(service:service, preferences:preferences, automaticMaintenance:automaticMaintenance)
         self.setupObservation = setupObservation
         service.coveredWindowIDs = { [weak self] in self?.coveredWindowIDs ?? [] }
         service.inputCancellation = { [weak self] in self?.safety.reason }

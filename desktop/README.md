@@ -158,7 +158,9 @@ machine-control presentation reset
 ```
 
 The native executable also accepts `presentation status|set PROFILE|reset`.
-Use `--socket SOCKET` with either command for an isolated installation. The
+Use `--socket SOCKET` with either command for an isolated installation.
+Residents on isolated sockets do not automatically maintain the canonical
+protected helper; explicit operator setup remains available. The
 versioned, owner-only `presentation.json` lives beside that resident socket;
 updates use an atomic replacement. Missing or invalid configuration falls back
 to personal with a diagnostic. Reset writes personal, so recovery does not
