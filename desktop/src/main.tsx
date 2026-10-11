@@ -1509,21 +1509,23 @@ function App() {
                     }
                   />
                 </label>
-                <div className="setting-row">
-                  <span className="row-label">Restart</span>
-                  <button
-                    disabled={busy}
-                    onClick={() =>
-                      void invoke("restart_application").catch((e) =>
-                        setError(String(e)),
-                      )
-                    }
-                  >
-                    Restart
-                  </button>
-                </div>
               </section>
             )}
+            <section className="group" aria-label="Application">
+              <div className="setting-row">
+                <span className="row-label">Restart</span>
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    void invoke("restart_application").catch((e) =>
+                      setError(String(e)),
+                    )
+                  }
+                >
+                  Restart
+                </button>
+              </div>
+            </section>
             <section className="group" aria-label="Updates">
               <div className="setting-row">
                 <span className="row-label">Updates</span>

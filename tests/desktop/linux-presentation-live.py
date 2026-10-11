@@ -109,8 +109,12 @@ def tray_status():
         if "@" not in item:
             continue
         destination, path = item.split("@", 1)
-        properties = dbus(destination, path, "org.freedesktop.DBus.Properties", "GetAll", "(s)",
-                          ("org.kde.StatusNotifierItem",))[0]
+        try:
+            properties = dbus(destination, path, "org.freedesktop.DBus.Properties", "GetAll", "(s)",
+                              ("org.kde.StatusNotifierItem",))[0]
+        except GLib.Error:
+            # The watcher can retain a departed item briefly between profiles.
+            continue
         if properties.get("Id") == "tray-icon tray app control":
             return properties.get("Status")
     return None

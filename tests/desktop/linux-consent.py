@@ -23,10 +23,13 @@ while time.monotonic() < deadline:
         while context.pending():
             context.iteration(False)
         app = linuxui.choose_application(linuxui.desktop(), "xdg-desktop-portal-gnome")
+        app.clear_cache()
         nodes = list(linuxui.walk(app, 25, 2000))
-        windows = [info for _, info in nodes if info["role"] == "frame"]
+        windows = [node for node, info in nodes if info["role"] == "frame"
+                   and "showing" in info["states"]]
         if len(windows) != 1:
             raise RuntimeError("Expected exactly one owned consent window")
+        nodes = list(linuxui.walk(windows[0], 25, 2000))
         if args.cancel:
             selected = [(n, i) for n, i in nodes if i["name"] == "Cancel" and i["role"] == "push button"]
             assert len(selected) == 1 and selected[0][0].do_action(0)
@@ -48,4 +51,5 @@ while time.monotonic() < deadline:
     except (linuxui.UIError, RuntimeError, AssertionError):
         time.sleep(0.2)
 else:
+    print("Last portal nodes", [(i["role"], i["name"], i["states"]) for _, i in locals().get("nodes", [])], file=sys.stderr)
     raise SystemExit("No unambiguous portal chooser")
