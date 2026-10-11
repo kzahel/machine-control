@@ -42,6 +42,8 @@ the commits' `Topic:` trailers and register that exact string in
 
 ## Tactical index
 
+- [109 — Mac runtime hardening](109-macos-runtime-hardening.md) (active):
+  stalled dependencies, cancellation fences and signed host load/recovery.
 - [108 — Mac runtime and presentation acceptance](108-macos-runtime-presentation.md) (completed Mac slice):
   Mac implementation, signed three-profile acceptance and bounded host checks.
 - [107 — Runtime and presentation](107-runtime-and-presentation.md) (active):
