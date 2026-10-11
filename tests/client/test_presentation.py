@@ -19,6 +19,16 @@ class PresentationTests(unittest.TestCase):
                 mc.run_local_presentation(["reset"], "host")
             run.assert_not_called()
 
+    def test_linux_routes_local_configuration_and_refuses_remote(self):
+        with patch.object(mc.host_platform, "system", return_value="Linux"), patch.object(mc.Path, "is_file", return_value=True), patch.object(mc.os, "access", return_value=True), patch.object(mc.subprocess, "run") as run:
+            run.return_value.returncode = 0
+            self.assertEqual(mc.run_local_presentation(["status", "--instance", "example"], "host"), 0)
+            self.assertEqual(run.call_args.args[0][1:], ["presentation", "status", "--instance", "example"])
+            run.reset_mock()
+            with self.assertRaises(mc.ClientError):
+                mc.run_local_presentation(["set", "appliance"], "remote-example")
+            run.assert_not_called()
+
     def test_windows_routes_only_local_operator_configuration(self):
         with patch.object(mc.host_platform, "system", return_value="Windows"), patch.object(mc.Path, "is_file", return_value=True), patch.object(mc.subprocess, "run") as run:
             run.return_value.returncode = 0

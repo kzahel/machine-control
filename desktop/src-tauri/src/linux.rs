@@ -1,12 +1,24 @@
 use serde_json::{json, Value};
 use std::{
+    ffi::OsString,
     io::{BufRead, BufReader, Read, Write},
+    os::fd::AsRawFd,
     os::unix::{net::UnixStream, process::CommandExt},
     process::{Child, ChildStdin, Command, Stdio},
-    sync::{mpsc, Mutex, OnceLock},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        mpsc, Mutex, OnceLock,
+    },
     time::Duration,
 };
 use tauri::Manager;
+
+static EPOCH: AtomicU64 = AtomicU64::new(0);
+static GENERATION: Mutex<Option<String>> = Mutex::new(None);
+
+pub fn epoch() -> u64 {
+    EPOCH.load(Ordering::Acquire)
+}
 
 static RUNTIME: Mutex<Option<Runtime>> = Mutex::new(None);
 static APP: OnceLock<tauri::AppHandle> = OnceLock::new();
@@ -44,6 +56,40 @@ impl Drop for Runtime {
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
+}
+
+pub fn instance() -> String {
+    let args: Vec<String> = std::env::args().collect();
+    args.iter()
+        .position(|arg| arg == "--instance")
+        .and_then(|index| args.get(index + 1))
+        .cloned()
+        .unwrap_or_else(|| "desktop".into())
+}
+
+pub fn cli(args: &[OsString]) -> Option<i32> {
+    if args.first().is_none_or(|arg| arg != "presentation") {
+        return None;
+    }
+    let context: tauri::Context<tauri::Wry> = tauri::generate_context!();
+    let result =
+        tauri::utils::platform::resource_dir(context.package_info(), &tauri::Env::default())
+            .map_err(|error| error.to_string())
+            .and_then(|directory| {
+                Command::new("/usr/bin/python3")
+                    .args(["-I", "-B"])
+                    .arg(directory.join("linux-runtime/presentation.py"))
+                    .args(&args[1..])
+                    .status()
+                    .map_err(|error| error.to_string())
+            });
+    Some(match result {
+        Ok(status) => status.code().unwrap_or(1),
+        Err(error) => {
+            eprintln!("{error}");
+            1
+        }
+    })
 }
 
 pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
@@ -123,8 +169,18 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
         crate::diagnostics::drain(stderr);
     }
     let input = child.stdin.take().ok_or("Resident input missing")?;
+    // Fail and reap on a full companion pipe; never block a worker indefinitely.
+    unsafe {
+        let flags = libc::fcntl(input.as_raw_fd(), libc::F_GETFL);
+        if flags < 0 || libc::fcntl(input.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK) < 0
+        {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("Companion pipe setup failed".into());
+        }
+    }
     let output = child.stdout.take().ok_or("Resident output missing")?;
-    let (send, replies) = mpsc::channel();
+    let (send, replies) = mpsc::sync_channel(1);
     std::thread::spawn(move || {
         let mut reader = BufReader::new(output);
         loop {
@@ -154,8 +210,20 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
     let executable = std::env::var_os("APPIMAGE")
         .map(std::path::PathBuf::from)
         .unwrap_or(std::env::current_exe().map_err(|e| e.to_string())?);
-    let reply =
-        runtime.call(&json!({"method":"hello", "processId":parent, "executable":executable}))?;
+    let args: Vec<String> = std::env::args().collect();
+    let presentation = args
+        .iter()
+        .position(|arg| arg == "--presentation")
+        .and_then(|index| args.get(index + 1));
+    let reply = runtime.call(&json!({"method":"hello", "processId":parent,
+        "executable":executable, "instance":instance(), "presentation":presentation}))?;
+    if let Some(generation) = reply["coordinatorGeneration"].as_str() {
+        let mut previous = GENERATION.lock().map_err(|e| e.to_string())?;
+        if previous.as_deref() != Some(generation) {
+            *previous = Some(generation.to_owned());
+            EPOCH.fetch_add(1, Ordering::AcqRel);
+        }
+    }
     if reply["ok"] != true {
         return Err("Resident handshake failed".into());
     }
@@ -167,6 +235,17 @@ pub fn command(command: Value) -> Result<Value, String> {
     let app = APP.get().ok_or("Operator unavailable")?;
     let mut owner = RUNTIME.lock().map_err(|e| e.to_string())?;
     let runtime = owner.as_mut().ok_or("Resident unavailable")?;
+    if command.get("operatorEpoch").is_some() && command["operatorEpoch"].as_u64() != Some(epoch())
+    {
+        return Err("Operator authority changed before dispatch".into());
+    }
+    let mut command = command;
+    if ["arm", "resume", "pause", "permission", "prepare_update"]
+        .contains(&command["method"].as_str().unwrap_or(""))
+    {
+        command["expectedGeneration"] =
+            json!(GENERATION.lock().map_err(|e| e.to_string())?.clone());
+    }
     let mut reply = match runtime.call(&command) {
         Ok(value) => value,
         Err(error) => {
@@ -175,6 +254,13 @@ pub fn command(command: Value) -> Result<Value, String> {
             return Err(error);
         }
     };
+    if let Some(generation) = reply["coordinatorGeneration"].as_str() {
+        let mut previous = GENERATION.lock().map_err(|e| e.to_string())?;
+        if previous.as_deref() != Some(generation) {
+            *previous = Some(generation.to_owned());
+            EPOCH.fetch_add(1, Ordering::AcqRel);
+        }
+    }
     if reply["ok"] != true {
         return Err(reply["error"]
             .as_str()
@@ -205,15 +291,30 @@ pub fn shutdown() {
 }
 
 pub fn stop_from_shortcut() -> Result<(), String> {
+    EPOCH.fetch_add(1, Ordering::AcqRel);
     let directory = std::env::var("XDG_RUNTIME_DIR").map_err(|e| e.to_string())?;
-    let mut socket =
-        UnixStream::connect(format!("{directory}/machine-control-desktop/desktop.sock"))
-            .map_err(|e| e.to_string())?;
+    let mut socket = UnixStream::connect(format!(
+        "{directory}/machine-control-{}/operator.sock",
+        instance()
+    ))
+    .map_err(|e| e.to_string())?;
     socket
         .set_read_timeout(Some(Duration::from_secs(5)))
         .map_err(|e| e.to_string())?;
     socket
-        .write_all(b"{\"operation\":\"grant.revoke\"}\n")
+        .set_write_timeout(Some(Duration::from_secs(2)))
         .map_err(|e| e.to_string())?;
+    socket
+        .write_all(b"{\"method\":\"stop\"}\n")
+        .map_err(|e| e.to_string())?;
+    let mut frame = Vec::new();
+    BufReader::new(socket)
+        .take(4097)
+        .read_until(b'\n', &mut frame)
+        .map_err(|e| e.to_string())?;
+    let reply: Value = serde_json::from_slice(&frame).map_err(|e| e.to_string())?;
+    if reply["ok"] != true {
+        return Err("Stop refused".into());
+    }
     Ok(())
 }

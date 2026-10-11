@@ -1,8 +1,8 @@
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 use tauri::Manager;
 
 /// Presentation overrides apply to one launch; restart uses the saved choice.
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 pub(crate) fn restart_launch_args(args: &[std::ffi::OsString]) -> Vec<std::ffi::OsString> {
     let mut result = Vec::new();
     let mut input = args.iter();
@@ -21,7 +21,7 @@ pub fn valid_launch_args(args: &[String]) -> bool {
     if args == ["--gui"] {
         return true;
     }
-    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
     {
         let mut positional = Vec::new();
         let mut index = 0;
@@ -33,7 +33,7 @@ pub fn valid_launch_args(args: &[String]) -> bool {
                 "--settings" if !settings => settings = true,
                 #[cfg(target_os = "windows")]
                 "--gui" if !settings => settings = true,
-                #[cfg(target_os = "windows")]
+                #[cfg(any(target_os = "windows", target_os = "linux"))]
                 "--instance" if !positional.contains(&"--instance") => {
                     index += 1;
                     let Some(instance) = args.get(index) else {
@@ -65,15 +65,15 @@ pub fn valid_launch_args(args: &[String]) -> bool {
             }
             index += 1;
         }
-        #[cfg(target_os = "windows")]
+        #[cfg(any(target_os = "windows", target_os = "linux"))]
         positional.retain(|value| *value != "--instance");
         positional.is_empty() || positional.len() == 2 && positional[0] == "serve"
     }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     if args == ["--background"] {
         return true;
     }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     {
         args.is_empty() || args.first().is_some_and(|v| v == "serve") && args.len() == 2
     }
@@ -81,7 +81,7 @@ pub fn valid_launch_args(args: &[String]) -> bool {
 
 /// A replacement must outlive the launchd job and wait until its predecessor's
 /// IPC and single-instance endpoints have actually closed.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 pub fn request(app: &tauri::AppHandle) -> Result<(), String> {
     use std::os::unix::process::CommandExt;
     let env = app.env();
@@ -114,11 +114,13 @@ exec "$@"
         .process_group(0)
         .spawn()
         .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "linux")]
+    crate::linux::shutdown();
     app.exit(0);
     Ok(())
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 pub fn request(app: &tauri::AppHandle) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     crate::windows::shutdown();
@@ -128,7 +130,10 @@ pub fn request(app: &tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(all(test, any(target_os = "macos", target_os = "windows")))]
+#[cfg(all(
+    test,
+    any(target_os = "macos", target_os = "windows", target_os = "linux")
+))]
 mod tests {
     use super::{restart_launch_args, valid_launch_args};
     fn valid(args: &[&str]) -> bool {

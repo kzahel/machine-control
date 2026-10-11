@@ -35,5 +35,18 @@
         }
       }
     }
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "create": false,
+        "title": "Machine Control",
+        "width": 640,
+        "height": 440,
+        "minWidth": 580,
+        "minHeight": 400
+      }
+    ]
   }
 }

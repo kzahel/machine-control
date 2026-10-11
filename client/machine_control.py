@@ -64,9 +64,17 @@ DISRUPTIVE_TESTBED_COMMANDS = {
 def run_local_presentation(arguments: list[str], target: str | None) -> int:
     """Local operator configuration; never a target-resident agent operation."""
     system = host_platform.system()
-    if system not in {"Darwin", "Windows"} or target not in (None, "host"):
+    if system not in {"Darwin", "Windows", "Linux"} or target not in (None, "host"):
         raise ClientError("presentation_local_app_required",
-                          "Presentation configuration requires the local Mac or Windows app")
+                          "Presentation configuration requires the local desktop app")
+    if system == "Linux":
+        install = os.environ.get("MACHINE_CONTROL_DESKTOP_INSTALL_DIR")
+        candidates = [Path(install) / "machine-control"] if install else [
+            ROOT.parents[2] / "bin/machine-control", Path("/usr/bin/machine-control")]
+        executable = next((path for path in candidates if path.is_file() and os.access(path, os.X_OK)), None)
+        if executable is None:
+            raise ClientError("desktop_app_unavailable", "The local Linux app is not installed")
+        return subprocess.run([str(executable), "presentation", *arguments], check=False).returncode
     if system == "Windows":
         install = os.environ.get("MACHINE_CONTROL_DESKTOP_INSTALL_DIR")
         packaged = ROOT.parent / "machine-control.exe"
@@ -3689,7 +3697,7 @@ Commands:
   target status|up|suspend|shutdown|force-stop|reboot|doctor|capabilities
          ensure-ready|validate-candidate|prepare-promotion
   presentation status|set personal|minimal|appliance|reset [--socket SOCKET]
-                           Local Mac/Windows operator preference; Windows accepts
+                           Local desktop operator preference; Windows/Linux accept
                            --instance NAME; independent of grants
   claim capabilities|status|acquire|renew|release
                                     Use `claim --help` for attribution syntax

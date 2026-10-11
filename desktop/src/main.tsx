@@ -1372,7 +1372,7 @@ function App() {
                 </label>
                 <p className="note group-note">
                   Personal opens Settings at launch. Minimal keeps the{" "}
-                  {state.platform === "windows" ? "tray" : "menu bar"}.
+                  {state.platform === "macos" ? "menu bar" : "tray"}.
                   Appliance starts quietly. Approvals, control notices and Stop
                   remain available in every mode. Authorization:{" "}
                   {state.deployment.policy.preset} (

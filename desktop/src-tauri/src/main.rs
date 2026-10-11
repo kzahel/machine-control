@@ -166,8 +166,17 @@ async fn operator_command(
             return Err("Operator window required".into());
         }
     }
-    #[cfg(target_os = "windows")]
+    #[cfg(target_os = "linux")]
+    if command["method"] == "stop" {
+        linux::stop_from_shortcut()?;
+        return Ok(json!({"ok":true}));
+    }
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
     let mut command = command;
+    #[cfg(target_os = "linux")]
+    {
+        command["operatorEpoch"] = json!(linux::epoch());
+    }
     #[cfg(target_os = "windows")]
     {
         if command["method"] == "stop" {
@@ -338,6 +347,10 @@ fn show_settings(app: &tauri::AppHandle, page: Option<&str>) -> Result<(), Strin
 }
 
 fn main() {
+    #[cfg(target_os = "linux")]
+    if let Some(code) = linux::cli(&std::env::args_os().skip(1).collect::<Vec<_>>()) {
+        std::process::exit(code);
+    }
     #[cfg(target_os = "windows")]
     if let Some(code) = windows_cli::dispatch(&std::env::args_os().skip(1).collect::<Vec<_>>()) {
         std::process::exit(code);
@@ -354,7 +367,16 @@ fn main() {
         return;
     }
     #[cfg(target_os = "linux")]
-    if args == ["--stop"] {
+    if args.iter().any(|arg| arg == "--stop") {
+        let filtered: Vec<_> = args
+            .iter()
+            .filter(|arg| arg.as_str() != "--stop")
+            .cloned()
+            .collect();
+        if !restart::valid_launch_args(&filtered) {
+            eprintln!("Invalid Stop arguments");
+            std::process::exit(2);
+        }
         match linux::stop_from_shortcut() {
             Ok(()) => std::process::exit(0),
             Err(error) => {
@@ -432,12 +454,29 @@ fn main() {
             diagnostics::start();
             #[cfg(target_os = "linux")]
             {
-                linux::start(app.handle()).map_err(std::io::Error::other)?;
-                if args == ["--background"] {
-                    if let Some(window) = app.get_webview_window("main") {
-                        window.hide()?;
+                let handle = app.handle().clone();
+                let launch = args.clone();
+                tauri::async_runtime::spawn_blocking(move || {
+                    let result = linux::start(&handle)
+                        .and_then(|_| linux::command(json!({"method":"state"})));
+                    match result {
+                        Ok(state) => {
+                            if launch.iter().any(|arg| arg == "--settings")
+                                || (state["state"]["presentation"]["profile"] == "personal"
+                                    && !launch.iter().any(|arg| arg == "--background"))
+                            {
+                                let ui = handle.clone();
+                                let _ = handle.run_on_main_thread(move || {
+                                    let _ = show_settings(&ui, None);
+                                });
+                            }
+                        }
+                        Err(error) => {
+                            eprintln!("{error}");
+                            handle.exit(1);
+                        }
                     }
-                }
+                });
             }
             #[cfg(target_os = "windows")]
             {
@@ -523,7 +562,7 @@ fn main() {
                     let standing =
                         value["state"]["deployment"]["policy"]["grantMode"] == "standing";
                     let show = !pending.is_empty() && pending != previous_pending;
-                    #[cfg(any(target_os = "macos", target_os = "windows"))]
+                    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
                     let has_pending = !pending.is_empty();
                     previous_pending = pending;
                     let ui = handle.clone();
@@ -536,7 +575,11 @@ fn main() {
                             } else {
                                 "Machine Control — access off"
                             }));
-                            #[cfg(any(target_os = "macos", target_os = "windows"))]
+                            #[cfg(any(
+                                target_os = "macos",
+                                target_os = "windows",
+                                target_os = "linux"
+                            ))]
                             {
                                 let _ = tray.set_visible(
                                     value["state"]["presentation"]["profile"] != "appliance"
@@ -553,11 +596,11 @@ fn main() {
                                 }));
                             }
                         }
-                        #[cfg(target_os = "linux")]
-                        if show {
-                            let _ = show_settings(&ui, None);
-                        }
-                        #[cfg(any(target_os = "macos", target_os = "windows"))]
+                        #[cfg(any(
+                            target_os = "macos",
+                            target_os = "windows",
+                            target_os = "linux"
+                        ))]
                         let _ = show;
                     });
                 }
@@ -585,7 +628,7 @@ fn main() {
                     "stop" => {
                         #[cfg(target_os = "linux")]
                         tauri::async_runtime::spawn_blocking(|| {
-                            let _ = native_command(json!({"method":"stop"}));
+                            let _ = linux::stop_from_shortcut();
                         });
                         #[cfg(not(target_os = "linux"))]
                         let _ = native_command(json!({"method":"stop"}));
@@ -619,7 +662,7 @@ fn main() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                #[cfg(any(target_os = "macos", target_os = "windows"))]
+                #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
                 if window.label() == "main" {
                     // Allow destruction: closing Settings leaves the runtime running.
                     return;
@@ -647,7 +690,19 @@ fn main() {
                 }
                 context
             }
-            #[cfg(not(target_os = "windows"))]
+            #[cfg(target_os = "linux")]
+            {
+                let mut context = tauri::generate_context!();
+                let instance = linux::instance();
+                if instance != "desktop" {
+                    context
+                        .config_mut()
+                        .identifier
+                        .push_str(&format!(".{instance}"));
+                }
+                context
+            }
+            #[cfg(not(any(target_os = "windows", target_os = "linux")))]
             tauri::generate_context!()
         })
         .expect("Machine Control could not start")
@@ -655,7 +710,7 @@ fn main() {
             // Wry asks to exit when its final window is destroyed, even with
             // a live tray. Mac Settings is disposable; only explicit exits
             // (with a code) may end the resident.
-            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
             if let tauri::RunEvent::ExitRequested {
                 code: None, api, ..
             } = &event
