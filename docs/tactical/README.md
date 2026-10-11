@@ -42,6 +42,10 @@ the commits' `Topic:` trailers and register that exact string in
 
 ## Tactical index
 
+- [107 — Runtime and presentation](107-runtime-and-presentation.md) (proposed):
+  first remove Mac status stalls, then separate presentation and qualify three
+  configurable profiles in the shared package.
+
 - [097 — Windows desktop UAC](097-windows-desktop-uac.md) (completed slice):
   optional protected helper, desktop grants/live ownership and 21 x64 VM checks;
   signed release and ARM64/physical acceptance remain separate.

@@ -37,6 +37,13 @@ into a raw proxy for every testbed CLI.
 
 ## Target-controller implementation boundary
 
+**Decision:** [Runtime and presentation](topics/runtime-and-presentation.md)
+keeps Machine Control's runtime authority independent of its settings, native
+notice and tray presentation. Personal, minimal and appliance presentation are
+planned modes of one package, not new coordinators or authorization providers.
+Current platform process placement remains unchanged during the first
+responsiveness milestone.
+
 | Repository | Current role | Does not own |
 | --- | --- | --- |
 | [`machine-control`](README.md) | Cross-platform architecture/research, the target-selecting common client and contracts, owned resident facades/provider boundaries, Windows service/session implementation, fixtures, conformance corpus, and post-cutover public platform/testbed implementation | Pre-cutover external testbed implementation, private deployment inventory, YA delegation, or product assertions |

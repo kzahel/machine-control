@@ -21,6 +21,29 @@ actions, and target-local input. Stable application identity and TCC consent
 are deployment requirements. Login window, FileVault/preboot, credentials, and
 some protected surfaces are separate authority domains.
 
+## Resident responsiveness
+
+**Current (2026-10-11), `source-reviewed` and bounded `live-tested`:** two
+samples of an installed 0.5.8 desktop process caught its main UI thread in
+`ResidentService.unlockStatus()` waiting in socket reads, through resident
+polling and operator state reads. This is consistent with temporary menu-bar
+unresponsiveness; sampling after visible recovery does not establish the exact
+duration or cause of the original stall.
+
+Source review finds a main-queue 250 ms resident timer, synchronous session
+probe execution and helper status IPC, a 12-second helper socket timeout, and
+a 10-second operator-command receiver timeout. The shared frontend also polls
+state every second without an in-flight guard. A receiver timeout does not
+cancel the scheduled native task. These are specific owned-runtime execution
+gaps, not limitations of AX or Tauri's ability to host background work.
+
+**Open:** why the helper replied slowly, the exact displayed error, and
+responsiveness under injected dependency faults. No asynchronous repair,
+headless profile or fresh conformance result is established by these samples.
+[Runtime and presentation](../../topics/runtime-and-presentation.md) owns the
+resulting execution boundary and [Tactical 107](../../docs/tactical/107-runtime-and-presentation.md)
+owns the planned migration. Exact process samples remain private.
+
 ## Resumable admission
 
 **Current, `built` and bounded `live-tested`:** the owned admission channel

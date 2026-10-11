@@ -79,3 +79,6 @@ commits with no expected follow-up do not need a trailer or registry entry.
 
 - `desktop-until-stopped` — cross-platform indefinite manual desktop access,
   installed VM acceptance and unified release completion.
+
+- `runtime-and-presentation` — reusable runtime, nonblocking execution,
+  configurable presentation and operator recovery in one package.

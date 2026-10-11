@@ -103,6 +103,13 @@ the execution record.
 
 ## Decisions
 
+**Decision:** [Runtime and presentation](runtime-and-presentation.md) owns the
+agreed evolution to one reusable runtime with personal, minimal and appliance
+presentation in the same package. Presentation preferences remain independent
+of trusted authorization policy. Existing launch behavior remains current;
+[Tactical 107](../docs/tactical/107-runtime-and-presentation.md) starts with
+nonblocking Mac status work before adding profile selection.
+
 **Decision:** The desktop operator is a compact settings dialog. Use short
 labels, status rows, and direct controls; omit marketing copy, page subtitles,
 hero banners, and repeated explanations. Keep grant scope and same-user reach

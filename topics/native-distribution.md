@@ -22,9 +22,13 @@ by package family, architecture, and virtual/physical environment.
 
 ## Direction
 
-**Decision:** distribute the desktop operator app with its bundled Python CLI,
-while keeping headless residents as independent explicitly installed profiles.
-Reuse residents and provider boundaries. For the installed desktop route MC
+**Decision:** retain one app/package and release stream with the bundled Python
+CLI while evolving toward personal, minimal and appliance presentation over
+the same reusable runtime. Profile selection changes presentation, not trusted
+authorization policy. Existing separately installed headless/appliance
+deployments remain supported during migration. [Runtime and presentation](runtime-and-presentation.md)
+owns the contract and qualification gates. Reuse residents and provider
+boundaries. For the installed desktop route MC
 owns installation, updates, native access, lifecycle, artifacts and the control
 contract; YA owns verified discovery, launch eligibility and agent/media
 exposure. It does not install or supervise a second resident. Headless CLI and

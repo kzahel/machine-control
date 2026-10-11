@@ -34,6 +34,10 @@ its `Topic:` trailers.
 
 ## Current topics
 
+- [`runtime-and-presentation.md`](runtime-and-presentation.md): one reusable
+  runtime, nonblocking execution, three presentation profiles in one package,
+  and settings/configuration recovery independent of authorization policy.
+
 - [`target-operation-audit.md`](target-operation-audit.md): durable controller
   claim and command history, exact-resource correlation and coverage limits.
 
