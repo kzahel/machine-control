@@ -413,7 +413,9 @@ fn main() {
     ));
     #[cfg(not(target_os = "macos"))]
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _| {
-        if args.iter().any(|arg| arg == "--background") {
+        if args.iter().any(|arg| arg == "--background")
+            && !args.iter().any(|arg| arg == "--settings")
+        {
             return;
         }
         let _ = show_settings(app, None);
@@ -521,17 +523,9 @@ fn main() {
                     let standing =
                         value["state"]["deployment"]["policy"]["grantMode"] == "standing";
                     let show = !pending.is_empty() && pending != previous_pending;
-                    #[cfg(target_os = "macos")]
+                    #[cfg(any(target_os = "macos", target_os = "windows"))]
                     let has_pending = !pending.is_empty();
                     previous_pending = pending;
-                    #[cfg(target_os = "windows")]
-                    let announcing = value["state"]["admission"]["requests"]
-                        .as_array()
-                        .is_some_and(|requests| {
-                            requests
-                                .iter()
-                                .any(|request| request["state"] == "announcing")
-                        });
                     let ui = handle.clone();
                     let _ = handle.run_on_main_thread(move || {
                         if let Some(tray) = ui.tray_by_id("control") {
@@ -542,7 +536,7 @@ fn main() {
                             } else {
                                 "Machine Control — access off"
                             }));
-                            #[cfg(target_os = "macos")]
+                            #[cfg(any(target_os = "macos", target_os = "windows"))]
                             {
                                 let _ = tray.set_visible(
                                     value["state"]["presentation"]["profile"] != "appliance"
@@ -551,6 +545,7 @@ fn main() {
                                         || has_pending
                                         || ui.get_webview_window("main").is_some(),
                                 );
+                                #[cfg(target_os = "macos")]
                                 let _ = tray.set_title(Some(if active || standing {
                                     "ON"
                                 } else {
@@ -558,34 +553,11 @@ fn main() {
                                 }));
                             }
                         }
-                        #[cfg(target_os = "windows")]
-                        {
-                            if announcing {
-                                if let Some(window) = ui.get_webview_window("control-notice") {
-                                    let _ = window.show();
-                                } else {
-                                    let _ = tauri::WebviewWindowBuilder::new(
-                                        &ui,
-                                        "control-notice",
-                                        tauri::WebviewUrl::App("index.html?control-notice".into()),
-                                    )
-                                    .title("Machine Control")
-                                    .inner_size(470.0, 270.0)
-                                    .resizable(false)
-                                    .focused(false)
-                                    .skip_taskbar(true)
-                                    .always_on_top(true)
-                                    .build();
-                                }
-                            } else if let Some(window) = ui.get_webview_window("control-notice") {
-                                let _ = window.hide();
-                            }
-                        }
-                        #[cfg(not(target_os = "macos"))]
+                        #[cfg(target_os = "linux")]
                         if show {
                             let _ = show_settings(&ui, None);
                         }
-                        #[cfg(target_os = "macos")]
+                        #[cfg(any(target_os = "macos", target_os = "windows"))]
                         let _ = show;
                     });
                 }
@@ -647,7 +619,7 @@ fn main() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                #[cfg(target_os = "macos")]
+                #[cfg(any(target_os = "macos", target_os = "windows"))]
                 if window.label() == "main" {
                     // Allow destruction: closing Settings leaves the runtime running.
                     return;
@@ -662,13 +634,28 @@ fn main() {
                 }
             }
         })
-        .build(tauri::generate_context!())
+        .build({
+            #[cfg(target_os = "windows")]
+            {
+                let mut context = tauri::generate_context!();
+                let instance = windows::instance();
+                if instance != "desktop" {
+                    context
+                        .config_mut()
+                        .identifier
+                        .push_str(&format!(".{instance}"));
+                }
+                context
+            }
+            #[cfg(not(target_os = "windows"))]
+            tauri::generate_context!()
+        })
         .expect("Machine Control could not start")
         .run(|_, event| {
             // Wry asks to exit when its final window is destroyed, even with
             // a live tray. Mac Settings is disposable; only explicit exits
             // (with a code) may end the resident.
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
             if let tauri::RunEvent::ExitRequested {
                 code: None, api, ..
             } = &event

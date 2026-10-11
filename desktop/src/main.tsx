@@ -1371,7 +1371,7 @@ function App() {
                   </select>
                 </label>
                 <p className="note group-note">
-                  Personal opens Settings at launch. Minimal keeps the menu bar.
+                  Personal opens Settings at launch. Minimal keeps the {state.platform === "windows" ? "tray" : "menu bar"}.
                   Appliance starts quietly. Approvals, control notices and Stop
                   remain available in every mode. Authorization:{" "}
                   {state.deployment.policy.preset} (

@@ -26,10 +26,10 @@ internal static class DesktopUacClient
     };
     internal static void Enable(bool enabled, DesktopGrants grants)
     {
+        if (enabled && (!DesktopUacNative.Installed() || !string.Equals(Environment.ProcessPath, DesktopUacNative.Executable, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException("Install the UAC helper and restart Machine Control first");
         lock (grants.Gate)
         {
-            if (enabled && (!DesktopUacNative.Installed() || !string.Equals(Environment.ProcessPath, DesktopUacNative.Executable, StringComparison.OrdinalIgnoreCase)))
-                throw new InvalidOperationException("Install the UAC helper and restart Machine Control first");
             if (_enabled == enabled) return;
             grants.Stop(enabled ? "uac_enabled_reapprove_access" : "uac_disabled");
             _enabled = enabled;

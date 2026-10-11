@@ -375,6 +375,44 @@ using (var cancelled = new CancellationTokenSource())
 }
 Console.WriteLine("Windows bounded worker, Stop, deadline and late-authority contracts passed");
 
+var preferenceDirectory = Path.Combine(Path.GetTempPath(), "presentation-contract-" + Guid.NewGuid().ToString("n"));
+Directory.CreateDirectory(preferenceDirectory);
+try
+{
+    var preferenceFile = Path.Combine(preferenceDirectory, "profile.json");
+    JsonElement Profile(object value) => JsonSerializer.SerializeToElement(value);
+    var preferences = new DesktopPresentation(preferenceFile);
+    Assert(Profile(preferences.Status()).GetProperty("profile").GetString() == "personal", "Missing preferences default personal");
+    foreach (var profile in DesktopPresentation.Profiles)
+    {
+        preferences.Set(profile);
+        Assert(Profile(new DesktopPresentation(preferenceFile).Status()).GetProperty("profile").GetString() == profile, "Persistent profile round trip");
+    }
+    var temporary = new DesktopPresentation(preferenceFile, "minimal");
+    Assert(Profile(temporary.Status()).GetProperty("savedProfile").GetString() == "appliance", "Override does not write preferences");
+    temporary.Set("personal");
+    Assert(!Profile(temporary.Status()).GetProperty("temporaryOverride").GetBoolean(), "Explicit configuration clears override");
+    foreach (var invalid in new[] { "{", "{}", "{\"schema\":\"wrong\",\"profile\":\"minimal\"}", "{\"schema\":\"machine-control-presentation/v1\",\"profile\":\"root\"}", new string('x', 4097) })
+    {
+        File.WriteAllText(preferenceFile, invalid);
+        Assert(Profile(preferences.Status()).GetProperty("diagnostic").GetString() == "presentation_preference_invalid", "Corrupt preference safely diagnosed");
+    }
+    preferences.Set("minimal");
+    File.WriteAllText(Path.Combine(preferenceDirectory, ".presentation-interrupted"), "{");
+    Assert(Profile(preferences.Status()).GetProperty("profile").GetString() == "minimal", "Interrupted replacement leaves committed preference intact");
+    using (var exclusion = new FileStream(Path.Combine(preferenceDirectory, "write.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+    {
+        var refused = false;
+        try { preferences.Set("appliance"); } catch (IOException) { refused = true; }
+        Assert(refused && Profile(preferences.Status()).GetProperty("profile").GetString() == "minimal", "Concurrent edit refuses without partial write");
+    }
+    var rejected = false;
+    try { preferences.Set("invalid"); } catch (ArgumentException) { rejected = true; }
+    Assert(rejected, "Unknown profile is never persisted");
+}
+finally { Directory.Delete(preferenceDirectory, recursive: true); }
+Console.WriteLine("Windows presentation persistence, override and recovery contracts passed");
+
 sealed class TestTime : TimeProvider
 {
     private long _seconds;

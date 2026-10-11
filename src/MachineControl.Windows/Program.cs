@@ -80,7 +80,9 @@ internal static class Program
                     BrowserInstaller.Finish(args[1]);
                     return 0;
                 case "desktop":
-                    return await DesktopHost.RunAsync();
+                    return await DesktopHost.RunAsync(GetOption(args, "--instance") ?? "desktop", GetOption(args, "--presentation"));
+                case "presentation":
+                    return await DesktopPresentationIpc.RunCliAsync(args);
                 case "desktop-worker":
                     return await RunDesktopWorkerAsync(args);
                 case "channel":
@@ -277,7 +279,7 @@ internal static class Program
         }
     }
 
-    private static string? GetOption(string[] args, string name)
+    internal static string? GetOption(string[] args, string name)
     {
         for (var i = 0; i + 1 < args.Length; i++)
         {

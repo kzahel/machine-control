@@ -39,7 +39,7 @@ internal sealed class BrowserRelay(DesktopGrants grants) : IBrowserDevToolsProvi
 
     internal async Task RunAsync(CancellationToken cancellation)
     {
-        using var pipe = UserHost.CreatePipe(RuntimeProfile.UserPipe("desktop-browser", RuntimeProfile.SessionId), first: true);
+        using var pipe = UserHost.CreatePipe(RuntimeProfile.UserPipe(RuntimeProfile.Instance, RuntimeProfile.SessionId) + "-browser", first: true);
         while (!cancellation.IsCancellationRequested)
         {
             try

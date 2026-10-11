@@ -63,9 +63,18 @@ DISRUPTIVE_TESTBED_COMMANDS = {
 
 def run_local_presentation(arguments: list[str], target: str | None) -> int:
     """Local operator configuration; never a target-resident agent operation."""
-    if host_platform.system() != "Darwin" or target not in (None, "host"):
-        raise ClientError("presentation_local_mac_required",
-                          "Presentation configuration requires the local Mac app")
+    system = host_platform.system()
+    if system not in {"Darwin", "Windows"} or target not in (None, "host"):
+        raise ClientError("presentation_local_app_required",
+                          "Presentation configuration requires the local Mac or Windows app")
+    if system == "Windows":
+        install = os.environ.get("MACHINE_CONTROL_DESKTOP_INSTALL_DIR")
+        packaged = ROOT.parent / "machine-control.exe"
+        candidates = [Path(install) / "machine-control.exe"] if install else [packaged, Path(os.environ.get("LOCALAPPDATA", "")) / "Machine Control/machine-control.exe"]
+        executable = next((path for path in candidates if path.is_file()), None)
+        if executable is None:
+            raise ClientError("desktop_app_unavailable", "The local Windows app is not installed")
+        return subprocess.run([str(executable), "presentation", *arguments], check=False).returncode
     packaged = ROOT.parent.parent / "MacOS" / "macui"
     candidates = [packaged, Path.home() / "Applications/Machine Control.app/Contents/MacOS/macui",
                   Path("/Applications/Machine Control.app/Contents/MacOS/macui")]

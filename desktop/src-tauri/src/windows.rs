@@ -4,7 +4,7 @@ use std::{
     os::windows::{io::AsRawHandle, process::CommandExt},
     process::{Child, ChildStdin, Command, Stdio},
     sync::{
-        atomic::{AtomicIsize, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicIsize, AtomicU64, Ordering},
         mpsc, Arc, Mutex, OnceLock,
     },
     time::Duration,
@@ -27,6 +27,7 @@ static UAC_SETUP_ERROR: Mutex<Option<String>> = Mutex::new(None);
 static STOP_WINDOW: AtomicIsize = AtomicIsize::new(0);
 static EPOCH: AtomicU64 = AtomicU64::new(0);
 static JOB: Mutex<Option<Arc<Job>>> = Mutex::new(None);
+static EXITING: AtomicBool = AtomicBool::new(false);
 pub fn epoch() -> u64 {
     EPOCH.load(Ordering::Acquire)
 }
@@ -70,6 +71,21 @@ impl Runtime {
         if line.len() > 65536 {
             return Err("Operator command is too large".into());
         }
+        // Covers blocked writes as well as reads. Terminating our private job
+        // closes the pipe; a late reply can never be reused for another call.
+        let (finished, deadline) = mpsc::channel::<()>();
+        let job = self._job.clone();
+        std::thread::spawn(move || {
+            if matches!(
+                deadline.recv_timeout(Duration::from_secs(6)),
+                Err(mpsc::RecvTimeoutError::Timeout)
+            ) {
+                unsafe {
+                    TerminateJobObject(job.0, 1);
+                }
+            }
+        });
+        let _finished = finished;
         self.input.write_all(&line).map_err(|e| e.to_string())?;
         self.input.write_all(b"\n").map_err(|e| e.to_string())?;
         self.input.flush().map_err(|e| e.to_string())?;
@@ -115,13 +131,36 @@ fn bundled_runtime(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String>
         .join("runtime/machine-control-windows.exe"))
 }
 
+pub fn launch_option(name: &str) -> Option<String> {
+    let args: Vec<_> = std::env::args().collect();
+    args.iter()
+        .position(|arg| arg == name)
+        .and_then(|index| args.get(index + 1).cloned())
+}
+
+pub fn instance() -> String {
+    launch_option("--instance").unwrap_or_else(|| "desktop".into())
+}
+
 fn spawn_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     let bundled = bundled_runtime(app)?;
-    let resolved = Command::new(&bundled)
+    let mut resolver = Command::new(&bundled)
         .arg("uac-resolve")
         .creation_flags(0x08000000)
-        .output()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
         .map_err(|e| e.to_string())?;
+    let until = std::time::Instant::now() + Duration::from_secs(3);
+    while resolver.try_wait().map_err(|e| e.to_string())?.is_none() {
+        if EXITING.load(Ordering::Acquire) || std::time::Instant::now() >= until {
+            let _ = resolver.kill();
+            let _ = resolver.wait();
+            return Err("Companion resolution timed out or was cancelled".into());
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let resolved = resolver.wait_with_output().map_err(|e| e.to_string())?;
     if !resolved.status.success() {
         return Err("Could not verify the UAC companion installation".into());
     }
@@ -150,8 +189,23 @@ fn spawn_runtime(app: &tauri::AppHandle) -> Result<(), String> {
         }
         Arc::new(job)
     };
+    // Publish before creating a child; exit can cancel an incomplete startup.
+    {
+        let mut owner = JOB.lock().map_err(|e| e.to_string())?;
+        if EXITING.load(Ordering::Acquire) {
+            return Err("Operator exiting".into());
+        }
+        *owner = Some(job.clone());
+    }
     let mut child = Command::new(executable)
         .arg("desktop")
+        .args(["--instance", &instance()])
+        .args(
+            launch_option("--presentation")
+                .map(|profile| ["--presentation".into(), profile])
+                .into_iter()
+                .flatten(),
+        )
         .creation_flags(0x08000000) // CREATE_NO_WINDOW; this is an ordinary Medium companion.
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -165,6 +219,11 @@ fn spawn_runtime(app: &tauri::AppHandle) -> Result<(), String> {
         let _ = child.kill();
         let _ = child.wait();
         return Err(error);
+    }
+    if EXITING.load(Ordering::Acquire) {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err("Operator exiting".into());
     }
     if let Some(stderr) = child.stderr.take() {
         crate::diagnostics::drain(stderr);
@@ -193,8 +252,17 @@ fn spawn_runtime(app: &tauri::AppHandle) -> Result<(), String> {
         hello["stopWindow"].as_i64().unwrap_or(0) as isize,
         Ordering::Release,
     );
-    *JOB.lock().map_err(|e| e.to_string())? = Some(runtime._job.clone());
     *RUNTIME.lock().map_err(|e| e.to_string())? = Some(runtime);
+    let args: Vec<_> = std::env::args().collect();
+    if args.iter().any(|arg| arg == "--settings" || arg == "--gui")
+        || (hello["presentation"]["profile"] == "personal"
+            && !args.iter().any(|arg| arg == "--background"))
+    {
+        let ui = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            let _ = crate::show_settings(&ui, None);
+        });
+    }
     Ok(())
 }
 
@@ -308,6 +376,7 @@ pub fn command(command: Value) -> Result<Value, String> {
 }
 
 pub fn shutdown() {
+    EXITING.store(true, Ordering::Release);
     EPOCH.fetch_add(1, Ordering::AcqRel);
     STOP_WINDOW.store(0, Ordering::Release);
     // Exit hooks run on Tauri's event thread. Kill the owned job without

@@ -47,14 +47,17 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
 
     internal object State()
     {
+        // Protected installation discovery may block on filesystem/provider
+        // state. Never run it under the authority lock used by native Stop.
+        var preparation = PreparationRefusal();
         lock (grants.Gate) return new
         {
             supported = DesktopDisplayCovers.Supported,
-            permissionReady = Prepared(),
-            preparationRefusal = PreparationRefusal(),
+            permissionReady = preparation is null,
+            preparationRefusal = preparation,
             enabled = grants.PreparedConsole,
             helperApproval = "approved_controller_required",
-            helperHealthy = Prepared(),
+            helperHealthy = preparation is null,
             setupState = "idle",
             phase = _lease is null ? "idle" : _lease.Ending ? "relocking" : "task_owned",
             controlSessionId = _lease?.Request.ControlOwnership?.Session,
@@ -68,10 +71,10 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
 
     internal void Enable(bool enabled)
     {
+        if (enabled && !Prepared()) throw new InvalidOperationException("Install the helper and approve a controller for this account first");
         lock (grants.Gate)
         {
             if (_lease is not null) throw new InvalidOperationException("Finish the locked-screen task and relock before changing setup");
-            if (enabled && !Prepared()) throw new InvalidOperationException("Install the helper and approve a controller for this account first");
             grants.PrepareConsole(enabled);
         }
     }

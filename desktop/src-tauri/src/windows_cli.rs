@@ -29,7 +29,17 @@ fn console() -> bool {
 }
 
 pub fn dispatch(args: &[OsString]) -> Option<i32> {
-    if args == ["--background"] || args == ["--gui"] {
+    if args.first().is_some_and(|arg| arg == "--restart-wait") {
+        return Some(restart_wait(args).unwrap_or(1));
+    }
+    if !args.is_empty()
+        && crate::restart::valid_launch_args(
+            &args
+                .iter()
+                .map(|arg| arg.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+        )
+    {
         return None;
     }
     let terminal = console();
@@ -50,6 +60,13 @@ fn run(args: &[OsString]) -> io::Result<i32> {
     let root = executable
         .parent()
         .ok_or_else(|| io::Error::other("Installation directory missing"))?;
+    if args.first().is_some_and(|arg| arg == "presentation") {
+        let status = Command::new(root.join("runtime/machine-control-windows.exe"))
+            .args(args)
+            .creation_flags(0x08000000)
+            .status()?;
+        return Ok(status.code().unwrap_or(1));
+    }
     let cli = root.join("mc-cli");
     let script = if args.is_empty() || args == ["--start"] {
         "windows-launch.py"
@@ -76,4 +93,43 @@ fn run(args: &[OsString]) -> io::Result<i32> {
         println!("\nWindows desktop: bare command or --start starts the app and prints guidance.\nUse --gui to open the operator window. agent identity --paths shows this installation.");
     }
     Ok(status.code().unwrap_or(1))
+}
+
+fn restart_wait(args: &[OsString]) -> Result<i32, String> {
+    use windows_sys::Win32::{
+        Foundation::CloseHandle,
+        System::Threading::{OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE},
+    };
+    let pid: u32 = args
+        .get(1)
+        .and_then(|arg| arg.to_str())
+        .and_then(|text| text.parse().ok())
+        .ok_or("Restart predecessor missing")?;
+    let launch: Vec<_> = args
+        .iter()
+        .skip(2)
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect();
+    if !crate::restart::valid_launch_args(&launch) {
+        return Err("Invalid restart arguments".into());
+    }
+    let process = unsafe { OpenProcess(PROCESS_SYNCHRONIZE, 0, pid) };
+    if !process.is_null() {
+        let result = unsafe { WaitForSingleObject(process, 10000) };
+        unsafe {
+            CloseHandle(process);
+        }
+        if result != 0 {
+            return Err("Previous application did not exit".into());
+        }
+    }
+    Command::new(std::env::current_exe().map_err(|e| e.to_string())?)
+        .args(launch)
+        .creation_flags(0x08000000)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(0)
 }

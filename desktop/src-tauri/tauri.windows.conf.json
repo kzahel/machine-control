@@ -1,6 +1,8 @@
 {
   "bundle": {
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "resources": {
       "native/mc-cli/": "mc-cli/",
       "../native/windows-README.txt": "README.txt",
@@ -25,5 +27,18 @@
       }
     }
   },
-  "mainBinaryName": "machine-control"
+  "mainBinaryName": "machine-control",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Machine Control",
+        "width": 640,
+        "height": 440,
+        "minWidth": 580,
+        "minHeight": 400,
+        "create": false
+      }
+    ]
+  }
 }

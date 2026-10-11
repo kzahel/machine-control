@@ -8,6 +8,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
 {
     internal DesktopJournal? Journal { get; } = journal;
     internal readonly object Gate = new();
+    internal volatile bool ApprovalPresentationAvailable = true;
     private readonly TimeProvider _time = time ?? TimeProvider.System;
     private string _generation = Guid.NewGuid().ToString("n");
     private LiveGrant? _grant;
@@ -156,6 +157,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             Refresh();
             if (!_ready || _updating)
                 return Task.FromResult(new GrantReply(false, !_ready ? "desktop_unavailable" : "update_in_progress"));
+            if (!ApprovalPresentationAvailable) return Task.FromResult(new GrantReply(false, "native_presentation_unavailable"));
             var scopes = ValidateScopes(request.Scopes);
             var duration = ValidateDuration(request.DurationSeconds ?? 900);
             var timeout = request.TimeoutSeconds ?? 120;

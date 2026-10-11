@@ -9,18 +9,19 @@ namespace MachineControl.Windows;
 /// approval endpoint on the named pipe and no approval bearer in arguments.
 internal static class DesktopHost
 {
-    internal static async Task<int> RunAsync()
+    internal static async Task<int> RunAsync(string instance = "desktop", string? temporaryPresentation = null)
     {
         if (!Console.IsInputRedirected || !Console.IsOutputRedirected)
             throw new InvalidOperationException("The desktop resident requires its operator transport");
         using var stop = new CancellationTokenSource();
-        var journal = new DesktopJournal();
+        RuntimeProfile.ConfigureUser(instance);
+        var presentation = new DesktopPresentation(DesktopPresentationIpc.PathFor(instance), temporaryPresentation);
+        var journal = new DesktopJournal(instance == "desktop" ? null : Path.Combine(RuntimeProfile.StateRoot, "logs"));
         var broker = new DesktopGrants(journal: journal);
         var lockedUse = new DesktopLockedUse(broker, stop.Token);
         DesktopLockedUse.Current = lockedUse;
         var updates = new DesktopUpdates();
         DesktopSafety.Broker = broker;
-        RuntimeProfile.ConfigureUser("desktop");
         BrowserInstaller.RecoverOwn();
         using var reader = new StreamReader(Console.OpenStandardInput(), Encoding.UTF8, false);
         await using var writer = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
@@ -32,12 +33,14 @@ internal static class DesktopHost
         DesktopSafety.RefreshAvailability(broker);
         using var activity = new DesktopActivityMonitor(broker);
         using var shortcut = new DesktopStopShortcut(broker);
+        using var nativePresentation = new DesktopNativePresentation(broker);
         var browser = new BrowserRelay(broker);
         using var devtools = new BrowserDevToolsBridge(broker, browser);
         browser.DevTools = devtools;
         var devtoolsTask = devtools.RunAsync(stop.Token);
         var browserTask = browser.RunAsync(stop.Token);
-        var resident = new UserHost("desktop", broker, browser, updates).RunAsync(stop.Token);
+        var resident = new UserHost(instance, broker, browser, updates).RunAsync(stop.Token);
+        var presentationServer = DesktopPresentationIpc.ServeAsync(instance, presentation, broker, stop.Token);
         var monitor = Task.Run(async () =>
         {
             while (!stop.IsCancellationRequested)
@@ -50,11 +53,11 @@ internal static class DesktopHost
         });
         try
         {
-            await writer.WriteLineAsync(Contract.Serialize(new { ok = true, stopWindow = shortcut.WindowHandle }));
+            await writer.WriteLineAsync(Contract.Serialize(new { ok = true, stopWindow = shortcut.WindowHandle, presentation = presentation.Status() }));
             while (!stop.IsCancellationRequested)
             {
                 var read = ReadCommandAsync(reader, stop.Token);
-                var completed = await Task.WhenAny(read, resident, browserTask, devtoolsTask, monitor);
+                var completed = await Task.WhenAny(read, resident, browserTask, devtoolsTask, monitor, presentationServer);
                 if (completed != read) { await completed; break; }
                 var line = await read;
                 if (line is null) break;
@@ -65,6 +68,14 @@ internal static class DesktopHost
                     var method = command["method"]?.GetValue<string>();
                     switch (method)
                     {
+                        case "presentation":
+                            reply = new
+                            {
+                                ok = true,
+                                presentation = DesktopPresentationIpc.Apply(presentation, broker,
+                                new JsonObject { ["method"] = "set", ["profile"] = command["profile"]?.GetValue<string>() })
+                            };
+                            break;
                         case "update_sync":
                             reply = new { ok = true, checkRequested = updates.Sync(command["state"]!.AsObject()) };
                             break;
@@ -73,6 +84,8 @@ internal static class DesktopHost
                             if (!state.ContainsKey("pending")) state["pending"] = null;
                             var ready = DesktopSafety.Ready();
                             state["platform"] = "windows";
+                            state["nativeApproval"] = true;
+                            state["presentation"] = JsonSerializer.SerializeToNode(presentation.Status(), Contract.Json);
                             state["stopShortcutAvailable"] = shortcut.Available;
                             state["stopShortcut"] = "Ctrl+Alt+Shift+.";
                             state["permissions"] = new JsonObject { ["accessibility"] = ready, ["screenRecording"] = ready };
@@ -80,7 +93,7 @@ internal static class DesktopHost
                             state["uac"] = JsonSerializer.SerializeToNode(DesktopUacClient.State(), Contract.Json);
                             state["lockedUse"] = JsonSerializer.SerializeToNode(lockedUse.State(), Contract.Json);
                             state["physicalAvailability"] = JsonSerializer.SerializeToNode(activity.State, Contract.Json);
-                            state["socket"] = RuntimeProfile.UserPipe("desktop", RuntimeProfile.SessionId);
+                            state["socket"] = RuntimeProfile.UserPipe(instance, RuntimeProfile.SessionId);
                             reply = new { ok = true, state };
                             break;
                         case "logs.query":
@@ -136,6 +149,7 @@ internal static class DesktopHost
             try { await monitor; } catch (OperationCanceledException) { }
             try { await browserTask; } catch (OperationCanceledException) { }
             try { await devtoolsTask; } catch (OperationCanceledException) { }
+            try { await presentationServer; } catch (OperationCanceledException) { }
             journal.Event("resident.stop");
             DesktopSafety.Broker = null;
             DesktopLockedUse.Current = null;
