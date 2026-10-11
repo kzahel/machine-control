@@ -32,6 +32,14 @@ Fresh action checks remain separate. Fault fixtures hold a helper open while
 resident ticks and local Stop continue. Signed candidate qualification is
 recorded in [Mac acceptance](../docs/tactical/108-macos-runtime-presentation.md).
 
+**Current (Mac hardening):** Resume now waits through one asynchronous operator
+dependency. Native preflight has a caller deadline and admission-time generation
+fence; timeout/Stop cannot dispatch late work under a new grant. Slow replies
+share bounded capacity with handshakes. Delegation-status discovery no longer
+writes action audit. Combined blocked-dependency fixtures and exact signed
+ARM64 host load/recovery pass; [hardening](../docs/tactical/109-macos-runtime-hardening.md)
+owns measurements and remaining synchronous lifecycle paths.
+
 ## Product direction
 
 **Decision:** One reusable logical runtime serves three presentation profiles

@@ -137,6 +137,11 @@ restoration. It also records fixes found during live acceptance and remaining
 protected/physical limits. The host installation and public release are
 unchanged.
 
+[Tactical 109](109-macos-runtime-hardening.md) adds bounded Mac hardening before
+the Windows handoff: asynchronous Resume, preflight deadlines and fencing,
+reply/handshake bounds, audit-free delegation discovery and signed host load.
+Protected lifecycle/update paths and broader physical qualification remain open.
+
 Milestone 5 remains active for Windows/Linux native integration and their
 profile qualification. Mac evidence does not qualify those platforms, Intel
 GUI execution or a new public package. Continue with existing resident/session

@@ -46,6 +46,15 @@ showed the ordinary AppKit/CF event loop. The installed host app, policy and
 helper configuration were unchanged. This bounded observation does not measure
 all possible dependency delays or prove the original helper healthy.
 
+**Current, follow-up hardening, `source-reviewed` and bounded signed ARM64
+`live-tested`:** asynchronous Resume, preflight deadlines/generation fences and
+reply admission bounds pass deterministic fault/load fixtures. Signed host load
+exposed main-thread audit writes from read-only delegation discovery; classifying
+that query as discovery removes the write path, and the exact candidate passes
+concurrent discovery, handshake overload and same-runtime Settings recovery.
+[Tactical 109](../../docs/tactical/109-macos-runtime-hardening.md) owns source,
+numeric resource/latency evidence, cleanup and Windows handoff.
+
 [Runtime and presentation](../../topics/runtime-and-presentation.md) owns the
 execution boundary; [Tactical 108](../../docs/tactical/108-macos-runtime-presentation.md)
 owns exact signed profile, fixture, browser and restoration evidence. Both Mac
@@ -53,8 +62,9 @@ bundle architectures build and pass local signing verification; GUI execution
 is ARM64 only. Exact process samples remain private.
 
 **Open:** why the original helper replied slowly and the exact displayed error.
-Explicit protected setup/resume and update installation retain their native
-lifecycle paths, including some synchronous calls. Full protected/physical
+Protected setup/repair/removal, covered startup, some durable file operations
+and update installation retain synchronous native lifecycle paths. Resume's
+helper wait is now asynchronous and fenced. Full protected/physical
 recertification and broader responsiveness soak remain separate.
 
 ## Resumable admission

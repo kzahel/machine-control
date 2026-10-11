@@ -277,3 +277,18 @@ For an additional OS reboot/cold-boot trial, use persistent guest staging and
 keep controller-side copies of every file needed for restoration. macOS clears
 `/tmp` at startup; neither an app nor its backups there can survive that test.
 The runner's Restart checks restart the app, not the operating system.
+
+`runtime-host-load.py --app CANDIDATE --claim CLAIM --evidence-dir PRIVATE_DIR`
+is a bounded physical-host discovery/recovery check. The caller first runs
+host doctor, acquires a fresh exclusive host claim and supplies `--registry`
+when needed, then releases the claim in cleanup. The runner verifies signatures,
+launches an isolated endpoint with saved appliance/temporary minimal presentation,
+opens Settings during 96 attempted incomplete handshakes, then performs
+concurrent read-only discovery for 30–300 seconds. It checks same-runtime
+recovery, main-thread samples, sampled FD/RSS recovery, no candidate access
+grant, unchanged canonical app/helper/policy/presentation fingerprints and the
+installed resident PID. It terminates its candidate and restores focus.
+Raw process samples/logs remain private. This is neither a strict memory bound
+nor native-effect/protected-session acceptance. Deterministic Swift fixtures
+separately inject blocked helper/session/provider/Resume dependencies and
+slow-reader reply floods without changing the real helper or session.
