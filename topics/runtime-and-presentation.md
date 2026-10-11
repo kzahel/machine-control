@@ -4,7 +4,8 @@ Topic: `runtime-and-presentation`
 
 Status: Mac and Windows presentation implementations are in place;
 bounded native qualification and remaining limits are platform-specific.
-Linux resident integration is in place; GUI qualification is in progress.
+Linux implements all three profiles with bounded x64 GNOME Wayland candidate
+qualification; ARM64 execution and production release remain separate.
 [Tactical 107](../docs/tactical/107-runtime-and-presentation.md) coordinates the
 migration.
 
@@ -41,13 +42,18 @@ writes action audit. Combined blocked-dependency fixtures and exact signed
 ARM64 host load/recovery pass; [hardening](../docs/tactical/109-macos-runtime-hardening.md)
 owns measurements and remaining synchronous lifecycle paths.
 
-**Current (Linux source):** The existing ordinary-user Python/AT-SPI resident
+**Current (Linux candidate):** The existing ordinary-user Python/AT-SPI resident
 uses one physical provider slot, cancellation/deadline fences and asynchronous
 session/portal setup. Separate native approval and safety processes preserve
 Pause/Stop without Settings; losing safety presentation revokes access. Local
 preferences and recovery are distinct from the public agent socket and root
 appliance authorization. [Linux acceptance](../docs/tactical/111-linux-runtime-presentation.md)
-owns the continuing native campaign and its limits.
+owns exact x64 native effects, all three profiles, browser, faults, restart,
+local/outside CLI parity and remaining limits. A private GLib coordinator and
+one persistent AT-SPI worker preserve context affinity. Provider deadlines
+retain physical capacity; native approval children retain their slot through
+kernel reaping. Disposable Settings and local recovery remain independent of
+public-socket saturation and provider work.
 
 ## Product direction
 
@@ -182,8 +188,9 @@ personal recovery. Intel packaging and bounded physical-host responsiveness
 checks pass. [Mac acceptance](../docs/tactical/108-macos-runtime-presentation.md)
 owns exact candidate evidence and limits; no public release was performed.
 
-**Open:** Linux native profile integration, Windows publisher signing and full
-ARM64 desktop qualification, Intel Mac GUI execution and broader
+**Open:** Linux ARM64 qualification for these changes, production signing and
+installed/updater acceptance; Windows publisher signing and full ARM64 desktop
+qualification, Intel Mac GUI execution and broader
 protected/physical qualification. Process separation on Mac remains an
 evidence-based choice:
 account for TCC ownership, code identity, authenticated operator IPC, updater

@@ -178,8 +178,8 @@ Settings. Selecting appliance presentation on a workstation still requires
 native approval. Returning to personal presentation on a provisioned appliance
 preserves that policy; remove unattended authorization explicitly when needed.
 These local controls assume the operator's OS identity and do not contain an
-agent with a same-user shell. Windows and Linux presentation qualification
-remains a separate follow-up; Mac acceptance does not cover either OS.
+agent with a same-user shell. Windows and Linux have separate native candidate
+qualification; Mac acceptance does not cover either OS.
 
 ## Signed releases and candidates
 
@@ -299,6 +299,16 @@ resident job if its private transport is broken. Tests may use a separate
 [Windows acceptance](../docs/tactical/110-windows-runtime-presentation.md)
 distinguishes local development signing, native execution and remaining
 publisher/architecture qualification.
+
+## Linux presentation and recovery
+
+The ordinary-user Linux candidate implements the same three profiles,
+disposable Settings, restart-expiring overrides and local status/set/reset.
+Independent GTK approval and safety processes keep Pause/Stop available with
+Settings absent. Presentation preserves native portal consent and never grants
+appliance privileges. The [Linux guide](LINUX.md#development-presentation-and-recovery)
+owns command examples; [Linux acceptance](../docs/tactical/111-linux-runtime-presentation.md)
+owns candidate authentication, effects, fault/restart evidence and limits.
 
 ## Native administrator commands on Mac
 

@@ -64,6 +64,48 @@ Browser integration is optional. Use **Permissions → Set up**, then load the
 copied extension in Chrome as an unpacked extension. Browser access and browser
 scripts have separate scopes. See [browser control](../topics/browser-control.md).
 
+## Development presentation and recovery
+
+The development candidate supports Personal, Minimal and Appliance in the
+existing app. Personal opens Settings; Minimal starts with the tray; Appliance
+hides its idle tray. Pending or active access retains the tray and independent
+native approval and safety UI in every profile. Safety offers Pause, Resume,
+Stop and Settings; closing it stops access. Missing safety presentation refuses
+access. Appliance presentation does not provision unattended authority or
+select the root appliance input provider.
+
+Closing Settings destroys the WebView while the resident continues. Open the
+same executable with `--settings` to recover it. A launch override
+`--presentation personal|minimal|appliance` lasts until Restart or an explicit
+saved choice. Restart reloads the saved profile with access Off.
+
+The GUI executable supports this local recovery CLI without opening a WebView:
+
+```bash
+machine-control presentation status
+machine-control presentation set minimal
+machine-control presentation reset
+machine-control --settings
+```
+
+The bundled Python control client also routes local `presentation` commands.
+These are operator commands; the public desktop action endpoint cannot mutate
+presentation or arm access. A separate bounded same-user socket serves live
+recovery. When the resident is absent, the CLI uses the same owner-only atomic
+preferences. A busy or uncertain live channel refuses an offline replay.
+Pending approval blocks preference mutation. Invalid contents default to
+Personal with a diagnostic. Tests can isolate candidates with `--instance NAME`;
+browser integration still uses its separately owned standard desktop route.
+
+Stop changes authority without waiting for provider work. Already dispatched
+native effects remain uncertain; cancellation attempts paired input release.
+A late provider retains its single physical slot until it returns. Restart can
+recover a missing companion; Quit reaps the owned companion. These are bounded
+fault trials, not hard guarantees for every native call or kernel failure.
+[Tactical 111](../docs/tactical/111-linux-runtime-presentation.md) records exact
+x64 development-candidate evidence and open ARM64/package release gates. This
+feature has not been published or installed as a replacement.
+
 ## Updates and removal
 
 **Settings → Check for updates** checks the shared desktop release feed.

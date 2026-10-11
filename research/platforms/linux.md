@@ -117,6 +117,30 @@ The route was added after UTM execution returned an operation-unavailable
 error and failed to produce a completion record during resident deployment.
 This observation does not establish whether the defect is in UTM or QGA.
 
+## Resident responsiveness and presentation
+
+**Current, development candidate, `live-tested`:** The ordinary-user x64
+Ubuntu/GNOME Wayland package passes bounded native effects, three presentation
+profiles, independent GTK safety/approval, local/outside CLI parity, browser
+without Settings, cancellation, injected dependency faults and restart.
+[Tactical 111](../../docs/tactical/111-linux-runtime-presentation.md) owns exact
+source/artifact identity and execution results. Development detached signature
+authentication does not establish publisher, installer or updater acceptance.
+ARM64 coverage of these changes remains open; earlier ARM64 preview acceptance
+does not qualify these bytes.
+
+**Current, source-reviewed and live-tested:** An earlier worker arrangement
+left the process default GLib context on another thread and encountered a
+libdbus assertion during native qualification. In the examined
+[AT-SPI 2.52 source](https://raw.githubusercontent.com/GNOME/at-spi2-core/AT_SPI2_CORE_2_52_0/atspi/atspi-misc.c),
+`handle_get_bus_address` explicitly attaches the accessibility D-Bus connection
+to `g_main_context_default()` and uses mutable process-global reference tables.
+This supports a context-affinity concern; it does not establish a complete
+root-cause diagnosis. The corrected resident gives one persistent worker AT-SPI
+initialization, calls and default-context pumping, while the authorization
+coordinator uses a private context. Bounded native repeats pass; arbitrary
+native/provider stalls and longer soak remain separate evidence.
+
 ## Controller CLI reliability
 
 **Current:** The macOS-hosted UTM route has a live-observed ScriptingBridge

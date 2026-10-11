@@ -202,8 +202,13 @@ try:
     check("scroll delivery", call("input.scroll", **center, dy=-2)["accepted"])
     poll(lambda: fixture()["scrollY"] != previous_scroll)
     check("independent scroll effect", True)
-    check("selected foreground mismatch refused", call("input.key", key="enter",
-          target="xdg-desktop-portal-gnome")["errorCode"] == "foreground_mismatch")
+    # The consent window has already closed; use the live safety application
+    # as the wrong selected identity rather than relying on a cached portal app.
+    mismatch = call("input.key", key="enter", target="machine-control-safety")
+    print("FOREGROUND GUARD", json.dumps(mismatch), file=log, flush=True)
+    check("selected foreground mismatch refused", not mismatch["accepted"] and
+          mismatch["delivery"] == "refused" and mismatch["errorCode"] in
+          {"foreground_mismatch", "foreground_unavailable"})
     entry = next(n for n in nodes if n["label"] == "Fixture Text")
     check("semantic focus", call("focus", reference=entry["reference"])["accepted"])
     check("clear entry", call("input.key", key="ctrl+a")["accepted"])

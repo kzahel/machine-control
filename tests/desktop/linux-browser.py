@@ -110,6 +110,7 @@ try:
     endpoint = Path(operator("state")["state"]["socket"])
     poll(lambda: operator("state")["state"].get("safetyAvailable", True) and
          operator("state")["state"]["permissions"]["accessibility"])
+    poll(lambda: call("status")["data"]["ready"])
     check("browser denied while Off", call("browser.tabs")["errorCode"] == "approval_required")
     extension = operator("browser.setup")["extensionPath"]
     # Linux resolves user native hosts beneath Chrome's selected user-data

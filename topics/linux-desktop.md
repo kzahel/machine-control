@@ -5,7 +5,9 @@ Topic: `linux-desktop`
 Status: public desktop 0.5.4 includes signed Debian/AppImage packages for
 x64 and ARM64. Focused ARM64 Debian indefinite-access, native semantic effect
 and Stop acceptance passes on Ubuntu GNOME Wayland; earlier x64 coverage
-remains. ARM64 portal/browser/lifecycle acceptance remains separate.
+remains. ARM64 portal/browser/lifecycle acceptance remains separate. The unpublished
+runtime/presentation candidate passes bounded x64 native acceptance in
+[Tactical 111](../docs/tactical/111-linux-runtime-presentation.md).
 
 **Decision:** Extend the shared Tauri settings and tray app with an ordinary-user
 Linux companion. Reuse the owned AT-SPI facade, with compositor-mediated XDG
@@ -74,3 +76,14 @@ visible choice and status, null countdown, native semantic delivery, an
 independent GTK fixture effect and Stop. [Tactical 091](../docs/tactical/091-desktop-until-stopped.md)
 owns that focused evidence and unified publication. No new restart/reboot
 persistence semantics are added.
+
+**Current, development candidate:** Personal, Minimal and Appliance share the
+ordinary-user resident and authorization. Provider work has bounded admission
+and deadlines, with physical capacity retained for late completion. Native
+approval and safety live independently of Settings; safety loss revokes access.
+Disposable Settings, atomic preferences, local CLI recovery and temporary
+profiles expiring on Restart pass x64 GNOME Wayland candidate acceptance.
+[Runtime and presentation](runtime-and-presentation.md) owns the shared decision;
+[Tactical 111](../docs/tactical/111-linux-runtime-presentation.md) owns exact-byte
+qualification and open ARM64, publisher, installer/updater and physical gates.
+No publication or installed replacement occurred.
