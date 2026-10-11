@@ -23,9 +23,15 @@ p.add_argument('--candidate-client', required=True)
 p.add_argument('--profile', choices=['personal', 'minimal', 'appliance'], required=True)
 p.add_argument('--operator-app')
 p.add_argument('--operator-socket')
+p.add_argument('--standing-policy', action='store_true', help='Bounded standing-policy preservation and Stop/Resume trial instead of workstation approval acceptance')
+p.add_argument('--verify-temporary-restart', action='store_true', help='First prove that a temporary launch override expires on signed Restart')
+p.add_argument('--browser-suite', help='Guest root containing the browser runner, extension and CDP client; candidate must own the canonical resident socket')
+p.add_argument('--browser-chrome', help='Separate Chrome for Testing executable in the guest')
 a = p.parse_args()
 if bool(a.operator_app) != bool(a.operator_socket):
     p.error('Observer app and socket must be supplied together')
+if bool(a.browser_suite) != bool(a.browser_chrome):
+    p.error('Browser suite and separate test browser must be supplied together')
 mc = [str(Path(__file__).resolve().parents[2] / 'bin/machine-control'), '--target', a.target, '--claim', a.claim]
 binary = a.candidate_app + '/Contents/MacOS/macui'
 pid = None
@@ -35,8 +41,8 @@ notice_child = None
 fixture = 'org.machine-control.fixture'
 
 
-def call(*args):
-    return subprocess.check_output(mc + list(args), text=True, timeout=60)
+def call(*args, timeout=60):
+    return subprocess.check_output(mc + list(args), text=True, timeout=timeout)
 
 
 def shell(args):
@@ -118,7 +124,16 @@ def settings():
 
 
 def close_settings():
-    accepted(base(dict(operation='window.close', target=str(pid))))
+    # AXWindows can start with an AXHelpTag for the tray tooltip. Bind this
+    # test to the actual Settings window's close button using its AX subrole.
+    def close_button():
+        tree = accepted(base(dict(operation='snapshot', target=str(pid),
+            maxDepth=30, maxElements=600)))['elements']
+        windows = [e for e in tree if e['role'] == 'AXWindow' and e['label'] == 'Machine Control']
+        buttons = [e for e in tree if e.get('subrole') == 'AXCloseButton']
+        return buttons if len(windows) == 1 and len(buttons) == 1 else None
+    button = wait(close_button, 'native Settings close button')[0]
+    accepted(base(dict(operation='action', reference=button['reference'], action='press')))
     wait(lambda: status()['presentation']['settingsWebViews'] == 0, 'Settings destroyed')
     assert status()['processId'] == pid
 
@@ -148,12 +163,27 @@ try:
     assert accepted(base(dict(operation='status')))['deployment']['policy']['grantMode'] == 'standing'
     preference('set', a.profile)
     log = str(Path(a.candidate_socket).parent / 'candidate.log')
-    shell('nohup ' + ' '.join(map(shlex.quote, [binary, 'serve', a.candidate_socket]))
+    launch = [binary, 'serve', a.candidate_socket]
+    if a.verify_temporary_restart:
+        launch += ['--presentation', 'minimal' if a.profile == 'personal' else 'personal']
+    shell('nohup ' + ' '.join(map(shlex.quote, launch))
           + ' </dev/null >' + shlex.quote(log) + ' 2>&1 &')
     initial = wait(status, 'candidate started')
     pid = initial['processId']
     assert request(dict(operation='status'))['generation'] == request(dict(operation='grant.status'))['generation']
-    assert initial['deployment']['policy']['grantMode'] == 'approval', initial['deployment']
+    assert initial['deployment']['policy']['grantMode'] == ('standing' if a.standing_policy else 'approval'), initial['deployment']
+    assert initial['deployment']['policy']['source'] == 'policy_file', initial['deployment']
+    assert initial['deployment']['policy']['issue'] is None, initial['deployment']
+    if a.verify_temporary_restart:
+        assert initial['presentation']['temporaryOverride']
+        assert initial['presentation']['profile'] != a.profile
+        assert preference('status')['profile'] == a.profile
+        settings(); press('Permissions'); press('Restart')
+        initial = wait(lambda: (value if (value := status())['processId'] != pid else None), 'temporary override restart')
+        pid = initial['processId']
+        assert not initial['presentation']['temporaryOverride']
+        assert preference('status')['profile'] == a.profile
+        print('Temporary override expired on signed Restart without changing saved preference', flush=True)
     assert initial['presentation']['profile'] == a.profile, initial['presentation']
     print("Signed startup and runtime identity passed", flush=True)
     expected = 1 if a.profile == 'personal' else 0
@@ -162,6 +192,29 @@ try:
         close_settings()
     settings(); close_settings(); settings(); close_settings()
     print("Lazy Settings and single-instance recovery passed", flush=True)
+
+    if a.standing_policy:
+        policy = initial['deployment']['policy']
+        before = json.loads(call('testbed', '--', 'fixture-state'))['count']
+        snapshot = accepted(request(dict(operation='snapshot', target=fixture, query='Increment', projection='compact')))
+        reference = next(e['reference'] for e in snapshot['elements'] if e['role'] == 'AXButton' and e['label'] == 'Increment')
+        accepted(request(dict(operation='action', reference=reference, action='press')))
+        assert json.loads(call('testbed', '--', 'fixture-state'))['count'] == before + 1
+        tray('Stop access')
+        assert request(dict(operation='snapshot', target=fixture))['errorCode'] == 'access_paused'
+        assert status()['deployment']['policy'] == policy
+        settings(); press('Access'); press('Resume access')
+        wait(lambda: not status()['deployment']['availability']['paused'], 'standing Resume')
+        assert request(dict(operation='action', reference=reference, action='press'))['errorCode'] == 'stale_reference'
+        preference('reset')
+        wait(lambda: status()['presentation']['profile'] == 'personal', 'standing personal recovery')
+        assert status()['deployment']['policy'] == policy
+        assert status()['deployment']['grant'] is None
+        assert json.loads(call('testbed', '--', 'fixture-state'))['count'] == before + 1
+        print(json.dumps({'schema':'machine-control-mac-standing-presentation-acceptance/v1',
+            'profile':a.profile, 'standingPolicyPreserved':True, 'independentEffect':True,
+            'stopResume':True, 'staleReferences':True, 'personalRecovery':True}, sort_keys=True))
+        raise SystemExit(0)
 
     # Approval works with no Settings WebView. Saving a profile during approval
     # defers its live application without dismissing or replacing the prompt.
@@ -178,11 +231,17 @@ try:
     assert not request(dict(operation='input.key', target=fixture, key='tab'))['accepted']
     accepted(request(dict(operation='grant.revoke')))
 
-    approval(['observe', 'control'])
+    scopes = ['observe', 'control', 'browser', 'devtools'] if a.browser_suite else ['observe', 'control']
+    approval(scopes)
     approved = accepted(decide('Allow'))['grant']
     assert request(dict(operation='input.key', target=str(pid), key='tab'))['errorCode'] == 'self_target_refused'
     assert request(dict(operation='authorization.begin'))['errorCode'] == 'operation_not_permitted_by_policy'
-    before = json.loads(call('testbed', '--', 'fixture-state'))['count']
+    reset = accepted(request(dict(operation='snapshot', target=fixture, query='Reset', projection='compact')))
+    reset_ref = next(e['reference'] for e in reset['elements'] if e['role'] == 'AXButton' and e['label'] == 'Reset')
+    accepted(request(dict(operation='action', reference=reset_ref, action='press')))
+    baseline = json.loads(call('testbed', '--', 'fixture-state'))
+    assert baseline['count'] == 0 and baseline['text'] == '', baseline
+    before = baseline['count']
     snapshot = accepted(request(dict(operation='snapshot', target=fixture, query='Increment', projection='compact')))
     reference = next(e['reference'] for e in snapshot['elements'] if e['role'] == 'AXButton' and e['label'] == 'Increment')
     accepted(request(dict(operation='action', reference=reference, action='press')))
@@ -201,7 +260,53 @@ try:
     assert call('os', '--', '/usr/bin/xxd', '-l', '8', '-p', capture['artifactPath']).strip() == '89504e470d0a1a0a'
     call('os', '--', '/bin/rm', '-f', capture['artifactPath'])
 
-    settings(); press('Access'); press('Pause access')
+    native = accepted(request(dict(operation='snapshot', target=fixture, projection='compact'), packaged=True))
+    field = next(e['reference'] for e in native['elements'] if e['identifier'] == 'fixture.text')
+    accepted(request(dict(operation='action', reference=field, action='focus'), packaged=True))
+    # Reset establishes an empty editor. The minimal fixture has no Select
+    # All menu binding; Cmd+A exercises the modifier-to-literal transition.
+    oracle = json.loads(call('testbed', '--', 'fixture-state'))
+    assert oracle['text'] == '', oracle
+    accepted(request(dict(operation='input.key', target=fixture, key='cmd-a', deliveryMode='foreground'), packaged=True))
+    text = 'presentation-' + a.profile
+    accepted(request(dict(operation='input.text', target=fixture, text=text, deliveryMode='foreground'), packaged=True))
+    typed = json.loads(call('testbed', '--', 'fixture-state'))
+    assert typed['text'] == text and typed['keyEventCount'] > oracle['keyEventCount'], typed
+    bounds = typed['surfaceBounds']
+    accepted(request(dict(operation='input.click', target=fixture,
+        x=round(bounds['x'] + bounds['width'] / 2), y=round(bounds['y'] + bounds['height'] / 2),
+        coordinateSpace='global_display_points', deliveryMode='foreground'), packaged=True))
+    clicked = json.loads(call('testbed', '--', 'fixture-state'))
+    assert clicked['mouseDownCount'] == typed['mouseDownCount'] + 1, clicked
+    print('Native keyboard, text and pointer effects independently observed', flush=True)
+
+    if a.browser_suite:
+        assert status()['presentation']['settingsWebViews'] == 0
+        root = a.browser_suite
+        output = call('os', '--', a.candidate_app + '/Contents/Resources/mc-cli/python/bin/python3', '-B',
+            root + '/tests/browser/indicators-live.py', '--chrome', a.browser_chrome,
+            '--extension', root + '/providers/chrome-extension', '--host-executable', binary,
+            '--socket', a.candidate_socket, '--cdp-client', root + '/platforms/chromeos/cdp.py',
+            '--claim', guest_claim, '--client', a.candidate_client,
+            '--output', root + '/browser-result.json', timeout=240)
+        browser_result = json.loads(output.strip().splitlines()[-1])
+        assert browser_result['passed'], browser_result
+        assert status()['presentation']['settingsWebViews'] == 0
+        print('Browser effects, capture and provider reconnect passed with Settings absent', flush=True)
+
+    settings(); press('Settings'); press('Check for updates')
+    def discovered_update():
+        value = accepted(request(dict(operation='update.status')))['update']
+        if value['phase'] == 'error':
+            raise RuntimeError('Signed update discovery failed: ' + str(value['error']))
+        return value if value['phase'] == 'available' else None
+    update = wait(discovered_update, 'signed update discovery')
+    install = wait(lambda: [e for e in elements('Install and restart') if e['role'] == 'AXButton'
+                           and e['label'] == 'Install and restart'], 'update installation control')
+    assert len(install) == 1 and not install[0]['enabled'], install
+    assert update['availableVersion'] != update['currentVersion']
+    print('Signed update discovery and active-access installation exclusion passed', flush=True)
+    press('Access'); press('Pause access')
     wait(lambda: accepted(request(dict(operation='grant.status')))['availability']['paused'], 'operator pause')
     assert request(dict(operation='snapshot', target=fixture))['errorCode'] == 'access_paused'
     press('Resume access')
@@ -212,7 +317,8 @@ try:
         '--target', 'host', '--claim', guest_claim, 'control', 'call',
         json.dumps(dict(operation='snapshot', target=fixture)), '--reason', 'Verify native notice without Settings', '--scope', 'observe'],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    wait(lambda: any(e['label'] == 'Computer control is about to start' for e in elements()), 'native admission notice')
+    heading = 'Computer control is about to start'
+    wait(lambda: any(heading in (e['label'], e.get('value')) for e in elements(heading)), 'native admission notice')
     output, error = notice_child.communicate(timeout=120)
     assert notice_child.returncode == 0, error
     accepted(json.loads(output)); notice_child = None
@@ -248,6 +354,8 @@ try:
     changed = wait(lambda: (value if (value := status())['processId'] != old_pid else None), 'signed restart')
     pid = changed['processId']
     assert changed['presentation']['profile'] == a.profile
+    assert changed['deployment']['policy']['source'] == 'policy_file'
+    assert changed['deployment']['policy']['issue'] is None
     assert changed['nativeSemanticState'] == 'ready' and changed['nativeCaptureState'] == 'ready'
     assert request(dict(operation='status'))['generation'] != old_generation
     assert accepted(request(dict(operation='grant.status')))['grant'] is None
@@ -260,6 +368,9 @@ try:
     settings()
     print(json.dumps({'schema':'machine-control-mac-presentation-acceptance/v1', 'profile':a.profile,
         'restartAndSignedPermissions':True, 'staleReferences':True, 'pauseResume':True, 'nativeNotice':True,
+        'updateDiscoveryAndExclusion':True, 'browserWithoutSettings':bool(a.browser_suite),
+        'nativeInputEffects':True,
+        'temporaryRestart':a.verify_temporary_restart,
         'startup':True, 'lazySettings':True, 'singleInstanceRecovery':True, 'nativeApproval':True,
         'deferredPreference':True, 'outsideAndLocalEffects':True, 'capture':True, 'settingsSelector':True, 'liveReset':True, 'stop':True}, sort_keys=True))
 finally:

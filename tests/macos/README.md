@@ -253,8 +253,22 @@ provider. It does not run an LLM or qualify covered/hardware/distribution use.
 `runtime-presentation.py` qualifies one presentation profile on an installed
 signed workstation candidate in a claimed dedicated VM. Supply the app,
 socket, packaged CLI, profile and optional separate standing observer. It
-starts/terminates its candidate, uses native AX approval without bypasses,
-checks actual Settings WebView count and same-runtime recovery, deferred mode
-changes, live reset, local/outside independent effects, capture bytes and Stop.
+starts/terminates its candidate, asserts healthy trusted-policy-file loading
+at startup and restart, uses native AX approval without bypasses, and checks
+actual Settings WebView count and same-runtime recovery, deferred mode
+changes, live reset, local/outside independent effects, capture bytes, native
+notice, Pause/Resume, Stop, signed restart, native keyboard/pointer effects,
+stale references and update discovery with installation disabled during access. It never installs the discovered
+production update over the candidate.
+Optional `--browser-suite` and `--browser-chrome` run the existing headed
+browser corpus with Settings absent. The suite root contains the browser runner,
+owned extension and ChromeOS CDP client. Use a separately identified Chrome for
+Testing; the candidate must occupy the canonical native-host socket and the
+standing observer must use a separate endpoint. Save and restore existing
+canonical operator preferences and the observer's launch registration.
+`--verify-temporary-restart` also proves one-launch override expiry against the
+saved preference. `--standing-policy` selects a bounded appliance-policy trial
+for independent effects, Stop/Resume, stale references and personal recovery;
+it preserves the separately provisioned standing policy.
 The caller owns signed installation, TCC consent, temporary policy restoration,
 fixture lifecycle, target power and claim cleanup. Do not use on a personal Mac.
