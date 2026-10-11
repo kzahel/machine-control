@@ -19,7 +19,7 @@ final class DesktopJournal {
     private let lock = NSRecursiveLock()
     static let known = Set("applications windows snapshot capture screenshot action focus set_value app.launch app.activate application.launch application.activate application.terminate invoke set.value click key type input.move input.click input.key input.text input.scroll input.drag window.state browser.tabs browser.wait browser.navigate browser.snapshot browser.click browser.type browser.key browser.capture browser.release browser.upload browser.cdp browser.eval browser.provider browser.register grant.request grant.revoke runtime.stop server.stop session.control session.control.end session.unlock authorization.begin authorization.cancel authorization.submit permissions.request update.check".split(separator: " ").map(String.init))
     static func tracked(_ operation: String) -> Bool {
-        !["status", "capabilities", "grant.status", "update.status", "browser.endpoint"].contains(operation)
+        !["status", "capabilities", "grant.status", "update.status", "browser.endpoint", "desktop.delegation.status"].contains(operation)
     }
     static func token(_ value: Any?) -> String {
         guard let string = value as? String, string.count <= 160,

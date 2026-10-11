@@ -12,7 +12,7 @@ enum OperationClass: Equatable {
 
 func operationClass(_ operation: String) -> OperationClass {
     switch operation {
-    case "capabilities", "status":
+    case "capabilities", "status", "desktop.delegation.status":
         return .discovery
     case "grant.request", "grant.status", "grant.revoke":
         return .grantManagement

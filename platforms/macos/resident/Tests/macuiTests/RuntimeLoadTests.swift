@@ -41,6 +41,10 @@ final class RuntimeLoadTests: XCTestCase {
                 XCTAssertEqual(result["errorCode"] as? String, "control_generation_changed"); oldRequest.fulfill()
             })
         wait(for:[providerStarted], timeout:1)
+        value.server.grantConsoleObservation = { console }
+        value.server.broker.issue(scopes:[.observe,.control], durationSeconds:60,
+            reason:"fixture", requester:"fixture", approver:"fixture")
+        XCTAssertNotNil(value.server.broker.grant)
         var ticks = 0
         let timer = DispatchSource.makeTimerSource(queue:.main)
         timer.schedule(deadline:.now(), repeating:.milliseconds(10))

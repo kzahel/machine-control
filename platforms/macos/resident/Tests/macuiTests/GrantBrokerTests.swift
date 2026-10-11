@@ -41,6 +41,7 @@ final class GrantBrokerTests: XCTestCase {
 
     func testOperationClasses() {
         XCTAssertEqual(operationClass("status"), .discovery)
+        XCTAssertEqual(operationClass("desktop.delegation.status"), .discovery)
         XCTAssertEqual(operationClass("grant.request"), .grantManagement)
         XCTAssertEqual(operationClass("snapshot"), .scoped(.observe))
         XCTAssertEqual(operationClass("input.click"), .scoped(.control))

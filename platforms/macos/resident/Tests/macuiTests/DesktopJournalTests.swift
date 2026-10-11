@@ -3,6 +3,23 @@ import XCTest
 @testable import macui
 
 final class DesktopJournalTests: XCTestCase {
+    func testDelegationDiscoveryDoesNotWriteOrGrowAuditHistory() throws {
+        let root = try temporary()
+        let journal = DesktopJournal(root:root)
+        func segments() throws -> [String:Data] {
+            let paths = try FileManager.default.contentsOfDirectory(at:root.appendingPathComponent("audit"),
+                includingPropertiesForKeys:nil)
+            return try paths.reduce(into:[:]) { $0[$1.lastPathComponent] = try Data(contentsOf:$1) }
+        }
+        let baseline = try segments()
+        for _ in 0..<1000 {
+            XCTAssertTrue(journal.begin(["operation":"desktop.delegation.status"]))
+            XCTAssertTrue(journal.record(["operation":"desktop.delegation.status", "accepted":true]))
+        }
+        XCTAssertEqual(try segments(), baseline)
+        XCTAssertTrue(journal.begin(["operation":"grant.request", "requestId":"fixture"]))
+        XCTAssertNotEqual(try segments(), baseline, "Grant requests must retain audit intent")
+    }
     func temporary() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
