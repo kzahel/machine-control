@@ -13,10 +13,15 @@ parser.add_argument("--screen-only", action="store_true")
 args = parser.parse_args()
 sys.path.insert(0, str(args.runtime))
 import linuxui
+from gi.repository import GLib
+linuxui.Atspi.init()
 
 deadline = time.monotonic() + 30
 while time.monotonic() < deadline:
     try:
+        context = GLib.MainContext.default()
+        while context.pending():
+            context.iteration(False)
         app = linuxui.choose_application(linuxui.desktop(), "xdg-desktop-portal-gnome")
         nodes = list(linuxui.walk(app, 25, 2000))
         windows = [info for _, info in nodes if info["role"] == "frame"]

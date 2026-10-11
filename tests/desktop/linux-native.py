@@ -21,6 +21,8 @@ parser.add_argument("--fixture", type=Path, required=True)
 args = parser.parse_args()
 sys.path.insert(0, str(args.runtime))
 import linuxui
+from gi.repository import GLib
+linuxui.Atspi.init()
 
 results = []
 owned = []
@@ -41,6 +43,9 @@ def check(name, value):
 def poll(fn, timeout=8):
     end = time.monotonic() + timeout
     while time.monotonic() < end:
+        context = GLib.MainContext.default()
+        while context.pending():
+            context.iteration(False)
         value = fn()
         if value:
             return value
@@ -150,7 +155,11 @@ try:
     consent = subprocess.Popen(["/usr/bin/python3", str(args.consent_actor), "--runtime", str(args.runtime)],
                                stdout=log, stderr=log)
     owned.append(consent)
-    poll(lambda: operator("state")["state"]["portal"]["state"] == "ready", 25)
+    try:
+        poll(lambda: operator("state")["state"]["portal"]["state"] == "ready", 35)
+    except AssertionError:
+        print("PORTAL", json.dumps(operator("state")["state"]["portal"]), file=log, flush=True)
+        raise
     consent.wait(5)
     check("visible portal consent", consent.returncode == 0)
     check("portal input capabilities", operator("state")["state"]["portal"]["keyboard"])

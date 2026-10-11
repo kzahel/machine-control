@@ -31,6 +31,7 @@ from grants import Grants, OBSERVE, CONTROL
 from work import Work, Ticket, Cancelled
 from presentation import Presentation, runtime_directory
 from coordinator import Coordinator
+from one_shot import read_reply
 from journal import Journal
 import uuid
 from portal import Portal
@@ -197,11 +198,12 @@ class Desktop:
         identifier = pending["id"] if pending else None
         if identifier == self.dialog_id:
             return
-        self.dialog_id = identifier
         if self.dialog:
-            if self.dialog.poll() is None:
-                self.dialog.terminate()
-            self.dialog = None
+            self.dialog_cancelled.set()
+            self.dialog.terminate()
+            # Keep the one physical UI slot until its reader reaps the child.
+            return
+        self.dialog_id = identifier
         if not pending:
             return
         # GTK approval lives separately from the synchronous AT-SPI provider;
@@ -212,6 +214,8 @@ class Desktop:
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                    stderr=sys.stderr, env=environment)
         self.dialog = process
+        self.dialog_cancelled = threading.Event()
+        cancelled = self.dialog_cancelled
         value = {k: pending[k] for k in ["id", "reason", "caller", "duration"]}
         value["parentId"] = os.getpid()
         value["scopes"] = sorted(pending["scopes"])
@@ -219,17 +223,19 @@ class Desktop:
         process.stdin.close()
 
         def wait():
-            line = process.stdout.readline(FRAME_LIMIT + 1)
-            process.wait()
+            line = read_reply(process, cancelled, pending["expires"])
             def decision():
-                if self.dialog_id != identifier:
+                if self.dialog != process:
                     return False
-                try:
-                    reply = json.loads(line)
-                    self.grants.decide(identifier, reply.get("allow") is True,
-                                       reply.get("scopes"), reply.get("duration", 0))
-                except (ValueError, TypeError):
-                    self.grants.stop("approval_unavailable")
+                self.dialog = None
+                self.dialog_id = None
+                if self.grants.pending and self.grants.pending["id"] == identifier:
+                    try:
+                        reply = json.loads(line)
+                        self.grants.decide(identifier, reply.get("allow") is True,
+                                           reply.get("scopes"), reply.get("duration", 0))
+                    except (ValueError, TypeError):
+                        self.grants.finish_pending(False, "approval_unavailable")
                 self.approval()
                 return False
             self.scheduler.post(decision)
