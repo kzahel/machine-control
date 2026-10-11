@@ -275,6 +275,9 @@ class Resident:
                 return application
         return None
 
+    def before_effect(self) -> None:
+        """Resident adapters may fence native dispatch after blocking preflight."""
+
     def application_launch(self, request: dict[str, Any]) -> dict[str, Any]:
         command = request.get("command")
         if (
@@ -287,6 +290,7 @@ class Resident:
                 "invalid_request", "Application command must be a nonempty string array"
             )
         unit = f"linuxvm-app-{uuid.uuid4().hex}.service"
+        self.before_effect()
         completed = subprocess.run(
             [
                 "/usr/bin/systemd-run",
@@ -351,6 +355,7 @@ class Resident:
         if desktop_id:
             if not re.fullmatch(r"[A-Za-z0-9_.-]+", desktop_id):
                 raise ControlFailure("invalid_request", "Desktop ID is invalid")
+            self.before_effect()
             completed = subprocess.run(
                 ["/usr/bin/gtk-launch", desktop_id],
                 capture_output=True,
@@ -394,6 +399,7 @@ class Resident:
             time.sleep(0.2)
         else:
             try:
+                self.before_effect()
                 focused = "Component" in interfaces and window.grab_focus()
             except Exception as error:
                 raise ControlFailure(
@@ -436,6 +442,7 @@ class Resident:
         if unit:
             if not re.fullmatch(r"linuxvm-app-[0-9a-f]{32}\.service", unit):
                 raise ControlFailure("invalid_request", "Unit is not resident-owned")
+            self.before_effect()
             completed = subprocess.run(
                 ["/usr/bin/systemctl", "--user", "stop", unit],
                 capture_output=True,
@@ -452,6 +459,7 @@ class Resident:
             process_id = int(linuxui.safe(application.get_process_id, 0) or 0)
             if process_id <= 1:
                 raise ControlFailure("termination_failed", "Application PID is invalid")
+            self.before_effect()
             os.kill(process_id, signal.SIGTERM)
         else:
             raise ControlFailure("invalid_request", "Unit or target is required")
@@ -765,6 +773,7 @@ class Resident:
             )
         if selected is None:
             raise ControlFailure("unsupported_action", "Requested action is unavailable")
+        self.before_effect()
         if not node.do_action(selected["index"]):
             raise ControlFailure("delivery_failed", "AT-SPI rejected the action")
 
@@ -796,6 +805,7 @@ class Resident:
         if "Component" not in linuxui.interfaces(node):
             raise ControlFailure("unsupported_action", "Element cannot receive focus")
         try:
+            self.before_effect()
             delivered = node.grab_focus()
         except Exception as error:
             raise ControlFailure("delivery_failed", str(error)) from error
@@ -818,10 +828,12 @@ class Resident:
         interfaces = linuxui.interfaces(node)
         value = request.get("value")
         if "EditableText" in interfaces:
+            self.before_effect()
             if not node.set_text_contents(str(value or "")):
                 raise ControlFailure("delivery_failed", "AT-SPI rejected text value")
             kind = "text"
         elif "Value" in interfaces:
+            self.before_effect()
             node.set_current_value(float(value))
             kind = "number"
         else:

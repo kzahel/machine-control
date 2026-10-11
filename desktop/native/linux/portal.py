@@ -6,6 +6,7 @@ import math
 import os
 import time
 import uuid
+from work import Work, Ticket
 
 import gi
 
@@ -39,6 +40,8 @@ class Portal:
         self.epoch = 0
         self.deadline = None
         self.deliveries = 0
+        self.ticket = None
+        self.media_work = Work(GLib.idle_add)
         self.bus.signal_subscribe(
             "org.freedesktop.DBus", "org.freedesktop.DBus", "NameOwnerChanged",
             "/org/freedesktop/DBus", DEST, Gio.DBusSignalFlags.NONE,
@@ -80,12 +83,23 @@ class Portal:
         self.subscription = self.bus.signal_subscribe(
             DEST, "org.freedesktop.portal.Request", "Response", path, None,
             Gio.DBusSignalFlags.NONE, response, None)
-        self._call(interface, method, signature, args)
+        def sent(bus, result, _data):
+            try:
+                bus.call_finish(result)
+            except GLib.Error:
+                if epoch == self.epoch:
+                    self.close("Desktop portal is unavailable")
+        self.bus.call(DEST, PATH, interface, method, GLib.Variant(signature, args), None,
+                      Gio.DBusCallFlags.NONE, 3000, None, sent, None)
 
     def connect(self):
         if self.state == "pending":
             return
+        if self.media_work.active:
+            raise RuntimeError("Previous media work is still running")
         self.close()
+        if self.media_work.active:
+            raise RuntimeError("Previous media work is still running")
         self.state = "pending"
         self.error = None
         self.changed()
@@ -114,22 +128,46 @@ class Portal:
                 raise RuntimeError("Choose one screen")
             self.stream, self.properties = streams[0]
             self.devices = value.get("devices", 0)
-            response, fds = self.bus.call_with_unix_fd_list_sync(
-                DEST, PATH, CAST, "OpenPipeWireRemote",
-                GLib.Variant("(oa{sv})", (self.session, {})), GLib.VariantType("(h)"),
-                Gio.DBusCallFlags.NONE, 3000, None, None)
-            self.fd = fds.get(response.unpack()[0])
-            self.pipeline = Gst.parse_launch(
-                f"pipewiresrc fd={self.fd} path={self.stream} do-timestamp=true "
-                "! videoconvert ! video/x-raw,format=RGB "
-                "! pngenc ! appsink name=frames max-buffers=1 drop=true sync=false")
-            if self.pipeline.set_state(Gst.State.PLAYING) == Gst.StateChangeReturn.FAILURE:
-                raise RuntimeError("Screen stream failed")
-            self.state = "ready"
-            if self.deadline:
-                GLib.source_remove(self.deadline)
-                self.deadline = None
-            self.changed()
+            epoch, stream = self.epoch, self.stream
+            ticket = Ticket(str(epoch), timeout=5)
+
+            def prepare(active):
+                active.check()
+                response, fds = self.bus.call_with_unix_fd_list_sync(
+                    DEST, PATH, CAST, "OpenPipeWireRemote",
+                    GLib.Variant("(oa{sv})", (self.session, {})), GLib.VariantType("(h)"),
+                    Gio.DBusCallFlags.NONE, 3000, None, None)
+                fd = fds.get(response.unpack()[0])
+                pipeline = None
+                try:
+                    active.check()
+                    pipeline = Gst.parse_launch(
+                        f"pipewiresrc fd={fd} path={stream} do-timestamp=true "
+                        "! videoconvert ! video/x-raw,format=RGB "
+                        "! pngenc ! appsink name=frames max-buffers=1 drop=true sync=false")
+                    if pipeline.set_state(Gst.State.PLAYING) == Gst.StateChangeReturn.FAILURE:
+                        raise RuntimeError("Screen stream failed")
+                    active.check()
+                    return fd, pipeline
+                except Exception:
+                    if pipeline:
+                        pipeline.set_state(Gst.State.NULL)
+                    os.close(fd)
+                    raise
+
+            def prepared(result, error):
+                if result:
+                    self.fd, self.pipeline = result
+                if error or epoch != self.epoch:
+                    self.close("Desktop sharing is unavailable")
+                    return
+                self.state = "ready"
+                if self.deadline:
+                    GLib.source_remove(self.deadline)
+                    self.deadline = None
+                self.changed()
+            if not self.media_work.submit(ticket, prepare, prepared):
+                self.close("Media work is busy")
 
         try:
             self._request(REMOTE, "CreateSession", "(a{sv})", [{
@@ -160,6 +198,9 @@ class Portal:
     def _notify(self, method, signature, args):
         if not self.ready:
             raise RuntimeError("Desktop sharing is unavailable")
+        release = method in {"NotifyPointerButton", "NotifyKeyboardKeysym"} and args[-1] == 0
+        if self.ticket and not release:
+            self.ticket.effect()
         self.deliveries += 1
         self._call(REMOTE, method, signature, [self.session, {}] + args)
 
@@ -237,6 +278,7 @@ class Portal:
 
     def close(self, error=None):
         self.epoch += 1
+        self.media_work.cancel()
         if self.deadline:
             GLib.source_remove(self.deadline)
             self.deadline = None
@@ -249,17 +291,24 @@ class Portal:
                                 (self.session, "org.freedesktop.portal.Session")]:
             if path:
                 try:
-                    self.bus.call_sync(DEST, path, interface, "Close", None, None,
-                                       Gio.DBusCallFlags.NONE, 1000, None)
+                    self.bus.call(DEST, path, interface, "Close", None, None,
+                                  Gio.DBusCallFlags.NONE, 1000, None, None, None)
                 except GLib.Error:
                     pass
         self.request = self.session = None
         self.stream = None
         self.devices = 0
         if self.pipeline:
-            self.pipeline.set_state(Gst.State.NULL)
-            self.pipeline = None
-        if self.fd is not None:
+            pipeline, self.pipeline = self.pipeline, None
+            fd, self.fd = self.fd, None
+            def dispose(_active):
+                try:
+                    pipeline.set_state(Gst.State.NULL)
+                finally:
+                    if fd is not None:
+                        os.close(fd)
+            self.media_work.submit(Ticket(str(self.epoch)), dispose, lambda *_: None)
+        elif self.fd is not None:
             os.close(self.fd)
             self.fd = None
         self.state = "off"

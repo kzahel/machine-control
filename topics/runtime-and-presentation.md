@@ -4,7 +4,7 @@ Topic: `runtime-and-presentation`
 
 Status: Mac and Windows presentation implementations are in place;
 bounded native qualification and remaining limits are platform-specific.
-Linux integration remains separate.
+Linux resident integration is in place; GUI qualification is in progress.
 [Tactical 107](../docs/tactical/107-runtime-and-presentation.md) coordinates the
 migration.
 
@@ -40,6 +40,14 @@ share bounded capacity with handshakes. Delegation-status discovery no longer
 writes action audit. Combined blocked-dependency fixtures and exact signed
 ARM64 host load/recovery pass; [hardening](../docs/tactical/109-macos-runtime-hardening.md)
 owns measurements and remaining synchronous lifecycle paths.
+
+**Current (Linux source):** The existing ordinary-user Python/AT-SPI resident
+uses one physical provider slot, cancellation/deadline fences and asynchronous
+session/portal setup. Separate native approval and safety processes preserve
+Pause/Stop without Settings; losing safety presentation revokes access. Local
+preferences and recovery are distinct from the public agent socket and root
+appliance authorization. [Linux acceptance](../docs/tactical/111-linux-runtime-presentation.md)
+owns the continuing native campaign and its limits.
 
 ## Product direction
 

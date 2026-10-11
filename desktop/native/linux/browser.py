@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 import shutil
 import uuid
+import queue
+import threading
 
 from gi.repository import Gdk, GLib, Gtk
 import artifacts
@@ -84,6 +86,29 @@ class Browser:
             return
         self.disconnect()
         self.provider = client
+        self.outgoing = queue.Queue(maxsize=32)
+        outgoing = self.outgoing
+        def write():
+            while self.provider == client:
+                try:
+                    frame, generation, identifier = outgoing.get(timeout=1)
+                except queue.Empty:
+                    continue
+                if frame is None:
+                    return
+                if identifier and (self.owner.grants.generation != generation or self.owner.grants.paused
+                                   or self.owner.grants.pending):
+                    GLib.idle_add(lambda identifier=identifier: self.complete(
+                        identifier, {"ok": False, "errorCode": "stale_generation"}))
+                    continue
+                try:
+                    if identifier and identifier in self.pending:
+                        self.pending[identifier]["dispatched"] = True
+                    client.sendall(frame)
+                except OSError:
+                    GLib.idle_add(lambda: self.disconnect(client) or False)
+                    return
+        threading.Thread(target=write, daemon=True, name="mc-browser-writer").start()
         self.generation = uuid.uuid4().hex
         self.published = None
         self.send({"type": "registered", "protocolVersion": 1})
@@ -96,8 +121,9 @@ class Browser:
         if len(frame) > LIMIT:
             raise ValueError("Browser frame exceeds 1 MiB")
         try:
-            self.provider.sendall(frame)
-        except OSError:
+            self.outgoing.put_nowait((frame, self.owner.grants.generation,
+                                     value.get("id") if value.get("type") == "request" else None))
+        except queue.Full:
             self.disconnect()
             raise RuntimeError("Browser disconnected") from None
 
@@ -135,7 +161,7 @@ class Browser:
             params["reference"] = params["reference"][len(prefix):]
         identifier = uuid.uuid4().hex
         self.pending[identifier] = {"request": request, "finish": finish, "grant": grant,
-                                    "provider": self.generation}
+                                    "provider": self.generation, "dispatched": False}
         try:
             self.send({"type": "request", "id": identifier, "operation": request["operation"], "params": params})
         except (RuntimeError, ValueError):
@@ -160,8 +186,11 @@ class Browser:
             error = error or frame.get("errorCode", "browser_operation_failed")
         if error:
             result = self.owner.provider.fail(request, request["operation"], error, "Browser operation refused")
-            result.update(actualRoute="user/chrome-extension/cdp", delivery="unknown", effect="unknown",
-                          uncertainty="authority_or_provider_changed_after_dispatch", retrySafety="unsafe_delivery_unknown")
+            result.update(actualRoute="user/chrome-extension/cdp",
+                          delivery="unknown" if item["dispatched"] else "not_dispatched",
+                          effect="unknown" if item["dispatched"] else "none",
+                          uncertainty="authority_or_provider_changed_after_dispatch" if item["dispatched"] else "none",
+                          retrySafety="unsafe_delivery_unknown" if item["dispatched"] else "safe_before_dispatch")
         else:
             result = self.owner.provider.envelope(request, request["operation"])
             result.update(actualRoute="user/chrome-extension/cdp", fidelity="chromium_tab_cdp",
@@ -185,6 +214,10 @@ class Browser:
             return
         if self.provider:
             self.provider.close()
+            try:
+                self.outgoing.put_nowait((None, None, None))
+            except queue.Full:
+                pass
         self.provider = None
         self.generation = uuid.uuid4().hex
         self.published = None

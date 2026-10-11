@@ -247,3 +247,5 @@ the commits' `Topic:` trailers and register that exact string in
 - [110 — Windows runtime and presentation](110-windows-runtime-presentation.md):
   bounded companion work, independent native safety presentation, optional
   Settings, configuration and native Windows qualification.
+
+- [111 — Linux runtime and presentation](111-linux-runtime-presentation.md)

@@ -53,7 +53,10 @@ def operator(method, **parameters):
     child.stdin.flush()
     if not select.select([child.stdout], [], [], 8)[0]:
         raise AssertionError("Private operator did not respond")
-    return json.loads(child.stdout.readline())
+    reply = json.loads(child.stdout.readline())
+    if method == "arm" and reply.get("ok"):
+        poll(lambda: operator("state")["state"].get("safetyNoticeReady", True))
+    return reply
 
 
 def call(operation, **parameters):
@@ -90,6 +93,8 @@ try:
                              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log, text=True)
     reply = operator("hello", processId=os.getpid(), executable="/usr/bin/true")
     check("private inherited handshake", reply["ok"])
+    poll(lambda: operator("state")["state"].get("safetyAvailable") and
+         operator("state")["state"]["permissions"]["accessibility"])
     state = operator("state")["state"]
     endpoint = Path(state["socket"])
     check("off by default", state["deployment"]["grant"] is None)

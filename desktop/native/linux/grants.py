@@ -50,6 +50,8 @@ class Grants:
         self.grant = self.pending = None
         self.updating = False
         self.ready = False
+        self.paused = False
+        self.notice_ready = True
         self.last_ended = None
         self.activity = deque(maxlen=100)
 
@@ -78,9 +80,13 @@ class Grants:
             return "desktop_unavailable"
         if self.updating:
             return "update_in_progress"
+        if self.paused:
+            return "access_paused"
         if self.pending and (scope in {"control", "devtools"} or
                              scope == "browser" and operation not in BROWSER_READ):
             return "approval_prompt_visible"
+        if self.grant and not self.notice_ready:
+            return "safety_notice_pending"
         allowed = self.grant["scopes"] if self.grant else set()
         if scope not in allowed and not (scope == "browser" and "devtools" in allowed):
             return "approval_required"
@@ -94,6 +100,7 @@ class Grants:
                       "lifetime": "timed" if seconds is not None else "until_stopped",
                       "reason": reason, "requester": caller}
         self.last_ended = None
+        self.paused = False
         self.changed()
 
     def arm(self, selected, seconds, lifetime="timed"):
@@ -125,7 +132,7 @@ class Grants:
         if self.journal and not self.journal.event("access.requested"):
             complete(False, "audit_storage_unavailable")
             return
-        self.pending = {"id": uuid.uuid4().hex, "scopes": selected, "duration": seconds,
+        self.pending = {"id": uuid.uuid4().hex, "requestId": request.get("requestId"), "scopes": selected, "duration": seconds,
                         "reason": reason.strip(), "caller": caller,
                         "expires": self.clock() + timeout, "complete": complete}
         self.changed()
@@ -165,6 +172,13 @@ class Grants:
         self.finish_pending(False, reason)
         self.changed()
 
+    def pause(self, value):
+        if not self.grant or self.pending or not self.ready or self.updating:
+            raise ValueError("Active access and an available desktop required")
+        self.paused = value
+        self.generation = uuid.uuid4().hex
+        self.changed()
+
     def prepare_update(self):
         self.refresh()
         if self.updating or self.grant or self.pending:
@@ -193,5 +207,5 @@ class Grants:
         return {"generation": self.generation, "manualUntilStoppedSupported": True,
                 "deployment": {"policy": {"preset": "workstation", "grantMode": "approval"},
                                "grant": grant, "pendingRequest": pending},
-                "pending": pending, "activity": list(reversed(self.activity)),
+                "paused": self.paused, "pending": pending, "activity": list(reversed(self.activity)),
                 "lastEnded": self.last_ended, "logging": self.journal.health if self.journal else None}

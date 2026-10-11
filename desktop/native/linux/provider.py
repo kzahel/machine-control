@@ -8,12 +8,20 @@ import time
 import linuxcontrol
 import linuxui
 import artifacts
+from work import Cancelled
 
 
 class Provider(linuxcontrol.Resident):
     def __init__(self, owner):
         super().__init__()
         self.owner = owner
+        self.ticket = None
+
+    def before_effect(self):
+        try:
+            self.ticket.effect()
+        except (Cancelled, AttributeError) as error:
+            raise linuxcontrol.ControlFailure("operation_cancelled", str(error)) from error
 
     def call_input(self, _request):
         # Never reach the appliance socket, even through an inherited method.
@@ -174,7 +182,8 @@ class Provider(linuxcontrol.Resident):
         return super().application_activate(request)
 
     def application_terminate(self, request):
-        root = linuxui.desktop()
-        target = linuxui.choose_application(root, str(request.get("target") or ""))
-        self.protect_node(target)
+        if request.get("target"):
+            root = linuxui.desktop()
+            target = linuxui.choose_application(root, str(request["target"]))
+            self.protect_node(target)
         return super().application_terminate(request)
