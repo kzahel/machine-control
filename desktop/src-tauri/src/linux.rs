@@ -331,3 +331,40 @@ pub fn stop_from_shortcut() -> Result<(), String> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn silent_child_times_out_and_is_reaped_after_protocol_loss() {
+        use std::os::fd::{AsRawFd, FromRawFd};
+        let mut child = Command::new("/bin/sleep")
+            .arg("30")
+            .stdin(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let fd = unsafe { libc::syscall(libc::SYS_pidfd_open, child.id(), 0) as i32 };
+        assert!(fd >= 0);
+        let handle = unsafe { std::fs::File::from_raw_fd(fd) };
+        let (_send, replies) = mpsc::channel();
+        let input = child.stdin.take().unwrap();
+        let mut runtime = Runtime {
+            child,
+            input,
+            replies,
+        };
+        let started = std::time::Instant::now();
+        assert!(runtime
+            .call(&json!({"method":"state"}))
+            .unwrap_err()
+            .contains("did not respond"));
+        assert!(started.elapsed() < Duration::from_secs(7));
+        drop(runtime);
+        let mut poll = libc::pollfd {
+            fd: handle.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        assert_eq!(unsafe { libc::poll(&mut poll, 1, 1000) }, 1);
+    }
+}

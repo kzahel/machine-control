@@ -16,10 +16,11 @@ parser.add_argument("--app", type=Path, required=True)
 parser.add_argument("--runtime", type=Path, required=True)
 parser.add_argument("--fixture", type=Path, required=True)
 parser.add_argument("--output", type=Path, required=True)
+parser.add_argument("--recovery-only", action="store_true", help="Qualify restart and companion-loss recovery")
 args = parser.parse_args()
 sys.path.insert(0, str(args.runtime))
 import linuxui
-from gi.repository import GLib
+from gi.repository import GLib, Gio
 
 instance = "presentation-fixture"
 endpoint = Path(os.environ["XDG_RUNTIME_DIR"]) / ("machine-control-" + instance) / "desktop.sock"
@@ -95,6 +96,26 @@ def press(label, app="machine-control"):
     check("native UI " + label, poll(lambda: widget(label, app)).do_action(0))
 
 
+def tray_status():
+    bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+    def dbus(destination, path, interface, method, signature, parameters):
+        return bus.call_sync(destination, path, interface, method,
+                             GLib.Variant(signature, parameters), None,
+                             Gio.DBusCallFlags.NONE, 2000, None).unpack()
+    items = dbus("org.kde.StatusNotifierWatcher", "/StatusNotifierWatcher",
+                 "org.freedesktop.DBus.Properties", "Get", "(ss)",
+                 ("org.kde.StatusNotifierWatcher", "RegisteredStatusNotifierItems"))[0]
+    for item in items:
+        if "@" not in item:
+            continue
+        destination, path = item.split("@", 1)
+        properties = dbus(destination, path, "org.freedesktop.DBus.Properties", "GetAll", "(s)",
+                          ("org.kde.StatusNotifierItem",))[0]
+        if properties.get("Id") == "tray-icon tray app control":
+            return properties.get("Status")
+    return None
+
+
 def settings_present():
     return any(info["role"] == "frame" and info["name"] == "Machine Control" and
                "showing" in info["states"] for _, info in nodes("machine-control"))
@@ -156,12 +177,14 @@ try:
                     "/usr/bin/python3", str(fixture_source)], check=True)
     poll(lambda: fixture_state.exists())
     check("offline reset", cli("reset")["ok"])
-    for profile in ["personal", "minimal", "appliance"]:
+    for profile in ([] if args.recovery_only else ["personal", "minimal", "appliance"]):
         check("offline profile " + profile, cli("set", profile)["ok"])
         process = subprocess.Popen([str(args.app), "--instance", instance], stdout=log, stderr=log)
         poll(lambda: endpoint.exists())
         poll(lambda: call("status")["data"]["ready"])
         gui_pids()
+        poll(lambda: tray_status() == ("Passive" if profile == "appliance" else "Active"))
+        check(profile + " native idle tray visibility", True)
         state = cli()
         runtime = state["runtimeId"]
         check(profile + " effective configuration", state["presentation"]["profile"] == profile)
@@ -179,6 +202,8 @@ try:
             check("pending config refuses mutation", not cli("set", "personal")["ok"])
             press("Allow", "machine-control-approval")
             check(profile + " native approval", approval.result()["accepted"])
+        poll(lambda: tray_status() == "Active")
+        check(profile + " active tray retains Stop", True)
         poll(lambda: widget("Stop access", "machine-control-safety"))
         check(profile + " approval keeps Settings absent", not settings_present())
         snap = poll(lambda: (r if r["accepted"] else None)
@@ -236,6 +261,16 @@ try:
     check("Restart revokes volatile authority", call("status")["data"]["grant"] is None)
     open_settings()
     check("Restart same-runtime recovery", state["runtimeId"] == cli()["runtimeId"])
+    resident = cli()["runtimeId"]
+    os.kill(resident, signal.SIGTERM)
+    poll(lambda: not endpoint.exists())
+    check("companion fault retains GUI for recovery", bool(gui_pids()))
+    open_settings()
+    press("Settings")
+    press("Restart")
+    poll(lambda: cli().get("runtimeId") not in {None, resident}, 25)
+    poll(lambda: call("status")["data"]["ready"])
+    check("Restart repairs companion loss", call("status")["data"]["grant"] is None)
     cleanup_gui()
     check("offline recovery resets Personal", cli("reset")["presentation"]["profile"] == "personal")
 except BaseException as error:

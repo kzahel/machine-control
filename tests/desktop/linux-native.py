@@ -203,6 +203,19 @@ try:
     poll(lambda: fixture()["text"] == "Linux 世界 café")
     check("independent Unicode effect", fixture()["text"] == "Linux 世界 café")
     old = entry["reference"]
+    before = fixture()["visualClicks"]
+    releases = fixture()["dragReleases"]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        dragging = pool.submit(call, "input.drag", x=center["x"] - 40, y=center["y"],
+                               x2=center["x"] + 40, y2=center["y"] + 20)
+        poll(lambda: fixture()["visualClicks"] > before)
+        check("native Stop during dispatched drag", operator("stop")["ok"])
+        cancelled = dragging.result(timeout=5)
+        check("drag cancellation preserves uncertainty and route", not cancelled["accepted"] and
+              cancelled["delivery"] == "unknown" and cancelled["actualRoute"] == "user/linux.portal-notify")
+        poll(lambda: fixture()["dragReleases"] > releases)
+        check("independent cancelled button release", True)
+    check("re-arm before sharing closure", operator("arm", scopes=["observe", "control"], duration=30)["ok"])
     check("sharing disconnect", operator("permission.disconnect")["ok"])
     check("sharing closes grant", operator("state")["state"]["deployment"]["grant"] is None)
     check("re-arm semantic grant", operator("arm", scopes=["observe", "control"], duration=2)["ok"])

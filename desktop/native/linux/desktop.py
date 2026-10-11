@@ -500,7 +500,13 @@ class Desktop:
                 self.scheduler.remove(timer)
             stale = ticket.generation != self.grants.generation
             if error or stale or ticket.cancelled.is_set() or time.monotonic() >= ticket.deadline:
+                observed = value
                 value = self.provider.fail(request, operation, "operation_cancelled", "Work ended or authority changed")
+                if observed:
+                    value.update(actualRoute=observed.get("actualRoute", value["actualRoute"]),
+                                 fidelity=observed.get("fidelity", value["fidelity"]))
+                elif operation.startswith("input."):
+                    value.update(actualRoute="user/linux.portal-notify", fidelity="foreground_input")
                 if ticket.dispatched:
                     value.update(delivery="unknown", effect="unknown", uncertainty="cancelled_after_dispatch",
                                  retrySafety="unsafe_delivery_unknown")
