@@ -39,15 +39,23 @@ final class NativeProviderExecutor {
         }
         busy = true
         let read = readSession
+        let preflightToken = epoch.current
         queue.async { [self] in
-            let current = epoch.current
+            let current = preflightToken
             if providerGeneration != current { provider.invalidateReferences(); providerGeneration = current }
             let session = autoreleasepool { read() }
             provider.applySessionObservation(session)
             let owners = provider.referenceOwnerProjection()
             DispatchQueue.main.async { [self] in
+                // A Stop/new grant while preflight was blocked must not let
+                // this old request adopt the replacement authority.
+                if stopped || epoch.refusal(preflightToken) != nil {
+                    busy = false
+                    completion(provider.refusal(request, code:"control_generation_changed",
+                        message:"Control changed while native preflight was pending")); return
+                }
                 observed(session)
-                referenceOwners = owners
+                if epoch.refusal(preflightToken) == nil { referenceOwners = owners }
                 let refusal = authorize()
                 if stopped || refusal != nil {
                     busy = false
@@ -56,6 +64,12 @@ final class NativeProviderExecutor {
                 }
                 let token = epoch.current
                 queue.async { [self] in
+                    guard epoch.refusal(token) == nil else {
+                        let result = provider.refusal(request, code:"control_generation_changed",
+                            message:"Control changed before native dispatch")
+                        DispatchQueue.main.async { [self] in busy = false; completion(result) }
+                        return
+                    }
                     if providerGeneration != token { provider.invalidateReferences(); providerGeneration = token }
                     provider.coveredWindowIDs = { coveredWindows }
                     provider.inputCancellation = { [epoch] in epoch.refusal(token) ?? cancellation() }

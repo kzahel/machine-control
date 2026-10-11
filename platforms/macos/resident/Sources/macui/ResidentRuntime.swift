@@ -27,6 +27,9 @@ final class ResidentRuntime {
         return value
     }
     var updating = false
+    let operatorDependency = OperatorDependency()
+    // A typed test seam; never exposed through launch arguments or IPC.
+    var resumeHelper: (([String:Any], @escaping () -> String?) throws -> Void)
     var stopShortcutAvailable: () -> Bool = { false }
 
     init(socketPath: String, policy: DeploymentPolicy = .load(),
@@ -52,6 +55,9 @@ final class ResidentRuntime {
         broker.journal = journal
         if policy.grantMode == .approval { attachOperatorConsent(broker, socketPath:socketPath) }
         server = ResidentServer(socketPath:socketPath, service:service, broker:broker)
+        resumeHelper = { observation, cancelled in
+            try service.resumeCoveredAvailability(observation:observation, cancellation:cancelled)
+        }
         server.presentationStatus = { [weak self] in self?.presentationJSON ?? [:] }
         if policy.grantMode == .approval { server.approver = approver }
         server.activity.respectRecentActivity = UserDefaults.standard.string(forKey:"machineControl.admissionPolicy") != "announce"
@@ -105,6 +111,7 @@ final class ResidentRuntime {
         }
     }
     func stopAccess() {
+        operatorDependency.cancel("stopped_by_person")
         if let pending = approver.request {
             try? approver.decide(id:pending.id, scopes:[], duration:0, allow:false)
         }
@@ -115,6 +122,7 @@ final class ResidentRuntime {
     }
     func stop() {
         guard running else { return }
+        operatorDependency.cancel("resident_stopping")
         server.revoke(reason:"resident_stopping")
         presentationTimer?.cancel(); presentationTimer = nil; presentationObservation.stop()
         server.stop(); running = false; stopped = true

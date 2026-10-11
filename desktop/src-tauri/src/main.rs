@@ -26,6 +26,36 @@ extern "C" {
     fn mc_desktop_mode(input: *const libc::c_char) -> i32;
     fn mc_desktop_start(path: *const libc::c_char) -> *mut libc::c_char;
     fn mc_desktop_command(input: *const libc::c_char) -> *mut libc::c_char;
+    fn mc_desktop_command_async(
+        input: *const libc::c_char,
+        context: *mut libc::c_void,
+        completion: extern "C" fn(*mut libc::c_void, *mut libc::c_char),
+    );
+}
+
+#[cfg(target_os = "macos")]
+extern "C" fn operator_completed(context: *mut libc::c_void, reply: *mut libc::c_char) {
+    // Swift calls exactly once, including dependency timeout/cancellation.
+    let sender = unsafe {
+        Box::from_raw(context.cast::<tauri::async_runtime::Sender<Result<Value, String>>>())
+    };
+    let _ = sender.try_send(decode(reply));
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod operator_callback_tests {
+    use super::*;
+    #[test]
+    fn callback_delivers_owned_reply_without_blocking_a_receiver() {
+        let (sender, mut receiver) = tauri::async_runtime::channel::<Result<Value, String>>(1);
+        let context = Box::into_raw(Box::new(sender));
+        let reply = CString::new(r#"{"ok":false,"error":"operator_dependency_timeout"}"#).unwrap();
+        operator_completed(context.cast(), unsafe { libc::strdup(reply.as_ptr()) });
+        assert_eq!(
+            receiver.try_recv().unwrap().unwrap_err(),
+            "operator_dependency_timeout"
+        );
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -142,6 +172,15 @@ async fn operator_command(
         let _permit = permit;
         // A closed caller must not dispatch a queued mutation later.
         if !send.is_closed() {
+            #[cfg(target_os = "macos")]
+            {
+                let input = CString::new(command.to_string()).expect("JSON has no literal NUL");
+                let context = Box::into_raw(Box::new(send));
+                unsafe {
+                    mc_desktop_command_async(input.as_ptr(), context.cast(), operator_completed)
+                };
+            }
+            #[cfg(not(target_os = "macos"))]
             let _ = send.try_send(native_command(command));
         }
     })

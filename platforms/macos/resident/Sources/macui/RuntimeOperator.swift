@@ -3,6 +3,28 @@ import ApplicationServices
 import Foundation
 
 extension ResidentRuntime {
+    /// Resume's helper wait is asynchronous; its local authority transition
+    /// returns to the coordinator only while the initiating intent is live.
+    func operatorCommand(_ command: [String:Any], completion: @escaping ([String:Any]) -> Void) {
+        precondition(Thread.isMainThread)
+        guard command["method"] as? String == "resume" else {
+            completion(operatorCommand(command)); return
+        }
+        guard !updating else { completion(["ok":false, "error":"Finish updating before resuming"]); return }
+        let observation = server.service.observedConsoleSession
+        let revision = server.broker.admission.revision
+        let grant = server.broker.grant?.id
+        let read = resumeHelper
+        operatorDependency.perform(work:{ cancelled in try read(observation, cancelled) },
+            commit:{ [weak self] in
+                guard let self, self.running else { throw MacUIError.action("resident_stopping") }
+                guard self.server.broker.admission.revision == revision,
+                      self.server.broker.grant?.id == grant else {
+                    throw MacUIError.action("control_generation_changed")
+                }
+                try self.server.broker.resume()
+            }, completion:completion)
+    }
     /// In-process operator authority; never registered on the agent socket.
     func operatorCommand(_ command: [String:Any]) -> [String:Any] {
         precondition(Thread.isMainThread)
@@ -76,12 +98,13 @@ extension ResidentRuntime {
                     server.service.invalidateReferences()
                     server.browser.closeAllSessions(reason:"desktop_trust_changed")
                 case "prepare_exit":
+                    operatorDependency.cancel("operator_quit")
                     server.revoke(reason:"operator_quit")
                 case "pause":
+                    operatorDependency.cancel("operator_paused")
                     try server.broker.pause(seconds: command["duration"] as? Int)
                 case "resume":
-                    try server.service.resumeCoveredAvailability()
-                    try server.broker.resume()
+                    throw MacUIError.action("Resume requires asynchronous operator dispatch")
                 case "control_policy":
                     guard let mode = command["mode"] as? String, ["when_idle", "announce"].contains(mode),
                           let notice = command["noticeSeconds"] as? Int, (5...60).contains(notice),
@@ -135,7 +158,7 @@ extension ResidentRuntime {
                     guard !updating, server.broker.policy.grantMode == .approval,
                           server.broker.grant == nil, server.broker.pending == nil,
                           server.lockedUse.setupState == "idle", !server.lockedUse.isCovered,
-                          server.lockedUse.lease == nil else {
+                          server.lockedUse.lease == nil, !operatorDependency.busy else {
                         throw MacUIError.action("Stop access and finish any approval before installing an update")
                     }
                     updating = true

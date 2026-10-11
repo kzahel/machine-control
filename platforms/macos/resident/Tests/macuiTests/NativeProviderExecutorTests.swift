@@ -3,6 +3,27 @@ import XCTest
 @testable import macui
 
 final class NativeProviderExecutorTests: XCTestCase {
+    func testInvalidatedPreflightCannotAdoptNewAuthority() {
+        let value = NativeProviderExecutor()
+        let started = expectation(description:"preflight started")
+        let completed = expectation(description:"old request refused")
+        let release = DispatchSemaphore(value:0)
+        defer { release.signal(); value.stop() }
+        value.readSession = { started.fulfill(); release.wait(); return ["desktopState":"unlocked"] }
+        value.execute(["operation":"action"], coveredWindows:[], cancellation:{ nil },
+            observed:{ _ in }, authorize:{ nil },
+            custom:{ _ in XCTFail("An old request adopted fresh authority after Stop"); return ["accepted":true] },
+            completion:{ result in
+                XCTAssertEqual(result["accepted"] as? Bool, false)
+                XCTAssertEqual(result["errorCode"] as? String, "control_generation_changed")
+                completed.fulfill()
+            })
+        wait(for:[started], timeout:1)
+        // Stop followed by new approval: current authorization alone cannot
+        // distinguish this old request from one admitted under the new grant.
+        value.invalidate()
+        release.signal(); wait(for:[completed], timeout:1)
+    }
     func testBlockedProviderLeavesMainResponsiveAndLateEffectIsUncertain() {
         let value = NativeProviderExecutor()
         value.readSession = { ["desktopState":"unlocked"] }

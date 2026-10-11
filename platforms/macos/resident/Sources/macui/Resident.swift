@@ -682,15 +682,19 @@ final class ResidentService {
     }
 
     /// Operator bridge only; this method is absent from the public JSON router.
-    func resumeCoveredAvailability() throws {
-        let status = unlockStatus()
+    func resumeCoveredAvailability(observation: [String:Any]? = nil,
+                                   cancellation: () -> String? = { nil }) throws {
+        let status = unlockStatus(observation:observation)
+        if let reason = cancellation() { throw MacUIError.action(reason) }
         guard status["lockedUsePaused"] as? Bool == true else { return }
         let fd = try connectUnlockBroker(); defer { Darwin.close(fd) }
+        if let reason = cancellation() { throw MacUIError.action(reason) }
         try writeSocket(fd, data: encodeJSONLine([
             "operation": "covered.resume", "requestId": UUID().uuidString,
             "helperGeneration": status["helperGeneration"] ?? NSNull(),
             "helperDesktopGeneration": status["helperDesktopGeneration"] ?? NSNull()]))
         let reply = try brokerReply(fd)
+        if let reason = cancellation() { throw MacUIError.action(reason) }
         guard reply["resumed"] as? Bool == true else {
             throw MacUIError.action(reply["errorCode"] as? String ?? "pause_recovery_required")
         }

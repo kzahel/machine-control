@@ -434,7 +434,7 @@ final class ResidentServer {
         var noSignal: Int32 = 1
         setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &noSignal,
                    socklen_t(MemoryLayout.size(ofValue: noSignal)))
-        guard handshakes.count < 64 else { Darwin.close(client); return }
+        guard handshakes.count + SocketReply.activeCount < 64 else { Darwin.close(client); return }
         let handshake = RequestHandshake(client)
         handshakes[client] = handshake
         handshake.completion = { [weak self] data in
@@ -855,9 +855,12 @@ func runResident(socketPath: String) throws -> Never {
     let menu = StatusMenuController(broker: broker, approval: approval, setup: setup)
     menu.trustedAccess = { [weak server] in server?.callerTrust.status["enabled"] as? Bool == true }
     menu.onRevoke = { [weak server] reason in server?.revoke(reason: reason) }
-    menu.onResume = { [weak server] in
-        try server?.service.resumeCoveredAvailability()
-        try server?.broker.resume()
+    menu.onResume = { [weak runtime] in
+        runtime?.operatorCommand(["method":"resume"]) { [weak server] result in
+            if result["ok"] as? Bool != true {
+                server?.broker.journal?.diagnostic("operator.resume", code:result["error"] as? String ?? "pause_recovery_required")
+            }
+        }
     }
     menu.onArm = { [weak server] duration in
         guard let server else { return }

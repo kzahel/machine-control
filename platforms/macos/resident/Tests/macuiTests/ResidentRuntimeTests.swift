@@ -43,4 +43,76 @@ final class ResidentRuntimeTests: XCTestCase {
         XCTAssertEqual(value.operatorCommand(["method":"cancel_update"])["ok"] as? Bool, true)
         XCTAssertFalse(value.updating)
     }
+
+    func testStalledResumeDoesNotBlockStatusOrStopAndCannotResumeAfterStop() throws {
+        _ = NSApplication.shared
+        let value = try runtime(); try value.start(); defer { value.stop() }
+        try value.server.broker.pause()
+        let started = expectation(description:"helper stalled")
+        let cancelled = expectation(description:"Resume cancelled by Stop")
+        let drained = expectation(description:"late helper drained")
+        let release = DispatchSemaphore(value:0)
+        defer { release.signal() }
+        value.resumeHelper = { _, cancelled in
+            started.fulfill(); release.wait(); XCTAssertNotNil(cancelled())
+        }
+        var completions = 0
+        value.operatorCommand(["method":"resume"]) { result in
+            completions += 1
+            XCTAssertEqual(result["error"] as? String, "stopped_by_person")
+            cancelled.fulfill()
+        }
+        wait(for:[started], timeout:1)
+        let begin = ProcessInfo.processInfo.systemUptime
+        for _ in 0..<100 {
+            XCTAssertEqual(value.operatorCommand(["method":"state"])["ok"] as? Bool, true)
+        }
+        value.stopAccess()
+        XCTAssertLessThan(ProcessInfo.processInfo.systemUptime - begin, 1)
+        wait(for:[cancelled], timeout:1)
+        XCTAssertTrue(value.server.broker.admission.blocks("desktop").contains("manual"))
+        XCTAssertNil(value.server.broker.grant)
+        release.signal()
+        DispatchQueue.main.asyncAfter(deadline:.now() + 0.1) { drained.fulfill() }
+        wait(for:[drained], timeout:1)
+        XCTAssertEqual(completions,1)
+        XCTAssertTrue(value.server.broker.admission.blocks("desktop").contains("manual"))
+    }
+
+    func testAsyncResumeKeepsPauseUntilHelperSucceeds() throws {
+        _ = NSApplication.shared
+        let value = try runtime(); try value.start(); defer { value.stop() }
+        try value.server.broker.pause()
+        let started = expectation(description:"helper started")
+        let done = expectation(description:"Resume succeeded")
+        let release = DispatchSemaphore(value:0)
+        defer { release.signal() }
+        value.resumeHelper = { _, _ in started.fulfill(); release.wait() }
+        value.operatorCommand(["method":"resume"]) { result in
+            XCTAssertEqual(result["ok"] as? Bool, true)
+            XCTAssertFalse(value.server.broker.admission.blocks("desktop").contains("manual"))
+            done.fulfill()
+        }
+        wait(for:[started], timeout:1)
+        XCTAssertTrue(value.server.broker.admission.blocks("desktop").contains("manual"))
+        release.signal(); wait(for:[done], timeout:1)
+    }
+
+    func testResumeCannotClearPauseChangedByAnotherSurface() throws {
+        _ = NSApplication.shared
+        let value = try runtime(); try value.start(); defer { value.stop() }
+        try value.server.broker.pause()
+        let started = expectation(description:"helper stalled")
+        let done = expectation(description:"stale Resume refused")
+        let release = DispatchSemaphore(value:0)
+        defer { release.signal() }
+        value.resumeHelper = { _, _ in started.fulfill(); release.wait() }
+        value.operatorCommand(["method":"resume"]) { result in
+            XCTAssertEqual(result["error"] as? String, "control_generation_changed"); done.fulfill()
+        }
+        wait(for:[started], timeout:1)
+        try value.server.broker.pause(reason:"operator_deferral", seconds:60)
+        release.signal(); wait(for:[done], timeout:1)
+        XCTAssertTrue(value.server.broker.admission.blocks("desktop").contains("operator_deferral"))
+    }
 }

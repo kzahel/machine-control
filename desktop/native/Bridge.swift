@@ -90,3 +90,14 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
     }
     return bridgeJSON(runtime.operatorCommand(command))
 }
+
+@_cdecl("mc_desktop_command_async")
+public func mcDesktopCommandAsync(_ input: UnsafePointer<CChar>, _ context: UnsafeMutableRawPointer?,
+    _ completion: @escaping @convention(c) (UnsafeMutableRawPointer?, UnsafeMutablePointer<CChar>?) -> Void) {
+    precondition(Thread.isMainThread)
+    guard let runtime = desktopRuntime,
+          let command = try? JSONSerialization.jsonObject(with:Data(String(cString:input).utf8)) as? [String:Any] else {
+        completion(context, bridgeJSON(["ok":false, "error":"Resident or command unavailable"])); return
+    }
+    runtime.operatorCommand(command) { completion(context, bridgeJSON($0)) }
+}

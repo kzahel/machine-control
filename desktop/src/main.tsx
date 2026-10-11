@@ -274,16 +274,21 @@ function App() {
       setPendingDuration(state.pending.duration);
     }
   }, [state?.pending?.id]);
+  const actionCount = useRef(0);
+  const actionGeneration = useRef(0);
   const act = async (command: Record<string, unknown>) => {
+    const generation = ++actionGeneration.current;
+    actionCount.current += 1;
     setBusy(true);
     setError("");
     try {
       await native(command);
       await refresh();
     } catch (e) {
-      setError(String(e));
+      if (generation === actionGeneration.current) setError(String(e));
     } finally {
-      setBusy(false);
+      actionCount.current -= 1;
+      setBusy(actionCount.current > 0);
     }
   };
   const windows = platform === "windows";
@@ -563,7 +568,7 @@ function App() {
                   }
                   title={switchReason}
                   disabled={
-                    busy ||
+                    (busy && !on) ||
                     !state ||
                     standing ||
                     (!on &&

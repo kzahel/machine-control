@@ -4,6 +4,8 @@ import Foundation
 /// Owns a duplicate of a one-shot client. Slow readers never block the UI and
 /// caller cleanup cannot close/reuse the descriptor underneath the writer.
 final class SocketReply {
+    static let limit = 64
+    private(set) static var activeCount = 0
     private var descriptor: Int32
     private let data: Data
     private var offset = 0
@@ -12,6 +14,8 @@ final class SocketReply {
     var completed: (() -> Void)?
 
     init(client: Int32, data: Data) throws {
+        precondition(Thread.isMainThread)
+        guard Self.activeCount < Self.limit else { throw MacUIError.action("reply_queue_full") }
         descriptor = Darwin.dup(client); self.data = data
         guard descriptor >= 0 else { throw MacUIError.action("reply_transport_unavailable") }
         do {
@@ -21,6 +25,7 @@ final class SocketReply {
                 throw MacUIError.action("reply_transport_unavailable")
             }
         } catch { Darwin.close(descriptor); descriptor = -1; throw error }
+        Self.activeCount += 1
     }
     func start(timeout: TimeInterval = 5) {
         let expiry = DispatchWorkItem { [weak self] in self?.cancel() }
@@ -46,8 +51,12 @@ final class SocketReply {
     func cancel() {
         guard descriptor >= 0 else { return }
         Darwin.close(descriptor); descriptor = -1
+        Self.activeCount -= 1
         timer?.cancel(); timer = nil; expiry?.cancel(); expiry = nil
         let completion = completed; completed = nil; completion?()
     }
-    deinit { timer?.cancel(); expiry?.cancel(); if descriptor >= 0 { Darwin.close(descriptor) } }
+    deinit {
+        timer?.cancel(); expiry?.cancel()
+        if descriptor >= 0 { Darwin.close(descriptor); Self.activeCount -= 1 }
+    }
 }
