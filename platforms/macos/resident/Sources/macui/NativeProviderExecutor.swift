@@ -12,6 +12,16 @@ final class ProviderEpoch {
 /// One bounded provider slot. AX references and credential leases belong only
 /// to this serial worker; the coordinator receives immutable projections.
 final class NativeProviderExecutor {
+    private final class PendingReply {
+        var deadline: DispatchWorkItem?
+        private var callback: (([String:Any]) -> Void)?
+        init(_ callback: @escaping ([String:Any]) -> Void) { self.callback = callback }
+        var pending: Bool { callback != nil }
+        func finish(_ result: [String:Any]) {
+            deadline?.cancel(); deadline = nil
+            let completion = callback; callback = nil; completion?(result)
+        }
+    }
     private let queue = DispatchQueue(label:"machine-control.native-provider", qos:.userInitiated)
     private let provider: ResidentService
     init(runtimeGeneration: String = UUID().uuidString.lowercased()) {
@@ -23,6 +33,7 @@ final class NativeProviderExecutor {
     private var stopped = false
     private(set) var referenceOwners: [String:pid_t] = [:]
     var readSession: () -> [String:Any] = { nativeSessionObservation() }
+    var preflightTimeout: TimeInterval = 5
 
     func invalidate() { epoch.invalidate(); referenceOwners.removeAll() }
     func stop() { stopped = true; invalidate() }
@@ -38,6 +49,15 @@ final class NativeProviderExecutor {
             completion(provider.refusal(request, code:"native_provider_busy", message:"Native provider is busy or stopping")); return
         }
         busy = true
+        let reply = PendingReply(completion)
+        let expiry = DispatchWorkItem { [self, reply] in
+            guard reply.pending else { return }
+            epoch.invalidate()
+            reply.finish(provider.refusal(request, code:"native_preflight_timeout",
+                message:"Native preflight exceeded its deadline"))
+        }
+        reply.deadline = expiry
+        DispatchQueue.main.asyncAfter(deadline:.now() + preflightTimeout, execute:expiry)
         let read = readSession
         let preflightToken = epoch.current
         queue.async { [self] in
@@ -47,11 +67,15 @@ final class NativeProviderExecutor {
             provider.applySessionObservation(session)
             let owners = provider.referenceOwnerProjection()
             DispatchQueue.main.async { [self] in
+                // A deadline completes the caller while retaining the occupied
+                // worker slot. Its eventual read cannot schedule an effect.
+                guard reply.pending else { busy = false; return }
+                reply.deadline?.cancel(); reply.deadline = nil
                 // A Stop/new grant while preflight was blocked must not let
                 // this old request adopt the replacement authority.
                 if stopped || epoch.refusal(preflightToken) != nil {
                     busy = false
-                    completion(provider.refusal(request, code:"control_generation_changed",
+                    reply.finish(provider.refusal(request, code:"control_generation_changed",
                         message:"Control changed while native preflight was pending")); return
                 }
                 observed(session)
@@ -60,14 +84,14 @@ final class NativeProviderExecutor {
                 if stopped || refusal != nil {
                     busy = false
                     let refusal = refusal ?? GrantRefusal("resident_stopping", "Resident is stopping")
-                    completion(provider.refusal(request, code:refusal.code, message:refusal.message)); return
+                    reply.finish(provider.refusal(request, code:refusal.code, message:refusal.message)); return
                 }
                 let token = epoch.current
                 queue.async { [self] in
                     guard epoch.refusal(token) == nil else {
                         let result = provider.refusal(request, code:"control_generation_changed",
                             message:"Control changed before native dispatch")
-                        DispatchQueue.main.async { [self] in busy = false; completion(result) }
+                        DispatchQueue.main.async { [self] in busy = false; reply.finish(result) }
                         return
                     }
                     if providerGeneration != token { provider.invalidateReferences(); providerGeneration = token }
@@ -105,7 +129,7 @@ final class NativeProviderExecutor {
                                 response["uncertainty"] = "interrupted_after_possible_dispatch"; response["retrySafety"] = "unsafe"
                             }
                         } else { referenceOwners = owners }
-                        completion(response)
+                        reply.finish(response)
                     }
                 }
             }

@@ -3,6 +3,34 @@ import XCTest
 @testable import macui
 
 final class NativeProviderExecutorTests: XCTestCase {
+    func testExpiredPreflightRefusesLateEffectsAndKeepsOneWorker() {
+        let value = NativeProviderExecutor()
+        value.preflightTimeout = 0.05
+        let started = expectation(description:"preflight started")
+        let expired = expectation(description:"preflight expired")
+        let drained = expectation(description:"late preflight drained")
+        let release = DispatchSemaphore(value:0)
+        defer { release.signal(); value.stop() }
+        var calls = 0
+        value.readSession = { started.fulfill(); release.wait(); return ["desktopState":"unlocked"] }
+        value.execute(["operation":"action"], coveredWindows:[], cancellation:{ nil },
+            observed:{ _ in XCTFail("Expired session observation was applied") }, authorize:{ nil },
+            custom:{ _ in XCTFail("Expired request dispatched an effect"); return [:] }, completion:{ result in
+                calls += 1
+                XCTAssertEqual(result["errorCode"] as? String, "native_preflight_timeout"); expired.fulfill()
+            })
+        wait(for:[started, expired], timeout:1)
+        XCTAssertTrue(value.busy)
+        for _ in 0..<1000 {
+            value.execute(["operation":"action"], coveredWindows:[], cancellation:{ nil },
+                observed:{ _ in }, authorize:{ nil }, custom:{ _ in XCTFail("Extra worker"); return [:] },
+                completion:{ XCTAssertEqual($0["errorCode"] as? String, "native_provider_busy") })
+        }
+        release.signal()
+        DispatchQueue.main.asyncAfter(deadline:.now() + 0.1) { drained.fulfill() }
+        wait(for:[drained], timeout:1)
+        XCTAssertEqual(calls,1); XCTAssertFalse(value.busy)
+    }
     func testInvalidatedPreflightCannotAdoptNewAuthority() {
         let value = NativeProviderExecutor()
         let started = expectation(description:"preflight started")
