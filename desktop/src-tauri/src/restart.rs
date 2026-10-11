@@ -81,7 +81,7 @@ pub fn valid_launch_args(args: &[String]) -> bool {
 
 /// A replacement must outlive the launchd job and wait until its predecessor's
 /// IPC and single-instance endpoints have actually closed.
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(target_os = "macos")]
 pub fn request(app: &tauri::AppHandle) -> Result<(), String> {
     use std::os::unix::process::CommandExt;
     let env = app.env();
@@ -114,8 +114,6 @@ exec "$@"
         .process_group(0)
         .spawn()
         .map_err(|e| e.to_string())?;
-    #[cfg(target_os = "linux")]
-    crate::linux::shutdown();
     app.exit(0);
     Ok(())
 }
@@ -184,6 +182,88 @@ mod tests {
             assert_eq!(restart_launch_args(&args), expected);
             assert_eq!(restart_launch_args(&expected), expected);
         }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_handoff(
+    fd: i32,
+    binary: &std::path::Path,
+    args: &[std::ffi::OsString],
+) -> std::process::Command {
+    use std::os::unix::process::CommandExt;
+    // A pidfd observes kernel exit even while the predecessor is an unreaped
+    // zombie. The inherited descriptor also prevents PID reuse from retargeting.
+    const WAIT: &str = "import os,select,sys; fd=int(sys.argv[1]); p=select.poll(); p.register(fd,select.POLLIN); ready=p.poll(10000); os.close(fd); ready or sys.exit('Previous application did not exit'); os.execv(sys.argv[2],sys.argv[2:])";
+    let mut command = std::process::Command::new("/usr/bin/python3");
+    command
+        .args(["-I", "-B", "-c", WAIT])
+        .arg(fd.to_string())
+        .arg(binary)
+        .args(args)
+        .process_group(0);
+    unsafe {
+        command.pre_exec(move || {
+            if libc::fcntl(fd, libc::F_SETFD, 0) < 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+    command
+}
+
+#[cfg(target_os = "linux")]
+pub fn request(app: &tauri::AppHandle) -> Result<(), String> {
+    use std::os::fd::{AsRawFd, FromRawFd};
+    let fd = unsafe { libc::syscall(libc::SYS_pidfd_open, std::process::id(), 0) as i32 };
+    if fd < 0 {
+        return Err("Kernel restart handle unavailable".into());
+    }
+    let handle = unsafe { std::fs::File::from_raw_fd(fd) };
+    let env = app.env();
+    let binary = tauri::process::current_binary(&env).map_err(|e| e.to_string())?;
+    let mut command = linux_handoff(
+        handle.as_raw_fd(),
+        &binary,
+        &restart_launch_args(&env.args_os[1..]),
+    );
+    crate::linux::sanitize_system_command(&mut command)?;
+    command.spawn().map_err(|e| e.to_string())?;
+    crate::linux::shutdown();
+    app.exit(0);
+    Ok(())
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod linux_restart_tests {
+    #[test]
+    fn kernel_handoff_observes_exit_without_parent_reaping() {
+        use std::os::fd::{AsRawFd, FromRawFd};
+        let mut predecessor = std::process::Command::new("/bin/sleep")
+            .arg("0.1")
+            .spawn()
+            .unwrap();
+        let fd = unsafe { libc::syscall(libc::SYS_pidfd_open, predecessor.id(), 0) as i32 };
+        assert!(fd >= 0);
+        let handle = unsafe { std::fs::File::from_raw_fd(fd) };
+        let mut helper =
+            super::linux_handoff(handle.as_raw_fd(), std::path::Path::new("/bin/true"), &[])
+                .spawn()
+                .unwrap();
+        let end = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        loop {
+            if let Some(status) = helper.try_wait().unwrap() {
+                assert!(status.success());
+                break;
+            }
+            if std::time::Instant::now() >= end {
+                let _ = helper.kill();
+                panic!("Zombie predecessor blocked restart");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        predecessor.wait().unwrap();
     }
 }
 

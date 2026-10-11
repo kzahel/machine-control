@@ -32,6 +32,8 @@ def runtime_directory(instance="desktop"):
 class Presentation:
     def __init__(self, instance="desktop", override=None):
         instance_name(instance)
+        if override is not None and override not in PROFILES:
+            raise ValueError("Unknown presentation")
         root = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "machine-control"
         root.mkdir(mode=0o700, parents=True, exist_ok=True)
         info = root.lstat()
@@ -50,12 +52,10 @@ class Presentation:
             os.close(self.lock)
             raise ValueError("Live operator is busy; offline editing refused") from None
         self.override = override
-        if override is not None and override not in PROFILES:
-            raise ValueError("Unknown presentation")
         self.setting = "personal"
         self.diagnostic = None
         try:
-            fd = os.open(self.path, os.O_RDONLY | os.O_NOFOLLOW)
+            fd = os.open(self.path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
             with os.fdopen(fd, "rb") as stream:
                 info = os.fstat(stream.fileno())
                 if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o600:

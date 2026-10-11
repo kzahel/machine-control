@@ -76,7 +76,9 @@ pub fn cli(args: &[OsString]) -> Option<i32> {
         tauri::utils::platform::resource_dir(context.package_info(), &tauri::Env::default())
             .map_err(|error| error.to_string())
             .and_then(|directory| {
-                Command::new("/usr/bin/python3")
+                let mut command = Command::new("/usr/bin/python3");
+                sanitize_system_command(&mut command)?;
+                command
                     .args(["-I", "-B"])
                     .arg(directory.join("linux-runtime/presentation.py"))
                     .args(&args[1..])
@@ -92,22 +94,7 @@ pub fn cli(args: &[OsString]) -> Option<i32> {
     })
 }
 
-pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
-    APP.set(app.clone())
-        .map_err(|_| "Operator already initialized")?;
-    let directory = app
-        .path()
-        .resource_dir()
-        .map_err(|e| e.to_string())?
-        .join("linux-runtime");
-    let parent = std::process::id();
-    let mut command = Command::new("/usr/bin/python3");
-    command
-        .arg(directory.join("desktop.py"))
-        .env("PYTHONDONTWRITEBYTECODE", "1")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+pub fn sanitize_system_command(command: &mut Command) -> Result<(), String> {
     // AppImage libraries belong to the Tauri process. The system Python/GI
     // companion uses the installed desktop libraries and typelibs instead.
     for name in [
@@ -151,6 +138,26 @@ pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
             );
         }
     }
+    Ok(())
+}
+
+pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
+    APP.set(app.clone())
+        .map_err(|_| "Operator already initialized")?;
+    let directory = app
+        .path()
+        .resource_dir()
+        .map_err(|e| e.to_string())?
+        .join("linux-runtime");
+    let parent = std::process::id();
+    let mut command = Command::new("/usr/bin/python3");
+    command
+        .arg(directory.join("desktop.py"))
+        .env("PYTHONDONTWRITEBYTECODE", "1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    sanitize_system_command(&mut command)?;
     // The kernel ends this exact child if its operator dies. Pipe EOF also
     // closes the portal and revokes access; no PID file grants kill authority.
     unsafe {

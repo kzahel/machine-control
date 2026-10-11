@@ -60,7 +60,10 @@ def operator(method, **params):
     child.stdin.flush()
     if not select.select([child.stdout], [], [], 8)[0]:
         raise AssertionError("Operator timed out")
-    return json.loads(child.stdout.readline())
+    reply = json.loads(child.stdout.readline())
+    if method == "arm" and reply.get("ok"):
+        poll(lambda: operator("state")["state"].get("safetyNoticeReady", True))
+    return reply
 
 
 def call(operation, **params):
@@ -105,6 +108,8 @@ try:
                              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log, text=True)
     check("private handshake", operator("hello", processId=os.getpid(), executable="/usr/bin/true")["ok"])
     endpoint = Path(operator("state")["state"]["socket"])
+    poll(lambda: operator("state")["state"].get("safetyAvailable", True) and
+         operator("state")["state"]["permissions"]["accessibility"])
     check("browser denied while Off", call("browser.tabs")["errorCode"] == "approval_required")
     extension = operator("browser.setup")["extensionPath"]
     # Linux resolves user native hosts beneath Chrome's selected user-data

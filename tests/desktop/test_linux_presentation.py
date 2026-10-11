@@ -82,6 +82,15 @@ class PresentationTests(unittest.TestCase):
         self.assertEqual(len(seen), 1)
         self.assertFalse((Path(self.temp.name) / "machine-control/presentation.json").exists())
 
+    def test_fifo_preferences_refuse_without_blocking(self):
+        store = Presentation()
+        store.close()
+        os.mkfifo(store.path, 0o600)
+        unsafe = Presentation()
+        self.assertTrue(unsafe.state()["diagnostic"])
+        self.assertEqual(unsafe.state()["profile"], "personal")
+        unsafe.close()
+
     def test_instance_names_and_cli_without_gtk(self):
         path = Path(__file__).resolve().parents[2] / "desktop/native/linux/presentation.py"
         for action in [["set", "appliance"], ["status"], ["reset"]]:
