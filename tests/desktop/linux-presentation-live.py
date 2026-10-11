@@ -242,8 +242,11 @@ except BaseException as error:
     failure = str(error)
     raise
 finally:
-    if endpoint.exists() or gui_pids():
-        cleanup_gui()
+    try:
+        if endpoint.exists() or gui_pids():
+            cleanup_gui()
+    except Exception as cleanup_error:
+        failure = failure or str(cleanup_error)
     subprocess.run(["systemctl", "--user", "stop", unit], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     fixture_source.unlink(missing_ok=True)
     fixture_state.unlink(missing_ok=True)

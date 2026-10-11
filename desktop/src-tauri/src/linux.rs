@@ -44,9 +44,15 @@ impl Runtime {
         self.input.flush().map_err(|e| e.to_string())?;
         self.replies
             .recv_timeout(Duration::from_secs(5))
-            .map_err(|_| {
-                crate::diagnostics::record("companion.timeout");
-                "Resident did not respond; restart Machine Control".to_owned()
+            .map_err(|error| match error {
+                mpsc::RecvTimeoutError::Timeout => {
+                    crate::diagnostics::record("companion.timeout");
+                    "Resident did not respond; restart Machine Control".to_owned()
+                }
+                mpsc::RecvTimeoutError::Disconnected => {
+                    crate::diagnostics::record("companion.exited");
+                    "Resident closed its operator channel; restart Machine Control".to_owned()
+                }
             })?
     }
 }

@@ -150,10 +150,34 @@ try:
         check("timeout retains physical capacity", call("snapshot")["errorCode"] == "provider_busy")
         gate.touch()
         poll(lambda: not operator("state")["state"]["providerWork"]["busy"])
+    reset_gate()
+    disconnected = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    disconnected.connect(str(endpoint))
+    disconnected.sendall(json.dumps({"operation": "snapshot", "target": "machine-control-fixture", "query": "stall"}).encode() + b"\n")
+    poll(lambda: gate.with_suffix(".started").exists())
+    disconnected.close()
+    time.sleep(.2)
+    check("disconnected caller retains worker capacity", call("snapshot")["errorCode"] == "provider_busy")
+    gate.touch()
+    poll(lambda: not operator("state")["state"]["providerWork"]["busy"])
     check("Stop before lifecycle", recovery()["ok"])
     check("update exclusion", operator("prepare_update")["ok"])
     check("update blocks arming", not operator("arm", scopes=["observe"], duration=30)["ok"])
     check("release update exclusion", operator("cancel_update")["ok"])
+    check("grant before safety fault", operator("arm", scopes=["observe"], duration=30)["ok"])
+    safety = None
+    for path in Path("/proc").glob("[0-9]*/cmdline"):
+        try:
+            if args.runtime.joinpath("notice.py").as_posix().encode() in path.read_bytes():
+                safety = path
+                break
+        except OSError:
+            pass
+    check("native safety identity found", safety is not None)
+    os.kill(int(safety.parent.name), 15)
+    poll(lambda: not operator("state")["state"]["safetyAvailable"])
+    check("safety loss revokes access", call("status")["data"]["grant"] is None)
+    check("safety loss prevents arming", not operator("arm", scopes=["observe"], duration=30)["ok"])
     child.stdin.close()
     child.wait(5)
     check("owner EOF removes endpoints", not endpoint.exists() and not endpoint.with_name("operator.sock").exists())

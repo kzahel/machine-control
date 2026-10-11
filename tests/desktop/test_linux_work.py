@@ -51,6 +51,18 @@ class WorkTests(unittest.TestCase):
             expired.effect()
         self.assertFalse(expired.dispatched)
 
+    def test_provider_thread_and_dependency_callbacks_have_one_owner(self):
+        callbacks = queue.Queue()
+        setup = []
+        runs = []
+        work = Work(callbacks.put, setup=lambda: setup.append(threading.get_ident()))
+        for generation in ["first", "second", "third"]:
+            self.assertTrue(work.submit(Ticket(generation),
+                                        lambda _: runs.append(threading.get_ident()), lambda *_: None))
+            callbacks.get(timeout=2)()
+        self.assertEqual(len(setup), 1)
+        self.assertEqual(set(runs), set(setup))
+
     def test_pause_rotates_authority_and_update_stays_excluded(self):
         grants = Grants()
         grants.set_ready(True)

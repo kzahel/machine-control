@@ -25,12 +25,12 @@ os.environ.pop("GTK_MODULES", None)
 
 import gi
 
-gi.require_version("Gtk", "3.0")
-from gi.repository import Gio, GLib, Gtk
+from gi.repository import Gio, GLib
 
 from grants import Grants, OBSERVE, CONTROL
 from work import Work, Ticket, Cancelled
 from presentation import Presentation, runtime_directory
+from coordinator import Coordinator
 from journal import Journal
 import uuid
 from portal import Portal
@@ -82,8 +82,8 @@ class SocketFrames:
 
 class Desktop:
     def __init__(self, operator_pid, executable, instance="desktop", override=None):
-        Gtk.init([])
-        self.loop = GLib.MainLoop()
+        self.scheduler = Coordinator()
+        self.loop = self.scheduler.loop
         self.operator_pid = operator_pid
         self.instance = instance
         self.executable = executable
@@ -92,14 +92,21 @@ class Desktop:
         self.safety_condition = threading.Condition()
         self.safety_state = None
         self.journal = Journal()
-        self.work = Work(GLib.idle_add)
+        def pump():
+            context = GLib.MainContext.default()
+            # One bounded event batch keeps queued provider admission progressing.
+            for _ in range(16):
+                if not context.pending():
+                    break
+                context.iteration(False)
+        self.work = Work(self.scheduler.post, linuxui.Atspi.init, pump)
         self.grants = Grants(self.changed, journal=self.journal)
         self.session_pending = False
         self.session_observed = 0.0
         self.updates = Updates()
         self.provider = Provider(self)
         self.last_portal_state = "off"
-        self.portal = Portal(self.changed)
+        self.portal = Portal(self.changed, self.scheduler)
         self.shortcut = Shortcut(executable)
         self.startup = Startup(executable)
         self.browser = Browser(self)
@@ -136,7 +143,7 @@ class Desktop:
         threading.Thread(target=self.accept_recovery, daemon=True).start()
         self.start_safety()
         self.monitor()
-        GLib.timeout_add(1000, self.monitor)
+        self.scheduler.timer(1000, self.monitor)
 
     def changed(self):
         if hasattr(self, "provider"):
@@ -225,7 +232,7 @@ class Desktop:
                     self.grants.stop("approval_unavailable")
                 self.approval()
                 return False
-            GLib.idle_add(decision)
+            self.scheduler.post(decision)
         threading.Thread(target=wait, daemon=True).start()
 
     def state(self):
@@ -421,7 +428,7 @@ class Desktop:
                             subprocess.Popen([self.executable, "--instance", self.instance, "--settings"],
                                              stdout=subprocess.DEVNULL, stderr=sys.stderr)
                         return False
-                    GLib.idle_add(intent)
+                    self.scheduler.post(intent)
             finally:
                 self.safety.wait()
                 def lost():
@@ -429,7 +436,7 @@ class Desktop:
                     self.grants.set_ready(False)
                     self.grants.stop("safety_unavailable")
                     return False
-                GLib.idle_add(lost)
+                self.scheduler.post(lost)
         threading.Thread(target=write, daemon=True).start()
         threading.Thread(target=read, daemon=True).start()
 
@@ -465,7 +472,7 @@ class Desktop:
                     reply.append({"ok": False, "error": str(error)})
                 event.set()
                 return False
-            GLib.idle_add(run)
+            self.scheduler.post(run)
             if event.wait(3):
                 client.sendall(encode(reply[0]))
             else:
@@ -490,7 +497,7 @@ class Desktop:
                 return
             replied = True
             if timer:
-                GLib.source_remove(timer)
+                self.scheduler.remove(timer)
             stale = ticket.generation != self.grants.generation
             if error or stale or ticket.cancelled.is_set() or time.monotonic() >= ticket.deadline:
                 value = self.provider.fail(request, operation, "operation_cancelled", "Work ended or authority changed")
@@ -520,7 +527,7 @@ class Desktop:
                 ticket.cancelled.set()
                 completed(None, Cancelled())
             return False
-        timer = GLib.timeout_add(20000, deadline)
+        timer = self.scheduler.timer(20000, deadline)
 
     def accept(self):
         while not self.stopped:
@@ -554,7 +561,7 @@ class Desktop:
                     self.browser.register(client, pid)
                     event.set()
                     return False
-                GLib.idle_add(register)
+                self.scheduler.post(register)
                 event.wait(5)
                 # A separate readable descriptor avoids Python buffered socket
                 # timeout poisoning. Writes remain bounded to three seconds.
@@ -568,7 +575,7 @@ class Desktop:
                     value = json.loads(line)
                     if not isinstance(value, dict):
                         break
-                    GLib.idle_add(lambda value=value: self.browser.message(client, value) or False)
+                    self.scheduler.post(lambda value=value: self.browser.message(client, value) or False)
                 return
 
             replies = []
@@ -577,11 +584,11 @@ class Desktop:
                 replies.append(value)
                 event.set()
 
-            GLib.idle_add(lambda: self.handle(request, f"pid {pid}", complete, caller_pid=pid) or False)
+            self.scheduler.post(lambda: self.handle(request, f"pid {pid}", complete, caller_pid=pid) or False)
             end = time.monotonic() + 610
             while not event.wait(.1):
                 if time.monotonic() >= end or select.select([client], [], [], 0)[0]:
-                    GLib.idle_add(lambda: self.cancel_caller(request) or False)
+                    self.scheduler.post(lambda: self.cancel_caller(request) or False)
                     return
             if replies:
                 client.sendall(encode(replies[0]))
@@ -589,7 +596,7 @@ class Desktop:
             pass
         finally:
             if browser:
-                GLib.idle_add(lambda: self.browser.disconnect(client) or False)
+                self.scheduler.post(lambda: self.browser.disconnect(client) or False)
             client.close()
             self.slots.release()
 
@@ -619,13 +626,13 @@ class Desktop:
                     complete.set()
                     return False
 
-                GLib.idle_add(run)
+                self.scheduler.post(run)
                 complete.wait()
                 sys.stdout.buffer.write(encode(replies[0]))
                 sys.stdout.buffer.flush()
             except (ValueError, OSError):
                 break
-        GLib.idle_add(lambda: self.shutdown() or False)
+        self.scheduler.post(lambda: self.shutdown() or False)
 
     def shutdown(self):
         self.journal.event("resident.stop")
@@ -665,7 +672,7 @@ def main():
         raise ValueError("Inherited operator handshake required")
     desktop = Desktop(os.getppid(), hello["executable"], hello.get("instance", "desktop"), hello.get("presentation"))
     for sig in [signal.SIGTERM, signal.SIGINT]:
-        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, sig, lambda: desktop.shutdown() or False)
+        desktop.scheduler.signal(sig, lambda: desktop.shutdown() or False)
     threading.Thread(target=desktop.accept, daemon=True).start()
     threading.Thread(target=desktop.operator_reader, daemon=True).start()
     sys.stdout.buffer.write(encode({"ok": True}))

@@ -10,7 +10,7 @@ import uuid
 import queue
 import threading
 
-from gi.repository import Gdk, GLib, Gtk
+import subprocess
 import artifacts
 
 LIMIT = 1024 * 1024
@@ -67,8 +67,8 @@ class Browser:
             temp.chmod(0o600)
             temp.replace(path)
         if copy_path:
-            clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
-            clipboard.set_text(str(self.extension), -1)
+            subprocess.run(["/usr/bin/wl-copy"], input=str(self.extension).encode(),
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3, check=True)
         return str(self.extension)
 
     def trusted(self, pid):
@@ -98,7 +98,7 @@ class Browser:
                     return
                 if identifier and (self.owner.grants.generation != generation or self.owner.grants.paused
                                    or self.owner.grants.pending):
-                    GLib.idle_add(lambda identifier=identifier: self.complete(
+                    self.owner.scheduler.post(lambda identifier=identifier: self.complete(
                         identifier, {"ok": False, "errorCode": "stale_generation"}))
                     continue
                 try:
@@ -106,7 +106,7 @@ class Browser:
                         self.pending[identifier]["dispatched"] = True
                     client.sendall(frame)
                 except OSError:
-                    GLib.idle_add(lambda: self.disconnect(client) or False)
+                    self.owner.scheduler.post(lambda: self.disconnect(client) or False)
                     return
         threading.Thread(target=write, daemon=True, name="mc-browser-writer").start()
         self.generation = uuid.uuid4().hex
@@ -166,7 +166,7 @@ class Browser:
             self.send({"type": "request", "id": identifier, "operation": request["operation"], "params": params})
         except (RuntimeError, ValueError):
             self.complete(identifier, {"ok": False, "errorCode": "browser_provider_unavailable"})
-        GLib.timeout_add_seconds(30, lambda: self.complete(identifier, {"ok": False, "errorCode": "browser_timeout"}))
+        self.owner.scheduler.timer(30000, lambda: self.complete(identifier, {"ok": False, "errorCode": "browser_timeout"}))
 
     def message(self, client, frame):
         if client != self.provider:

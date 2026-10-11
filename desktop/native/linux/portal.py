@@ -23,10 +23,11 @@ CAST = "org.freedesktop.portal.ScreenCast"
 
 
 class Portal:
-    def __init__(self, changed):
+    def __init__(self, changed, scheduler):
         Gst.init(None)
         self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         self.changed = changed
+        self.scheduler = scheduler
         self.session = None
         self.request = None
         self.subscription = None
@@ -41,7 +42,7 @@ class Portal:
         self.deadline = None
         self.deliveries = 0
         self.ticket = None
-        self.media_work = Work(GLib.idle_add)
+        self.media_work = Work(self.scheduler.post)
         self.bus.signal_subscribe(
             "org.freedesktop.DBus", "org.freedesktop.DBus", "NameOwnerChanged",
             "/org/freedesktop/DBus", DEST, Gio.DBusSignalFlags.NONE,
@@ -103,7 +104,7 @@ class Portal:
         self.state = "pending"
         self.error = None
         self.changed()
-        self.deadline = GLib.timeout_add_seconds(120, lambda: self._timeout())
+        self.deadline = self.scheduler.timer(120000, lambda: self._timeout())
 
         def created(value):
             self.session = value["session_handle"]
@@ -163,7 +164,7 @@ class Portal:
                     return
                 self.state = "ready"
                 if self.deadline:
-                    GLib.source_remove(self.deadline)
+                    self.scheduler.remove(self.deadline)
                     self.deadline = None
                 self.changed()
             if not self.media_work.submit(ticket, prepare, prepared):
@@ -280,7 +281,7 @@ class Portal:
         self.epoch += 1
         self.media_work.cancel()
         if self.deadline:
-            GLib.source_remove(self.deadline)
+            self.scheduler.remove(self.deadline)
             self.deadline = None
         for attr in ["subscription", "closed_subscription"]:
             value = getattr(self, attr)

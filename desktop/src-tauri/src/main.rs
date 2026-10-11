@@ -226,8 +226,10 @@ async fn restart_application(
             restart::request(&handle)
         };
         #[cfg(target_os = "linux")]
-        let result =
-            native_command(json!({"method":"stop"})).and_then(|_| restart::request(&handle));
+        let result = {
+            let _ = linux::stop_from_shortcut();
+            restart::request(&handle)
+        };
         #[cfg(target_os = "macos")]
         let result = native_command(json!({"method":"prepare_exit"}))
             .and_then(|_| restart::request(&handle));
