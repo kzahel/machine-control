@@ -238,6 +238,12 @@ def main():
         ui('Stop access'); ui('Browser scripts and DevTools', True); ui('Enable access')
         check(direct({'operation': 'browser.endpoint'}).get('errorCode') == 'control_session_required', 'Standing DevTools grant requires a live owner')
         owner = new_owner()
+        # Settings is disposable. Browser work below retains the same owner
+        # and native safety presentation while no operator WebView exists.
+        ps('Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes;'
+           '$window=[Windows.Automation.AutomationElement]::FromHandle((Get-Process -Id '+str(app.pid)+').MainWindowHandle);'
+           '$window.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close()')
+        check(ps('(Get-Process -Id '+str(app.pid)+').MainWindowHandle.ToInt64()') == '0', 'Settings absent before browser work')
         page = accepted({'operation': 'browser.navigate', 'newTab': True,
                          'url': 'http://127.0.0.1:'+str(server.server_port)+'/'})
         tab = page['data']['tab']['tabId']
@@ -264,6 +270,8 @@ def main():
         stream.send(json.dumps({'id': 203, 'method': 'Runtime.evaluate',
                                 'params': {'expression': 'new Promise(()=>{})', 'awaitPromise': True}}))
         check(evaluate(stream, '6+8') == 14, 'Pending awaitPromise does not block another CDP command')
+        subprocess.run([str(args.install/'machine-control.exe'), '--settings'], check=True, timeout=15)
+        ui('Access')
         ui('Pause access')
         check(closed(stream) and refused(url) and received == ['first'], 'Pause closes stream and fences old endpoint')
         owner.close(); owner = None

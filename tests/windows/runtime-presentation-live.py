@@ -43,6 +43,7 @@ def main():
     report = {'schema': 'machine-control-runtime-presentation-live/v0', 'passed': False,
               'checks': [], 'appSha256': hashlib.sha256(app_exe.read_bytes()).hexdigest(),
               'runtimeSha256': hashlib.sha256(exe.read_bytes()).hexdigest()}
+    report['results'] = []
     app = fixture = owner = None
     preference = Path(os.environ['LOCALAPPDATA']) / 'MachineControl/presentation' / (instance + '.json')
     original = preference.read_bytes() if preference.exists() else None
@@ -104,7 +105,7 @@ def main():
         check(config('reset')['ok'], 'Offline CLI recovery')
         marker = args.output / 'pointer.json'
         fixture = subprocess.Popen([str(args.install / 'runtime/fixtures/machine-control-medium-fixture.exe'), '--pointer-output', str(marker)])
-        wait(marker.exists, 'fixture ready')
+        wait(lambda: marker.exists() and json.loads(marker.read_text())['processId'] == fixture.pid, 'fixture ready')
         for profile in ('personal', 'minimal', 'appliance'):
             check(config('set', profile)['ok'], profile + ': persist offline')
             app = subprocess.Popen([str(app_exe), '--instance', instance], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -132,7 +133,11 @@ def main():
             time.sleep(.4)
             before = json.loads(marker.read_text())
             x, y = before['bounds']['x'] + 60, before['bounds']['y'] + 60
-            effect = owner.call({'operation': 'click', 'x': x, 'y': y})
+            if before['events'] and before['events'][-1]['x'] == x and before['events'][-1]['y'] == y:
+                x += 35
+                y += 35
+            effect = owner.call({'operation': 'move', 'x': x, 'y': y})
+            report['results'].append(effect)
             check(effect['accepted'] and effect['delivery'] == 'confirmed', profile + ': native delivery')
             wait(lambda: len(json.loads(marker.read_text())['events']) > len(before['events']), 'independent native effect')
             check(True, profile + ': independent fixture effect')

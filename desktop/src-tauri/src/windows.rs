@@ -4,7 +4,7 @@ use std::{
     os::windows::{io::AsRawHandle, process::CommandExt},
     process::{Child, ChildStdin, Command, Stdio},
     sync::{
-        atomic::{AtomicBool, AtomicIsize, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicIsize, AtomicU32, AtomicU64, Ordering},
         mpsc, Arc, Mutex, OnceLock,
     },
     time::Duration,
@@ -25,6 +25,7 @@ static APP: OnceLock<tauri::AppHandle> = OnceLock::new();
 static UAC_SETUP: Mutex<Option<Child>> = Mutex::new(None);
 static UAC_SETUP_ERROR: Mutex<Option<String>> = Mutex::new(None);
 static STOP_WINDOW: AtomicIsize = AtomicIsize::new(0);
+static STOP_PROCESS: AtomicU32 = AtomicU32::new(0);
 static EPOCH: AtomicU64 = AtomicU64::new(0);
 static JOB: Mutex<Option<Arc<Job>>> = Mutex::new(None);
 static EXITING: AtomicBool = AtomicBool::new(false);
@@ -37,7 +38,18 @@ pub fn epoch() -> u64 {
 pub fn stop() -> Result<Value, String> {
     EPOCH.fetch_add(1, Ordering::AcqRel);
     let window = STOP_WINDOW.load(Ordering::Acquire);
+    let mut owner = 0;
+    if window != 0 {
+        unsafe {
+            windows_sys::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(
+                window as _,
+                &mut owner,
+            );
+        }
+    }
     if window == 0
+        || owner == 0
+        || owner != STOP_PROCESS.load(Ordering::Acquire)
         || unsafe {
             windows_sys::Win32::UI::WindowsAndMessaging::PostMessageW(window as _, 0x8001, 0, 0)
         } == 0
@@ -248,6 +260,10 @@ fn spawn_runtime(app: &tauri::AppHandle) -> Result<(), String> {
         _job: job,
     };
     let hello = runtime.call(&json!({"method":"hello", "processId":std::process::id()}))?;
+    if EXITING.load(Ordering::Acquire) {
+        return Err("Operator exiting".into());
+    }
+    STOP_PROCESS.store(runtime.child.id(), Ordering::Release);
     STOP_WINDOW.store(
         hello["stopWindow"].as_i64().unwrap_or(0) as isize,
         Ordering::Release,
@@ -354,6 +370,7 @@ pub fn command(command: Value) -> Result<Value, String> {
             crate::diagnostics::record("companion.protocol_error");
             // A broken private transport is terminal, never resynchronize or
             // replay mutating requests. Drop the complete owned process job.
+            STOP_WINDOW.store(0, Ordering::Release);
             owner.take();
             return Err(error);
         }
