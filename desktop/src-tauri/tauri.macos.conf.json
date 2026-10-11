@@ -11,11 +11,26 @@
     },
     "macOS": {
       "minimumSystemVersion": "13.0",
-      "frameworks": ["native/MCResident.framework"],
+      "frameworks": [
+        "native/MCResident.framework"
+      ],
       "infoPlist": "native/Info.plist",
       "files": {
         "Library/LaunchDaemons/org.machine-control.unlock.plist": "../../platforms/macos/guests/macos/unlock/org.machine-control.unlock.plist"
       }
     }
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Machine Control",
+        "width": 640,
+        "height": 440,
+        "minWidth": 580,
+        "minHeight": 400,
+        "create": false
+      }
+    ]
   }
 }

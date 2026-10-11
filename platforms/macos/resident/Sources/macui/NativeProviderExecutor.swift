@@ -73,6 +73,10 @@ final class NativeProviderExecutor {
                     } else {
                         response = autoreleasepool { custom?(request) ?? provider.handle(request) }
                     }
+                    if ["input.key", "input.text"].contains(request["operation"] as? String ?? ""), response["accepted"] as? Bool == true {
+                        var data = response["data"] as? [String:Any] ?? [:]
+                        data["keyboardReceiver"] = keyboardReceiver(); response["data"] = data
+                    }
                     let owners = provider.referenceOwnerProjection()
                     let result = response
                     DispatchQueue.main.async { [self] in

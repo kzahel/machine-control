@@ -248,3 +248,13 @@ signed YA/native CLI/signed MC operator path in an exclusively claimed Mac
 appliance. It proves independent AX effects, native trust enrollment,
 Pause/fresh Resume, Stop and unrelated-process refusal using an owned protocol
 provider. It does not run an LLM or qualify covered/hardware/distribution use.
+
+
+`runtime-presentation.py` qualifies one presentation profile on an installed
+signed workstation candidate in a claimed dedicated VM. Supply the app,
+socket, packaged CLI, profile and optional separate standing observer. It
+starts/terminates its candidate, uses native AX approval without bypasses,
+checks actual Settings WebView count and same-runtime recovery, deferred mode
+changes, live reset, local/outside independent effects, capture bytes and Stop.
+The caller owns signed installation, TCC consent, temporary policy restoration,
+fixture lifecycle, target power and claim cleanup. Do not use on a personal Mac.

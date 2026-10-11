@@ -131,6 +131,51 @@ Quit, and Restart still end access. Agent-requested approvals remain timed.
 The exact signed ARM64 package passes targeted Tart acceptance; see
 [Tactical 057](../docs/tactical/057-macos-until-stopped-release.md).
 
+## Mac presentation and recovery
+
+The Mac candidate uses one resident and one package for three launch modes:
+
+- **Personal desktop** opens Settings at launch and keeps the menu bar.
+- **Minimal** starts with the menu bar; Settings is created only when opened.
+- **Dedicated appliance** starts without Settings and hides its idle menu bar.
+  Required approval, control notices, active-access status and the native Stop
+  shortcut remain available. This mode does not create unattended authority.
+
+Closing Mac Settings destroys its WebView while the resident, browser channels,
+approvals and safety controls continue. Reopen through **Settings…** in the
+menu bar, open the same app again, or launch the app executable with
+`--settings`. Explicit Settings recovery works in every mode and does not
+change the saved preference. Selecting a mode in Settings preserves active
+access and permissions; changes wait until a pending approval is finished.
+
+The packaged local CLI provides supported provisioning and recovery:
+
+```bash
+machine-control presentation status
+machine-control presentation set minimal
+machine-control presentation set appliance
+machine-control presentation reset
+```
+
+The native executable also accepts `presentation status|set PROFILE|reset`.
+Use `--socket SOCKET` with either command for an isolated installation. The
+versioned, owner-only `presentation.json` lives beside that resident socket;
+updates use an atomic replacement. Missing or invalid configuration falls back
+to personal with a diagnostic. Reset writes personal, so recovery does not
+require deleting files. Unsafe ownership, directories and symlinks refuse writes.
+A running resident reads saved changes without restarting, deferring during an
+approval. A temporary `--presentation personal|minimal|appliance` launch override
+lasts until restart or an explicit Settings choice and does not write the file.
+Launch flags follow `serve SOCKET` for isolated candidates.
+
+Presentation is separate from the root-owned deployment policy displayed in
+Settings. Selecting appliance presentation on a workstation still requires
+native approval. Returning to personal presentation on a provisioned appliance
+preserves that policy; remove unattended authorization explicitly when needed.
+These local controls assume the operator's OS identity and do not contain an
+agent with a same-user shell. Windows and Linux presentation qualification
+remains a separate follow-up; Mac acceptance does not cover either OS.
+
 ## Signed releases and candidates
 
 [Mac desktop `0.3.3`](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.3.3)

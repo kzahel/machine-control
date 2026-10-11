@@ -4,6 +4,7 @@ import Carbon
 import Darwin
 import Foundation
 
+private var launchPresentation: PresentationProfile?
 private var desktopRuntime: ResidentRuntime?
 private var desktopMenuTracking = false
 private var desktopHotKey: EventHotKeyRef?
@@ -20,6 +21,10 @@ private func bridgeJSON(_ value: [String: Any]) -> UnsafeMutablePointer<CChar>? 
 public func mcDesktopMode(_ input: UnsafePointer<CChar>) -> Int32 {
     guard let args = try? JSONSerialization.jsonObject(with: Data(String(cString: input).utf8)) as? [String] else { return 0 }
     do {
+        if try runPresentationCommand(args) { return 1 }
+        if let index = args.firstIndex(of:"--presentation"), index + 1 < args.count {
+            launchPresentation = PresentationProfile(rawValue:args[index + 1])
+        }
         if args == ["locked-use-guardian"] { try runLockedUseGuardian() }
         if args == ["screen-capture-preflight"] { print(CGPreflightScreenCaptureAccess()); return 1 }
         if let origin = args.first, origin.hasPrefix("chrome-extension://") { runBrowserHost(origin: origin) }
@@ -42,7 +47,7 @@ public func mcDesktopStart(_ path: UnsafePointer<CChar>) -> UnsafeMutablePointer
     precondition(Thread.isMainThread)
     do {
         let socketPath = String(cString: path).isEmpty ? defaultResidentSocket : String(cString: path)
-        let runtime = try ResidentRuntime(socketPath:socketPath)
+        let runtime = try ResidentRuntime(socketPath:socketPath, presentationOverride:launchPresentation)
         let server = runtime.server
         let pid = getpid()
         let identifiers = Set([Bundle.main.bundleIdentifier, "Machine Control", "macui"].compactMap { $0?.lowercased() })
@@ -72,7 +77,7 @@ public func mcDesktopStart(_ path: UnsafePointer<CChar>) -> UnsafeMutablePointer
         }, 1, &spec, nil, nil)
         RegisterEventHotKey(UInt32(kVK_ANSI_Period), UInt32(controlKey | optionKey | cmdKey),
             EventHotKeyID(signature: OSType(0x4D43_5354), id: 1), GetApplicationEventTarget(), 0, &desktopHotKey)
-        return bridgeJSON(["ok": true])
+        return bridgeJSON(["ok": true, "presentation":runtime.presentationJSON])
     } catch { return bridgeJSON(["ok": false, "error": String(describing: error)]) }
 }
 

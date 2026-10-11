@@ -1,17 +1,20 @@
 import Foundation
 
-/// The WebView supplies presentation; this native in-process approver owns
-/// the completion. No socket operation can submit an approval decision.
+/// Native approval remains available when Settings has no WebView. This
+/// in-process approver owns the completion. No socket operation can submit an approval decision.
 final class DesktopApprover: GrantApprover {
-    let kind = "local_tauri"
+    let kind = "local_click"
+    private let panel = ApprovalPanelController()
     var request: GrantRequest?
     private var completion: ((GrantDecision) -> Void)?
     func present(_ request: GrantRequest, completion: @escaping (GrantDecision) -> Void) {
         self.request = request
         self.completion = completion
+        panel.present(request, completion:completion)
     }
     func dismiss(requestID: String) {
         guard request?.id == requestID else { return }
+        panel.dismiss(requestID:requestID)
         request = nil
         completion = nil
     }

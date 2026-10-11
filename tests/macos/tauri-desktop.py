@@ -19,6 +19,7 @@ p.add_argument('--target', required=True)
 p.add_argument('--claim', required=True)
 p.add_argument('--candidate-app', required=True)
 p.add_argument('--candidate-socket', required=True)
+p.add_argument('--native-approval', action='store_true', help='Candidate uses native approval panels independent of Settings')
 p.add_argument('--until-stopped', action='store_true', help='Select and verify indefinite manual access before fixture effects')
 p.add_argument('--control-only', action='store_true', help='Bounded native-control acceptance; updater/tray acceptance remains separate')
 p.add_argument('--candidate-client', help='Installed CLI command on the guest; uses a separate guest-local claim')
@@ -160,8 +161,11 @@ try:
         pending = None
 
         pending = request(['observe', 'control'])
-        press(pid, 'Control apps and input', 'AXCheckBox')
-        press(pid, 'Allow access')
+        if args.native_approval:
+            press(pid, 'Allow View Only')
+        else:
+            press(pid, 'Control apps and input', 'AXCheckBox')
+            press(pid, 'Allow access')
         assert accepted(finish(pending))['grant']['scopes'] == ['observe']
         pending = None
         accepted(candidate(dict(operation='snapshot', target=fixture)))

@@ -249,6 +249,44 @@ async fn perform_install(app: tauri::AppHandle, version: String) -> Result<(), S
         .map_err(|e| e.to_string())??
 }
 
+/// Settings has no dormant Mac WebView: create on demand, reuse while open.
+fn show_settings(app: &tauri::AppHandle, page: Option<&str>) -> Result<(), String> {
+    let initial_page = page.map(|page| {
+        if page == "open" {
+            "access"
+        } else if page == "updates" {
+            "settings"
+        } else {
+            page
+        }
+    });
+    let window = if let Some(window) = app.get_webview_window("main") {
+        window
+    } else {
+        let config = app
+            .config()
+            .app
+            .windows
+            .iter()
+            .find(|window| window.label == "main")
+            .ok_or("Settings window configuration missing")?;
+        let mut config = config.clone();
+        if let Some(page) = initial_page {
+            config.url = tauri::WebviewUrl::App(format!("index.html?page={page}").into());
+        }
+        tauri::WebviewWindowBuilder::from_config(app, &config)
+            .map_err(|error| error.to_string())?
+            .build()
+            .map_err(|error| error.to_string())?
+    };
+    window.show().map_err(|error| error.to_string())?;
+    window.set_focus().map_err(|error| error.to_string())?;
+    if let Some(page) = page {
+        let _ = window.emit("tray-command", page);
+    }
+    Ok(())
+}
+
 fn main() {
     #[cfg(target_os = "windows")]
     if let Some(code) = windows_cli::dispatch(&std::env::args_os().skip(1).collect::<Vec<_>>()) {
@@ -288,8 +326,8 @@ fn main() {
         std::process::exit(2);
     }
     #[cfg(target_os = "macos")]
-    let socket = if args.first().is_some_and(|v| v == "serve") {
-        args.get(1).cloned().unwrap_or_default()
+    let socket = if let Some(index) = args.iter().position(|v| v == "serve") {
+        args.get(index + 1).cloned().unwrap_or_default()
     } else {
         String::new()
     };
@@ -304,10 +342,10 @@ fn main() {
             if args.iter().any(|arg| arg == "--background") {
                 return;
             }
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
+            #[cfg(target_os = "macos")]
+            let _ = show_settings(app, Some("settings"));
+            #[cfg(not(target_os = "macos"))]
+            let _ = show_settings(app, None);
         }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
@@ -339,12 +377,21 @@ fn main() {
             #[cfg(target_os = "macos")]
             {
                 let path = CString::new(socket.clone())?;
-                decode(unsafe { mc_desktop_start(path.as_ptr()) })
+                let start = decode(unsafe { mc_desktop_start(path.as_ptr()) })
                     .map_err(std::io::Error::other)?;
-                if args == ["--background"] {
-                    if let Some(window) = app.get_webview_window("main") {
-                        window.hide()?;
-                    }
+                if start["ok"] != true {
+                    return Err(std::io::Error::other(
+                        start["error"]
+                            .as_str()
+                            .unwrap_or("Resident could not start"),
+                    )
+                    .into());
+                }
+                if args.iter().any(|arg| arg == "--settings")
+                    || (start["presentation"]["profile"] == "personal"
+                        && !args.iter().any(|arg| arg == "--background"))
+                {
+                    show_settings(app.handle(), None).map_err(std::io::Error::other)?;
                 }
             }
             #[cfg(target_os = "macos")]
@@ -374,6 +421,8 @@ fn main() {
                     let standing =
                         value["state"]["deployment"]["policy"]["grantMode"] == "standing";
                     let show = !pending.is_empty() && pending != previous_pending;
+                    #[cfg(target_os = "macos")]
+                    let has_pending = !pending.is_empty();
                     previous_pending = pending;
                     #[cfg(target_os = "windows")]
                     let announcing = value["state"]["admission"]["requests"]
@@ -395,6 +444,13 @@ fn main() {
                             }));
                             #[cfg(target_os = "macos")]
                             {
+                                let _ = tray.set_visible(
+                                    value["state"]["presentation"]["profile"] != "appliance"
+                                        || standing
+                                        || active
+                                        || has_pending
+                                        || ui.get_webview_window("main").is_some(),
+                                );
                                 let _ = tray.set_title(Some(if active || standing {
                                     "ON"
                                 } else {
@@ -425,12 +481,12 @@ fn main() {
                                 let _ = window.hide();
                             }
                         }
+                        #[cfg(not(target_os = "macos"))]
                         if show {
-                            if let Some(window) = ui.get_webview_window("main") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
+                            let _ = show_settings(&ui, None);
                         }
+                        #[cfg(target_os = "macos")]
+                        let _ = show;
                     });
                 }
             });
@@ -452,11 +508,7 @@ fn main() {
                         if event.id.as_ref() == "updates" {
                             let _ = updates::check(app, "manual");
                         }
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                            let _ = window.emit("tray-command", event.id.as_ref());
-                        }
+                        let _ = show_settings(app, Some(event.id.as_ref()));
                     }
                     "stop" => {
                         #[cfg(target_os = "linux")]
@@ -492,6 +544,11 @@ fn main() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                #[cfg(target_os = "macos")]
+                if window.label() == "main" {
+                    // Allow destruction: closing Settings leaves the runtime running.
+                    return;
+                }
                 api.prevent_close();
                 let _ = window.hide();
                 if window.label() == "control-notice" {

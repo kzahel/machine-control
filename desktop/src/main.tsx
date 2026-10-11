@@ -25,6 +25,13 @@ type UpdateState = {
   error: string | null;
 };
 type State = {
+  nativeApproval?: boolean;
+  presentation?: {
+    profile: "personal" | "minimal" | "appliance";
+    temporaryOverride: boolean;
+    setting: boolean;
+    diagnostic: string | null;
+  };
   controlPolicy?: {
     supported: boolean;
     mode: "when_idle" | "announce";
@@ -161,7 +168,9 @@ async function native(command: Record<string, unknown>) {
 function App() {
   const [state, setState] = useState<State>();
   const [platform, setPlatform] = useState<string>();
-  const [page, setPage] = useState("access");
+  const [page, setPage] = useState(
+    new URLSearchParams(window.location.search).get("page") ?? "access",
+  );
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [actionBusy, setBusy] = useState(false);
@@ -1330,6 +1339,53 @@ function App() {
         )}
         {page === "settings" && (
           <>
+            {state?.presentation && (
+              <section className="group" aria-label="Presentation">
+                <h2 className="group-title">Presentation</h2>
+                <label className="setting-row">
+                  <span className="row-label">Launch mode</span>
+                  <select
+                    aria-label="Presentation mode"
+                    value={state.presentation.profile}
+                    disabled={
+                      busy ||
+                      state.presentation.setting ||
+                      !!state.pending ||
+                      !!update?.installing
+                    }
+                    onChange={(event) =>
+                      void act({
+                        method: "presentation",
+                        profile: event.target.value,
+                      })
+                    }
+                  >
+                    <option value="personal">Personal desktop</option>
+                    <option value="minimal">Minimal</option>
+                    <option value="appliance">Dedicated appliance</option>
+                  </select>
+                </label>
+                <p className="note group-note">
+                  Personal opens Settings at launch. Minimal keeps the menu bar.
+                  Appliance starts quietly. Approvals, control notices and Stop
+                  remain available in every mode. Authorization:{" "}
+                  {state.deployment.policy.preset} (
+                  {state.deployment.policy.grantMode}). Changing presentation
+                  preserves access and permissions.
+                </p>
+                {state.presentation.temporaryOverride && (
+                  <p className="note">
+                    Temporary launch mode. Choosing a mode here saves it.
+                  </p>
+                )}
+                {state.presentation.diagnostic && (
+                  <p className="note">
+                    Presentation preference could not be read. Personal mode is
+                    in use.
+                  </p>
+                )}
+              </section>
+            )}
             {state?.controlPolicy?.supported && (
               <section className="group" aria-label="Polite computer control">
                 <h2 className="group-title">When an agent wants control</h2>
@@ -1554,13 +1610,15 @@ function App() {
               </dl>
             </section>
             <p className="note">
-              Close hides the window. Quit from the{" "}
-              {windows || linux ? "tray" : "menu bar"}.
+              {windows || linux
+                ? "Close hides the window."
+                : "Closing Settings keeps the runtime running."}{" "}
+              Quit from the {windows || linux ? "tray" : "menu bar"}.
             </p>
           </>
         )}
       </main>
-      {state?.pending && (
+      {state?.pending && !state.nativeApproval && (
         <div className="scrim">
           <section
             className="approval"

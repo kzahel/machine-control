@@ -6,10 +6,41 @@ pub fn valid_launch_args(args: &[String]) -> bool {
     if args == ["--gui"] {
         return true;
     }
+    #[cfg(target_os = "macos")]
+    {
+        let mut positional = Vec::new();
+        let mut index = 0;
+        let mut presentation = false;
+        let mut settings = false;
+        let mut background = false;
+        while index < args.len() {
+            match args[index].as_str() {
+                "--settings" if !settings => settings = true,
+                "--background" if !background => background = true,
+                "--presentation" if !presentation => {
+                    index += 1;
+                    if !args.get(index).is_some_and(|name| {
+                        ["personal", "minimal", "appliance"].contains(&name.as_str())
+                    }) {
+                        return false;
+                    }
+                    presentation = true;
+                }
+                value if !value.starts_with('-') => positional.push(value),
+                _ => return false,
+            }
+            index += 1;
+        }
+        positional.is_empty() || positional.len() == 2 && positional[0] == "serve"
+    }
+    #[cfg(not(target_os = "macos"))]
     if args == ["--background"] {
         return true;
     }
-    args.is_empty() || args.first().is_some_and(|v| v == "serve") && args.len() == 2
+    #[cfg(not(target_os = "macos"))]
+    {
+        args.is_empty() || args.first().is_some_and(|v| v == "serve") && args.len() == 2
+    }
 }
 
 /// A replacement must outlive the launchd job and wait until its predecessor's
@@ -59,4 +90,30 @@ pub fn request(app: &tauri::AppHandle) -> Result<(), String> {
     crate::linux::shutdown();
     app.request_restart();
     Ok(())
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::valid_launch_args;
+    fn valid(args: &[&str]) -> bool {
+        valid_launch_args(&args.iter().map(|arg| (*arg).to_owned()).collect::<Vec<_>>())
+    }
+    #[test]
+    fn settings_and_temporary_modes_survive_restart() {
+        assert!(valid(&["--settings"]));
+        for profile in ["personal", "minimal", "appliance"] {
+            assert!(valid(&[
+                "serve",
+                "/tmp/example.sock",
+                "--presentation",
+                profile,
+                "--settings"
+            ]));
+            assert!(valid(&["--background", "--presentation", profile]));
+        }
+        assert!(!valid(&["--presentation"]));
+        assert!(!valid(&["--presentation", "unknown"]));
+        assert!(!valid(&["--settings", "--settings"]));
+        assert!(!valid(&["serve", "/tmp/example.sock", "extra"]));
+    }
 }

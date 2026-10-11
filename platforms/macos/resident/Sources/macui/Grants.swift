@@ -176,7 +176,10 @@ final class GrantBroker {
     private var observers: [() -> Void] = []
     var bindAuthorityBeforeObservers: (() -> Void)?
 
-    private(set) var grant: Grant?
+    var authorityChanged: (() -> Void)?
+    private(set) var grant: Grant? {
+        didSet { if oldValue?.id != grant?.id { authorityChanged?() } }
+    }
     private(set) var pending: GrantRequest?
     private(set) var lastEnded: (reason: String, at: Date)?
     private(set) var audit: [AuditEntry] = []

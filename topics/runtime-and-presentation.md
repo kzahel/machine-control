@@ -2,7 +2,7 @@
 
 Topic: `runtime-and-presentation`
 
-Status: Mac implementation active. Existing launch modes remain unchanged. [Tactical 107](../docs/tactical/107-runtime-and-presentation.md)
+Status: Mac source implementation complete; signed qualification active. [Tactical 107](../docs/tactical/107-runtime-and-presentation.md)
 coordinates the migration.
 
 ## Current boundary and evidence
@@ -16,8 +16,8 @@ deployments. See [host control](host-control.md),
 [installed CLI](installed-agent-cli.md), and the
 [system map](../SYSTEM-MAP.md).
 
-**Current:** Mac resident polling and operator state reads perform synchronous
-helper IPC on the application main thread. Bounded installed-process sampling
+**Current:** Installed Mac 0.5.8 polling and operator state reads performed
+synchronous helper IPC on the application main thread. Bounded installed-process sampling
 caught repeated waits there. The [Mac platform report](../research/platforms/macos.md#resident-responsiveness)
 owns evidence and limits. This establishes a responsiveness problem, not the
 helper's underlying reason for slow replies.
@@ -115,11 +115,14 @@ preference and does not write it. Single-instance forwarding opens Settings in
 the existing runtime rather than starting a second resident. Invalid values
 produce a diagnostic and fall back to personal presentation.
 
-**Open:** Exact configuration schema, storage, CLI names, profile-switch
-lifecycle and startup registration. Prefer applying changes without restarting
-the resident where possible. Any required restart must be explicit, preserve
-existing safety cleanup, and must not silently end active control. Establish
-the operator authority check before exposing local CLI writes.
+**Current (source/built):** Mac uses `machine-control-presentation/v1` in an
+owner-only atomic file beside the resident socket. Settings and local
+`machine-control presentation status|set PROFILE|reset` use the same store.
+Changes apply without restart and defer during pending approval. `--settings`
+recovers a lazy Settings window; `--presentation PROFILE` is temporary.
+This same-user operator surface is independent of agent socket operations
+and does not provide containment against a same-user shell. See the
+[desktop guide](../desktop/README.md#mac-presentation-and-recovery).
 
 ## Migration and qualification
 
@@ -140,8 +143,9 @@ native/CI or VM facilities. Keep defaults and release behavior unchanged until
 each new profile passes its acceptance gates; Mac proof alone is not
 cross-platform qualification.
 
-**Open:** Three-profile runtime and signed installed acceptance are not yet
-implemented. Process separation on Mac is a later evidence-based choice:
+**Current (source/built):** The Mac runtime and three profiles are implemented;
+[Mac acceptance](../docs/tactical/108-macos-runtime-presentation.md) is underway.
+**Open:** Signed installed three-profile qualification is not yet complete. Process separation on Mac is a later evidence-based choice:
 account for TCC ownership, code identity, authenticated operator IPC, updater
 lifecycle and browser integration before changing it. A runtime remaining
 responsive with a deliberately stalled dependency is the first completion

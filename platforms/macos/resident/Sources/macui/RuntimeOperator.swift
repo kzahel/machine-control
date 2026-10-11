@@ -34,12 +34,18 @@ extension ResidentRuntime {
                                          "helper":server.service.helperObservation.metadata],
                         "desktopCallerTrust": server.callerTrust.status,
                         "lockedUse": server.lockedUse.status,
+                        "presentation":presentationJSON, "nativeApproval":true,
                         "socket": server.socketPath, "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "development"]
                     if let pending = approver.request {
                         state["pending"] = ["id": pending.id, "reason": pending.reason, "caller": pending.caller.summary,
                             "scopes": pending.scopes.sorted().map(\.rawValue), "duration": pending.durationSeconds]
                     }
                     return ["ok": true, "state": state]
+                case "presentation":
+                    guard let name = command["profile"] as? String, let profile = PresentationProfile(rawValue:name) else {
+                        throw MacUIError.usage("Choose personal, minimal or appliance presentation")
+                    }
+                    try configurePresentation(profile)
                 case "logs.query":
                     return ["ok": true, "history": server.broker.journal?.query(offset: command["offset"] as? Int ?? 0, operation: command["operation"] as? String ?? "", outcome: command["outcome"] as? String ?? "", stream: command["stream"] as? String ?? "audit") ?? [:]]
                 case "logs.debug": server.broker.journal?.debug(command["enabled"] as? Bool == true)

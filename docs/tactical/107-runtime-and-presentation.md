@@ -145,3 +145,11 @@ changes, and reports late confirmed delivery as uncertain rather than replaying.
 One-shot replies own nonblocking duplicate descriptors with bounded lifetime.
 The 154 Swift tests and Tauri native build pass; installed acceptance remains
 pending. An already dispatched native call cannot always be interrupted.
+
+Mac presentation source now creates Settings on demand and destroys it on close.
+Native approval and admission notices do not require a WebView. All profiles
+use one owner-only versioned atomic preference; Settings, native provisioning
+commands and the packaged CLI share it. Launch recovery and temporary overrides
+are validated by Rust argument tests. Preference tests cover corruption, size,
+symlinks, modes, reset, temporary overrides and unchanged approval authority.
+Installed signed profile acceptance is underway; this is source/build evidence.

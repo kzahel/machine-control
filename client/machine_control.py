@@ -61,6 +61,20 @@ DISRUPTIVE_TESTBED_COMMANDS = {
 }
 
 
+def run_local_presentation(arguments: list[str], target: str | None) -> int:
+    """Local operator configuration; never a target-resident agent operation."""
+    if host_platform.system() != "Darwin" or target not in (None, "host"):
+        raise ClientError("presentation_local_mac_required",
+                          "Presentation configuration requires the local Mac app")
+    packaged = ROOT.parent.parent / "MacOS" / "macui"
+    candidates = [packaged, Path.home() / "Applications/Machine Control.app/Contents/MacOS/macui",
+                  Path("/Applications/Machine Control.app/Contents/MacOS/macui")]
+    executable = next((path for path in candidates if path.is_file() and os.access(path, os.X_OK)), None)
+    if executable is None:
+        raise ClientError("desktop_app_unavailable", "The local Mac app is not installed")
+    return subprocess.run([str(executable), "presentation", *arguments], check=False).returncode
+
+
 def default_host_target(system: str) -> dict[str, Any]:
     if system == "Linux":
         return {
@@ -3665,6 +3679,8 @@ Commands:
   targets                         List logical targets without private paths
   target status|up|suspend|shutdown|force-stop|reboot|doctor|capabilities
          ensure-ready|validate-candidate|prepare-promotion
+  presentation status|set personal|minimal|appliance|reset [--socket SOCKET]
+                           Local Mac operator preference, independent of grants
   claim capabilities|status|acquire|renew|release
                                     Use `claim --help` for attribution syntax
   run [CLAIM OPTIONS] [--intent INTENT] -- PROGRAM ARG...
@@ -3892,6 +3908,9 @@ def main(argv: list[str] | None = None) -> int:
                     raise ClientError("provision_journal_unavailable",
                         "Provisioning intent could not be persisted; nothing dispatched")
                 print("machine-control: provisioning persistence unavailable; cleanup continues with a coverage gap", file=sys.stderr)
+        if operation == "presentation":
+            result = run_local_presentation(remainder[1:], known.target)
+            return result
         if operation == "agent":
             from agent_interface import identity, instructions
 

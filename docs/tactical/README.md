@@ -42,7 +42,9 @@ the commits' `Topic:` trailers and register that exact string in
 
 ## Tactical index
 
-- [107 — Runtime and presentation](107-runtime-and-presentation.md) (proposed):
+- [108 — Mac runtime and presentation acceptance](108-macos-runtime-presentation.md) (active):
+  Mac implementation, signed three-profile acceptance and bounded host checks.
+- [107 — Runtime and presentation](107-runtime-and-presentation.md) (active):
   first remove Mac status stalls, then separate presentation and qualify three
   configurable profiles in the shared package.
 

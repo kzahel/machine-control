@@ -96,6 +96,7 @@ final class ResidentServer {
     var callerTrust: DesktopCallerTrust
     let updates = DesktopUpdates()
     let activity = PhysicalAvailability()
+    var presentationStatus: () -> [String:Any] = { [:] }
     let nativeProvider = NativeProviderExecutor()
     func referencedProcess(_ reference: String) -> pid_t? { nativeProvider.referenceOwners[reference] }
     var noticeSeconds = 10.0
@@ -287,6 +288,7 @@ final class ResidentServer {
         }
         // Bind synchronously when approval is issued, including a lock that
         // follows before the next timer tick. Never adopt an unbound grant later.
+        broker.authorityChanged = { [weak service] in service?.invalidateReferences() }
         broker.bindAuthorityBeforeObservers = { [weak self] in self?.bindApprovedConsole() }
         broker.admission.sessionEnded = { [weak self] owner, _, reason in
             self?.channels.values.first(where:{ $0.owner == owner })?.outer?.invalidate()
@@ -614,11 +616,8 @@ final class ResidentServer {
                 defer { Darwin.close(client) }
                 guard let self else { return }
                 var response = original
-                if ["input.key", "input.text"].contains(operation), response["accepted"] as? Bool == true {
-                    var data = response["data"] as? [String:Any] ?? [:]
-                    data["keyboardReceiver"] = keyboardReceiver(); response["data"] = data
-                }
                 if ["status", "capabilities"].contains(operation), var data = response["data"] as? [String:Any] {
+                    data["presentation"] = self.presentationStatus()
                     data["deployment"] = self.broker.statusJSON
                     data["lockedUse"] = self.lockedUse.status
                     data["physicalActivity"] = self.activity.status
@@ -700,6 +699,7 @@ final class ResidentServer {
 
     /// Ends the grant from a trusted local surface such as the menu.
     func revoke(reason: String) {
+        nativeProvider.invalidate()
         broker.fence()
         if ["stopped_by_person", "stopped_from_menu", "stopped_by_hotkey", "revoked_by_caller"].contains(reason) { callerTrust.stop() }
         lockedUse.end(reason)
@@ -898,7 +898,7 @@ func runResident(socketPath: String) throws -> Never {
         // Back after a restart for a new grant: show the result without
         // taking focus from System Settings.
         DispatchQueue.main.async { setup.show(activate: false, restarted: true) }
-    } else if broker.policy.grantMode == .approval && !setup.state.complete {
+    } else if runtime.presentation.profile == .personal && broker.policy.grantMode == .approval && !setup.state.complete {
         DispatchQueue.main.async { setup.show() }
     }
     withExtendedLifetime((runtime, menu, approval, setup)) { application.run() }

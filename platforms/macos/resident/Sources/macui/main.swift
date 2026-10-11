@@ -16,6 +16,7 @@ if arguments.count >= 4, arguments[0] == "--output",
     atexit(writeMacUIExitStatus)
     arguments.removeFirst(4)
 }
+do { if try runPresentationCommand(arguments) { exit(0) } } catch { fail(error) }
 if arguments.isEmpty || arguments.first?.hasPrefix("-psn_") == true {
     // Opened from Finder or by System Settings' "Quit & Reopen".
     openedAsApplication()
