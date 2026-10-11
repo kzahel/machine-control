@@ -140,6 +140,11 @@ final class MacLockedUsePermission: LockedUsePermissionManaging {
         self.service = service; self.preferences = preferences
     }
     var approvalState: String {
+        approvalObservation.refresh()
+        return approvalObservation.value
+    }
+    private lazy var approvalObservation = BackgroundObservation<String>(
+        label:"machine-control.helper-approval", unknown:{ "unknown" }, read:{ [daemon] in
         switch daemon.status {
         case .enabled: return "granted"
         case .requiresApproval: return "requires_approval"
@@ -147,9 +152,9 @@ final class MacLockedUsePermission: LockedUsePermissionManaging {
         case .notFound: return "unavailable"
         @unknown default: return "unavailable"
         }
-    }
+    })
     var ready: Bool {
-        ready(helper:service.unlockStatus(), approval:approvalState)
+        ready(helper:service.displayedUnlockStatus, approval:approvalState)
     }
     func ready(helper: [String:Any], approval: String) -> Bool {
         guard #available(macOS 14.0, *), setupState == "idle", approval == "granted",
@@ -197,15 +202,15 @@ final class MacLockedUsePermission: LockedUsePermissionManaging {
         let now = ProcessInfo.processInfo.systemUptime
         guard now - lastPoll >= 1 else { return }; lastPoll = now
         if preparing {
-            if setupState == "approval", daemon.status == .enabled { startPreparation() }
+            if setupState == "approval", approvalState == "granted" { startPreparation() }
             return
         }
         guard #available(macOS 14.0, *), !updateAttempted, setupState == "idle",
               CGPreflightScreenCaptureAccess(), AXIsProcessTrusted(), CGPreflightPostEventAccess(),
-              HelperUpdatePolicy.eligible(approved:daemon.status == .enabled,
+              HelperUpdatePolicy.eligible(approved:approvalState == "granted",
                 capturePrepared:preferences.bool(forKey:"lockedUseCapturePrepared"),
-                installation:Self.trustedInstallation(), helper:service.unlockStatus(),
-                console:nativeSessionObservation()) else { return }
+                installation:Self.trustedInstallation(), helper:service.displayedUnlockStatus,
+                console:service.observedConsoleSession) else { return }
         // Maintenance of an already installed, OS-approved helper, once per
         // process. No agent request dispatches initial setup or grants consent.
         do { try beginPreparation(maintenance:true) }

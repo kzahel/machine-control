@@ -398,11 +398,11 @@ final class MacLockedUse {
     var isCovered: Bool { guardian != nil }
     var enabled: Bool {
         guard !locallyDisabled, permission.ready else { return false }
-        let value = service.unlockStatus()
+        let value = service.displayedUnlockStatus
         return value["profile"] as? String == "locked_use" && value["policy"] as? String == "enabled"
     }
     var status: [String: Any] {
-        let helper = service.unlockStatus()
+        let helper = service.displayedUnlockStatus
         let approval = permission.approvalState
         let ready = permission.ready(helper:helper, approval:approval)
         let enabled = !locallyDisabled && ready && helper["profile"] as? String == "locked_use" && helper["policy"] as? String == "enabled"
@@ -488,7 +488,7 @@ final class MacLockedUse {
         guard var current = lease else { return }
         let now = ProcessInfo.processInfo.systemUptime
         if phase == "relocking" {
-            let observation = nativeSessionObservation()
+            let observation = service.observedConsoleSession
             if observation["desktopState"] as? String == "locked" || consoleSessionReplaced(current.session, observation) { finishAfterLock() }
             else if shouldForceRelock { ConsoleRelock.request(for:current.session) }
             return
@@ -502,7 +502,7 @@ final class MacLockedUse {
             }
             lease = current
         } catch { end("owner_disconnected"); return }
-        let observation = nativeSessionObservation()
+        let observation = service.observedConsoleSession
         if let reason = safety.reason { end(reason); return }
         if let reason = current.refusal(now: now, grantID: broker.activeGrant?.id, session: observation) {
             end(reason); return
@@ -599,7 +599,7 @@ final class MacLockedUse {
     var preservesGrantAcrossLock: Bool {
         // A prepared opt-in also covers idle locks and clean task completion.
         // Unlock authority still requires a separate finite connection lease.
-        let helper = service.unlockStatus()
+        let helper = service.displayedUnlockStatus
         return retainLockedUseAccess(enabled:enabled,
             paused:helper["lockedUsePaused"] as? Bool ?? true,
             phase:phase, interruption:safety.reason, endReason:endReason,

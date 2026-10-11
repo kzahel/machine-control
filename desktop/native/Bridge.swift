@@ -127,6 +127,8 @@ public func mcDesktopCommand(_ input: UnsafePointer<CChar>) -> UnsafeMutablePoin
                     "admission": server.admissionPresentation,
                     "controlPolicy": ["supported":true, "mode":server.activity.respectRecentActivity ? "when_idle" : "announce", "noticeSeconds":server.noticeSeconds],
                     "physicalActivity": server.activity.status,
+                    "observations": ["session":server.service.sessionObservation.metadata,
+                                     "helper":server.service.helperObservation.metadata],
                     "desktopCallerTrust": server.callerTrust.status,
                     "lockedUse": server.lockedUse.status,
                     "socket": server.socketPath, "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "development"]

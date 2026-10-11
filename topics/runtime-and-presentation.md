@@ -2,8 +2,7 @@
 
 Topic: `runtime-and-presentation`
 
-Status: agreed direction; implementation planned. Existing launch modes remain
-unchanged. [Tactical 107](../docs/tactical/107-runtime-and-presentation.md)
+Status: Mac implementation active. Existing launch modes remain unchanged. [Tactical 107](../docs/tactical/107-runtime-and-presentation.md)
 coordinates the migration.
 
 ## Current boundary and evidence
@@ -22,6 +21,13 @@ helper IPC on the application main thread. Bounded installed-process sampling
 caught repeated waits there. The [Mac platform report](../research/platforms/macos.md#resident-responsiveness)
 owns evidence and limits. This establishes a responsiveness problem, not the
 helper's underlying reason for slow replies.
+
+**Current:** The first Mac slice moves idle helper/session and helper-approval
+observations to bounded workers, exposes expiring display snapshots, preserves
+protected pauses when helper state is unknown, coalesces frontend refreshes,
+and awaits native operator completion without blocking the async executor.
+Fresh action checks remain separate. Fault fixtures hold a helper open while
+resident ticks and local Stop continue; installed acceptance follows later.
 
 ## Product direction
 

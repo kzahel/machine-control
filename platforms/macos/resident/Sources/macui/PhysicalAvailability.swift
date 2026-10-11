@@ -84,6 +84,9 @@ final class PhysicalAvailability {
             publishedReason = reason; publishedActivity = activity
         }
         let rootReason = helper["lockedUsePauseReason"] as? String ?? ""
+        // Unknown helper state cannot clear a protected takeover/local-use pause.
+        guard helper["installation"] as? String == "healthy" ||
+              helper["installation"] as? String == "missing" else { return }
         let reasons = broker.admission.blocks("desktop")
         let local = rootReason == "local_use_episode"
         if local && !reasons.contains("local_use_episode") {

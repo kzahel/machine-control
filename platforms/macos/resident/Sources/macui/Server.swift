@@ -297,6 +297,7 @@ final class ResidentServer {
     }
 
     func stop() {
+        service.stopObservations()
         ticker?.cancel(); ticker = nil
         acceptSource?.cancel(); acceptSource = nil
         for channel in Array(channels.values) { channel.close() }
@@ -310,10 +311,10 @@ final class ResidentServer {
     func restoreOperatorConsent() {
         guard broker.policy.grantMode == .approval, broker.grant == nil, broker.pending == nil,
               let store = broker.consentStore, broker.consentStorageError == nil, broker.journal?.errorCode == nil else { return }
-        service.refreshSession()
         let observation = grantConsoleObservation()
         guard let (scopes, duration) = store.consent(console:observation) else { return }
-        let helper = service.unlockStatus()
+        let helper = service.displayedUnlockStatus
+        guard ["healthy", "missing"].contains(helper["installation"] as? String ?? "") else { return }
         if helper["lockedUsePaused"] as? Bool == true &&
             !["physical_presence", "local_use_episode"].contains(helper["lockedUsePauseReason"] as? String ?? "") { return }
         if observation["desktopState"] as? String == "locked" && !lockedUse.enabled { return }
@@ -363,7 +364,7 @@ final class ResidentServer {
     }
 
     private func tick() {
-        autoreleasepool { service.refreshSession() }
+        service.refreshObservations()
         restoreOperatorConsent()
         let observation = grantConsoleObservation()
         let state = observation["desktopState"] as? String ?? "unknown"
@@ -387,7 +388,7 @@ final class ResidentServer {
             grantConsoleBinding = nil
         }
         lockedUse.tick()
-        if activity.enabled { activity.tick(broker, helper:service.unlockStatus()) }
+        if activity.enabled { activity.tick(broker, helper:service.displayedUnlockStatus) }
         broker.refreshAvailability()
         for channel in Array(channels.values) { channel.tick() }
         notice?.update()

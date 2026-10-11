@@ -542,8 +542,28 @@ final class ResidentService {
     var coveredWindowIDs: () -> Set<Int> = { [] }
     var inputCancellation: () -> String? = { nil }
 
+    lazy var sessionObservation = BackgroundObservation<[String:Any]>(
+        label:"machine-control.session-observation", interval:0, timeout:2.5, lifetime:1,
+        unknown:{ ["desktopState":"unknown", "probeFailure":"observation_unavailable"] },
+        read:{ nativeSessionObservation() })
+    lazy var helperObservation = BackgroundObservation<[String:Any]>(
+        label:"machine-control.helper-observation", timeout:2, lifetime:3,
+        unknown:{ ["installation":"unknown", "policy":"unknown", "readiness":"unknown",
+                   "lockedUsePaused":true, "reasons":["helper_observation_unavailable"]] },
+        read:{ [weak self] in self?.unlockStatus(observation:nativeSessionObservation()) ?? [:] })
+    var displayedUnlockStatus: [String:Any] { helperObservation.value }
+
+    func refreshObservations() {
+        sessionObservation.refresh(); helperObservation.refresh()
+        applySessionObservation(sessionObservation.value)
+    }
+    func stopObservations() { sessionObservation.stop(); helperObservation.stop() }
+
     func refreshSession() {
-        let next = nativeSessionObservation()
+        applySessionObservation(nativeSessionObservation())
+    }
+
+    func applySessionObservation(_ next: [String:Any]) {
         var notified = false
         for token in lockNotificationTokens {
             var changed: Int32 = 0
@@ -665,7 +685,8 @@ final class ResidentService {
         }
     }
 
-    func unlockStatus() -> [String: Any] {
+    func unlockStatus(observation: [String:Any]? = nil) -> [String: Any] {
+        let observedSession = observation ?? self.observedSession
         var status: [String: Any] = [
             "support": "experimental", "scope": "existing_console_session",
             "installation": "unknown", "policy": "unknown",

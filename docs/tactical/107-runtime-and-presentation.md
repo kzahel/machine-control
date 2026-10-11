@@ -129,7 +129,9 @@ behavior evidence, and successful Mac acceptance does not cover either OS.
 
 ## Validation and final result
 
-**Current:** Planning only. The direction is recorded and indexed; no runtime,
-configuration, installed app, target policy or release has changed. Source
-review and bounded existing-process sampling motivate the first milestone;
-they do not establish asynchronous implementation or profile acceptance.
+**Current:** First source slice implemented: bounded background observations,
+nonoverlapping UI refresh and asynchronous operator completion. Swift tests
+include blocked dependency, main-queue Stop, expired snapshot and late-result
+refusal. Existing approval/session suites pass. Installed acceptance and the
+remaining runtime/presentation milestones are still in progress; the host
+installation and public release are unchanged.

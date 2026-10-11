@@ -11,6 +11,7 @@ use tauri_plugin_updater::UpdaterExt;
 mod diagnostics;
 #[cfg(target_os = "linux")]
 mod linux;
+mod native_queue;
 mod restart;
 mod updates;
 #[cfg(target_os = "windows")]
@@ -133,14 +134,17 @@ async fn operator_command(
             return Err("Operator window required".into());
         }
     }
-    let (send, receive) = std::sync::mpsc::channel();
+    let permit = native_queue::Permit::acquire()?;
+    let (send, mut receive) = tauri::async_runtime::channel(1);
     schedule_native(&app, move || {
-        let _ = send.send(native_command(command));
+        let _permit = permit;
+        // A closed caller must not dispatch a queued mutation later.
+        if !send.is_closed() {
+            let _ = send.try_send(native_command(command));
+        }
     })
     .map_err(|e| e.to_string())?;
-    receive
-        .recv_timeout(std::time::Duration::from_secs(10))
-        .map_err(|e| e.to_string())?
+    receive.recv().await.ok_or("Native operation interrupted")?
 }
 
 #[tauri::command]
@@ -151,9 +155,12 @@ async fn restart_application(
     if window.label() != "main" {
         return Err("Operator window required".into());
     }
-    let (send, receive) = std::sync::mpsc::channel();
+    let (send, mut receive) = tauri::async_runtime::channel(1);
     let handle = app.clone();
     schedule_native(&app, move || {
+        if send.is_closed() {
+            return;
+        }
         #[cfg(target_os = "windows")]
         let result = {
             let _ = native_command(json!({"method":"prepare_exit"}));
@@ -165,12 +172,10 @@ async fn restart_application(
         #[cfg(target_os = "macos")]
         let result = native_command(json!({"method":"prepare_exit"}))
             .and_then(|_| restart::request(&handle));
-        let _ = send.send(result);
+        let _ = send.try_send(result);
     })
     .map_err(|e| e.to_string())?;
-    receive
-        .recv_timeout(std::time::Duration::from_secs(10))
-        .map_err(|e| e.to_string())?
+    receive.recv().await.ok_or("Native restart interrupted")?
 }
 
 /// Keep the lifecycle gate in native code, outside the web presentation.
@@ -357,8 +362,7 @@ fn main() {
                     {
                         break;
                     }
-                    let Ok(Ok(value)) = receive.recv_timeout(std::time::Duration::from_secs(5))
-                    else {
+                    let Ok(Ok(value)) = receive.recv() else {
                         continue;
                     };
                     let pending = value["state"]["pending"]["id"]

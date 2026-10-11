@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -223,7 +223,10 @@ function App() {
     setPage(next);
     setNotice("");
   };
+  const refreshInFlight = useRef(false);
   const refresh = async () => {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
     try {
       const r = await native({ method: "state" });
       if (r.setupPending) {
@@ -247,6 +250,8 @@ function App() {
     } catch (e) {
       setState(undefined);
       setError(String(e));
+    } finally {
+      refreshInFlight.current = false;
     }
   };
   useEffect(() => {
