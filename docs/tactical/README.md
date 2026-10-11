@@ -243,3 +243,7 @@ the commits' `Topic:` trailers and register that exact string in
 - [106 — macOS shared screen-unlock rule](106-macos-shared-screen-unlock-rule.md):
   helper refusal codes in Permissions and own-entry composition of the
   screensaver rule beside other authorization plug-ins.
+
+- [110 — Windows runtime and presentation](110-windows-runtime-presentation.md):
+  bounded companion work, independent native safety presentation, optional
+  Settings, configuration and native Windows qualification.

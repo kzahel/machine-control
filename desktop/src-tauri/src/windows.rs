@@ -1,9 +1,12 @@
 use serde_json::{json, Value};
 use std::{
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, Read, Write},
     os::windows::{io::AsRawHandle, process::CommandExt},
     process::{Child, ChildStdin, Command, Stdio},
-    sync::{mpsc, Mutex, OnceLock},
+    sync::{
+        atomic::{AtomicIsize, AtomicU64, Ordering},
+        mpsc, Arc, Mutex, OnceLock,
+    },
     time::Duration,
 };
 use tauri::Manager;
@@ -12,7 +15,7 @@ use windows_sys::Win32::{
     Foundation::{CloseHandle, HANDLE},
     System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
-        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        SetInformationJobObject, TerminateJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
         JOB_OBJECT_LIMIT_BREAKAWAY_OK, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     },
 };
@@ -21,9 +24,31 @@ static RUNTIME: Mutex<Option<Runtime>> = Mutex::new(None);
 static APP: OnceLock<tauri::AppHandle> = OnceLock::new();
 static UAC_SETUP: Mutex<Option<Child>> = Mutex::new(None);
 static UAC_SETUP_ERROR: Mutex<Option<String>> = Mutex::new(None);
+static STOP_WINDOW: AtomicIsize = AtomicIsize::new(0);
+static EPOCH: AtomicU64 = AtomicU64::new(0);
+static JOB: Mutex<Option<Arc<Job>>> = Mutex::new(None);
+pub fn epoch() -> u64 {
+    EPOCH.load(Ordering::Acquire)
+}
+
+/// Private inherited handshake identifies the native Stop message window.
+/// Posting never waits for IPC, provider work, or a Tauri event-loop reply.
+pub fn stop() -> Result<Value, String> {
+    EPOCH.fetch_add(1, Ordering::AcqRel);
+    let window = STOP_WINDOW.load(Ordering::Acquire);
+    if window == 0
+        || unsafe {
+            windows_sys::Win32::UI::WindowsAndMessaging::PostMessageW(window as _, 0x8001, 0, 0)
+        } == 0
+    {
+        return Err("Native Stop unavailable; quit Machine Control to end its resident".into());
+    }
+    Ok(json!({"ok":true,"queued":true,"effect":"pending"}))
+}
 struct Job(HANDLE);
 // Kernel job handles have no thread affinity; access is owned by RUNTIME.
 unsafe impl Send for Job {}
+unsafe impl Sync for Job {}
 impl Drop for Job {
     fn drop(&mut self) {
         unsafe { CloseHandle(self.0) };
@@ -33,7 +58,7 @@ struct Runtime {
     child: Child,
     input: ChildStdin,
     replies: mpsc::Receiver<Result<Value, String>>,
-    _job: Job,
+    _job: Arc<Job>,
 }
 impl Runtime {
     fn call(&mut self, command: &Value) -> Result<Value, String> {
@@ -62,6 +87,9 @@ impl Drop for Runtime {
     fn drop(&mut self) {
         // Kill-on-close covers descendants including the private Cua daemon.
         // Never target a PID obtained from a writable file.
+        unsafe {
+            TerminateJobObject(self._job.0, 0);
+        }
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
@@ -70,7 +98,13 @@ impl Drop for Runtime {
 pub fn start(app: &tauri::AppHandle) -> Result<(), String> {
     APP.set(app.clone())
         .map_err(|_| "Operator already initialized")?;
-    spawn_runtime(app)
+    let app = app.clone();
+    std::thread::spawn(move || {
+        if spawn_runtime(&app).is_err() {
+            crate::diagnostics::record("resident.unavailable");
+        }
+    });
+    Ok(())
 }
 
 fn bundled_runtime(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
@@ -114,7 +148,7 @@ fn spawn_runtime(app: &tauri::AppHandle) -> Result<(), String> {
         {
             return Err(std::io::Error::last_os_error().to_string());
         }
-        job
+        Arc::new(job)
     };
     let mut child = Command::new(executable)
         .arg("desktop")
@@ -137,16 +171,13 @@ fn spawn_runtime(app: &tauri::AppHandle) -> Result<(), String> {
     }
     let input = child.stdin.take().ok_or("Resident input missing")?;
     let output = child.stdout.take().ok_or("Resident output missing")?;
-    let (send, replies) = mpsc::channel();
+    let (send, replies) = mpsc::sync_channel(1);
     std::thread::spawn(move || {
-        for line in BufReader::new(output).lines() {
-            let value = line.map_err(|e| e.to_string()).and_then(|text| {
-                if text.len() > 1024 * 1024 {
-                    return Err("Resident reply too large".into());
-                }
-                serde_json::from_str(&text).map_err(|e| e.to_string())
-            });
-            if send.send(value).is_err() {
+        let mut reader = BufReader::new(output);
+        loop {
+            let value = read_reply(&mut reader);
+            let terminal = value.is_err();
+            if send.send(value).is_err() || terminal {
                 break;
             }
         }
@@ -157,12 +188,30 @@ fn spawn_runtime(app: &tauri::AppHandle) -> Result<(), String> {
         replies,
         _job: job,
     };
-    runtime.call(&json!({"method":"hello", "processId":std::process::id()}))?;
+    let hello = runtime.call(&json!({"method":"hello", "processId":std::process::id()}))?;
+    STOP_WINDOW.store(
+        hello["stopWindow"].as_i64().unwrap_or(0) as isize,
+        Ordering::Release,
+    );
+    *JOB.lock().map_err(|e| e.to_string())? = Some(runtime._job.clone());
     *RUNTIME.lock().map_err(|e| e.to_string())? = Some(runtime);
     Ok(())
 }
 
 pub fn command(command: Value) -> Result<Value, String> {
+    if command["method"] == "stop" {
+        return stop();
+    }
+    if command["operatorEpoch"]
+        .as_u64()
+        .is_some_and(|value| value != epoch())
+    {
+        return Err("Operator work cancelled by Stop".into());
+    }
+    // Reject overload instead of growing a queue behind a slow companion.
+    let _permit = COMMAND_GATE
+        .try_lock()
+        .map_err(|_| "Resident is busy; try again")?;
     let app = APP.get().ok_or("Operator unavailable")?;
     if command["method"] == "permission.uac"
         || (command["method"] == "permission" && command["permission"] == "lockedUse")
@@ -259,9 +308,45 @@ pub fn command(command: Value) -> Result<Value, String> {
 }
 
 pub fn shutdown() {
-    if let Ok(mut owner) = RUNTIME.lock() {
-        if let Some(mut runtime) = owner.take() {
-            let _ = runtime.call(&json!({"method":"quit"}));
+    EPOCH.fetch_add(1, Ordering::AcqRel);
+    STOP_WINDOW.store(0, Ordering::Release);
+    // Exit hooks run on Tauri's event thread. Kill the owned job without
+    // acquiring the IPC owner or waiting for any companion/provider reply.
+    if let Ok(mut job) = JOB.lock() {
+        if let Some(job) = job.take() {
+            unsafe {
+                TerminateJobObject(job.0, 0);
+            }
         }
+    }
+}
+
+static COMMAND_GATE: Mutex<()> = Mutex::new(());
+
+fn read_reply(reader: &mut impl BufRead) -> Result<Value, String> {
+    let mut bytes = Vec::new();
+    reader
+        .take(1024 * 1024 + 1)
+        .read_until(b'\n', &mut bytes)
+        .map_err(|e| e.to_string())?;
+    if bytes.len() > 1024 * 1024 || bytes.last() != Some(&b'\n') {
+        return Err("Resident reply missing, truncated or too large".into());
+    }
+    serde_json::from_slice(&bytes).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn reply_framing_is_bounded_and_terminal_on_corruption() {
+        assert!(read_reply(&mut &b"{\"ok\":true}\n"[..]).is_ok());
+        for frame in [&b"{}"[..], &b"invalid\n"[..], &b""[..]] {
+            assert!(read_reply(&mut &frame[..]).is_err());
+        }
+        let frame = vec![b'x'; 2 * 1024 * 1024];
+        let mut remaining = &frame[..];
+        assert!(read_reply(&mut remaining).is_err());
+        assert!(remaining.len() >= 1024 * 1024 - 1);
     }
 }

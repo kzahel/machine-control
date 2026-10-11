@@ -335,7 +335,8 @@ internal sealed class CuaProvider : IControlProvider
             },
             screenshotOutFile: null,
             TimeSpan.FromSeconds(15),
-            cancellationToken);
+            cancellationToken,
+            beforeDispatch: () => DesktopSafety.Check(request with { Hwnd = reference.Hwnd }, generation, reference.ProcessId));
         var providerRoute = ReadString(upstream.Value, "route") ?? "click";
         var providerDelivery = ReadNestedString(
             upstream.Value,
@@ -680,7 +681,8 @@ internal sealed class CuaDriverHost
         object arguments,
         string? screenshotOutFile,
         TimeSpan timeout,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<string?>? beforeDispatch = null)
     {
         await EnsureStartedAsync(cancellationToken);
         await _callGate.WaitAsync(cancellationToken);
@@ -691,6 +693,9 @@ internal sealed class CuaDriverHost
             // invalidate every cached reference if its session was recreated.
             if (tool == "get_window_state")
                 await StartSessionAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (beforeDispatch?.Invoke() is { } refusal)
+                throw new CuaProviderException(refusal, "Authority changed during provider preparation", "refused", "refused", 0);
             var invocation = await RunCliAsync(
                 ["call", tool, "--socket", _endpoint!],
                 Contract.Serialize(arguments),

@@ -30,7 +30,20 @@ internal static partial class DesktopController
             if (DesktopSafety.ExternalCheck is not null) { RequireDesktopAuthority(element); _desktopEffectStarted = true; }
             return action();
         }
-        lock (broker.Gate) { RequireDesktopAuthority(element); _desktopEffectStarted = true; return action(); }
+        // UIA discovery and invocation may stall. Do not hold the authority
+        // lock across either: Stop must fence subsequent dispatch immediately.
+        RequireDesktopAuthority(element);
+        lock (broker.Gate)
+        {
+            if (_desktopCancellation.IsCancellationRequested)
+                throw new DesktopAccessRefusedException("operation_cancelled");
+            if (_desktopRequest is not null && broker.Authorize(_desktopRequest, _desktopGeneration) is { } refused)
+                throw new DesktopAccessRefusedException(refused);
+            _desktopEffectStarted = true;
+        }
+        // Dispatch is committed above. If Stop races the external invocation,
+        // its outcome is uncertain; no later effect can adopt new authority.
+        return action();
     }
     private static void DesktopAction(Action action, AutomationElement? element = null) =>
         DesktopAction(() => { action(); return true; }, element);
@@ -111,10 +124,9 @@ internal static partial class DesktopController
                 NativeMethods.CloseDesktop(switchedDesktop);
             }
         });
-        // Pointer completion includes release cleanup before returning. Other
-        // operations retain their existing early cancellation behavior.
-        if (request.Operation is not ("move" or "drag" or "scroll" or "click"))
-            cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken));
+        // Completion tracks physical worker termination, including release
+        // cleanup. The bounded caller deadline lives in DesktopWork; returning
+        // a cancelled task here would incorrectly free its occupied slot.
         return completion.Task;
     }
 

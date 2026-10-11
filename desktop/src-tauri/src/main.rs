@@ -135,13 +135,13 @@ fn schedule_native(
     app: &tauri::AppHandle,
     task: impl FnOnce() + Send + 'static,
 ) -> Result<(), String> {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
     {
         let _ = app;
         tauri::async_runtime::spawn_blocking(task);
         Ok(())
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
     app.run_on_main_thread(task).map_err(|e| e.to_string())
 }
 
@@ -165,6 +165,15 @@ async fn operator_command(
         {
             return Err("Operator window required".into());
         }
+    }
+    #[cfg(target_os = "windows")]
+    let mut command = command;
+    #[cfg(target_os = "windows")]
+    {
+        if command["method"] == "stop" {
+            return windows::stop();
+        }
+        command["operatorEpoch"] = json!(windows::epoch());
     }
     let permit = native_queue::Permit::acquire()?;
     let (send, mut receive) = tauri::async_runtime::channel(1);
@@ -610,16 +619,19 @@ fn main() {
                         let _ = native_command(json!({"method":"stop"}));
                     }
                     "quit" => {
-                        #[cfg(target_os = "linux")]
+                        #[cfg(any(target_os = "linux", target_os = "windows"))]
                         {
                             let handle = app.clone();
                             tauri::async_runtime::spawn_blocking(move || {
                                 let _ = native_command(json!({"method":"stop"}));
+                                #[cfg(target_os = "linux")]
                                 linux::shutdown();
+                                #[cfg(target_os = "windows")]
+                                windows::shutdown();
                                 handle.exit(0);
                             });
                         }
-                        #[cfg(not(target_os = "linux"))]
+                        #[cfg(not(any(target_os = "linux", target_os = "windows")))]
                         {
                             let _ = native_command(json!({"method":"prepare_exit"}));
                             #[cfg(target_os = "windows")]
@@ -667,7 +679,7 @@ fn main() {
             // The native application menu and Cmd-Q bypass the tray handler.
             // Finish volatile control while the event loop and native broker
             // still exist, preserving only the operator's durable choices.
-            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            #[cfg(target_os = "macos")]
             if matches!(event, tauri::RunEvent::ExitRequested { .. }) {
                 let _ = native_command(json!({"method":"prepare_exit"}));
             }

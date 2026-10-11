@@ -165,7 +165,8 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             if (_grant is not null && scopes.IsSubsetOf(_grant.Scopes))
                 return Task.FromResult(new GrantReply(true, Data: DeploymentState()));
             var completion = new TaskCompletionSource<GrantReply>(TaskCreationOptions.RunContinuationsAsynchronously);
-            if (Journal?.Event("access.requested") == false) return Task.FromResult(new GrantReply(false, "audit_storage_unavailable"));
+            if (Journal?.Available == false) return Task.FromResult(new GrantReply(false, "audit_storage_unavailable"));
+            Journal?.QueueEvent("access.requested");
             _pending = new PendingGrant(Guid.NewGuid().ToString("n"), scopes, duration,
                 timeout, request.Reason.Trim(), caller, _time.GetTimestamp(), completion);
             return completion.Task;
@@ -181,7 +182,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             if (pending.Id != id) throw new InvalidOperationException("Approval request changed");
             if (!allow)
             {
-                Journal?.Event("access.denied", false);
+                Journal?.QueueEvent("access.denied", false);
                 _pending = null;
                 pending.Completion.TrySetResult(new GrantReply(false, "approval_denied"));
                 return;
@@ -221,7 +222,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             if (seconds is < 1 or > 28800) throw new ArgumentException("Invalid pause duration");
             _generation = Guid.NewGuid().ToString("n");
             Admission.Pause("desktop", "manual", seconds);
-            Journal?.Event("access.paused");
+            Journal?.QueueEvent("access.paused");
         }
     }
 
@@ -233,13 +234,14 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             Admission.Resume("desktop", "operator_deferral");
             Activity.ResumeFromOperator();
             Admission.Resume("desktop", "physical_takeover");
-            Journal?.Event("access.resumed");
+            Journal?.QueueEvent("access.resumed");
         }
     }
 
     private void Issue(HashSet<string> scopes, int? duration, string reason, string caller)
     {
-        if (Journal?.Event("access.enabled") == false) throw new InvalidOperationException("Audit storage unavailable");
+        if (Journal?.Available == false) throw new InvalidOperationException("Audit storage unavailable");
+        Journal?.QueueEvent("access.enabled");
         _generation = Guid.NewGuid().ToString("n");
         _grant = new LiveGrant(scopes, duration, reason, caller, _time.GetTimestamp());
         ++_authorizationRevision;
@@ -250,7 +252,6 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     {
         lock (Gate)
         {
-            Journal?.Event("access." + DesktopJournal.Token(reason));
             _generation = Guid.NewGuid().ToString("n");
             _grant = null;
             ++_authorizationRevision;
@@ -259,6 +260,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             _pending = null;
             _admission?.Stop(reason);
         }
+        Journal?.QueueEvent("access." + DesktopJournal.Token(reason));
     }
 
     internal void PrepareUpdate()
@@ -282,7 +284,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             if (_grant?.Duration is int duration && Elapsed(_grant.Started) >= duration) Stop("expired");
             if (_pending is not null && Elapsed(_pending.Started) >= _pending.Timeout)
             {
-                Journal?.Event("access.approval_timeout", false);
+                Journal?.QueueEvent("access.approval_timeout", false);
                 _pending.Completion.TrySetResult(new GrantReply(false, "approval_timeout"));
                 _pending = null;
             }

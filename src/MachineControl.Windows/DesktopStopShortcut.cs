@@ -9,6 +9,7 @@ internal sealed class DesktopStopShortcut : IDisposable
     private readonly TaskCompletionSource<bool> _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private StopWindow? _window;
     internal bool Available => _ready.Task.IsCompletedSuccessfully && _ready.Task.Result;
+    internal long WindowHandle => _window?.Handle.ToInt64() ?? 0;
     internal DesktopStopShortcut(DesktopGrants broker)
     {
         _thread = new Thread(() =>
@@ -42,7 +43,7 @@ internal sealed class DesktopStopShortcut : IDisposable
         }
         protected override void WndProc(ref Message message)
         {
-            if (message.Msg == 0x0312) _broker.Stop("stopped_by_person");
+            if (message.Msg is 0x0312 or 0x8001) _broker.Stop("stopped_by_person");
             if (message.Msg == 0x0010) Application.ExitThread();
             base.WndProc(ref message);
         }

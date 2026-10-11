@@ -334,6 +334,47 @@ Assert(PointerGeometry.Intersects(int.MinValue, int.MinValue, int.MaxValue, int.
 Assert(DesktopUacPolicy.Refusal(consent with { X2 = 1 }, true, true, "Winlogon", true) == "invalid_uac_response", "Pointer fields cannot widen typed UAC response");
 
 
+// A physical dependency remains occupied after caller timeout or Stop.
+var work = new DesktopWork();
+var dependency = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+var fencedBroker = new DesktopGrants();
+fencedBroker.SetReady(true); fencedBroker.Arm(["control"], 300);
+var oldGeneration = fencedBroker.Generation;
+var effects = 0;
+var faultRequest = new Request { Operation = "invoke", RequestId = "fault" };
+var blockedWork = work.RunAsync(faultRequest, oldGeneration, async token =>
+{
+    entered.SetResult();
+    await dependency.Task; // A native dependency ignores cancellation.
+    var refusal = fencedBroker.Authorize("invoke", oldGeneration);
+    if (refusal is null && !token.IsCancellationRequested) Interlocked.Increment(ref effects);
+    return new Result { RequestId = "fault", Operation = "invoke", ErrorCode = refusal };
+}, CancellationToken.None, TimeSpan.FromMilliseconds(100));
+await entered.Task;
+var stopTimer = System.Diagnostics.Stopwatch.StartNew();
+fencedBroker.Stop("stopped_by_person");
+Assert(stopTimer.ElapsedMilliseconds < 250, "Stop independent of blocked provider");
+fencedBroker.Arm(["control"], 300);
+Assert((await blockedWork).ErrorCode == "native_provider_timeout", "Caller deadline completes");
+for (var i = 0; i < 1000; i++)
+    Assert((await work.RunAsync(faultRequest, fencedBroker.Generation, _ => throw new Exception("Busy work dispatched"), CancellationToken.None)).ErrorCode == "native_provider_busy", "No queue or new worker after timeout");
+dependency.SetResult();
+Result recoveredWork;
+var recoveryTimer = System.Diagnostics.Stopwatch.StartNew();
+do
+{
+    recoveredWork = await work.RunAsync(faultRequest, fencedBroker.Generation, _ => Task.FromResult(new Result { RequestId = "recovery", Operation = "invoke", Accepted = true }), CancellationToken.None);
+    if (!recoveredWork.Accepted) await Task.Delay(1);
+} while (!recoveredWork.Accepted && recoveryTimer.Elapsed < TimeSpan.FromSeconds(2));
+Assert(recoveredWork.Accepted && effects == 0, "Capacity recovers and late work cannot adopt replacement grant");
+using (var cancelled = new CancellationTokenSource())
+{
+    cancelled.Cancel();
+    Assert((await work.RunAsync(faultRequest, fencedBroker.Generation, _ => throw new Exception("Cancelled work dispatched"), cancelled.Token)).ErrorCode == "operation_cancelled", "Cancellation before admission has no effect");
+}
+Console.WriteLine("Windows bounded worker, Stop, deadline and late-authority contracts passed");
+
 sealed class TestTime : TimeProvider
 {
     private long _seconds;

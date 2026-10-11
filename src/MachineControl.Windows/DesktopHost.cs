@@ -50,7 +50,7 @@ internal static class DesktopHost
         });
         try
         {
-            await writer.WriteLineAsync(Contract.Serialize(new { ok = true }));
+            await writer.WriteLineAsync(Contract.Serialize(new { ok = true, stopWindow = shortcut.WindowHandle }));
             while (!stop.IsCancellationRequested)
             {
                 var read = ReadCommandAsync(reader, stop.Token);

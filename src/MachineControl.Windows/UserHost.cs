@@ -11,7 +11,7 @@ namespace MachineControl.Windows;
 internal sealed class UserHost(string instance, DesktopGrants? grants = null, BrowserRelay? browser = null, DesktopUpdates? updates = null)
 {
     private readonly string _generation = Guid.NewGuid().ToString("n");
-    private readonly SemaphoreSlim _providerGate = new(1, 1);
+    private readonly DesktopWork _providerWork = new();
     private string Generation => grants?.Generation ?? _generation;
     internal static readonly string[] Operations =
     [
@@ -157,6 +157,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
     private async Task<Result> ExecuteAsync(Request request, string caller, CancellationToken cancellationToken, ControlOwnership? ownership = null)
     {
         request = request with { ControlOwnership = ownership };
+        var admittedGeneration = Generation;
         var result = Envelope(request);
         string? OwnershipRefusal() => ownership is null ? null : grants!.Admission.Authorize(ownership.Owner, ownership.Intent, ownership.Session, ownership.Generations);
         if (OwnershipRefusal() is { } ownerDenied) return result with { ErrorCode = ownerDenied };
@@ -266,11 +267,12 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
                 return Envelope(request) with { ErrorCode = denied, Data = DesktopGrants.RefusalData(request.Operation, denied) };
             return await browser.ExecuteAsync(request, Envelope(request), cancellationToken, ownership is not null);
         }
-        await _providerGate.WaitAsync(cancellationToken);
-        try
+        return await _providerWork.RunAsync(request, admittedGeneration, async token =>
         {
-            var generation = Generation;
-            var refusal = OwnershipRefusal() ?? grants?.Authorize(request, request.ExpectedGeneration);
+            var generation = admittedGeneration;
+            token.ThrowIfCancellationRequested();
+            if (grants is not null) DesktopSafety.RefreshAvailability(grants);
+            var refusal = OwnershipRefusal() ?? grants?.Authorize(request, generation);
             if (refusal is not null) return Envelope(request) with
             {
                 ErrorCode = refusal,
@@ -278,10 +280,9 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
                 Data = DesktopGrants.RefusalData(request.Operation, refusal)
             };
             if (grants is not null && DesktopUacPolicy.Operations.Contains(request.Operation, StringComparer.Ordinal) && DesktopUacClient.Enabled)
-                return await DesktopUacClient.ExecuteAsync(request, generation, grants, cancellationToken);
+                return await DesktopUacClient.ExecuteAsync(request, generation, grants, token);
             if (request.Operation == "uac.respond") return Envelope(request) with { ErrorCode = "uac_access_disabled" };
-            return await ProviderRouter.ExecuteAsync(request with { ControlOwnership = ownership }, generation, cancellationToken);
-        }
-        finally { _providerGate.Release(); }
+            return await ProviderRouter.ExecuteAsync(request with { ControlOwnership = ownership }, generation, token);
+        }, cancellationToken);
     }
 }

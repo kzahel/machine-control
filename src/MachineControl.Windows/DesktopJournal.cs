@@ -23,7 +23,31 @@ internal sealed class DesktopJournal
     private bool _historyGap;
     private bool _diagnosticsAvailable = true;
     private DateTimeOffset _debugUntil;
-    internal bool Available => _error is null;
+    private readonly System.Threading.Channels.Channel<(string Operation, bool Accepted)> _events =
+        System.Threading.Channels.Channel.CreateBounded<(string, bool)>(32);
+    private int _writingEvents;
+    private volatile bool _eventGap;
+    /// Operator transitions cannot wait for disk. One bounded writer drains
+    /// events; overflow becomes an explicit audit-health failure and prevents
+    /// new access. Required action intents still persist before dispatch.
+    internal void QueueEvent(string operation, bool accepted = true)
+    {
+        if (!_events.Writer.TryWrite((operation, accepted)))
+        {
+            _eventGap = true;
+            return;
+        }
+        if (Interlocked.CompareExchange(ref _writingEvents, 1, 0) != 0) return;
+        _ = Task.Run(() =>
+        {
+            do
+            {
+                while (_events.Reader.TryRead(out var item)) Event(item.Operation, item.Accepted);
+                Interlocked.Exchange(ref _writingEvents, 0);
+            } while (_events.Reader.TryPeek(out _) && Interlocked.CompareExchange(ref _writingEvents, 1, 0) == 0);
+        });
+    }
+    internal bool Available => _error is null && !_eventGap;
     internal void Debug(bool enabled) { _debugUntil = enabled ? DateTimeOffset.UtcNow.AddMinutes(15) : DateTimeOffset.MinValue; Event(enabled ? "diagnostics.debug.enabled" : "diagnostics.debug.disabled"); }
     internal string Root => _root;
     internal static string DefaultRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MachineControl", "logs");
@@ -134,7 +158,7 @@ internal sealed class DesktopJournal
             total -= file.Length; file.Delete();
         }
     }
-    internal object Health => new { available = _error is null, errorCode = _error, auditDays = 30, diagnosticDays = 7, auditBytes = _auditBytes, diagnosticBytes = _diagnosticBytes, diagnosticsAvailable = _diagnosticsAvailable, historyGap = _historyGap, debugRemainingSeconds = Math.Max(0, (int)(_debugUntil - DateTimeOffset.UtcNow).TotalSeconds) };
+    internal object Health => new { available = Available, errorCode = _eventGap ? "audit_event_queue_full" : _error, auditDays = 30, diagnosticDays = 7, auditBytes = _auditBytes, diagnosticBytes = _diagnosticBytes, diagnosticsAvailable = _diagnosticsAvailable, historyGap = _historyGap, debugRemainingSeconds = Math.Max(0, (int)(_debugUntil - DateTimeOffset.UtcNow).TotalSeconds) };
     internal object Query(int offset = 0, string operation = "", string outcome = "", string stream = "audit")
     {
         lock (_gate)
