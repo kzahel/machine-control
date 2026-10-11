@@ -150,6 +150,7 @@ try:
           + ' </dev/null >' + shlex.quote(log) + ' 2>&1 &')
     initial = wait(status, 'candidate started')
     pid = initial['processId']
+    assert request(dict(operation='status'))['generation'] == request(dict(operation='grant.status'))['generation']
     assert initial['deployment']['policy']['grantMode'] == 'approval', initial['deployment']
     assert initial['presentation']['profile'] == a.profile, initial['presentation']
     expected = 1 if a.profile == 'personal' else 0

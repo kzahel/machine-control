@@ -13,7 +13,10 @@ final class ProviderEpoch {
 /// to this serial worker; the coordinator receives immutable projections.
 final class NativeProviderExecutor {
     private let queue = DispatchQueue(label:"machine-control.native-provider", qos:.userInitiated)
-    private let provider = ResidentService()
+    private let provider: ResidentService
+    init(runtimeGeneration: String = UUID().uuidString.lowercased()) {
+        provider = ResidentService(generation:runtimeGeneration)
+    }
     private let epoch = ProviderEpoch()
     private var providerGeneration: UUID?
     private(set) var busy = false

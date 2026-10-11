@@ -886,7 +886,8 @@ final class ResidentService {
         }
     }
 
-    let generation = UUID().uuidString.lowercased()
+    let generation: String
+    init(generation: String = UUID().uuidString.lowercased()) { self.generation = generation }
     private var snapshotNumber = 0
     private var references: [String: AXUIElement] = [:]
     private var cuaReferences: [String: CuaReference] = [:]

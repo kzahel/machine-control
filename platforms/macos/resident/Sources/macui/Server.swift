@@ -86,9 +86,8 @@ func writeSocket(_ descriptor: Int32, data: Data) throws {
     }
 }
 
-/// Event-driven resident server on the main queue. Requests still run one
-/// at a time on the main thread, as providers expect; a grant request may
-/// stay open while a person decides.
+/// Main-queue authority coordinator with one serial native provider slot.
+/// Requests may remain open for native work or a person's approval.
 final class ResidentServer {
     let socketPath: String
     let service: ResidentService
@@ -97,7 +96,7 @@ final class ResidentServer {
     let updates = DesktopUpdates()
     let activity = PhysicalAvailability()
     var presentationStatus: () -> [String:Any] = { [:] }
-    let nativeProvider = NativeProviderExecutor()
+    let nativeProvider: NativeProviderExecutor
     func referencedProcess(_ reference: String) -> pid_t? { nativeProvider.referenceOwners[reference] }
     var noticeSeconds = 10.0
     var coveredActivation: ((AdmissionChannel, [String:Any]) throws -> Void)?
@@ -277,6 +276,7 @@ final class ResidentServer {
         self.socketPath = socketPath
         callerTrust = DesktopCallerTrust(directory:(socketPath as NSString).deletingLastPathComponent)
         self.service = service
+        nativeProvider = NativeProviderExecutor(runtimeGeneration:service.generation)
         service.referencesInvalidated = { [weak nativeProvider] in nativeProvider?.invalidate() }
         self.broker = broker
         approvalDesktopUnlocked = { service.observedDesktopState == "unlocked" }

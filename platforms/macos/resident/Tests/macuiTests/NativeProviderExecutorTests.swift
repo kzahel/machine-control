@@ -61,4 +61,18 @@ final class NativeProviderExecutorTests: XCTestCase {
         var ready = pollfd(fd:pair[1], events:Int16(POLLIN), revents:0)
         XCTAssertEqual(poll(&ready, 1, 0), 0, "No secret ACK may be sent before exact field discovery")
     }
+    func testProviderSharesRuntimeIdentityWithCoordinatorResults() {
+        let coordinator = ResidentService()
+        let worker = NativeProviderExecutor(runtimeGeneration:coordinator.generation)
+        worker.readSession = { ["desktopState":"unlocked"] }
+        let done = expectation(description:"provider refusal")
+        worker.execute(["operation":"unsupported_fixture"], coveredWindows:[], cancellation:{ nil },
+            observed:{ _ in }, authorize:{ nil }, completion:{ result in
+                XCTAssertEqual(result["generation"] as? String,
+                    coordinator.acceptance(["operation":"grant.status"], data:[:])["generation"] as? String)
+                done.fulfill()
+            })
+        wait(for:[done], timeout:2); worker.stop()
+    }
+
 }
