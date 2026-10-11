@@ -123,7 +123,7 @@ def main():
         script = 'Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes; '
         script += '$deadline=[DateTime]::UtcNow.AddSeconds(15); do {'
         script += '$root=[Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty,'+str(app.pid)+'));'
-        script += 'if($root){$item=$root.FindFirst([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.AndCondition]::new([Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,'+quote(name)+'),[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::'+kind+'),[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::IsOffscreenProperty,$false)));if($item){break}};Start-Sleep -Milliseconds 100}while([DateTime]::UtcNow -lt $deadline); if(!$item){throw '+quote('UI unavailable: '+name)+'};'
+        script += 'if($root){$item=$root.FindFirst([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.AndCondition]::new([Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,'+quote(name)+'),[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::'+kind+'),[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::IsOffscreenProperty,$false),[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::IsEnabledProperty,$true)));if($item){break}};Start-Sleep -Milliseconds 100}while([DateTime]::UtcNow -lt $deadline); if(!$item){throw '+quote('UI unavailable: '+name)+'};'
         if checked is None:
             script += '$item.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()'
         else:
@@ -241,9 +241,12 @@ def main():
         # Settings is disposable. Browser work below retains the same owner
         # and native safety presentation while no operator WebView exists.
         ps('Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes;'
-           '$window=[Windows.Automation.AutomationElement]::FromHandle((Get-Process -Id '+str(app.pid)+').MainWindowHandle);'
+           '$window=[Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children,[Windows.Automation.AndCondition]::new([Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty,'+str(app.pid)+'),[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,"Machine Control")));'
            '$window.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close()')
-        check(ps('(Get-Process -Id '+str(app.pid)+').MainWindowHandle.ToInt64()') == '0', 'Settings absent before browser work')
+        absent = ('Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes;'
+                  '$window=[Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children,[Windows.Automation.AndCondition]::new([Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty,'+str(app.pid)+'),[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,"Machine Control")));$null -eq $window')
+        poll(lambda: ps(absent) == 'True', timeout=10)
+        check(True, 'Settings absent before browser work')
         page = accepted({'operation': 'browser.navigate', 'newTab': True,
                          'url': 'http://127.0.0.1:'+str(server.server_port)+'/'})
         tab = page['data']['tab']['tabId']

@@ -46,6 +46,17 @@ Windows support claim.
 
 ## Execution and remaining gates
 
+**Current, development candidate:** Windows personal/minimal/appliance
+presentation reuses this resident and its authorization. Settings is lazy and
+disposable; .NET native approvals, activation notices and Stop work without
+the WebView. Local preferences and CLI recovery preserve authority, and
+temporary launch overrides expire on Restart. Tauri IPC runs on bounded
+background workers. [Runtime and presentation](runtime-and-presentation.md)
+owns the shared decision; [tactical 110](../docs/tactical/110-windows-runtime-presentation.md)
+owns exact-source development signing, fixture/load acceptance and remaining
+ARM64, publisher and protected-session gates. Released packages retain their
+shipped behavior.
+
 **Current:** Public 0.5.7 packages and installed CLI payloads pass authentication
 on x64/ARM64; production downloads and update metadata are verified.
 [Tactical 105](../docs/tactical/105-desktop-0.5.7-release.md) owns publication.

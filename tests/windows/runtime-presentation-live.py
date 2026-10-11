@@ -132,9 +132,14 @@ def main():
             ui('Machine Control is ready to use the desktop', 'Start now')
             owner.wait()
             time.sleep(.4)
+            # Native safety windows may have changed foreground/Z-order.
+            # Arrange the independent fixture explicitly before the agent acts.
+            ps('Add-Type -TypeDefinition \'using System;using System.Runtime.InteropServices;public static class FixturePlacement{[DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr w,IntPtr after,int x,int y,int cx,int cy,uint flags);[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr w);}\';'
+               '$w=(Get-Process -Id '+str(fixture.pid)+').MainWindowHandle;[FixturePlacement]::SetWindowPos($w,[IntPtr](-1),0,0,0,0,0x43)|Out-Null;[FixturePlacement]::SetForegroundWindow($w)|Out-Null')
             before = json.loads(marker.read_text())
             x, y = before['bounds']['x'] + 60, before['bounds']['y'] + 60
-            if before['events'] and before['events'][-1]['x'] == x and before['events'][-1]['y'] == y:
+            cursor = json.loads(ps('Add-Type -TypeDefinition \'using System;using System.Runtime.InteropServices;public static class FixtureCursor{[StructLayout(LayoutKind.Sequential)]public struct P{public int x,y;}[DllImport("user32.dll")]public static extern bool GetCursorPos(out P p);}\';$p=[FixtureCursor+P]::new();[FixtureCursor]::GetCursorPos([ref]$p)|Out-Null;$p|ConvertTo-Json -Compress'))
+            if cursor['x'] == x and cursor['y'] == y:
                 x += 35
                 y += 35
             effect = owner.call({'operation': 'move', 'x': x, 'y': y})

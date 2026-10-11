@@ -20,6 +20,13 @@ The outside caller must verify cleanup, remove its task/staging and temporary
 test trust, restore original target power and release its claim. This runner
 does not qualify protected UAC/lock behavior or publisher signing.
 
+[`runtime-lifecycle-live.py`](runtime-lifecycle-live.py) runs against the staged
+resident in the same interactive Medium session, with the operator closed.
+Supply `--install` and private `--output`. It exercises the existing inherited
+operator transport, not a public approval API: consent/update exclusion,
+Stop, cancellation and exit. It dispatches no installer or replacement.
+The caller owns claims, staging and cleanup as above.
+
 ## Streaming CDP acceptance
 
 [`browser-cdp-live.py`](browser-cdp-live.py) runs in the interactive Medium
