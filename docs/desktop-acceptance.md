@@ -1,6 +1,6 @@
 # Desktop product acceptance matrix
 
-Reviewed: 2026-10-11.
+Reviewed: 2026-10-12.
 
 This is an index of recorded acceptance for the shared Tauri desktop product,
 with earlier runtime evidence kept separate. Linked tactical records own exact
@@ -38,7 +38,29 @@ immediately. Concrete targets and raw evidence stay in private inventory/storage
 | Linux x64, Ubuntu GNOME Wayland VM | Exact signed public 0.5.7 Debian/AppImage bytes, signatures and inventories verified | Public 0.5.0 fresh installed UI/grants/effects/lifecycle and signed replacement with browser tasks pass; earlier same-core lock, reboot/startup and removal evidence remains in 056 | [056](tactical/056-linux-desktop.md), [059](tactical/059-public-linux-desktop.md); [063](tactical/063-six-platform-desktop-release.md), [091](tactical/091-desktop-until-stopped.md); [105](tactical/105-desktop-0.5.7-release.md) |
 | Linux ARM64, Ubuntu GNOME Wayland VM | Public 0.5.7 native Ubuntu CI builds, compiled identity, container inventories/signatures and tamper rejection verified | Exact 0.5.4 Debian visible indefinite access/status, null countdown, AT-SPI delivery, independent GTK counter effect and Stop pass; portal/browser/lifecycle execution remains separate | [056](tactical/056-linux-desktop.md), [059](tactical/059-public-linux-desktop.md); [063](tactical/063-six-platform-desktop-release.md), [091](tactical/091-desktop-until-stopped.md); [105](tactical/105-desktop-0.5.7-release.md) |
 
-## Focused Mac runtime and presentation candidate acceptance
+## Runtime and presentation candidate acceptance
+
+**Current:** personal, minimal and appliance presentation are implemented on
+all three desktop platforms. These unreleased campaigns qualify the specific
+development candidates below. They do not extend the historical public-package
+cells above to the new runtime design or establish a single accepted release.
+[Tactical 112](tactical/112-runtime-presentation-acceptance-review.md) owns the
+combined-source review and remaining campaign order.
+
+| Candidate and source | Build/authentication evidence | Native execution evidence | Remaining gates |
+| --- | --- | --- | --- |
+| Mac profiles, `72a2eef` | ARM64/Intel bundles; local Developer ID signing | ARM64 Tart: all profiles, native approvals/notices/effects, CLI recovery, browser without Settings, restart and standing-policy preservation; [108](tactical/108-macos-runtime-presentation.md) | Full effects on hardened combined source, Intel GUI, protected/physical scope and production installation/update |
+| Mac hardening, `9be9f02` | ARM64/Intel bundles; local Developer ID signing | ARM64 physical host: isolated discovery overload, same-runtime Settings recovery and main-thread sampling; deterministic blocked-dependency/Stop/late-completion fixtures; [109](tactical/109-macos-runtime-hardening.md) | No new VM effect, protected-session or installed-update campaign |
+| Windows, `0875e39` | x64 Tauri; x64/ARM64 .NET; local development certificate on exact executables | x64 dedicated VM: 57 profile/safety/recovery checks, 29 browser checks and 11 lifecycle-exclusion checks; [110](tactical/110-windows-runtime-presentation.md) | Full ARM64 Tauri build/execution, publisher/complete-package authentication, installed replacement and fresh protected qualification |
+| Linux, `35ee5ec` | x64 debug Debian payload; detached development-key authentication | x64 Ubuntu 24.04/GNOME 46 Wayland VM: 214 native checks across profiles, portal/browser effects, faults, restart and CLI parity; extracted package, never installed; [111](tactical/111-linux-runtime-presentation.md) | ARM64 build/execution, production release-mode Debian/AppImage/updater and installed acceptance; other compositor/physical scope |
+
+**Current, source checks:** the combined checkout passes Mac Swift/Rust,
+frontend and portable checks, with unsigned ARM64/Intel Mac app builds. The
+Windows/Linux ports preserve the earlier Mac native implementation but change
+shared Tauri/frontend code. These checks add build evidence, not fresh native
+execution or package authentication. No target was operated in this review.
+
+### Initial Mac profile campaign
 
 Unreleased runtime source `72a2eef` (development version `0.3.0`) builds and
 passes local Developer ID signing verification for ARM64 and Intel. Signed
@@ -59,8 +81,9 @@ with no grant and leave the installed app/policy/helpers unchanged. The original
 VM resident and standing policy are recovered, and its powered-off state is restored. Delegated caller trust remains suspended after
 a temporary-backup loss; the tactical records the restoration limit.
 [Tactical 108](tactical/108-macos-runtime-presentation.md) owns exact evidence,
-friction and limits. Intel GUI, Windows/Linux integration, full protected-session
-recertification, notarization and public publication remain separate. Historical
+friction and limits. Intel GUI, full protected-session recertification,
+notarization and public publication remain separate. Windows/Linux candidate
+integration is recorded above at its own source and scope. Historical
 public-package cells below retain their own versions and scope.
 
 ## Focused Windows desktop UAC candidate acceptance
@@ -173,10 +196,20 @@ has not been exercised. It is not an ordinary desktop-preview prerequisite.
 
 ## Follow-up priorities
 
-**Proposal:** Extend the focused ARM64 Windows/Linux execution above to
-browser and lifecycle coverage. Repeat a full extension task on the signed
-Mac Tauri package. These are separate from physical-machine and privileged
-unlock integration coverage.
+**Decision:** Qualify the runtime/presentation changes at one combined source
+revision through the existing six-target package stream. First close the
+Windows ARM64 full-GUI build and Linux ARM64 build gaps on native hosts or CI.
+Authenticate the final candidates, then run platform-native profile/safety,
+recovery, effects and installed replacement checks, including fresh Mac ARM64
+effects after hardening. Intel Mac GUI and Windows/Linux ARM64 execution cannot
+be inferred from builds or earlier released versions. Publication requires
+separate authorization; [Tactical 112](tactical/112-runtime-presentation-acceptance-review.md)
+defines the bounded follow-up sequence.
+
+**Open:** Fresh protected helper/session qualification, browser/lifecycle scope
+on the remaining architectures, and longer dependency-fault/load soak. Keep
+these separate from ordinary unlocked-session acceptance and from historical
+package evidence.
 
 **Open:** Physical-machine product testing should target specific gaps such as
 multi-monitor/DPI, GPU capture, suspend/resume, and personal-workstation

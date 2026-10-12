@@ -61,6 +61,13 @@ owns exact signed profile, fixture, browser and restoration evidence. Both Mac
 bundle architectures build and pass local signing verification; GUI execution
 is ARM64 only. Exact process samples remain private.
 
+**Current, combined-source review, `built`:** following Windows/Linux integration,
+the unchanged Mac Swift runtime/bridge and shared Tauri/frontend pass current
+source checks and unsigned ARM64/Intel app builds. This adds no signed native
+effect or installed-package qualification to the earlier candidates.
+[Tactical 112](../../docs/tactical/112-runtime-presentation-acceptance-review.md)
+owns this review and the source-boundary comparison.
+
 **Open:** why the original helper replied slowly and the exact displayed error.
 Protected setup/repair/removal, covered startup, some durable file operations
 and update installation retain synchronous native lifecycle paths. Resume's

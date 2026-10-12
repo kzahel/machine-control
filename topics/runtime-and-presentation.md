@@ -2,10 +2,10 @@
 
 Topic: `runtime-and-presentation`
 
-Status: Mac and Windows presentation implementations are in place;
-bounded native qualification and remaining limits are platform-specific.
-Linux implements all three profiles with bounded x64 GNOME Wayland candidate
-qualification; ARM64 execution and production release remain separate.
+Status: all three desktop platforms implement the shared presentation design.
+Bounded native qualification covers Mac ARM64, Windows x64 and Linux x64 GNOME
+Wayland at their recorded revisions. Combined-source package qualification,
+remaining architectures and production release remain separate.
 [Tactical 107](../docs/tactical/107-runtime-and-presentation.md) coordinates the
 migration.
 
@@ -197,3 +197,20 @@ account for TCC ownership, code identity, authenticated operator IPC, updater
 lifecycle and browser integration before changing it. A runtime remaining
 responsive with a deliberately stalled dependency is the first completion
 gate, not a new installer or public headless release.
+
+**Current, acceptance review:** the three platform campaigns qualified different
+source revisions. Later Windows/Linux work changes shared Tauri lifecycle and
+frontend code while preserving the Mac Swift runtime/bridge and Windows .NET
+runtime. Current-source checks and Mac builds do not retroactively qualify a
+combined installed package. [Tactical 112](../docs/tactical/112-runtime-presentation-acceptance-review.md)
+records the comparison; the [acceptance matrix](../docs/desktop-acceptance.md#runtime-and-presentation-candidate-acceptance)
+indexes candidate evidence separately from historical releases.
+
+**Decision:** Next qualify a single combined-source candidate through the
+existing six-target package stream. Close Windows ARM64 GUI build/toolchain
+and Linux ARM64 build/execution gaps on native hosts or CI, authenticate final
+candidate bytes, then run platform-native profile/safety/recovery and installed
+replacement campaigns. Repeat Mac effects on the hardened combined candidate;
+the original profile VM campaign predates hardening. Protected helper/session
+and physical/soak campaigns retain their own scope. Publication remains a
+separate explicitly authorized step.

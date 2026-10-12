@@ -42,13 +42,16 @@ the commits' `Topic:` trailers and register that exact string in
 
 ## Tactical index
 
+- [112 — Runtime and presentation acceptance review](112-runtime-presentation-acceptance-review.md)
+  (completed review): exact-source comparison, combined Mac source checks and
+  remaining package/architecture qualification order.
 - [109 — Mac runtime hardening](109-macos-runtime-hardening.md) (completed bounded pass):
   stalled dependencies, cancellation fences and signed host load/recovery.
 - [108 — Mac runtime and presentation acceptance](108-macos-runtime-presentation.md) (completed Mac slice):
   Mac implementation, signed three-profile acceptance and bounded host checks.
 - [107 — Runtime and presentation](107-runtime-and-presentation.md) (active):
-  Mac nonblocking runtime and three profiles complete; Windows/Linux native
-  integration and shared-package qualification remain open.
+  three desktop integrations and bounded native campaigns complete;
+  combined-source package and remaining architecture qualification stay open.
 
 - [097 — Windows desktop UAC](097-windows-desktop-uac.md) (completed slice):
   optional protected helper, desktop grants/live ownership and 21 x64 VM checks;

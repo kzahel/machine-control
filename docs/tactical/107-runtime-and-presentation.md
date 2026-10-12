@@ -1,6 +1,7 @@
 # 107 — Runtime and presentation
 
-Status: active; Mac milestones 1–4 complete, Windows/Linux qualification open.
+Status: implementation and bounded native campaigns complete on Mac ARM64,
+Windows x64 and Linux x64; combined-source release qualification remains open.
 Owning topics: [runtime and presentation](../../topics/runtime-and-presentation.md),
 [host control](../../topics/host-control.md), and
 [native distribution](../../topics/native-distribution.md).
@@ -143,8 +144,11 @@ reply/handshake bounds, audit-free delegation discovery and signed host load.
 Protected lifecycle/update paths and broader physical qualification remain open.
 
 Windows integration and its bounded development-candidate campaign are
-recorded in [tactical 110](110-windows-runtime-presentation.md). Milestone 5
-remains active for Linux integration and remaining platform qualification.
-Mac evidence does not qualify those platforms, Intel
-GUI execution or a new public package. Continue with existing resident/session
-boundaries and select appropriate native build hosts or CI before deployment.
+recorded in [tactical 110](110-windows-runtime-presentation.md). Linux integration
+and its bounded x64 GNOME Wayland campaign are recorded in
+[tactical 111](111-linux-runtime-presentation.md). Milestone 5 remains active
+for combined-source package, architecture and installed qualification, rather
+than further ordinary-profile integration. [The acceptance review](112-runtime-presentation-acceptance-review.md)
+owns the cross-platform comparison and next campaign order. Each platform's
+earlier candidate retains its exact source and scope; it does not qualify
+later shared changes or a new public package.
