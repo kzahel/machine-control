@@ -81,6 +81,8 @@ def main():
     parser.add_argument('--guest-root', required=True, help='Owned guest fixture directory')
     parser.add_argument('--session', required=True, type=int)
     parser.add_argument('--chrome', required=True, help='Separate Chrome for Testing executable')
+    parser.add_argument('--disable-gpu', action='store_true',
+                        help='Use software rendering for a bounded VM browser trial')
     parser.add_argument('--fixture', required=True, help='Guest native counter fixture executable')
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--runtime-revision', required=True, help='Exact source revision used for the staged runtime build')
@@ -106,6 +108,7 @@ def main():
     mailbox = args.guest_root + '\\run-' + uuid.uuid4().hex
     report = {'schema':'machine-control-owner-acceptance/v0', 'passed':False, 'checks':[],
               'routes':[], 'runtimeRevision':args.runtime_revision,
+              'browserSoftwareRendering':args.disable_gpu,
               'runnerRevision':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()}
     fixture_pid = None
     actor_started = False
@@ -223,11 +226,14 @@ def main():
         upload(Path(__file__).with_name('owner-session-actor.ps1'), actor_path)
         browser_fixture = args.guest_root+'\\browser-fixture.py'
         upload(Path(__file__).with_name('browser-fixture.py'), browser_fixture)
+        actor_arguments = ['-NoProfile','-STA','-ExecutionPolicy','Bypass',
+            '-File',actor_path,'-Install',args.install,'-Mailbox',mailbox,
+            '-Chrome',args.chrome,'-BrowserFixture',browser_fixture]
+        if args.disable_gpu:
+            actor_arguments.append('-DisableBrowserGpu')
         launch_request = {'operation':'app.launch',
             'executablePath':r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe',
-            'arguments':subprocess.list2cmdline(['-NoProfile','-STA','-ExecutionPolicy','Bypass',
-                '-File',actor_path,'-Install',args.install,'-Mailbox',mailbox,
-                '-Chrome',args.chrome,'-BrowserFixture',browser_fixture])}
+            'arguments':subprocess.list2cmdline(actor_arguments)}
         launched = mc.run_adapter(base, ['control',json.dumps(launch_request)], accept_json_failure=True)[1]
         check(launched['accepted'], 'Appliance launches independent interactive UI actor')
         (args.output/'actor-launch.json').write_text(json.dumps(launched))

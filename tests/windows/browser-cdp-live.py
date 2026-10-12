@@ -55,6 +55,8 @@ def main():
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--node', type=Path)
     parser.add_argument('--client-modules', type=Path)
+    parser.add_argument('--disable-gpu', action='store_true',
+                        help='Use software rendering for a bounded VM browser trial')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     exe = args.install / 'runtime/machine-control-windows.exe'
@@ -63,6 +65,8 @@ def main():
               'checks': [], 'routes': [], 'runtimeSha256': hashlib.sha256(exe.read_bytes()).hexdigest()}
     app = browser = owner = None
     received = []
+    page_requests = []
+    report['browserSoftwareRendering'] = args.disable_gpu
     received_lock = threading.Lock()
     key_path = r'Software\Google\Chrome\NativeMessagingHosts\org.machine_control.browser'
     manifest = Path(os.environ['LOCALAPPDATA']) / 'MachineControl/packages/desktop/browser-host.json'
@@ -79,6 +83,7 @@ def main():
             pass
 
         def do_GET(self):
+            page_requests.append(self.path)
             page = b'<title>Child</title><p id="frame">Cross-site child</p>' if self.path == '/frame' else PAGE
             self.send_response(200)
             self.send_header('Content-Type', 'text/html; charset=utf-8')
@@ -141,11 +146,38 @@ def main():
         raise TimeoutError('Read-only observation did not settle')
 
     def new_owner(scopes=("browser", "devtools")):
+        # UIA invocation returns before the asynchronous operator intent has
+        # necessarily installed consent. Observe it before opening one owner;
+        # never retry an ended intent or replay the operator action.
+        def consent_ready():
+            deployment = direct({'operation': 'grant.status'}).get('data', {})
+            grant = deployment.get('grant') or {}
+            allowed = grant.get('scopes', [])
+            return all(scope in allowed or scope == 'browser' and 'devtools' in allowed
+                       for scope in scopes) and not deployment.get('availability', {}).get('paused', True)
+        poll(consent_ready)
         value = ControlSession({'command': [sys.executable, str(Path(__file__).resolve()),
                                 '--channel', str(exe), session_id]},
                                reason='Streaming CDP acceptance', scopes=scopes, wait=60, duration=300)
-        value.wait()
+        try:
+            value.wait()
+        except BaseException:
+            try:
+                report['unreadyOwner'] = value.status()
+            except Exception as diagnostic_error:
+                report['unreadyOwner'] = {'diagnosticError': str(diagnostic_error)}
+            finally:
+                value.close()
+            raise
         return value
+
+    def arm_browser(devtools):
+        # A recreated Settings WebView has fresh scope-selection state. Make
+        # this operator's intended scopes explicit after recovery and Stop.
+        for name, enabled in [('View desktop', False), ('Control apps and input', False),
+                              ('Browser tabs', True), ('Browser scripts and DevTools', devtools)]:
+            ui(name, enabled)
+        ui('Enable access')
 
     def accepted(request):
         value = owner.call(request)
@@ -211,11 +243,10 @@ def main():
         app = subprocess.Popen([str(args.install/'machine-control.exe'), '--gui'],
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         poll(lambda: direct({'operation': 'status'}).get('data', {}).get('ready'))
-        check(direct({'operation': 'browser.endpoint'}).get('errorCode') == 'approval_required', 'Endpoint off by default')
+        report['endpointOffReply'] = direct({'operation': 'browser.endpoint'})
+        check(report['endpointOffReply'].get('errorCode') == 'approval_required', 'Endpoint off by default')
         ui('Permissions'); ui('Set up browser extension'); ui('Access')
-        for name in ['View desktop', 'Control apps and input', 'Browser scripts and DevTools']:
-            ui(name, False)
-        ui('Browser tabs', True); ui('Enable access')
+        arm_browser(False)
         check(direct({'operation': 'browser.endpoint'}).get('errorCode') == 'approval_required', 'Browser grant cannot mint DevTools endpoint')
         capabilities = direct({'operation': 'capabilities'})['data']
         check('browser.endpoint' in capabilities['operations'] and
@@ -225,6 +256,8 @@ def main():
         profile = args.output / ('browser-profile-' + str(time.time_ns()))
         browser = subprocess.Popen([str(args.chrome), '--no-first-run', '--no-default-browser-check',
                                     '--user-data-dir='+str(profile),
+                                    '--enable-logging', '--log-file='+str(args.output/'chrome.log'),
+                                    *(['--disable-gpu'] if args.disable_gpu else []),
                                     '--site-per-process', '--load-extension='+str(args.install/'runtime/browser-extension')],
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         owner = new_owner(['browser'])
@@ -235,7 +268,7 @@ def main():
         except ClientError as error:
             check(error.code == 'operation_not_permitted_by_control_channel', 'Browser owner cannot borrow DevTools scope')
         owner.close(); owner = None
-        ui('Stop access'); ui('Browser scripts and DevTools', True); ui('Enable access')
+        ui('Stop access'); arm_browser(True)
         check(direct({'operation': 'browser.endpoint'}).get('errorCode') == 'control_session_required', 'Standing DevTools grant requires a live owner')
         owner = new_owner()
         # Settings is disposable. Browser work below retains the same owner
@@ -303,7 +336,7 @@ def main():
         check(closed(stream) and refused(replacement) and received == ['first', 'resumed', 'reconnected'], 'Stop closes stream and prevents further effects')
         if args.node and args.client_modules:
             owner.close(); owner = None
-            ui('Enable access'); owner = new_owner()
+            arm_browser(True); owner = new_owner()
             data = accepted({'operation': 'browser.endpoint'})['data']
             root_url = data['browserEndpoint']
             check(refused(root_url[:-64]+'0'*64) and refused(root_url, ''), 'Browser endpoint preserves token and Origin gates')
@@ -349,6 +382,14 @@ def main():
 
     except BaseException as error:
         report['error'] = type(error).__name__ + ': ' + str(error)
+        for name, observe in [('failureGrant', lambda: direct({'operation': 'grant.status'})),
+                              ('failureRuntime', lambda: direct({'operation': 'status'})),
+                              ('failureCapabilities', lambda: direct({'operation': 'capabilities'})),
+                              ('failureOwner', lambda: owner.status() if owner else None)]:
+            try:
+                report[name] = observe()
+            except Exception as diagnostic_error:
+                report[name] = {'diagnosticError': str(diagnostic_error)}
         raise
     finally:
         for value in sockets:
@@ -384,6 +425,7 @@ def main():
             manifest.write_bytes(old_manifest)
         server.shutdown(); server.server_close(); server_thread.join(timeout=5)
         report['received'] = received
+        report['pageRequests'] = page_requests
         report['cleanup'] = {'appExited': app is None or app.poll() is not None,
                              'browserLauncherExited': browser is None or browser.poll() is not None,
                              'serverStopped': not server_thread.is_alive(),

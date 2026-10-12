@@ -4,7 +4,8 @@ param(
  [Parameter(Mandatory=$true)][string]$Install,
  [Parameter(Mandatory=$true)][string]$Mailbox,
  [Parameter(Mandatory=$true)][string]$Chrome,
- [Parameter(Mandatory=$true)][string]$BrowserFixture
+ [Parameter(Mandatory=$true)][string]$BrowserFixture,
+ [switch]$DisableBrowserGpu
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
@@ -77,7 +78,9 @@ try {
      while(-not(Test-Path (Join-Path $Mailbox 'browser-port.txt'))){if([DateTime]::UtcNow -gt $ready){throw 'Browser fixture start timed out'};Start-Sleep -Milliseconds 100}
      $url='http://127.0.0.1:'+(Get-Content (Join-Path $Mailbox 'browser-port.txt'))+'/'
      $profile=Join-Path $Mailbox 'browser-profile'
-     $browser=Start-Process $Chrome -ArgumentList @('--no-first-run','--no-default-browser-check',('--user-data-dir="'+$profile+'"'),('--load-extension="'+$extension+'"'),$url) -PassThru
+     $browserArguments=@('--no-first-run','--no-default-browser-check',('--user-data-dir="'+$profile+'"'),('--load-extension="'+$extension+'"'),$url)
+     if($DisableBrowserGpu){$browserArguments+=@('--disable-gpu')}
+     $browser=Start-Process $Chrome -ArgumentList $browserArguments -PassThru
      $reply.url=$url
      Press 'Access'
     }

@@ -49,6 +49,12 @@ actual candidate evidence; this does not qualify a signed public package.
 Each run creates a fresh browser profile so a retained Manifest V3 worker
 cannot mask changes to the staged extension.
 
+`browser-cdp-live.py` and `owner-session-live.py` accept `--disable-gpu` for
+explicit software-rendered browser trials on VMs. Reports record that choice;
+it does not establish GPU-rendered or physical browser acceptance. Browser
+failure reports retain the off-state reply, owner/grant/provider observations,
+and HTTP page requests before cleanup. Raw browser logs remain private.
+
 For browser-level acceptance also stage [`browser-root-clients.mjs`](browser-root-clients.mjs),
 a matching native Node executable and a private package directory containing
 `playwright-core` 1.63.0 and `puppeteer-core` 25.12.0. Pass `--node` and
