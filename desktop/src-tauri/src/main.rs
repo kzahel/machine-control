@@ -56,6 +56,18 @@ mod operator_callback_tests {
             "operator_dependency_timeout"
         );
     }
+
+    #[test]
+    fn operator_state_keeps_update_projection_with_native_fields() {
+        let native = json!({"ok":true,"state":{"presentation":{"profile":"minimal"}}});
+        let projected = operator_projection(true, native.clone());
+        assert_eq!(projected["state"]["updates"], updates::status());
+        assert_eq!(
+            projected["state"]["presentation"],
+            native["state"]["presentation"]
+        );
+        assert_eq!(operator_projection(false, native.clone()), native);
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -96,6 +108,13 @@ fn platform_command(_: Value) -> Result<Value, String> {
     Err("Desktop workstation control is currently available on macOS; this platform adapter is not installed".into())
 }
 
+fn operator_projection(state_request: bool, mut reply: Value) -> Value {
+    if state_request {
+        reply["state"]["updates"] = updates::status();
+    }
+    reply
+}
+
 fn native_command(command: Value) -> Result<Value, String> {
     if command["method"] == "logs.open" {
         let reply = platform_command(json!({"method":"logs.location"}))?;
@@ -114,11 +133,10 @@ fn native_command(command: Value) -> Result<Value, String> {
         return Ok(json!({"ok":true}));
     }
     let state_request = command["method"] == "state";
-    let mut reply = platform_command(command)?;
-    if state_request {
-        reply["state"]["updates"] = updates::status();
-    }
-    Ok(reply)
+    Ok(operator_projection(
+        state_request,
+        platform_command(command)?,
+    ))
 }
 
 #[tauri::command]
@@ -184,8 +202,10 @@ async fn operator_command(
         }
         command["operatorEpoch"] = json!(windows::epoch());
     }
+    #[cfg(target_os = "macos")]
+    let state_request = command["method"] == "state";
     let permit = native_queue::Permit::acquire()?;
-    let (send, mut receive) = tauri::async_runtime::channel(1);
+    let (send, mut receive) = tauri::async_runtime::channel::<Result<Value, String>>(1);
     schedule_native(&app, move || {
         let _permit = permit;
         // A closed caller must not dispatch a queued mutation later.
@@ -203,7 +223,10 @@ async fn operator_command(
         }
     })
     .map_err(|e| e.to_string())?;
-    receive.recv().await.ok_or("Native operation interrupted")?
+    let reply = receive.recv().await.ok_or("Native operation interrupted")?;
+    #[cfg(target_os = "macos")]
+    let reply = reply.map(|value| operator_projection(state_request, value));
+    reply
 }
 
 #[tauri::command]
