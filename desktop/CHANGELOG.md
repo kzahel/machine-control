@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+## [0.6.0]
+
+- Add personal, minimal and appliance presentation profiles to the same
+  desktop app on Mac, Windows and Linux. Settings opens on demand; native
+  approvals, notices, Pause and Stop remain available without Settings.
+- Add a Settings profile selector and local `machine-control presentation
+  status|set PROFILE|reset` recovery commands. Temporary launch overrides
+  expire on Restart. Presentation changes do not grant access, install a
+  protected helper or replace administrator-provisioned appliance policy.
+- Keep slow helper, companion and provider work away from the UI event loop,
+  with bounded capacity, deadlines and cancellation. Stop fences new actions
+  independently; late replies cannot revive access or reuse stale references.
+- Improve restart and recovery after companion loss, preserve Mac update
+  status through asynchronous replies, and restore Mac log-folder opening.
+
+Includes Mac Apple silicon/Intel, Windows x64/ARM64 and Linux x64/ARM64
+packages. Bounded VM qualification covers all three profiles on Mac ARM64
+and both Windows/Linux architectures at their recorded source revisions;
+Linux ARM64 additionally covers installed Debian and AppImage launchers.
+Signed publication is separate from those development-candidate campaigns.
+Intel Mac GUI execution, native Windows ARM browser/GPU, broader hardware,
+protected-session recertification and longer load/soak coverage remain open.
+Ordinary desktop control still requires a supported graphical session and
+OS permissions; appliance presentation alone does not enable unattended access.
+
 ## [0.5.8]
 
 - Fix Mac locked-use helper setup when another product, such as Codex
