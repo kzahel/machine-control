@@ -42,6 +42,9 @@ the commits' `Topic:` trailers and register that exact string in
 
 ## Tactical index
 
+- [113 — ARM64 runtime and presentation qualification](113-arm64-runtime-presentation-qualification.md)
+  (active): local Windows/Linux ARM64 builds and native campaigns, followed by
+  hardened Mac Tart regression and honest package/installed evidence.
 - [112 — Runtime and presentation acceptance review](112-runtime-presentation-acceptance-review.md)
   (completed review): exact-source comparison, combined Mac source checks and
   remaining package/architecture qualification order.
