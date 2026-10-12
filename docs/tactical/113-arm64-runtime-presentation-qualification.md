@@ -60,3 +60,46 @@ finds a product defect, record the replacement source and rerun affected gates.
 The selected Windows and Linux targets are configured ARM64 hardware-accelerated
 guests. Both start powered off, with canonical credential files ready. Concrete
 identity, claims, journals, tool inventories and raw reports remain private.
+
+### Windows ARM64 result
+
+The combined implementation was built from
+`221f6d48b09a404ea7eddeb1590cf068ddb73871` (executable code unchanged
+from `38750bd`). Native ARM64 Windows 11 build `10.0.26300.9457`
+produced the optimized Tauri GUI, .NET resident/fixture and NSIS installer.
+Frontend, Rust formatting, all-target Clippy with warnings denied, ten Rust
+tests, .NET formatting/build/contracts and independent ARM64 PE checks pass.
+The dedicated guest retains its provisioned native development toolchain.
+
+A disposable non-exportable development certificate authenticated the staged
+GUI, resident and fixture; changed bytes refuse. The NSIS installation trial
+used an unsigned developer installer. Neither establishes production publisher
+trust or versioned updater replacement. Private transfer hashes were verified
+for the preserved candidate, installer and minimized report archive.
+
+| Native campaign | Result |
+| --- | --- |
+| Runtime, profiles, independent safety and recovery | 57 checks |
+| Lifecycle exclusion | 11 checks |
+| Native pointer effects | 36 checks |
+| Streaming/browser roots, including 11 Playwright/Puppeteer client checks | 52 checks |
+| Outside/local owner SDK and bundled CLI effects | 39 checks |
+| Isolated NSIS install, repeated repair, PATH opt-out and uninstall | Pass, including nested CLI discovery |
+
+Both native and browser counter effects were independently observed; owner
+cleanup reported no errors. Browser qualification uses x64-emulated Chrome
+for Testing with explicitly selected software rendering. Default rendering
+timed out; native ARM browser and accelerated GPU behavior remain open.
+Fixture fix `e0cc39f` adds explicit rendering selection, waits for native
+consent, selects browser scopes after recreated Settings and preserves failure
+diagnostics. Fixture fix `2e82a7c` compares installed files by identity across
+short/long TEMP aliases and waits boundedly for uninstaller removal. Neither
+changes product executable code. Failed attempts remain in private evidence.
+
+Canonical stored password verification passed. Owned task, candidate/browser/
+fixture staging, certificate trust and private key were removed; registry,
+PATH and startup state were restored. Graceful shutdown restored initial off
+power and the claim was released. One interrupted stream command lacks an
+automatic journal result, so the journal closed as interrupted rather than
+claiming complete coverage; later acceptance and cleanup evidence establish
+final state independently. No publication or host-app replacement occurred.

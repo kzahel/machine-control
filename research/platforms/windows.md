@@ -423,10 +423,15 @@ of Settings and provider waits. Discovery load, real window recovery and
 independent native pointer effects are covered by the bounded Windows campaign
 in [tactical 110](../../docs/tactical/110-windows-runtime-presentation.md).
 
-This evidence concerns an isolated development candidate. It does not qualify
-a public release, ARM64 desktop execution, publisher-signed installer/update
-replacement, or a new protected-session campaign. The tactical owns measured
-results and the remaining build/signing limits.
+**Current, ARM64 candidate, `conformance-tested` for the bounded routes:**
+[Tactical 113](../../docs/tactical/113-arm64-runtime-presentation-qualification.md)
+adds optimized native ARM64 GUI/NSIS builds, profile/safety/recovery, lifecycle,
+native pointer, streaming/browser and outside/local owner effects. Staged
+executables have development authentication; isolated unsigned NSIS
+install/repair/uninstall passes. Browser effects use x64-emulated Chrome for
+Testing with explicit software rendering; native ARM browser and accelerated
+GPU behavior remain open. This does not qualify publisher trust, production
+updater replacement, a public release or fresh protected/physical scope.
 
 ## Controller CLI reliability
 

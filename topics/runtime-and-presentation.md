@@ -189,7 +189,7 @@ checks pass. [Mac acceptance](../docs/tactical/108-macos-runtime-presentation.md
 owns exact candidate evidence and limits; no public release was performed.
 
 **Open:** Linux ARM64 qualification for these changes, production signing and
-installed/updater acceptance; Windows publisher signing and full ARM64 desktop
+installed/updater acceptance; Windows publisher signing, native ARM browser/GPU
 qualification, Intel Mac GUI execution and broader
 protected/physical qualification. Process separation on Mac remains an
 evidence-based choice:
@@ -214,3 +214,11 @@ replacement campaigns. Repeat Mac effects on the hardened combined candidate;
 the original profile VM campaign predates hardening. Protected helper/session
 and physical/soak campaigns retain their own scope. Publication remains a
 separate explicitly authorized step.
+
+**Current, combined-source Windows ARM64:** optimized GUI/NSIS build and bounded
+profile, safety, recovery, native pointer, streaming/browser and outside/local
+owner effects pass. Isolated unsigned installer install/repair/uninstall also
+passes. Browser effects use x64 emulation with explicit software rendering;
+publisher/updater and native ARM browser/GPU qualification remain separate.
+[Tactical 113](../docs/tactical/113-arm64-runtime-presentation-qualification.md)
+owns this campaign and the pending Linux ARM64 and hardened Mac VM work.
