@@ -129,8 +129,21 @@ class VmClaimAdapterTests(unittest.TestCase):
                         if checked.poll() is None: checked.terminate()
                         checked.communicate(timeout=3)
                     process.stdin.close();process.stdin=None
-                    process.wait(timeout=3)
+                    # Adapter teardown includes durable claim/queue writes,
+                    # audit cleanup, and Git Bash process exit on Windows.
+                    # This protocol test does not measure teardown latency.
+                    process.wait(timeout=30)
+                    self.assertEqual(process.returncode, 0, process.stderr.read())
+                    state_directory = Path(environment[next(
+                        key for key in environment if key.endswith("_CLAIM_STATE_DIR")
+                    )])
+                    entries = json.loads((state_directory / "queue.json").read_text())["entries"]
+                    self.assertEqual(len(entries), 1)
+                    self.assertEqual(entries[0]["state"], "ended")
+                    # Expiry must not mask a broken EOF ownership release.
+                    self.assertEqual(entries[0]["terminalReason"], "cancelled")
                     status = self.run_adapter(executable, environment, "claim-status", "--json")
+                    self.assertEqual(status.returncode, 0, status.stderr)
                     self.assertEqual(json.loads(status.stdout)["data"]["state"], "available")
                 finally:
                     if process.poll() is None: process.terminate()
