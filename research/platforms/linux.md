@@ -126,8 +126,15 @@ without Settings, cancellation, injected dependency faults and restart.
 [Tactical 111](../../docs/tactical/111-linux-runtime-presentation.md) owns exact
 source/artifact identity and execution results. Development detached signature
 authentication does not establish publisher, installer or updater acceptance.
-ARM64 coverage of these changes remains open; earlier ARM64 preview acceptance
-does not qualify these bytes.
+**Current, optimized ARM64 candidate, bounded `conformance-tested` routes:**
+[Tactical 113](../../docs/tactical/113-arm64-runtime-presentation-qualification.md)
+adds native Debian/AppImage release builds, independent container inventories,
+development signatures and tamper rejection, all 214 runtime/profile/portal/
+browser/fault/CLI checks, plus 52 installed Debian and 54 actual AppImage checks.
+Browser effects use native ARM64 Chrome for Testing with software rendering
+and its sandbox enabled. Original installed package files are restored and
+compared. Production publisher/updater signing, accelerated GPU, arbitrary
+monitor layouts and broader compositor/physical scope remain open.
 
 **Current, source-reviewed and live-tested:** An earlier worker arrangement
 left the process default GLib context on another thread and encountered a

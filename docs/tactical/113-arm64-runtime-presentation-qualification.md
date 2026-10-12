@@ -103,3 +103,74 @@ power and the claim was released. One interrupted stream command lacks an
 automatic journal result, so the journal closed as interrupted rather than
 claiming complete coverage; later acceptance and cleanup evidence establish
 final state independently. No publication or host-app replacement occurred.
+
+### Linux ARM64 result
+
+The same source `221f6d4` builds natively on Ubuntu 24.04.5/GNOME 46
+Wayland ARM64. Node 24.21.0, pnpm 10.33.0 and Rust 1.99.0 produced
+optimized Debian and AppImage packages with one build job. Frontend, Python
+unit/static checks, Rust formatting, warning-denied Clippy and nine native
+Rust tests pass. A transient DNS failure interrupted pinned Python staging;
+the independently digest-verified archive was transferred into the existing
+build cache. Dependency pins and product bytes were unchanged.
+
+Both containers independently pass ARM64 compiled identity, exact source,
+bundled CLI relocation and complete runtime/CLI inventory checks. Product
+resources match across formats. Their SHA-256 identities are:
+
+- Debian: `e7c35eeaa4ec3a60ff0c1b28d75fb6a1e260e4179aea4c177c12a1b4a146faa8`.
+- AppImage: `4807ea6e769043ad8d683da340f7c6214a116dcac188173699beec540ef3d3ff`.
+
+Disposable development-key detached signatures authenticate both final files;
+changed bytes refuse. The private key was removed. This is development
+authentication, not production publisher or updater signing.
+
+| Native ARM64 campaign | Result |
+| --- | --- |
+| Companion, portal capture/input/Unicode and cancellation | 57 checks |
+| Three GUI profiles, independent safety, recovery and restart | 92 checks |
+| Provider/session-owner/safety faults and late completion | 30 checks |
+| Native ARM64 Chrome for Testing browser effects and reconnect | 29 checks |
+| Outside/local bundled CLI generation and independent effects | 6 checks |
+| Actual installed Debian native/operator/lifecycle behavior | 52 checks |
+| Actual AppImage launcher native/operator/lifecycle behavior | 54 checks |
+
+The first five campaigns repeat the 214-check runtime scope on ARM64. The
+additional 106 package checks exercise startup registration, real shortcut
+Stop, native approvals/expiry, portal capture and independent semantic, pointer
+and Unicode effects, restart Off, tray recovery, Quit and owner loss.
+Debian was installed with dpkg over the backed-up existing package; AppImage
+was launched through its actual container. This adds release-mode and local
+installed/replacement evidence, not a production updater campaign.
+
+The portal offered two screens. Fixture-only `c71b166` adds a caller-selected
+exact accessible screen name; the primary screen at the origin was selected
+and returned capture/input effects verified. This does not qualify arbitrary
+monitor layouts or scaling. Native ARM64 Chrome for Testing 155.0.8059.39
+uses the existing runner's explicit software rendering and the supplied
+setuid sandbox helper via its supported locator. No sandbox or AppArmor
+weakening was needed; accelerated GPU presentation remains open.
+
+Fixture-only `e95b01b` waits for actual native readiness, preserves an enabled
+shortcut, observes active Stop after effects and finalizes reports after
+cleanup. Installed testing must share GNOME's actual dconf database: an
+isolated XDG config directory otherwise reads a different database from the
+settings daemon's writes. Failed attempts remain privately preserved. The
+first attempt touched the owned shortcut before its canonical snapshot, so
+byte-for-byte pre-trial shortcut preference restoration is not established.
+Later trials restore and verify the captured state; unrelated bindings are
+preserved. GTK/AT-SPI/GLib diagnostics remain in private logs, including native
+hash-table warnings; passing bounded effects do not prove warning-free
+libraries or unrestricted event-loop/provider latency.
+
+The original Debian installation was preserved as a restoration package and
+separate file archive, transferred and hash-verified before the install trial.
+Reinstallation restores its original version and a root-relative archive
+comparison verifies original file bytes/metadata. Both package files and
+minimized final/failure reports are privately preserved with verified transfer
+hashes. The canonical stored password verifies through the supported helper.
+The separate root appliance smoke and final read-only doctor pass without
+outer UI. Owned candidate/browser/fixture processes and sockets are absent;
+owned staging is removed, the sandbox helper disarmed and private signing key
+absent. System build dependencies remain installed. Graceful shutdown restores initial
+off power; the exclusive claim is released. No publication occurred.

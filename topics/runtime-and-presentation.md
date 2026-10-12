@@ -3,9 +3,10 @@
 Topic: `runtime-and-presentation`
 
 Status: all three desktop platforms implement the shared presentation design.
-Bounded native qualification covers Mac ARM64, Windows x64 and Linux x64 GNOME
-Wayland at their recorded revisions. Combined-source package qualification,
-remaining architectures and production release remain separate.
+Bounded native qualification covers Mac ARM64 and both Windows/Linux
+architectures at their recorded revisions. Combined-source Windows/Linux
+ARM64 packages now pass VM acceptance; hardened Mac VM regression and
+production release remain separate.
 [Tactical 107](../docs/tactical/107-runtime-and-presentation.md) coordinates the
 migration.
 
@@ -188,8 +189,8 @@ personal recovery. Intel packaging and bounded physical-host responsiveness
 checks pass. [Mac acceptance](../docs/tactical/108-macos-runtime-presentation.md)
 owns exact candidate evidence and limits; no public release was performed.
 
-**Open:** Linux ARM64 qualification for these changes, production signing and
-installed/updater acceptance; Windows publisher signing, native ARM browser/GPU
+**Open:** Production Linux publisher/updater acceptance; Windows publisher
+signing, native ARM browser/GPU
 qualification, Intel Mac GUI execution and broader
 protected/physical qualification. Process separation on Mac remains an
 evidence-based choice:
@@ -222,3 +223,10 @@ passes. Browser effects use x64 emulation with explicit software rendering;
 publisher/updater and native ARM browser/GPU qualification remain separate.
 [Tactical 113](../docs/tactical/113-arm64-runtime-presentation-qualification.md)
 owns this campaign and the pending Linux ARM64 and hardened Mac VM work.
+
+**Current, combined-source Linux ARM64:** optimized Debian/AppImage identities
+and runtime/CLI inventories match. Development authentication, 214 native
+runtime checks and actual installed Debian/AppImage effects pass.
+[Tactical 113](../docs/tactical/113-arm64-runtime-presentation-qualification.md)
+owns exact artifacts, fixture corrections and remaining production, GPU,
+monitor/compositor and physical limits.
