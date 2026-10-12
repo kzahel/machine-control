@@ -61,12 +61,20 @@ owns exact signed profile, fixture, browser and restoration evidence. Both Mac
 bundle architectures build and pass local signing verification; GUI execution
 is ARM64 only. Exact process samples remain private.
 
-**Current, combined-source review, `built`:** following Windows/Linux integration,
-the unchanged Mac Swift runtime/bridge and shared Tauri/frontend pass current
-source checks and unsigned ARM64/Intel app builds. This adds no signed native
-effect or installed-package qualification to the earlier candidates.
-[Tactical 112](../../docs/tactical/112-runtime-presentation-acceptance-review.md)
-owns this review and the source-boundary comparison.
+**Current, combined-source qualification, `built` and bounded signed ARM64
+`live-tested`:** the shared implementation now repeats all three profiles in
+Tart, native approval/notices, independent semantic/input/capture effects,
+local/outside CLI parity, recovery, restart and standing-policy preservation.
+All 21 native ARM Chrome for Testing browser checks pass with Settings absent.
+Mac corrections `7fd99a3` and `bc1220b` restore the asynchronous operator's
+update-state projection and native log-folder recovery; the final Finder effect
+and owned-window cleanup pass. Both optimized Mac architectures rebuild and
+verify under local Developer ID signing. Intel remains build/signature-only.
+[Tactical 113](../../docs/tactical/113-arm64-runtime-presentation-qualification.md)
+owns exact source, artifact identities, restoration and distribution limits;
+[112](../../docs/tactical/112-runtime-presentation-acceptance-review.md) remains
+the preceding build-only review. This does not add production installation or
+updater replacement evidence.
 
 **Open:** why the original helper replied slowly and the exact displayed error.
 Protected setup/repair/removal, covered startup, some durable file operations

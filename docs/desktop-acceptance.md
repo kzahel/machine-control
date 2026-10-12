@@ -51,16 +51,19 @@ combined-source review and remaining campaign order.
 | --- | --- | --- | --- |
 | Mac profiles, `72a2eef` | ARM64/Intel bundles; local Developer ID signing | ARM64 Tart: all profiles, native approvals/notices/effects, CLI recovery, browser without Settings, restart and standing-policy preservation; [108](tactical/108-macos-runtime-presentation.md) | Full effects on hardened combined source, Intel GUI, protected/physical scope and production installation/update |
 | Mac hardening, `9be9f02` | ARM64/Intel bundles; local Developer ID signing | ARM64 physical host: isolated discovery overload, same-runtime Settings recovery and main-thread sampling; deterministic blocked-dependency/Stop/late-completion fixtures; [109](tactical/109-macos-runtime-hardening.md) | No new VM effect, protected-session or installed-update campaign |
+| Mac ARM64 combined source, `bc1220b` | Optimized ARM64/Intel bundles; local Developer ID authentication and sealed-resource tamper refusal | ARM64 Tart: all profiles, native approvals/notices, local/outside semantic/input/capture effects, recovery, restart, 21 native ARM browser checks, standing-policy preservation and Finder recovery; [113](tactical/113-arm64-runtime-presentation-qualification.md) | Intel GUI, production installation/updater/notarization and protected/physical/soak scope; browser archive lacks resource-signature receipts |
 | Windows, `0875e39` | x64 Tauri; x64/ARM64 .NET; local development certificate on exact executables | x64 dedicated VM: 57 profile/safety/recovery checks, 29 browser checks and 11 lifecycle-exclusion checks; [110](tactical/110-windows-runtime-presentation.md) | Full ARM64 Tauri build/execution, publisher/complete-package authentication, installed replacement and fresh protected qualification |
 | Windows ARM64 combined source, `221f6d4` | Optimized native ARM64 Tauri/.NET/NSIS; development-authenticated staged executables; unsigned isolated installer install/repair/uninstall | 57 profile, 11 lifecycle, 36 pointer, 52 streaming/browser (including 11 clients), 39 owner SDK/CLI checks; [113](tactical/113-arm64-runtime-presentation-qualification.md) | Publisher/updater/protected/physical scope; browser is x64-emulated Chrome for Testing with explicit software rendering, native ARM browser/GPU open |
 | Linux, `35ee5ec` | x64 debug Debian payload; detached development-key authentication | x64 Ubuntu 24.04/GNOME 46 Wayland VM: 214 native checks across profiles, portal/browser effects, faults, restart and CLI parity; extracted package, never installed; [111](tactical/111-linux-runtime-presentation.md) | ARM64 build/execution, production release-mode Debian/AppImage/updater and installed acceptance; other compositor/physical scope |
 | Linux ARM64 combined source, `221f6d4` | Optimized native Debian/AppImage, matching container runtime/CLI inventories; detached development signatures/tamper refusal | 214 runtime/profile/portal/browser/fault/CLI checks; 52 installed Debian and 54 actual AppImage checks; [113](tactical/113-arm64-runtime-presentation-qualification.md) | Production publisher/updater, GPU/compositor/monitor/physical scope; native ARM browser uses software rendering |
 
-**Current, source checks:** the combined checkout passes Mac Swift/Rust,
+**Earlier combined-source review:** the checkout passed Mac Swift/Rust,
 frontend and portable checks, with unsigned ARM64/Intel Mac app builds. The
 Windows/Linux ports preserve the earlier Mac native implementation but change
 shared Tauri/frontend code. These checks add build evidence, not fresh native
-execution or package authentication. No target was operated in this review.
+execution or package authentication. No target was operated in that
+[Tactical 112](tactical/112-runtime-presentation-acceptance-review.md) review;
+Tactical 113 above records the subsequent native campaigns and Mac corrections.
 
 ### Initial Mac profile campaign
 
@@ -198,15 +201,20 @@ has not been exercised. It is not an ordinary desktop-preview prerequisite.
 
 ## Follow-up priorities
 
-**Decision:** Qualify the runtime/presentation changes at one combined source
-revision through the existing six-target package stream. First close the
-Windows ARM64 full-GUI build and Linux ARM64 build gaps on native hosts or CI.
-Authenticate the final candidates, then run platform-native profile/safety,
-recovery, effects and installed replacement checks, including fresh Mac ARM64
-effects after hardening. Intel Mac GUI and Windows/Linux ARM64 execution cannot
-be inferred from builds or earlier released versions. Publication requires
-separate authorization; [Tactical 112](tactical/112-runtime-presentation-acceptance-review.md)
-defines the bounded follow-up sequence.
+**Current:** [Tactical 113](tactical/113-arm64-runtime-presentation-qualification.md)
+closes the native Windows/Linux ARM64 build and bounded execution gaps and
+repeats hardened Mac ARM64 effects, with corrective Mac revisions recorded
+explicitly. Linux adds actual Debian/AppImage installed/launcher evidence.
+The recorded architecture candidates do not qualify one production release
+across all six targets.
+
+**Decision:** Carry these changes through the existing six-target package
+stream with final publisher/package authentication and versioned updater
+replacement acceptance. Qualify Intel Mac GUI and native Windows ARM browser
+on suitable hosts, then broaden GPU/compositor/monitor and sustained-load
+scope. Publication still requires separate authorization; the preceding
+[112 review](tactical/112-runtime-presentation-acceptance-review.md) retains its
+historical build-only evidence.
 
 **Open:** Fresh protected helper/session qualification, browser/lifecycle scope
 on the remaining architectures, and longer dependency-fault/load soak. Keep

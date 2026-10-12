@@ -372,6 +372,8 @@ try:
         def finder_windows():
             return accepted(base(dict(operation='windows', target=finder)))['windows']
         assert not finder_windows(), 'Log-folder fixture requires no existing Finder windows'
+        finder_tree = accepted(base(dict(operation='snapshot', target=finder, projection='compact')))
+        assert not [e for e in finder_tree['elements'] if e['role'] == 'AXWindow'], 'Existing hidden Finder window'
         opened_id = None
         press('Activity'); press('Open log folder')
         try:
@@ -407,7 +409,9 @@ finally:
     if pid is not None:
         try:
             request(dict(operation='grant.revoke'))
-            accepted(base(dict(operation='application.terminate', target=str(pid))))
+            # Stop the resident explicitly so its sockets are unlinked before
+            # process exit; application termination can leave a stale socket.
+            accepted(request(dict(operation='server.stop')))
         except (subprocess.SubprocessError, AssertionError, OSError, ValueError):
             subprocess.run(mc + ["os", "--", "/bin/kill", "-TERM", str(pid)], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if guest_claim is not None:

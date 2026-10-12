@@ -5,8 +5,8 @@ Topic: `runtime-and-presentation`
 Status: all three desktop platforms implement the shared presentation design.
 Bounded native qualification covers Mac ARM64 and both Windows/Linux
 architectures at their recorded revisions. Combined-source Windows/Linux
-ARM64 packages now pass VM acceptance; hardened Mac VM regression and
-production release remain separate.
+ARM64 packages and hardened Mac ARM64 regression now pass VM acceptance at
+their recorded revisions; production release remains separate.
 [Tactical 107](../docs/tactical/107-runtime-and-presentation.md) coordinates the
 migration.
 
@@ -188,6 +188,15 @@ control works with Settings absent; standing policy survives Stop/Resume and
 personal recovery. Intel packaging and bounded physical-host responsiveness
 checks pass. [Mac acceptance](../docs/tactical/108-macos-runtime-presentation.md)
 owns exact candidate evidence and limits; no public release was performed.
+
+**Current (combined-source VM campaign):** native Windows ARM64 Tauri/.NET/NSIS
+and optimized Linux ARM64 Debian/AppImage packages pass runtime/profile effects.
+Linux adds actual installed Debian and AppImage-launcher acceptance. Final
+signed Mac ARM64 source repeats all profiles, 21 browser checks, CLI/native
+effects, restart and standing-policy preservation, including update-display
+and log-folder corrections. [Tactical 113](../docs/tactical/113-arm64-runtime-presentation-qualification.md)
+owns exact revisions and restoration limits. These distinct recorded candidates
+do not establish one qualified six-target production release.
 
 **Open:** Production Linux publisher/updater acceptance; Windows publisher
 signing, native ARM browser/GPU

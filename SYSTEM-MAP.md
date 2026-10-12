@@ -41,9 +41,11 @@ into a raw proxy for every testbed CLI.
 keeps Machine Control's runtime authority independent of its settings, native
 notice and tray presentation. Personal, minimal and appliance presentation are
 modes of one package, not new coordinators or authorization providers. The
-unreleased Mac implementation passes its bounded signed campaign; Windows/Linux
-integration remains separate. Platform process placement is unchanged.
-[Tactical 108](docs/tactical/108-macos-runtime-presentation.md) owns Mac evidence.
+unreleased Mac, Windows and Linux implementations share this design while
+retaining their platform-native providers and process placement.
+[Runtime and presentation](topics/runtime-and-presentation.md) owns current
+direction; [Tactical 113](docs/tactical/113-arm64-runtime-presentation-qualification.md)
+records combined-source ARM64 qualification and its release limits.
 
 | Repository | Current role | Does not own |
 | --- | --- | --- |
