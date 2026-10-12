@@ -43,3 +43,13 @@ assets, and check downloads and production update responses.
 ## Validation and final result
 
 Pending candidate and public delivery verification.
+
+### Qualification repairs
+
+The first candidate built and signed Linux ARM64 containers, then correctly
+rejected five runtime/presentation modules absent from the older strict payload
+requirements. Version 0.6.0 now requires coordinator, notice, one-shot,
+presentation and work modules. Regression fixtures accept both complete
+architectures and reject each omitted module independently; historical
+release inventories retain their original requirements. The failed candidate
+is cancelled before any tag or publication.

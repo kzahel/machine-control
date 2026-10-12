@@ -399,6 +399,52 @@ class LinuxUnifiedReleaseTests(unittest.TestCase):
                         with self.assertRaisesRegex(ValueError, 'missing=.*browser_cdp.js'):
                             release.linux_package.verify(folder, target, version, REVISION, '123.1')
 
+    def test_linux_runtime_presentation_inventory_requires_every_module(self):
+        version = '0.6.0'
+        modules = ['linux-runtime/' + name for name in (
+            'coordinator.py', 'notice.py', 'one_shot.py', 'presentation.py', 'work.py')]
+        for target in release.linux_package.TARGETS:
+            folder = self.candidates / ('linux-desktop-' + target)
+            payload_path = folder / 'payload.json'
+            payload = json.loads(payload_path.read_text())
+            payload['version'] = version
+            cli = ['mc-cli/' + name for name in ('client-runtime.json', 'files.json',
+                   'launch.py', 'commands/machine-control', 'python/bin/python3')]
+            additions = [*cli, 'linux-runtime/updates.py', 'linux-runtime/journal.py',
+                         'linux-runtime/extension/browser_cdp.js', *modules]
+            for record in payload['packages']:
+                record['package'] = record['package'].replace('0.5.0', version)
+                path = folder / record['package']
+                path.write_bytes(b'authenticated runtime presentation fixture')
+                subprocess.run(['minisign', '-S', '-s', str(self.root / 'key'),
+                                '-m', str(path), '-t', 'timestamp:0\tversion:' + version],
+                               check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                Path(str(path) + '.sig').write_bytes(base64.b64encode(
+                    Path(str(path) + '.minisig').read_bytes()))
+                record['files'].extend({'name': name, 'size': 1, 'sha256': 'b' * 64}
+                                       for name in additions)
+            receipt_path = folder / 'build.json'
+            receipt = json.loads(receipt_path.read_text())
+            receipt['version'] = version
+            packages = [record['package'] for record in payload['packages']]
+            for omitted in (None, *modules):
+                with self.subTest(target=target, omitted=omitted):
+                    trial = copy.deepcopy(payload)
+                    for record in trial['packages']:
+                        record['files'] = [item for item in record['files']
+                                           if item['name'] != omitted]
+                    payload_path.write_text(json.dumps(trial))
+                    receipt['artifacts'] = [{'name': name, 'size': (folder / name).stat().st_size,
+                                             'sha256': release.sha256(folder / name)}
+                                            for name in [*packages, *[n + '.sig' for n in packages], 'payload.json']]
+                    receipt_path.write_text(json.dumps(receipt))
+                    with patch.object(release.linux_package, 'ROOT', self.root):
+                        if omitted is None:
+                            release.linux_package.verify(folder, target, version, REVISION, '123.1')
+                        else:
+                            with self.assertRaisesRegex(ValueError, 'missing=.*' + omitted):
+                                release.linux_package.verify(folder, target, version, REVISION, '123.1')
+
     def test_cli_release_refuses_a_completely_omitted_linux_cli(self):
         target = 'x86_64-unknown-linux-gnu'
         folder = self.candidates / ('linux-desktop-' + target)
