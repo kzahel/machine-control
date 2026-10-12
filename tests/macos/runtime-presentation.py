@@ -25,6 +25,7 @@ p.add_argument('--operator-app')
 p.add_argument('--operator-socket')
 p.add_argument('--standing-policy', action='store_true', help='Bounded standing-policy preservation and Stop/Resume trial instead of workstation approval acceptance')
 p.add_argument('--verify-temporary-restart', action='store_true', help='First prove that a temporary launch override expires on signed Restart')
+p.add_argument('--verify-log-folder', action='store_true', help='Observe Open log folder in Finder; requires no existing Finder windows')
 p.add_argument('--browser-suite', help='Guest root containing the browser runner, extension and CDP client; candidate must own the canonical resident socket')
 p.add_argument('--browser-chrome', help='Separate Chrome for Testing executable in the guest')
 a = p.parse_args()
@@ -366,11 +367,30 @@ try:
     assert json.loads(call('testbed', '--', 'fixture-state'))['count'] == before + 2
     tray('Stop access')
     settings()
+    if a.verify_log_folder:
+        finder = 'com.apple.finder'
+        def finder_windows():
+            return accepted(base(dict(operation='windows', target=finder)))['windows']
+        assert not finder_windows(), 'Log-folder fixture requires no existing Finder windows'
+        opened_id = None
+        press('Activity'); press('Open log folder')
+        try:
+            opened = wait(finder_windows, 'native log folder opened in Finder')
+            assert len(opened) == 1 and opened[0]['title'] == 'MachineControl', opened
+            opened_id = opened[0]['windowId']
+        finally:
+            # The precondition and unique new window keep cleanup task-owned.
+            remaining = finder_windows()
+            if opened_id is not None and len(remaining) == 1 and remaining[0]['windowId'] == opened_id:
+                accepted(base(dict(operation='window.close', target=finder)))
+        wait(lambda: not finder_windows(), 'owned Finder window closed')
+        print('Open log folder independently observed in Finder and cleaned up', flush=True)
     print(json.dumps({'schema':'machine-control-mac-presentation-acceptance/v1', 'profile':a.profile,
         'restartAndSignedPermissions':True, 'staleReferences':True, 'pauseResume':True, 'nativeNotice':True,
         'updateDiscoveryAndExclusion':True, 'browserWithoutSettings':bool(a.browser_suite),
         'nativeInputEffects':True,
         'temporaryRestart':a.verify_temporary_restart,
+        'logFolder':a.verify_log_folder,
         'startup':True, 'lazySettings':True, 'singleInstanceRecovery':True, 'nativeApproval':True,
         'deferredPreference':True, 'outsideAndLocalEffects':True, 'capture':True, 'settingsSelector':True, 'liveReset':True, 'stop':True}, sort_keys=True))
 finally:

@@ -74,6 +74,11 @@ extension ResidentRuntime {
                 case "logs.preview": return ["ok": true, "preview": server.broker.journal?.preview() ?? [:]]
                 case "logs.export": return ["ok": true, "path": try server.broker.journal?.export() ?? ""]
                 case "logs.location": return ["ok": true, "path": server.broker.journal?.root.path ?? ""]
+                case "logs.open":
+                    guard let root = server.broker.journal?.root,
+                          NSWorkspace.shared.open(root) else {
+                        throw MacUIError.action("Log folder unavailable")
+                    }
                 case "logs.diagnostic":
                     server.broker.journal?.diagnostic("desktop.supervisor", code: command["code"] as? String ?? "unknown")
                 case "stop":

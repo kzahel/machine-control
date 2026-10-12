@@ -82,6 +82,11 @@ final class ResidentRuntimeTests: XCTestCase {
     func testAsyncResumeKeepsPauseUntilHelperSucceeds() throws {
         _ = NSApplication.shared
         let value = try runtime(); try value.start(); defer { value.stop() }
+        // This success fixture has a stable unlocked console. Initial notice
+        // reconfiguration and host activity belong to separate fence tests.
+        value.server.grantConsoleObservation = { ["desktopState":"unlocked"] }
+        value.server.activity.stop()
+        value.server.refreshAdmission()
         try value.server.broker.pause()
         let started = expectation(description:"helper started")
         let done = expectation(description:"Resume succeeded")
@@ -89,7 +94,7 @@ final class ResidentRuntimeTests: XCTestCase {
         defer { release.signal() }
         value.resumeHelper = { _, _ in started.fulfill(); release.wait() }
         value.operatorCommand(["method":"resume"]) { result in
-            XCTAssertEqual(result["ok"] as? Bool, true)
+            XCTAssertEqual(result["ok"] as? Bool, true, "\(result)")
             XCTAssertFalse(value.server.broker.admission.blocks("desktop").contains("manual"))
             done.fulfill()
         }
