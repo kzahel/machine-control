@@ -17,6 +17,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--runtime", type=Path, required=True)
 parser.add_argument("--output", type=Path, required=True)
 parser.add_argument("--consent-actor", type=Path, required=True)
+parser.add_argument("--portal-source", help="Exact screen name for the independent consent actor")
 parser.add_argument("--fixture", type=Path, required=True)
 args = parser.parse_args()
 sys.path.insert(0, str(args.runtime))
@@ -152,7 +153,8 @@ try:
 
     check("Stop before portal setup", operator("stop")["ok"])
     check("portal pending is asynchronous", operator("permission")["ok"])
-    consent = subprocess.Popen(["/usr/bin/python3", str(args.consent_actor), "--runtime", str(args.runtime)],
+    consent = subprocess.Popen(["/usr/bin/python3", str(args.consent_actor), "--runtime", str(args.runtime),
+                                *(["--source", args.portal_source] if args.portal_source else [])],
                                stdout=log, stderr=log)
     owned.append(consent)
     try:

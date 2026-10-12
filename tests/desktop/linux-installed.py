@@ -18,6 +18,7 @@ parser.add_argument("--app", type=Path, required=True)
 parser.add_argument("--runtime", type=Path, required=True)
 parser.add_argument("--output", type=Path, required=True)
 parser.add_argument("--consent-actor", type=Path, required=True)
+parser.add_argument("--portal-source", help="Exact screen name for the independent consent actor")
 parser.add_argument("--revision")
 parser.add_argument("--fixture", type=Path)
 parser.add_argument("--client", type=Path,
@@ -227,7 +228,8 @@ try:
     menu("Open")
     press("Permissions")
     press("Share…")
-    consent = subprocess.run(["/usr/bin/python3", str(args.consent_actor), "--runtime", str(args.runtime)],
+    consent = subprocess.run(["/usr/bin/python3", str(args.consent_actor), "--runtime", str(args.runtime),
+                                *(["--source", args.portal_source] if args.portal_source else [])],
                              stdout=log, stderr=log, timeout=35)
     check("installed portal consent", consent.returncode == 0)
     poll(lambda: call("status")["data"]["captureState"] == "ready")

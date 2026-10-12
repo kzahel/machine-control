@@ -10,12 +10,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--runtime", type=Path, required=True)
 parser.add_argument("--cancel", action="store_true")
 parser.add_argument("--screen-only", action="store_true")
+parser.add_argument("--source", help="Exact accessible screen name for a multi-screen test target")
 args = parser.parse_args()
 sys.path.insert(0, str(args.runtime))
 import linuxui
 from gi.repository import GLib
 linuxui.Atspi.init()
 
+source_selected = False
 deadline = time.monotonic() + 30
 while time.monotonic() < deadline:
     try:
@@ -38,10 +40,18 @@ while time.monotonic() < deadline:
         check = [(n, i) for n, i in nodes if i["name"] == "Allow Remote Interaction" and i["role"] == "check box"]
         sources = [(n, i) for n, i in nodes if i["role"] == "toggle button"]
         share = [(n, i) for n, i in nodes if i["name"] == "Share" and i["role"] == "push button"]
-        assert len(sources) == len(share) == 1
+        assert len(share) == 1
+        selected = [(n, i) for n, i in sources if i["name"] == args.source] if args.source else sources
+        assert len(selected) == 1
         assert len(check) == (0 if args.screen_only else 1)
         if check and "checked" not in linuxui.state_names(check[0][0]):
             assert check[0][0].do_action(0)
+        if args.source and len(sources) > 1 and not source_selected:
+            # Multiple sources have no default selection on this GNOME profile.
+            # Select only the caller-named screen; the returned stream and
+            # independent capture/input effects remain the acceptance oracle.
+            assert selected[0][0].do_action(0)
+            source_selected = True
         # GNOME selects its sole monitor initially. GTK4 omits its checked
         # state from AT-SPI on this profile; toggling would deselect it. Require
         # the portal's returned stream and an actual frame as the oracle.
