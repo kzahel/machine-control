@@ -3,7 +3,8 @@
 Topic: `native-distribution`
 
 Status: signed Windows headless workstation preview remains available; YA now
-consumes the installed desktop CLI and has retired its component lifecycle. Unified Mac/Windows/Linux desktop `0.5.7` is published; package
+consumes the installed desktop CLI and has retired its component lifecycle.
+Unified Mac/Windows/Linux desktop `0.6.0` is published; package
 signatures, public downloads, and production metadata are verified for all six
 architectures.
 ARM64 Tart has targeted signed browser-indicator evidence; Windows x64 retains
@@ -11,8 +12,10 @@ its earlier installed product acceptance. Public 0.5.4 adds focused indefinite
 access and fixture-effect acceptance on all three ARM64 VMs, plus Windows
 production replacement from 0.5.3. Intel and full physical product acceptance
 remain separate. Linux x64 Debian/AppImage installed acceptance and signed
-replacement pass on Ubuntu GNOME Wayland; ARM64 portal/browser/lifecycle
-coverage remains open. Legacy Mac `0.3.3`/`0.3.4` update senders may need one reopen;
+replacement pass on Ubuntu GNOME Wayland. ARM64 development candidates now
+pass bounded portal/browser/lifecycle and installed-package qualification;
+exact production replacement remains separate. Legacy Mac `0.3.3`/`0.3.4`
+update senders may need one reopen;
 fixed senders pass production-feed handoff. YA installed Mac/Windows consumer
 model/media/lifecycle use and Linux x64 core control are accepted within
 [their declared scope](../../yepanywhere/topics/optional-computer-control.md).
@@ -46,14 +49,16 @@ its authority or silently installing it on personal machines.
 
 ## Current implementation
 
-**Current:** [Public desktop 0.5.7](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.5.7)
+**Current:** [Public desktop 0.6.0](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.6.0)
 promotes one authenticated six-target candidate. Public asset signatures,
 source/run identities, download redirects and both production metadata routes
-pass verification. [Tactical 105](../docs/tactical/105-desktop-0.5.7-release.md)
-owns the release evidence and qualification repairs. Windows UAC, bounded
-covered unlock, activity pause, pointer gestures, upload and CDP features ship
-with their existing focused unsigned VM evidence; publication does not add
-signed installed feature or broader architecture/hardware execution coverage.
+pass verification. [Tactical 114](../docs/tactical/114-desktop-0.6.0-release.md)
+owns the release evidence and qualification repair. Personal, minimal and
+appliance presentations ship in one app with bounded runtime work and local
+recovery. [Runtime and presentation](runtime-and-presentation.md) owns their
+native qualification and remaining installed replacement, protected-session
+and architecture/hardware limits. Publication does not extend earlier VM
+effects to these exact production packages.
 
 **Decision:** Adopt Desktop Release Kit's Stable discovery cadence: a silent
 check after five seconds and daily while running, with a bounded timeout and
@@ -230,7 +235,7 @@ then published the same draft by ID without replacing bytes or its tag. Future
 CI publication now resolves and verifies the draft by ID. Both re-downloaded
 public DMGs and archives passed publisher signatures, notarization/stapling,
 updater signature/version and tamper rejection. The live download page selects
-unified `0.5.7` for all eight installer/package routes. Both the shared server and website proxy return signed
+unified `0.6.0` for all eight installer/package routes. Both the shared server and website proxy return signed
 archive metadata with cumulative required changelogs for older clients and 204
 for current clients. Product registration and the website proxy preserve the
 endpoint already embedded in 0.3.3.

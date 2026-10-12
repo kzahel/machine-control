@@ -247,8 +247,8 @@ the commits' `Topic:` trailers and register that exact string in
   download/update verification and bounded qualification repairs.
 
 - [114 — Desktop 0.6.0 release](114-desktop-0.6.0-release.md):
-  unified runtime/presentation publication and six-target package and delivery
-  verification.
+  complete unified runtime/presentation publication and six-target package
+  and delivery verification.
 
 - [106 — macOS shared screen-unlock rule](106-macos-shared-screen-unlock-rule.md):
   helper refusal codes in Permissions and own-entry composition of the

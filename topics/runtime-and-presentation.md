@@ -6,7 +6,8 @@ Status: all three desktop platforms implement the shared presentation design.
 Bounded native qualification covers Mac ARM64 and both Windows/Linux
 architectures at their recorded revisions. Combined-source Windows/Linux
 ARM64 packages and hardened Mac ARM64 regression now pass VM acceptance at
-their recorded revisions; production release remains separate.
+their recorded revisions. Public 0.6.0 authenticates one combined six-target
+package set; production installed replacement remains separate.
 [Tactical 107](../docs/tactical/107-runtime-and-presentation.md) coordinates the
 migration.
 
@@ -198,8 +199,14 @@ and log-folder corrections. [Tactical 113](../docs/tactical/113-arm64-runtime-pr
 owns exact revisions and restoration limits. These distinct recorded candidates
 do not establish one qualified six-target production release.
 
-**Open:** Production Linux publisher/updater acceptance; Windows publisher
-signing, native ARM browser/GPU
+**Current (public packages):** [Desktop 0.6.0](../docs/tactical/114-desktop-0.6.0-release.md)
+ships one authenticated six-target package set from a single source/candidate,
+including production Windows publisher signing, Mac notarization and all
+updater signatures. Download and update metadata verification passes. These
+package gates do not establish installed runtime effects or replacement.
+
+**Open:** Installed production updater replacement for the refactored profiles;
+native Windows ARM browser/GPU
 qualification, Intel Mac GUI execution and broader
 protected/physical qualification. Process separation on Mac remains an
 evidence-based choice:
@@ -216,22 +223,20 @@ combined installed package. [Tactical 112](../docs/tactical/112-runtime-presenta
 records the comparison; the [acceptance matrix](../docs/desktop-acceptance.md#runtime-and-presentation-candidate-acceptance)
 indexes candidate evidence separately from historical releases.
 
-**Decision:** Next qualify a single combined-source candidate through the
-existing six-target package stream. Close Windows ARM64 GUI build/toolchain
-and Linux ARM64 build/execution gaps on native hosts or CI, authenticate final
-candidate bytes, then run platform-native profile/safety/recovery and installed
-replacement campaigns. Repeat Mac effects on the hardened combined candidate;
-the original profile VM campaign predates hardening. Protected helper/session
-and physical/soak campaigns retain their own scope. Publication remains a
-separate explicitly authorized step.
+**Decision:** Next run exact public-package installed profile/safety/recovery
+and versioned replacement campaigns. Native ARM64 build/execution and hardened
+Mac effects are recorded in Tactical 113; production six-target authentication
+is recorded in Tactical 114. Protected helper/session, native Windows ARM
+browser/GPU, Intel GUI and physical/soak campaigns retain their own scope.
 
 **Current, combined-source Windows ARM64:** optimized GUI/NSIS build and bounded
 profile, safety, recovery, native pointer, streaming/browser and outside/local
 owner effects pass. Isolated unsigned installer install/repair/uninstall also
 passes. Browser effects use x64 emulation with explicit software rendering;
-publisher/updater and native ARM browser/GPU qualification remain separate.
+installed production updater and native ARM browser/GPU qualification remain
+separate.
 [Tactical 113](../docs/tactical/113-arm64-runtime-presentation-qualification.md)
-owns this campaign and the pending Linux ARM64 and hardened Mac VM work.
+owns this campaign, Linux ARM64 and hardened Mac VM work.
 
 **Current, combined-source Linux ARM64:** optimized Debian/AppImage identities
 and runtime/CLI inventories match. Development authentication, 214 native
