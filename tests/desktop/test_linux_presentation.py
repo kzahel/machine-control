@@ -9,6 +9,9 @@ import threading
 import unittest
 from unittest.mock import patch
 
+if os.name != "posix":
+    raise unittest.SkipTest("Linux presentation requires POSIX locking, ownership and sockets")
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "desktop/native/linux"))
 from presentation import Presentation, exchange, runtime_directory
 

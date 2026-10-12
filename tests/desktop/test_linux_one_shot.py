@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "desktop/native/lin
 from one_shot import read_reply
 
 
+@unittest.skipUnless(os.name == "posix", "Native reply reader requires POSIX pipe polling")
 class OneShotTests(unittest.TestCase):
     def test_silent_native_child_expires_and_is_reaped(self):
         with subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"], stdout=subprocess.PIPE) as child:
