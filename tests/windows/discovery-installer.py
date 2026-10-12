@@ -158,7 +158,17 @@ def main():
                 line = subprocess.list2cmdline([str(executable), "/S"]) + " _?=" + str(install)
                 subprocess.run(line, executable=str(executable), check=True, timeout=90)
                 assert not (install / "machine-control.exe").exists(), "Uninstaller did not finish"
-                executable.unlink(missing_ok=True)
+                # Process exit can precede release of the mapped image on
+                # Windows. Retry only removal of this owned installer file.
+                deadline = time.monotonic() + 15
+                while True:
+                    try:
+                        executable.unlink(missing_ok=True)
+                        break
+                    except PermissionError:
+                        if time.monotonic() >= deadline:
+                            raise
+                        time.sleep(.05)
 
         try:
             if args.preserve_registration:
@@ -175,7 +185,10 @@ def main():
             fresh["PATH"] = os.path.expandvars(machine_path + ";" + read("Environment", "Path")[0])
             result = subprocess.run([os.environ["COMSPEC"], "/d", "/c", "chcp 65001 >nul & where machine-control"],
                                     env=fresh, capture_output=True, encoding="utf-8", check=True, timeout=20)
-            assert str(install / "machine-control.exe").casefold() in result.stdout.casefold()
+            # TEMP can use an 8.3 parent while the installer and launcher use
+            # its canonical long path. Compare file identity, not spelling.
+            assert any(Path(line.strip()).samefile(install / "machine-control.exe")
+                       for line in result.stdout.splitlines() if line.strip()), "Fresh PATH does not resolve the installed executable"
             evidence["checks"].append("fresh PATH resolves command; existing environment stays stale")
             setup()
             assert registered().count(str(install)) == 1
