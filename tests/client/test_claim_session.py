@@ -194,13 +194,33 @@ runpy.run_path(command[1],run_name="__main__")
         marker = self.directory / "effect"
         with self.session() as first:
             first.wait()
-            child = subprocess.Popen([sys.executable, str(ROOT/'bin/machine-control'),'--registry',str(registry),'--target','fixture',
+            # Diagnostics during import do not mean cancellation is armed.
+            # Inject one on every Python version to exercise that distinction.
+            launch = "import os,runpy,sys; os.write(2,b'Fixture startup diagnostic\\n'); sys.argv=sys.argv[1:]; runpy.run_path(sys.argv[0],run_name='__main__')"
+            child = subprocess.Popen([sys.executable, '-c', launch, str(ROOT/'bin/machine-control'),'--registry',str(registry),'--target','fixture',
                 'run','--wait','30s','--reason','Validate cancellation','--claimant-authority','fixture','--claimant-id','queued-task',
                 '--',sys.executable,'-c',"from pathlib import Path; Path("+repr(str(marker))+").touch()"],
                 stdout=subprocess.PIPE,stderr=subprocess.PIPE)
             self.children.append(child)
-            ready = select.select([child.stderr], [], [], 5)[0]
-            self.assertTrue(ready)
+            deadline = time.monotonic() + 5
+            pending = b""
+            waiting = False
+            while not waiting and time.monotonic() < deadline:
+                if not select.select([child.stderr], [], [], max(0, deadline - time.monotonic()))[0]:
+                    break
+                chunk = os.read(child.stderr.fileno(), 8192)
+                if not chunk:
+                    break
+                pending += chunk
+                while b"\n" in pending:
+                    line, pending = pending.split(b"\n", 1)
+                    try:
+                        record = json.loads(line)
+                    except ValueError:
+                        continue
+                    if isinstance(record, dict) and record.get("schema") == "machine-control-run/v0" and record.get("event") == "waiting":
+                        waiting = True
+            self.assertTrue(waiting, "CLI did not reach cancellable queued state")
             child.send_signal(signal.SIGTERM)
             _, error = child.communicate(timeout=5)
             self.assertEqual(child.returncode, 128 + signal.SIGTERM, error.decode())
