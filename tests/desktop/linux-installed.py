@@ -38,6 +38,7 @@ log = args.output.with_suffix(".log").open("w")
 endpoint = Path(os.environ["XDG_RUNTIME_DIR"]) / "machine-control-desktop/desktop.sock"
 bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
 startup = shortcut = False
+shortcut_initial = None
 fixture_unit = "mc-desktop-installed-fixture.service"
 fixture_owned = False
 
@@ -150,6 +151,7 @@ def menu(label):
     time.sleep(.3)
 
 
+failure = None
 try:
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as predecessor:
         try:
@@ -163,7 +165,7 @@ try:
         args.app.chmod(args.app.stat().st_mode | 0o100)
     process = subprocess.Popen([str(args.app)], stdout=log, stderr=log, start_new_session=True)
     poll(lambda: call("status")["accepted"])
-    state = call("status")
+    state = poll(lambda: reply if (reply := call("status")).get("data", {}).get("ready") else None)
     check("installed resident ready", state["accepted"] and state["data"]["ready"])
     if args.revision:
         check("exact source revision", state["data"]["sourceRevision"] == args.revision)
@@ -196,8 +198,10 @@ try:
     press("Start at login", "check box")
     startup = False
     check("login registration removed", all(not p.exists() for p in registrations))
-    press("Stop shortcut", "check box")
-    shortcut = True
+    shortcut_initial = "checked" in linuxui.state_names(poll(lambda: widget("Stop shortcut", "check box")))
+    if not shortcut_initial:
+        press("Stop shortcut", "check box")
+        shortcut = True
     poll(lambda: "checked" in linuxui.state_names(widget("Stop shortcut", "check box")))
     menu("Open")
     press("Enable access")
@@ -209,8 +213,9 @@ try:
     poll(lambda: call("status")["data"]["grant"] is None)
     check("real shortcut Stop effect", True)
     menu("Settings")
-    press("Stop shortcut", "check box")
-    shortcut = False
+    if not shortcut_initial:
+        press("Stop shortcut", "check box")
+        shortcut = False
     menu("Open")
     with concurrent.futures.ThreadPoolExecutor() as pool:
         denial = pool.submit(call, "grant.request", scopes=["observe"], durationSeconds=20,
@@ -285,7 +290,7 @@ try:
         poll(lambda: fixture()["text"] == "Installed Linux 世界 café")
         check("installed independent Unicode effect", True)
         menu("Open")
-        poll(lambda: widget("Enable access"))
+        poll(lambda: widget("Stop access"))
     old = call("status")["generation"]
     menu("Settings")
     press("Restart")
@@ -323,27 +328,32 @@ try:
         check("operator loss removes resident endpoint", True)
         check("independent fixture survives operator loss", subprocess.run(
               ["systemctl", "--user", "is-active", "--quiet", fixture_unit]).returncode == 0)
-    report(complete=True)
 except BaseException as error:
-    report(complete=True, failure=str(error))
+    failure = str(error)
     raise
 finally:
-    if fixture_owned:
-        subprocess.run(["systemctl", "--user", "stop", fixture_unit], capture_output=True)
-    if endpoint.exists():
-        try:
-            menu("Stop access")
-            menu("Settings")
-            if startup:
-                press("Start at login", "check box")
-            if shortcut:
-                press("Stop shortcut", "check box")
-            menu("Quit")
-        except Exception:
-            pass
-    if process and process.poll() is None:
-        try:
-            process.wait(5)
-        except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGTERM)
-            process.wait(5)
+    try:
+        if fixture_owned:
+            subprocess.run(["systemctl", "--user", "stop", fixture_unit], capture_output=True)
+        if endpoint.exists():
+            try:
+                menu("Stop access")
+                menu("Settings")
+                if startup:
+                    press("Start at login", "check box")
+                if shortcut:
+                    press("Stop shortcut", "check box")
+                menu("Quit")
+            except Exception as cleanup_error:
+                failure = failure or "Operator cleanup failed: " + str(cleanup_error)
+        if process and process.poll() is None:
+            try:
+                process.wait(5)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGTERM)
+                process.wait(5)
+    except BaseException as cleanup_error:
+        failure = failure or str(cleanup_error)
+        raise
+    finally:
+        report(complete=True, failure=failure)
