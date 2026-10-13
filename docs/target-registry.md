@@ -46,8 +46,10 @@ The `host` target is the Mac running the client. Its adapter talks to the
 local Machine Control resident socket and needs no inventory entry. The
 resident's root-owned deployment policy decides whether access is standing
 or needs a person's approval; see [`host-control`](../topics/host-control.md).
-A private registry that sets `includeDefaults: false` must list `host`
-explicitly to use it.
+A registry file or controller configuration that sets
+`includeDefaults: false` must list `host` explicitly to use it. Targets from a
+private inventory provider always keep the built-in `host` unless the
+inventory defines its own `host` entry.
 
 For a standard setup:
 

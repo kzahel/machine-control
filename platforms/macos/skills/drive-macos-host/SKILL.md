@@ -87,8 +87,10 @@ refused until the person at the computer approves a grant.
 
 When a goal takes more than about three attempts, needs Machine Control
 source to work out a command, has no observed effect, makes you switch to
-Computer Use or another route, or ends with the person taking over, record it
-before moving on:
+Computer Use or another route, ends with the person taking over, or stops the
+task with an error you cannot get past, record it before moving on or
+reporting back. `usage note` works offline, even when the target is
+unreachable:
 
 ```bash
 bin/machine-control --target host --claim "$CLAIM" usage note \

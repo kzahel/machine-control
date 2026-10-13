@@ -17,10 +17,14 @@ Write one note per distinct difficulty, while the details are fresh, when:
 - a request was accepted but had no observed effect, or the effect was wrong;
 - you switched to another route, such as Computer Use, AppleScript or a
   provider escape hatch (`--kind fallback`);
-- the person took over (`--kind handoff`); or
+- the person took over (`--kind handoff`);
+- an error stopped the task, even a setup or configuration failure before any
+  control happened; or
 - the typed surface lacked an operation you needed (`--kind follow-up`).
 
-Routine success needs no note. If a task produced friction notes, close it
+Write the note before reporting back to the person, so a stopped task still
+leaves a trace. `usage note` is offline and works when the target is
+unreachable. Routine success needs no note. If a task produced friction notes, close it
 with one `summary` stating whether the goal was finally achieved and how.
 
 ```bash

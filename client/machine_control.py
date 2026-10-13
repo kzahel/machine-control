@@ -585,7 +585,13 @@ def load_registry(
             "invalid_registry", f"Target registry must use {TARGET_SCHEMA}"
         )
     if document.get("includeDefaults", False) is not True:
-        targets = {}
+        # Private inventory describes remote machines; the local host needs no
+        # inventory entry and must not disappear when one is configured.
+        targets = (
+            {"host": targets["host"]}
+            if source == "inventory-provider" and "host" in targets
+            else {}
+        )
     configured = document.get("targets")
     if not isinstance(configured, dict):
         raise ClientError(

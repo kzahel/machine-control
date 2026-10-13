@@ -108,7 +108,8 @@ results remain unknown. Keep logs private and credentials in the secret store.
 
 Record difficult control use privately. When a goal takes more than about
 three attempts, needs CLI source to work out, has no observed effect, forces a
-fallback (for example Computer Use) or ends with a human takeover, pipe the
+fallback (for example Computer Use), ends with a human takeover or stops on an
+error, before reporting back (it works offline), pipe the
 details (commands/references tried, what happened, what finally worked) to:
   machine-control --target host --claim CLAIM_ID usage note --kind friction \\
     --goal 'one line: what you were doing'

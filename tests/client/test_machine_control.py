@@ -1628,6 +1628,25 @@ class RegistryResolutionTests(unittest.TestCase):
         self.assertEqual(source, "defaults")
         self.assertIn("linux", targets)
 
+    def test_inventory_provider_keeps_builtin_host(self):
+        self.write_config(inventoryProvider="inventory.py")
+        target = {"platform": "linux", "profile": "fixture",
+                  "controllerPlatforms": ["darwin"], "command": ["true"]}
+        for configured, expected in (({"vm": target}, "macos"),
+                                     ({"vm": target, "host": target}, "linux")):
+            with self.subTest(configured=list(configured)), mock.patch.object(
+                machine_control, "provider_registry", return_value={
+                    "schema": machine_control.TARGET_SCHEMA,
+                    "includeDefaults": False, "targets": configured}):
+                targets, source = machine_control.load_registry(None)
+            self.assertEqual(source, "inventory-provider")
+            self.assertEqual(sorted(targets), ["host", "vm"])
+            self.assertNotIn("linux", targets)
+            if expected == "linux":
+                self.assertEqual(targets["host"]["platform"], "linux")
+            else:
+                self.assertEqual(targets["host"], machine_control.DEFAULT_TARGETS["host"])
+
     def test_controller_config_selects_relative_inventory_provider(self):
         self.write_sibling_provider()
         self.write_config(inventoryProvider="providers/inventory.py")

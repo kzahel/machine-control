@@ -151,7 +151,7 @@ rerun doctor rather than bypassing claim enforcement.
 
 When ordinary target control is hard — repeated attempts, a missing typed
 operation, accepted actions without effect, a fallback to Computer Use or
-another route, or a human takeover — record a private
+another route, a human takeover, or a blocking error — record a private
 [usage note](docs/usage-journal.md) through the common CLI. Notes and audit
 commands carry the agent's published session ID (`AGENTCTL_SESSION_ID`,
 `CLAUDE_CODE_SESSION_ID`, or `CODEX_THREAD_ID`) so a later review can open the
