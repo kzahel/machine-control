@@ -43,7 +43,8 @@ the commits' `Topic:` trailers and register that exact string in
 ## Tactical index
 
 - [116 — Desktop 0.6.1 release](116-desktop-0.6.1-release.md)
-  (active): publish the covered-startup repair with all six authenticated packages.
+  (complete): covered-startup repair, six authenticated packages and verified
+  public delivery.
 - [115 — Mac covered startup observation ordering](115-macos-covered-observation-ordering.md)
   (complete bounded repair and physical completion): cached/late-poll regressions,
   exact-console guardian handoff, signed local installation and covered effects/relock.

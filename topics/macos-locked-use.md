@@ -21,7 +21,11 @@ Expiry, takeover, successive tasks and broader protected-session qualification
 remain open for this repaired candidate. The
 [platform report](../research/platforms/macos.md#covered-startup-observation-ordering)
 owns the evidence and [Tactical 115](../docs/tactical/115-macos-covered-observation-ordering.md)
-owns the bounded diagnosis and repair.
+owns the bounded diagnosis and repair. The fix is now published in
+[desktop 0.6.1](../docs/tactical/116-desktop-0.6.1-release.md), with both Mac
+packages independently authenticated and notarized. The physical effects above
+remain evidence of the signed local candidate; the public packages have not
+been installed for another physical completion test.
 
 ## Decision
 

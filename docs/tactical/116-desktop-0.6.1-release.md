@@ -1,6 +1,6 @@
 # 116 — Desktop 0.6.1 release
 
-Status: active.
+Status: complete; published on 2026-10-13.
 Owning topics: [native distribution](../../topics/native-distribution.md) and
 [macOS locked use](../../topics/macos-locked-use.md).
 
@@ -42,4 +42,35 @@ download redirects and production update metadata before completion.
 
 ## Validation and final result
 
-Pending exact-source release workflow and public verification.
+**Current:** [Public desktop 0.6.1](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.6.1)
+uses immutable annotated tag `desktop-v0.6.1` at source
+`d0da170e9cb5e0c29b688abd856d611336defc21`.
+[Unified release 38455544883](https://github.com/kzahel/machine-control/actions/runs/38455544883),
+attempt 1, builds, authenticates and publishes all six targets.
+[Exact-source cross-platform checks](https://github.com/kzahel/machine-control/actions/runs/38454945028)
+pass; a Mac coordinator job required retry after hosted runner acquisition
+failed before any steps ran. The redundant push-triggered Mac check is
+cancelled to free the release workflow's check slot.
+
+All 29 independently downloaded public assets match GitHub SHA-256 digests
+and sizes. Six package receipts bind version, source, workflow run and attempt.
+Windows/Linux updater signatures, signed versions and payload inventories
+pass with tamper rejection. Both Mac packages pass nested publisher signatures,
+Gatekeeper, notarization/staples and updater signatures, including tamper
+rejection. Hosted builds verify native Windows installed publisher signatures
+and catalogs, Linux container inventories and installed CLI relocation for
+all six targets. Local public verification authenticates packages in isolated
+staging without launching residents or replacing the installed test candidate.
+
+The public manifest contains exactly six signed updater entries and the
+required changelog. The download page and all eight redirects select 0.6.1.
+All 24 production responses across the website proxy and shared service match
+the manifest for 0.6.0 clients and return HTTP 204 for 0.6.1 clients.
+
+Local release/changelog regression tests pass (20 tests), as do portable
+checks. The release workflow passes Mac Swift tests, native static smoke,
+Rust/frontend format, lint and build checks, Windows contracts and native
+publishes. The repair's 175 Swift tests and 16-check physical completion
+retain the precise source/candidate limits in [115](115-macos-covered-observation-ordering.md).
+Publication does not establish new installed production-package effects or
+broader expiry, takeover, successive-task, Intel or multiple-display evidence.
