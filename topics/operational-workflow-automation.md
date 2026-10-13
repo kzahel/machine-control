@@ -24,7 +24,9 @@ claim's or session's retained audit commands attached on review
 attempts, lacks a typed operation, has no observed effect, falls back to
 another route or ends in human takeover. Reviews compare those transcripts
 with other providers on the same task to choose typed operations, skill
-corrections and fixtures.
+corrections and fixtures. The first comparison found the macOS Open panel
+and missing desktop subcommand help to be the largest costs; see Tactical
+118's open follow-ups.
 
 **Decision:** Every fresh bring-up records a run, including successful runs
 without friction. Notes preserve workarounds, fix commits and deferred ideas;

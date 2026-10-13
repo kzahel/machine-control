@@ -1,7 +1,7 @@
 # 118 — Usage friction journal
 
-Status: active. Source implementation and fixture tests are complete; live
-comparison runs are in progress.
+Status: complete. Source implementation, fixture tests and live comparison
+runs on a personal Mac host are complete; follow-ups are listed below.
 Owning topics: [operational workflow automation](../../topics/operational-workflow-automation.md),
 [target operation audit](../../topics/target-operation-audit.md).
 
@@ -69,4 +69,53 @@ wins, partial pair refused). The full client and release-package suites pass.
 
 ## Final result
 
-Pending step 4.
+Step 1–3 landed as planned. The live step used Codex sessions launched
+through YepAnywhere on a personal Mac, each loading and then removing a
+throwaway probe extension in the everyday Chrome profile. Four Machine
+Control attempts and two Computer Use attempts ran; the original failed
+session was backfilled as notes with an explicit session reference.
+
+**Current:** The journal works end to end. Notes recorded the Codex thread
+ID automatically, claims defaulted to it as claimant, and `usage show
+--commands` attached each note's claim or session audit trail without
+arguments or typed text. Later runs wrote notes before reporting back.
+
+Live runs exposed and fixed four problems:
+
+- a source checkout lost the built-in `host` target when the sibling
+  private inventory provider was present; inventory registries now keep it;
+- a malformed claim ID produced an opaque refusal, and an agent that had
+  dropped one character could not tell; the refusal now states the expected
+  shape and what differs;
+- the first agent stopped on a blocker without a note; guidance now covers
+  blocking errors and states that notes work offline; and
+- an agent revoked a standing grant it had not requested because the host
+  skill said to revoke unconditionally; it now revokes only its own.
+
+Comparison (sanitized):
+
+| Route | Attempts | Loaded, verified, removed | Time on success |
+| --- | --- | --- | --- |
+| Machine Control | 1 after setup fixes (plus the original) | 1 | about 5 minutes |
+| Computer Use | 2 | 0 | — |
+
+Both routes reached `chrome://extensions` quickly; every failure and most of
+the time was in the macOS Open panel. Computer Use could not open Go to
+Folder and gave up within one to three minutes. Machine Control opened it
+with cmd+shift+g; an absolute path returned to the volume root, while the
+same path without its leading slash produced a selectable suggestion. The
+successful run was coordinate-driven and verified with window captures,
+because `chrome://` pages are outside the browser route.
+
+**Open:** follow-ups, in priority order:
+
+1. `--help` for desktop and browser subcommands; nine of 45 audited commands
+   in the successful run were usage refusals while learning grammar.
+2. A typed native Open-panel path or folder choice for the Mac host; `browser
+   upload` covers only file inputs, and the native panel is the root of the
+   task's difficulty on every route.
+3. Document that `chrome://` pages refuse `browser navigate` and snapshot,
+   and that `about:blank`, cmd+l, `desktop input text` and Return works.
+4. Accept application names or `--target` consistently on `desktop snapshot`
+   and `desktop input click`.
+5. Consider binding `grant revoke` to the requesting caller.
