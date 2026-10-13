@@ -3,8 +3,8 @@ import SiteFooter from "../components/SiteFooter.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import SiteLayout from "../layouts/SiteLayout.astro";
 
-const title = "Newsletter privacy note — Machine Control";
-const description = "How Machine Control handles addresses submitted for project updates.";
+const title = "Privacy — Machine Control";
+const description = "How the Machine Control Chrome extension and project update list handle your data.";
 ---
 
 <SiteLayout title={title} description={description} canonicalPath="/privacy/">
@@ -12,41 +12,75 @@ const description = "How Machine Control handles addresses submitted for project
   <main class="article-page">
     <article class="article-header article-body shell prose-shell prose">
       <p class="eyebrow">Privacy</p>
-      <h1>A small list with a narrow purpose.</h1>
+      <h1>Your computer, your data.</h1>
       <p class="lede">
+        Machine Control runs on your own computer. It has no Machine Control
+        account, and the project does not collect what your agents see or do.
+      </p>
+
+      <h2 id="chrome-extension">Chrome extension</h2>
+      <p>
+        The Machine Control Chrome extension connects only to the Machine
+        Control app on the same computer, through Chrome native messaging. It
+        does not send data to Machine Control servers or any other remote
+        service, and it contains no analytics or advertising.
+      </p>
+      <p>
+        While you have granted browser access in the app, the extension acts on
+        the requests that the app forwards from an agent you run: it can list
+        tabs, open pages, read page structure, click, type, upload files you
+        name, and take screenshots. With the separate DevTools grant, it can
+        also run scripts and read data on any site. Results go to the app on
+        your computer and from there to the agent you chose. What that agent
+        does with them, including any AI service it uses, is governed by that
+        agent's terms, not by Machine Control.
+      </p>
+      <p>
+        The side panel keeps a short list of recent actions in browser memory
+        so you can see what an agent is doing. It records operation names, tab
+        references, outcomes, and counts, not typed text, scripts, or page
+        content, and it is discarded when Chrome stops the extension. The
+        extension stores only its own tab-indicator state locally. It does not
+        sell or share data, and it does not use data for advertising or
+        creditworthiness decisions.
+      </p>
+
+      <h2 id="newsletter">Project update list</h2>
+      <p>
         If you subscribe for Machine Control updates, your email address is used
         only for occasional project news about releases, platform evidence, and
         development notes.
       </p>
 
-      <h2>What is stored</h2>
+      <h3>What is stored</h3>
       <p>
         The list stores your email address, when you joined, whether you joined
         from the homepage or blog, and the version of this notice. Duplicate
         signups update the existing entry.
       </p>
 
-      <h2>Where it is stored</h2>
+      <h3>Where it is stored</h3>
       <p>
         The site and signup database run on Cloudflare. Cloudflare Turnstile is
         used to reject automated submissions. The Machine Control list does not
         intentionally retain your IP address or browser fingerprint.
       </p>
 
-      <h2>What it is not used for</h2>
+      <h3>What it is not used for</h3>
       <p>
         The address is not sold, shared for unrelated marketing, or used to
         create a Machine Control account.
       </p>
 
-      <h2>Removal and questions</h2>
+      <h3>Removal and questions</h3>
       <p>
-        To ask what is stored or have your address removed, email
+        To ask what is stored or have your address removed, or with any other
+        privacy question, email
         <a href="mailto:kyle@graehlarts.com?subject=Machine%20Control%20privacy">kyle@graehlarts.com</a>.
         Future project emails will also provide a way to opt out.
       </p>
 
-      <p>Last updated: August 25, 2026.</p>
+      <p>Last updated: October 13, 2026.</p>
       <p><a href="/">← Return to the homepage</a></p>
     </article>
   </main>
