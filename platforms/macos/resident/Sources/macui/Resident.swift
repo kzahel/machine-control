@@ -556,7 +556,7 @@ final class ResidentService {
 
     func refreshObservations() {
         sessionObservation.refresh(); helperObservation.refresh()
-        applySessionObservation(sessionObservation.value)
+        projectSessionObservation(sessionObservation.value)
     }
     func stopObservations() { sessionObservation.stop(); helperObservation.stop() }
 
@@ -565,6 +565,11 @@ final class ResidentService {
     }
 
     func applySessionObservation(_ next: [String:Any]) {
+        sessionObservation.replace(with:next)
+        projectSessionObservation(next)
+    }
+
+    private func projectSessionObservation(_ next: [String:Any]) {
         var notified = false
         for token in lockNotificationTokens {
             var changed: Int32 = 0

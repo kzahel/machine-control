@@ -42,6 +42,9 @@ the commits' `Topic:` trailers and register that exact string in
 
 ## Tactical index
 
+- [115 — Mac covered startup observation ordering](115-macos-covered-observation-ordering.md)
+  (complete bounded repair and physical completion): cached/late-poll regressions,
+  exact-console guardian handoff, signed local installation and covered effects/relock.
 - [113 — ARM64 runtime and presentation qualification](113-arm64-runtime-presentation-qualification.md)
   (completed bounded campaign): native Windows/Linux ARM64 packages and
   hardened signed Mac Tart profiles, effects, restoration and explicit limits.

@@ -148,7 +148,8 @@ private final class CoveredGuardian {
         guard now < deadline else { throw MacUIError.action("duration_expired") }
         parentHeartbeat = now + 5
         try writeSocket(STDOUT_FILENO, data:encodeJSONLine([
-            "phase":"active", "windowIds":Array(covers.windowIDs), "pid":getpid()]))
+            "phase":"active", "windowIds":Array(covers.windowIDs), "pid":getpid(),
+            "sessionObservation":service.observedConsoleSession]))
         let timer = DispatchSource.makeTimerSource(queue:.main)
         timer.schedule(deadline:.now(), repeating:.milliseconds(250))
         timer.setEventHandler { [weak self] in autoreleasepool { self?.tick() } }
@@ -260,6 +261,7 @@ final class CoveredGuardianClient {
     private var active = false
     private var ended = false
     private var failure: String?
+    private var activationObservation: [String:Any]?
     private var descriptor: Int32 = -1
     private var child: Process?
     private let safety: LockedUseSafety
@@ -267,7 +269,7 @@ final class CoveredGuardianClient {
     var windowIDs: Set<Int> { lock.lock(); defer { lock.unlock() }; return ids }
     var healthy: Bool { lock.lock(); defer { lock.unlock() }; return active && !ended && failure == nil }
 
-    func start(duration:Int, deadline:TimeInterval) throws {
+    func start(duration:Int, deadline:TimeInterval) throws -> [String:Any] {
         guard let executable = Bundle.main.executableURL else { throw MacUIError.action("guardian_executable_missing") }
         var sockets: [Int32] = [-1,-1]
         guard socketpair(AF_UNIX, SOCK_STREAM, 0, &sockets) == 0 else { throw MacUIError.action("guardian_socket_failed") }
@@ -291,7 +293,11 @@ final class CoveredGuardianClient {
                     let phase = message["phase"] as? String ?? "error"
                     lock.lock()
                     if let values = message["windowIds"] as? [Int] { ids = Set(values) }
-                    if phase == "active" { active = true }
+                    if phase == "active" {
+                        activationObservation = message["sessionObservation"] as? [String:Any]
+                        active = activationObservation != nil
+                        if !active { failure = "guardian_activation_observation_missing" }
+                    }
                     if ["interrupted", "error"].contains(phase) { failure = message["reason"] as? String ?? "guardian_interrupted" }
                     if phase == "ended" { ended = true; active = false }
                     let reason = failure
@@ -313,6 +319,9 @@ final class CoveredGuardianClient {
             lock.lock(); let reason = failure; lock.unlock()
             throw MacUIError.action(reason ?? "guardian_start_failed")
         }
+        lock.lock(); let observation = activationObservation; lock.unlock()
+        guard let observation else { throw MacUIError.action("guardian_activation_observation_missing") }
+        return observation
     }
     func heartbeat() throws {
         guard descriptor >= 0, healthy else { throw MacUIError.action("guardian_disconnected") }

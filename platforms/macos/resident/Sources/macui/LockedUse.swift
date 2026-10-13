@@ -54,6 +54,17 @@ func consoleSessionReplaced(_ initial: [String:Any], _ current: [String:Any]) ->
         !sameConsoleSession(initial, current)
 }
 
+/// The trusted guardian has independently observed unlock before reporting
+/// activation. Never let the parent's pre-unlock polling cache decide this step.
+func coveredActivationObservation(_ observation: [String:Any], initial: [String:Any]) throws -> [String:Any] {
+    guard initial["desktopState"] as? String == "locked",
+          observation["desktopState"] as? String == "unlocked",
+          sameConsoleSession(initial, observation) else {
+        throw MacUIError.action("covered_unlock_not_observed")
+    }
+    return observation
+}
+
 /// Retained access belongs to the same console in which the person approved it.
 /// A preference cannot transfer that approval across logout or user switching.
 struct GrantConsoleBinding {
@@ -542,8 +553,9 @@ final class MacLockedUse {
             guardian = child
             let remaining = Int(lease.deadline - ProcessInfo.processInfo.systemUptime)
             guard remaining >= 1 else { throw MacUIError.action("duration_expired") }
-            try child.start(duration:remaining, deadline:lease.deadline)
+            let observation = try child.start(duration:remaining, deadline:lease.deadline)
             guard safety.reason == nil, child.healthy else { throw MacUIError.action("safety_guard_unavailable") }
+            service.applySessionObservation(try coveredActivationObservation(observation, initial:lease.session))
             phase = "active"; lastHelperHeartbeat = 0
         } catch {
             end(safety.reason ?? String(describing:error))

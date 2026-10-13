@@ -8,6 +8,21 @@ on macOS 26.6.2. Operator-confirmed physical takeover/recovery is live-tested
 with a scripted timing caveat. Multiple displays, additional OS revisions,
 Intel execution and distribution qualification remain open.
 
+**Current (2026-10-13):** desktop 0.6.0 has bounded physical evidence of
+covered startup ending immediately despite approved access and a healthy
+helper. The asynchronous session cache can overwrite newer native evidence.
+The source repair fences older polls and binds activation to the guardian's
+unlocked observation of the original console. Deterministic regressions pass;
+the same-publisher signed ARM64 local candidate is installed with permissions
+and healthy helper retained. After explicit operator opt-in, its one-display
+physical completion cell passes covered unlock, independent native effects,
+filtered capture, completion relock and retention of the original approval.
+Expiry, takeover, successive tasks and broader protected-session qualification
+remain open for this repaired candidate. The
+[platform report](../research/platforms/macos.md#covered-startup-observation-ordering)
+owns the evidence and [Tactical 115](../docs/tactical/115-macos-covered-observation-ordering.md)
+owns the bounded diagnosis and repair.
+
 ## Decision
 
 Add an initially disabled, persistent local setting named **Allow Machine

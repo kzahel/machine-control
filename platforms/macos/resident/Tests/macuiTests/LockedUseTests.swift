@@ -100,6 +100,24 @@ final class LockedUseTests: XCTestCase {
         XCTAssertEqual(lease.refusal(now:10, grantID:"grant", session:[:]), "session_changed")
     }
 
+    func testCoveredActivationRequiresUnlockedObservationOfOriginalConsole() throws {
+        var initial = session; initial["desktopState"] = "locked"
+        var unlocked = session; unlocked["desktopState"] = "unlocked"
+        XCTAssertEqual(try coveredActivationObservation(unlocked, initial:initial)["desktopState"] as? String,"unlocked")
+        for state in ["locked", "unknown", "no_session"] {
+            var invalid = unlocked; invalid["desktopState"] = state
+            XCTAssertThrowsError(try coveredActivationObservation(invalid, initial:initial))
+        }
+        for key in ["uuid", "uid", "boot"] {
+            var replacement = unlocked; replacement[key] = "other"
+            XCTAssertThrowsError(try coveredActivationObservation(replacement, initial:initial))
+            replacement.removeValue(forKey:key)
+            XCTAssertThrowsError(try coveredActivationObservation(replacement, initial:initial))
+        }
+        XCTAssertThrowsError(try coveredActivationObservation(unlocked, initial:unlocked),
+            "An unlocked-origin task must never acquire covered authority")
+    }
+
     func testOnlyLockedOriginTasksCanAcquireCoveredRelockAuthority() {
         for origin in ["unlocked", "locked", "unknown"] {
             var observation = session; observation["desktopState"] = origin

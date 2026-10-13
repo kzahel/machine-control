@@ -82,6 +82,52 @@ and update installation retain synchronous native lifecycle paths. Resume's
 helper wait is now asynchronous and fenced. Full protected/physical
 recertification and broader responsiveness soak remain separate.
 
+## Covered startup observation ordering
+
+**Current (2026-10-13), bounded `live-tested` failure on installed ARM64
+desktop 0.6.0 / macOS 26.6.2:** two covered-control attempts ended during
+startup. The retry began with all four ordinary scopes approved, locked-use
+ready, a healthy approved helper and no recovery pause. It ended after about
+two seconds with `desktop_locked`, cleared access and required manual unlock.
+The first attempt also returned `control_generation_changed` during concurrent
+status preflight; resident history recorded `console_session_changed`.
+Independent OS observations after cleanup were locked. Ordinary native desktop
+and foreground browser effects passed after manual recovery. These observations
+do not establish whether the screen briefly unlocked or isolate every possible
+protected-provider failure.
+
+**Current, `source-reviewed` and deterministic regression evidence:** the
+runtime/presentation refactor gives the resident a background session cache,
+but newer direct observations did not supersede its cached or in-flight reads.
+Covered guardian readiness also omitted its independently verified unlocked
+session from the parent handoff. Two regressions reproduced a fresh unlocked
+observation being rolled back to a pre-unlock locked result. This is consistent
+with the observed immediate cancellation and revocation, without requiring a
+permission failure. The source repair preserves observation ordering and binds
+guardian activation to the original console; it retains expiry, worker bounds,
+unknown-state refusal and unlocked-origin restrictions. [Tactical
+115](../../docs/tactical/115-macos-covered-observation-ordering.md) records
+validation. A subsequent explicitly authorized local ARM64 installation uses
+the existing 0.6.0 desktop/CLI with the repaired native framework, signed by the
+same Developer ID publisher and carrying a sealed local-patch identity.
+Isolated startup, installed byte identity, native permission retention and
+automatic maintenance of the already approved helper pass. The disabled
+locked-use choice is preserved and the console remains unlocked. This local
+candidate is not newly notarized or published.
+
+**Current, bounded physical completion `conformance-tested` on this signed
+ARM64 candidate:** after explicit operator opt-in and manual lock, the native
+OS probe observes covered unlock on one display. An exact owned fixture's file
+oracle confirms AX button, pointer and keyboard effects. Native display capture
+reports covers excluded, yields a valid PNG, and visual inspection shows the
+fixture's resulting counter and text beneath the cover. Explicit completion
+produces independently observed OS relock, no remaining covers/session, no
+manual-recovery pause and the unchanged original approval. All 16 bounded
+checks pass; fixture and target claim cleanup pass. This qualifies one clean
+completion cycle, not expiry, takeover, repeated tasks, multiple displays or
+public-package distribution. Physical cover appearance was not separately
+confirmed by an operator or an external capture oracle.
+
 ## Resumable admission
 
 **Current, `built` and bounded `live-tested`:** the owned admission channel

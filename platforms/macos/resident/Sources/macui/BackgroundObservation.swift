@@ -62,6 +62,14 @@ final class BackgroundObservation<Value> {
         generation = UUID(); stored = nil; observedAt = nil; nextRead = 0
         deadline?.cancel(); deadline = nil
     }
+    /// A newer direct observation supersedes both cached data and reads that
+    /// started before it. Retain the occupied worker slot until that read exits.
+    func replace(with value: Value) {
+        guard !stopped else { return }
+        generation = UUID(); stored = value; observedAt = now(); nextRead = now() + interval
+        deadline?.cancel(); deadline = nil
+        changed?()
+    }
     func stop() { stopped = true; invalidate() }
     deinit { deadline?.cancel() }
 }
