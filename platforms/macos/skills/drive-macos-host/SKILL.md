@@ -37,7 +37,10 @@ refused until the person at the computer approves a grant.
 4. Use the ordinary `desktop` commands. A result with
    `errorCode: approval_required` names the missing scope in
    `data.requiredScope`; request it once, with a reason.
-5. When finished, run `grant revoke` and release the claim.
+5. When finished, release the claim. Run `grant revoke` only if this task
+   requested the grant; a grant that was already active when you started
+   belongs to the person or another task, and revoking it forces them to
+   approve again.
 
 ## Browser work
 
