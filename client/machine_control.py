@@ -20,6 +20,7 @@ from typing import Any
 
 import audit_history
 import provision_journal
+import usage_journal
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -3089,19 +3090,50 @@ def parse_claim_metadata(values: list[str]) -> dict[str, str]:
 
 
 def claim_acquire_options(arguments: list[str]) -> argparse.Namespace:
-    return parse_options(
+    options = parse_options(
         arguments,
         [
             (("--duration",), {"type": parse_duration_seconds}),
             (("--disruptive",), {"action": "store_true"}),
             (("--reason",), {"required": True}),
-            (("--claimant-authority",), {"required": True}),
-            (("--claimant-id",), {"required": True}),
+            (("--claimant-authority",), {}),
+            (("--claimant-id",), {}),
             (("--session-id",), {}),
             (("--label",), {}),
             (("--metadata",), {"action": "append", "default": []}),
         ],
     )
+    default_claimant(options)
+    if not options.claimant_authority or not options.claimant_id:
+        raise ClientError(
+            "usage",
+            "claim acquire requires --claimant-authority and --claimant-id "
+            "outside a session-publishing agent host",
+        )
+    return options
+
+
+CLAIMANT_AUTHORITIES = {
+    "AGENTCTL_SESSION_ID": "yepanywhere",
+    "CLAUDE_CODE_SESSION_ID": "claude-code",
+    "CODEX_THREAD_ID": "codex",
+}
+
+
+def default_claimant(options: argparse.Namespace) -> None:
+    """Attribute an unlabeled claim to the agent host's own session ID.
+
+    Explicit attribution always wins; a partial pair is never completed.
+    """
+    if options.claimant_authority is not None or options.claimant_id is not None:
+        return
+    reference = audit_history.session_ref()
+    if reference is None:
+        return
+    options.claimant_authority = CLAIMANT_AUTHORITIES[reference["source"]]
+    options.claimant_id = reference["id"]
+    if options.session_id is None:
+        options.session_id = reference["id"]
 
 
 def claim_acquire_adapter_arguments(options: argparse.Namespace) -> list[str]:
@@ -3377,6 +3409,7 @@ def _workspace_claim_arguments(
     ))
     required = target.get("claimPolicy") == "required"
     if required or supplied:
+        default_claimant(options)
         if not all((
             options.reason,
             options.claimant_authority,
@@ -3685,12 +3718,14 @@ def usage() -> str:
 Commands:
   agent identity|instructions     Read CLI identity or agent workflow (offline)
                                     identity --paths includes resolved locations
-  audit history [--claim-id ID] [--claimant-id ID] [--since UTC] [--limit N]
-                                    Read private controller history (offline)
+  audit history [--claim-id ID] [--claimant-id ID] [--session-ref ID]
+        [--since UTC] [--limit N]  Read private controller history (offline)
   storage analyze [--root PATH] [--minimum-bytes N]
                                     Inspect disk images; never deletes (offline)
   provision begin|note|show|finish  Dated private bring-up journal (offline)
                                     Use `provision --help` for details
+  usage note|show                   Record or review difficult control use (offline)
+                                    Use `usage --help`; carry --target/--claim
   inventory list|status|guide|credentials|doctor
                                     Use the private deployment inventory
   targets                         List logical targets without private paths
@@ -3744,12 +3779,15 @@ def claim_usage() -> str:
        machine-control --target ALIAS claim status
        machine-control --target ALIAS claim acquire [--duration DURATION]
            [--disruptive]
-           --reason TEXT --claimant-authority NAMESPACE --claimant-id ID
+           --reason TEXT [--claimant-authority NAMESPACE --claimant-id ID]
            [--session-id ID] [--label TEXT] [--metadata KEY=VALUE]...
        machine-control --target ALIAS claim renew CLAIM_ID
            [--duration DURATION]
        machine-control --target ALIAS claim release CLAIM_ID
 
+Without an explicit claimant pair, the agent host's published session ID
+(AGENTCTL_SESSION_ID, CLAUDE_CODE_SESSION_ID or CODEX_THREAD_ID) becomes the
+claimant and session ID, so audit history leads back to the transcript.
 Durations accept seconds or an s, m, or h suffix. Caller attribution is
 bounded and self-asserted; do not include secrets or private target identity.
 Carry the returned claim ID with global --claim, renew during active work, and
@@ -3905,6 +3943,21 @@ def main(argv: list[str] | None = None) -> int:
                     ValueError, UnicodeError) as error:
                 raise ClientError("provision_journal_unavailable",
                     "Provisioning journal is unavailable or the request is invalid") from error
+            if isinstance(value, str):
+                print(value, end="")
+            else:
+                emit(value)
+            return 0
+        if operation == "usage":
+            try:
+                value = usage_journal.handle(
+                    remainder[1:], target=known.target, claim=known.claim)
+            except usage_journal.JournalError as error:
+                raise ClientError("invalid_usage_request", str(error)) from error
+            except (audit_history.AuditError, OSError, sqlite3.Error,
+                    ValueError, UnicodeError) as error:
+                raise ClientError("usage_journal_unavailable",
+                    "Usage journal is unavailable or the request is invalid") from error
             if isinstance(value, str):
                 print(value, end="")
             else:

@@ -75,6 +75,9 @@ Otherwise acquire your own claim:
   machine-control --target host claim acquire --duration 30m \\
     --reason 'describe the task' --claimant-authority YOUR_ENVIRONMENT \\
     --claimant-id YOUR_TASK_ID
+Inside YepAnywhere, Claude Code or Codex, omit both claimant options: the
+published session ID (AGENTCTL_SESSION_ID, CLAUDE_CODE_SESSION_ID or
+CODEX_THREAD_ID) becomes the claimant, linking audit history to the transcript.
 
 Require accepted=true and retain data.claim.claimId. Carry --claim CLAIM_ID on
 every subsequent target operation. Renew during long work and release promptly
@@ -82,7 +85,7 @@ in finally/trap cleanup: machine-control --target host claim release CLAIM_ID.
 Caller/session ids are attribution, not credentials. Never invent identity.
 
 For past activity, use `machine-control --target TARGET audit history`.
-Filter with --claim-id, --claimant-id or --since; inspect coverage and resourceKey.
+Filter with --claim-id, --claimant-id, --session-ref or --since; inspect coverage and resourceKey.
 Claims retain self-asserted holder attribution after release, not authenticated
 agent identity. An alias can refer to a replacement VM. Missing history or one
 old transcript cannot prove nobody used the target later. Raw command arguments,
@@ -102,6 +105,15 @@ friction does not authorize fixing it. After acceptance and claim cleanup, use
 `provision finish RUN_ID --outcome ready|blocked|failed|abandoned`, and inspect
 `provision show RUN_ID --markdown`. Outcome is agent-reported; missing command
 results remain unknown. Keep logs private and credentials in the secret store.
+
+Record difficult control use privately. When a goal takes more than about
+three attempts, needs CLI source to work out, has no observed effect, forces a
+fallback (for example Computer Use) or ends with a human takeover, pipe the
+details (commands/references tried, what happened, what finally worked) to:
+  machine-control --target host --claim CLAIM_ID usage note --kind friction \\
+    --goal 'one line: what you were doing'
+Kinds: friction|workaround|fallback|handoff|follow-up|summary. Notes carry your
+session ID; review with `usage show --commands --markdown`. No secrets.
 
 Inspect status/capabilities; request only the scopes needed for this task:
   machine-control --target host --claim CLAIM_ID desktop status

@@ -6,6 +6,7 @@ Use the controller's common CLI to inspect retained operational history:
 bin/machine-control audit history --limit 100
 bin/machine-control --target windows audit history --since 2026-01-01T00:00:00Z
 bin/machine-control audit history --claimant-id example-session
+bin/machine-control audit history --session-ref example-agent-session
 bin/machine-control audit history --claim-id c-000000000000000000000000
 bin/machine-control audit history --before 123 --limit 100
 ```
@@ -23,6 +24,12 @@ correlate by claim ID; queries attach retained claim-holder attribution and an
 opaque `resourceKey`. Two aliases of one exact target share a key. A new VM
 behind the same alias has a different key. Claim-holder attribution does not
 authenticate the command's controller process, whose observed PID is separate.
+
+Command events also carry a self-asserted `sessionRef` from the caller's
+agent host (`AGENTCTL_SESSION_ID`, `CLAUDE_CODE_SESSION_ID` or
+`CODEX_THREAD_ID`); `--session-ref` selects those commands and their claims'
+events. It locates a transcript for review and authenticates nothing. Agents
+record difficult use separately in the [usage journal](usage-journal.md).
 
 `command.intent` precedes dispatch and `command.result` records the exit status,
 elapsed time and any structured acceptance/delivery/effect/uncertainty. A

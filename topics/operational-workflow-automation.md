@@ -14,6 +14,18 @@ projections alongside explicitly agent-authored friction notes. Portable
 fixture validation, privacy/refusal cases and coverage limits are recorded in
 [Tactical 092](../docs/tactical/092-provisioning-journals.md).
 
+**Current:** Ordinary target use has a private
+[usage journal](../docs/usage-journal.md): agent-authored friction, fallback
+and handoff notes carrying the agent host's published session ID, with the
+claim's or session's retained audit commands attached on review
+([Tactical 118](../docs/tactical/118-usage-friction-journal.md)).
+
+**Decision:** Agents record a note when ordinary control takes repeated
+attempts, lacks a typed operation, has no observed effect, falls back to
+another route or ends in human takeover. Reviews compare those transcripts
+with other providers on the same task to choose typed operations, skill
+corrections and fixtures.
+
 **Decision:** Every fresh bring-up records a run, including successful runs
 without friction. Notes preserve workarounds, fix commits and deferred ideas;
 recording a problem does not require fixing it during provisioning. Direct

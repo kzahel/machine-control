@@ -42,6 +42,9 @@ the commits' `Topic:` trailers and register that exact string in
 
 ## Tactical index
 
+- [118 — Usage friction journal](118-usage-friction-journal.md)
+  (active): private agent friction notes with session attribution and audit
+  correlation; live Machine Control/Computer Use comparison in progress.
 - [117 — Chrome Web Store extension](117-chrome-web-store-extension.md)
   (active): side panel MVP submitted unlisted; store-ID desktop releases,
   revoke-only Stop, live inspector, automatic install and public listing next.

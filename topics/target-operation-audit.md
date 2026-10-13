@@ -29,6 +29,15 @@ opaque digest of the exact provider/resource identity; aliases do not create
 different resources, while a replacement VM does. Preserve claimant namespace,
 ID, optional session/label, reason, use class and generation after release.
 
+**Current:** Command events carry a self-asserted `sessionRef` from the
+caller's agent host (`AGENTCTL_SESSION_ID`, `CLAUDE_CODE_SESSION_ID` or
+`CODEX_THREAD_ID`), selectable with `audit history --session-ref`. Inside such
+a host an unattributed claim defaults to that session as claimant, so history
+leads back to a transcript. Browser verbs and desktop input kinds are retained
+as grammar; their operands are not. The [usage journal](../docs/usage-journal.md)
+joins agent friction notes to these commands
+([Tactical 118](../docs/tactical/118-usage-friction-journal.md)).
+
 **Current:** The shared claim writer journals acquire, renew, release and
 observed expiry, including queue-owned terminal reasons. The common CLI records
 known command grammar, target alias, claim selector, controller PID, correlation,

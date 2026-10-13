@@ -93,6 +93,15 @@ route. Use target-resident input after bootstrap for ordinary work.
 Coordinate input foregrounds the Tart window and moves the host pointer. Avoid
 it while the user is operating another host application.
 
+## Record difficulty
+
+When a goal takes more than about three attempts, has no observed effect,
+needs Machine Control source to work out, or forces a fallback route or human
+takeover, record it with `bin/machine-control --target TARGET --claim CLAIM
+usage note --kind friction|workaround|fallback|handoff|follow-up|summary
+--goal "..."` and the details on stdin. See
+[the usage journal](../../../../docs/usage-journal.md).
+
 ## Bootstrap and recover
 
 Read `docs/bootstrap.md` completely before fresh bring-up, lost-password

@@ -25,7 +25,7 @@ RETENTION_DAYS = 30
 MAX_EVENT_BYTES = 16384
 CLAIM = re.compile(r"c-[a-f0-9]{24}")
 VERBS = frozenset(
-    "status capabilities doctor up down suspend shutdown force-stop reboot ensure-ready validate-candidate prepare-promotion acquire renew release check inventory gc snapshot action capture input applications windows launch activate close artifact read observe request approve deny revoke open poll accept cancel heartbeat exec ps ssh wsl ui login credential store rotate verify establish deploy deploy-ui deploy-fixture factory stage factory-stages bootstrap-stages preflight factory-create factory-status factory-preflight factory-media-status factory-detach-installer factory-detach-media post-update audit repair certify seal delete repair-registration target-id pin-target trust-ssh-host-key host-doctor bootstrap setup run enable disable identity instructions list guide credentials control session stream type key click drag scan move scroll press permissions find get inspect analyze".split()
+    "status capabilities doctor up down suspend shutdown force-stop reboot ensure-ready validate-candidate prepare-promotion acquire renew release check inventory gc snapshot action capture input applications windows launch activate close artifact read observe request approve deny revoke open poll accept cancel heartbeat exec ps ssh wsl ui login credential store rotate verify establish deploy deploy-ui deploy-fixture factory stage factory-stages bootstrap-stages preflight factory-create factory-status factory-preflight factory-media-status factory-detach-installer factory-detach-media post-update audit repair certify seal delete repair-registration target-id pin-target trust-ssh-host-key host-doctor bootstrap setup run enable disable identity instructions list guide credentials control session stream type key click drag scan move scroll press permissions find get inspect analyze tabs wait navigate upload cdp eval endpoint application text terminate".split()
 )
 OPERATIONS = frozenset(
     "claim target workspace maintenance desktop control grant update browser ios testbed os run inventory storage agent audit".split()
@@ -38,6 +38,28 @@ class AuditError(Exception):
 
 def now():
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+# Agent hosts that publish their own transcript ID to child processes, in
+# precedence order. A coordinator-wide ID outranks a single harness's ID.
+SESSION_SOURCES = ("AGENTCTL_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID")
+SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
+
+
+def session_ref(explicit=None):
+    """Self-asserted agent session reference for later transcript lookup."""
+    if explicit is not None:
+        return {"id": explicit, "source": "explicit"} if SESSION_ID.fullmatch(explicit) else None
+    for name in SESSION_SOURCES:
+        value = os.environ.get(name, "")
+        if SESSION_ID.fullmatch(value):
+            return {"id": value, "source": name}
+    return None
+
+
+def agent_label():
+    value = os.environ.get("AI_AGENT", "")
+    return value if SESSION_ID.fullmatch(value) else None
 
 
 def directory():
@@ -243,13 +265,19 @@ def command_description(arguments):
             "ssh",
             "wsl",
             "run",
-            "input",
             "action",
             "type",
             "key",
             "click",
             "drag",
             "scan",
+            "text",
+            "move",
+            "scroll",
+            "navigate",
+            "upload",
+            "cdp",
+            "eval",
         }:
             break
         if len(parts) == 4:
@@ -309,6 +337,7 @@ class Command:
             payloadsRecorded=False,
             programKind=program_kind(arguments),
             claimId=claim_id,
+            sessionRef=session_ref(),
         )
         append("command.intent", **self.fields)
 
@@ -347,7 +376,8 @@ class Command:
 
 
 def history(
-    *, target=None, claim=None, claimant=None, since=None, before=None, limit=100
+    *, target=None, claim=None, claimant=None, session=None, since=None,
+    before=None, limit=100
 ):
     db = connect(read=True)
     if db is None:
@@ -371,6 +401,12 @@ def history(
         if claimant:
             clauses.append("claim IN (SELECT claim FROM events WHERE claimant=?)")
             parameters.append(claimant)
+        if session:
+            # Commands carry the caller's session; include its claims' events.
+            clauses.append(
+                "(json_extract(data,'$.sessionRef.id')=? OR claim IN (SELECT claim FROM events WHERE json_extract(data,'$.sessionRef.id')=? AND claim IS NOT NULL))"
+            )
+            parameters += [session, session]
         if since:
             clauses.append("timestamp>=?")
             parameters.append(since)
@@ -430,13 +466,14 @@ def handle(arguments, *, target=None):
     parser = argparse.ArgumentParser(prog="machine-control audit history")
     parser.add_argument("--claim-id")
     parser.add_argument("--claimant-id")
+    parser.add_argument("--session-ref")
     parser.add_argument("--since")
     parser.add_argument("--before", type=int)
     parser.add_argument("--limit", type=int, default=100)
     parser.add_argument("--json", action="store_true")
     if not arguments or arguments[0] != "history":
         raise AuditError(
-            "Use audit history [--claim-id ID] [--claimant-id ID] [--since UTC] [--limit 1..500]"
+            "Use audit history [--claim-id ID] [--claimant-id ID] [--session-ref ID] [--since UTC] [--limit 1..500]"
         )
     options = parser.parse_args(arguments[1:])
     if (
@@ -457,6 +494,7 @@ def handle(arguments, *, target=None):
         target=target,
         claim=options.claim_id,
         claimant=options.claimant_id,
+        session=options.session_ref,
         since=since,
         before=options.before,
         limit=options.limit,

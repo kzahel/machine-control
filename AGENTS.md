@@ -149,6 +149,15 @@ use both, and pass that claim when releasing the workspace. If doctor cannot
 resolve exact private identity, repair the private inventory or pin first and
 rerun doctor rather than bypassing claim enforcement.
 
+When ordinary target control is hard — repeated attempts, a missing typed
+operation, accepted actions without effect, a fallback to Computer Use or
+another route, or a human takeover — record a private
+[usage note](docs/usage-journal.md) through the common CLI. Notes and audit
+commands carry the agent's published session ID (`AGENTCTL_SESSION_ID`,
+`CLAUDE_CODE_SESSION_ID`, or `CODEX_THREAD_ID`) so a later review can open the
+transcript and compare routes. Inside such a host, an unattributed claim
+defaults to that session ID.
+
 Before attributing past target use, creation, deletion, or credential changes,
 inspect `bin/machine-control --target TARGET audit history` and its coverage
 limits. Correlate exact resource keys and claim IDs rather than assuming an

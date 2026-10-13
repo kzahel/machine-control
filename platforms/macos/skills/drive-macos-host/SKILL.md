@@ -16,7 +16,10 @@ refused until the person at the computer approves a grant.
    `resident` check means Machine Control is not installed or not running;
    ask the person to install it rather than starting it yourself.
 2. Acquire a target-use claim as for any other target and pass `--claim`
-   on every call. The claim coordinates agents; it grants no access.
+   on every call. The claim coordinates agents; it grants no access. Inside
+   YepAnywhere, Claude Code, or Codex, omit `--claimant-authority` and
+   `--claimant-id`: the CLI attributes the claim to your published session ID
+   so audit history leads back to your transcript.
 3. Ask once for every scope the task can need, for the time it needs:
 
    ```bash
@@ -79,6 +82,25 @@ refused until the person at the computer approves a grant.
   Some system sheets only accept untargeted input; then check
   `data.keyboardReceiver` in the result to confirm where the keys went, and
   stop if it is not the application you meant.
+
+## Record difficulty
+
+When a goal takes more than about three attempts, needs Machine Control
+source to work out a command, has no observed effect, makes you switch to
+Computer Use or another route, or ends with the person taking over, record it
+before moving on:
+
+```bash
+bin/machine-control --target host --claim "$CLAIM" usage note \
+    --kind friction --goal "one line: what you were doing" <<'NOTE'
+Commands and references tried, what happened, and what finally worked.
+NOTE
+```
+
+Use `--kind fallback` when switching routes and `--kind handoff` when the
+person takes over; end with a `summary` note if you wrote any. Notes are
+private and carry your session ID; see
+[the usage journal](../../../../docs/usage-journal.md).
 
 ## Rules
 
