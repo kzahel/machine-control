@@ -42,6 +42,9 @@ the commits' `Topic:` trailers and register that exact string in
 
 ## Tactical index
 
+- [117 — Chrome Web Store extension](117-chrome-web-store-extension.md)
+  (active): side panel MVP submitted unlisted; store-ID desktop releases,
+  revoke-only Stop, live inspector, automatic install and public listing next.
 - [116 — Desktop 0.6.1 release](116-desktop-0.6.1-release.md)
   (complete): covered-startup repair, six authenticated packages and verified
   public delivery.

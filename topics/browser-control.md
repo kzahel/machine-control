@@ -22,6 +22,14 @@ and result vocabulary as desktop control. This applies to physical hosts
 
 ## Current
 
+**Current (2026-10-13):** Extension 0.8.0 adds icons and a read-only side
+panel (connection, access, controlled tabs, live payload-free activity) and was
+submitted to the Chrome Web Store as an unlisted item with ID
+`epejchbeajneooefnklikkfhbaeadkpc`. Source native hosts on all three desktop
+platforms accept that ID beside the unpacked development ID; released apps do
+not yet. [Tactical 117](../docs/tactical/117-chrome-web-store-extension.md) owns
+the release sequence.
+
 **Current (2026-10-11):** The unreleased signed ARM64 Mac candidate passes
 21 Chrome for Testing 154 checks under native workstation approval with no
 Settings WebView. Packaged CLI PNG retrieval, independent page/icon effects,
@@ -73,8 +81,9 @@ provided interaction inspiration; implementation and artwork are owned.
 
 ## Decisions
 
-**Decision:** The first route is a Machine Control Chrome extension, loaded
-unpacked during development, with a possible Chrome Web Store release later.
+**Decision:** The route is a Machine Control Chrome extension, loaded unpacked
+during development and in Chrome for Testing, and distributed to people
+through the Chrome Web Store. Native hosts accept both IDs.
 Rejected or deferred alternatives:
 
 - Remote-debugging ports: current Chrome refuses them on the default profile,
@@ -169,5 +178,6 @@ package and environment boundaries.
   owns usage and target-loopback forwarding limits. Signed streaming packages,
   ARM64 live, physical and other-browser qualification remain separate.
 - **Open:** Linux registration and other Chromium browsers.
-- **Open:** Web Store publication, which changes the extension ID and install
-  flow.
+- **Open:** Store review outcome, desktop releases that register the store ID,
+  a revoke-only Stop from the extension, and installer/policy installation
+  ([117](../docs/tactical/117-chrome-web-store-extension.md)).

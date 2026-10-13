@@ -92,7 +92,8 @@ evidence. macOS native changes build in the signed candidate, but browser-root
 live qualification remains open; Linux registration is absent.
 
 **Open:** macOS browser-root live qualification; Linux registration; other
-Chromium browsers; Web Store distribution; broader physical/Intel Mac
+Chromium browsers; Web Store review and released store-ID registration
+([117](../../docs/tactical/117-chrome-web-store-extension.md)); broader physical/Intel Mac
 workstation browser acceptance. No Windows ARM64 execution is inferred from
 the x64 browser evidence.
 
