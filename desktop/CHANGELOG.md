@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [0.6.1]
+
+- Fix Mac covered locked-use startup that could immediately relock the screen
+  and end approved access after the helper had verified unlock. Older cached
+  or in-flight session polls no longer overwrite newer native observations;
+  activation uses the guardian's verified original-console observation.
+
+The repaired source passed a single-display physical ARM64 completion test:
+covered unlock, native actions/input, filtered capture, automatic relock and
+retention of the original approval. Expiry, physical takeover, successive
+tasks, multiple displays and Intel execution remain separate qualification.
+Existing opt-in, native permissions, finite ownership and watchdog protections
+remain required. Includes all six desktop platform/architecture packages.
+
 ## [0.6.0]
 
 - Add personal, minimal and appliance presentation profiles to the same
