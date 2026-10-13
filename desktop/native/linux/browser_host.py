@@ -9,7 +9,9 @@ import struct
 import sys
 import threading
 
-ORIGIN = "chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/"
+# Unpacked development copy and Chrome Web Store release.
+ORIGINS = ("chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/",
+           "chrome-extension://epejchbeajneooefnklikkfhbaeadkpc/")
 LIMIT = 1024 * 1024
 
 
@@ -24,7 +26,7 @@ def exact(stream, count):
 
 
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] != ORIGIN:
+    if len(sys.argv) < 2 or sys.argv[1] not in ORIGINS:
         raise SystemExit("Machine Control extension origin required")
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
         client.connect(str(Path(os.environ["XDG_RUNTIME_DIR"]) / "machine-control-desktop/desktop.sock"))

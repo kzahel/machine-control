@@ -28,7 +28,7 @@ internal static class BrowserRegistration
             description = "Machine Control browser provider",
             path = executable,
             type = "stdio",
-            allowed_origins = new[] { BrowserWire.Origin },
+            allowed_origins = BrowserWire.Origins,
         }));
         File.Move(manifest + ".new", manifest, overwrite: true);
         using var key = root.CreateSubKey(keyPath);

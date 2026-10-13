@@ -8,7 +8,7 @@ internal static class BrowserNativeHost
 {
     internal static async Task<int> RunAsync(string origin)
     {
-        if (origin != BrowserWire.Origin || !Console.IsInputRedirected || !Console.IsOutputRedirected)
+        if (!BrowserWire.Allowed(origin) || !Console.IsInputRedirected || !Console.IsOutputRedirected)
             throw new ArgumentException("Browser origin or transport refused");
         RuntimeProfile.ConfigureUser("desktop");
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));

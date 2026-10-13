@@ -188,11 +188,13 @@ extension ResidentRuntime {
                     }
                     try server.lockedUse.removePermission()
                 case "browser.setup":
-                    let origin = "chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/"
+                    // Unpacked development copy and Chrome Web Store release.
+                    let origins = ["chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/",
+                                   "chrome-extension://epejchbeajneooefnklikkfhbaeadkpc/"]
                     let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Google/Chrome/NativeMessagingHosts")
                     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                     let host: [String: Any] = ["name": "org.machine_control.browser", "description": "Machine Control browser provider",
-                        "path": Bundle.main.executableURL!.path, "type": "stdio", "allowed_origins": [origin]]
+                        "path": Bundle.main.executableURL!.path, "type": "stdio", "allowed_origins": origins]
                     try JSONSerialization.data(withJSONObject: host, options: [.prettyPrinted, .sortedKeys])
                         .write(to: directory.appendingPathComponent("org.machine_control.browser.json"), options: .atomic)
                     let extensionURL = Bundle.main.resourceURL!.appendingPathComponent("chrome-extension")

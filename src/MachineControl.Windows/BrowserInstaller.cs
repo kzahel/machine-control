@@ -28,8 +28,9 @@ internal static class BrowserInstaller
             !string.Equals(path.GetString(), executable, StringComparison.OrdinalIgnoreCase)) return false;
         if (value.GetProperty("name").GetString() != BrowserWire.Host ||
             value.GetProperty("type").GetString() != "stdio" ||
-            value.GetProperty("allowed_origins").GetArrayLength() != 1 ||
-            value.GetProperty("allowed_origins")[0].GetString() != BrowserWire.Origin)
+            // Earlier releases registered only the development origin.
+            value.GetProperty("allowed_origins").GetArrayLength() == 0 ||
+            value.GetProperty("allowed_origins").EnumerateArray().Any(origin => !BrowserWire.Allowed(origin.GetString())))
             throw new InvalidDataException("Owned browser manifest is invalid");
         return true;
     }

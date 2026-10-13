@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Register or remove the Machine Control native-messaging host for Chrome.
 # Chrome starts the application executable in host mode only for the
-# Machine Control extension ID listed in allowed_origins.
+# Machine Control extension IDs listed in allowed_origins: the chosen
+# (by default, unpacked development) ID and the Chrome Web Store release.
 
 set -euo pipefail
 
 readonly HOST_NAME='org.machine_control.browser'
 readonly DEFAULT_EXTENSION_ID='ncbfifkjllmnkkjmomjohinigfgdocjc'
+readonly STORE_EXTENSION_ID='epejchbeajneooefnklikkfhbaeadkpc'
 
 app="$HOME/Applications/Machine Control.app"
 extension_id="$DEFAULT_EXTENSION_ID"
@@ -39,16 +41,17 @@ executable="$app/Contents/MacOS/macui"
 [[ -x "$executable" ]] || { printf 'Missing %s\n' "$executable" >&2; exit 1; }
 
 /bin/mkdir -p "$(/usr/bin/dirname "$manifest")"
-/usr/bin/python3 - "$manifest" "$executable" "$extension_id" "$HOST_NAME" <<'PY'
+/usr/bin/python3 - "$manifest" "$executable" "$extension_id" "$HOST_NAME" "$STORE_EXTENSION_ID" <<'PY'
 import json, sys
-path, executable, extension_id, name = sys.argv[1:]
+path, executable, extension_id, name, store_id = sys.argv[1:]
+ids = list(dict.fromkeys([extension_id, store_id]))
 with open(path + ".new", "w", encoding="utf-8") as handle:
     json.dump({
         "name": name,
         "description": "Machine Control browser provider",
         "path": executable,
         "type": "stdio",
-        "allowed_origins": [f"chrome-extension://{extension_id}/"],
+        "allowed_origins": [f"chrome-extension://{i}/" for i in ids],
     }, handle, indent=2)
     handle.write("\n")
 PY

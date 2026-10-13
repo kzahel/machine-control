@@ -15,7 +15,9 @@ import artifacts
 
 LIMIT = 1024 * 1024
 HOST_NAME = "org.machine_control.browser"
-ORIGIN = "chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/"
+# Unpacked development copy and Chrome Web Store release.
+ORIGINS = ["chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/",
+           "chrome-extension://epejchbeajneooefnklikkfhbaeadkpc/"]
 
 
 class Browser:
@@ -43,7 +45,7 @@ class Browser:
         self.directory.mkdir(parents=True, mode=0o700, exist_ok=True)
         config = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
         manifest = {"name": HOST_NAME, "description": "Machine Control browser provider",
-                    "path": str(self.host), "type": "stdio", "allowed_origins": [ORIGIN]}
+                    "path": str(self.host), "type": "stdio", "allowed_origins": ORIGINS}
         paths = [config / browser / "NativeMessagingHosts" / (HOST_NAME + ".json")
                  for browser in ["google-chrome", "google-chrome-for-testing", "chromium"]]
         # Refuse to overwrite another installation's registration.
@@ -75,7 +77,7 @@ class Browser:
         try:
             args = Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
             return len(args) >= 3 and Path(os.fsdecode(args[1])) == self.host and (
-                os.fsdecode(args[2]) == ORIGIN) and hashlib.sha256(self.host.read_bytes()).digest() == (
+                os.fsdecode(args[2]) in ORIGINS) and hashlib.sha256(self.host.read_bytes()).digest() == (
                 hashlib.sha256((Path(__file__).parent / "browser_host.py").read_bytes()).digest())
         except (OSError, ValueError):
             return False

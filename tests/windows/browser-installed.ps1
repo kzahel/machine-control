@@ -82,7 +82,7 @@ try{
  $extension=[Windows.Forms.Clipboard]::GetText()
  Assert (Test-Path (Join-Path $extension 'manifest.json')) 'Installed setup copies bundled extension path'
  $hostManifest=Get-Content $manifest -Raw|ConvertFrom-Json
- Assert ($hostManifest.path -eq $exe -and $hostManifest.allowed_origins.Count -eq 1 -and $hostManifest.allowed_origins[0] -eq 'chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/') 'Installed setup registers exact host and origin'
+ Assert ($hostManifest.path -eq $exe -and $hostManifest.allowed_origins.Count -eq 2 -and $hostManifest.allowed_origins[0] -eq 'chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/' -and $hostManifest.allowed_origins[1] -eq 'chrome-extension://epejchbeajneooefnklikkfhbaeadkpc/') 'Installed setup registers exact host and origins'
  $server=Start-Process (Get-Command python.exe).Source -ArgumentList @(('"'+$Fixture+'"'),'--marker',('"'+(Join-Path $root 'effect.json')+'"'),'--port-file',('"'+(Join-Path $root 'port.txt')+'"')) -PassThru -WindowStyle Hidden
  $deadline=[DateTime]::UtcNow.AddSeconds(10);while(-not(Test-Path (Join-Path $root 'port.txt'))){if([DateTime]::UtcNow -gt $deadline){throw 'Browser fixture unavailable'};Start-Sleep -Milliseconds 100}
  $url='http://127.0.0.1:'+(Get-Content (Join-Path $root 'port.txt'))+'/'

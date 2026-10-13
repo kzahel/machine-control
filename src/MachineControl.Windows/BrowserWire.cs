@@ -7,7 +7,12 @@ namespace MachineControl.Windows;
 internal static class BrowserWire
 {
     internal const string Route = "chrome.extension/cdp";
+    // The fixed development key gives unpacked copies Origin; the Chrome Web
+    // Store signs its release with its own key and ID.
     internal const string Origin = "chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/";
+    internal const string StoreOrigin = "chrome-extension://epejchbeajneooefnklikkfhbaeadkpc/";
+    internal static readonly string[] Origins = [Origin, StoreOrigin];
+    internal static bool Allowed(string? origin) => origin is not null && Origins.Contains(origin);
     internal const string Host = "org.machine_control.browser";
     internal const int MaximumInput = 16 * 1024 * 1024;
     internal const int MaximumOutput = 1024 * 1024;

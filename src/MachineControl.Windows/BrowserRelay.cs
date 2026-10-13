@@ -50,7 +50,7 @@ internal sealed class BrowserRelay(DesktopGrants grants) : IBrowserDevToolsProvi
                 // Authenticate before allocating or reading the caller's frame.
                 if (!Trusted(pipe)) continue;
                 var register = await BrowserWire.ReadAsync(pipe, handshake.Token);
-                if (register?["type"]?.GetValue<string>() != "register" || register["origin"]?.GetValue<string>() != BrowserWire.Origin) continue;
+                if (register?["type"]?.GetValue<string>() != "register" || !BrowserWire.Allowed(register["origin"]?.GetValue<string>())) continue;
                 await BrowserWire.WriteAsync(pipe, new JsonObject { ["type"] = "registered", ["protocolVersion"] = 1 }, handshake.Token);
                 _provider = pipe;
                 _publishedState = null;
