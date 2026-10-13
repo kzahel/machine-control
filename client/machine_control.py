@@ -1099,6 +1099,21 @@ def _valid_claim_id(value: Any) -> bool:
     return isinstance(value, str) and CLAIM_PATTERN.fullmatch(value) is not None
 
 
+def _claim_id_shape(value: Any) -> str:
+    """Explain a malformed claim ID; agents commonly truncate when copying."""
+    body = value[2:] if isinstance(value, str) and value.startswith("c-") else None
+    found = (
+        "it does not start with c-" if body is None
+        else f"it has {len(body)} characters after c-"
+        if len(body) != 24
+        else "it contains characters other than 0-9 and a-f"
+    )
+    return (
+        "Claim IDs are c- followed by 24 lowercase hexadecimal characters; "
+        f"{found}. Copy data.claim.claimId from claim acquire exactly"
+    )
+
+
 def _valid_claim_timestamp(value: Any) -> bool:
     if not isinstance(value, str) or not value.endswith("Z"):
         return False
@@ -3248,7 +3263,7 @@ def handle_claim(
             ],
         )
         if not _valid_claim_id(options.claim_id):
-            raise ClientError("invalid_claim_id", "Target-use claim ID is invalid")
+            raise ClientError("invalid_claim_id", _claim_id_shape(options.claim_id))
         adapter_arguments = [
             "claim-renew", "--claim-id", options.claim_id,
         ]
@@ -3264,7 +3279,8 @@ def handle_claim(
         if len(rest) != 1 or not _valid_claim_id(rest[0]):
             raise ClientError(
                 "invalid_claim_id",
-                "claim release requires one opaque target-use claim ID",
+                "claim release requires one claim ID. "
+                + _claim_id_shape(rest[0] if len(rest) == 1 else None),
             )
         parsed, elapsed_ms = _claim_adapter_call(
             target,
@@ -4078,8 +4094,7 @@ def main(argv: list[str] | None = None) -> int:
         if known.claim is not None:
             if not _valid_claim_id(known.claim):
                 raise ClientError(
-                    "invalid_claim_id",
-                    "--claim requires an opaque target-use claim ID",
+                    "invalid_claim_id", "--claim is malformed. " + _claim_id_shape(known.claim)
                 )
             target = {
                 **target,

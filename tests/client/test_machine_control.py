@@ -261,6 +261,11 @@ class ClientTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2)
         self.assertEqual(value["errorCode"], "invalid_claim_id")
+        result, value = self.run_cli(
+            "--target", "fixture", "--claim", "c-" + "a" * 23, "target", "status"
+        )
+        self.assertEqual(value["errorCode"], "invalid_claim_id")
+        self.assertIn("23 characters after c-", value["message"])
 
     def test_required_target_refuses_use_without_claim_before_dispatch(self):
         log = self.directory / "arguments.json"
