@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <link rel="stylesheet" href="panel.css">
+  <script src="store/mock.js"></script>
+</head>
+<body>
+  <script type="module">
+    // Render the shipped panel markup and script against the mock APIs.
+    const markup = await (await fetch("panel.html")).text();
+    const body = new DOMParser().parseFromString(markup, "text/html").body;
+    body.querySelector("script")?.remove();
+    document.body.innerHTML = body.innerHTML;
+    await import("/panel.js");
+  </script>
+</body>
+</html>

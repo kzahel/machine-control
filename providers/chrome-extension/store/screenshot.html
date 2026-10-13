@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <base href="/">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; width: 1280px; height: 800px; overflow: hidden; background: #dfe3e8;
+      font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: #202124; }
+    .tabstrip { height: 40px; display: flex; align-items: flex-end; gap: 6px; padding: 0 12px 0 84px; background: #dfe3e8; position: relative; }
+    .lights { position: absolute; left: 14px; top: 14px; display: flex; gap: 8px; }
+    .lights i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; }
+    .lights i:nth-child(2) { background: #febc2e; } .lights i:nth-child(3) { background: #28c840; }
+    .group { align-self: center; margin-bottom: -4px; padding: 2px 8px; border-radius: 6px; background: #2563eb; color: white; font-size: 11px; font-weight: 600; }
+    .tab { width: 210px; height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-radius: 8px 8px 0 0; font-size: 12px; white-space: nowrap; overflow: hidden; }
+    .tab.active { background: white; }
+    .tab.grouped { border-bottom: 2px solid #2563eb; }
+    .tab img { width: 16px; height: 16px; }
+    .toolbar { height: 44px; background: white; display: flex; align-items: center; gap: 10px; padding: 0 12px; border-bottom: 1px solid #dadce0; }
+    .nav { color: #5f6368; font-size: 16px; width: 22px; text-align: center; }
+    .omnibox { flex: 1; height: 32px; border-radius: 16px; background: #f1f3f4; display: flex; align-items: center; padding: 0 14px; color: #3c4043; }
+    .omnibox b { font-weight: normal; color: #202124; }
+    .action { position: relative; width: 28px; height: 28px; border-radius: 6px; background: #e8f0fe; display: grid; place-items: center; }
+    .action img { width: 18px; height: 18px; }
+    .badge { position: absolute; right: -6px; bottom: -3px; padding: 0 3px; border-radius: 4px; font-size: 9px; font-weight: 700; color: white; background: #c62828; }
+    .content { display: flex; height: 716px; }
+    .page { flex: 1; background: #fbfbfa; overflow: hidden; }
+    .side { width: 380px; border-left: 1px solid #dadce0; background: white; display: flex; flex-direction: column; }
+    .side-head { height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid #ececec; font-weight: 600; color: #3c4043; }
+    .side-head img { width: 16px; height: 16px; }
+    .side iframe { flex: 1; border: 0; width: 100%; }
+    /* Fictional storefront */
+    .shop-head { height: 56px; display: flex; align-items: center; padding: 0 40px; background: #1f2a44; color: white; font-weight: 700; font-size: 18px; letter-spacing: .3px; }
+    .shop { display: grid; grid-template-columns: 1fr 290px; gap: 28px; padding: 30px 40px; }
+    .shop h1 { margin: 0 0 16px; font-size: 24px; }
+    label { display: block; font-size: 12px; color: #5f6368; margin: 12px 0 4px; }
+    .field { height: 38px; border: 1px solid #c8cdd3; border-radius: 6px; background: white; padding: 9px 12px; font-size: 14px; }
+    .field.focus { border-color: #2563eb; box-shadow: 0 0 0 3px #2563eb33; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .summary { background: white; border: 1px solid #e3e5e8; border-radius: 10px; padding: 18px; }
+    .line { display: flex; justify-content: space-between; margin: 8px 0; }
+    .total { border-top: 1px solid #e3e5e8; padding-top: 10px; font-weight: 700; }
+    .order { position: relative; margin-top: 18px; height: 44px; border-radius: 8px; background: #1f6f4a; color: white; display: grid; place-items: center; font-weight: 600; font-size: 15px; box-shadow: 0 0 0 3px #2563eb66; }
+    .cursor { position: absolute; right: 64px; top: 22px; width: 30px; height: 30px; }
+    .caption { position: absolute; left: 40px; bottom: 26px; padding: 10px 14px; border-radius: 10px; background: #244f3e; color: #e5f3e9; font-size: 15px; font-weight: 600; box-shadow: 0 6px 18px #0002; }
+    .welcome-page { height: 716px; overflow: hidden; }
+    .welcome-page iframe { width: 100%; height: 100%; border: 0; }
+  </style>
+</head>
+<body>
+  <div class="tabstrip">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <div class="group">Machine Control</div>
+    <div class="tab active grouped"><img id="tab-icon-1" alt="">Checkout — Acme Outfitters</div>
+    <div class="tab grouped"><img id="tab-icon-2" alt="">Order history — Acme Outfitters</div>
+    <div class="tab"><img src="icons/16.png" alt="">Notes</div>
+  </div>
+  <div class="toolbar">
+    <span class="nav">←</span><span class="nav">→</span><span class="nav">↻</span>
+    <div class="omnibox"><b id="address">shop.example.com</b><span id="path">/checkout</span></div>
+    <div class="action"><img src="icons/32.png" alt=""><span id="badge" class="badge">ON</span></div>
+  </div>
+  <div id="main" class="content">
+    <div class="page">
+      <div class="shop-head">ACME OUTFITTERS</div>
+      <div class="shop">
+        <div>
+          <h1>Checkout</h1>
+          <label>Full name</label><div class="field">Jordan Rivera</div>
+          <label>Street address</label><div class="field">123 Example Street</div>
+          <div class="row">
+            <div><label>City</label><div class="field">Springfield</div></div>
+            <div><label>Postal code</label><div class="field focus">12345</div></div>
+          </div>
+          <label>Delivery</label><div class="field">Standard (3–5 days)</div>
+        </div>
+        <div class="summary">
+          <strong>Order summary</strong>
+          <div class="line"><span>Trail jacket</span><span>$129.00</span></div>
+          <div class="line"><span>Wool socks ×2</span><span>$24.00</span></div>
+          <div class="line"><span>Shipping</span><span>$0.00</span></div>
+          <div class="line total"><span>Total</span><span>$153.00</span></div>
+          <div class="order">Place order<svg class="cursor" viewBox="0 0 32 32"><path d="M7 4 L25 17 L17 19 L14 27 Z" fill="#2563eb" stroke="white" stroke-width="2" stroke-linejoin="round"/></svg></div>
+        </div>
+      </div>
+    </div>
+    <div class="side">
+      <div class="side-head"><img src="icons/16.png" alt="">Machine Control</div>
+      <iframe id="panel" title="Machine Control side panel"></iframe>
+    </div>
+  </div>
+  <div id="caption" class="caption"></div>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const scene = params.get("scene") || "live";
+    const pointer = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><path d="M7 4 L25 17 L17 19 L14 27 Z" fill="#2563eb" stroke="white" stroke-width="2" stroke-linejoin="round"/></svg>');
+    document.getElementById("tab-icon-1").src = pointer;
+    document.getElementById("tab-icon-2").src = pointer;
+    document.getElementById("panel").src = `store/panel-demo.html?scene=${scene}`;
+    document.getElementById("caption").textContent = params.get("caption") || "";
+    document.getElementById("caption").hidden = !params.get("caption");
+    if (scene === "devtools") document.getElementById("badge").textContent = "DEV";
+    if (scene === "setup") {
+      document.getElementById("badge").textContent = "!";
+      document.getElementById("badge").style.background = "#757575";
+      document.querySelectorAll(".group, .tab.grouped").forEach((node) => node.remove());
+      const main = document.getElementById("main");
+      main.className = "welcome-page";
+      main.innerHTML = '<iframe src="store/panel-demo.html?scene=setup&welcome" title="Welcome"></iframe>';
+      document.getElementById("address").textContent = "Machine Control";
+      document.getElementById("path").textContent = "";
+    }
+  </script>
+</body>
+</html>

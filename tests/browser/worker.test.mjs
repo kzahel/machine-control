@@ -23,8 +23,8 @@ test("real worker cleans markers on resident revocation, release and disconnect"
   Object.defineProperty(globalThis, "navigator", { value: { userAgent: "fixture" }, configurable: true });
   globalThis.chrome = {
     action: { setBadgeText() {}, setBadgeBackgroundColor() {}, setTitle() {} },
-    runtime: { getManifest: () => ({ version: "fixture" }), connectNative: () => native,
-      onStartup: event(), onInstalled: event() },
+    runtime: { id: "fixture-extension", getManifest: () => ({ version: "fixture" }), connectNative: () => native,
+      onStartup: event(), onInstalled: event(), onConnect: event() },
     alarms: { create() {}, onAlarm: event() },
     storage: { local: { async get() { return storage; },
       async set(value) { Object.assign(storage, structuredClone(value)); },
@@ -84,6 +84,26 @@ test("real worker cleans markers on resident revocation, release and disconnect"
     assert.equal(created.ok, true);
     const tab = created.data.tab.tabId;
     assert.equal(markers.get(tab), true);
+    // The side panel receives read-only state from its own extension only.
+    const panelPort = (id) => {
+      const states = [];
+      return { states, name: "panel", sender: { id }, onDisconnect: event(), onMessage: event(),
+        postMessage(message) { states.push(message); } };
+    };
+    const panel = panelPort("fixture-extension");
+    const foreign = panelPort("other-extension");
+    chrome.runtime.onConnect.emit(panel);
+    chrome.runtime.onConnect.emit(foreign);
+    assert.equal(foreign.states.length, 0);
+    assert.equal(panel.states.at(-1).connected, true);
+    assert.equal(panel.states.at(-1).granted, true);
+    assert.deepEqual(panel.states.at(-1).controlledTabs, [tab]);
+    await request("browser.type", { tabId: tab, text: "private words" });
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const [typed] = panel.states.at(-1).activity;
+    assert.equal(typed.operation, "browser.type");
+    assert.equal(typed.detail, "13 characters");
+    assert.equal(JSON.stringify(panel.states).includes("private words"), false);
     native.onMessage.emit({ type: "session.open", id: "browser-only", tabId: tab });
     await wait(() => replies.find((reply) => reply.type === "session.failed" && reply.id === "browser-only"));
     // Same scopes with a new resident grant must clear prior control state.

@@ -26,11 +26,15 @@ def stage(destination, revision):
                       "byteLength": source.stat().st_size})
     extension = destination / "extension"
     extension.mkdir()
-    for source in sorted((ROOT / "providers/chrome-extension").glob("*")):
-        if source.suffix not in {".js", ".json"}:
+    # Runtime files only: Web Store tooling, sources and docs stay behind.
+    root = ROOT / "providers/chrome-extension"
+    for source in sorted(root.rglob("*")):
+        relative = source.relative_to(root)
+        if source.suffix not in {".js", ".json", ".html", ".css", ".png"} or relative.parts[0] == "store":
             continue
-        shutil.copyfile(source, extension / source.name)
-        files.append({"path": "extension/" + source.name,
+        (extension / relative).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, extension / relative)
+        files.append({"path": "extension/" + relative.as_posix(),
                       "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
                       "byteLength": source.stat().st_size})
     identity = {"schema": "machine-control-linux-desktop-runtime/v0", "sourceRevision": revision,

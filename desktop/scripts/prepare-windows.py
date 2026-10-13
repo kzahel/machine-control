@@ -28,7 +28,8 @@ def stage(payload, output, revision, runtime):
             shutil.copytree(file, output / file.name)
         else:
             shutil.copyfile(file, output / file.name)
-    shutil.copytree(ROOT / 'providers/chrome-extension', output / 'browser-extension')
+    shutil.copytree(ROOT / 'providers/chrome-extension', output / 'browser-extension',
+                    ignore=shutil.ignore_patterns('store', '*.py', '*.md', '*.svg', '__pycache__'))
     shutil.copyfile(ROOT / 'desktop/native/windows-runtime-README.txt', output / 'README.txt')
     (output / 'desktop-runtime.json').write_text(json.dumps({
         'schema': 'machine-control-desktop-runtime/v0', 'sourceRevision': revision,

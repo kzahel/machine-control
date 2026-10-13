@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Machine Control</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <header class="masthead">
+    <img src="icons/48.png" width="28" height="28" alt="">
+    <h1>Machine Control</h1>
+    <span id="status" class="pill">Checking…</span>
+  </header>
+
+  <section id="welcome" class="card welcome" hidden>
+    <h2>Thanks for installing.</h2>
+    <p>This extension lets an AI agent use Chrome through the Machine Control
+      app on this computer, only while you allow it. Open this panel any time
+      from the Machine Control button in the toolbar; pin it from the
+      extensions menu to keep it visible.</p>
+  </section>
+
+  <section id="setup" class="card" hidden>
+    <h2>Finish setup</h2>
+    <p id="setup-reason" class="muted"></p>
+    <ol class="steps">
+      <li><a id="download" href="https://machinecontrol.dev/downloads/" target="_blank">Install the Machine Control app</a>
+        for your computer.</li>
+      <li>Open the app and turn on <strong>Browser</strong> in its setup checklist.</li>
+      <li>Keep the app running. This panel turns green when Chrome is connected.</li>
+    </ol>
+  </section>
+
+  <section id="access" class="card" hidden>
+    <h2>Access</h2>
+    <p id="access-summary" class="access"></p>
+    <p class="muted">Grant, extend and stop access in the Machine Control app.
+      The toolbar badge shows <b>ON</b> for browser control and <b>DEV</b> for
+      full DevTools access.</p>
+  </section>
+
+  <section id="tabs-card" class="card" hidden>
+    <h2>Controlled tabs <span id="tab-count" class="count"></span></h2>
+    <ul id="tabs" class="tabs"></ul>
+    <p id="no-tabs" class="muted">No tabs are being controlled.</p>
+  </section>
+
+  <section id="activity-card" class="card" hidden>
+    <div class="heading-row">
+      <h2>Activity</h2>
+      <button id="clear" type="button" class="link-button">Clear</button>
+    </div>
+    <ol id="activity" class="activity"></ol>
+    <p id="no-activity" class="muted">Agent actions appear here as they happen.
+      Typed text, scripts and page content are not recorded.</p>
+  </section>
+
+  <footer class="links">
+    <a href="https://machinecontrol.dev/" target="_blank">Website</a>
+    <a href="https://machinecontrol.dev/getting-started/" target="_blank">Getting started</a>
+    <a href="https://machinecontrol.dev/privacy/" target="_blank">Privacy</a>
+    <a href="https://github.com/kzahel/machine-control" target="_blank">Source</a>
+    <span id="version" class="muted"></span>
+  </footer>
+  <script type="module" src="panel.js"></script>
+</body>
+</html>

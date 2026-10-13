@@ -42,6 +42,20 @@ use the authorized per-tab debugger in an isolated world; no page content
 scripts or broad host permissions are added. They are visible status, not an
 authorization boundary or a marker of completed work.
 
+The toolbar button opens a read-only side panel (`panel.html`) showing the
+connection, access, controlled tabs and a live feed of agent operations. The
+feed stays in worker memory and omits typed text, scripts, CDP parameters and
+page content. A store install opens the same page once as setup guidance.
+
+## Web Store release
+
+`python3 package.py OUT.zip` builds the upload without the development `key`.
+`store/render.sh CHROMIUM OUTPUT_DIR` renders screenshots and the promo tile
+from the real panel with fictional mock data, and
+[`store/listing.md`](store/listing.md) holds listing text and review answers.
+[Tactical 117](../../docs/tactical/117-chrome-web-store-extension.md) owns the
+release sequence.
+
 Run lifecycle checks with `node --test tests/browser/*.test.mjs`. The headed
 [`indicators-live.py`](../../tests/browser/indicators-live.py) runner exercises
 real Chrome for Testing and a native resident inside a claimed Mac appliance;
@@ -53,8 +67,9 @@ new page makes older references stale.
 ## Development install
 
 The manifest carries a fixed public `key`, so the unpacked extension always
-has the ID `ncbfifkjllmnkkjmomjohinigfgdocjc`. A Chrome Web Store release
-would have a different ID and needs its own native-messaging registration.
+has the ID `ncbfifkjllmnkkjmomjohinigfgdocjc`. The Chrome Web Store release
+has the ID `epejchbeajneooefnklikkfhbaeadkpc`; native hosts register and
+accept both.
 
 1. Install Machine Control.app (`platforms/macos/resident/scripts/install-user.sh`).
 2. Register the native host for the browser profile:

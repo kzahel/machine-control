@@ -139,7 +139,78 @@ async function connect() {
   updateBadge();
 }
 
+// The side panel is a read-only view of connection, access, controlled tabs
+// and recent operations. It holds no authority: the resident grants and ends
+// access. Activity stays in this worker's memory and omits typed text,
+// scripts, CDP parameters and page content.
+const ACTIVITY_LIMIT = 200;
+const activity = [];
+const panels = new Set();
+let panelTimer = null;
+
+function panelState() {
+  return {
+    type: "state", connected: port !== null, lastDisconnect, granted, devtools,
+    controlledTabs: [...attached], streams: streaming.sessions.size, activity,
+  };
+}
+
+function notifyPanels() {
+  if (!panels.size || panelTimer) return;
+  panelTimer = setTimeout(() => {
+    panelTimer = null;
+    const state = panelState();
+    for (const panel of panels) panel.postMessage(state);
+  }, 50);
+}
+
+function activityDetail(operation, params, data) {
+  switch (operation) {
+    case "browser.navigate":
+      try { return new URL(params.url).host || params.url; } catch { return ""; }
+    case "browser.type": return `${String(params.text || "").length} characters`;
+    case "browser.key": return String(params.key || "");
+    case "browser.upload": return `${Array.isArray(params.files) ? params.files.length : 0} file(s)`;
+    case "browser.cdp": return typeof params.method === "string" ? params.method : "";
+    case "browser.tabs": return `${data?.tabs?.length ?? 0} tabs`;
+    default: return "";
+  }
+}
+
+function recordActivity(operation, params, reply, startedAt) {
+  const tabId = reply.data?.tabId ?? reply.data?.tab?.tabId ?? (Number.isInteger(params.tabId) ? params.tabId : null);
+  const entry = {
+    at: startedAt, operation, tabId, ok: reply.ok === true, errorCode: reply.errorCode || "",
+    detail: activityDetail(operation, params, reply.data), ms: Date.now() - startedAt, count: 1,
+  };
+  const last = activity[0];
+  if (last && last.operation === entry.operation && last.tabId === entry.tabId && last.ok === entry.ok
+      && last.detail === entry.detail && entry.at - last.at < 60000) {
+    last.count += 1;
+    last.at = entry.at;
+    last.ms = entry.ms;
+  } else {
+    activity.unshift(entry);
+    activity.length = Math.min(activity.length, ACTIVITY_LIMIT);
+  }
+  notifyPanels();
+}
+
+chrome.runtime.onConnect.addListener((panel) => {
+  if (panel.name !== "panel" || panel.sender?.id !== chrome.runtime.id) return;
+  panels.add(panel);
+  panel.onDisconnect.addListener(() => panels.delete(panel));
+  panel.onMessage.addListener((message) => {
+    if (message?.type === "clearActivity") {
+      activity.length = 0;
+      notifyPanels();
+    }
+  });
+  panel.postMessage(panelState());
+});
+
 function updateBadge() {
+  notifyPanels();
   const text = !port ? "!" : devtools ? "DEV" : granted ? "ON" : "";
   chrome.action.setBadgeText({ text });
   chrome.action.setBadgeBackgroundColor({ color: granted ? "#c62828" : "#757575" });
@@ -163,10 +234,13 @@ async function onResidentMessage(message) {
     return;
   }
   if (message?.type === "session.open") {
+    const startedAt = Date.now();
     try {
       await streaming.open(message.id, message.tabId);
       port?.postMessage({ type: "session.opened", id: message.id });
+      recordActivity("session.open", { tabId: message.tabId }, { ok: true }, startedAt);
     } catch (error) {
+      recordActivity("session.open", { tabId: message.tabId }, { ok: false, errorCode: "session_failed" }, startedAt);
       port?.postMessage({ type: "session.failed", id: message.id, message: String(error.message || error) });
     }
     return;
@@ -180,6 +254,7 @@ async function onResidentMessage(message) {
   if (message?.type === "session.close") return streaming.close(message.id, "closed");
   if (message?.type !== "request") return;
   const reply = { type: "response", id: message.id };
+  const startedAt = Date.now();
   try {
     reply.data = await perform(message.operation, message.params || {});
     reply.ok = true;
@@ -189,6 +264,7 @@ async function onResidentMessage(message) {
     reply.message = String(error.message || error);
   }
   port?.postMessage(reply);
+  recordActivity(message.operation, message.params || {}, reply, startedAt);
 }
 
 async function perform(operation, params) {
@@ -303,6 +379,7 @@ async function ensureAttached(tabId, newTab = false) {
         throw new ProviderError("approval_required", "Browser access ended during attachment");
       }
       attached.add(tabId);
+      notifyPanels();
       await indicators.track(tabId, newTab);
     })();
     attaching.set(tabId, pending);
@@ -328,6 +405,7 @@ async function detachAll() {
   await streaming.closeAll("access_ended");
   const tabs = [...attached];
   attached.clear();
+  notifyPanels();
   await indicators.releaseAll();
   await Promise.all(tabs.map((tabId) => chrome.debugger.detach({ tabId }).catch(() => {})));
 }
@@ -552,10 +630,12 @@ async function capture(params) {
 
 chrome.debugger.onDetach.addListener(({ tabId }) => {
   attached.delete(tabId);
+  notifyPanels();
   indicators.release(tabId).catch(() => {});
 });
 chrome.tabs.onRemoved.addListener((tabId) => {
   attached.delete(tabId);
+  notifyPanels();
   generations.delete(tabId);
   indicators.release(tabId).catch(() => {});
 });
@@ -568,6 +648,14 @@ chrome.tabs.onUpdated.addListener((tabId, change) => {
 });
 chrome.runtime.onStartup.addListener(connect);
 chrome.runtime.onInstalled.addListener(connect);
+// A Web Store install opens setup once; unpacked development and
+// policy-installed (appliance) copies stay quiet.
+chrome.runtime.onInstalled.addListener(async ({ reason }) => {
+  if (reason !== "install") return;
+  const self = await chrome.management?.getSelf?.().catch(() => null);
+  if (self?.installType === "normal") chrome.tabs.create({ url: "panel.html?welcome" }).catch(() => {});
+});
+chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 chrome.alarms.create("reconnect", { periodInMinutes: 1 });
 chrome.alarms.onAlarm.addListener(connect);
 // Chrome keeps a debugger-owning MV3 worker alive. The page marker expires
