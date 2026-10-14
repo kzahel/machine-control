@@ -1,0 +1,1 @@
+Chrome for Testing is open. Load the unpacked extension in the folder ~/experiment/probe-ext (it is named "Route Probe") from chrome://extensions, turning on Developer mode if needed, and leave it installed and enabled.
