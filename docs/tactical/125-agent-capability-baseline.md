@@ -340,3 +340,14 @@ the control lifecycle as well as persistence and observation output. Keep the
 notice in elapsed time and do not call this an isolated persistence benchmark.
 The JS prototype additionally omits claims/controller audit. A later parity
 experiment must hold these contracts fixed before attributing language effects.
+
+A verifier review added six direct menu-oracle controls. A missing or non-file
+source previously raised an infrastructure error after otherwise correct output;
+it now produces a failed source-preservation verdict. Missing output, changed
+source and rich-text output are also rejected, while intact source plus correct
+plain text passes. All 49 offline experiment checks pass. Existing qualified
+positive results are unchanged; apply this evaluator-only repair through a
+recorded campaign continuation before repeated runs, without changing clients,
+task prompts or setup. The shorter revised Opus menu trace used the save panel's
+Keep changes in original document checkbox, not activation or duplicate/cancel;
+it cannot establish an activation speedup.
