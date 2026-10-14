@@ -1,7 +1,7 @@
 # 119 — VM route-comparison experiments
 
-Status: active. Experiment base built and proven as the workspace ready base;
-both routes and isolated trial clones verified. Driver and tasks in progress.
+Status: active. Base, driver and five tasks working; first batches run.
+More repetitions and tasks pending.
 Owning topic: [operational workflow automation](../../topics/operational-workflow-automation.md).
 Runbook: [route-comparison experiments](../comparison-experiments.md).
 
@@ -108,6 +108,45 @@ Notes: Chrome for Testing raises a keychain prompt unless launched with
 `--use-mock-keychain --password-store=basic`; its published bundle is unsealed,
 so strict signature verification fails everywhere. The guest volume has about
 12 GiB free after setup.
+
+## First batches (one repetition each)
+
+**Current:** `tests/experiments/route_comparison.py` with five tasks. Each
+trial ran in its own isolated clone; every clone was discarded.
+
+| Task | Computer Use | MC CLI (after fixes) | `mc-repl` prototype |
+| --- | --- | --- | --- |
+| System Settings option | pass, 25 s, 4 calls | pass, 135 s, 23 | pass, 35 s, 4 (after click fallback) |
+| Load unpacked extension | fail, 55 s, 9 | pass, 85 s, 14 | pass, 55 s, 8 |
+| Finder rename and move | pass, 45 s, 8 | pass, 75 s, 8 | pass, 75 s, 8 |
+| Web page file picker | pass, 35 s, 6 | pass, 85 s, 12 | pass, 35 s, 4 |
+| TextEdit save | pass, 35 s, 5 | pass, 65 s, 9 | pass, 45 s, 5 |
+
+Times are agent turn durations; calls are model tool calls. One repetition
+per cell is anecdotal; the comparison needs repetitions before claiming rates.
+
+Findings that changed Machine Control during the batches:
+
+- The first smoke trial crashed the resident: a System Settings element
+  reported a non-finite position and JSON encoding aborted the process.
+  Replies now replace non-finite numbers with null.
+- Every CLI trial spent about three calls on claim mistakes: `claim acquire
+  --help`, `--claim C claim release`, and `claim release --claim-id C`. All
+  three forms now work.
+- The host skill forbade opening a page's upload dialog, which blocked the
+  web picker when the browser extension was absent; it now directs agents to
+  press the file button and use `desktop dialog choose`.
+- Computer Use failed only in the native folder chooser; the Machine Control
+  routes passed it with `dialog choose`.
+- The persistent JavaScript route cut calls and time roughly in half against
+  the CLI and approached Computer Use. Its remaining Settings failure was
+  sidebar labels without a press action; clicking an element's centre when it
+  cannot be pressed fixed it.
+
+**Open:** a CLI equivalent of the element-centre click (or press fallback);
+Chrome web content deep in the accessibility tree is easy to miss with default
+snapshot depth; repetitions, more tasks (permission prompts, menus, drag), and
+a host YA analysis pass over the private results.
 
 ## Final result
 

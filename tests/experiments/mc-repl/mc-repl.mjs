@@ -127,7 +127,11 @@ class App {
     return element ? `[${number}] ${String(element.role).replace(/^AX/, "").toLowerCase()} "${element.label || element.value || ""}"` : `[${number}]`;
   }
 
+  // Press semantically when the element supports it; otherwise click its
+  // centre, as labels and sidebar rows often have no press action.
   press(number, { observe } = {}) {
+    const element = this.elements.get(number);
+    if (element && !(element.actions || []).includes("AXPress")) return this.click(number, undefined, { observe });
     return this.act(`pressed ${this.describe(number)}`,
       { operation: "action", reference: this.reference(number), action: "press" }, observe);
   }
@@ -145,8 +149,21 @@ class App {
   type(text, { observe } = {}) {
     return this.act(`typed ${text.length} characters`, { operation: "input.text", text, target: this.target }, observe);
   }
-  click(x, y, { observe } = {}) {
-    return this.act(`clicked ${x},${y}`, { operation: "input.click", x, y, target: this.target }, observe);
+  // click(n) clicks the centre of element n; click(x, y) clicks coordinates.
+  click(x, y, options = {}) {
+    if (y === undefined || typeof y === "object") {
+      options = y || options;
+      this.reference(x);
+      const element = this.elements.get(x);
+      const b = element?.bounds;
+      if (!b || !Number.isFinite(b.x) || !Number.isFinite(b.y) || !(b.width > 0) || !(b.height > 0)) {
+        throw new ControlError(`${this.describe(x)} has no on-screen bounds to click`);
+      }
+      const cx = Math.round(b.x + b.width / 2), cy = Math.round(b.y + b.height / 2);
+      return this.act(`clicked ${this.describe(x)} at ${cx},${cy}`,
+        { operation: "input.click", x: cx, y: cy, target: this.target }, options.observe);
+    }
+    return this.act(`clicked ${x},${y}`, { operation: "input.click", x, y, target: this.target }, options.observe);
   }
   // Choose a location in this app's open native Open or Save panel.
   async choose(location, { confirm = true, observe } = {}) {
@@ -202,7 +219,8 @@ const HELP = `Persistent JavaScript with top-level await and an \`mc\` object fo
 Assign handles without let/const so they persist between calls: app = await mc.app("TextEdit").
 mc.apps(), mc.app(nameOrBundleId), mc.launch(bundleId)
 app.tree({query}), app.find(text), app.press(n), app.setValue(n, text), app.focus(n),
-app.key("cmd+s"), app.type(text), app.click(x, y), app.choose("/absolute/path"), app.screenshot()
+app.key("cmd+s"), app.type(text), app.click(n) or app.click(x, y), app.choose("/absolute/path"), app.screenshot()
+press(n) clicks the element's centre when it has no press action (labels, sidebar rows).
 Actions return delivery/effect and the refreshed tree automatically; numbers are valid only for the latest tree.
 For native Open/Save panels use app.choose(path). Return or console.log values to see them.`;
 

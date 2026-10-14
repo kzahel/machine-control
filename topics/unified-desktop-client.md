@@ -162,7 +162,11 @@ refusal, actions that return the refreshed tree, inline screenshots and
 socket directly and skips claims and controller audit, so it is confined to
 the disposable experiment guest. The route-comparison driver can run it as a
 third route against the CLI and Computer Use. It is evidence for the facade
-choice, not the supported runtime.
+choice, not the supported runtime. In the first single-repetition batch it
+passed all five tasks with 29 tool calls in total, against 66 for the CLI and
+32 for Computer Use (which failed one), after it learned to click an
+element's centre when the element cannot be pressed
+([Tactical 119](../docs/tactical/119-vm-comparison-experiments.md)).
 
 **Proposal:** initially reuse the existing Python session client to prove the
 contract and compatibility CLI. Prototype one thin persistent model-facing

@@ -243,7 +243,7 @@ def transcript_metrics(text):
             calls += 1
             body = json.dumps(payload.get("arguments") or payload.get("input") or "")
             cua += "cua." in body or "getApp(" in body
-            mc_repl += payload.get("name") == "mc" or '"server": "mc"' in body
+            mc_repl += body.count("mcp__mc__mc") or payload.get("name") in ("mc", "mcp__mc__mc")
             mc_calls += body.count("machine-control")
     return {"toolCalls": calls, "computerUseCalls": cua, "machineControlInvocations": mc_calls,
             "mcReplCalls": mc_repl}
