@@ -8,7 +8,10 @@ description: Control the Mac this agent runs on through the local Machine Contro
 The `host` target is the Mac running the common client. Its Machine Control
 resident reads a root-owned deployment policy. On a personal Mac there is no
 policy file, so the resident is a `workstation`: every capture and action is
-refused until the person at the computer approves a grant.
+refused unless a grant is active. The person either approves an agent's
+timed request or turns access on themselves from the app, optionally
+**Until I turn it off** (`lifetime: until_stopped`). Agents can never create
+or extend that lifetime.
 
 ## Workflow
 
@@ -20,7 +23,9 @@ refused until the person at the computer approves a grant.
    YepAnywhere, Claude Code, or Codex, omit `--claimant-authority` and
    `--claimant-id`: the CLI attributes the claim to your published session ID
    so audit history leads back to your transcript.
-3. Ask once for every scope the task can need, for the time it needs:
+3. Run `grant status` first. If an active grant already covers the task's
+   scopes, use it and skip the request. Otherwise ask once for every scope
+   the task can need, for the time it needs (at most 8 hours):
 
    ```bash
    bin/machine-control --target host --claim "$CLAIM" grant request \
@@ -121,9 +126,11 @@ private and carry your session ID; see
   not retry in a loop or narrow the reason to get past a person's decision.
 - Never try to operate the Machine Control menu, prompt, or its settings;
   the resident refuses it and the attempt is recorded.
-- A grant ends when the screen locks, when it expires, or when the person
-  presses Stop (⌃⌥⌘.). Expect `approval_required` afterwards and ask again
-  only if the task still needs it.
+- Access pauses while the screen is locked. A timed grant ends at lock,
+  expiry, or when the person presses Stop (⌃⌥⌘.). Access the person turned
+  on until stopped comes back by itself after unlock, but not after Stop,
+  logout or reboot. Expect `approval_required` when access is off, and ask
+  again only if the task still needs it.
 - The prompt labels your process chain as unverified. Do not claim to be a
   different program in the reason.
 - Controlling the person's own desktop can move their pointer and change

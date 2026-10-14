@@ -123,7 +123,10 @@ Inspect status/capabilities; request only the scopes needed for this task:
     --scope observe --scope control --reason 'describe the task' --duration 10m
   machine-control --target host --claim CLAIM_ID grant status
 
-A person at the target approves access in MC's native UI. Cancellation,
+Check grant status first: the person may already have turned access on,
+possibly until they stop it; then use it without requesting. Otherwise a
+person approves a timed request (at most 8h) in MC's native UI. Never revoke
+access you did not request. Cancellation,
 timeout, refusal and revocation are terminal for the attempt; report them
 without automatically retrying or weakening policy. Discovery can work without
 an access grant. Missing OS permissions are separate from MC approval.
