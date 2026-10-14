@@ -292,6 +292,11 @@ def serve(alias: str, target: JSON, arguments: list[str], *,
     session_property = {"type": "string", "description": "Your published agent session ID; use the same ID on every call.",
                         "pattern": SESSION_ID.pattern}
     help_text = HELP
+    if options.observe == "explicit":
+        help_text = help_text.replace(
+            "Actions print route/delivery/effect/uncertainty and a fresh tree.",
+            "Actions print route/delivery/effect/uncertainty. Automatic observation is off;\n"
+            "call app.tree() before acting on changed UI.")
     if options.session_id_file:
         help_text = help_text.replace(
             "Every call requires session_id: your published agent session ID. If unknown,\n"
