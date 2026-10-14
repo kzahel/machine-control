@@ -324,8 +324,8 @@ print(json.dumps(collect(configs[0])))
             released = mc("--target", args.target, "--claim", claim, "workspace", "release", handle,
                           check=False)
             record["released"] = (released.get("data") or {}).get("disposition")
-            if released.get("accepted") is not True:
-                record["releaseError"] = released.get("errorCode", "release_refused")
+            if released.get("accepted") is not True or record["released"] != "discarded":
+                record["releaseError"] = released.get("errorCode", "disposal_not_confirmed")
         except Exception as error:
             record["releaseError"] = str(error)
         finally:

@@ -217,3 +217,11 @@ as skipping claims and controller audit. Do not call its difference a measured
 benefit of persistence alone.
 
 Offline checks: `python3 -m unittest discover -s tests/experiments -p 'test_*.py'`.
+
+`report_batch.py RESULTS/RUN` summarizes valid successful trials by task/route,
+with failures, timeouts, missing trials and cleanup failures separately. It
+never treats a partial batch or duplicate records as complete. Review actual
+tool calls before attributing results to a route: the route restriction is a
+prompt, not a tool-isolation boundary. The legacy `wallSeconds` diagnostic
+excludes workspace acquisition and final cleanup; use transcript `agentSeconds`
+for the agent comparison, not that field as an end-to-end provisioning cost.

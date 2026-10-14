@@ -507,10 +507,11 @@ and experiments are different sources of evidence.
 
 **Current, retention limits:** records retain sanitized methods, results, pins
 and native anchors. Private paths, raw UI/log output, transient scripts,
-proprietary extracts and owned test documents were removed. There is no
-checked-in automated Sky reproduction/conformance harness and no retained raw
-trace from which to re-audit every observation. These are documented bounded
-experiments, not a replayable security certification. The owned MC identity
+proprietary extracts and owned test documents were removed. The early authorization and external-host experiments have no retained
+reproduction harness or raw trace from which to re-audit every observation.
+The later native-efficiency study has an original checked-in probe corpus and
+private raw profiles; it does not retroactively strengthen the authorization
+findings. Neither is a replayable security certification. The owned MC identity
 fixture is separate evidence and must not be reported as a Sky test.
 
 **Current, documentation consolidation:** on 2026-10-04 the transport and

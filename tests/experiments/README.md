@@ -20,3 +20,13 @@ Results, transcripts, usage notes, audit history and final captures go to a
 private run directory under `~/.local/state/machine-control/experiments/`.
 They contain session identifiers and screenshots and never belong in Git. The
 runbook is [comparison experiments](../../docs/comparison-experiments.md).
+
+After a batch (or while inspecting a partial run):
+
+```bash
+python3 tests/experiments/report_batch.py /private/results/run-ID
+```
+
+The report omits session IDs and raw UI output, keeps unsuccessful/invalid
+trials out of successful-latency summaries, and reports missing trials. Review
+it before promoting any minimized result into public research.
