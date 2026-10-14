@@ -2,7 +2,7 @@
 
 Status: active. A typed Python core, claim/admission/audit transport and killable
 MCP facade are implemented as a [source candidate](../agent-session.md).
-Thirty-two focused offline tests, 279 client tests and strict type checking pass.
+Thirty-six focused offline tests and strict type checking pass.
 Codex TextEdit, window and Settings smokes passed, as did Claude Settings;
 broader live qualification and matched comparison remain pending.
 The direct-socket JavaScript
@@ -335,3 +335,10 @@ coordinates, used `Capture.click`, and closed the session. Independent pointer
 down/up callbacks establish the effect; the model correctly described the
 provider's own effect report as unverified. This remains a single conformance
 smoke, not a repeated efficiency comparison.
+
+Failure-path review added regressions for artifact-fetch claim/audit loss,
+terminal transport reset, and a timed-out worker whose child inherits stdout.
+Ownership now closes on those artifact failures, stopped transports end their
+MCP interpreter, and worker cleanup reuses the existing scoped process-tree
+owner. No same-user containment or automatic replay is introduced. The focused
+suite passes all 36 checks; the earlier full client run passed 279 tests.

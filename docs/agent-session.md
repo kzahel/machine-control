@@ -87,6 +87,11 @@ snippet deadline, not same-user containment. Timeout delivery is unknown and
 the worker's live ownership ends; reset explicitly before starting a new
 session, then observe the application. Reset in a live session clears Python
 variables and element maps while keeping its claim and open applications.
+Cleanup reuses the scoped runner's process-group / Windows Job Object handling
+for ordinary child processes, including children that inherit the reply pipe.
+An artifact-fetch claim or audit failure also closes ownership. The MCP worker
+ends with a stopped transport, allowing a subsequent explicit reset to start
+normal admission again; it never silently replays the failed code.
 The pending broader design includes shell-session packaging and fuller
 approval-aware deadlines; those are not implemented by this thin facade.
 

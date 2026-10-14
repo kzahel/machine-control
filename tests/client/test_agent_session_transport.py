@@ -100,5 +100,20 @@ class TransportTest(unittest.TestCase):
         self.assertEqual(self.events[-2:],['owner.close','claim.close'])
         with self.assertRaises(SessionError):t.call({'operation':'snapshot'})
 
+    def test_image_audit_failure_closes_ownership_before_fetch(self):
+        t=self.transport();self.events.clear();self.refuse_audit=True
+        with patch('agent_session_transport.mc.run_adapter') as fetch:
+            with self.assertRaises(SessionError):t.image({'data':{'artifactPath':'fixture.png'}})
+            fetch.assert_not_called()
+        self.assertEqual(self.events[-2:],['owner.close','claim.close'])
+
+    def test_image_claim_loss_closes_ownership_without_retry(self):
+        t=self.transport();self.events.clear()
+        with patch('agent_session_transport.mc.require_selected_claim',side_effect=mc.ClientError('claim_expired','ended')), \
+             patch('agent_session_transport.mc.run_adapter') as fetch:
+            with self.assertRaises(SessionError):t.image({'data':{'artifactPath':'fixture.png'}})
+            fetch.assert_not_called()
+        self.assertEqual(self.events[-2:],['owner.close','claim.close'])
+
 
 if __name__=='__main__':unittest.main()

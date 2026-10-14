@@ -1,8 +1,10 @@
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -80,6 +82,45 @@ class FacadeTest(unittest.TestCase):
                 self.assertEqual(result,{'content':[],'isError':False})
                 self.assertTrue(worker.closed)
                 self.assertEqual(worker.process.poll(),0)
+            finally:worker.close()
+
+    @unittest.skipUnless(os.name == 'posix', 'POSIX process-group pipe inheritance regression')
+    def test_timeout_reaps_descendant_that_inherits_the_reply_pipe(self):
+        with tempfile.TemporaryDirectory() as directory:
+            script=Path(directory)/'peer.py'
+            script.write_text('import sys,time,subprocess\nsys.stdin.readline()\nsys.stdin.readline()\n'
+                'subprocess.Popen([sys.executable,"-c","import time;time.sleep(60)"])\ntime.sleep(60)\n')
+            worker=Worker({},timeout=.3,command=[sys.executable,str(script)])
+            started=time.monotonic()
+            try:
+                with self.assertRaises(SessionTimeout):worker.request({'code':'child holds stdout'})
+                self.assertLess(time.monotonic()-started,8)
+                self.assertFalse(worker.reader.is_alive())
+                self.assertIsNotNone(worker.process.poll())
+            finally:worker.close()
+
+    def test_stopped_transport_ends_worker_before_explicit_reset(self):
+        with tempfile.TemporaryDirectory() as directory:
+            script=Path(directory)/'peer.py'
+            client=Path(__file__).resolve().parents[2]/'client'
+            script.write_text(f'import sys,threading\nsys.path.insert(0,{str(client)!r})\n'
+                'import agent_session_mcp as server\nfrom agent_session import ClaimLost\n'
+                'class Transport:\n'
+                ' def __init__(self,*args,**kwargs):self.stopped=threading.Event()\n'
+                ' def call(self,request):\n'
+                '  self.stopped.set()\n'
+                '  raise ClaimLost("claim_expired","Claim ended")\n'
+                ' def close(self):self.stopped.set()\n'
+                'server.RetainedTransport=Transport\nraise SystemExit(server.worker())\n')
+            config=dict(alias='fixture',target={},reason='test',claimantAuthority='fixture',
+                        claimantId='caller',sessionId='session')
+            worker=Worker(config,timeout=3,command=[sys.executable,str(script)])
+            try:
+                result=worker.request({'code':'mc.apps()'})
+                self.assertTrue(result['isError'])
+                self.assertIn('claim_expired',result['content'][0]['text'])
+                self.assertTrue(worker.closed)
+                with self.assertRaises(SessionError):worker.request({'code':'do not auto-replay'})
             finally:worker.close()
 
     def test_interpreter_is_bound_to_one_explicit_session(self):

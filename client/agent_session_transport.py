@@ -179,7 +179,15 @@ class RetainedTransport:
                     if not image.startswith(b"\x89PNG\r\n\x1a\n"):
                         raise SessionError("invalid_capture", "Capture is not a PNG")
                 return {"accepted": True, "operation": "artifact"}
-            self._audit(["desktop", "artifact"], fetch)
+            try:
+                self._audit(["desktop", "artifact"], fetch)
+            except mc.ClientError as error:
+                self.close()
+                raise refusal({"accepted": False, "errorCode": error.code,
+                               "message": str(error), "delivery": "unknown"}) from error
+            except SessionError:
+                self.close()
+                raise
             return image
 
     def close(self) -> None:

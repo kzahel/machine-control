@@ -19,12 +19,13 @@ import stat
 import subprocess
 import sys
 import threading
-from typing import Any, Callable, TextIO, cast
+from typing import Any, Callable, Protocol, TextIO, cast
 
 import audit_history
 import machine_control as common
 from agent_session import JSON, Capture, Result, Session, SessionError, Stopped, SessionTimeout
 from agent_session_transport import RetainedTransport
+from scoped_process import ProcessTree
 
 HELP = """Persistent Python desktop session. Calls are blocking: do not write await.
 Every call requires session_id: your published agent session ID. If unknown,
@@ -112,6 +113,7 @@ def worker() -> int:
     if len(configured) > MAX_REQUEST:
         return 2
     config = json.loads(configured)
+    transport: RetainedTransport | None = None
     session: Session | None = None
     namespace: Namespace | None = None
     startup_failed = False
@@ -161,6 +163,10 @@ def worker() -> int:
                 startup_failed = session is None
                 is_error = True
                 error = {"code": type(exc).__name__, "message": str(exc)}
+            if session is not None and transport is not None and transport.stopped.is_set():
+                # A terminal transport refusal must end this interpreter too,
+                # so an explicit reset can obtain a new normally admitted owner.
+                session.close()
             body = output.getvalue()
             if error:
                 error["actionAttemptsInSnippet"] = session.action_attempts - action_start if session else 0
@@ -179,12 +185,21 @@ def worker() -> int:
     return 0
 
 
+class OwnedProcessTree(Protocol):
+    process: subprocess.Popen[bytes] | None
+    def stop(self, *, grace: float = 1.0) -> None: ...
+    def close(self) -> None: ...
+
+
 class Worker:
     def __init__(self, config: JSON, *, timeout: float = 180,
                  command: list[str] | None = None) -> None:
         self.timeout = timeout
-        self.process = subprocess.Popen(command or [sys.executable, str(Path(__file__).resolve()), "--worker"],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=sys.stderr, start_new_session=True)
+        self.tree = cast(Callable[..., OwnedProcessTree], ProcessTree)(
+            command or [sys.executable, str(Path(__file__).resolve()), "--worker"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=sys.stderr)
+        assert self.tree.process is not None
+        self.process = self.tree.process
         assert self.process.stdin is not None and self.process.stdout is not None
         self.process.stdin.write(json.dumps(config).encode() + b"\n")
         self.process.stdin.flush()
@@ -245,14 +260,12 @@ class Worker:
         try:
             self.process.wait(timeout=3)
         except subprocess.TimeoutExpired:
-            self.process.terminate()
-            try:
-                self.process.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                self.process.kill()
-                self.process.wait()
-        if self.process.stdout:
-            self.process.stdout.close()
+            pass
+        # A child can inherit stdout even after the worker exits. Reap the
+        # existing owned process tree before closing a pipe read by the thread.
+        self.tree.stop(grace=.2)
+        self.reader.join(timeout=1)
+        self.tree.close()
 
 
 def serve(alias: str, target: JSON, arguments: list[str], *,
