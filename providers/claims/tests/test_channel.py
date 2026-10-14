@@ -29,7 +29,10 @@ for line in sys.stdin.buffer:
  with pathlib.Path(sys.argv[1]).open('ab') as file: file.write(line)
  sys.stdout.buffer.write(line); sys.stdout.buffer.flush()
 ''')
-        self.identifier = self.acquire(2)
+        # Process startup is outside the behavior under test. Allow it time
+        # under loaded Windows runners; expiry tests shorten the live lease
+        # only after observing the first independently recorded frame.
+        self.identifier = self.acquire(10)
     def tearDown(self):
         for child in self.children:
             if child.poll() is None: child.terminate()
@@ -52,9 +55,12 @@ for line in sys.stdin.buffer:
     def send(self, child, identifier):
         line = json.dumps({'requestId':identifier}).encode()+b'\n'
         child.stdin.write(line); child.stdin.flush()
-        self.assertEqual(child.stdout.readline(),line)
+        received = child.stdout.readline()
+        diagnostic = child.stderr.read().decode(errors='replace') if not received else ''
+        self.assertEqual(received,line,diagnostic)
     def test_raw_channel_expires_without_client_poll_and_never_renews(self):
         child = self.start(); self.send(child,'one')
+        claims.command_renew(self.options('renew',['--claim-id',self.identifier,'--duration-seconds','2']))
         child.wait(timeout=5)
         self.assertEqual(child.returncode,1)
         self.assertIn(b'claim_expired',child.stderr.read())
@@ -66,13 +72,14 @@ for line in sys.stdin.buffer:
     def test_released_or_replaced_claim_closes_existing_transport(self):
         child = self.start(); self.send(child,'one')
         claims.command_release(self.options('release',['--claim-id',self.identifier]))
-        replacement = self.acquire(3)
+        replacement = self.acquire(10)
         child.wait(timeout=5)
         self.assertEqual(child.returncode,1)
         self.assertEqual(len(self.effects.read_text().splitlines()),1)
         self.assertEqual(claims.command_check(self.options('check',['--claim-id',replacement]))['data']['claimId'],replacement)
     def test_external_renewal_keeps_channel_live_but_does_not_replay_frames(self):
         child = self.start(); self.send(child,'one')
+        claims.command_renew(self.options('renew',['--claim-id',self.identifier,'--duration-seconds','2']))
         time.sleep(1)
         claims.command_renew(self.options('renew',['--claim-id',self.identifier,'--duration-seconds','4']))
         time.sleep(1.2); self.send(child,'two')
@@ -84,9 +91,16 @@ for line in sys.stdin.buffer:
         child=self.start(); child.wait(timeout=5)
         self.assertEqual(child.returncode,1); self.assertFalse(self.effects.exists())
     def test_oversized_frame_is_not_forwarded(self):
-        child=self.start(); child.stdin.write(b'x' * 65537); child.stdin.flush()
+        child=self.start()
+        try:
+            child.stdin.write(b'x' * 65537); child.stdin.flush()
+        except BrokenPipeError:
+            # The reader can reject the oversized buffer before this write
+            # finishes. Require its exact rejection, not merely pipe closure.
+            pass
         child.wait(timeout=5)
         self.assertEqual(child.returncode,1); self.assertFalse(self.effects.exists())
+        self.assertIn(b'control_frame_too_large',child.stderr.read())
 
 
 if __name__ == '__main__': unittest.main()

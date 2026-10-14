@@ -4,19 +4,12 @@
 
 ## [0.6.4]
 
-- Preserve Windows and Linux access enabled by the person when an agent calls
-  `grant revoke`, matching Mac. Grant status reports whether access came from
-  the person or an approved agent request. Revoking a request grant still ends
-  it, and access the person enabled returns when that grant ends or expires.
-  The person's Stop still ends all access.
-
-## [0.6.3]
-
-- Preserve Mac access enabled by the person when an agent calls `grant revoke`.
-  Grant status now reports whether access came from the person or an approved
-  agent request. Revoking a request still ends that grant; it preserves saved
-  personal consent so the person's access can return. The person's Stop still
-  ends all access and clears that consent.
+- Preserve access enabled by the person on Mac, Windows and Linux when an
+  agent calls `grant revoke`. Grant status reports whether access came from
+  the person or an approved agent request. Revoking a request grant still
+  ends it; access the person enabled returns when that grant ends or expires.
+  On Mac, request cleanup preserves saved personal consent. The person's
+  Stop still ends all access and clears saved consent.
 - Add Chrome extension icons and a side panel showing connection, access,
   controlled tabs and recent operation activity without recording typed text
   or page content. Native browser hosts on all three platforms accept the
@@ -30,10 +23,11 @@
 - Prevent the installed CLI entry point from writing Python bytecode into
   the signed application bundle, preserving its code signature.
 
-Includes all six desktop platform/architecture packages. Person-armed grant
-retention is a Mac change; Windows and Linux follow-up remains pending.
-Mac broker, consent and socket regression tests pass. A locally signed source
-build also verifies installed grant retention and capture; lock/unlock, Stop,
+Includes all six desktop platform/architecture packages. Grant-retention
+regressions pass on all three platforms; installed Windows and Linux
+retention remains separate qualification. Mac broker, consent and socket
+regression tests pass. A locally signed source build also verifies installed
+grant retention and capture; lock/unlock, Stop,
 and exact production-package GUI effects remain separate qualification.
 
 ## [0.6.1]

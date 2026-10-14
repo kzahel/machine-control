@@ -1,4 +1,4 @@
-# 121 — Desktop 0.6.3 release
+# 121 — Desktop 0.6.4 release
 
 Status: active.
 Owning topics: [native distribution](../../topics/native-distribution.md),
@@ -8,16 +8,17 @@ Owning topics: [native distribution](../../topics/native-distribution.md),
 
 ## Objective and completion conditions
 
-Publish the requested next Machine Control desktop version as 0.6.3. Include
-Mac person-armed access retention, Chrome extension side panel and store-origin
-support, and installed CLI help and private usage notes. Require exact-source
+Publish the requested next Machine Control desktop version as 0.6.4. Include
+cross-platform person-armed access retention, Chrome extension side panel and
+store-origin support, and installed CLI help and private usage notes. Require exact-source
 checks, authenticated packages for all six targets, an immutable annotated
 tag, verified uploaded assets and working public downloads/update metadata.
 
 ## Boundaries
 
 [120](120-person-armed-access.md) owns the cross-platform retention work;
-this release includes its Mac implementation only. [117](117-chrome-web-store-extension.md)
+this release includes all three platform implementations, with installed
+Windows/Linux retention acceptance remaining separate. [117](117-chrome-web-store-extension.md)
 owns store review and installed store-copy acceptance. Publication establishes
 package authentication and delivery, not new installed GUI, protected-session,
 lock/restart, Intel or physical-hardware effects. Preserve existing releases
@@ -32,8 +33,9 @@ checks and the Mac resident tests. Commit and push clean main.
 
 ### 2 — build and authenticate six targets
 
-Build a unified candidate before tagging, then promote its exact signed bytes
-with the common release script. Require exact source,
+Pin the clean main source with the common annotated-tag release script, then
+let the unified workflow build, authenticate and publish only after all gates
+pass. Require exact source,
 native publisher signatures, Mac notarization/staples, signed updater versions,
 payload inventories and tamper rejection across all six targets.
 
@@ -77,3 +79,23 @@ passed after retrying the Windows coordinator job. Its first attempt found one
 claim winner but a losing process reported a lock error instead of the expected
 claim conflict. This unchanged concurrency test failure remains a separate
 diagnostic observation; the retry does not establish its cause or repair it.
+
+The next 0.6.3 candidate
+([38522635339](https://github.com/kzahel/machine-control/actions/runs/38522635339))
+at `d65645e7afd819b2718f761d3a4690892e8f64ea` passed Linux packages and
+exact-source cross-platform checks, but Windows x64 portable checks failed
+in two claim-channel fixtures. Its remaining jobs were cancelled. Separately,
+main advanced with Windows/Linux retention and 0.6.4 notes. Neither 0.6.3
+candidate produced a tag or public release.
+
+The channel fixtures previously spent their two-second claim during process
+startup; non-expiry tests now allow ten seconds. Expiry/renewal tests shorten
+the lease after the first independent fixture effect, preserving the expiry
+and renewal assertions. Oversized writes may observe early pipe closure only
+when the guardian reports `control_frame_too_large` and no fixture effect.
+EOF diagnostics now include the guardian's stderr. The original failing logs
+did not retain that stderr, so the exact original child-exit cause remains
+unknown; this is a fixture robustness repair, not a claimed runtime repair.
+
+Consolidate all changes since public 0.6.1 into 0.6.4. Use the standard tagged
+workflow so later main commits cannot invalidate its already-pinned source.
