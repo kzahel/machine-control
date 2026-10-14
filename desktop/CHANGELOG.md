@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [0.6.4]
+
+- Preserve Windows and Linux access enabled by the person when an agent calls
+  `grant revoke`, matching Mac. Grant status reports whether access came from
+  the person or an approved agent request. Revoking a request grant still ends
+  it, and access the person enabled returns when that grant ends or expires.
+  The person's Stop still ends all access.
+
 ## [0.6.3]
 
 - Preserve Mac access enabled by the person when an agent calls `grant revoke`.
