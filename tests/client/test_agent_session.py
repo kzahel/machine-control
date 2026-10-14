@@ -87,6 +87,20 @@ class AgentSessionTest(unittest.TestCase):
         self.assertIn('effect unverifiable',str(result))
         self.assertEqual(len([r for r in self.peer.requests if r['operation']=='action']),1)
 
+    def test_activation_preserves_focus_consequence_and_refreshes_numbers(self):
+        self.app.tree(); old=next(iter(self.app.elements))
+        self.peer.snapshot['data']['elements'][0]['reference']='foreground-element'
+        self.peer.action_result.update(hostInterference='none',
+                                       focusConsequence='target_application_activated')
+        result=self.app.activate(observe=True)
+        self.assertIn('host interference none; focus target_application_activated',str(result))
+        self.assertEqual(result.raw['effect'],'unverifiable')
+        self.assertEqual([r for r in self.peer.requests if r['operation']=='application.activate'],
+                         [{'operation':'application.activate','target':'fixture-app'}])
+        count=len(self.peer.requests)
+        with self.assertRaises(StaleElement):self.app.press(old)
+        self.assertEqual(len(self.peer.requests),count)
+
     def test_unknown_delivery_refusal_is_not_replayed(self):
         self.app.tree()
         self.peer.action_result=dict(accepted=False,errorCode='interrupted',delivery='unknown')

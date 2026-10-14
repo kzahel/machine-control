@@ -83,9 +83,10 @@ class Result:
 
     def __str__(self) -> str:
         v = self.raw
+        focus = f"; focus {v['focusConsequence']}" if v.get("focusConsequence") else ""
         return (f"{v.get('operation')}: route {v.get('actualRoute')}; "
                 f"delivery {v.get('delivery')}; effect {v.get('effect')}; "
-                f"uncertainty {v.get('uncertainty')}; interference {v.get('hostInterference')}")
+                f"uncertainty {v.get('uncertainty')}; host interference {v.get('hostInterference')}{focus}")
 
 
 def text(value: object, limit: int = 180) -> str:
@@ -344,6 +345,10 @@ class App:
 
     def focus(self, number: int, *, observe: bool | None = None) -> Result:
         return self.action(number, "focus", observe=observe)
+
+    def activate(self, *, observe: bool | None = None) -> Result:
+        """Explicitly bring the application forward; this changes target focus."""
+        return self._act({"operation": "application.activate", "target": self.target}, observe)
 
     def key(self, chord: str, *, observe: bool | None = None) -> Result:
         return self._act({"operation": "input.key", "target": self.target, "key": chord}, observe)

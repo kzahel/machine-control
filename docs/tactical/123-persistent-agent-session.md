@@ -2,9 +2,10 @@
 
 Status: active. A typed Python core, claim/admission/audit transport and killable
 MCP facade are implemented as a [source candidate](../agent-session.md).
-Thirty-seven focused offline tests and strict type checking pass.
-Codex and Claude TextEdit, window and Settings smokes passed;
-broader live qualification and matched comparison remain pending.
+Thirty-eight focused offline tests and strict type checking pass.
+The first seven-scenario, two-model smoke passed 13 of 14 cells; discovery and
+menu-context friction motivate a revised candidate. Repeated comparison and
+acceptance remain pending.
 The direct-socket JavaScript
 experiment remains `tests/experiments/mc-repl`.
 The completed [native efficiency investigation](124-native-behavior-and-efficiency.md)
@@ -369,3 +370,22 @@ explicitly names Machine Control and a persistent Python session, with no task
 answers or operation changes. Eleven MCP checks and strict typing pass; improved
 discovery still requires a separately pinned live comparison. The original
 candidate attempt and its costs remain a failed workflow observation.
+
+
+The first complete seven-scenario Python smoke passed 13 of 14 cells, with the
+Sol upload discovery failure retained. All traces were reviewed and all guests
+discarded. Sol's menu trial passed but took 167.418 seconds and 25 model calls.
+Its initial Format menu showed a disabled, contextually wrong conversion entry;
+clicking the document restored usable menu state after an ineffective focus
+attempt and one stale-number refusal. This is consistent with the earlier native
+background-menu limitation, but the agent trace alone does not prove its cause.
+
+The facade now exposes the existing typed `application.activate` operation as
+`app.activate()`, explicitly changing target focus. Lookup and ordinary actions
+do not silently activate the application. Result text labels host interference
+and preserves the provider's focus consequence instead of conflating them.
+A regression checks explicit targeting, preserved uncertainty and stale-number
+refusal after the activation observation. All 38 focused checks and strict typing
+pass. The next live pin combines this addition with the clearer discovery text;
+it cannot isolate the effects of either change. The prepared description-only
+campaign was stopped before any trial, retaining the original fourteen results.

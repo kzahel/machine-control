@@ -34,6 +34,8 @@ read AGENTCTL_SESSION_ID, CLAUDE_CODE_SESSION_ID or CODEX_THREAD_ID in your shel
 This is self-asserted audit attribution, not a secret or bearer authority.
 mc.apps(), mc.windows(), mc.state(), mc.app(exact_name_or_id), mc.launch(app_id).
 Bind app = mc.app("TextEdit"); it prints an initial tree.
+app.activate() explicitly brings the app forward and changes target focus.
+Some app menus require foreground activation; observe the result before retrying.
 app.tree(query=None, full=False), app.press(n), app.click(n), app.focus(n),
 app.set_value(n, text), app.key("cmd+s"), app.type(text), app.choose(absolute_path),
 app.scroll(n,"down",pixels=400). shot = app.screenshot() attaches a window image;

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Qualify Python capture coordinates against the owned native fixture.
+"""Qualify Python activation and capture against the owned native fixture.
 
 Run only in a disposable guest prepared by prepare.py. Controller lifecycle,
 claims, credential handoff and disposal remain the caller's responsibility.
@@ -71,7 +71,28 @@ def main():
     transport = connect(options.target, reason='Qualify capture-bound pointer input against owned fixtures')
     report = {}
     with Session(transport, target=options.target, emit=lambda value: None, emit_image=images.append) as mc:
+        sentinel = mc.app('org.machine-control.efficiency.sentinel', observe=False)
+        sentinel.activate(observe=False)
+        background = wait_state(root, lambda value: value['frontPid'] == before_sentinel['pid'])
         app = mc.app(APP)
+        assert state(root)['frontPid'] == background['frontPid'], 'Lookup implicitly changed foreground'
+        report['lookupPreservesForeground'] = True
+        old_capture = app.screenshot()
+        before = state(root)
+        activation = app.activate()
+        activated = wait_state(root, lambda value: value['frontPid'] == value['pid'] and value['keyWindow'])
+        assert activation.raw.get('focusConsequence') == 'target_application_activated'
+        assert activated['cursor'] == before['cursor']
+        report['activationEffect'] = True
+        report['activationCursorUnchanged'] = True
+        attempts = mc.action_attempts
+        try:
+            old_capture.click(old_capture.width / 2, old_capture.height / 2)
+            raise AssertionError('Capture reused after activation')
+        except StaleElement:
+            assert mc.action_attempts == attempts
+            report['activationInvalidatesCapture'] = True
+
         capture = app.screenshot()
         x, y = point(capture, element(app, label='Increment', role='AXButton'))
         before = state(root)

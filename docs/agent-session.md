@@ -42,15 +42,20 @@ app.tree(query="Save")
 
 Calls block; there is no `await`. Variables persist. The final expression and
 `print` output are returned. Application handles offer `tree`, `press`, `click`
-(element centre), `set_value`, `focus`, `action`, `key`, `type`, `choose`, `scroll`,
+(element centre), `set_value`, `focus`, `activate`, `action`, `key`, `type`, `choose`, `scroll`,
 and `screenshot`. Inspect a fresh tree before acting on a changed interface.
 Call `mc.close()` when the task finishes, preferably at the end of its final
 snippet. It releases claim/admission promptly and leaves applications open.
 Native Open/Save panels take an absolute location through `choose(path)`;
 follow-up prompts remain visible and require another decision.
+`app.activate()` explicitly brings the target application forward and changes
+target focus. Some app menus need foreground activation. This is separate from
+focusing an element, and application lookup does not implicitly activate it.
 
 Actions retain the full resident envelope in `result.raw` and print route,
-delivery, effect, uncertainty and interference. By default they also observe
+delivery, effect, uncertainty, host interference and any reported focus
+consequence. Host interference is not a claim that the target cursor/focus stayed
+unchanged. By default they also observe
 the resulting tree. `--observe explicit` disables that automatic observation;
 call `tree()` explicitly when batching. Settling compares bounded samples;
 two equal samples do not prove asynchronous application completion.
