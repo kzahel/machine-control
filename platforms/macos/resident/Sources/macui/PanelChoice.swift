@@ -1,3 +1,4 @@
+import AppKit
 import ApplicationServices
 import Foundation
 
@@ -97,8 +98,10 @@ struct PanelChooser {
             guard exists else {
                 throw PanelChoiceRefusal(code: "path_not_found", message: "No item exists at path")
             }
+            // Panels select packages such as .app bundles like files.
+            let folderLike = isDirectory.boolValue && !NSWorkspace.shared.isFilePackage(atPath: url.path)
             return Target(destination: url.path,
-                          folder: isDirectory.boolValue ? url : url.deletingLastPathComponent(),
+                          folder: folderLike ? url : url.deletingLastPathComponent(),
                           name: nil)
         }
         let folder = url.deletingLastPathComponent()

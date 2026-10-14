@@ -1,7 +1,8 @@
 # 119 — VM route-comparison experiments
 
-Status: active. Experiment base built; Machine Control route proven in the
-guest; Computer Use installation, workspace proof, driver and tasks pending.
+Status: active. Experiment base built; both routes proven in the guest
+(Machine Control and Codex Computer Use). Workspace proof, driver and tasks
+pending.
 Owning topic: [operational workflow automation](../../topics/operational-workflow-automation.md).
 Runbook: [route-comparison experiments](../comparison-experiments.md).
 
@@ -83,12 +84,26 @@ use. One SSH connection carries `-R 127.0.0.1:8417` to the controller's AAR and
 | Guest YA through the tunnel | **Pass:** session created and polled from the controller via the forwarded port |
 | Clones keep grants | **Pass** for a full clone; isolated workspace clones not yet checked |
 | Gateway authentication | Unauthenticated request through the reverse forward returns 401 |
-| Computer Use in the guest | **Open:** needs the ChatGPT app, Codex Computer Use and an operator decision on signing in |
-| Computer Use through AAR | **Open** (operator expects it works) |
+| Computer Use in the guest | **Pass without a ChatGPT sign-in:** `getState`, accessibility tree and a real screenshot |
+| Computer Use through AAR | **Pass:** the guest's Codex used the `js`/`cua` tool with the `aar` provider |
 
 Guest-local `machine-control --target host target doctor` passes every check
 under the appliance's standing policy, so guest agents drive the guest desktop
 target-natively.
+
+Computer Use setup, so a rebuild needs no sign-in or human step:
+
+- Copy the controller's matching `/Applications/ChatGPT.app`,
+  `~/.codex/computer-use` and `~/.codex/plugins/cache/openai-bundled` into the
+  guest and mirror the controller's computer-use plugin and `node_repl` MCP
+  configuration with guest paths. OpenAI's signatures verify strictly there.
+- `node_repl` cannot start the Computer Use service unless the ChatGPT app is
+  running; signed out is enough. A per-user LaunchAgent opens it at login.
+- Accessibility: press the service's **Allow**, turn on its switch through the
+  guest's own Machine Control, and answer the Privacy & Security sheet with an
+  `authorization.begin` lease and `authorization-submit --stored`.
+- Screen Recording: the pane's **Add** button opens an Open panel; `desktop
+  dialog choose` selects the service's `.app`, then **Quit & Reopen**.
 
 Notes: Chrome for Testing raises a keychain prompt unless launched with
 `--use-mock-keychain --password-store=basic`; its published bundle is unsealed,

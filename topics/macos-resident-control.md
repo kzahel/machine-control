@@ -22,8 +22,10 @@ take), refuses to confirm unless the panel's location shows the requested
 folder, and reports a follow-up such as Replace without answering it. The
 live system-dialogs suite covers folder, file, new save, unanswered Replace
 and no-panel refusal on macOS 26.6 through outside and guest-local callers;
-the same route loaded an unpacked extension in Chrome for Testing and saved
-from sandboxed TextEdit, whose panel is hosted out of process. Verification
+the same route loaded an unpacked extension in Chrome for Testing, saved
+from sandboxed TextEdit, whose panel is hosted out of process, and added an
+`.app` to System Settings' Screen Recording list. Packages such as `.app`
+bundles are selected like files rather than entered as folders. Verification
 is by folder display name, so two folders with the same name are not
 distinguished; other macOS releases need the same suite before claiming them.
 

@@ -28,6 +28,15 @@ final class PanelChoiceTests: XCTestCase {
         XCTAssertEqual(file.folder.lastPathComponent, "folder")
     }
 
+    func testOpenSelectsAPackageInItsFolder() throws {
+        let package = root.appendingPathComponent("folder/Example.app")
+        try FileManager.default.createDirectory(at: package.appendingPathComponent("Contents"),
+                                                withIntermediateDirectories: true)
+        let target = try chooser.resolve(package.path, kind: "open")
+        XCTAssertEqual(target.folder.lastPathComponent, "folder")
+        XCTAssertEqual(target.destination, package.standardizedFileURL.path)
+    }
+
     func testSaveNavigatesToTheFolderAndNamesTheFile() throws {
         let target = try chooser.resolve(root.appendingPathComponent("folder/new.txt").path, kind: "save")
         XCTAssertEqual(target.destination, root.appendingPathComponent("folder").standardizedFileURL.path)
