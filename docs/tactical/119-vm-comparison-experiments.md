@@ -1,8 +1,7 @@
 # 119 — VM route-comparison experiments
 
-Status: active. Experiment base built; both routes proven in the guest
-(Machine Control and Codex Computer Use). Workspace proof, driver and tasks
-pending.
+Status: active. Experiment base built and proven as the workspace ready base;
+both routes and isolated trial clones verified. Driver and tasks in progress.
 Owning topic: [operational workflow automation](../../topics/operational-workflow-automation.md).
 Runbook: [route-comparison experiments](../comparison-experiments.md).
 
@@ -82,7 +81,7 @@ use. One SSH connection carries `-R 127.0.0.1:8417` to the controller's AAR and
 | --- | --- |
 | Token reaches guest agents | **Pass:** a YA-launched guest Codex session saw `AAR_TOKEN` and completed through AAR |
 | Guest YA through the tunnel | **Pass:** session created and polled from the controller via the forwarded port |
-| Clones keep grants | **Pass** for a full clone; isolated workspace clones not yet checked |
+| Clones keep grants | **Pass:** an isolated workspace clone booted unlocked, started ChatGPT and YA, passed guest Machine Control doctor and Computer Use accessibility, and was discarded on release |
 | Gateway authentication | Unauthenticated request through the reverse forward returns 401 |
 | Computer Use in the guest | **Pass without a ChatGPT sign-in:** `getState`, accessibility tree and a real screenshot |
 | Computer Use through AAR | **Pass:** the guest's Codex used the `js`/`cua` tool with the `aar` provider |
