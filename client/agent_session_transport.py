@@ -118,6 +118,16 @@ class RetainedTransport:
             if self.stopped.is_set() or self.owner is None:
                 raise Stopped("session_closed", "Start a new session")
             translated = mc.translate_request(self.target["platform"], request)
+            # Mac's one-shot socket entry normalizes chords, but nested control
+            # dispatch reaches the native provider directly. Preserve literal +.
+            if self.target["platform"] == "macos" and translated.get("operation") == "input.key":
+                chord = translated.get("key")
+                if isinstance(chord, str) and len(chord) > 1 and "+" in chord:
+                    parts = chord.split("+")
+                    if parts[-1] == "":
+                        parts.pop()
+                        parts[-1] += "+"
+                    translated["key"] = "-".join(parts)
             operation = str(request.get("operation", "unknown"))
             try:
                 # ControlSession rechecks the live claim and owner generation per

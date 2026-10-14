@@ -12,7 +12,7 @@ from agent_session_transport import RetainedTransport
 
 class TransportTest(unittest.TestCase):
     def setUp(self):
-        self.events=[];self.refuse_audit=False;self.lose_claim=False;self.result_failure=False
+        self.events=[];self.requests=[];self.refuse_audit=False;self.lose_claim=False;self.result_failure=False
         outer=self
         class Claim:
             def __init__(self,*a,**kw):outer.events.append('claim.open')
@@ -24,6 +24,7 @@ class TransportTest(unittest.TestCase):
             def __init__(self,*a,**kw):outer.events.append('owner.open')
             def wait(self):return {}
             def call(self,request):
+                outer.requests.append(request)
                 outer.events.append('owner.check')
                 if outer.lose_claim:raise mc.ClientError('claim_expired','Claim ended')
                 outer.events.append('dispatch')
@@ -83,6 +84,12 @@ class TransportTest(unittest.TestCase):
             RetainedTransport('fixture',{'platform':'macos'},reason='test',claimant_authority='fixture',
                 claimant_id='caller',claim_factory=self.claim,control_factory=fail,audit_factory=self.audit)
         self.assertEqual(self.events[-1],'claim.close')
+
+    def test_mac_control_channel_uses_native_chords_and_preserves_plus_key(self):
+        t=self.transport()
+        for chord in ('cmd+s','cmd++','+'):
+            t.call({'operation':'input.key','key':chord})
+        self.assertEqual([r['key'] for r in self.requests],['cmd-s','cmd-+','+'])
 
 
 if __name__=='__main__':unittest.main()
