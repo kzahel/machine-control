@@ -2,8 +2,9 @@
 
 Status: active. A typed Python core, claim/admission/audit transport and killable
 MCP facade are implemented as a [source candidate](../agent-session.md).
-Twenty-two focused offline tests and strict type checking pass; live qualification
-and matched scenario comparison remain pending. The direct-socket JavaScript
+Thirty focused offline tests and strict type checking pass. A Codex/TextEdit
+smoke passed; broader live qualification and matched comparison remain pending.
+The direct-socket JavaScript
 experiment remains `tests/experiments/mc-repl`.
 The completed [native efficiency investigation](124-native-behavior-and-efficiency.md)
 prioritizes a thin claim-aware slice before broad packaging. Its repeated pilot
@@ -293,4 +294,12 @@ integration requirement, not an application-effect regression. Tool calls now
 carry an explicit session ID, bind the interpreter to one caller session, and
 use that ID for claim and controller audit attribution. A different session
 is refused instead of sharing state; startup failures require explicit reset.
-The failed attempt remains in private resource accounting. A rerun is pending.
+The failed attempt remains in private resource accounting. The rerun saved the
+requested TextEdit document in 52.426 seconds and seven model tool calls, with
+nineteen controller command results under the published session identity. This
+single smoke does not establish a speedup. Cleanup instructions now explicitly
+release the session at task end, and a watchdog releases it at the admission
+bound even if the agent goes idle. The Settings CLI trace required scrolling
+and pixel input because its AX radio options were absent, so the candidate now
+has capture-bound pointer actions; live qualification of that fallback remains
+pending. Capture checks do not remove the observation-to-input race.

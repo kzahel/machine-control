@@ -1,6 +1,7 @@
 """Claim, admission and audit ordering around a retained operation."""
 from pathlib import Path
 import sys
+import time
 import unittest
 from unittest.mock import patch
 
@@ -90,6 +91,14 @@ class TransportTest(unittest.TestCase):
         for chord in ('cmd+s','cmd++','+'):
             t.call({'operation':'input.key','key':chord})
         self.assertEqual([r['key'] for r in self.requests],['cmd-s','cmd-+','+'])
+
+    def test_expired_admission_releases_claim_without_another_agent_call(self):
+        t=self.transport();self.events.clear()
+        t.owner_deadline=time.monotonic()-1
+        t.renewal.join(timeout=3)
+        self.assertFalse(t.renewal.is_alive())
+        self.assertEqual(self.events[-2:],['owner.close','claim.close'])
+        with self.assertRaises(SessionError):t.call({'operation':'snapshot'})
 
 
 if __name__=='__main__':unittest.main()

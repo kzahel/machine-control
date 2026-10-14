@@ -32,8 +32,10 @@ app.tree(query="Save")
 
 Calls block; there is no `await`. Variables persist. The final expression and
 `print` output are returned. Application handles offer `tree`, `press`, `click`
-(element centre), `set_value`, `focus`, `action`, `key`, `type`, `choose`, and
-`screenshot`. Inspect a fresh tree before acting on a changed interface.
+(element centre), `set_value`, `focus`, `action`, `key`, `type`, `choose`, `scroll`,
+and `screenshot`. Inspect a fresh tree before acting on a changed interface.
+Call `mc.close()` when the task finishes, preferably at the end of its final
+snippet. It releases claim/admission promptly and leaves applications open.
 Native Open/Save panels take an absolute location through `choose(path)`;
 follow-up prompts remain visible and require another decision.
 
@@ -51,8 +53,20 @@ be reused. The current Mac native provider rotates references each snapshot;
 stable identity and useful no-change diffs still need native qualification.
 Unknown coordinate spaces refuse element-centre clicks before sending input.
 
+When semantics omit a control, `shot = app.screenshot()` attaches a window image.
+`shot.click(x, y)` and `shot.scroll(x, y, "down", pixels=400)` use image pixels;
+the client maps the image to the captured window and checks its process,
+identity, bounds, visibility and resident generation before input. Any subsequent
+session action invalidates that capture. Only the Mac Quartz exact-window
+mapping is implemented; other capture routes remain viewable but refuse these
+coordinate actions. These checks do not prove unchanged application content or
+remove the final observation-to-input race. Pointer routes move the cursor and
+may change focus. Independent effect checks remain necessary.
+
 The claim renews under the existing policy; admission is bounded to fifteen
-minutes and is never silently renewed. Existing grants and operator decisions
+minutes and is never silently renewed. A local watchdog closes ownership and
+releases the claim when that bound ends, including while the agent is idle.
+Existing grants and operator decisions
 remain authoritative. This first slice requires a ready doctor, so arrange
 normal grant approval through the established CLI workflow first. It does not
 arm protected operations or change resident privileges. Revocation, claim loss,

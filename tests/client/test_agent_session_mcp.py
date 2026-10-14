@@ -68,6 +68,20 @@ class FacadeTest(unittest.TestCase):
                 self.assertTrue(worker.closed)
             finally:worker.close()
 
+    def test_explicit_session_close_reaps_idle_worker(self):
+        with tempfile.TemporaryDirectory() as directory:
+            script=Path(directory)/'peer.py'
+            script.write_text('import sys,json\nsys.stdin.readline()\nsys.stdin.readline()\n'
+                'print(json.dumps({"content":[],"isError":False,"_sessionClosed":True}),flush=True)\n'
+                'sys.stdin.read()\n')
+            worker=Worker({},timeout=3,command=[sys.executable,str(script)])
+            try:
+                result=worker.request({'code':'mc.close()'})
+                self.assertEqual(result,{'content':[],'isError':False})
+                self.assertTrue(worker.closed)
+                self.assertEqual(worker.process.poll(),0)
+            finally:worker.close()
+
     def test_interpreter_is_bound_to_one_explicit_session(self):
         configs=[]; calls=[]
         class PeerWorker:

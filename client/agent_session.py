@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import math
+import struct
 import time
 from typing import Any, Callable, Literal, Protocol
 
@@ -131,7 +132,7 @@ class Session:
                    for k in ("name", "bundleId", "applicationId", "processId"))]
         if len(matches) != 1:
             raise SessionError("ambiguous_application" if matches else "application_not_found",
-                               "Use an exact name, application ID or PID from mc.apps()")
+                               "Use an exact name/ID from mc.apps(), or mc.launch(application_id) if it is not running")
         match = matches[0]
         identity = str(match.get("bundleId") or match.get("applicationId") or match["processId"])
         app = App(self, identity, str(match.get("name") or identity))
@@ -308,7 +309,7 @@ class App:
             return self.action(number, "press", observe=observe)
         return self.click(number, observe=observe)
 
-    def click(self, number: int, *, observe: bool | None = None) -> Result:
+    def _centre(self, number: int) -> tuple[int, int]:
         element = self._element(number)
         b = element.get("bounds", {})
         if self.coordinate_space not in {"global_display_points_top_left", "screen_physical_pixels"}:
@@ -316,9 +317,27 @@ class App:
         if any(type(b.get(k)) not in (int, float) or not math.isfinite(b[k]) for k in ("x", "y", "width", "height")) \
                 or b["width"] <= 0 or b["height"] <= 0:
             raise Unsupported("unsupported_bounds", "Element has no finite clickable bounds")
-        return self._act({"operation": "input.click", "target": self.target,
-                          "x": round(b["x"] + b["width"] / 2),
-                          "y": round(b["y"] + b["height"] / 2)}, observe)
+        return round(b["x"] + b["width"] / 2), round(b["y"] + b["height"] / 2)
+
+    def click(self, number: int, *, observe: bool | None = None) -> Result:
+        x, y = self._centre(number)
+        return self._act({"operation": "input.click", "target": self.target, "x": x, "y": y}, observe)
+
+    def _scroll_at(self, x: int, y: int, direction: str, pixels: int,
+                   observe: bool | None) -> Result:
+        if direction not in {"up", "down"} or type(pixels) is not int or not 1 <= pixels <= 3000:
+            raise Unsupported("unsupported_scroll", "Use up/down and 1–3000 pixels")
+        moved = self._act({"operation": "input.move", "target": self.target, "x": x, "y": y}, False)
+        if moved.raw.get("delivery") != "confirmed":
+            raise SessionError("pointer_position_unknown", "Pointer delivery is uncertain; observe before scrolling",
+                               delivered="unknown", result=moved.raw)
+        return self._act({"operation": "input.scroll", "target": self.target,
+                          "deltaX": 0, "deltaY": -pixels if direction == "down" else pixels}, observe)
+
+    def scroll(self, number: int, direction: str = "down", *, pixels: int = 400,
+               observe: bool | None = None) -> Result:
+        x, y = self._centre(number)
+        return self._scroll_at(x, y, direction, pixels, observe)
 
     def set_value(self, number: int, value: str, *, observe: bool | None = None) -> Result:
         return self.action(number, "set_value", text=value, observe=observe)
@@ -336,9 +355,67 @@ class App:
         return self._act({"operation": "dialog.choose", "target": self.target,
                           "path": path, "confirm": confirm}, observe)
 
-    def screenshot(self) -> str:
+    def screenshot(self, *, window_id: int | None = None) -> Capture:
         if self.session.emit_image is None:
             raise Unsupported("unsupported_image_sink", "Supply an image receiver to this library session")
-        result = self.session.call({"operation": "capture", "scope": "window", "target": self.target})
-        self.session.emit_image(self.session.transport.image(result))
-        return "Window capture attached; element numbers are unchanged."
+        request: JSON = {"operation": "capture", "scope": "window", "target": self.target}
+        if window_id is not None:
+            request["windowId"] = window_id
+        result = self.session.call(request)
+        png = self.session.transport.image(result)
+        if len(png) < 24 or png[:8] != b"\x89PNG\r\n\x1a\n" or png[12:16] != b"IHDR":
+            raise SessionError("invalid_capture", "Capture has no PNG dimensions")
+        width, height = struct.unpack(">II", png[16:24])
+        if not width or not height:
+            raise SessionError("invalid_capture", "Capture dimensions are empty")
+        capture = Capture(self, result, width, height)
+        self.session.emit_image(png)
+        self.session.emit(str(capture))
+        return capture
+
+
+class Capture:
+    """Coordinates grounded in one exact-window image and a verified geometry.
+
+    Only the Mac Quartz mapping is implemented. Other image providers
+    remain viewable, but their coordinate actions are explicitly unsupported.
+    """
+    def __init__(self, app: App, result: JSON, width: int, height: int) -> None:
+        self.app, self.raw, self.width, self.height = app, result, width, height
+        self.action_sequence = app.session.action_attempts
+
+    def __str__(self) -> str:
+        return f"{self.app.name}: {self.width}×{self.height} image pixels. Capture.click(x,y) / Capture.scroll(x,y,direction) use this image; new actions invalidate it."
+
+    def _point(self, x: float, y: float) -> tuple[int, int]:
+        if self.action_sequence != self.app.session.action_attempts:
+            raise StaleElement("stale_capture", "An action occurred after this capture; capture again")
+        if self.raw.get("actualRoute") != "guest.user/macos.quartz" or self.raw.get("coordinateSpace") != "window_pixels" \
+                or self.raw.get("fidelity") != "exact_window":
+            raise Unsupported("unsupported_capture_coordinates", "This provider has no supported image-to-input mapping")
+        if any(type(v) not in (int, float) or not math.isfinite(v) for v in (x, y)) \
+                or not 0 <= x < self.width or not 0 <= y < self.height:
+            raise SessionError("invalid_capture_coordinates", "Coordinates must lie inside the captured image")
+        window = self.raw.get("data", {}).get("window", {})
+        bounds = window.get("bounds", {})
+        if any(type(bounds.get(k)) not in (int, float) or not math.isfinite(bounds[k])
+               for k in ("x", "y", "width", "height")) or bounds["width"] <= 0 or bounds["height"] <= 0:
+            raise Unsupported("unsupported_capture_bounds", "Capture has no finite window geometry")
+        if window.get("windowId") is None or window.get("processId") is None:
+            raise Unsupported("unsupported_capture_identity", "Capture has no exact window/process identity")
+        current = self.app.session.call({"operation": "windows", "target": self.app.target})
+        matches = [w for w in current.get("data", {}).get("windows", [])
+                   if w.get("windowId") == window["windowId"] and w.get("processId") == window["processId"]]
+        if current.get("generation") != self.raw.get("generation") or len(matches) != 1 \
+                or matches[0].get("bounds") != bounds or matches[0].get("onScreen") is not True:
+            raise StaleElement("stale_capture", "Captured window changed or disappeared; capture again")
+        return round(bounds["x"] + x * bounds["width"] / self.width), round(bounds["y"] + y * bounds["height"] / self.height)
+
+    def click(self, x: float, y: float, *, observe: bool | None = None) -> Result:
+        px, py = self._point(x, y)
+        return self.app._act({"operation": "input.click", "target": self.app.target, "x": px, "y": py}, observe)
+
+    def scroll(self, x: float, y: float, direction: str = "down", *, pixels: int = 400,
+               observe: bool | None = None) -> Result:
+        px, py = self._point(x, y)
+        return self.app._scroll_at(px, py, direction, pixels, observe)

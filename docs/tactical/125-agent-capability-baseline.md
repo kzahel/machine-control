@@ -2,9 +2,10 @@
 
 Status: active. Both requested profiles completed guest YA/AAR qualification;
 the runner now collects both transcript formats and verifies effective settings.
-Seven scenarios and three CLI instruction arms are implemented. Initial agent
-smokes passed Opus/JS TextEdit save and Sol/CLI extension installation. Broader
-smoke and repeated baseline coverage remain pending; no broad baseline is claimed.
+Seven scenarios and three CLI instruction arms are implemented. Sol/CLI has a
+valid passing smoke on every scenario; Opus/JS TextEdit save also passed. The
+frozen 105-trial campaign is active, with a review gate after its first round.
+Broader model/route coverage remains pending; no broad baseline is claimed.
 Owning topics: [operational workflow automation](../../topics/operational-workflow-automation.md),
 [unified desktop client](../../topics/unified-desktop-client.md).
 
@@ -176,7 +177,7 @@ prototype label until then.
 
 ## Validation and final result
 
-Twenty-four offline checks pass. Guest qualification completed one arithmetic
+Twenty-five offline checks pass. Guest qualification completed one arithmetic
 turn per requested model: Codex rollout model/effort and YA live standard-tier
 selection agree; Claude native records report exact model, medium effort and
 standard speed/tier. Codex's rollout omits speed, so its evidence does not attest
@@ -213,6 +214,14 @@ check. The corrected fixture remained live across separate SSH calls and its
 initial oracle rejected the untouched state. An agent rerun is still required.
 Oracle infrastructure errors now stop a batch after evidence collection and
 cleanup, and the window fixture retains diagnostic state privately.
+
+The corrected window agent rerun passed, as did the remaining Sol/CLI Finder,
+Settings and TextEdit smokes. All seven CLI scenarios therefore have one valid
+passing calibration trial. Window interference counters include fixture launch
+and task activity sampled every 20 ms, not an attribution of every transition
+to the agent. The repeated campaign has separate provider manifests and freezes
+its older client/fixtures independently of the Python candidate. Its first
+round is a review gate before subsequent repetitions.
 
 Three instruction arms are versioned, including the task-independent CLI
 quickstart. They have not yet been compared. Seven-scenario agent smoke and

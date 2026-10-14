@@ -5,6 +5,7 @@ from pathlib import Path
 import sqlite3
 import tempfile
 import threading
+import time
 from typing import Callable, Protocol, cast
 
 import audit_history
@@ -54,6 +55,7 @@ class RetainedTransport:
         self.stopped = threading.Event()
         self.lock = threading.RLock()
         self.renewal: threading.Thread | None = None
+        self.owner_deadline = time.monotonic() + 900
         try:
             def inspect() -> JSON:
                 value, _ = mc.doctor(alias, target)
@@ -77,6 +79,7 @@ class RetainedTransport:
                                              duration=900, wait=300)
                 return self.owner.wait()
             self._audit(["control", "open"], admit)
+            self.owner_deadline = time.monotonic() + 900
             self.renewal = threading.Thread(target=self._renew, name="mc-agent-claim-renewal", daemon=True)
             self.renewal.start()
         except BaseException:
@@ -103,12 +106,21 @@ class RetainedTransport:
         return value
 
     def _renew(self) -> None:
-        while not self.stopped.wait(60):
+        next_renewal = time.monotonic() + 60
+        while not self.stopped.wait(1):
             try:
                 with self.lock:
+                    if time.monotonic() >= self.owner_deadline:
+                        self.failure = Stopped("admission_expired", "Bounded admission ended; start a new session")
+                        self.close()
+                        return
+                    if time.monotonic() < next_renewal:
+                        continue
                     if self.claim is None:
                         return
-                    self._audit(["claim", "renew"], lambda: self.claim.renew(900) if self.claim else {})
+                    duration = max(60, min(900, int(self.owner_deadline - time.monotonic())))
+                    self._audit(["claim", "renew"], lambda: self.claim.renew(duration) if self.claim else {})
+                    next_renewal = time.monotonic() + 60
             except Exception as error:
                 self.failure = ClaimLost("claim_renewal_failed", "Claim renewal failed; start a new session", result={"reason": type(error).__name__})
                 self.close()

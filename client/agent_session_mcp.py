@@ -21,7 +21,7 @@ from typing import Any, Callable, TextIO, cast
 
 import audit_history
 import machine_control as common
-from agent_session import JSON, Result, Session, SessionError, Stopped, SessionTimeout
+from agent_session import JSON, Capture, Result, Session, SessionError, Stopped, SessionTimeout
 from agent_session_transport import RetainedTransport
 
 HELP = """Persistent Python desktop session. Calls are blocking: do not write await.
@@ -32,12 +32,18 @@ mc.apps(), mc.windows(), mc.state(), mc.app(exact_name_or_id), mc.launch(app_id)
 Bind app = mc.app("TextEdit"); it prints an initial tree.
 app.tree(query=None, full=False), app.press(n), app.click(n), app.focus(n),
 app.set_value(n, text), app.key("cmd+s"), app.type(text), app.choose(absolute_path),
-app.screenshot(). Actions print route/delivery/effect/uncertainty and a fresh tree.
+app.scroll(n,"down",pixels=400). shot = app.screenshot() attaches a window image;
+shot.click(x,y) and shot.scroll(x,y,"down",pixels=400) use IMAGE pixels. Capture
+coordinates check the same window/geometry and expire after any action. Capture
+again before another coordinate action. These pointer routes move the cursor.
+Actions print route/delivery/effect/uncertainty and a fresh tree.
 Numbers belong to that app's latest observation. Removed or replaced numbers
 are stale; never guess a new number. Query menus with app.tree(query="Save").
 Use app.choose(path) for a native Open/Save panel; inspect any follow-up sheet.
 Accepted delivery is not proof of the requested effect. Inspect results.
 The final expression and print output are shown. Variables persist between calls.
+When the task is finished, call mc.close() to release its claim and admission.
+You may put that call at the end of the final code snippet; open apps remain.
 Reset clears variables and numbers but keeps the live claim and open apps.
 Session owns a target claim, normal resident admission and per-operation audit.
 An admission is bounded to 15 minutes; an expired/stopped owner is not replayed
@@ -118,7 +124,7 @@ def worker() -> int:
                         print("Namespace reset; the live claim and application state are retained.")
                     else:
                         value = namespace.run(request["code"])
-                        if value is not None and not isinstance(value, Result):
+                        if value is not None and not isinstance(value, (Result, Capture)):
                             print(value)
             except SessionError as exc:
                 startup_failed = session is None
@@ -138,10 +144,11 @@ def worker() -> int:
                 error["actionAttemptsInSnippet"] = session.action_attempts - action_start if session else 0
                 body += "\n" + json.dumps(error, ensure_ascii=False)
             response = {"content": [{"type": "text", "text": body or "(no output)"}, *images],
-                        "isError": is_error}
+                        "isError": is_error, "_sessionClosed": session.closed if session else False}
             encoded = json.dumps(response)
             if len(encoded.encode()) > MAX_REPLY:
-                encoded = json.dumps({"content": [{"type": "text", "text": "Reply exceeded 12 MiB; use one capture per call."}], "isError": True})
+                encoded = json.dumps({"content": [{"type": "text", "text": "Reply exceeded 12 MiB; use one capture per call."}],
+                                      "isError": True, "_sessionClosed": session.closed if session else False})
             sys.stdout.write(encoded + "\n")
             sys.stdout.flush()
     finally:
@@ -192,6 +199,8 @@ class Worker:
             value = json.loads(response)
             if not isinstance(value, dict) or not isinstance(value.get("content"), list):
                 raise ValueError("Malformed worker reply")
+            if value.pop("_sessionClosed", False):
+                self.close()
             return value
         except queue.Empty as exc:
             self.close()
@@ -207,7 +216,10 @@ class Worker:
             return
         self.closed = True
         if self.process.stdin:
-            self.process.stdin.close()
+            try:
+                self.process.stdin.close()
+            except OSError:
+                pass
         try:
             self.process.wait(timeout=3)
         except subprocess.TimeoutExpired:
