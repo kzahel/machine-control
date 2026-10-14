@@ -4,8 +4,8 @@ Status: active. Both requested profiles completed guest YA/AAR qualification;
 the runner now collects both transcript formats and verifies effective settings.
 Seven scenarios and three CLI instruction arms are implemented. Sol/CLI has a
 valid passing smoke on every scenario; Opus/JS TextEdit save also passed. The
-frozen 105-trial campaign stopped after eight attempts for evaluator repairs;
-its receipts remain intact. The prepared Python matrix has not started.
+frozen 105-trial campaign is continuing after evaluator repairs, retaining its
+original attempts and costs. The prepared Python matrix has not started.
 Broader model/route coverage remains pending; no broad baseline is claimed.
 Owning topics: [operational workflow automation](../../topics/operational-workflow-automation.md),
 [unified desktop client](../../topics/unified-desktop-client.md).
@@ -269,3 +269,21 @@ records parser/input hashes, including for carried attempts. The upload example
 was 52.169 seconds elapsed, versus 32.213 active; two earlier campaign attempts
 also had capacity backoff. These waits must remain in efficiency and cost
 accounting. Forty-three offline experiment checks pass.
+
+The first-round traces also distinguish observation ergonomics from native
+capability. One CLI Settings attempt needed a deeper snapshot to expose the
+Always radio control; the candidate's default depth already covers it. One
+Opus/CLI extension attempt instead recovered through window capture and
+coordinate input when its semantic snapshots omitted the page controls.
+Neither observation proves a permanent native AX omission. Claims were released
+and independent effects passed. These combined interface differences must not
+be attributed to persistence or language alone.
+
+The first qualified unsuccessful cell was Computer Use extension loading. The
+agent enabled Developer mode, then reported a policy requirement for fresh
+confirmation before non-marketplace installation and stopped in the unattended
+trial. Its native transcript contains `RESULT: blocked`; YA's summary text was
+empty. The oracle correctly found no registration or behavior. This is an
+unattended-workflow refusal, not evidence that the native API cannot install an
+extension. Preserve it in success/cost accounting and do not silently retry or
+weaken provider consent rules to improve the score.
