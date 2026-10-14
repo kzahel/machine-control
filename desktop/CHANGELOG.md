@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [0.6.2]
+## [0.6.3]
 
 - Preserve Mac access enabled by the person when an agent calls `grant revoke`.
   Grant status now reports whether access came from the person or an approved

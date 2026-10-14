@@ -205,6 +205,10 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
     if tuple(map(int, version.split("."))) >= (0, 6, 0):
         required.update("linux-runtime/" + name for name in (
             "coordinator.py", "notice.py", "one_shot.py", "presentation.py", "work.py"))
+    if tuple(map(int, version.split("."))) >= (0, 6, 2):
+        required.update("linux-runtime/extension/" + name for name in (
+            "panel.html", "panel.css", "panel.js", "icons/16.png", "icons/32.png",
+            "icons/48.png", "icons/128.png"))
     for record in records:
         found = set()
         for item in record.get("files", []):

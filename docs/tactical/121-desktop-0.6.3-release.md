@@ -1,4 +1,4 @@
-# 121 — Desktop 0.6.2 release
+# 121 — Desktop 0.6.3 release
 
 Status: active.
 Owning topics: [native distribution](../../topics/native-distribution.md),
@@ -8,7 +8,7 @@ Owning topics: [native distribution](../../topics/native-distribution.md),
 
 ## Objective and completion conditions
 
-Publish the requested next Machine Control desktop version as 0.6.2. Include
+Publish the requested next Machine Control desktop version as 0.6.3. Include
 Mac person-armed access retention, Chrome extension side panel and store-origin
 support, and installed CLI help and private usage notes. Require exact-source
 checks, authenticated packages for all six targets, an immutable annotated
@@ -32,7 +32,8 @@ checks and the Mac resident tests. Commit and push clean main.
 
 ### 2 — build and authenticate six targets
 
-Use the common release script and unified workflow. Require exact source,
+Build a unified candidate before tagging, then promote its exact signed bytes
+with the common release script. Require exact source,
 native publisher signatures, Mac notarization/staples, signed updater versions,
 payload inventories and tamper rejection across all six targets.
 
@@ -46,3 +47,18 @@ and its execution limits before completion.
 ## Validation and final result
 
 Pending.
+
+### Qualification repair
+
+The first tagged attempt for 0.6.2 at source
+`a412b58136b3efb09a786864394a6afbfc863f5c`
+([38518358573](https://github.com/kzahel/machine-control/actions/runs/38518358573))
+built and signed Linux ARM64 packages, then correctly rejected seven side-panel
+and icon resources missing from the strict inventory requirements. No draft
+or public release was created. The remaining jobs were cancelled.
+
+The repair requires all seven resources for versions 0.6.2 and later;
+regressions authenticate complete x64/ARM64 fixture inventories and reject
+omission of each resource. Historical inventory requirements stay unchanged.
+The immutable failed 0.6.2 tag remains intact. Use 0.6.3 from the repaired
+source and authenticate the complete candidate before creating another tag.

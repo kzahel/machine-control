@@ -400,9 +400,19 @@ class LinuxUnifiedReleaseTests(unittest.TestCase):
                             release.linux_package.verify(folder, target, version, REVISION, '123.1')
 
     def test_linux_runtime_presentation_inventory_requires_every_module(self):
-        version = '0.6.0'
         modules = ['linux-runtime/' + name for name in (
             'coordinator.py', 'notice.py', 'one_shot.py', 'presentation.py', 'work.py')]
+        self.assert_linux_inventory_requires_every_module('0.6.0', modules)
+
+    def test_linux_side_panel_inventory_requires_every_resource(self):
+        modules = ['linux-runtime/extension/' + name for name in (
+            'panel.html', 'panel.css', 'panel.js', 'icons/16.png', 'icons/32.png',
+            'icons/48.png', 'icons/128.png')]
+        runtime = ['linux-runtime/' + name for name in (
+            'coordinator.py', 'notice.py', 'one_shot.py', 'presentation.py', 'work.py')]
+        self.assert_linux_inventory_requires_every_module('0.6.3', modules, runtime)
+
+    def assert_linux_inventory_requires_every_module(self, version, modules, extra_modules=()):
         for target in release.linux_package.TARGETS:
             folder = self.candidates / ('linux-desktop-' + target)
             payload_path = folder / 'payload.json'
@@ -411,7 +421,7 @@ class LinuxUnifiedReleaseTests(unittest.TestCase):
             cli = ['mc-cli/' + name for name in ('client-runtime.json', 'files.json',
                    'launch.py', 'commands/machine-control', 'python/bin/python3')]
             additions = [*cli, 'linux-runtime/updates.py', 'linux-runtime/journal.py',
-                         'linux-runtime/extension/browser_cdp.js', *modules]
+                         'linux-runtime/extension/browser_cdp.js', *extra_modules, *modules]
             for record in payload['packages']:
                 record['package'] = record['package'].replace('0.5.0', version)
                 path = folder / record['package']
