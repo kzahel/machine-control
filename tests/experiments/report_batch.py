@@ -71,6 +71,10 @@ def summarize(manifest, records):
             "task":task,"route":route,"recorded":len(rows),"valid":len(valid),"passed":len(passed),
             "routeReviews":dict(collections.Counter(
                 (r.get('routeReview') or {}).get('routeAdherence','unreviewed') for r in rows)),
+            "confirmationPolicyReviews":dict(collections.Counter(
+                (r.get('routeReview') or {}).get('confirmationPolicyAdherence','unreviewed') for r in rows)),
+            "effectPassesWithConfirmationViolation":sum(
+                (r.get('routeReview') or {}).get('confirmationPolicyAdherence')=='violated' for r in passed),
             "routeVerifiedPasses":len(reviewed_passed),
             "routeVerifiedAgentSeconds":distribution([r['agentSeconds'] for r in reviewed_passed
                                                        if r.get('agentSeconds') is not None]),
@@ -102,6 +106,7 @@ def summarize(manifest, records):
                         "Latency summaries include only valid successful trials; failures are separate.",
                         "Tool use restrictions are prompt-based; route adherence needs transcript review.",
                         "Successful metrics mean oracle/profile success; use routeVerified metrics for reviewed route comparisons.",
+                        "Route adherence does not certify confirmation-policy compliance. Report known violations separately; unreviewed is unknown, not compliant.",
                         "Route reviews and discovery indices are explicit judgments bound to transcript hashes; pre-UI usage is a reported checkpoint, not causal attribution.",
                         "The JS prototype omits claims/controller audit; its timing is not enforcement parity.",
                         "The pinned macOS CLI uses its direct grant path; Python retains owner admission and its notice. Timings do not isolate persistence alone.",

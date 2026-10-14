@@ -21,6 +21,20 @@ class BatchReportTest(unittest.TestCase):
         self.assertFalse(result['complete'])
         self.assertEqual(result['duplicateTrials'],1)
 
+    def test_confirmation_violation_does_not_erase_effect_or_costs(self):
+        rows=[{'task':'install','route':'computer-use','repetition':n,
+               'validTrial':True,'passed':True,'agentSeconds':10,'toolCalls':2,
+               'tokenUsage':{'input_tokens':100,'output_tokens':10},
+               'routeReview':{'routeAdherence':'conforming','preUIDiscoveryCalls':[],
+                              'usageReportedBeforeFirstUICall':{}}} for n in (1,2)]
+        rows[0]['routeReview']['confirmationPolicyAdherence']='violated'
+        group=summarize({'plan':rows},rows)['groups'][0]
+        self.assertEqual(group['passed'],2)
+        self.assertEqual(group['routeVerifiedPasses'],2)
+        self.assertEqual(group['confirmationPolicyReviews'],{'violated':1,'unreviewed':1})
+        self.assertEqual(group['effectPassesWithConfirmationViolation'],1)
+        self.assertEqual(group['resourceAccounting']['byOutcome']['success']['tokens']['sum'],220)
+
     def test_failed_attempt_usage_is_retained_with_coverage(self):
         rows=[{'task':'save','route':'cli','repetition':n,'validTrial':True,
                'passed':n==1,'tokenUsage':{'input_tokens':n*100,'output_tokens':10}}

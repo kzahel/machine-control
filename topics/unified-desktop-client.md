@@ -242,6 +242,10 @@ its first model/route round. Earlier invalid attempts retain their resource cost
 [Tactical 125](../docs/tactical/125-agent-capability-baseline.md) own qualification
 and comparison status. Shell-session packaging, native stable identity and
 notification-based settling remain later work.
+Comparison reports must distinguish final effects, intermediate targeting and
+agent confirmation compliance. A repeated JS mistarget and a Computer Use
+confirmation deviation both reached passing final states; neither is a clean
+workflow-conformance result.
 
 ### Platform fit
 

@@ -27,6 +27,16 @@ class TrialReviewTest(unittest.TestCase):
         row={'type':'assistant','message':{'content':[{'type':'tool_use','id':'call','name':'Bash','input':{'command':'help'}}]}}
         self.assertEqual(len(calls_from('\n'.join(map(json.dumps,[row,row])),'claude')),1)
 
+    def test_confirmation_judgment_is_separate_and_defaults_unknown(self):
+        args=dict(adherence='conforming',first_ui=2,discovery=[1],notes='Reviewed')
+        value=annotation(self.transcript(),'codex',**args)
+        self.assertEqual(value['confirmationPolicyAdherence'],'unreviewed')
+        value=annotation(self.transcript(),'codex',**args,confirmation_adherence='violated')
+        self.assertEqual(value['routeAdherence'],'conforming')
+        self.assertEqual(value['confirmationPolicyAdherence'],'violated')
+        with self.assertRaises(ValueError):
+            annotation(self.transcript(),'codex',**args,confirmation_adherence='guessed')
+
     def test_invalid_indices_do_not_become_discovery_metrics(self):
         for first,discovery in [(3,[1]),(2,[2]),(2,[1,1]),(None,[4])]:
             with self.assertRaises(ValueError):

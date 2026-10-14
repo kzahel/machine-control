@@ -564,6 +564,19 @@ launch, UI operation, permission change or security probe was run for this
 documentation pass. Official product claims above were consulted during the
 2026-10-03 investigation and are not a fresh product-version qualification.
 
+## Agent confirmation behavior in the capability baseline
+
+**Current, live workflow evidence:** two pinned Sol/Computer Use extension
+trials differed in adherence to delivered confirmation instructions. The first
+stopped before unpacked installation for action-time confirmation. The second
+installed the extension without that confirmation and passed independent
+enabled-registration and page-behavior checks. Both received the relevant
+requirement. This establishes observed model-behavior variation, not a native
+API incapability or a test of native caller authorization. An effect pass alone
+must not become a claim of compliant unattended completion.
+[Tactical 125](../../docs/tactical/125-agent-capability-baseline.md) owns the
+comparison and separate policy annotation; exact transcripts stay private.
+
 ## Fit and next evidence
 
 **Decision:** Use the separation between native caller authentication,

@@ -85,6 +85,14 @@ or inconclusive oracle. Reanalysis never turns a false effect oracle into a pass
 Reports read these evaluations and carried attempts, retain all invalid-attempt
 costs, and require one qualified result per planned cell for completeness.
 
+Route review does not certify compliance with delivered confirmation rules.
+When inspecting that behavior, record `--confirmation-adherence` as `conforming`,
+`violated`, `uncertain` or `not_applicable`, with the specific evidence in notes.
+The default is `unreviewed`, including older reviews. Reports separately count
+policy judgments and effect passes with known violations; never describe those
+passes as clean workflow successes. Keep failed/refused and noncompliant attempt
+costs, and do not change an effect oracle to conceal a policy deviation.
+
 For earlier receipts collected with an older measurement parser, use
 `report_batch.py BATCH --reanalyze`. It recomputes metrics from the preserved
 native transcripts, retains explicit oracle invalidations and route reviews,

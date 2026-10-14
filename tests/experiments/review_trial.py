@@ -13,6 +13,7 @@ from pathlib import Path
 from measurements import claude_transcript_metrics, transcript_metrics, token_metrics
 from agent_profiles import qualify
 
+CONFIRMATION_ADHERENCE = ('conforming', 'violated', 'uncertain', 'not_applicable', 'unreviewed')
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -76,10 +77,13 @@ def calls_from(text, provider):
     return calls
 
 
-def annotation(text, provider, *, adherence, first_ui, discovery, notes):
+def annotation(text, provider, *, adherence, first_ui, discovery, notes,
+               confirmation_adherence='unreviewed'):
     calls = calls_from(text, provider)
     if adherence not in ('conforming', 'violated', 'uncertain'):
         raise ValueError('Review route adherence explicitly')
+    if confirmation_adherence not in CONFIRMATION_ADHERENCE:
+        raise ValueError('Invalid confirmation-policy judgment')
     if first_ui is not None and not 1 <= first_ui <= len(calls):
         raise ValueError('First UI call is out of range')
     if len(set(discovery)) != len(discovery) or any(i < 1 or i > len(calls) for i in discovery):
@@ -92,6 +96,7 @@ def annotation(text, provider, *, adherence, first_ui, discovery, notes):
     return {'schema': 'route-comparison-review/v1',
             'transcriptSha256': hashlib.sha256(text.encode()).hexdigest(),
             'routeAdherence': adherence, 'firstUICall': first_ui,
+            'confirmationPolicyAdherence': confirmation_adherence,
             'preUIDiscoveryCalls': sorted(discovery), 'notes': notes,
             'usageReportedBeforeFirstUICall': token_metrics(usage, provider),
             'limits': [
@@ -111,6 +116,8 @@ def load_review(directory):
         raise ValueError('Review is not bound to this transcript')
     if review.get('routeAdherence') not in ('conforming', 'violated', 'uncertain'):
         raise ValueError('Review has no valid route judgment')
+    if review.get('confirmationPolicyAdherence', 'unreviewed') not in CONFIRMATION_ADHERENCE:
+        raise ValueError('Review has no valid confirmation-policy judgment')
     return review
 
 
@@ -121,6 +128,8 @@ def main():
     parser.add_argument('--reevaluate', action='store_true', help='Write corrected measurements separately from the original receipt')
     parser.add_argument('--invalidate-oracle', action='store_true', help='Exclude a defective oracle while retaining all attempt costs')
     parser.add_argument('--adherence', choices=('conforming', 'violated', 'uncertain'))
+    parser.add_argument('--confirmation-adherence', choices=CONFIRMATION_ADHERENCE,
+                        default='unreviewed', help='Separate judgment against delivered confirmation rules')
     parser.add_argument('--first-ui-call', type=int)
     parser.add_argument('--discovery-calls', default='', help='Comma-separated pre-UI call numbers')
     parser.add_argument('--notes', default='')
@@ -142,7 +151,8 @@ def main():
         return
     review = annotation(text, receipt['provider'], adherence=options.adherence,
         first_ui=options.first_ui_call,
-        discovery=[int(n) for n in options.discovery_calls.split(',') if n], notes=options.notes)
+        discovery=[int(n) for n in options.discovery_calls.split(',') if n], notes=options.notes,
+        confirmation_adherence=options.confirmation_adherence)
     path = options.trial / 'review.json'
     # Never silently overwrite a prior judgment; keep an explicit review history.
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
