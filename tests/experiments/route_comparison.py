@@ -19,6 +19,7 @@ import stat
 import os
 from pathlib import Path
 import random
+import re
 import socket
 import subprocess
 import sys
@@ -40,7 +41,7 @@ startup_timeout_sec = 30
 MC_PYTHON_CONFIG = """
 [mcp_servers.mc]
 command = "/opt/homebrew/bin/python3"
-args = ["/Users/admin/code/machine-control/bin/machine-control", "--target", "host", "mcp"]
+args = ["/Users/admin/code/machine-control/bin/machine-control", "--target", "host", "mcp", "--session-id-file", "~/experiment/mc-session.id"]
 startup_timeout_sec = 30
 """
 TASKS = Path(__file__).resolve().parent / "tasks"
@@ -150,13 +151,47 @@ def project_id(path):
     return base64.urlsafe_b64encode(path.encode()).decode().rstrip("=")
 
 
-def wait_for_agent(guest, session_id, timeout, poll_seconds, *, clock=time.monotonic, sleep=time.sleep):
+def publish_session_identity(guest, provider, identifier):
+    """Publish only an exact YA process ID backed by its native transcript.
+
+    YA may initially report a provisional launch ID. Do not publish that ID or
+    search for the newest transcript; require this process's exact native file.
+    """
+    if not isinstance(identifier, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:-]{0,127}', identifier):
+        return False
+    result = guest.run('/opt/homebrew/bin/python3 -', stdin=f'provider={provider!r}\nidentifier={identifier!r}\n'+'''
+import os
+from pathlib import Path
+root=Path.home()/('.codex/sessions' if provider=='codex' else '.claude/projects')
+matches=list(root.rglob('*'+identifier+'.jsonl'))
+if len(matches)!=1 or not matches[0].stat().st_size:
+    raise SystemExit(3)
+path=Path.home()/'experiment/mc-session.id'
+temporary=path.with_suffix('.tmp')
+fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+with os.fdopen(fd,'w') as stream:stream.write(identifier+'\\n')
+temporary.replace(path)
+''')
+    if result.returncode not in (0, 3):
+        raise RuntimeError('Agent session identity publication failed')
+    return result.returncode == 0
+
+
+def wait_for_agent(guest, session_id, timeout, poll_seconds, *, clock=time.monotonic, sleep=time.sleep,
+                   publish_identity=None):
     started = clock()
     deadline = started + timeout
     process = None
     timed_out = True
+    published_identity = None
     while clock() < deadline:
         process = guest.ya("GET", f"/api/sessions/{session_id}/process").get("process")
+        actual = (process or {}).get('sessionId')
+        if publish_identity and actual:
+            if published_identity and actual != published_identity:
+                raise RuntimeError('Provider session changed after identity publication')
+            if not published_identity and publish_identity(actual):
+                published_identity = actual
         if (process or {}).get("state") in ("idle", "terminated"):
             timed_out = False
             break
@@ -170,6 +205,7 @@ def wait_for_agent(guest, session_id, timeout, poll_seconds, *, clock=time.monot
         if stopped and stopped.get("state") != "terminated":
             raise RuntimeError("timeout cancellation not verified; skip racing oracle")
     return {"timedOut": timed_out, "controllerWaitSeconds": elapsed,
+            "sessionIdentityPublished": bool(published_identity) if publish_identity else None,
             "completionPollSeconds": poll_seconds,
             "providerSessionId": (process or {}).get('sessionId', session_id),
             "effectiveProcess": {k:process[k] for k in ('model','requestedModel','effort','thinking','serviceTier')
@@ -318,7 +354,8 @@ print(json.dumps(collect(configs[0])))
             else:
                 descriptor = ({'command':'/opt/homebrew/bin/node','args':['/Users/admin/experiment/mc-repl.mjs']}
                               if route == 'mc-repl' else {'command':'/opt/homebrew/bin/python3',
-                                'args':['/Users/admin/code/machine-control/bin/machine-control','--target','host','mcp']})
+                                'args':['/Users/admin/code/machine-control/bin/machine-control','--target','host','mcp',
+                                        '--session-id-file','~/experiment/mc-session.id']})
                 guest.run('/opt/homebrew/bin/python3 -', stdin=f'config={descriptor!r}\n'+'''
 from pathlib import Path
 import json,os
@@ -345,7 +382,9 @@ f.write_text(json.dumps(x));os.chmod(f,0o600)
                            request)
         session_id = session["sessionId"]
         record["launchSessionId"] = session_id
-        record.update(wait_for_agent(guest, session_id, task.get("timeoutSeconds", 600), args.poll_seconds))
+        record.update(wait_for_agent(guest, session_id, task.get("timeoutSeconds", 600), args.poll_seconds,
+            publish_identity=(lambda identifier: publish_session_identity(guest,args.provider,identifier))
+                             if route == 'mc-python' else None))
         session_id = record['providerSessionId']
         record['sessionId'] = session_id
         detail = guest.ya("GET", f"/api/projects/{project}/sessions/{session_id}")

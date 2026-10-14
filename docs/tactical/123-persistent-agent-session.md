@@ -2,7 +2,7 @@
 
 Status: active. A typed Python core, claim/admission/audit transport and killable
 MCP facade are implemented as a [source candidate](../agent-session.md).
-Thirty focused offline tests and strict type checking pass. A Codex/TextEdit
+Thirty-two focused offline tests and strict type checking pass. A Codex/TextEdit
 smoke passed; broader live qualification and matched comparison remain pending.
 The direct-socket JavaScript
 experiment remains `tests/experiments/mc-repl`.
@@ -303,3 +303,11 @@ bound even if the agent goes idle. The Settings CLI trace required scrolling
 and pixel input because its AX radio options were absent, so the candidate now
 has capture-bound pointer actions; live qualification of that fallback remains
 pending. Capture checks do not remove the observation-to-input race.
+
+The next window and Settings attempts both stopped before UI work: their YA
+tool shells exposed none of the published session environment variables. They
+remain failed attempts with complete resource accounting. The optional MCP
+coordinator publication now supplies the actual provider ID without requiring
+model discovery. The harness waits for an exact matching native transcript,
+because YA's launch ID can be provisional; the server still refuses identity
+changes and retains normal admission and audit. Live reruns are pending.

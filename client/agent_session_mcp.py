@@ -11,9 +11,11 @@ import base64
 import contextlib
 import io
 import json
+import os
 from pathlib import Path
 import queue
 import re
+import stat
 import subprocess
 import sys
 import threading
@@ -54,6 +56,26 @@ MAX_REQUEST = 65536
 MAX_REPLY = 12 * 1024 * 1024
 MAX_TEXT = 24000
 SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
+
+
+def published_session(path: Path) -> str:
+    """Read an explicit coordinator publication, never search other sessions."""
+    try:
+        path = path.expanduser()
+        if path.is_symlink():
+            raise ValueError("Session publication must not be a symbolic link")
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+        with os.fdopen(descriptor, "rb") as stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600:
+                raise ValueError("Expected a regular mode-0600 session publication")
+            identifier = stream.read(130).decode("ascii").strip()
+            if not SESSION_ID.fullmatch(identifier):
+                raise ValueError("Invalid published session ID")
+            return identifier
+    except (OSError, ValueError) as exc:
+        raise SessionError("session_identity_unavailable", "Coordinator session publication is not ready; no target operation was sent",
+                           retryable=True) from exc
 
 
 class BoundedOutput(io.StringIO):
@@ -241,6 +263,8 @@ def serve(alias: str, target: JSON, arguments: list[str], *,
     parser.add_argument("--claimant-authority")
     parser.add_argument("--claimant-id")
     parser.add_argument("--observe", choices=("action", "explicit"), default="action")
+    parser.add_argument("--session-id-file", type=Path,
+                        help="Explicit mode-0600 coordinator publication of this agent's session ID")
     options = parser.parse_args(arguments)
     reference = cast(Callable[[], JSON | None], audit_history.session_ref)()
     authority, claimant = options.claimant_authority, options.claimant_id
@@ -254,12 +278,19 @@ def serve(alias: str, target: JSON, arguments: list[str], *,
     owner_id: str | None = None
     session_property = {"type": "string", "description": "Your published agent session ID; use the same ID on every call.",
                         "pattern": SESSION_ID.pattern}
-    tools = [{"name": "mc", "description": HELP,
+    help_text = HELP
+    if options.session_id_file:
+        help_text = help_text.replace(
+            "Every call requires session_id: your published agent session ID. If unknown,\n"
+            "read AGENTCTL_SESSION_ID, CLAUDE_CODE_SESSION_ID or CODEX_THREAD_ID in your shell.\n",
+            "Your coordinator supplies the published agent session ID; omit session_id.\n")
+    required_identity = [] if options.session_id_file else ["session_id"]
+    tools = [{"name": "mc", "description": help_text,
               "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}, "session_id": session_property},
-                              "required": ["code", "session_id"], "additionalProperties": False}},
+                              "required": ["code", *required_identity], "additionalProperties": False}},
              {"name": "mc_reset", "description": "Clear Python variables and element numbers. Keeps live ownership; after a stopped worker, explicitly starts a fresh admitted session.",
               "inputSchema": {"type": "object", "properties": {"session_id": session_property},
-                              "required": ["session_id"], "additionalProperties": False}}]
+                              "required": required_identity, "additionalProperties": False}}]
     try:
         while line := incoming.readline(MAX_REQUEST + 1):
             request_id: object = None
@@ -286,14 +317,23 @@ def serve(alias: str, target: JSON, arguments: list[str], *,
                     name, args = params.get("name"), params.get("arguments", {})
                     if name not in {"mc", "mc_reset"} or not isinstance(args, dict):
                         raise ValueError("Unknown tool or malformed arguments")
-                    if name == "mc" and (set(args) != {"code", "session_id"} or not isinstance(args["code"], str)):
+                    identity_keys = {"session_id"} if not options.session_id_file else set()
+                    if name == "mc" and (not {"code", *identity_keys} <= set(args) or
+                                         set(args) - {"code", "session_id"} or not isinstance(args["code"], str)):
                         raise ValueError("mc requires code and session_id strings")
-                    if name == "mc_reset" and set(args) != {"session_id"}:
+                    if name == "mc_reset" and (not identity_keys <= set(args) or set(args) - {"session_id"}):
                         raise ValueError("mc_reset requires session_id")
                     identifier = args.get("session_id")
-                    if not isinstance(identifier, str) or not SESSION_ID.fullmatch(identifier):
+                    if identifier is not None and (not isinstance(identifier, str) or not SESSION_ID.fullmatch(identifier)):
                         raise ValueError("session_id must be a valid published session ID")
                     try:
+                        if options.session_id_file:
+                            published = published_session(options.session_id_file)
+                            if identifier is not None and identifier != published:
+                                raise SessionError("session_mismatch", "Supplied identity differs from the coordinator publication")
+                            identifier = published
+                        if not isinstance(identifier, str):
+                            raise ValueError("session_id is required without a coordinator publication")
                         if (owner_id is not None and identifier != owner_id) or (reference and identifier != reference["id"]):
                             raise SessionError("session_mismatch", "This interpreter belongs to a different agent session; use a separate MCP server")
                         if bool(authority) != bool(claimant):

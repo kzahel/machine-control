@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'client'))
 from agent_session import Session, SessionError, SessionTimeout
-from agent_session_mcp import Namespace, BoundedOutput, Worker, serve
+from agent_session_mcp import Namespace, BoundedOutput, Worker, serve, published_session
 
 
 class NullPeer:
@@ -102,6 +102,47 @@ class FacadeTest(unittest.TestCase):
         replies=[json.loads(line) for line in out.getvalue().splitlines()]
         self.assertTrue(replies[1]['result']['isError'])
         self.assertIn('session_mismatch',replies[1]['result']['content'][0]['text'])
+
+    def test_coordinator_publication_binds_and_cannot_switch_the_worker(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'session.id'
+            path.write_text('published-session\n');path.chmod(0o600)
+            configs=[]
+            class PeerWorker:
+                closed=False
+                def __init__(self,config):configs.append(dict(config))
+                def request(self,value):
+                    path.write_text('another-session\n')
+                    return {'content':[], 'isError':False}
+                def close(self):self.closed=True
+            messages=[{'id':0,'method':'tools/list'}, *[
+                {'id':i,'method':'tools/call','params':{'name':'mc','arguments':{'code':'1+1'}}}
+                for i in (1,2)]]
+            out=io.StringIO()
+            with patch('agent_session_mcp.audit_history.session_ref',return_value=None):
+                serve('fixture',{},['--session-id-file',str(path)],
+                    incoming=io.StringIO('\n'.join(map(json.dumps,messages))+'\n'),
+                    outgoing=out,worker_factory=PeerWorker)
+            replies=[json.loads(line) for line in out.getvalue().splitlines()]
+            self.assertEqual(replies[0]['result']['tools'][0]['inputSchema']['required'],['code'])
+            self.assertEqual(configs[0]['sessionId'],'published-session')
+            self.assertEqual(len(configs),1)
+            self.assertIn('session_mismatch',replies[2]['result']['content'][0]['text'])
+
+    def test_unready_or_invalid_publication_refuses_before_claiming(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'session.id'
+            with self.assertRaises(SessionError) as error:published_session(path)
+            self.assertTrue(error.exception.retryable)
+            self.assertEqual(error.exception.delivered,'no')
+            path.write_text('session');path.chmod(0o644)
+            with self.assertRaises(SessionError):published_session(path)
+            path.chmod(0o600);path.write_text('x'*200)
+            with self.assertRaises(SessionError):published_session(path)
+            path.write_text('session')
+            link=Path(directory)/'link';link.symlink_to(path)
+            with self.assertRaises(SessionError):published_session(link)
+            self.assertEqual(published_session(path),'session')
 
 
 if __name__=='__main__':unittest.main()

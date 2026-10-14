@@ -99,6 +99,26 @@ class AgentWaitTest(unittest.TestCase):
         self.assertEqual(result["controllerWaitSeconds"], 2)
         self.assertFalse(result["timedOut"])
 
+    def test_publisher_waits_for_native_identity_and_publishes_once(self):
+        self.guest.ya.side_effect = [
+            {'process':{'sessionId':'provisional','state':'running'}},
+            {'process':{'sessionId':'actual','state':'running'}},
+            {'process':{'sessionId':'actual','state':'idle'}}]
+        publisher=Mock(side_effect=[False,True])
+        result=wait_for_agent(self.guest,'launch',5,1,clock=lambda:self.now,sleep=self.sleep,
+                              publish_identity=publisher)
+        self.assertEqual([call.args[0] for call in publisher.call_args_list],['provisional','actual'])
+        self.assertTrue(result['sessionIdentityPublished'])
+        self.assertEqual(result['providerSessionId'],'actual')
+
+    def test_identity_change_after_publication_is_not_silently_rebound(self):
+        self.guest.ya.side_effect = [
+            {'process':{'sessionId':'actual','state':'running'}},
+            {'process':{'sessionId':'different','state':'idle'}}]
+        with self.assertRaisesRegex(RuntimeError,'changed after identity publication'):
+            wait_for_agent(self.guest,'launch',5,1,clock=lambda:self.now,sleep=self.sleep,
+                           publish_identity=lambda identifier:True)
+
     def test_timeout_stops_before_oracle(self):
         self.guest.ya.side_effect = [
             {"process":{"id":"p", "state":"running"}}, {},

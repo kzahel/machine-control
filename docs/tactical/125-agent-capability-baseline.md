@@ -55,8 +55,8 @@ Model effort labels are provider-specific, not equal compute budgets.
 | Finder rename and move | Seeded contents, exact-byte oracle | Destination name and exact original bytes; old paths absent. Add duplicate-name collision as a later recovery variant. |
 | TextEdit save | Existing, repeated pilot | Saved document content and format/path; current text containment check is the initial baseline. |
 | System Settings option | Existing fixture | Persisted setting value with setup proving the opposite initial value. |
-| App menu bar and sheet | Added; agent smoke pending | Use TextEdit Format/menu action and save resulting plain text; verify actual format/content. Review calls to establish menu use rather than a keyboard shortcut. Include cancel/confirm sheet handling. |
-| Two windows and recovery | Added owned app fixture; agent smoke pending | Edit the intended document while another window is frontmost; reject stale references after a controlled window replacement; verify no wrong-window edits and record focus/cursor disturbance. |
+| App menu bar and sheet | Sol/CLI smoke passed | Use TextEdit Format/menu action and save resulting plain text; verify actual format/content. Review calls to establish menu use rather than a keyboard shortcut. Include cancel/confirm sheet handling. |
+| Two windows and recovery | Sol/CLI smoke passed | Edit the intended document while another window is frontmost; reject stale references after a controlled window replacement; verify no wrong-window edits and record focus/cursor disturbance. |
 
 The existing deterministic native corpus separately checks menus, background
 input, delayed/burst/continuous updates and tree observations without a model.
@@ -191,7 +191,7 @@ not a typed stale-reference error. Upload content and extension behavior passed
 positive controls and rejected the untouched state. Menu verifier controls
 rejected missing/wrong-format results and accepted correct plain text; those
 controls do not establish real menu interaction. A subsequent extension check
-also requires a registered, non-disabled entry and still needs agent smoke.
+also requires a registered, non-disabled entry; its agent smoke passed below.
 
 The first real Opus/JS TextEdit save passed (27.461 s, seven model tool calls),
 with complete reported usage across seven API messages. Sol/CLI extension
@@ -211,7 +211,7 @@ smoke was invalid: a missing plist heredoc terminator swallowed the fixture's
 launch commands while Bash returned zero. The fixture now verifies its process,
 initial values and both visible windows; shell parse warnings fail an offline
 check. The corrected fixture remained live across separate SSH calls and its
-initial oracle rejected the untouched state. An agent rerun is still required.
+initial oracle rejected the untouched state. The agent rerun is described below.
 Oracle infrastructure errors now stop a batch after evidence collection and
 cleanup, and the window fixture retains diagnostic state privately.
 
@@ -225,4 +225,4 @@ round is a review gate before subsequent repetitions.
 
 Three instruction arms are versioned, including the task-independent CLI
 quickstart. They have not yet been compared. Seven-scenario agent smoke and
-repeated multi-model baseline remain the gate before session implementation.
+repeated multi-model baseline remain the gate before candidate acceptance.

@@ -25,6 +25,16 @@ resident admission channel. Outside a session-publishing agent host, supply
 `agent-session` attribution with truthful caller metadata.
 Do not pass an existing global `--claim`: this session owns its claim lifecycle.
 
+A coordinator may instead configure `--session-id-file PATH`, atomically
+publishing the actual provider session ID in a regular mode-0600 file. The MCP
+schema then makes `session_id` optional, and the description tells the agent to
+omit it. The server reads only that explicit file on each call; it refuses a
+missing publication, a conflicting supplied ID, or a changed owner. This avoids
+assuming that MCP or tool shells inherit a late-published environment variable.
+The experiment runner waits for YA's process ID to have its matching native
+transcript before publishing it; a provisional launch ID is insufficient.
+This file carries attribution, not authority or credentials.
+
 ```python
 app = mc.app("TextEdit")
 app.tree(query="Save")
