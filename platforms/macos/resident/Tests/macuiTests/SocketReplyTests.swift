@@ -50,4 +50,19 @@ final class SocketReplyTests: XCTestCase {
         wait(for:[responsive, expired], timeout:1)
         reply.cancel()
     }
+
+    func testNonFiniteNumbersEncodeAsNullInsteadOfAborting() throws {
+        let line = try encodeJSONLine([
+            "bounds": ["x": Double.nan, "y": CGFloat.infinity, "width": 3.5],
+            "elements": [["value": NSNumber(value: -Double.infinity)], ["value": 1]],
+        ])
+        let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: line) as? [String: Any])
+        let bounds = try XCTUnwrap(decoded["bounds"] as? [String: Any])
+        XCTAssertTrue(bounds["x"] is NSNull)
+        XCTAssertTrue(bounds["y"] is NSNull)
+        XCTAssertEqual(bounds["width"] as? Double, 3.5)
+        let elements = try XCTUnwrap(decoded["elements"] as? [[String: Any]])
+        XCTAssertTrue(elements[0]["value"] is NSNull)
+        XCTAssertEqual(elements[1]["value"] as? Int, 1)
+    }
 }

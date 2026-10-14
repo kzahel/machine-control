@@ -19,8 +19,31 @@ func residentSocket() throws -> Int32 {
     return descriptor
 }
 
+/// Replaces non-finite numbers, which JSONSerialization rejects by raising
+/// an Objective-C exception that would abort the resident. Accessibility
+/// providers can report NaN or infinite frames and values.
+func jsonSafe(_ value: Any) -> Any {
+    switch value {
+    case let dictionary as [String: Any]:
+        return dictionary.mapValues(jsonSafe)
+    case let array as [Any]:
+        return array.map(jsonSafe)
+    case let number as NSNumber where CFNumberIsFloatType(number):
+        return number.doubleValue.isFinite ? number : NSNull()
+    case let number as Double:
+        return number.isFinite ? number : NSNull()
+    case let number as CGFloat:
+        return number.isFinite ? number : NSNull()
+    case let number as Float:
+        return number.isFinite ? number : NSNull()
+    default:
+        return value
+    }
+}
+
 func encodeJSONLine(_ object: [String: Any]) throws -> Data {
-    var data = try JSONSerialization.data(withJSONObject: object,
+    let safe = JSONSerialization.isValidJSONObject(object) ? object : jsonSafe(object)
+    var data = try JSONSerialization.data(withJSONObject: safe,
                                            options: [.sortedKeys])
     data.append(0x0a)
     return data
