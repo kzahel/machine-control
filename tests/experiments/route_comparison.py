@@ -13,6 +13,9 @@ import argparse
 import base64
 from datetime import datetime, timezone
 import json
+import hashlib
+import shlex
+import stat
 import os
 from pathlib import Path
 import random
@@ -21,6 +24,8 @@ import subprocess
 import sys
 import time
 import urllib.request
+
+from measurements import transcript_metrics
 
 ROOT = Path(__file__).resolve().parents[2]
 MC_REPL = Path(__file__).resolve().parent / "mc-repl" / "mc-repl.mjs"
@@ -95,9 +100,9 @@ class Guest:
         self.tunnel = None
         self.port = None
 
-    def run(self, command, stdin=None, timeout=300):
+    def run(self, command, stdin=None, timeout=300, binary=False):
         return subprocess.run(["ssh", *self.options, f"{self.args.guest_user}@{self.ip}", command],
-                              input=stdin, capture_output=True, text=True, timeout=timeout)
+                              input=stdin, capture_output=True, text=not binary, timeout=timeout)
 
     def open_tunnel(self):
         self.port = free_port()
@@ -132,10 +137,60 @@ def project_id(path):
     return base64.urlsafe_b64encode(path.encode()).decode().rstrip("=")
 
 
+def wait_for_agent(guest, session_id, timeout, poll_seconds, *, clock=time.monotonic, sleep=time.sleep):
+    started = clock()
+    deadline = started + timeout
+    process = None
+    timed_out = True
+    while clock() < deadline:
+        process = guest.ya("GET", f"/api/sessions/{session_id}/process").get("process")
+        if (process or {}).get("state") in ("idle", "terminated"):
+            timed_out = False
+            break
+        sleep(poll_seconds)
+    elapsed = clock() - started
+    if timed_out:
+        if not process or not process.get("id"):
+            raise RuntimeError("timeout without a known process; skip racing oracle")
+        guest.ya("POST", f"/api/processes/{process['id']}/abort", {"blockResume": True})
+        stopped = guest.ya("GET", f"/api/sessions/{session_id}/process").get("process")
+        if stopped and stopped.get("state") != "terminated":
+            raise RuntimeError("timeout cancellation not verified; skip racing oracle")
+    return {"timedOut": timed_out, "controllerWaitSeconds": elapsed,
+            "completionPollSeconds": poll_seconds}
+
+
 def run_trial(args, task, route, index, run_dir):
+    journal = subprocess.run([*CLI, "provision", "begin", "--platform", "macos",
+                              "--profile", "development"], capture_output=True, text=True, check=True)
+    run = json.loads(journal.stdout)["runId"]
+    previous = os.environ.get("MACHINE_CONTROL_PROVISION_RUN")
+    os.environ["MACHINE_CONTROL_PROVISION_RUN"] = run
+    record = {"error": "trial did not finish"}
+    try:
+        record = _run_trial(args, task, route, index, run_dir)
+        return record
+    finally:
+        if previous is None:
+            os.environ.pop("MACHINE_CONTROL_PROVISION_RUN", None)
+        else:
+            os.environ["MACHINE_CONTROL_PROVISION_RUN"] = previous
+        summary = ("Direct SSH setup, YA work, oracle and transcript collection are outside automatic "
+                   "command coverage. Private results: " + str(run_dir) + ". " +
+                   json.dumps({k: record.get(k) for k in ("error", "passed", "released", "timedOut")}))
+        subprocess.run([*CLI, "provision", "note", run, "--kind", "summary"],
+                       input=summary, text=True, capture_output=True, check=True)
+        subprocess.run([*CLI, "provision", "finish", run, "--outcome",
+                        "failed" if record.get("error") or not record.get("released") else "ready"],
+                       capture_output=True, text=True, check=True)
+
+
+def _run_trial(args, task, route, index, run_dir):
     trial_dir = run_dir / task["id"] / f"{route}-{index}"
     trial_dir.mkdir(parents=True, mode=0o700)
     record = {"task": task["id"], "route": route, "repetition": index, "startedAt": now()}
+    # Read-only identity resolution precedes workspace acquisition.
+    mc("--target", args.target, "target", "doctor", check=False)
     before = tart_names()
     acquired = mc("--target", args.target, "workspace", "acquire", "--intent", "isolated",
                   "--claim-duration", "2h", "--reason",
@@ -149,6 +204,17 @@ def run_trial(args, task, route, index, run_dir):
         if len(created) != 1:
             raise RuntimeError(f"expected one new clone, found {created}")
         selector = ["--target", args.target, "--workspace", handle, "--claim", claim]
+        # Preserve the inherited base password in a workspace-specific secret store.
+        secret_dir = Path.home() / ".local/share/machine-control/secrets/experiments" / handle
+        secret_dir.mkdir(parents=True, mode=0o700, exist_ok=False)
+        secret = secret_dir / "guest-login-password.secret"
+        fd = os.open(secret, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(args.credential_file.read_bytes())
+        if secret.read_bytes() != args.credential_file.read_bytes():
+            raise RuntimeError("cloned credential handoff verification failed")
+        record["credentialFile"] = str(secret)
+        record["credentialVerification"] = "inherited_base_bytes_equal_mode_0600"
         deadline = time.monotonic() + 600
         while True:
             ready = mc(*selector, "target", "ensure-ready", check=False)
@@ -157,12 +223,24 @@ def run_trial(args, task, route, index, run_dir):
             if time.monotonic() > deadline:
                 raise RuntimeError("clone did not become ready")
             time.sleep(15)
+        stages = mc(*selector, "testbed", "--", "bootstrap-stages", "--kind", "prepared", "--json", check=False)
+        record["bootstrapStagesAvailable"] = stages.get("schema") is not None
         guest = Guest(args, created[0])
         guest.open_tunnel()
-        # Trials use the current CLI and skills; the resident is the base's.
-        pulled = guest.run("git -C ~/code/machine-control pull -q --ff-only && "
-                           "git -C ~/code/machine-control rev-parse --short HEAD", timeout=120)
-        record["guestRevision"] = pulled.stdout.strip() or f"pull failed: {pulled.stderr[-200:]}"
+        # Transfer the frozen controller commit, including unpushed commits.
+        transferred = guest.run("cat > /tmp/mc-experiment.bundle", stdin=args.bundle.read_bytes(),
+                                binary=True, timeout=120)
+        if transferred.returncode:
+            raise RuntimeError("pinned bundle transfer failed")
+        pinned = guest.run(
+            "git -C ~/code/machine-control fetch -q /tmp/mc-experiment.bundle HEAD && "
+            f"git -C ~/code/machine-control checkout -q --detach {shlex.quote(args.revision)} && "
+            "rm /tmp/mc-experiment.bundle && git -C ~/code/machine-control rev-parse HEAD", timeout=120)
+        if pinned.returncode or pinned.stdout.strip() != args.revision:
+            raise RuntimeError("guest did not reach pinned source revision")
+        record["guestRevision"] = args.revision
+        record["enforcementProfile"] = ("prototype_direct_socket_no_claim_or_controller_audit"
+                                        if route == "mc-repl" else "normal_route")
         common = (TASKS / "common-chrome.sh").read_text()
         guest.run("mkdir -p ~/experiment && cat > ~/experiment/common-chrome.sh", stdin=common)
         if route == "mc-repl":
@@ -180,17 +258,7 @@ def run_trial(args, task, route, index, run_dir):
                            {"provider": "codex", "mode": "bypassPermissions", "message": prompt})
         session_id = session["sessionId"]
         record["sessionId"] = session_id
-        agent_started = time.monotonic()
-        deadline = agent_started + task.get("timeoutSeconds", 600)
-        time.sleep(15)
-        while time.monotonic() < deadline:
-            state = (guest.ya("GET", f"/api/sessions/{session_id}/process").get("process") or {}).get("state")
-            if state in (None, "idle", "terminated"):
-                break
-            time.sleep(10)
-        else:
-            record["timedOut"] = True
-        record["agentSeconds"] = round(time.monotonic() - agent_started)
+        record.update(wait_for_agent(guest, session_id, task.get("timeoutSeconds", 600), args.poll_seconds))
         detail = guest.ya("GET", f"/api/projects/{project}/sessions/{session_id}")
         record["finalText"] = (detail.get("session") or {}).get("lastAgentText", "")[-1500:]
 
@@ -205,6 +273,10 @@ def run_trial(args, task, route, index, run_dir):
             timeout=120)
         (trial_dir / "transcript.jsonl").write_text(transcript.stdout)
         record.update(transcript_metrics(transcript.stdout))
+        record["validTrial"] = (not record.get("timedOut", False) and
+                                record["transcriptComplete"] and
+                                record["malformedTranscriptLines"] == 0 and oracle.returncode == 0)
+        record["passed"] = record["validTrial"] and record["oracle"].get("passed") is True
         notes = guest.run(
             f"cd ~/code/machine-control && /opt/homebrew/bin/python3 bin/machine-control usage show "
             f"--session-ref {session_id} --commands")
@@ -222,31 +294,22 @@ def run_trial(args, task, route, index, run_dir):
         record["error"] = str(error)
     finally:
         record["wallSeconds"] = round(time.monotonic() - started)
-        if guest:
-            guest.close()
-        released = mc("--target", args.target, "--claim", claim, "workspace", "release", handle,
-                      check=False)
-        record["released"] = (released.get("data") or {}).get("disposition")
-        (trial_dir / "trial.json").write_text(json.dumps(record, indent=2) + "\n")
-    return record
-
-
-def transcript_metrics(text):
-    calls = cua = mc_calls = mc_repl = 0
-    for line in text.splitlines():
         try:
-            item = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        payload = item.get("payload") or {}
-        if item.get("type") == "response_item" and payload.get("type") in ("function_call", "custom_tool_call"):
-            calls += 1
-            body = json.dumps(payload.get("arguments") or payload.get("input") or "")
-            cua += "cua." in body or "getApp(" in body
-            mc_repl += body.count("mcp__mc__mc") or payload.get("name") in ("mc", "mcp__mc__mc")
-            mc_calls += body.count("machine-control")
-    return {"toolCalls": calls, "computerUseCalls": cua, "machineControlInvocations": mc_calls,
-            "mcReplCalls": mc_repl}
+            if guest:
+                guest.close()
+        except Exception as error:
+            record["tunnelCleanupError"] = str(error)
+        try:
+            released = mc("--target", args.target, "--claim", claim, "workspace", "release", handle,
+                          check=False)
+            record["released"] = (released.get("data") or {}).get("disposition")
+            if released.get("accepted") is not True:
+                record["releaseError"] = released.get("errorCode", "release_refused")
+        except Exception as error:
+            record["releaseError"] = str(error)
+        finally:
+            (trial_dir / "trial.json").write_text(json.dumps(record, indent=2) + "\n")
+    return record
 
 
 def audit_metrics(text):
@@ -266,6 +329,11 @@ def audit_metrics(text):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", default="macos-exp")
+    parser.add_argument("--credential-file", type=Path, required=True,
+                        help="Canonical base login secret file; contents never enter argv or logs")
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--poll-seconds", type=float, default=1.0)
+    parser.add_argument("--revision", default="HEAD", help="Freeze this local commit for the batch")
     parser.add_argument("--task", action="append", help="Task id; repeat; default all")
     parser.add_argument("--route", action="append", choices=sorted(ROUTES),
                         help="Default: machine-control and computer-use")
@@ -279,18 +347,45 @@ def main():
     parser.add_argument("--project", default="/Users/admin/code/machine-control")
     args = parser.parse_args()
 
+    os.umask(0o077)
+    secret_stat = args.credential_file.lstat()
+    if not stat.S_ISREG(secret_stat.st_mode) or stat.S_IMODE(secret_stat.st_mode) != 0o600:
+        parser.error("credential-file must be a regular mode-0600 file")
+    if not args.credential_file.read_bytes():
+        parser.error("credential-file must not be empty")
+    if args.repetitions < 1 or args.poll_seconds <= 0:
+        parser.error("repetitions and poll-seconds must be positive")
+    args.revision = subprocess.check_output(
+        ["git", "rev-parse", "--verify", args.revision + "^{commit}"], cwd=ROOT, text=True).strip()
+    # Fixtures and runner must come from the same commit as the client.
+    if subprocess.check_output(["git", "status", "--porcelain", "--", "tests/experiments"],
+                               cwd=ROOT, text=True).strip():
+        parser.error("commit experiment changes before running a batch")
+    if args.revision != subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip():
+        parser.error("run from the selected revision's checkout to freeze fixtures too")
     tasks = [json.loads((TASKS / name / "task.json").read_text())
              for name in (args.task or sorted(p.name for p in TASKS.iterdir() if p.is_dir()))]
     plan = [(task, route, n) for task in tasks for route in (args.route or ["computer-use", "machine-control"])
             for n in range(1, args.repetitions + 1)]
-    random.shuffle(plan)
+    random.Random(args.seed).shuffle(plan)
     run_dir = args.results / f"run-{now()}"
     run_dir.mkdir(parents=True, mode=0o700)
+    args.bundle = run_dir / "source.bundle"
+    subprocess.run(["git", "bundle", "create", str(args.bundle), "HEAD"], cwd=ROOT, check=True)
+    manifest = {"schema": "route-comparison-batch/v1", "revision": args.revision,
+                "seed": args.seed, "pollSeconds": args.poll_seconds,
+                "plan": [{"task": t["id"], "route": r, "repetition": n} for t, r, n in plan],
+                "fixtureHashes": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
+                                  for p in TASKS.rglob("*") if p.is_file()}}
+    (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"Run {run_dir} with {len(plan)} trials", flush=True)
     summary = []
     for task, route, n in plan:
         record = run_trial(args, task, route, n, run_dir)
         summary.append(record)
+        (run_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+        if record.get("releaseError"):
+            raise RuntimeError("workspace release unresolved; stop batch and inspect private receipt")
         print(json.dumps({k: record.get(k) for k in (
             "task", "route", "repetition", "oracle", "agentSeconds", "toolCalls",
             "machineControlRefusals", "error", "released")}), flush=True)

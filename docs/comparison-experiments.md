@@ -183,3 +183,37 @@ a guest beyond what the Computer Use arm proves it needs, and record that
 decision. The AAR client token is the only model credential in a guest;
 revoke it when a run ends or a guest image is retired. Experiments never use
 the controller's own desktop.
+
+## Reproducible measurement (Tactical 124)
+
+The runner now freezes the controller HEAD into a Git bundle and checks out
+that exact commit in every disposable guest. Commit experiment edits first.
+`--seed` records repeatable route order, and `manifest.json` records the commit,
+fixture hashes and full plan. The installed resident and Computer Use binaries
+remain the base image's; record their hashes separately before attributing a
+cross-batch change to client code. Model configuration must likewise be fixed
+in the base; transcript model context records disclose what actually ran.
+
+`--credential-file` names the canonical controller-local base login secret.
+The runner requires a regular mode-0600 file and preserves its inherited value
+in a separate private workspace secret file. Contents never enter command
+arguments or result records. Each trial starts and closes a provisioning
+journal. Direct SSH, YA and oracle steps remain explicitly outside automatic
+command audit coverage.
+
+`agentSeconds` comes from matched transcript task events (the explicit duration
+when present), never from polling. `controllerWaitSeconds` retains the polling
+measurement separately. Missing process state waits until the deadline;
+missing completion, malformed transcripts and timeouts invalidate the trial.
+Timeout cancellation is verified before reading an oracle. An unresolved
+workspace release stops the batch.
+
+`toolCallsByName`, serialized `toolOutputBytes`, paired tool round-trip intervals,
+explicit transcript image items and cumulative token usage expose different
+costs. Intervals may overlap; output bytes are not token counts; explicit image
+items are not a screenshot count. Native operation counts remain unavailable
+without instrumentation. The direct-socket JS prototype is explicitly labeled
+as skipping claims and controller audit. Do not call its difference a measured
+benefit of persistence alone.
+
+Offline checks: `python3 -m unittest discover -s tests/experiments -p 'test_*.py'`.

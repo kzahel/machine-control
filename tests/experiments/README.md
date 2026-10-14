@@ -7,8 +7,8 @@ Setup, the agent's work and the oracle all run inside the guest; the
 controller only drives the clone, the SSH tunnel and guest YA.
 
 ```bash
-tests/experiments/route_comparison.py --task settings-scrollbars
-tests/experiments/route_comparison.py --repetitions 2
+tests/experiments/route_comparison.py --credential-file /private/base-login.secret --task settings-scrollbars
+tests/experiments/route_comparison.py --credential-file /private/base-login.secret --repetitions 5 --seed 42
 ```
 
 A task directory holds `task.json` (id, title, timeout), `prompt.md`
