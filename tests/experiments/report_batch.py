@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import statistics
 from measurements import token_metrics
+from review_trial import load_review
 
 
 def distribution(values):
@@ -61,6 +62,14 @@ def summarize(manifest, records):
         passed = [r for r in valid if r.get('passed') is True]
         result['groups'].append({
             "task":task,"route":route,"recorded":len(rows),"valid":len(valid),"passed":len(passed),
+            "routeReviews":dict(collections.Counter(
+                (r.get('routeReview') or {}).get('routeAdherence','unreviewed') for r in rows)),
+            "routeVerifiedPasses":sum((r.get('routeReview') or {}).get('routeAdherence')=='conforming' for r in passed),
+            "preUIDiscoveryCalls":distribution([len(r['routeReview']['preUIDiscoveryCalls']) for r in rows
+                if r.get('routeReview')]),
+            "tokensReportedBeforeFirstUICall":distribution([
+                r['routeReview']['usageReportedBeforeFirstUICall']['totalTokens'] for r in rows
+                if (r.get('routeReview') or {}).get('usageReportedBeforeFirstUICall',{}).get('totalTokens') is not None]),
             "timedOut":sum(r.get('timedOut') is True for r in rows),
             "infrastructureFailures":sum(bool(r.get('error')) for r in rows),
             "cleanupFailures":sum(bool(r.get('releaseError')) or not r.get('released') for r in rows),
@@ -78,6 +87,7 @@ def summarize(manifest, records):
     result['limits'] = ["Pilot distributions, not population success-rate estimates.",
                         "Latency summaries include only valid successful trials; failures are separate.",
                         "Tool use restrictions are prompt-based; route adherence needs transcript review.",
+                        "Route reviews and discovery indices are explicit judgments bound to transcript hashes; pre-UI usage is a reported checkpoint, not causal attribution.",
                         "The JS prototype omits claims/controller audit; its timing is not enforcement parity.",
                         "Input tokens include cache reads/writes; output includes reported reasoning. Do not sum breakdowns again.",
                         "Token distributions include coverage n; absent usage stays unknown. All-recorded usage includes failed/invalid attempts.",
@@ -90,5 +100,6 @@ if __name__=='__main__':
     parser.add_argument('run',type=Path)
     args=parser.parse_args()
     manifest=json.loads((args.run/'manifest.json').read_text())
-    records=[json.loads(p.read_text()) for p in sorted(args.run.glob('*/*/trial.json'))]
+    records=[{**json.loads(p.read_text()), 'routeReview':load_review(p.parent)}
+             for p in sorted(args.run.glob('*/*/trial.json'))]
     print(json.dumps(summarize(manifest,records),indent=2))

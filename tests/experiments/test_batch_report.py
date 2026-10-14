@@ -41,5 +41,18 @@ class BatchReportTest(unittest.TestCase):
         self.assertEqual(group['resourceAccounting']['allAttemptResourcesPerSuccess']['tokens'],220)
         self.assertEqual(group['resourceAccounting']['byOutcome']['failed']['seconds']['sum'],10)
 
+    def test_oracle_pass_does_not_imply_reviewed_route_adherence(self):
+        rows=[{'task':'save','route':'cli','repetition':n,'validTrial':True,'passed':True}
+              for n in (1,2,3)]
+        for row,adherence in zip(rows,('conforming','violated')):
+            row['routeReview']={'routeAdherence':adherence,'preUIDiscoveryCalls':[1,2],
+                                'usageReportedBeforeFirstUICall':{}}
+        group=summarize({'plan':rows},rows)['groups'][0]
+        self.assertEqual(group['passed'],3)
+        self.assertEqual(group['routeVerifiedPasses'],1)
+        self.assertEqual(group['routeReviews'],{'conforming':1,'violated':1,'unreviewed':1})
+        self.assertEqual(group['preUIDiscoveryCalls']['n'],2)
+        self.assertIsNone(group['tokensReportedBeforeFirstUICall'])
+
 
 if __name__=='__main__':unittest.main()

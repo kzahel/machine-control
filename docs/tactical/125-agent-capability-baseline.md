@@ -177,7 +177,7 @@ prototype label until then.
 
 ## Validation and final result
 
-Twenty-five offline checks pass. Guest qualification completed one arithmetic
+Thirty-two offline checks pass. Guest qualification completed one arithmetic
 turn per requested model: Codex rollout model/effort and YA live standard-tier
 selection agree; Claude native records report exact model, medium effort and
 standard speed/tier. Codex's rollout omits speed, so its evidence does not attest
@@ -226,3 +226,8 @@ round is a review gate before subsequent repetitions.
 Three instruction arms are versioned, including the task-independent CLI
 quickstart. They have not yet been compared. Seven-scenario agent smoke and
 repeated multi-model baseline remain the gate before candidate acceptance.
+Private route reviews are now bound to transcript hashes and distinguish
+oracle/profile passes from reviewed route-conforming passes. Explicit call
+annotations record discovery overhead and the available pre-UI usage checkpoint;
+the latter is not exact causal token attribution. The first four campaign traces
+were reviewed as route-conforming. The remaining matrix is still pending.

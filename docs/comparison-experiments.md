@@ -238,3 +238,18 @@ classes; output includes reasoning. Do not add those breakdowns a second time.
 The legacy `successfulInputTokens` field is raw provider input; use the normalized
 fields for future cross-provider comparisons. The Claude collector deduplicates native API-message usage and follows YA
 session-ID remapping. Missing usage stays unknown; token counts are not subscription cost.
+
+Use `review_trial.py RESULTS/RUN/TASK/ROUTE-N` to inspect deduplicated model tool
+calls, alongside the original results and captures. After inspection, record a
+private, transcript-hash-bound annotation with `--record --adherence conforming`
+(or `violated` / `uncertain`), `--first-ui-call N`, `--discovery-calls 1,2` and
+`--notes TEXT`. The first UI call is the first target UI observation or action;
+doctor, help and claims are setup. Do not infer native operation counts from a
+batched model call. Existing annotations are never silently overwritten.
+
+Reports distinguish oracle/profile passes from `routeVerifiedPasses`, and expose
+unreviewed or uncertain traces explicitly. The discovery annotation also keeps
+the last available usage checkpoint before the first UI call. That checkpoint
+is not exact token attribution: provider usage can arrive later, and a model
+call can mix discovery and useful UI work. Use complete task tokens for the
+primary instruction comparison; this prefix measurement explains overhead.

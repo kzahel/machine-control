@@ -1,0 +1,48 @@
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from review_trial import annotation, calls_from, load_review
+
+
+class TrialReviewTest(unittest.TestCase):
+    def transcript(self):
+        call={'type':'response_item','payload':{'type':'custom_tool_call',
+              'call_id':'first','name':'exec','input':'read docs'}}
+        return '\n'.join(map(json.dumps,[call,call,
+            {'type':'event_msg','payload':{'type':'token_count','info':{
+                'total_token_usage':{'input_tokens':100,'output_tokens':20,'cached_input_tokens':30}}}},
+            {'type':'response_item','payload':{'type':'custom_tool_call',
+             'call_id':'second','name':'exec','input':'observe and act'}}]))
+
+    def test_deduplicated_call_indices_and_reported_usage_checkpoint(self):
+        text=self.transcript()
+        self.assertEqual(len(calls_from(text,'codex')),2)
+        value=annotation(text,'codex',adherence='conforming',first_ui=2,discovery=[1],notes='Reviewed')
+        self.assertEqual(value['preUIDiscoveryCalls'],[1])
+        self.assertEqual(value['usageReportedBeforeFirstUICall']['totalTokens'],120)
+        self.assertEqual(value['firstUICall'],2)
+
+    def test_claude_streamed_tool_blocks_are_counted_once(self):
+        row={'type':'assistant','message':{'content':[{'type':'tool_use','id':'call','name':'Bash','input':{'command':'help'}}]}}
+        self.assertEqual(len(calls_from('\n'.join(map(json.dumps,[row,row])),'claude')),1)
+
+    def test_invalid_indices_do_not_become_discovery_metrics(self):
+        for first,discovery in [(3,[1]),(2,[2]),(2,[1,1]),(None,[4])]:
+            with self.assertRaises(ValueError):
+                annotation(self.transcript(),'codex',adherence='conforming',first_ui=first,discovery=discovery,notes='')
+
+    def test_review_is_bound_to_the_exact_transcript(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)
+            self.assertIsNone(load_review(path))
+            text=self.transcript()
+            (path/'transcript.jsonl').write_text(text)
+            value=annotation(text,'codex',adherence='uncertain',first_ui=2,discovery=[],notes='Inspect result')
+            (path/'review.json').write_text(json.dumps(value))
+            self.assertEqual(load_review(path)['routeAdherence'],'uncertain')
+            (path/'transcript.jsonl').write_text(text+'\n')
+            with self.assertRaisesRegex(ValueError,'bound to this transcript'):load_review(path)
+
+
+if __name__=='__main__':unittest.main()
