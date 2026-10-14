@@ -356,9 +356,11 @@ class Desktop:
                 self.grants.request(request, caller, grant_reply)
                 return
             if operation == "grant.revoke":
-                self.grants.stop("revoked_by_caller")
-                if self.portal.state == "pending":
+                revoked, retained = self.grants.revoke_from_caller()
+                if revoked and self.portal.state == "pending":
                     self.portal.close()
+                result["data"] = {**self.grants.state()["deployment"], "revoked": revoked,
+                                  **({"retained": "person_armed"} if retained else {})}
             elif operation in {"grant.status", "status"}:
                 result["data"] = {**self.grants.state()["deployment"],
                                   "desktopProduct": True, "ready": self.grants.ready,

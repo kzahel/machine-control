@@ -133,6 +133,39 @@ broker.PrepareUpdate();
 Refuses(() => broker.Arm(["observe"], 0, "until_stopped"), "Update blocks indefinite arming");
 broker.CancelUpdate();
 Assert(broker.Authorize("snapshot") == "approval_required", "Off by default");
+var retained = new DesktopGrants(clock);
+retained.SetReady(true);
+retained.Arm(["observe"], 0, "until_stopped");
+Assert(retained.RevokeFromCaller() == (false, true), "Caller revoke retains person-armed access");
+Assert(retained.Authorize("snapshot") is null, "Person access survives caller revoke");
+Assert(State(retained).GetProperty("deployment").GetProperty("grant").GetProperty("origin").GetString() == "person",
+    "Grant reports person origin");
+async Task ApproveControl(DesktopGrants grants, int seconds)
+{
+    var reply = grants.RequestAsync(new Request { Operation = "grant.request", Scopes = ["control"], DurationSeconds = seconds, Reason = "Broader agent access" }, "caller");
+    grants.Decide(Pending(grants), true, ["control"], seconds);
+    Assert((await reply).Accepted, "Broader request approved");
+}
+await ApproveControl(retained, 60);
+Assert(State(retained).GetProperty("deployment").GetProperty("grant").GetProperty("origin").GetString() == "request",
+    "Approved request replaces person access");
+Assert(retained.RevokeFromCaller() == (true, false), "Caller ends its own request grant");
+Assert(retained.Authorize("snapshot") is null && retained.Authorize("invoke") == "approval_required",
+    "Person access returns after caller revoke");
+await ApproveControl(retained, 60);
+clock.Advance(61);
+Assert(retained.Authorize("snapshot") is null && retained.Authorize("invoke") == "approval_required",
+    "Person access returns after request expiry");
+await ApproveControl(retained, 60);
+retained.Stop("stopped_by_person");
+Assert(retained.Authorize("snapshot") == "approval_required", "Person Stop clears replaced access");
+Assert(retained.RevokeFromCaller() == (false, false), "Nothing left to revoke");
+var lapsed = new DesktopGrants(clock);
+lapsed.SetReady(true);
+lapsed.Arm(["observe"], 60);
+await ApproveControl(lapsed, 120);
+clock.Advance(121);
+Assert(lapsed.Authorize("snapshot") == "approval_required", "Expired person access is not restored");
 Assert(broker.Authorize("session.login") == "unsupported_operation", "No protected scope");
 Refuses(() => broker.Arm(["protected"], 60), "Unsupported scope");
 Refuses(() => broker.Arm(["observe"], 59), "Unbounded duration");

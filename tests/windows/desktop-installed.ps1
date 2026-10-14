@@ -245,6 +245,10 @@ try {
   Assert $invoke.accepted 'Indefinite grant delivers semantic action'
   $marker=Get-Content (Join-Path $env:LOCALAPPDATA 'MachineControl\conformance\counter.json') -Raw|ConvertFrom-Json
   Assert ($marker.counter -eq 1 -and $marker.processId -eq $fixtureProcess) 'Independent indefinite-access fixture effect'
+  $revoke=Call @{operation='grant.revoke'}
+  Assert ($revoke.accepted -and $revoke.data.revoked -eq $false -and $revoke.data.retained -eq 'person_armed') 'Caller revoke retains person-armed access'
+  Assert ((Granted).origin -eq 'person') 'Person-armed grant reports origin'
+  Assert (Call @{operation='snapshot';hwnd=[long]$window.hwnd}).accepted 'Access continues after caller revoke'
   Press 'Pause access'
   Assert (-not (Call @{operation='snapshot';hwnd=[long]$window.hwnd}).accepted) 'Pause blocks indefinite access'
   Assert ((Granted).lifetime -eq 'until_stopped') 'Pause preserves indefinite grant'

@@ -12,6 +12,9 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     private readonly TimeProvider _time = time ?? TimeProvider.System;
     private string _generation = Guid.NewGuid().ToString("n");
     private LiveGrant? _grant;
+    // Person-armed access that an approved agent request replaced; it returns
+    // when that request grant expires or its caller revokes it.
+    private LiveGrant? _armed;
     private PendingGrant? _pending;
     private bool _ready;
     private bool _preparedConsole;
@@ -213,7 +216,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
                 "until_stopped" => null,
                 _ => throw new ArgumentException("Choose a supported access lifetime"),
             };
-            Issue(ValidateScopes(scopes), seconds, "Manually enabled by the person", "local operator");
+            Issue(ValidateScopes(scopes), seconds, "Manually enabled by the person", "local operator", "person");
         }
     }
 
@@ -240,20 +243,24 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         }
     }
 
-    private void Issue(HashSet<string> scopes, int? duration, string reason, string caller)
+    private void Issue(HashSet<string> scopes, int? duration, string reason, string caller, string origin = "request")
     {
         if (Journal?.Available == false) throw new InvalidOperationException("Audit storage unavailable");
         Journal?.QueueEvent("access.enabled");
         _generation = Guid.NewGuid().ToString("n");
-        _grant = new LiveGrant(scopes, duration, reason, caller, _time.GetTimestamp());
+        if (origin == "person") _armed = null;
+        else if (_grant?.Origin == "person") _armed = _grant;
+        _grant = new LiveGrant(scopes, duration, reason, caller, _time.GetTimestamp(), origin);
         ++_authorizationRevision;
         _lastEnded = null;
     }
 
     internal void Stop(string reason)
     {
+        var restored = false;
         lock (Gate)
         {
+            var ending = _grant;
             _generation = Guid.NewGuid().ToString("n");
             _grant = null;
             ++_authorizationRevision;
@@ -261,8 +268,39 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             _pending?.Completion.TrySetResult(new GrantReply(false, reason));
             _pending = null;
             _admission?.Stop(reason);
+            // Only an agent grant's own end returns the person's access; the
+            // person's Stop, locking, updates and failures clear it too.
+            if (ending?.Origin == "request" && reason is "expired" or "revoked_by_caller" &&
+                _armed is { } armed && !(armed.Duration is int seconds && Elapsed(armed.Started) >= seconds))
+            {
+                _grant = armed;
+                _lastEnded = null;
+                restored = true;
+            }
+            _armed = null;
         }
         Journal?.QueueEvent("access." + DesktopJournal.Token(reason));
+        if (restored) Journal?.QueueEvent("access.restored");
+    }
+
+    /// <summary>
+    /// A socket caller's revoke ends only access an agent requested. Access the
+    /// person armed stays on and is reported as retained.
+    /// </summary>
+    internal (bool Revoked, bool Retained) RevokeFromCaller()
+    {
+        lock (Gate)
+        {
+            Refresh();
+            if (_grant is null) return (false, false);
+            if (_grant.Origin == "person")
+            {
+                Journal?.QueueEvent("access.revoke_retained");
+                return (false, true);
+            }
+            Stop("revoked_by_caller");
+            return (true, false);
+        }
     }
 
     internal void PrepareUpdate()
@@ -318,6 +356,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             ? (int?)Math.Max(0, (int)Math.Ceiling(duration - Elapsed(_grant.Started))) : null),
         reason = _grant.Reason,
         requester = _grant.Caller,
+        origin = _grant.Origin,
         binding = "target_wide",
     };
 
@@ -374,7 +413,8 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     private static int ValidateDuration(int seconds) => seconds is >= 60 and <= 28800
         ? seconds : throw new ArgumentException("Duration must be 60-28800 seconds");
 
-    private sealed record LiveGrant(HashSet<string> Scopes, int? Duration, string Reason, string Caller, long Started);
+    private sealed record LiveGrant(HashSet<string> Scopes, int? Duration, string Reason, string Caller, long Started,
+        string Origin = "request");
     private sealed record PendingGrant(string Id, HashSet<string> Scopes, int Duration, int Timeout,
         string Reason, string Caller, long Started, TaskCompletionSource<GrantReply> Completion);
 }

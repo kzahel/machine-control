@@ -1,7 +1,8 @@
 # 120 — Person-armed access retention
 
 Status: active. macOS implemented and verified on a personal Mac with an
-installed Developer ID build; Windows and Linux pending.
+installed Developer ID build. Windows and Linux implemented with contract and
+unit tests; installed VM acceptance pending.
 Owning topic: [host control](../../topics/host-control.md#person-armed-access-is-the-persons-to-end).
 
 ## Objective and completion conditions
@@ -46,12 +47,16 @@ request grants remain target-wide.
 
 ### 2 — Windows resident
 
-Same contract in `UserHost` grants. Windows has no restart persistence, so
-the retained in-memory grant is the state to protect.
+Same contract in `DesktopGrants`/`UserHost`. Windows has no restart
+persistence, so the in-memory grant is the state to protect: person access
+that an approved agent request replaces is kept aside and returns when that
+request grant expires or its caller revokes it. The person's Stop, desktop
+loss and updates clear both.
 
 ### 3 — Linux companion
 
-Confirm the revoke path, then apply the same contract.
+The GNOME companion (`desktop/native/linux`) had the same unconditional
+revoke; apply the identical in-memory contract.
 
 ### 4 — visibility and resident stop
 
@@ -66,6 +71,24 @@ capture still works, an approved request grant can be revoked, the person's
 access returns, and Stop ends it. Mac also checks lock/unlock and restart.
 
 ## Final result
+
+### Windows and Linux
+
+**Current:** Both report `origin`, retain person-armed access on a caller
+revoke (`revoked: false`, `retained: "person_armed"`, journal
+`access.revoke_retained`), and restore it after a replacing request grant
+ends. Windows desktop grant contracts pass, including retention, restoration
+after revoke and expiry, Stop clearing, and no restoration of lapsed timed
+person access; ARM64/x64 publishes succeed. Linux grant tests cover the same
+cases; one earlier test that expected an approved request to permanently
+replace indefinite access now expects restoration. The installed acceptance
+scripts (`tests/windows/desktop-installed.ps1`,
+`tests/desktop/linux-until-stopped.py`) assert the retained revoke through the
+real product socket after native arming.
+
+**Open:** Run those installed scripts on claimed Windows and Linux VMs
+against candidate packages; run Windows `dotnet format` and the remaining
+Windows-only contracts on Windows.
 
 ### macOS
 

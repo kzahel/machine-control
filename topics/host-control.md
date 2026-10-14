@@ -216,7 +216,9 @@ expiry also deletes the saved consent.
 
 **Decision:** Every grant records its origin. `person` grants come from the
 local operator (app, menu, restored consent); `request` grants come from an
-approved agent request.
+approved agent request. Mac, Windows and Linux implement it
+([Tactical 120](../docs/tactical/120-person-armed-access.md) records the
+installed evidence and what remains).
 
 - A caller's `grant.revoke` of a `person` grant is a no-op that succeeds with
   `revoked: false` and `retained: "person_armed"`. Agents run revoke in

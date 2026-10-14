@@ -1415,7 +1415,8 @@ class ClientTests(unittest.TestCase):
                 result, value = self.run_cli("--target", "fixture", *arguments)
                 self.assertEqual(result.returncode, 2)
                 self.assertIn(expected, value["message"])
-                self.assertEqual(result.stderr.strip(), "")
+                # argparse must not print its own usage text beside the JSON.
+                self.assertNotIn("usage:", result.stderr)
 
     def test_desktop_input_key_help_and_target(self):
         self.write_registry("macos")

@@ -117,6 +117,12 @@ try:
     check('Semantic delivery', action['accepted'])
     poll(lambda: json.loads(state_path.read_text())['semanticPresses'] == before + 1)
     check('Independent fixture effect', True)
+    revoke = call('grant.revoke')
+    check('Caller revoke retains person-armed access', revoke['accepted'] and
+          revoke['data'].get('revoked') is False and revoke['data'].get('retained') == 'person_armed')
+    check('Person-armed grant reports origin', (call('status')['data']['grant'] or {}).get('origin') == 'person')
+    check('Access continues after caller revoke',
+          call('snapshot', target='machine-control-fixture', maxDepth=16)['accepted'])
     press('Stop access')
     poll(lambda: call('status')['data']['grant'] is None)
     check('Stop revokes access', call('snapshot', target='machine-control-fixture')['errorCode'] == 'approval_required')

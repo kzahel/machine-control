@@ -28,6 +28,37 @@ class GrantsTests(unittest.TestCase):
         self.assertEqual(self.broker.authorize("input.key"), "approval_required")
         self.assertEqual(self.broker.authorize("shell"), "unsupported_operation")
 
+    def approve(self, scopes, seconds=30):
+        self.request(scopes=scopes, durationSeconds=seconds)
+        self.broker.decide(self.broker.pending["id"], True, scopes, seconds)
+
+    def test_caller_revoke_keeps_person_armed_access(self):
+        self.broker.arm(["observe"], 0, "until_stopped")
+        self.assertEqual(self.broker.revoke_from_caller(), (False, True))
+        self.assertIsNone(self.broker.authorize("snapshot"))
+        self.assertEqual(self.broker.state()["deployment"]["grant"]["origin"], "person")
+        # A broader approved request replaces it; its end returns the person's.
+        self.approve(["control"])
+        self.assertEqual(self.broker.grant["origin"], "request")
+        self.assertEqual(self.broker.revoke_from_caller(), (True, False))
+        self.assertEqual(self.broker.grant["origin"], "person")
+        self.assertIsNone(self.broker.authorize("snapshot"))
+        self.approve(["control"])
+        self.now += 31
+        self.assertIsNone(self.broker.authorize("snapshot"))
+        self.assertEqual(self.broker.authorize("input.key"), "approval_required")
+        # The person's Stop clears replaced access as well.
+        self.approve(["control"])
+        self.broker.stop()
+        self.assertEqual(self.broker.authorize("snapshot"), "approval_required")
+        self.assertEqual(self.broker.revoke_from_caller(), (False, False))
+
+    def test_expired_person_access_is_not_restored(self):
+        self.broker.arm(["observe"], 60)
+        self.approve(["control"], 120)
+        self.now += 121
+        self.assertEqual(self.broker.authorize("snapshot"), "approval_required")
+
     def test_request_pause_and_narrow(self):
         self.broker.arm(["observe", "control"], 60)
         self.request(scopes=["observe", "control", "browser"])
@@ -133,8 +164,12 @@ class GrantsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.broker.decide(self.broker.pending["id"], True, ["observe"], 0)
         self.broker.decide(self.broker.pending["id"], True, ["observe"], 10)
+        self.assertEqual(self.broker.state()["deployment"]["grant"]["lifetime"], "timed")
         self.now = 10
-        self.assertEqual(self.broker.authorize("snapshot"), "approval_required")
+        # The bounded agent grant ends; the person's indefinite access returns.
+        self.assertIsNone(self.broker.authorize("snapshot"))
+        self.assertEqual(self.broker.state()["deployment"]["grant"]["lifetime"], "until_stopped")
+        self.assertEqual(self.broker.authorize("input.key"), "approval_required")
 
     def test_until_stopped_rejects_invalid_lifetime_and_scopes(self):
         for lifetime in [None, "", "forever", True]:

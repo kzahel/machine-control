@@ -192,8 +192,15 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
         if (grants is not null)
         {
             DesktopSafety.RefreshAvailability(grants);
-            if (request.Operation == "grant.revoke") grants.Stop("revoked_by_caller");
-            if (request.Operation is "grant.status" or "grant.revoke")
+            if (request.Operation == "grant.revoke")
+            {
+                var (revoked, retained) = grants.RevokeFromCaller();
+                var data = System.Text.Json.JsonSerializer.SerializeToNode(grants.DeploymentState())!.AsObject();
+                data["revoked"] = revoked;
+                if (retained) data["retained"] = "person_armed";
+                return Envelope(request) with { Accepted = true, Delivery = "confirmed", Effect = "not_applicable", Data = data };
+            }
+            if (request.Operation is "grant.status")
                 return Envelope(request) with { Accepted = true, Delivery = "confirmed", Effect = "not_applicable", Data = grants.DeploymentState() };
             if (request.Operation == "grant.request")
             {

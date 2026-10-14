@@ -47,7 +47,7 @@ class Grants:
         self.clock = clock
         self.changed = changed
         self.generation = uuid.uuid4().hex
-        self.grant = self.pending = None
+        self.grant = self.pending = self.armed = None
         self.updating = False
         self.ready = False
         self.paused = False
@@ -92,13 +92,19 @@ class Grants:
             return "approval_required"
         return None
 
-    def issue(self, selected, seconds, reason, caller):
+    def issue(self, selected, seconds, reason, caller, origin="request"):
         if self.journal and not self.journal.event("access.enabled"):
             raise ValueError("Audit storage unavailable")
         self.generation = uuid.uuid4().hex
+        # Person-armed access an approved agent request replaces returns when
+        # that request grant expires or its caller revokes it.
+        if origin == "person":
+            self.armed = None
+        elif self.grant and self.grant.get("origin") == "person":
+            self.armed = self.grant
         self.grant = {"scopes": selected, "expires": self.clock() + seconds if seconds is not None else None,
                       "lifetime": "timed" if seconds is not None else "until_stopped",
-                      "reason": reason, "requester": caller}
+                      "reason": reason, "requester": caller, "origin": origin}
         self.last_ended = None
         self.paused = False
         self.changed()
@@ -110,7 +116,7 @@ class Grants:
         if lifetime not in ("timed", "until_stopped"):
             raise ValueError("Choose a supported access lifetime")
         self.issue(scopes(selected), duration(seconds) if lifetime == "timed" else None,
-                   "Enabled by the person", "local operator")
+                   "Enabled by the person", "local operator", "person")
 
     def request(self, request, caller, complete):
         self.refresh()
@@ -166,11 +172,33 @@ class Grants:
     def stop(self, reason="stopped_by_person"):
         if self.journal:
             self.journal.event("access." + reason)
+        ending, armed = self.grant, self.armed
         self.generation = uuid.uuid4().hex
         self.grant = None
+        self.armed = None
         self.last_ended = reason
+        # Only an agent grant's own end returns the person's access; the
+        # person's Stop, desktop loss and updates clear it too.
+        if (ending and ending.get("origin") == "request" and reason in {"expired", "revoked_by_caller"}
+                and armed and (armed["expires"] is None or armed["expires"] > self.clock())):
+            self.grant = armed
+            self.last_ended = None
+            if self.journal:
+                self.journal.event("access.restored")
         self.finish_pending(False, reason)
         self.changed()
+
+    def revoke_from_caller(self):
+        """End only agent-requested access; person-armed access is retained."""
+        self.refresh()
+        if not self.grant:
+            return False, False
+        if self.grant.get("origin") == "person":
+            if self.journal:
+                self.journal.event("access.revoke_retained")
+            return False, True
+        self.stop("revoked_by_caller")
+        return True, False
 
     def pause(self, value):
         if not self.grant or self.pending or not self.ready or self.updating:
