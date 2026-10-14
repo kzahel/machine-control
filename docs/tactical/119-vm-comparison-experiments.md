@@ -1,6 +1,7 @@
 # 119 — VM route-comparison experiments
 
-Status: proposed. Runbook drafted; no guest work has started.
+Status: active. Experiment base built; Machine Control route proven in the
+guest; Computer Use installation, workspace proof, driver and tasks pending.
 Owning topic: [operational workflow automation](../../topics/operational-workflow-automation.md).
 Runbook: [route-comparison experiments](../comparison-experiments.md).
 
@@ -53,6 +54,46 @@ classification; record sanitized results here and act on the largest gaps.
 
 Each check in step 1 is recorded with its evidence level. A trial counts only
 with an oracle result; agent self-reports are secondary.
+
+## Progress
+
+### Experiment base (step 2, partial)
+
+**Current:** The base is a Tart copy-on-write clone of the existing macOS
+candidate, with its own private inventory entry, configuration, workspace and
+claim state, and credential file, so the candidate stays unchanged for
+conformance. The clone used no extra disk at creation, booted to an unlocked
+session, and kept the resident's Accessibility and Screen Recording grants.
+
+Inside the guest: Node 24 (already present), npm-installed Codex CLI and
+YepAnywhere, a public machine-control clone, and Chrome for Testing. YA runs
+as a per-user LaunchAgent on `127.0.0.1:3400`. Codex uses an `aar` model
+provider at `http://127.0.0.1:8417/codex` with `env_key = "AAR_TOKEN"`; the
+LaunchAgent wrapper reads the token from a 0600 file. The controller reaches
+the guest over SSH with a dedicated key; the guest's host key is read through
+the Tart guest agent and pinned under a host-key alias, not trusted on first
+use. One SSH connection carries `-R 127.0.0.1:8417` to the controller's AAR and
+`-L` to the guest YA. A dedicated AAR client grants only the Codex account.
+
+### Open checks (step 1)
+
+| Check | Result |
+| --- | --- |
+| Token reaches guest agents | **Pass:** a YA-launched guest Codex session saw `AAR_TOKEN` and completed through AAR |
+| Guest YA through the tunnel | **Pass:** session created and polled from the controller via the forwarded port |
+| Clones keep grants | **Pass** for a full clone; isolated workspace clones not yet checked |
+| Gateway authentication | Unauthenticated request through the reverse forward returns 401 |
+| Computer Use in the guest | **Open:** needs the ChatGPT app, Codex Computer Use and an operator decision on signing in |
+| Computer Use through AAR | **Open** (operator expects it works) |
+
+Guest-local `machine-control --target host target doctor` passes every check
+under the appliance's standing policy, so guest agents drive the guest desktop
+target-natively.
+
+Notes: Chrome for Testing raises a keychain prompt unless launched with
+`--use-mock-keychain --password-store=basic`; its published bundle is unsealed,
+so strict signature verification fails everywhere. The guest volume has about
+12 GiB free after setup.
 
 ## Final result
 

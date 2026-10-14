@@ -1,6 +1,7 @@
 # Run route-comparison experiments in a macOS VM
 
-Status: **Proposal** with explicit open checks. The usage journal, session
+Status: **Proposal** with explicit open checks; the experiment base and the
+Machine Control route are proven (see Tactical 119). The usage journal, session
 attribution, Tart workspaces and target-native `--target host` control are
 **Current**. Running Codex Computer Use and YepAnywhere inside a Tart guest,
 routing guest agents through the host's agent-auth-router, and the trial
