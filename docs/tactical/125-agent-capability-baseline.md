@@ -4,7 +4,8 @@ Status: active. Both requested profiles completed guest YA/AAR qualification;
 the runner now collects both transcript formats and verifies effective settings.
 Seven scenarios and three CLI instruction arms are implemented. Sol/CLI has a
 valid passing smoke on every scenario; Opus/JS TextEdit save also passed. The
-frozen 105-trial campaign is active, with a review gate after its first round.
+frozen 105-trial campaign stopped after eight attempts for evaluator repairs;
+its receipts remain intact. The prepared Python matrix has not started.
 Broader model/route coverage remains pending; no broad baseline is claimed.
 Owning topics: [operational workflow automation](../../topics/operational-workflow-automation.md),
 [unified desktop client](../../topics/unified-desktop-client.md).
@@ -231,3 +232,23 @@ oracle/profile passes from reviewed route-conforming passes. Explicit call
 annotations record discovery overhead and the available pre-UI usage checkpoint;
 the latter is not exact causal token attribution. The first four campaign traces
 were reviewed as route-conforming. The remaining matrix is still pending.
+
+### Evaluator repairs during the first round
+
+The extension trial exposed conflicting evidence: its fresh-page screenshot
+showed the seeded title and the agent's UI tree showed an enabled extension,
+but the oracle reported failure. It read Chrome's asynchronously written
+preferences only once. The repaired oracle polls registration and fresh-page
+behavior together, records each separately, and treats unreadable or conflicting
+evidence as unqualified. Live requalification is pending; the original attempt
+must not be counted as a product failure or silently changed into a pass.
+
+A separate Opus/window trial passed its effect oracle but the parser counted
+`isMeta: true` image-size metadata as another user request. The native transcript
+contains the final `end_turn`; this was a parser defect, not incomplete output.
+The parser now excludes internal metadata from user-task counts and retains
+real additional user turns as unqualified. Reanalysis can recover its duration
+without rerunning the model; preserve the original receipt and parser provenance.
+
+Thirty-eight offline experiment tests pass, including delayed registration,
+disabled/wrong-path extensions, inconclusive evidence and image metadata.

@@ -163,7 +163,7 @@ def claude_transcript_metrics(text):
                     encoded = content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
                     if key:
                         outputs[key] = {'at': at, 'bytes': len(encoded.encode('utf-8'))}
-            elif at is not None:
+            elif at is not None and row.get('isMeta') is not True:
                 starts.append(at)
         elif row.get('type') == 'assistant':
             model = message.get('model')

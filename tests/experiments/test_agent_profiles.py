@@ -33,6 +33,18 @@ class ClaudeMetricsTest(unittest.TestCase):
         self.assertFalse(value['transcriptComplete'])
         self.assertIsNone(value['tokenUsage'])
 
+    def test_image_metadata_is_not_a_second_user_task(self):
+        rows=[row('user',0,{'content':'task'}),
+              row('user',2,{'content':'[Image: original size, displayed size]'},isMeta=True),
+              row('assistant',4,{'id':'m1','model':'claude-opus-5-5',
+                                'content':[],'stop_reason':'end_turn'})]
+        result=claude_transcript_metrics('\n'.join(json.dumps(r) for r in rows))
+        self.assertTrue(result['transcriptComplete'])
+        self.assertEqual(result['agentTurns'],1)
+        self.assertEqual(result['agentSeconds'],4)
+        rows[1].pop('isMeta')
+        self.assertFalse(claude_transcript_metrics('\n'.join(json.dumps(r) for r in rows))['transcriptComplete'])
+
     def test_missing_api_usage_does_not_understate_session_total(self):
         usage={'input_tokens':3,'cache_creation_input_tokens':10,
                'cache_read_input_tokens':20,'output_tokens':4}
