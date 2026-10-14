@@ -27,7 +27,8 @@ from agent_session import JSON, Capture, Result, Session, SessionError, Stopped,
 from agent_session_transport import RetainedTransport
 from scoped_process import ProcessTree
 
-HELP = """Persistent Python desktop session. Calls are blocking: do not write await.
+HELP = """Machine Control: persistent Python session for desktop control.
+Calls are blocking: do not write await.
 Every call requires session_id: your published agent session ID. If unknown,
 read AGENTCTL_SESSION_ID, CLAUDE_CODE_SESSION_ID or CODEX_THREAD_ID in your shell.
 This is self-asserted audit attribution, not a secret or bearer authority.

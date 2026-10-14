@@ -360,3 +360,12 @@ independent registration/behavior oracle. This supports refusal correctness,
 while exposing the ergonomic cost of fresh numbers on a provider without stable
 identity. Model-added sleeps and redundant observations remain measured costs,
 not reasons to weaken reference fencing or claim settling proves completion.
+
+Sol/Python upload stopped before UI work after two discovery filters excluded
+the expected tool metadata. The original description omitted the product name,
+and neither query matched its wording/case or the concatenated name suffix.
+Empty filtered lists do not establish absent registration. The revised help now
+explicitly names Machine Control and a persistent Python session, with no task
+answers or operation changes. Eleven MCP checks and strict typing pass; improved
+discovery still requires a separately pinned live comparison. The original
+candidate attempt and its costs remain a failed workflow observation.
