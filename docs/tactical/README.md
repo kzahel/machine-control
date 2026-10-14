@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [124 — Native behavior and efficiency](124-native-behavior-and-efficiency.md):
+  reproducible route measurements, deterministic native probes and bounded
+  evidence before supported session implementation.
+
 - [090 — Retained desktop appliance rebuild](090-retained-desktop-appliance-rebuild.md)
   (complete): disk analysis and retained Windows/Linux provisioning acceptance.
 - [092 — Dated provisioning journals](092-provisioning-journals.md): automatic

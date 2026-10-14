@@ -2,6 +2,8 @@
 
 Status: proposed. Planning only; the experiment prototype is
 `tests/experiments/mc-repl`.
+The [native efficiency investigation](124-native-behavior-and-efficiency.md)
+precedes broad implementation to isolate the prototype's combined changes.
 Owning topics: [unified desktop client](../../topics/unified-desktop-client.md),
 [installed agent CLI](../../topics/installed-agent-cli.md).
 Evidence: [Tactical 119](119-vm-comparison-experiments.md) and the

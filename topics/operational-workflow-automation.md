@@ -7,6 +7,11 @@ review, implementation, and live acceptance.
 
 ## Scope and test for inclusion
 
+**Decision:** Before broad persistent-session implementation, strengthen the
+existing route evaluator and run deterministic native behavior probes.
+[Tactical 124](../docs/tactical/124-native-behavior-and-efficiency.md) separates
+provider timing and effects from model workflow efficiency and records limits.
+
 **Current:** Fresh desktop appliance bring-ups have a
 [dated private provisioning journal](../docs/provisioning-journals.md), with
 automatic common CLI intent/result metadata and safe Windows/Linux/macOS phase
