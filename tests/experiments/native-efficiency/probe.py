@@ -62,7 +62,7 @@ class Provider:
             self.tree = '\n'.join(x.get('text', '') for x in result['result'].get('content', []) if x['type']=='text')
         else:
             result = self.call({'operation': 'snapshot', 'target': APP, 'maxDepth': 20,
-                                'maxElements': 1500, 'projection': 'full'})
+                                'maxElements': 1500, 'projection': self.args.projection})
             self.tree = result['result'].get('data', {}).get('elements', [])
         return result
 
@@ -109,6 +109,9 @@ class Provider:
 
 def run(args):
     args.output.mkdir(parents=True, mode=0o700, exist_ok=False)
+    (args.output/'campaign.json').write_text(json.dumps({'route':args.route,
+        'projection':args.projection,'repetitions':args.repetitions,
+        'sections':args.section or ['background','tree','settle']},indent=2))
     provider = Provider(args)
     records = []
     def measured(name, action, **details):
@@ -130,7 +133,7 @@ def run(args):
         command(args.root,'sentinel','foreground'); time.sleep(.1)
         return measured(name, action, **details)
     try:
-        for n in range(args.repetitions):
+        for n in range(args.repetitions if not args.section or 'background' in args.section else 0):
             for kind in ('target','sentinel'): command(args.root,kind,'reset')
             command(args.root,'sentinel','foreground');time.sleep(.15)
             background('background-observe',lambda:provider.observe(True),repetition=n)
@@ -151,7 +154,7 @@ def run(args):
             measured('background-menu-item',lambda:provider.click('Increment from menu'),repetition=n)
             # Restore controlled foreground before every later case.
             command(args.root,'sentinel','foreground')
-        for size in (20,100,300):
+        for size in ((20,100,300) if not args.section or 'tree' in args.section else ()):
             command(args.root,'target','rows',count=size)
             measured('tree-first-after-resize',lambda:provider.observe(True),size=size)
             for n in range(args.repetitions):
@@ -159,7 +162,7 @@ def run(args):
                 command(args.root,'target','updates',delay=0.,count=1)
                 time.sleep(.05)
                 measured('tree-one-change',provider.observe,size=size,repetition=n)
-        for name,delay,count,interval in [('delayed',.35,1,.05),('burst',.02,8,.05),('continuous',.02,100,.03)]:
+        for name,delay,count,interval in ([('delayed',.35,1,.05),('burst',.02,8,.05),('continuous',.02,100,.03)] if not args.section or 'settle' in args.section else []):
             for n in range(args.repetitions):
                 command(args.root,'target','reset'); provider.observe(True)
                 command(args.root,'target','updates',delay=delay,count=count,interval=interval)
@@ -167,7 +170,7 @@ def run(args):
                 # Read again after producer completion to distinguish stale-but-valid observations.
                 time.sleep(max(0.,delay+count*interval))
                 measured('settle-'+name+'-final',provider.observe,repetition=n)
-        for name,label,total in [('delayed','Delayed update',1),('burst','Burst updates',8),('continuous','Continuous updates',100)]:
+        for name,label,total in ([('delayed','Delayed update',1),('burst','Burst updates',8),('continuous','Continuous updates',100)] if not args.section or 'settle' in args.section else []):
             for n in range(args.repetitions):
                 command(args.root,'target','reset'); provider.observe(True)
                 action = provider.click(label)
@@ -190,6 +193,8 @@ if __name__=='__main__':
     parser.add_argument('--checkout',type=Path,default=Path.home()/'code/machine-control')
     parser.add_argument('--claim')
     parser.add_argument('--repetitions',type=int,default=5)
+    parser.add_argument('--projection',choices=['full','compact'],default='full')
+    parser.add_argument('--section',choices=['background','tree','settle'],action='append')
     args=parser.parse_args()
     if args.route=='sky' and not args.config: parser.error('--config required for sky')
     if args.route=='mc-cli' and not args.claim: parser.error('--claim required for mc-cli')

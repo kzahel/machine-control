@@ -25,7 +25,8 @@ the workspace. Never run these fixtures on the controller's personal desktop.
 5. Where existing privilege permits it, run `profile.py --root ROOT --output
    ROOT/profile --config CONFIG --pid EXACT_SERVICE_PID`. It compares ten
    unchanged reads and ten press/read sequences, untraced and with API counts,
-   syscall counts or sampled stacks. It never changes SIP, entitlements or
+   syscall counts or sampled stacks; `--workload pointer-and-type` isolates input.
+   Probe diagnostics must be clean as well as exit zero. It never changes SIP, entitlements or
    signing. `sudo -n` refusal is a measured instrumentation limit.
 6. Reap owned MCP process groups (the clients do this in cleanup), stop the two
    fixture PIDs after verifying their executable paths, retain private results,
@@ -41,7 +42,8 @@ are checked. Clipboard change count is recorded, but this corpus does not yet
 exercise paste/restore.
 
 Trees use 20/100/300 static rows. First-after-resize is not a cold process/cache
-measurement. External timer updates and action-triggered delayed/burst/continuous
+measurement. `--section tree --projection compact` isolates MC projection
+changes without repeating unrelated cases. External timer updates and action-triggered delayed/burst/continuous
 updates are separate cases. Quietness is not proof of application completion.
 The MC route includes process, claim and audit overhead; its resident envelope
 retains native elapsed time. Sky times include MCP transport/runtime work.

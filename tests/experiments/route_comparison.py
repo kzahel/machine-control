@@ -405,6 +405,8 @@ def main():
         record = run_trial(args, task, route, n, run_dir)
         summary.append(record)
         (run_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+        if record.get("error"):
+            raise RuntimeError("trial infrastructure failed; inspect private receipt before continuing")
         if record.get("releaseError"):
             raise RuntimeError("workspace release unresolved; stop batch and inspect private receipt")
         print(json.dumps({k: record.get(k) for k in (
