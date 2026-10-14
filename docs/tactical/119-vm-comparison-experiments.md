@@ -154,3 +154,8 @@ a host YA analysis pass over the private results.
 ## Final result
 
 Pending.
+
+**Current, follow-up:** [Tactical 124](124-native-behavior-and-efficiency.md#final-result)
+completed measurement hardening, deterministic native probes and five TextEdit
+repetitions per route. It owns the bounded pilot evidence; broader task/model
+coverage and this tactical's other open items remain separate.

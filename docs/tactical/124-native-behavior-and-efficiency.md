@@ -1,8 +1,8 @@
 # 124 — Native behavior and efficiency investigation
 
-Status: active. Native campaign and measurement changes complete; a focused
-five-repeat agent pilot is running. Production session implementation remains
-separate.
+Status: complete, bounded research campaign. Native probes, measurement
+hardening and a focused five-repeat agent pilot are complete. Production
+session implementation and broader evaluation remain separate.
 Owning topics: [unified desktop client](../../topics/unified-desktop-client.md),
 [operational workflow automation](../../topics/operational-workflow-automation.md).
 
@@ -107,8 +107,9 @@ disabled; protected attachment and exact private event-posting functions remain
 open. One pointer workload became invalid when a text value changed the label;
 it was corrected and rerun with workload-error rejection.
 
-**Current:** nine timing/wait regressions and two independent-effect reporting
-regressions pass. Swift fixture compilation and live fixture execution pass.
+**Current:** thirteen offline regressions pass: nine for timing/waiting, two
+for independent-effect reports and two for incomplete/invalid batch reports.
+Swift fixture compilation and live fixture execution pass.
 The 23 retained earlier agent trials all have matched completion events;
 reanalysis found 0.2–9.4 seconds of polling excess. The new harness pins source,
 fixtures and runtime identities and separates transcript duration from waiting.
@@ -138,5 +139,40 @@ unchanged and stopped. Detailed pins/methods are in the
 
 ## Final result
 
-Native research and evaluator hardening are complete. Focused agent pilot
-results and final cleanup follow below when verified.
+**Current:** fifteen TextEdit-save trials completed, five per route, in seeded
+order with one disposable clone per trial. All passed the independent saved-file
+oracle, with no timeouts, invalid transcripts, infrastructure or cleanup
+failures. Every recorded tool-call argument was reviewed: GUI work stayed on
+the assigned route, with no direct file-writing shortcut.
+
+| Route | Passed | Agent seconds, median (range) | Model tool calls, median (range) | Median output bytes |
+| --- | --- | --- | --- | --- |
+| Computer Use | 5/5 | 33.8 (27.8–37.0) | 5 (5–6) | 37,995 |
+| MC CLI | 5/5 | 53.0 (46.8–69.8) | 8 (7–12) | 65,255 |
+| Experimental JS session | 5/5 | 37.4 (32.9–38.1) | 5 (5–6) | 17,278 |
+
+Timing uses matched transcript task events; calls count model tool invocations,
+not native operations. Output bytes count serialized transcript tool results.
+All transcripts identify `gpt-6.1-sol`; they do not expose a reasoning-effort
+setting. Source, task files and installed runtime fingerprints stayed fixed.
+Exact pins, transcripts, order and manual-review hashes remain private.
+
+Two CLI trials first misdiscovered the claim-help grammar and recovered after
+`claim_required` responses. The prototype also incurred application-launch
+discovery. These are whole-workflow measurements including startup and command
+discovery. The prototype omits claims/controller audit and changes output,
+observation and batching behavior, so its difference cannot be attributed to
+persistence alone. Five samples of one task/model are a pilot, not a general
+success-rate or performance claim.
+
+**Current, cleanup:** all fifteen workspace discards were confirmed, journals
+closed with paired command records, and inherited credential files rechecked
+as mode 0600 with matching canonical bytes. Final workspace inventory was empty,
+the controller claim was available, and the base and golden copy were stopped.
+
+**Decision:** proceed with the thin claim-aware session and compact observation
+slice in the implementation order above. Retain all five existing agent tasks,
+then add held-out applications and another model family. Cold-process/cache
+behavior, paste/clipboard restoration, protected attach, reliable API counts
+and exact event-posting mechanisms remain open; this study does not imply those
+questions were resolved.

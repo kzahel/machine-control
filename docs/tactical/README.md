@@ -1,8 +1,8 @@
 # Implementation Tacticals
 
 - [124 — Native behavior and efficiency](124-native-behavior-and-efficiency.md):
-  reproducible route measurements, deterministic native probes and bounded
-  evidence before supported session implementation.
+  complete bounded research: reproducible route measurements, deterministic
+  native probes and a fifteen-trial pilot before supported session work.
 
 - [090 — Retained desktop appliance rebuild](090-retained-desktop-appliance-rebuild.md)
   (complete): disk analysis and retained Windows/Linux provisioning acceptance.

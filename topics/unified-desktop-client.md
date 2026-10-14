@@ -189,6 +189,13 @@ still repeats substantial state. Sky's unchanged output remained small, while
 sampled stacks still showed accessibility reads. Neither one process nor a
 no-change message proves a native cache optimization.
 
+**Current:** a five-repeat TextEdit pilot passed on all three routes. The JS
+prototype used fewer model calls and smaller outputs than the CLI, but omitted
+claims/controller audit and changed several interface behaviors at once.
+This supports measuring an equivalent supported session; it does not isolate
+a persistence or language effect. [Pilot results and limits](../docs/tactical/124-native-behavior-and-efficiency.md#final-result)
+own the distributions and transcript-review evidence.
+
 **Decision:** start Tactical 123 with the existing claim-aware session boundary
 and compact observations/diffs, preserving authoritative per-operation checks.
 Measure this thin slice before packaging all facades. Next qualify explicit

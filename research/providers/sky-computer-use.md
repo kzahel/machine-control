@@ -4,8 +4,9 @@ Maintainer: OpenAI. Role: proprietary ChatGPT/Codex desktop Computer Use
 implementation and optional architecture benchmark, not a required provider.
 
 This is the comprehensive entry point for the **observed macOS architecture
-and security posture**. Evidence was collected on 2026-10-03 and consolidated
-on 2026-10-04. It describes pinned installed artifacts, not a vendor security
+and security posture**. Initial evidence was collected on 2026-10-03 and
+consolidated on 2026-10-04; the native efficiency follow-up is dated 2026-10-14.
+It describes pinned installed artifacts, not a vendor security
 specification or a guarantee about later releases. Exact inputs and experiment
 records remain in the spike; implementation decisions remain in the topics.
 
@@ -22,6 +23,8 @@ Reading map:
 - [Process and protocol map](#process-and-protocol-map): what runs where.
 - [Approval and configuration ownership](#approval-and-configuration-ownership):
   where app policy, host decisions and OS consent differ.
+- [Native efficiency](#deterministic-native-behavior-study-2026-10-14): independent
+  effects, background interference, settling and bounded dynamic profiles.
 - [Observed security posture](#observed-security-posture): measured cases and
   conclusions that must not be combined beyond their evidence.
 - [Sources and investigation methods](#sources-and-investigation-methods):

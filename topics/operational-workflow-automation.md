@@ -7,10 +7,11 @@ review, implementation, and live acceptance.
 
 ## Scope and test for inclusion
 
-**Decision:** Before broad persistent-session implementation, strengthen the
-existing route evaluator and run deterministic native behavior probes.
-[Tactical 124](../docs/tactical/124-native-behavior-and-efficiency.md) separates
-provider timing and effects from model workflow efficiency and records limits.
+**Current:** The route evaluator pins source, fixtures and runtime identities,
+measures matched transcript turns, and reports invalid trials and cleanup
+failures separately. Deterministic native probes independently check effects
+and background interference. [Tactical 124](../docs/tactical/124-native-behavior-and-efficiency.md)
+separates this evidence from model workflow efficiency and records limits.
 
 **Current:** Fresh desktop appliance bring-ups have a
 [dated private provisioning journal](../docs/provisioning-journals.md), with
@@ -33,7 +34,7 @@ corrections and fixtures. The first comparison found the macOS Open panel
 and missing desktop subcommand help to be the largest costs; see Tactical
 118's open follow-ups.
 
-**Proposal:** Scale these comparisons with the
+**Current:** The implemented comparisons use the
 [route-comparison runbook](../docs/comparison-experiments.md): paired trials
 inside disposable Tart clones, guest agents routed through the host's
 agent-auth-router over an SSH reverse forward, oracles on application state,
