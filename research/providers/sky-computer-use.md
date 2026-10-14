@@ -318,6 +318,18 @@ this is a qualitative interface comparison, not a success-rate result.
 [Unified desktop client](../../topics/unified-desktop-client.md) records the
 resulting persistent-interface experiment.
 
+**Current:** `research/vendor/extract-sky-reference.py` copies the installed
+JavaScript packages (minified JavaScript, about 350 TypeScript declaration
+files and the bundled Markdown API and instruction documents) and the cached
+Computer Use and browser plugins into a Git-ignored local folder, with a
+manifest of versions, signing team and hashes. The JavaScript is minified but
+not obfuscated, and ships without source maps.
+
+**Open, deferred:** the native `SkyComputerUseService` is a compiled Swift
+executable; only its imports and strings have been inspected. How it builds
+and diffs accessibility trees, maps element numbers and posts input would need
+disassembly-level study, deferred until the interface work needs it.
+
 ## Observed security posture
 
 Each row is a separate evidence claim. In particular, do not combine the

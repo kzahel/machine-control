@@ -21,3 +21,6 @@ __pycache__/
 /desktop/src-tauri/target/
 /desktop/src-tauri/native/
 /desktop/src-tauri/gen/
+
+# Proprietary local vendor references; see research/vendor/README.md
+/research/vendor/*/

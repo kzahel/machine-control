@@ -53,13 +53,19 @@ text. The existing CLI remains supported.
 
 ## Ordered work
 
-### 1 — choose the session language with evidence
+### 1 — build the Python session and keep a JavaScript A/B
 
-Add a Python variant of the prototype to the experiment harness (the installed
-CLI already bundles Python; Node would add runtime size) and run both against
-the same tasks with at least three repetitions, with Codex and Claude agents.
-Compare success, calls, time and tokens. Prefer one language unless the
-difference is material.
+**Decision:** the supported session is Python: the installed CLI already
+bundles and signs it, and the claim, admission and audit client is Python.
+Design it for agents: blocking calls (no `await` to forget), one persistent
+globals namespace, the last expression echoed, and each snippet run in a
+killable session process with a timeout. Type-check its new modules strictly.
+
+Keep a JavaScript variant that runs only with the system's Node as an
+experiment route, so trials can compare languages per model family (Codex and
+Claude at least, three or more repetitions per task) on success, calls, time
+and tokens. A material advantage for JavaScript would justify packaging a
+runtime such as Bun later; it does not block the Python path.
 
 ### 2 — build the session core in the client
 
