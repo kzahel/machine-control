@@ -33,6 +33,18 @@ class HistoryTests(unittest.TestCase):
         self.assertFalse(value["coverage"]["complete"])
         self.assertFalse(self.audit.exists())
 
+    def test_explicit_mcp_session_attribution_survives_missing_environment(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with mock.patch.dict(os.environ, {'MACHINE_CONTROL_AUDIT_DIR':str(self.audit)}):
+                command=audit.Command('fixture','macos',['desktop','snapshot'],session_id='published-session')
+                command.observe({'accepted':True})
+                command.finish(0)
+                events=audit.history(session='published-session')['events']
+        self.assertEqual(len(events),2)
+        self.assertTrue(all(e['sessionRef']=={'id':'published-session','source':'explicit'} for e in events))
+        with self.assertRaises(audit.AuditError):
+            audit.Command('fixture','macos',['desktop','snapshot'],session_id='bad session id')
+
     def test_restart_pagination_filter_and_private_permissions(self):
         for i in range(5):
             audit.append("fixture", logicalTarget="a" if i % 2 else "b")

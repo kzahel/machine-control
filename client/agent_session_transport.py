@@ -41,10 +41,12 @@ class RetainedTransport:
     """
     def __init__(self, alias: str, target: JSON, *, reason: str,
                  claimant_authority: str, claimant_id: str,
+                 session_id: str | None = None,
                  claim_factory: Callable[..., ClaimOwner] = cast(Callable[..., ClaimOwner], ClaimSession),
                  control_factory: Callable[..., ControlOwner] = cast(Callable[..., ControlOwner], ControlSession),
                  audit_factory: Callable[..., Audit] = cast(Callable[..., Audit], audit_history.Command)) -> None:
         self.alias, self.target = alias, target
+        self.session_id = session_id
         self.audit_factory = audit_factory
         self.claim: ClaimOwner | None = None
         self.owner: ControlOwner | None = None
@@ -63,7 +65,7 @@ class RetainedTransport:
 
             def acquire() -> JSON:
                 self.claim = claim_factory(target, reason=reason, claimant_authority=claimant_authority,
-                    claimant_id=claimant_id, duration=900, wait=300)
+                    claimant_id=claimant_id, session_id=session_id, duration=900, wait=300)
                 self.claim.wait()
                 self.target = self.claim.bound_target()
                 return {"accepted": True, "operation": "acquire",
@@ -83,7 +85,8 @@ class RetainedTransport:
 
     def _audit(self, words: list[str], operation: Callable[[], JSON]) -> JSON:
         try:
-            command = self.audit_factory(self.alias, self.target["platform"], words, self.target.get("_claimId"))
+            command = self.audit_factory(self.alias, self.target["platform"], words, self.target.get("_claimId"),
+                                         session_id=self.session_id)
         except (audit_history.AuditError, OSError, sqlite3.Error) as error:
             raise SessionError("audit_unavailable", "Could not persist audit intent; nothing dispatched") from error
         value: JSON | None = None
@@ -183,7 +186,8 @@ class RetainedTransport:
                 self.owner = None
                 self.claim = None
             cast(Callable[..., object], audit_history.best_effort)(
-                "session.closed", logicalTarget=self.alias, claimId=self.target.get("_claimId"))
+                "session.closed", logicalTarget=self.alias, claimId=self.target.get("_claimId"),
+                sessionRef=cast(Callable[..., JSON | None], audit_history.session_ref)(self.session_id))
 
 
 def connect(alias: str, *, reason: str, registry: str | None = None,
@@ -200,4 +204,5 @@ def connect(alias: str, *, reason: str, registry: str | None = None,
     if not claimant_authority or not claimant_id:
         raise SessionError("claimant_required", "Supply a truthful claimant authority and ID outside an agent host")
     return RetainedTransport(alias, target, reason=reason,
-                             claimant_authority=claimant_authority, claimant_id=claimant_id)
+                             claimant_authority=claimant_authority, claimant_id=claimant_id,
+                             session_id=str(reference['id']) if reference else None)

@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'client'))
 from agent_session import Session, SessionError, SessionTimeout
@@ -66,6 +67,27 @@ class FacadeTest(unittest.TestCase):
                 self.assertEqual(error.exception.delivered,'unknown')
                 self.assertTrue(worker.closed)
             finally:worker.close()
+
+    def test_interpreter_is_bound_to_one_explicit_session(self):
+        configs=[]; calls=[]
+        class PeerWorker:
+            closed=False
+            def __init__(self,config):configs.append(dict(config))
+            def request(self,value):calls.append(value);return {'content':[], 'isError':False}
+            def close(self):self.closed=True
+        messages=[{'jsonrpc':'2.0','id':index,'method':'tools/call','params':{'name':'mc',
+                   'arguments':{'code':'1+1','session_id':identifier}}}
+                  for index,identifier in enumerate(['first-session','different-session','first-session'])]
+        incoming=io.StringIO('\n'.join(map(json.dumps,messages))+'\n');out=io.StringIO()
+        with patch('agent_session_mcp.audit_history.session_ref',return_value=None):
+            serve('fixture',{},[],incoming=incoming,outgoing=out,worker_factory=PeerWorker)
+        self.assertEqual(len(configs),1)
+        self.assertEqual(configs[0]['sessionId'],'first-session')
+        self.assertEqual(configs[0]['claimantId'],'first-session')
+        self.assertEqual(len(calls),2)
+        replies=[json.loads(line) for line in out.getvalue().splitlines()]
+        self.assertTrue(replies[1]['result']['isError'])
+        self.assertIn('session_mismatch',replies[1]['result']['content'][0]['text'])
 
 
 if __name__=='__main__':unittest.main()

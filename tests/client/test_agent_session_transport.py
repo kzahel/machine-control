@@ -31,7 +31,7 @@ class TransportTest(unittest.TestCase):
                 return dict(accepted=True,operation=request['operation'])
             def close(self):outer.events.append('owner.close')
         class Audit:
-            def __init__(self,alias,platform,words,claim):
+            def __init__(self,alias,platform,words,claim,**metadata):
                 outer.events.append('audit.intent')
                 if outer.refuse_audit:raise OSError('storage unavailable')
             def observe(self,value):outer.events.append('audit.observe')

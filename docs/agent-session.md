@@ -11,11 +11,18 @@ Start the server with a logical target:
 bin/machine-control --target TARGET mcp --reason 'Perform the requested UI task'
 ```
 
-The server exposes `mc` (Python code) and `mc_reset`. Initialization and tool
+The server exposes `mc` (Python code) and `mc_reset`. Both require `session_id`,
+the caller's published agent session ID. Read `AGENTCTL_SESSION_ID`,
+`CLAUDE_CODE_SESSION_ID`, or `CODEX_THREAD_ID` in the agent's shell when needed;
+MCP subprocesses do not necessarily inherit these variables. This identifier
+is self-asserted attribution, not bearer authority. The interpreter binds to
+the first session and refuses calls from a different one; use a separate MCP
+server per agent session. Initialization and tool
 discovery do not acquire a claim or operate the target. The first code call
 uses target doctor, acquires a live queued claim, and opens the existing
 resident admission channel. Outside a session-publishing agent host, supply
-`--claimant-authority` and `--claimant-id` with truthful caller metadata.
+`--claimant-authority` and `--claimant-id` to override the default
+`agent-session` attribution with truthful caller metadata.
 Do not pass an existing global `--claim`: this session owns its claim lifecycle.
 
 ```python

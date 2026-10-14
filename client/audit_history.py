@@ -323,7 +323,10 @@ def program_kind(arguments):
 
 
 class Command:
-    def __init__(self, target, platform, arguments, claim_id=None):
+    def __init__(self, target, platform, arguments, claim_id=None, *, session_id=None):
+        reference = session_ref(session_id)
+        if session_id is not None and reference is None:
+            raise AuditError("Invalid explicit session attribution")
         self.started = time.monotonic()
         self.finished = False
         self.result = {}
@@ -337,7 +340,7 @@ class Command:
             payloadsRecorded=False,
             programKind=program_kind(arguments),
             claimId=claim_id,
-            sessionRef=session_ref(),
+            sessionRef=reference,
         )
         append("command.intent", **self.fields)
 

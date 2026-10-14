@@ -13,6 +13,7 @@ import io
 import json
 from pathlib import Path
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -24,6 +25,9 @@ from agent_session import JSON, Result, Session, SessionError, Stopped, SessionT
 from agent_session_transport import RetainedTransport
 
 HELP = """Persistent Python desktop session. Calls are blocking: do not write await.
+Every call requires session_id: your published agent session ID. If unknown,
+read AGENTCTL_SESSION_ID, CLAUDE_CODE_SESSION_ID or CODEX_THREAD_ID in your shell.
+This is self-asserted audit attribution, not a secret or bearer authority.
 mc.apps(), mc.windows(), mc.state(), mc.app(exact_name_or_id), mc.launch(app_id).
 Bind app = mc.app("TextEdit"); it prints an initial tree.
 app.tree(query=None, full=False), app.press(n), app.click(n), app.focus(n),
@@ -43,6 +47,7 @@ reset explicitly before starting fresh. No fixed agent sleeps are needed.
 MAX_REQUEST = 65536
 MAX_REPLY = 12 * 1024 * 1024
 MAX_TEXT = 24000
+SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
 
 
 class BoundedOutput(io.StringIO):
@@ -81,6 +86,7 @@ def worker() -> int:
     config = json.loads(configured)
     session: Session | None = None
     namespace: Namespace | None = None
+    startup_failed = False
     try:
         while line := sys.stdin.buffer.readline(MAX_REQUEST + 1):
             if len(line) > MAX_REQUEST:
@@ -93,10 +99,14 @@ def worker() -> int:
             action_start = session.action_attempts if session else 0
             try:
                 with contextlib.redirect_stdout(output):
+                    if request.get("reset"):
+                        startup_failed = False
+                    if startup_failed:
+                        raise Stopped("session_start_failed", "Reset explicitly after resolving the previous startup refusal")
                     if session is None:
                         transport = RetainedTransport(config["alias"], config["target"],
                             reason=config["reason"], claimant_authority=config["claimantAuthority"],
-                            claimant_id=config["claimantId"])
+                            claimant_id=config["claimantId"], session_id=config["sessionId"])
                         session = Session(transport, target=config["alias"], emit=lambda value: print(value),
                             auto_observe=config.get("autoObserve", True))
                         namespace = Namespace(session)
@@ -111,10 +121,16 @@ def worker() -> int:
                         if value is not None and not isinstance(value, Result):
                             print(value)
             except SessionError as exc:
+                startup_failed = session is None
                 is_error = True
                 error = {"code": exc.code, "delivered": exc.delivered, "retryable": exc.retryable,
                          "message": str(exc)}
+            except common.ClientError as exc:
+                startup_failed = session is None
+                is_error = True
+                error = {"code": exc.code, "delivered": "no" if session is None else "unknown", "message": str(exc)}
             except Exception as exc:
+                startup_failed = session is None
                 is_error = True
                 error = {"code": type(exc).__name__, "message": str(exc)}
             body = output.getvalue()
@@ -223,11 +239,15 @@ def serve(alias: str, target: JSON, arguments: list[str], *,
               "claimantAuthority": authority, "claimantId": claimant,
               "autoObserve": options.observe == "action"}
     current: Worker | None = None
+    owner_id: str | None = None
+    session_property = {"type": "string", "description": "Your published agent session ID; use the same ID on every call.",
+                        "pattern": SESSION_ID.pattern}
     tools = [{"name": "mc", "description": HELP,
-              "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}},
-                              "required": ["code"], "additionalProperties": False}},
+              "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}, "session_id": session_property},
+                              "required": ["code", "session_id"], "additionalProperties": False}},
              {"name": "mc_reset", "description": "Clear Python variables and element numbers. Keeps live ownership; after a stopped worker, explicitly starts a fresh admitted session.",
-              "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False}}]
+              "inputSchema": {"type": "object", "properties": {"session_id": session_property},
+                              "required": ["session_id"], "additionalProperties": False}}]
     try:
         while line := incoming.readline(MAX_REQUEST + 1):
             request_id: object = None
@@ -254,18 +274,26 @@ def serve(alias: str, target: JSON, arguments: list[str], *,
                     name, args = params.get("name"), params.get("arguments", {})
                     if name not in {"mc", "mc_reset"} or not isinstance(args, dict):
                         raise ValueError("Unknown tool or malformed arguments")
-                    if name == "mc" and (set(args) != {"code"} or not isinstance(args["code"], str)):
-                        raise ValueError("mc requires only a code string")
-                    if name == "mc_reset" and args:
-                        raise ValueError("mc_reset takes no arguments")
+                    if name == "mc" and (set(args) != {"code", "session_id"} or not isinstance(args["code"], str)):
+                        raise ValueError("mc requires code and session_id strings")
+                    if name == "mc_reset" and set(args) != {"session_id"}:
+                        raise ValueError("mc_reset requires session_id")
+                    identifier = args.get("session_id")
+                    if not isinstance(identifier, str) or not SESSION_ID.fullmatch(identifier):
+                        raise ValueError("session_id must be a valid published session ID")
                     try:
-                        if not authority or not claimant:
-                            raise SessionError("claimant_required", "Provide truthful claimant arguments outside an agent host")
+                        if (owner_id is not None and identifier != owner_id) or (reference and identifier != reference["id"]):
+                            raise SessionError("session_mismatch", "This interpreter belongs to a different agent session; use a separate MCP server")
+                        if bool(authority) != bool(claimant):
+                            raise SessionError("claimant_required", "Supply both claimant arguments or neither")
+                        owner_id = identifier
+                        config.update(sessionId=identifier, claimantAuthority=authority or "agent-session",
+                                      claimantId=claimant or identifier)
                         if current is None or name == "mc_reset" and current.closed:
                             if current:
                                 current.close()
                             current = worker_factory(config)
-                        result = current.request({"reset": True} if name == "mc_reset" else args)
+                        result = current.request({"reset": True} if name == "mc_reset" else {"code": args["code"]})
                     except SessionError as exc:
                         result = {"content": [{"type": "text", "text": json.dumps({"code": exc.code,
                                   "delivered": exc.delivered, "retryable": exc.retryable, "message": str(exc)})}], "isError": True}

@@ -2,7 +2,7 @@
 
 Status: active. A typed Python core, claim/admission/audit transport and killable
 MCP facade are implemented as a [source candidate](../agent-session.md).
-Twenty focused offline tests and strict type checking pass; live qualification
+Twenty-two focused offline tests and strict type checking pass; live qualification
 and matched scenario comparison remain pending. The direct-socket JavaScript
 experiment remains `tests/experiments/mc-repl`.
 The completed [native efficiency investigation](124-native-behavior-and-efficiency.md)
@@ -286,3 +286,11 @@ when attributing a change to persistence, observation policy or language.
 ## Final result
 
 Pending.
+
+The first live Codex/Python smoke stopped before UI dispatch because its MCP
+process lacked the caller's published session environment. This exposed an
+integration requirement, not an application-effect regression. Tool calls now
+carry an explicit session ID, bind the interpreter to one caller session, and
+use that ID for claim and controller audit attribution. A different session
+is refused instead of sharing state; startup failures require explicit reset.
+The failed attempt remains in private resource accounting. A rerun is pending.
