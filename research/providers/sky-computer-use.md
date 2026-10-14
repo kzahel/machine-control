@@ -155,6 +155,45 @@ runtime, other transports and a hostile same-user shell remains unverified.
 Neither the inspected admission routine nor live discovery establishes
 session-specific cryptographic authority or revocation behavior.
 
+### Lock-screen authorization boundary
+
+**Current (2026-10-14), `source-reviewed`, static only:** installed bundle
+version `26.1005.1001425` (build `1001425`, alongside JavaScript package
+directory `26.1007.71326`) contains an optional SecurityAgent authorization
+plug-in that adds a password-free alternative to `system.login.screensaver`.
+The component was not installed or invoked on the inspected Mac. Targeted ARM64
+disassembly found that the plug-in connects to the service's fixed
+lock-authorization Unix socket, obtains the peer audit token, compares the
+peer's OpenAI Team ID and service signing identifier, and returns allow only
+when the reply starts with `ALLOW`. No account password is stored or entered by
+this route.
+
+The inspected plug-in path calls `SecTaskCopySigningIdentifier` and
+`SecTaskCopyTeamIdentifier`, but no call to `SecCodeCheckValidity`, a designated
+requirement check, or an exact installed-artifact hash check was found. This is
+a security-boundary gap: the password-bypassing mechanism relies on publisher
+and identifier metadata without an independently observed strict validation of
+the live peer's code. It is not a demonstrated unlock exploit. Hardened-runtime
+enforcement or another unobserved OS constraint may narrow practical attacks,
+and the component was not dynamically tested. The separate signed-Node
+ancestry result concerns ordinary service admission; it must not be combined
+with this static finding to claim that the detached probe could unlock the Mac.
+
+The broader locked-use design includes meaningful safeguards: an active
+Computer Use attempt, a separate guardian, display covers, physical-input
+detection, per-thread leases, and relock on input or completion. Static review
+did not establish the exact cover-before-unlock ordering, service-side
+authentication of the plug-in connection, capture exclusion, attempt limits,
+or failure behavior across fast-user switching and FileVault boundaries.
+
+**Decision input:** Machine Control's protected unlock broker must retain
+strict live-code validation and the installer-pinned exact CDHash, rather than
+trusting a publisher-wide identifier. Its unlock mechanism also requires an
+atomically consumed one-use grant bound to the locked console identity, boot,
+broker generation, live peer and monotonic expiry. The
+[macOS locked-use topic](../../topics/macos-locked-use.md) owns those decisions
+and their independently qualified limitations.
+
 ### Runtime and launch provenance
 
 **Current, source-reviewed / bounded live-tested:** the host launches the native
@@ -499,6 +538,7 @@ and experiments are different sources of evidence.
 | Installation and provenance | Package/plugin manifests, README, MCP template, selected launch fields and app archive; hashes and `codesign` inspection | [Inputs/discovery](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-mcp-external-host.md#inputs-and-discovery) |
 | Native wire protocol and service startup | Distributed `targets/mac/native-pipe.js`, client and service facade; bounded source searches | [Transport](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-caller-authorization.md#transport-direct-source-findings) |
 | Admission predicate | `strings`, `nm`, Swift metadata/demangling, bounded ARM64 disassembly and requirement initializers; not source access to the native service | [Control-flow and addresses](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-caller-authorization.md#native-control-flow-follow-up) |
+| Lock-screen authorization | Pinned installed native bundle; `codesign`, `otool`, `nm`, strings, metadata and targeted ARM64 disassembly; component neither installed nor executed | Sanitized synthesis in [Lock-screen authorization boundary](#lock-screen-authorization-boundary); detailed proprietary extraction notes remain local and untracked |
 | Runtime authority placement | Launcher and embedded runtime JS; owned handler/endpoint fixture with kernel `LOCAL_PEERPID` | [Runtime topology](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-caller-authorization.md#runtime-topology-and-ancestry-follow-up) |
 | Real rejection and acceptance | Process trees, socket ownership/modes, `lsof`, scoped service logs, bounded framed probes and detached negative/positive pairs | [Initial probes](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-caller-authorization.md#authorized-live-follow-up), [signed-parent experiment](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-caller-authorization.md#signed-parent-admission-experiment) |
 | App policy versus approval | Distributed `computer-use-policy.js`; pinned Codex configuration schema/tests; official product documentation | [Approval trace](https://github.com/kzahel/machine-control-spike/blob/674b756f4f44164dfdb19a71b8b64c930826833c/docs/sky-caller-authorization.md#app-approval-separate-source-and-documented-behavior) |

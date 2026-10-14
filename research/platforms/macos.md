@@ -21,6 +21,17 @@ actions, and target-local input. Stable application identity and TCC consent
 are deployment requirements. Login window, FileVault/preboot, credentials, and
 some protected surfaces are separate authority domains.
 
+**Current (2026-10-14), comparison `source-reviewed`, static only:** the
+[Sky dossier's lock-screen review](../providers/sky-computer-use.md#lock-screen-authorization-boundary)
+found an optional password-free SecurityAgent mechanism whose peer check
+compared Team ID and signing identifier, with no observed strict code-validity,
+designated-requirement, or exact-artifact check in the plug-in path. This was
+not installed or dynamically exercised and is not a demonstrated exploit.
+Machine Control instead strictly validates the live resident and pins its
+exact installer-recorded CDHash before its root broker can arm a short,
+one-use, console- and generation-bound grant. Keep that stronger boundary;
+publisher metadata alone is not protected-unlock authority.
+
 ## Resident responsiveness
 
 **Current (2026-10-11), `source-reviewed` and bounded `live-tested`:** two

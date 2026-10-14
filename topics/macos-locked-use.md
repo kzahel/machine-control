@@ -37,6 +37,15 @@ An approved, bounded control session may temporarily unlock the existing
 console session behind opaque covers on every display. The setting grants no
 ordinary access by itself. No account password is stored by this feature.
 
+**Decision rationale:** the static
+[Sky lock-screen review](../research/providers/sky-computer-use.md#lock-screen-authorization-boundary)
+found a password-free authorization plug-in peer check based on Team ID and
+signing identifier without an observed strict live-code validity or exact
+artifact check. That is a security-boundary gap, not a demonstrated exploit.
+Machine Control therefore retains strict dynamic signature validation plus the
+installer-pinned resident CDHash at its root broker. Publisher identity,
+process names, claimed session IDs and distant ancestry cannot arm unlock.
+
 This follows the documented [OpenAI locked-use flow](https://learn.chatgpt.com/docs/computer-use#locked-use).
 Product wording and task-end relock are Machine Control decisions, rather than
 claims about undocumented OpenAI UI or implementation details.
