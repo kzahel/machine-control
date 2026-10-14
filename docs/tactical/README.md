@@ -42,6 +42,9 @@ the commits' `Topic:` trailers and register that exact string in
 
 ## Tactical index
 
+- [123 — Persistent agent session interface](123-persistent-agent-session.md)
+  (proposed): turn the persistent JavaScript experiment into a supported,
+  claim-aware session with MCP, shell and library facades.
 - [122 — Windows VirtualBox shutdown recovery](122-windows-virtualbox-shutdown-recovery.md):
   scheduling/request comparisons and explicit shutdown/recovery guidance.
 

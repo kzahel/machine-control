@@ -167,6 +167,9 @@ passed all five tasks with 29 tool calls in total, against 66 for the CLI and
 32 for Computer Use (which failed one), after it learned to click an
 element's centre when the element cannot be pressed
 ([Tactical 119](../docs/tactical/119-vm-comparison-experiments.md)).
+[Tactical 123](../docs/tactical/123-persistent-agent-session.md) plans the
+supported version: one claim-aware session core with MCP, shell-session and
+library facades.
 
 **Proposal:** initially reuse the existing Python session client to prove the
 contract and compatibility CLI. Prototype one thin persistent model-facing
