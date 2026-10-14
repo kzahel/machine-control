@@ -213,15 +213,16 @@ try {
   $combo.GetCurrentPattern([Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
   $condition=[Windows.Automation.AndCondition]::new([Windows.Automation.Condition[]]@(
    [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,'Until I turn it off'),
-   [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::ListItem),
-   [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::IsOffscreenProperty,$false)))
+   [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::ListItem)))
   $deadline=[DateTime]::UtcNow.AddSeconds(8)
   do {
-   $options=[Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Descendants,$condition)
+   $options=$combo.FindAll([Windows.Automation.TreeScope]::Descendants,$condition)
    if ($options.Count -eq 1) {break}
    Start-Sleep -Milliseconds 100
   } while ([DateTime]::UtcNow -lt $deadline)
-  Assert ($options.Count -eq 1) 'One visible native indefinite access option'
+  Assert ($options.Count -eq 1) 'One native indefinite access option'
+  # A short popup lists it below the visible rows; scroll before selecting.
+  try {$options[0].GetCurrentPattern([Windows.Automation.ScrollItemPattern]::Pattern).ScrollIntoView()} catch {}
   $options[0].GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
   $deadline=[DateTime]::UtcNow.AddSeconds(8)
   do {
@@ -233,6 +234,11 @@ try {
   Press 'Enable access';WaitGrant $true
   $grant=Granted
   Assert ($grant.lifetime -eq 'until_stopped' -and $null -eq $grant.remainingSeconds) 'Visible choice creates indefinite native grant'
+  # Grant management needs no owner session; desktop operations below do.
+  $revoke=Call @{operation='grant.revoke'}
+  Assert ($revoke.accepted -and $revoke.data.revoked -eq $false -and $revoke.data.retained -eq 'person_armed') 'Caller revoke retains person-armed access'
+  $retained=Granted
+  Assert ($retained.origin -eq 'person' -and $retained.lifetime -eq 'until_stopped') 'Person-armed grant survives caller revoke'
   $status=Call @{operation='status'};$generation=$status.generation
   $launch=Call @{operation='app.launch';executablePath=$Fixture}
   Assert $launch.accepted 'Indefinite grant launches independent fixture'
@@ -245,10 +251,6 @@ try {
   Assert $invoke.accepted 'Indefinite grant delivers semantic action'
   $marker=Get-Content (Join-Path $env:LOCALAPPDATA 'MachineControl\conformance\counter.json') -Raw|ConvertFrom-Json
   Assert ($marker.counter -eq 1 -and $marker.processId -eq $fixtureProcess) 'Independent indefinite-access fixture effect'
-  $revoke=Call @{operation='grant.revoke'}
-  Assert ($revoke.accepted -and $revoke.data.revoked -eq $false -and $revoke.data.retained -eq 'person_armed') 'Caller revoke retains person-armed access'
-  Assert ((Granted).origin -eq 'person') 'Person-armed grant reports origin'
-  Assert (Call @{operation='snapshot';hwnd=[long]$window.hwnd}).accepted 'Access continues after caller revoke'
   Press 'Pause access'
   Assert (-not (Call @{operation='snapshot';hwnd=[long]$window.hwnd}).accepted) 'Pause blocks indefinite access'
   Assert ((Granted).lifetime -eq 'until_stopped') 'Pause preserves indefinite grant'

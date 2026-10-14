@@ -87,6 +87,8 @@ try:
     app = subprocess.Popen([str(a.app)], stdout=log, stderr=log, start_new_session=True)
     state = poll(lambda: call('status'))
     check('Exact installed source', state['data']['sourceRevision'] == a.revision)
+    # Session readiness is observed shortly after the socket answers.
+    state = poll(lambda: (lambda s: s if s['data']['ready'] else None)(call('status')))
     check('Supported session ready', state['data']['ready'])
     check('Starts off', state['data']['grant'] is None)
     press('Access duration')
@@ -98,8 +100,8 @@ try:
     check('Explicit indefinite lifetime', grant['lifetime'] == 'until_stopped')
     check('No countdown', grant['remainingSeconds'] is None)
     check('Visible indefinite status', poll(
-        lambda: any('Until you turn it off' in (i['name'] + (
-            (linuxui.safe(lambda: Atspi.Text.get_text(n, 0, -1), '') or '') if 'Text' in i['interfaces'] else ''))
+        lambda: any('until you turn it off' in (i['name'] + (
+            (linuxui.safe(lambda: Atspi.Text.get_text(n, 0, -1), '') or '') if 'Text' in i['interfaces'] else '')).lower()
             for n, i in nodes() if 'showing' in i['states'])))
     state_path = a.output.with_suffix('.fixture.json')
     state_path.unlink(missing_ok=True)

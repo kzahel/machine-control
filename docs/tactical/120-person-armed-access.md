@@ -1,8 +1,9 @@
 # 120 — Person-armed access retention
 
-Status: active. macOS implemented and verified on a personal Mac with an
-installed Developer ID build. Windows and Linux implemented with contract and
-unit tests; installed VM acceptance pending.
+Status: active. Implemented on Mac, Windows and Linux. Installed retention is
+verified on a personal Mac (local Developer ID build) and on Windows and
+Linux ARM64 VMs (signed 0.6.4 candidates). Mac lock/unlock and Stop with the
+person present, and x64 installed checks, remain.
 Owning topic: [host control](../../topics/host-control.md#person-armed-access-is-the-persons-to-end).
 
 ## Objective and completion conditions
@@ -86,9 +87,37 @@ scripts (`tests/windows/desktop-installed.ps1`,
 `tests/desktop/linux-until-stopped.py`) assert the retained revoke through the
 real product socket after native arming.
 
-**Open:** Run those installed scripts on claimed Windows and Linux VMs
-against candidate packages; run Windows `dotnet format` and the remaining
-Windows-only contracts on Windows.
+Installed evidence, signed 0.6.4 candidates from `9995fbb`, claimed ARM64
+VMs started from off and shut down afterwards:
+
+- **Linux GNOME Wayland:** the installed acceptance script passed end to end
+  through the graphical user manager: native AT-SPI arming of **Until I turn
+  it off**, null countdown, visible status, independent GTK fixture effect,
+  caller revoke reported `retained: person_armed`, the grant kept `origin:
+  person`, observation continued, and native Stop revoked access. Two
+  script repairs were needed: wait for session readiness after the socket
+  answers, and match the status wording case-insensitively.
+- **Windows 11:** the signed installer, exact 2394-file inventory and
+  publisher signatures verified. An independent UIA actor in session 1 armed
+  until-stopped access through the native UI; a socket `grant.revoke`
+  returned `revoked: false, retained: person_armed` with the same
+  `until_stopped` person grant; the native Stop then ended it
+  (`lastEnded: stopped_by_person`) and a later revoke was a no-op. The
+  script now finds the duration option among the combo box's items even when
+  the short popup reports it offscreen, then scrolls it into view.
+
+**Open:**
+
+- The Windows script's later until-stopped steps (fixture launch and
+  observation through direct `call`) predate required live ownership
+  (`54c72fe`) and fail with `control_session_required`; they need an owner
+  session. The retention checks now run before them.
+- A stale `runtime\browser-extension\README.md` dated before this run sat in
+  the Windows install folder and broke the exact-inventory check; the current
+  uninstaller removed the whole folder, so an older install/uninstall left it.
+- Windows `dotnet format` and Windows-only contracts after the presentation
+  section need a Windows host; x64 installed checks are not run.
+- The Linux VM keeps the 0.6.4 candidate installed (previously 0.5.4).
 
 ### macOS
 
