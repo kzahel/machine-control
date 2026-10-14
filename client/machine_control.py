@@ -2484,6 +2484,10 @@ def command_help(arguments: list[str]) -> str | None:
             "grant status\n  The active grant, if any.\n"
             "grant revoke\n  End the active grant. Revoke only a grant this task requested.\n"
         )
+    if operation == "claim":
+        return claim_usage()
+    if operation == "workspace":
+        return workspace_usage()
     if operation == "audit":
         return (
             "audit history [--claim-id ID] [--claimant-id ID] [--session-ref ID]\n"
@@ -3396,7 +3400,24 @@ def handle_claim(
     if arguments in (["help"], ["-h"], ["--help"]):
         print(claim_usage())
         return 0
-    if target.get("_claimId") is not None:
+    selected = target.get("_claimId")
+    if arguments[:1] in (["release"], ["renew"]):
+        rest = list(arguments[1:])
+        # Agents guess a flag for the ID; accept it as the positional form.
+        if "--claim-id" in rest:
+            index = rest.index("--claim-id")
+            value = rest[index + 1] if index + 1 < len(rest) else ""
+            del rest[index:index + 2]
+            rest.insert(0, value)
+        # Agents carry --claim on every call; the selected claim is the
+        # natural subject of release or renew.
+        if selected is not None and (not rest or rest[0].startswith("--")):
+            rest.insert(0, selected)
+        arguments = [arguments[0], *rest]
+        if selected is not None and rest[0] == selected:
+            target = {key: value for key, value in target.items() if key != "_claimId"}
+            selected = None
+    if selected is not None:
         raise ClientError(
             "claim_selection_conflict",
             "Claim management cannot run through an already selected claim",
@@ -3991,6 +4012,7 @@ def claim_usage() -> str:
        machine-control --target ALIAS claim renew CLAIM_ID
            [--duration DURATION]
        machine-control --target ALIAS claim release CLAIM_ID
+       machine-control --target ALIAS --claim CLAIM_ID claim release|renew
 
 Without an explicit claimant pair, the agent host's published session ID
 (AGENTCTL_SESSION_ID, CLAUDE_CODE_SESSION_ID or CODEX_THREAD_ID) becomes the

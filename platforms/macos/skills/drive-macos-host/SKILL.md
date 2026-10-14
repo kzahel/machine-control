@@ -68,8 +68,10 @@ or extend that lifetime.
   empty, re-read after the page settles rather than assuming failure.
 - Attach files with `browser upload --reference R --file /absolute/path`,
   where `R` is a file input or the page's upload/attach button. It never opens
-  the macOS file dialog. Do not click upload buttons and then drive the
-  native Open dialog with keystrokes.
+  the macOS file dialog. If the browser route is unavailable (for example
+  `browser_provider_unavailable` because the extension is not connected),
+  press the page's file button with `desktop action` instead, then pick the
+  file with `desktop dialog choose`. Never type into the native panel.
 - When an app has already opened a native Open or Save panel, for example
   Chrome's **Load unpacked**, choose the location with
   `desktop dialog choose --path /absolute/path --target APP`. It navigates

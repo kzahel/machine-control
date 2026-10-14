@@ -242,6 +242,24 @@ class ClientTests(unittest.TestCase):
             "--disruptive", json.loads(log.read_text(encoding="utf-8"))
         )
 
+    def test_claim_release_accepts_selected_claim_and_flag_form(self):
+        claim_id = "c-0123456789abcdef01234567"
+        for arguments in (["--claim", claim_id, "claim", "release"],
+                          ["--claim", claim_id, "claim", "release", claim_id],
+                          ["claim", "release", "--claim-id", claim_id],
+                          ["--claim", claim_id, "claim", "renew", "--duration", "1h"]):
+            with self.subTest(arguments=arguments):
+                result, value = self.run_cli("--target", "fixture", *arguments)
+                self.assertEqual(result.returncode, 0, result.stdout)
+                self.assertEqual(value["accepted"], True)
+        other = "c-89abcdef0123456789abcdef"
+        result, value = self.run_cli("--target", "fixture", "--claim", claim_id,
+                                     "claim", "release", other)
+        self.assertEqual(value["errorCode"], "claim_selection_conflict")
+        result, value = self.run_cli("--target", "fixture", "claim", "acquire", "--help")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("claim acquire", result.stdout)
+
     def test_claim_renew_and_release_validate_opaque_id(self):
         claim_id = "c-0123456789abcdef01234567"
         result, value = self.run_cli(

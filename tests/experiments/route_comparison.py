@@ -159,6 +159,10 @@ def run_trial(args, task, route, index, run_dir):
             time.sleep(15)
         guest = Guest(args, created[0])
         guest.open_tunnel()
+        # Trials use the current CLI and skills; the resident is the base's.
+        pulled = guest.run("git -C ~/code/machine-control pull -q --ff-only && "
+                           "git -C ~/code/machine-control rev-parse --short HEAD", timeout=120)
+        record["guestRevision"] = pulled.stdout.strip() or f"pull failed: {pulled.stderr[-200:]}"
         common = (TASKS / "common-chrome.sh").read_text()
         guest.run("mkdir -p ~/experiment && cat > ~/experiment/common-chrome.sh", stdin=common)
         if route == "mc-repl":
