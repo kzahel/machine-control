@@ -44,3 +44,9 @@ own tool instructions. Actual composed prompts are hashed in private receipts.
 Task content seeds are stable across routes for a given seed/task/repetition.
 Each batch uses one provider/model/instruction profile; compare separate pinned
 batches without mixing their cells. Effective-profile failures stop the batch.
+
+`--route mc-python` selects the typed persistent Python MCP candidate. It uses
+the claim/admission/audit path; `--route mc-repl` retains the direct-socket JS
+prototype with its explicitly different enforcement. Both support the two
+model profiles. Do not attribute their differences to language alone. Candidate
+results stay separate from the frozen baseline and require live qualification.

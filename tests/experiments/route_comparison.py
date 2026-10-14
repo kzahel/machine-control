@@ -37,6 +37,12 @@ command = "/opt/homebrew/bin/node"
 args = ["/Users/admin/experiment/mc-repl.mjs"]
 startup_timeout_sec = 30
 """
+MC_PYTHON_CONFIG = """
+[mcp_servers.mc]
+command = "/opt/homebrew/bin/python3"
+args = ["/Users/admin/code/machine-control/bin/machine-control", "--target", "host", "mcp"]
+startup_timeout_sec = 30
+"""
 TASKS = Path(__file__).resolve().parent / "tasks"
 CLI = [sys.executable, str(ROOT / "bin/machine-control")]
 
@@ -50,6 +56,11 @@ ROUTES = {
     "mc-repl": (
         "Use the mc tool (a persistent JavaScript session over this Mac's Machine Control "
         "resident; its description lists the API) for all UI work. Do not use the "
+        "machine-control CLI, Codex Computer Use, AppleScript, osascript or System Events, and "
+        "do not use shell commands to change the files or settings the task is about."),
+    "mc-python": (
+        "Use the mc tool (a persistent Python session over Machine Control; its description "
+        "lists the blocking Python API) for all UI work. Do not write await. Do not use the "
         "machine-control CLI, Codex Computer Use, AppleScript, osascript or System Events, and "
         "do not use shell commands to change the files or settings the task is about."),
     "computer-use": (
@@ -274,7 +285,8 @@ assert x.get('service_tier') in (None,'default'), 'remove saved fast-tier overri
             raise RuntimeError("guest did not reach pinned source revision")
         record["guestRevision"] = args.revision
         record["enforcementProfile"] = ("prototype_direct_socket_no_claim_or_controller_audit"
-                                        if route == "mc-repl" else "normal_route")
+                                        if route == "mc-repl" else "retained_claim_owner_per_operation_audit"
+                                        if route == "mc-python" else "normal_route")
         fingerprint = guest.run("cd ~/code/machine-control/tests/experiments/native-efficiency && python3 -", stdin="""
 import json
 from pathlib import Path
@@ -298,17 +310,20 @@ print(json.dumps(collect(configs[0])))
             baseline.write_text(json.dumps(identity, indent=2) + "\n")
         common = (TASKS / "common-chrome.sh").read_text()
         guest.run("mkdir -p ~/experiment && cat > ~/experiment/common-chrome.sh", stdin=common)
-        if route == "mc-repl":
-            guest.run("cat > ~/experiment/mc-repl.mjs", stdin=MC_REPL.read_text())
+        if route in ("mc-repl", "mc-python"):
+            if route == "mc-repl":
+                guest.run("cat > ~/experiment/mc-repl.mjs", stdin=MC_REPL.read_text())
             if args.provider == 'codex':
-                guest.run("cat >> ~/.codex/config.toml", stdin=MC_REPL_CONFIG)
+                guest.run("cat >> ~/.codex/config.toml", stdin=MC_REPL_CONFIG if route == 'mc-repl' else MC_PYTHON_CONFIG)
             else:
-                guest.run('/opt/homebrew/bin/python3 -', stdin='''
+                descriptor = ({'command':'/opt/homebrew/bin/node','args':['/Users/admin/experiment/mc-repl.mjs']}
+                              if route == 'mc-repl' else {'command':'/opt/homebrew/bin/python3',
+                                'args':['/Users/admin/code/machine-control/bin/machine-control','--target','host','mcp']})
+                guest.run('/opt/homebrew/bin/python3 -', stdin=f'config={descriptor!r}\n'+'''
 from pathlib import Path
 import json,os
 f=Path.home()/'.claude.json';x=json.loads(f.read_text()) if f.exists() else {}
-x.setdefault('mcpServers',{})['mc']={'command':'/opt/homebrew/bin/node',
- 'args':[str(Path.home()/'experiment/mc-repl.mjs')]}
+x.setdefault('mcpServers',{})['mc']=config
 f.write_text(json.dumps(x));os.chmod(f,0o600)
 ''')
         fixture_seed = hashlib.sha256(f"{args.seed}:{task['id']}:{index}".encode()).hexdigest()
