@@ -1,0 +1,1 @@
+TextEdit has menu-source.rtf open. Use its Format menu (not the keyboard shortcut) to make this document plain text, answering the conversion sheet if one appears. Replace its contents with "Menu conversion complete" and save it as ~/experiment/out/menu-note.txt. Keep the source file intact. Use the application's menus and save panel for the conversion and destination.

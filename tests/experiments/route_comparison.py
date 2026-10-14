@@ -25,7 +25,8 @@ import sys
 import time
 import urllib.request
 
-from measurements import transcript_metrics
+from measurements import transcript_metrics, claude_transcript_metrics
+from agent_profiles import DEFAULT_MODELS, launch_request, qualify
 
 ROOT = Path(__file__).resolve().parents[2]
 MC_REPL = Path(__file__).resolve().parent / "mc-repl" / "mc-repl.mjs"
@@ -57,7 +58,8 @@ ROUTES = {
         "shell commands to change the files or settings the task is about."),
 }
 COMMON = ("Nobody is at the computer and nobody will answer questions. If you get stuck, "
-          "stop and report exactly what blocked you. Finish with one line starting with "
+          "stop and report exactly what blocked you. Do not delegate or spawn other agents. "
+          "Finish with one line starting with "
           "RESULT: done or RESULT: blocked.")
 
 
@@ -157,7 +159,10 @@ def wait_for_agent(guest, session_id, timeout, poll_seconds, *, clock=time.monot
         if stopped and stopped.get("state") != "terminated":
             raise RuntimeError("timeout cancellation not verified; skip racing oracle")
     return {"timedOut": timed_out, "controllerWaitSeconds": elapsed,
-            "completionPollSeconds": poll_seconds}
+            "completionPollSeconds": poll_seconds,
+            "providerSessionId": (process or {}).get('sessionId', session_id),
+            "effectiveProcess": {k:process[k] for k in ('model','requestedModel','effort','thinking','serviceTier')
+                                 if process and k in process}}
 
 
 def run_trial(args, task, route, index, run_dir):
@@ -188,7 +193,9 @@ def run_trial(args, task, route, index, run_dir):
 def _run_trial(args, task, route, index, run_dir):
     trial_dir = run_dir / task["id"] / f"{route}-{index}"
     trial_dir.mkdir(parents=True, mode=0o700)
-    record = {"task": task["id"], "route": route, "repetition": index, "startedAt": now()}
+    record = {"task": task["id"], "route": route, "repetition": index, "startedAt": now(),
+              "provider":args.provider, "requestedModel":args.model, "requestedEffort":args.effort,
+              "instructionProfile":args.instructions}
     # Read-only identity resolution precedes workspace acquisition.
     mc("--target", args.target, "target", "doctor", check=False)
     before = tart_names()
@@ -227,6 +234,33 @@ def _run_trial(args, task, route, index, run_dir):
         record["bootstrapStagesAvailable"] = stages.get("schema") is not None
         guest = Guest(args, created[0])
         guest.open_tunnel()
+        if args.provider == 'claude':
+            # Gateway credential travels only over stdin into an owner-only guest file.
+            delivered = guest.run('umask 077; mkdir -p ~/.config/aar; cat > ~/.config/aar/claude-token',
+                                  stdin=args.gateway_credential_file.read_bytes(), binary=True)
+            if delivered.returncode:
+                raise RuntimeError('Claude gateway credential delivery failed')
+            configured = guest.run('/opt/homebrew/bin/python3 -', stdin='''
+import json,os
+from pathlib import Path
+p=Path.home()/'.claude';p.mkdir(exist_ok=True)
+f=p/'settings.json'
+x=json.loads(f.read_text()) if f.exists() else {}
+x.update(apiKeyHelper='cat ~/.config/aar/claude-token', fastMode=False, effortLevel='medium')
+x.setdefault('env',{})['ANTHROPIC_BASE_URL']='http://127.0.0.1:8417/claude'
+f.write_text(json.dumps(x));os.chmod(f,0o600)
+''')
+            if configured.returncode:
+                raise RuntimeError('Claude profile setup failed')
+        else:
+            checked = guest.run('/opt/homebrew/bin/python3 -', stdin='''
+import tomllib
+from pathlib import Path
+x=tomllib.loads((Path.home()/'.codex/config.toml').read_text())
+assert x.get('service_tier') in (None,'default'), 'remove saved fast-tier override in the experiment base'
+''')
+            if checked.returncode:
+                raise RuntimeError('Codex saved speed override refused')
         # Transfer the frozen controller commit, including unpushed commits.
         transferred = guest.run("cat > /tmp/mc-experiment.bundle", stdin=args.bundle.read_bytes(),
                                 binary=True, timeout=120)
@@ -266,20 +300,39 @@ print(json.dumps(collect(configs[0])))
         guest.run("mkdir -p ~/experiment && cat > ~/experiment/common-chrome.sh", stdin=common)
         if route == "mc-repl":
             guest.run("cat > ~/experiment/mc-repl.mjs", stdin=MC_REPL.read_text())
-            guest.run("cat >> ~/.codex/config.toml", stdin=MC_REPL_CONFIG)
-        setup = guest.run("bash -s", stdin=(TASKS / task["id"] / "setup.sh").read_text())
+            if args.provider == 'codex':
+                guest.run("cat >> ~/.codex/config.toml", stdin=MC_REPL_CONFIG)
+            else:
+                guest.run('/opt/homebrew/bin/python3 -', stdin='''
+from pathlib import Path
+import json,os
+f=Path.home()/'.claude.json';x=json.loads(f.read_text()) if f.exists() else {}
+x.setdefault('mcpServers',{})['mc']={'command':'/opt/homebrew/bin/node',
+ 'args':[str(Path.home()/'experiment/mc-repl.mjs')]}
+f.write_text(json.dumps(x));os.chmod(f,0o600)
+''')
+        fixture_seed = hashlib.sha256(f"{args.seed}:{task['id']}:{index}".encode()).hexdigest()
+        record['fixtureSeed'] = fixture_seed
+        setup = guest.run(f"MC_EXPERIMENT_SEED={fixture_seed} bash -s", stdin=(TASKS / task["id"] / "setup.sh").read_text())
         record["setup"] = {"exit": setup.returncode, "stderr": setup.stderr[-500:]}
         if setup.returncode:
             raise RuntimeError("task setup failed")
 
-        prompt = "\n\n".join([(TASKS / task["id"] / "prompt.md").read_text().strip(),
-                              ROUTES[route], COMMON])
+        route_prompt = ROUTES[route]
+        if route == 'machine-control' and args.instructions != 'current':
+            route_prompt = (Path(__file__).parent/'instructions'/f'mc-{args.instructions}.md').read_text()
+        prompt = "\n\n".join([(TASKS / task["id"] / "prompt.md").read_text().strip(), route_prompt, COMMON])
+        record['promptSha256'] = hashlib.sha256(prompt.encode()).hexdigest()
         project = project_id(args.project)
+        request = launch_request(args.provider, args.model, args.effort, prompt)
+        record['launchSettings'] = {k:v for k,v in request.items() if k!='message'}
         session = guest.ya("POST", f"/api/projects/{project}/sessions",
-                           {"provider": "codex", "mode": "bypassPermissions", "message": prompt})
+                           request)
         session_id = session["sessionId"]
-        record["sessionId"] = session_id
+        record["launchSessionId"] = session_id
         record.update(wait_for_agent(guest, session_id, task.get("timeoutSeconds", 600), args.poll_seconds))
+        session_id = record['providerSessionId']
+        record['sessionId'] = session_id
         detail = guest.ya("GET", f"/api/projects/{project}/sessions/{session_id}")
         record["finalText"] = (detail.get("session") or {}).get("lastAgentText", "")[-1500:]
 
@@ -289,14 +342,18 @@ print(json.dumps(collect(configs[0])))
         except (IndexError, json.JSONDecodeError):
             record["oracle"] = {"passed": False, "detail": "oracle output unreadable"}
 
+        transcript_root = '~/.codex/sessions' if args.provider=='codex' else '~/.claude/projects'
         transcript = guest.run(
-            f"f=$(find ~/.codex/sessions -name '*{session_id}.jsonl' | head -1); [ -n \"$f\" ] && cat \"$f\"",
+            f"f=$(find {transcript_root} -name '*{session_id}.jsonl' | head -1); [ -n \"$f\" ] && cat \"$f\"",
             timeout=120)
         (trial_dir / "transcript.jsonl").write_text(transcript.stdout)
-        record.update(transcript_metrics(transcript.stdout))
+        parser = transcript_metrics if args.provider=='codex' else claude_transcript_metrics
+        record.update(parser(transcript.stdout))
+        record['profileQualification'] = qualify(args.provider,args.model,args.effort,record,record['effectiveProcess'])
         record["validTrial"] = (not record.get("timedOut", False) and
                                 record["transcriptComplete"] and
-                                record["malformedTranscriptLines"] == 0 and oracle.returncode == 0)
+                                record["malformedTranscriptLines"] == 0 and oracle.returncode == 0 and
+                                record['profileQualification']['qualified'])
         record["passed"] = record["validTrial"] and record["oracle"].get("passed") is True
         notes = guest.run(
             f"cd ~/code/machine-control && /opt/homebrew/bin/python3 bin/machine-control usage show "
@@ -353,6 +410,11 @@ def main():
     parser.add_argument("--credential-file", type=Path, required=True,
                         help="Canonical base login secret file; contents never enter argv or logs")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument('--provider',choices=sorted(DEFAULT_MODELS),default='codex')
+    parser.add_argument('--model',help='Exact model ID; defaults to the requested baseline for this provider')
+    parser.add_argument('--effort',choices=['low','medium','high'],default='medium')
+    parser.add_argument('--instructions',choices=['discovery','current','quickstart'],default='current')
+    parser.add_argument('--gateway-credential-file',type=Path,help='Mode-0600 scoped Claude gateway client token')
     parser.add_argument("--poll-seconds", type=float, default=1.0)
     parser.add_argument("--revision", default="HEAD", help="Freeze this local commit for the batch")
     parser.add_argument("--task", action="append", help="Task id; repeat; default all")
@@ -367,6 +429,14 @@ def main():
     parser.add_argument("--guest-user", default="admin")
     parser.add_argument("--project", default="/Users/admin/code/machine-control")
     args = parser.parse_args()
+    args.model = args.model or DEFAULT_MODELS[args.provider]
+    if args.provider=='claude' and (not args.route or 'computer-use' in args.route):
+        parser.error('Claude requires explicit MC routes; Computer Use is not qualified on Claude')
+    if args.provider=='claude':
+        if not args.gateway_credential_file or not args.gateway_credential_file.is_file():
+            parser.error('Claude requires gateway-credential-file')
+        if stat.S_IMODE(args.gateway_credential_file.lstat().st_mode)!=0o600 or args.gateway_credential_file.is_symlink():
+            parser.error('gateway-credential-file must be a regular mode-0600 file')
 
     os.umask(0o077)
     secret_stat = args.credential_file.lstat()
@@ -394,6 +464,8 @@ def main():
     args.bundle = run_dir / "source.bundle"
     subprocess.run(["git", "bundle", "create", str(args.bundle), "HEAD"], cwd=ROOT, check=True)
     manifest = {"schema": "route-comparison-batch/v1", "revision": args.revision,
+                "provider":args.provider,"model":args.model,"effort":args.effort,
+                "speed":"standard","instructionProfile":args.instructions,
                 "seed": args.seed, "pollSeconds": args.poll_seconds,
                 "plan": [{"task": t["id"], "route": r, "repetition": n} for t, r, n in plan],
                 "fixtureHashes": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -409,6 +481,8 @@ def main():
             raise RuntimeError("trial infrastructure failed; inspect private receipt before continuing")
         if record.get("releaseError"):
             raise RuntimeError("workspace release unresolved; stop batch and inspect private receipt")
+        if not record.get('profileQualification',{}).get('qualified'):
+            raise RuntimeError('effective model profile unqualified; stop before further trials')
         print(json.dumps({k: record.get(k) for k in (
             "task", "route", "repetition", "oracle", "agentSeconds", "toolCalls",
             "machineControlRefusals", "error", "released")}), flush=True)

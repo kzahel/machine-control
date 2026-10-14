@@ -5,8 +5,9 @@ Computer Use, MC CLI and the experimental JS route in disposable Tart guests.
 Five workflows have initial evidence; [Tactical 124](tactical/124-native-behavior-and-efficiency.md)
 adds a five-repeat TextEdit pilot and measurement hardening. Explicit model
 settings, Claude collection, menu/recovery scenarios and instruction comparisons
-are the next [baseline gate](tactical/125-agent-capability-baseline.md), not
-capabilities already implemented by the runner.
+form the next [baseline gate](tactical/125-agent-capability-baseline.md). Both
+profiles have now completed arithmetic qualification; seven-scenario GUI smoke
+and repeated coverage remain pending.
 
 Purpose: run many paired trials of the same UI task, one driven through
 Machine Control and one through Codex Computer Use, inside disposable macOS
@@ -235,6 +236,5 @@ where available. Each metric's `n` is its coverage, not automatically all trials
 The all-recorded view retains failed/invalid-attempt usage. Input includes cache
 classes; output includes reasoning. Do not add those breakdowns a second time.
 The legacy `successfulInputTokens` field is raw provider input; use the normalized
-fields for future cross-provider comparisons. Claude normalization accepts
-already-aggregated totals, but the current runner does not collect Claude
-transcripts. Missing usage stays unknown; token counts are not subscription cost.
+fields for future cross-provider comparisons. The Claude collector deduplicates native API-message usage and follows YA
+session-ID remapping. Missing usage stays unknown; token counts are not subscription cost.

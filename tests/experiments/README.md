@@ -30,3 +30,17 @@ python3 tests/experiments/report_batch.py /private/results/run-ID
 The report omits session IDs and raw UI output, keeps unsuccessful/invalid
 trials out of successful-latency summaries, and reports missing trials. Review
 it before promoting any minimized result into public research.
+
+Profiles are explicit: `--provider codex` defaults to `gpt-6.1-sol`, medium
+effort and standard thread tier. `--provider claude --route machine-control`
+defaults to `claude-opus-5-5`, medium effort and standard speed, and requires
+`--gateway-credential-file` naming a mode-0600 scoped AAR client token. It is
+delivered over SSH stdin into a private guest file read by Claude's key helper.
+Computer Use is not a qualified Claude route. The sealed base is unchanged.
+
+`--instructions discovery|current|quickstart` selects the CLI instruction arm;
+the default is the previous current-guide prompt. Other routes retain their
+own tool instructions. Actual composed prompts are hashed in private receipts.
+Task content seeds are stable across routes for a given seed/task/repetition.
+Each batch uses one provider/model/instruction profile; compare separate pinned
+batches without mixing their cells. Effective-profile failures stop the batch.

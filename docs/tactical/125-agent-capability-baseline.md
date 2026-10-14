@@ -1,8 +1,9 @@
 # 125 — Agent capability baseline and instruction evaluation
 
-Status: planned; current runner is Codex-only. Token reporting is implemented;
-explicit launch-setting qualification, Claude collection and added scenarios
-remain open. No multi-model baseline has been claimed or run.
+Status: active. Both requested profiles completed guest YA/AAR qualification;
+the runner now collects both transcript formats and verifies effective settings.
+Seven scenarios and three CLI instruction arms are implemented. Agent smoke
+and repeated baseline coverage remain pending; no broad baseline is claimed.
 Owning topics: [operational workflow automation](../../topics/operational-workflow-automation.md),
 [unified desktop client](../../topics/unified-desktop-client.md).
 
@@ -51,8 +52,8 @@ Model effort labels are provider-specific, not equal compute budgets.
 | Finder rename and move | Existing fixture | Destination name and exact original bytes; old paths absent. Add duplicate-name collision as a later recovery variant. |
 | TextEdit save | Existing, repeated pilot | Saved document content and format/path; current text containment check is the initial baseline. |
 | System Settings option | Existing fixture | Persisted setting value with setup proving the opposite initial value. |
-| App menu bar and sheet | Add | Use TextEdit Format/menu action and save resulting plain text; verify actual format/content. Review calls to establish menu use rather than a keyboard shortcut. Include cancel/confirm sheet handling. |
-| Two windows and recovery | Add owned app fixture | Edit the intended document while another window is frontmost; reject stale references after a controlled window replacement; verify no wrong-window edits and record focus/cursor disturbance. |
+| App menu bar and sheet | Added; agent smoke pending | Use TextEdit Format/menu action and save resulting plain text; verify actual format/content. Review calls to establish menu use rather than a keyboard shortcut. Include cancel/confirm sheet handling. |
+| Two windows and recovery | Added owned app fixture; agent smoke pending | Edit the intended document while another window is frontmost; reject stale references after a controlled window replacement; verify no wrong-window edits and record focus/cursor disturbance. |
 
 The existing deterministic native corpus separately checks menus, background
 input, delayed/burst/continuous updates and tree observations without a model.
@@ -95,8 +96,8 @@ The earlier pilot inherited base settings and cannot be relabeled retrospectivel
 Add explicit runner profiles and retain a sanitized request plus actual settings
 in each receipt. Suppress optional recap/helper/suggestion work or account for
 it separately. Freeze exposed tool inventories and instruction hashes. The
-current runner only collects Codex JSONL; Claude needs its own transcript path,
-matched completion semantics, message/usage deduplication and MCP registration.
+previous runner only collected Codex JSONL; the implementation now has a Claude
+transcript path, completion semantics, usage deduplication and MCP registration.
 Do not reuse the Codex parser or assume Codex MCP config enables Claude tools.
 
 ### 2 — establish comparable metrics
@@ -121,10 +122,11 @@ handling; never silently drop failed spend. Subscription tokens are not dollars.
 Dollar estimates require pinned provider/tier prices and disclosed cache rules.
 
 **Current:** `report_batch.py` exposes normalized successful and all-recorded
-usage distributions and coverage. It still reads a single batch; cross-profile
-comparison, failure-separated resource totals and cost-per-success remain open.
-Claude normalization of supplied totals is tested, but transcript collection is
-not implemented. Raw usage stays available for later reconciliation.
+usage distributions and coverage. It reads a single batch and reports failure-separated resource totals and
+all-attempt resources per success only with complete coverage. Cross-profile
+comparison uses separately pinned batches.
+Claude collection follows YA's resolved provider session ID and deduplicates
+usage by API message ID. Raw usage stays available for later reconciliation.
 
 ### 3 — compare instructions without changing the runtime
 
@@ -170,9 +172,22 @@ prototype label until then.
 
 ## Validation and final result
 
-Seventeen offline checks pass, including usage normalization and accounting
-coverage. Existing
-five-task fixtures and the one-task repeated pilot are current evidence.
-Model-profile smoke, stronger oracles, new scenarios, instruction arms and the
-multi-model baseline are pending. This tactical is an explicit prerequisite to
-claiming the supported session improves realistic agent workflows.
+Twenty-two offline checks pass. Guest qualification completed one arithmetic
+turn per requested model: Codex rollout model/effort and YA live standard-tier
+selection agree; Claude native records report exact model, medium effort and
+standard speed/tier. Codex's rollout omits speed, so its evidence does not attest
+upstream billing. The prepared guest's YA remaps Claude's launch session ID;
+the collector now follows `process.sessionId` rather than finding an empty file.
+
+The original Swift window fixture compiled and ran. Its oracle rejected the
+initial state, accepted a replaced/edited target, and rejected a changed protected
+field. The current resident rejected a destroyed reference as `delivery_failed`,
+not a typed stale-reference error. Upload content and extension behavior passed
+positive controls and rejected the untouched state. Menu verifier controls
+rejected missing/wrong-format results and accepted correct plain text; those
+controls do not establish real menu interaction. A subsequent extension check
+also requires a registered, non-disabled entry and still needs agent smoke.
+
+Three instruction arms are versioned, including the task-independent CLI
+quickstart. They have not yet been compared. Seven-scenario agent smoke and
+repeated multi-model baseline remain the gate before session implementation.

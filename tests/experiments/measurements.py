@@ -127,3 +127,89 @@ def transcript_metrics(text):
             "Native operation counts require provider instrumentation; no string guessing.",
         ],
     }
+
+
+def claude_transcript_metrics(text):
+    """Measure native Claude JSONL, deduplicating streamed API-message usage."""
+    calls, outputs, api_messages, contexts = {}, {}, {}, []
+    starts, terminal_times = [], []
+    malformed = 0
+    sidechain = False
+    for line in text.splitlines():
+        try:
+            row = json.loads(line)
+            if not isinstance(row, dict):
+                raise ValueError('not an object')
+        except (TypeError, ValueError):
+            malformed += 1
+            continue
+        if row.get('isSidechain'):
+            sidechain = True
+            continue
+        at = timestamp(row.get('timestamp'))
+        message = row.get('message')
+        if not isinstance(message, dict):
+            continue
+        blocks = message.get('content', [])
+        blocks = blocks if isinstance(blocks, list) else []
+        if row.get('type') == 'user':
+            results = [b for b in blocks if isinstance(b, dict) and b.get('type') == 'tool_result']
+            if results:
+                for block in results:
+                    key = block.get('tool_use_id')
+                    content = block.get('content', '')
+                    encoded = content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
+                    if key:
+                        outputs[key] = {'at': at, 'bytes': len(encoded.encode('utf-8'))}
+            elif at is not None:
+                starts.append(at)
+        elif row.get('type') == 'assistant':
+            model = message.get('model')
+            usage = message.get('usage')
+            if model and model != '<synthetic>':
+                context = {'model': model, 'effort': row.get('perTurnEffort', row.get('effort'))}
+                if isinstance(usage, dict):
+                    context.update({k: usage[k] for k in ('service_tier', 'speed') if k in usage})
+                if context not in contexts:
+                    contexts.append(context)
+            key = message.get('id')
+            if key and isinstance(usage, dict):
+                previous = api_messages.setdefault(key, {})
+                for name in ('input_tokens', 'cache_read_input_tokens',
+                             'cache_creation_input_tokens', 'output_tokens'):
+                    value = usage.get(name)
+                    if type(value) is int and value >= 0:
+                        previous[name] = max(value, previous.get(name, 0))
+                thinking = (usage.get('output_tokens_details') or {}).get('thinking_tokens')
+                if type(thinking) is int and thinking >= 0:
+                    previous['reasoning_output_tokens'] = max(thinking, previous.get('reasoning_output_tokens', 0))
+            for block in blocks:
+                if isinstance(block, dict) and block.get('type') == 'tool_use' and block.get('id'):
+                    calls.setdefault(block['id'], {'name': block.get('name', 'unknown'), 'at': at})
+            if message.get('stop_reason') == 'end_turn' and at is not None:
+                terminal_times.append(at)
+    complete = (len(starts) == 1 and bool(terminal_times) and
+                terminal_times[-1] >= starts[0] and not sidechain)
+    usage = None
+    if api_messages:
+        common = set.intersection(*(set(v) for v in api_messages.values()))
+        usage = {k: sum(v[k] for v in api_messages.values()) for k in common}
+    by_name, durations = {}, []
+    for key, call in calls.items():
+        by_name[call['name']] = by_name.get(call['name'], 0) + 1
+        end = outputs.get(key, {}).get('at')
+        if call['at'] is not None and end is not None and end >= call['at']:
+            durations.append(end-call['at'])
+    return {'toolCalls':len(calls), 'toolCallsByName':by_name,
+            'toolOutputBytes':sum(v['bytes'] for v in outputs.values()),
+            'toolRoundTripSeconds':durations,
+            'toolRoundTripCoverage':{'measured':len(durations),'calls':len(calls)},
+            'agentSeconds':terminal_times[-1]-starts[0] if complete else None,
+            'timingSource':'claude_user_to_end_turn' if complete else 'unavailable',
+            'transcriptComplete':complete, 'malformedTranscriptLines':malformed,
+            'agentTurns':len(starts), 'modelContexts':contexts, 'tokenUsage':usage,
+            'apiMessagesWithUsage':len(api_messages), 'sidechainObserved':sidechain,
+            'nativeOperations':None,
+            'measurementLimits':['Claude time spans persisted user message to final end_turn; YA overhead is separate.',
+                                 'Usage takes per-message maxima across streamed blocks, then sums distinct API messages.',
+                                 'Missing usage classes remain unknown; sidechains invalidate this single-agent trial.']}

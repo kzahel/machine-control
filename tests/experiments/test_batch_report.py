@@ -31,6 +31,15 @@ class BatchReportTest(unittest.TestCase):
         self.assertEqual(group['allRecordedTokenUsage']['totalTokens']['median'],160)
         self.assertEqual(group['allRecordedTokenUsage']['totalTokens']['n'],2)
         self.assertIsNone(group['allRecordedTokenUsage']['cachedInputTokens'])
+        self.assertIsNone(group['resourceAccounting']['allAttemptResourcesPerSuccess']['tokens'])
+
+    def test_cost_per_success_includes_failed_attempts(self):
+        rows=[{'task':'save','route':'cli','repetition':n,'validTrial':True,
+               'passed':n==1,'agentSeconds':10,'toolCalls':2,
+               'tokenUsage':{'input_tokens':100,'output_tokens':10}} for n in (1,2)]
+        group=summarize({'plan':rows},rows)['groups'][0]
+        self.assertEqual(group['resourceAccounting']['allAttemptResourcesPerSuccess']['tokens'],220)
+        self.assertEqual(group['resourceAccounting']['byOutcome']['failed']['seconds']['sum'],10)
 
 
 if __name__=='__main__':unittest.main()

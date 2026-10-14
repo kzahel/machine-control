@@ -1,0 +1,1 @@
+The Window Recovery app has a Target document and a Protected document. Leave the Protected document unchanged. Inspect the Target document, click its Replace editor button exactly once, then replace the new Target content with "Release ready". The replacement creates new UI elements: obtain a fresh observation before editing. Leave both windows open.

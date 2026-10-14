@@ -22,6 +22,29 @@ def token_distributions(rows):
             for key in keys}
 
 
+def resource_accounting(rows, complete):
+    resources = {'success':[], 'failed':[], 'invalid':[]}
+    for row in rows:
+        valid = row.get('validTrial') is True and not row.get('error')
+        kind = 'success' if valid and row.get('passed') is True else 'failed' if valid else 'invalid'
+        resources[kind].append({'tokens':token_metrics(row.get('tokenUsage'),row.get('provider','codex')).get('totalTokens'),
+                                'seconds':row.get('agentSeconds'),'toolCalls':row.get('toolCalls')})
+    totals = {}
+    for kind, entries in resources.items():
+        totals[kind] = {'trials':len(entries)}
+        for metric in ('tokens','seconds','toolCalls'):
+            values = [x[metric] for x in entries if x[metric] is not None]
+            totals[kind][metric] = {'sum':sum(values),'measuredTrials':len(values)}
+    successes = len(resources['success'])
+    per_success = {}
+    for metric in ('tokens','seconds','toolCalls'):
+        coverage = sum(totals[k][metric]['measuredTrials'] for k in totals)
+        total = sum(totals[k][metric]['sum'] for k in totals)
+        per_success[metric] = total/successes if complete and successes and coverage==len(rows) else None
+    return {'byOutcome':totals,'allAttemptResourcesPerSuccess':per_success,
+            'limits':['Per-success values require a complete batch, known usage for every recorded attempt and at least one success.']}
+
+
 def summarize(manifest, records):
     expected = {(x['task'], x['route'], x['repetition']) for x in manifest['plan']}
     observed = collections.Counter((x.get('task'), x.get('route'), x.get('repetition')) for x in records)
@@ -49,6 +72,7 @@ def summarize(manifest, records):
             "successfulTokenUsage":token_distributions(passed),
             "allRecordedTokenUsage":token_distributions(rows),
             "trialsWithReportedUsage":sum(bool(r.get('tokenUsage')) for r in rows),
+            "resourceAccounting":resource_accounting(rows,result['complete']),
             "models":sorted({c['model'] for r in rows for c in r.get('modelContexts',[]) if 'model' in c}),
         })
     result['limits'] = ["Pilot distributions, not population success-rate estimates.",
