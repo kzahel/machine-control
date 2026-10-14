@@ -104,6 +104,7 @@ def summarize(manifest, records):
                         "Successful metrics mean oracle/profile success; use routeVerified metrics for reviewed route comparisons.",
                         "Route reviews and discovery indices are explicit judgments bound to transcript hashes; pre-UI usage is a reported checkpoint, not causal attribution.",
                         "The JS prototype omits claims/controller audit; its timing is not enforcement parity.",
+                        "The pinned macOS CLI uses its direct grant path; Python retains owner admission and its notice. Timings do not isolate persistence alone.",
                         "Input tokens include cache reads/writes; output includes reported reasoning. Do not sum breakdowns again.",
                         "Token distributions include coverage n; absent usage stays unknown. All-recorded usage includes failed/invalid attempts.",
                         "Tokenizers differ across models; token counts are not a price calculation."]

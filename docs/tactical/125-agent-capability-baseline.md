@@ -330,3 +330,12 @@ one qualified observation per cell, so it is a setup/coverage gate, not a median
 comparison or a population reliability estimate. Baseline repetitions remain
 paused while the pinned Python candidate runs the corresponding fourteen-cell
 smoke. No model, prompt, runtime or lifecycle changes enter the frozen baseline.
+
+The candidate audit further bounds causal interpretation: its first UI call
+opens a retained owner session, including the resident's configured ten-second
+admission notice. Reviewed CLI traces use the existing direct grant path, with
+claims and command audit but no retained owner session. Python therefore changes
+the control lifecycle as well as persistence and observation output. Keep the
+notice in elapsed time and do not call this an isolated persistence benchmark.
+The JS prototype additionally omits claims/controller audit. A later parity
+experiment must hold these contracts fixed before attributing language effects.
