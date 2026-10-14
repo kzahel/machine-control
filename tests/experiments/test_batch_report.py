@@ -52,7 +52,9 @@ class BatchReportTest(unittest.TestCase):
         self.assertEqual(result['groups'][0]['resourceAccounting']['allAttemptResourcesPerSuccess']['tokens'],220)
 
     def test_oracle_pass_does_not_imply_reviewed_route_adherence(self):
-        rows=[{'task':'save','route':'cli','repetition':n,'validTrial':True,'passed':True}
+        rows=[{'task':'save','route':'cli','repetition':n,'validTrial':True,'passed':True,
+               'agentSeconds':n*10,'toolCalls':n*2,
+               'tokenUsage':{'input_tokens':n*100,'output_tokens':10}}
               for n in (1,2,3)]
         for row,adherence in zip(rows,('conforming','violated')):
             row['routeReview']={'routeAdherence':adherence,'preUIDiscoveryCalls':[1,2],
@@ -60,6 +62,9 @@ class BatchReportTest(unittest.TestCase):
         group=summarize({'plan':rows},rows)['groups'][0]
         self.assertEqual(group['passed'],3)
         self.assertEqual(group['routeVerifiedPasses'],1)
+        self.assertEqual(group['routeVerifiedAgentSeconds']['median'],10)
+        self.assertEqual(group['routeVerifiedToolCalls']['median'],2)
+        self.assertEqual(group['routeVerifiedTokenUsage']['totalTokens']['median'],110)
         self.assertEqual(group['routeReviews'],{'conforming':1,'violated':1,'unreviewed':1})
         self.assertEqual(group['preUIDiscoveryCalls']['n'],2)
         self.assertIsNone(group['tokensReportedBeforeFirstUICall'])

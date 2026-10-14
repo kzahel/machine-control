@@ -66,11 +66,17 @@ def summarize(manifest, records):
     for (task,route), rows in sorted(groups.items()):
         valid = [r for r in rows if r.get('validTrial') is True and not r.get('error')]
         passed = [r for r in valid if r.get('passed') is True]
+        reviewed_passed=[r for r in passed if (r.get('routeReview') or {}).get('routeAdherence')=='conforming']
         result['groups'].append({
             "task":task,"route":route,"recorded":len(rows),"valid":len(valid),"passed":len(passed),
             "routeReviews":dict(collections.Counter(
                 (r.get('routeReview') or {}).get('routeAdherence','unreviewed') for r in rows)),
-            "routeVerifiedPasses":sum((r.get('routeReview') or {}).get('routeAdherence')=='conforming' for r in passed),
+            "routeVerifiedPasses":len(reviewed_passed),
+            "routeVerifiedAgentSeconds":distribution([r['agentSeconds'] for r in reviewed_passed
+                                                       if r.get('agentSeconds') is not None]),
+            "routeVerifiedToolCalls":distribution([r['toolCalls'] for r in reviewed_passed
+                                                    if r.get('toolCalls') is not None]),
+            "routeVerifiedTokenUsage":token_distributions(reviewed_passed),
             "preUIDiscoveryCalls":distribution([len(r['routeReview']['preUIDiscoveryCalls']) for r in rows
                 if r.get('routeReview')]),
             "tokensReportedBeforeFirstUICall":distribution([
@@ -93,6 +99,7 @@ def summarize(manifest, records):
     result['limits'] = ["Pilot distributions, not population success-rate estimates.",
                         "Latency summaries include only valid successful trials; failures are separate.",
                         "Tool use restrictions are prompt-based; route adherence needs transcript review.",
+                        "Successful metrics mean oracle/profile success; use routeVerified metrics for reviewed route comparisons.",
                         "Route reviews and discovery indices are explicit judgments bound to transcript hashes; pre-UI usage is a reported checkpoint, not causal attribution.",
                         "The JS prototype omits claims/controller audit; its timing is not enforcement parity.",
                         "Input tokens include cache reads/writes; output includes reported reasoning. Do not sum breakdowns again.",

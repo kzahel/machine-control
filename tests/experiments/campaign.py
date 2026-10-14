@@ -168,6 +168,12 @@ def main():
     for provider in routes:
         directory = campaign/provider
         directory.mkdir()
+        if options.resume_from:
+            reference=options.resume_from/provider/'runtime-reference.json'
+            if reference.is_file():
+                # Compare the very first resumed guest with the prior runtime,
+                # not just later guests with a newly accepted reference.
+                (directory/'runtime-reference.json').write_bytes(reference.read_bytes())
         bundle = directory/'source.bundle'
         subprocess.run(['git', 'bundle', 'create', str(bundle), 'HEAD'], cwd=source, check=True)
         args = SimpleNamespace(**vars(options), provider=provider, model=harness.DEFAULT_MODELS[provider],
