@@ -382,6 +382,60 @@ defaults, when element clicks use accessibility actions versus synthetic
 events, and how well window-addressed events work in Catalyst, Electron and
 games. These need dynamic study.
 
+## Deterministic native behavior study (2026-10-14)
+
+**Current, bounded `live-tested`:** an original AppKit target and a separate
+sentinel app were exercised in one disposable ARM64 macOS guest. Five repeats
+per case compared the genuine installed Computer Use MCP/runtime with MC's
+claimed common CLI. This qualifies the fixture behavior, not other app families,
+physical Macs, protected desktops or a supported third-party Sky integration.
+[Tactical 124](../../docs/tactical/124-native-behavior-and-efficiency.md) owns
+the execution record; the original
+[probe corpus](../../tests/experiments/native-efficiency/README.md) is reusable.
+
+- Sky increment, pointer-only surface, text entry, sheet open/close and menu
+  item effects passed 5/5 each. The foreground sentinel retained key focus,
+  unchanged text and cursor position, with no recorded foreground/cursor
+  disturbance. The oracle samples at 20 ms; shorter transients remain unproved.
+- The fixture's accessibility callback recorded semantic presses for ordinary
+  buttons. Its pointer-only surface instead recorded mouse-down/up events.
+  This dynamically distinguishes routes without inferring them from acceptance.
+- With 20/100/300 static rows, unchanged Sky reads had median MCP round trips
+  of 47/48/73 ms and 414 serialized result bytes. Adjacent static text was
+  merged; subsequent unchanged reads returned a no-change message. These are
+  warmed reads, not cold-start or model-token measurements.
+- After fixture actions, observations took roughly 420 ms for delayed, burst
+  and continuous updates. They included the completed delayed/burst changes,
+  but returned revision 13 while the continuous producer was headed to 100.
+  External timer changes without a preceding Sky action returned much sooner.
+  **Inference:** settling is action-sensitive and bounded in this workload;
+  the measurements do not establish its exact algorithm or a completion fence.
+
+**Current, sampled native evidence:** active read stacks contained
+`AXUIElementCopyMultipleAttributeValues`, `AXUIElementCopyHierarchy`, individual
+attribute reads and action-description queries. Press/read stacks also
+contained `AXUIElementPerformAction`. Unchanged rendered output therefore did
+not mean all native accessibility work was skipped. This supports the static
+batch/prefetch findings while leaving cache hit rates and invalidation rules
+open. Stack samples are not API call counts, and absent samples prove nothing
+about an API's use.
+
+**Current, instrumentation limits:** scoped syscall counts and native stack
+sampling worked. User-space DTrace API probes reported invalid-user-access
+errors despite exit zero; their counts are invalid, including a retry with
+literal counter labels. Instruments `xctrace` was unavailable. The prepared
+base already had SIP disabled; the study changed no protection or entitlement.
+Do not generalize attachment capability to a protected physical installation.
+Initial pointer profiling also exposed a changing text-field label; that
+invalid workload was excluded and rerun with fail-fast error checks.
+
+**Decision:** borrow the measured ergonomics through original MC code. Prioritize
+compact observations and retained claimed dispatch, then qualify background
+pointer/text routes. Preserve effect predicates and bounded observation deadlines
+rather than treating notification quietness as task completion. Exact pins and methods are in the
+[private spike study](../../../machine-control-spike/docs/sky-native-efficiency.md);
+raw trace records remain in the private local evidence store.
+
 ## Observed security posture
 
 Each row is a separate evidence claim. In particular, do not combine the

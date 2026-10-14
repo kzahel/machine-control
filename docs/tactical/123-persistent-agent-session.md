@@ -187,6 +187,20 @@ are never reported the same way.
 Diffing and numbering start in the client so all three residents gain them;
 moving them into residents is an optimization once measured.
 
+## Research gate and revised sequencing
+
+**Decision (Tactical 124):** first prove a thin retained, claim-aware client with
+compact/diff observations over existing operations. Do not package all three
+facades before measuring it. The native fixture study found substantial CLI
+cost outside resident-reported work and a large unchanged-output difference.
+Window-addressed pointer/text and background menu behavior are the next native
+qualification targets; notification/cache optimization follows measurement.
+
+**Clarification:** a settled observation has a deadline and reports what was
+observed. It cannot promise asynchronous application completion. The study's
+continuous producer was still changing when Sky returned; effect predicates
+must remain separate. See the [provider findings](../../research/providers/sky-computer-use.md#deterministic-native-behavior-study-2026-10-14).
+
 ## Ordered work
 
 ### 1 — build the Python session and keep a JavaScript A/B

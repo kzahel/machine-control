@@ -180,6 +180,26 @@ choice should not require rewriting native providers or create another policy
 implementation. Sky-like handles, compact state/diffs and images are facade
 choices, not the universal device or security model.
 
+### Efficiency evidence and implementation order
+
+**Current:** the [native study](../research/platforms/macos.md#native-efficiency-and-background-effects)
+separates fixture effects, interference and observation costs. Most measured MC
+CLI time was outside the resident's reported operation interval. Compact JSON
+still repeats substantial state. Sky's unchanged output remained small, while
+sampled stacks still showed accessibility reads. Neither one process nor a
+no-change message proves a native cache optimization.
+
+**Decision:** start Tactical 123 with the existing claim-aware session boundary
+and compact observations/diffs, preserving authoritative per-operation checks.
+Measure this thin slice before packaging all facades. Next qualify explicit
+window-addressed input and background menu effects against independent oracles.
+Treat notification-based settling as a bounded optimization with an effect
+predicate/deadline, not as a promise that asynchronous application work is done.
+Python remains the packaging choice; compare languages only over equivalent
+operations and enforcement. Broad native cache work follows evidence from
+those controls. [Tactical 124](../docs/tactical/124-native-behavior-and-efficiency.md)
+records the bounded campaign and remaining cross-model repetitions.
+
 ### Platform fit
 
 **Proposal:** use the same logical session vocabulary with platform-specific

@@ -1,7 +1,8 @@
 # 124 — Native behavior and efficiency investigation
 
-Status: active. Measurement and bounded experiments precede production session
-implementation.
+Status: active. Native campaign and measurement changes complete; a focused
+five-repeat agent pilot is running. Production session implementation remains
+separate.
 Owning topics: [unified desktop client](../../topics/unified-desktop-client.md),
 [operational workflow automation](../../topics/operational-workflow-automation.md).
 
@@ -64,8 +65,9 @@ an API is unused. Keep all four questions visible even when blocked.
 
 ### 3 — repeat agent tasks and isolate changes
 
-Use the five existing tasks as a pilot, initially five repetitions per route
-where runtime availability permits. Report per-task outcomes, distributions,
+Keep the five existing tasks in the corpus. Begin this bounded campaign with
+five repetitions per route of TextEdit save; retain broader task and model
+coverage as the next evaluation gate. Report per-task outcomes, distributions,
 timeouts and infrastructure failures separately. Freeze prompts/model settings;
 do not aggregate failed tasks into a speedup. Add held-out tasks before claiming
 generalization. Compare observation policy and output shape on an equivalent
@@ -85,6 +87,56 @@ focus/cursor and non-target input observations; repeated timing samples; exact
 workspace cleanup and private journal closure. No provider acknowledgement is
 an application-effect oracle.
 
+## Native execution result
+
+**Current:** original AppKit fixture and sentinel, five repetitions per case,
+produced 138 records through each provider; a further 33 records isolate MC's
+compact projection at three tree sizes. Requests were accepted, but independent
+menu-item effects failed for MC in all five repetitions. Pointer/text reached
+the intended target while disturbing sentinel focus/cursor. Sky's corresponding
+effects passed with no disturbance observed at the fixture's 20-ms sampling
+resolution. The [platform report](../../research/platforms/macos.md#native-efficiency-and-background-effects)
+owns the comparison; the [provider dossier](../../research/providers/sky-computer-use.md#deterministic-native-behavior-study-2026-10-14)
+owns Sky findings and evidence limits.
+
+**Current:** bounded syscall and stack profiling completed, including untraced
+controls. Sampled stacks confirm batch/hierarchy reads and AX actions. User-space
+API count probes failed at runtime despite exit zero and are explicitly invalid.
+No platform protections were changed. The prepared guest already had SIP
+disabled; protected attachment and exact private event-posting functions remain
+open. One pointer workload became invalid when a text value changed the label;
+it was corrected and rerun with workload-error rejection.
+
+**Current:** nine timing/wait regressions and two independent-effect reporting
+regressions pass. Swift fixture compilation and live fixture execution pass.
+The 23 retained earlier agent trials all have matched completion events;
+reanalysis found 0.2–9.4 seconds of polling excess. The new harness pins source,
+fixtures and runtime identities and separates transcript duration from waiting.
+
+**Current, cleanup:** the native workspace credential was stored mode 0600 and
+verified through OpenDirectory with dedicated SSH stdin delivery. Owned fixture
+and MCP processes were stopped and the controller workspace discarded. The old
+guest CLI refused the attempted release syntax; discarding its VM destroyed that
+guest claim store. The private journal records the distinction. The base stayed
+unchanged and stopped. Detailed pins/methods are in the
+[private spike study](../../../machine-control-spike/docs/sky-native-efficiency.md).
+
+## Implementation order
+
+1. Prove retained claim-aware dispatch plus compact stable observations/diffs.
+   MC's reported resident work is a minority of the observed CLI interval;
+   preserve authorization/audit while measuring client/adapter costs separately.
+2. Qualify window-addressed pointer/text and exact background menu effects.
+   Adopt only routes whose effect and interference checks pass per app family.
+3. Compare explicit observation, observation per action and observation per
+   snippet with bounded waits and effect predicates. Continuous change is not
+   a reason to wait forever or declare completion from quietness.
+4. Investigate batching/cache invalidation further only after measuring the
+   first controls. An unchanged rendered tree still incurred native AX reads.
+5. Compare Python/JS over equivalent enforcement and observation policy, then
+   expand to held-out tasks and another agent family before broad packaging.
+
 ## Final result
 
-Pending.
+Native research and evaluator hardening are complete. Focused agent pilot
+results and final cleanup follow below when verified.

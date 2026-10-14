@@ -545,6 +545,32 @@ approval UX, physical execution, and Intel execution stay separate.
 bounded evidence and release; the
 [provider dossier](../providers/chrome-extension.md) owns route facts and gaps.
 
+## Native efficiency and background effects
+
+**Current (2026-10-14), bounded `live-tested`:** the
+[Sky native study](../providers/sky-computer-use.md#deterministic-native-behavior-study-2026-10-14)
+compared an original AppKit fixture through Sky and the claimed MC CLI in a
+disposable ARM64 guest. MC semantic buttons and sheets produced independent
+effects without disturbing a focused sentinel. MC pointer/text operations
+produced their effects but disturbed sentinel focus/cursor in all five repeats.
+Five accepted MC menu-item actions did not change the fixture counter; Sky did
+in all five. These are fixture-specific results, not a general app-compatibility
+ranking. Controller-host input was not used.
+
+**Current:** unchanged compact MC snapshots at 20/100/300 rows had median CLI
+round trips of 477/584/840 ms, versus resident-reported medians of 52/86/169 ms.
+The remaining interval includes client/adapter startup, claims, audit,
+serialization and transport; this does not isolate each component. Compact
+JSON still measured about 35/58/116 kB per result, whereas the Sky unchanged
+projection was 414 bytes. The representations and enforcement differ.
+[Tactical 124](../../docs/tactical/124-native-behavior-and-efficiency.md) owns
+controls, limits and the resulting implementation order.
+
+**Decision:** measure retained claimed dispatch and compact/diff presentation
+before a broad accessibility-cache rewrite. Separately qualify window-addressed
+input and background menu effects. Automatic observation needs bounded waits
+and explicit effect checks; a quiet tree is not an application completion oracle.
+
 ## Current direction
 
 **Decision:** Preserve Cua as a replaceable common-plane adapter and Peekaboo as

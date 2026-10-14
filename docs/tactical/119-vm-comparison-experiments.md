@@ -122,7 +122,10 @@ trial ran in its own isolated clone; every clone was discarded.
 | Web page file picker | pass, 35 s, 6 | pass, 85 s, 12 | pass, 35 s, 4 |
 | TextEdit save | pass, 35 s, 5 | pass, 65 s, 9 | pass, 45 s, 5 |
 
-Times are agent turn durations; calls are model tool calls. One repetition
+The original times are rounded controller polling waits, not precise agent
+turn durations; calls are model tool calls. Tactical 124 remeasured 23 retained
+trials from matched transcript events and found 0.2–9.4 seconds of polling
+excess. New batches record both clocks separately. One repetition
 per cell is anecdotal; the comparison needs repetitions before claiming rates.
 
 Findings that changed Machine Control during the batches:
