@@ -22,13 +22,15 @@ and result vocabulary as desktop control. This applies to physical hosts
 
 ## Current
 
-**Current (2026-10-13):** Extension 0.8.0 adds icons and a read-only side
+**Current (2026-10-14):** Extension 0.8.0 adds icons and a read-only side
 panel (connection, access, controlled tabs, live payload-free activity) and was
 submitted to the Chrome Web Store as an unlisted item with ID
 `epejchbeajneooefnklikkfhbaeadkpc`. Source native hosts on all three desktop
-platforms accept that ID beside the unpacked development ID; released apps do
-not yet. [Tactical 117](../docs/tactical/117-chrome-web-store-extension.md) owns
-the release sequence.
+platforms accept that ID beside the unpacked development ID. Public desktop
+0.6.4 now packages those hosts and the side panel on all three platforms;
+[Tactical 121](../docs/tactical/121-desktop-0.6.4-release.md) records package
+authentication. [Tactical 117](../docs/tactical/117-chrome-web-store-extension.md)
+owns store review, installed store-copy acceptance and the remaining sequence.
 
 **Current (2026-10-11):** The unreleased signed ARM64 Mac candidate passes
 21 Chrome for Testing 154 checks under native workstation approval with no
@@ -177,7 +179,7 @@ package and environment boundaries.
   owns focused x64 acceptance and [the streaming guide](../desktop/WINDOWS-STREAMING-CDP.md)
   owns usage and target-loopback forwarding limits. Signed streaming packages,
   ARM64 live, physical and other-browser qualification remain separate.
-- **Open:** Linux registration and other Chromium browsers.
-- **Open:** Store review outcome, desktop releases that register the store ID,
+- **Open:** Linux installed store-copy qualification and other Chromium browsers.
+- **Open:** Store review outcome and installed store-copy acceptance,
   a revoke-only Stop from the extension, and installer/policy installation
   ([117](../docs/tactical/117-chrome-web-store-extension.md)).

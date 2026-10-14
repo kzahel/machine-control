@@ -1,6 +1,7 @@
 # 117 — Chrome Web Store extension
 
-Status: active. Step 1 is submitted for review; later steps are proposed.
+Status: active. Step 1 is submitted for review; step 2 desktop packaging is
+published in 0.6.4. Installed store-copy acceptance and later steps remain.
 Owning topic: [browser control](../../topics/browser-control.md).
 Provider dossier: [Chrome extension](../../research/providers/chrome-extension.md).
 
@@ -110,6 +111,12 @@ Edge Add-ons afterwards.
   release from step 2 and record connection, panel and indicator behavior.
 
 ## Result
+
+**Current (2026-10-14):** Public desktop 0.6.4 packages the side panel and
+native hosts accepting both origins on all three platforms.
+[121](121-desktop-0.6.4-release.md) records authenticated six-target publication.
+This completes step 2's distribution portion; installed store-copy connection
+still requires separate acceptance after store approval.
 
 **Current (2026-10-13):** Step 1 implementation is complete and the item was
 created through Machine Control itself. Chrome refuses extension debugging

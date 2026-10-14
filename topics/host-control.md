@@ -204,6 +204,12 @@ targeted acceptance. Signed lock/recovery and full physical acceptance remain op
 
 ### Person-armed access is the person's to end
 
+**Current:** Public desktop 0.6.4 implements origin-aware retention on Mac,
+Windows and Linux. [Tactical 120](../docs/tactical/120-person-armed-access.md)
+owns bounded installed evidence and remaining behavior checks;
+[121](../docs/tactical/121-desktop-0.6.4-release.md) owns exact production
+package authentication and delivery.
+
 **Current:** Through public 0.6.1, any same-user socket caller's
 `grant.revoke` ends whatever grant is active, including access the person
 armed until stopped. On Mac it also deletes the saved operator consent and

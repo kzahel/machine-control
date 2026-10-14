@@ -4,7 +4,7 @@ Topic: `native-distribution`
 
 Status: signed Windows headless workstation preview remains available; YA now
 consumes the installed desktop CLI and has retired its component lifecycle.
-Unified Mac/Windows/Linux desktop `0.6.1` is published; package
+Unified Mac/Windows/Linux desktop `0.6.4` is published; package
 signatures, public downloads, and production metadata are verified for all six
 architectures.
 ARM64 Tart has targeted signed browser-indicator evidence; Windows x64 retains
@@ -49,13 +49,14 @@ its authority or silently installing it on personal machines.
 
 ## Current implementation
 
-**Current:** [Public desktop 0.6.1](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.6.1)
-ships the Mac covered-startup observation repair in one authenticated
-six-target release. Public asset signatures, source/run identities, download
-redirects and both production metadata routes
-pass verification. [Tactical 116](../docs/tactical/116-desktop-0.6.1-release.md)
-owns current publication evidence; [114](../docs/tactical/114-desktop-0.6.0-release.md)
-retains the preceding runtime/presentation release and qualification repair.
+**Current:** [Public desktop 0.6.4](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.6.4)
+ships person-armed access retention on all three platforms, the Chrome side
+panel/store-origin support, and installed CLI help, usage notes and code-seal
+protection. Public asset signatures, source/run identities, download redirects
+and both production metadata routes pass verification.
+[Tactical 121](../docs/tactical/121-desktop-0.6.4-release.md) owns current
+publication evidence and qualification repairs; [116](../docs/tactical/116-desktop-0.6.1-release.md)
+retains the preceding covered-startup repair release.
 Personal, minimal and appliance presentations ship in one app with bounded runtime work and local
 recovery. [Runtime and presentation](runtime-and-presentation.md) owns their
 native qualification and remaining installed replacement, protected-session
@@ -237,7 +238,7 @@ then published the same draft by ID without replacing bytes or its tag. Future
 CI publication now resolves and verifies the draft by ID. Both re-downloaded
 public DMGs and archives passed publisher signatures, notarization/stapling,
 updater signature/version and tamper rejection. The live download page selects
-unified `0.6.1` for all eight installer/package routes. Both the shared server
+unified `0.6.4` for all eight installer/package routes. Both the shared server
 and website proxy return signed archive metadata with cumulative required changelogs for older clients and 204
 for current clients. Product registration and the website proxy preserve the
 endpoint already embedded in 0.3.3.

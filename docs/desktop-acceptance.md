@@ -1,13 +1,13 @@
 # Desktop product acceptance matrix
 
-Reviewed: 2026-10-12.
+Reviewed: 2026-10-14.
 
 This is an index of recorded acceptance for the shared Tauri desktop product,
 with earlier runtime evidence kept separate. Linked tactical records own exact
 versions, source identity, workflow artifacts, procedures, and limitations.
-Public 0.6.0 package verification for all six targets is recorded in
-[114](tactical/114-desktop-0.6.0-release.md); execution keeps its specific
-versions. All six installed CLI payloads authenticate and pass hosted offline
+Public 0.6.4 package verification for all six targets is recorded in
+[121](tactical/121-desktop-0.6.4-release.md); historical environment cells and
+execution keep their specific versions. All six installed CLI payloads authenticate and pass hosted offline
 relocation smoke, including native Windows ARM64; this is separate from GUI
 execution.
 An unrecorded cell is not a failure or a requirement to test that environment

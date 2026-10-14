@@ -43,8 +43,8 @@ the commits' `Topic:` trailers and register that exact string in
 ## Tactical index
 
 - [121 — Desktop 0.6.4 release](121-desktop-0.6.4-release.md)
-  (active): cross-platform personal access retention, browser side panel/store support,
-  installed CLI help and usage notes; six-target authentication and delivery.
+  (complete): cross-platform personal access retention, browser side panel/store
+  support, installed CLI help and usage notes; six-target authentication and delivery.
 - [120 — Person-armed access retention](120-person-armed-access.md)
   (active): caller revoke cannot disarm access the person turned on; Mac
   first, then Windows and Linux.

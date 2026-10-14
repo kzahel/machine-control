@@ -37,6 +37,13 @@ The launcher uses isolated Python, suppresses bytecode writes and propagates its
 subprocesses. No system Python is needed for the CLI; Linux's native GTK/AT-SPI
 resident retains its documented system dependencies.
 
+**Current (public 0.6.4):** The copied `mc-cli/bin/machine-control` entry point
+also disables bytecode before importing client modules when it detects an
+installed payload, including under a different Python interpreter. This
+preserves the signed bundle's code seal; regression tests require offline
+help to leave no cache files. [Tactical 121](../docs/tactical/121-desktop-0.6.4-release.md)
+records authenticated publication and CLI relocation checks.
+
 **Current:** `agent identity` returns
 [`machine-control-client-identity/v1`](../contracts/client-identity-v1.schema.json)
 without contacting a resident. `agent instructions` returns the owned workflow

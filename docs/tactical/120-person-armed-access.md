@@ -115,8 +115,10 @@ VMs started from off and shut down afterwards:
 - A stale `runtime\browser-extension\README.md` dated before this run sat in
   the Windows install folder and broke the exact-inventory check; the current
   uninstaller removed the whole folder, so an older install/uninstall left it.
-- Windows `dotnet format` and Windows-only contracts after the presentation
-  section need a Windows host; x64 installed checks are not run.
+- x64 installed retention checks are not run. The public 0.6.4 release at
+  `48b87b7` subsequently passes Windows `dotnet format`, all native contract
+  suites and signed ARM64/x64 packaging; [121](121-desktop-0.6.4-release.md)
+  records that source qualification separately from installed effects.
 - The Linux VM keeps the 0.6.4 candidate installed (previously 0.5.4).
 
 ### macOS

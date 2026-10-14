@@ -11,11 +11,18 @@ binaries and their dependencies retain their distributor's separate terms.
 The upstream facilities are documented by Chrome: [native messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging),
 [`chrome.debugger`](https://developer.chrome.com/docs/extensions/reference/api/debugger),
 and [`chrome.tabs`](https://developer.chrome.com/docs/extensions/reference/api/tabs).
-Native messaging uses length-prefixed JSON and a fixed allowed extension
-origin. Windows registers a per-user host manifest in the registry; macOS uses
+Native messaging uses length-prefixed JSON and fixed allowed extension
+origins. Windows registers a per-user host manifest in the registry; macOS uses
 the browser's native-host manifest directory.
 
 ## Architecture and reach
+
+**Current:** Public desktop 0.6.4 packages the 0.8.0 read-only side panel and
+native hosts accepting both the unpacked and Chrome Web Store origins on
+Mac, Windows and Linux. All six packages are authenticated in
+[Tactical 121](../../docs/tactical/121-desktop-0.6.4-release.md); this is package
+evidence, not installed store-copy connection evidence. Store review and that
+native acceptance remain in [117](../../docs/tactical/117-chrome-web-store-extension.md).
 
 **Current:** Chrome launches the bundled native host. The host relays to a
 target-resident provider channel, separate from agent calls and operator
@@ -35,7 +42,8 @@ tab lifecycle APIs. It is not the approval authority.
 | Windows staged x64 file upload | `conformance-tested` | Unreleased real desktop UI, browser-only live SDK owner and CLI request parser; Chrome for Testing 154: direct/multiple inputs, intercepted chooser, independent HTTP byte/hash effects and 23 scope/path/reference/Pause/Stop checks |
 | Windows staged x64 per-tab CDP WebSocket | `conformance-tested` | Unreleased real desktop UI and retained DevTools owner, fresh Chrome for Testing 154: commands/events, unresolved-promise concurrency, independent HTTP effects and 28 scope/token/Origin/owner/provider/Pause/Stop checks; signed/ARM64/physical acceptance separate |
 | Windows staged x64 browser-level CDP | `conformance-tested` | Shared target facade and native session routing; Chrome for Testing 154, Playwright 1.63 and Puppeteer 25.12: independent clicks, captures, popup/iframe/worker, refusals and 51 real-UI/authority/provider checks; signed/ARM64/physical acceptance separate |
-| Linux and other Chromium browsers | `upstream-claimed` facilities only | Owned registration and product acceptance absent |
+| Linux packaged store-origin native host | `built` | Public 0.6.4 package authentication; installed store-copy connection remains open |
+| Other Chromium browsers | `upstream-claimed` facilities only | Owned registration and product acceptance absent |
 
 [Tactical 050](../../docs/tactical/050-macos-host-control-mvp.md) and
 [Tactical 054](../../docs/tactical/054-windows-browser-and-arm64.md) and
@@ -89,10 +97,10 @@ before-first-script popup interception is unavailable. Playwright 1.63 uses
 `noDefaults: true`; isolated contexts, downloads and shutdown refuse.
 [Tactical 100](../../docs/tactical/100-browser-level-cdp.md) owns real-client
 evidence. macOS native changes build in the signed candidate, but browser-root
-live qualification remains open; Linux registration is absent.
+live qualification remains open; Linux browser-root qualification is separate.
 
-**Open:** macOS browser-root live qualification; Linux registration; other
-Chromium browsers; Web Store review and released store-ID registration
+**Open:** macOS browser-root live qualification; Linux installed store-copy qualification; other
+Chromium browsers; Web Store review and installed store-copy connection
 ([117](../../docs/tactical/117-chrome-web-store-extension.md)); broader physical/Intel Mac
 workstation browser acceptance. No Windows ARM64 execution is inferred from
 the x64 browser evidence.

@@ -222,9 +222,9 @@ latest desktop release separately from Windows component releases. See the
 Current public downloads are available from
 [the download page](https://machinecontrol.dev/downloads/), with Mac, Windows,
 and Linux packages for both architectures. The [changelog](CHANGELOG.md) owns
-versioned changes. Six-target 0.6.0 package and delivery verification is
+versioned changes. Six-target 0.6.4 package and delivery verification is
 recorded in
-[Tactical 114](../docs/tactical/114-desktop-0.6.0-release.md); Linux
+[Tactical 121](../docs/tactical/121-desktop-0.6.4-release.md); Linux
 installed GUI acceptance retains its exact 0.5.0 evidence in
 [Tactical 059](../docs/tactical/059-public-linux-desktop.md). Manual checks are
 available in Settings and the tray. ARM64 Tart passes
