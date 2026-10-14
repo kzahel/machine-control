@@ -413,6 +413,7 @@ f.write_text(json.dumps(x));os.chmod(f,0o600)
         record.update(parser(transcript.stdout))
         record['profileQualification'] = qualify(args.provider,args.model,args.effort,record,record['effectiveProcess'])
         record["validTrial"] = (not record.get("timedOut", False) and
+                                not record.get('terminalProviderError') and
                                 record["transcriptComplete"] and
                                 record["malformedTranscriptLines"] == 0 and oracle.returncode == 0 and
                                 record['profileQualification']['qualified'])

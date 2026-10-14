@@ -25,13 +25,28 @@ class MeasurementsTest(unittest.TestCase):
         self.assertEqual(result["agentSeconds"], 2.125)
         self.assertEqual(result["tokenUsage"]["input_tokens"], 20)
 
-    def test_numeric_payload_times_use_precise_duration(self):
+    def test_provider_active_duration_does_not_replace_elapsed_time(self):
         result = self.measure([
             event("task_started", "2026-01-01T00:00:00Z", started_at=1767225600),
             event("task_complete", "2026-01-01T00:00:02Z", completed_at=1767225602,
                   duration_ms=1987),
         ])
-        self.assertEqual(result["agentSeconds"], 1.987)
+        self.assertEqual(result["agentSeconds"], 2)
+        self.assertEqual(result["activeTurnSeconds"], 1.987)
+
+    def test_recovered_provider_error_includes_backoff(self):
+        result=self.measure([
+            event('task_started','2026-01-01T00:00:00Z'),
+            event('task_complete','2026-01-01T00:00:02Z',duration_ms=2000,
+                  error={'codex_error_info':'server_overloaded'}),
+            event('task_started','2026-01-01T00:00:22Z',turn_id='turn-2'),
+            event('task_complete','2026-01-01T00:00:25Z',turn_id='turn-2',duration_ms=3000)])
+        self.assertTrue(result['transcriptComplete'])
+        self.assertEqual(result['agentSeconds'],25)
+        self.assertEqual(result['activeTurnSeconds'],5)
+        self.assertEqual(result['betweenTurnSeconds'],20)
+        self.assertEqual(result['providerErrors'],['server_overloaded'])
+        self.assertIsNone(result['terminalProviderError'])
 
     def test_incomplete_turn_never_becomes_timed_success(self):
         result = self.measure([event("task_started", "2026-01-01T00:00:00Z")])

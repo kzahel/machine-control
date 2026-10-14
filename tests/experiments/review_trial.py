@@ -41,7 +41,7 @@ def reevaluate(directory, *, reason, invalidate_oracle=False):
     receipt['validTrial']=bool(not receipt.get('error') and not receipt.get('timedOut') and
         receipt['transcriptComplete'] and receipt['malformedTranscriptLines']==0 and
         receipt.get('oracleExit')==0 and receipt['profileQualification']['qualified'] and
-        not invalidate_oracle)
+        not invalidate_oracle and not receipt.get('terminalProviderError'))
     receipt['passed']=receipt['validTrial'] and receipt.get('oracle',{}).get('passed') is True
     receipt['evaluationReason']=reason
     return {'schema':'route-comparison-evaluation/v1','reason':reason,

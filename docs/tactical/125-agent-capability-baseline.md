@@ -259,3 +259,13 @@ manifest, retains invalid-attempt costs, and retries only unqualified cells.
 Qualified product failures are never retried to improve a score. Source changes
 require individually declared evaluator paths; runtime and prompt changes must
 start a new comparison. The recovered Opus/window duration is 65.114 seconds.
+
+A recovered Codex capacity error exposed another accounting defect: summing
+active turn durations omitted YA's twenty-second retry backoff. Elapsed agent
+time now spans first start to last completion; active durations, inter-turn
+gaps and provider errors are separate. A terminal unresolved provider error is
+unqualified. Explicit report-time reanalysis preserves original receipts and
+records parser/input hashes, including for carried attempts. The upload example
+was 52.169 seconds elapsed, versus 32.213 active; two earlier campaign attempts
+also had capacity backoff. These waits must remain in efficiency and cost
+accounting. Forty-three offline experiment checks pass.

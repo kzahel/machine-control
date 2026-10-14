@@ -53,6 +53,7 @@ def timestamp(value):
 def transcript_metrics(text):
     calls, outputs, contexts, starts, ends, usage = {}, {}, [], {}, {}, None
     turn_durations = {}
+    turn_errors = {}
     malformed = 0
     images = 0
     for line in text.splitlines():
@@ -77,6 +78,9 @@ def transcript_metrics(text):
                 starts[turn] = timestamp(item.get("timestamp"))
             elif kind == "task_complete" and turn:
                 ends[turn] = timestamp(item.get("timestamp"))
+                error=payload.get('error')
+                turn_errors[turn]=(error.get('codex_error_info','unknown_provider_error')
+                                   if isinstance(error,dict) else 'unknown_provider_error' if error else None)
                 duration = payload.get("duration_ms")
                 if isinstance(duration, (int, float)) and duration >= 0:
                     turn_durations[turn] = duration / 1000
@@ -109,18 +113,25 @@ def transcript_metrics(text):
             durations.append(end - call["at"])
     complete = bool(starts) and starts.keys() == ends.keys() and all(
         starts[k] is not None and ends[k] is not None and ends[k] >= starts[k] for k in starts)
+    ordered=sorted(starts,key=lambda k:starts[k]) if complete else []
+    last=max(ends,key=lambda k:ends[k] if ends[k] is not None else float('-inf')) if ends else None
     return {
         "toolCalls": len(calls), "toolCallsByName": by_name,
         "toolOutputBytes": sum(x["bytes"] for x in outputs.values()),
         "toolRoundTripSeconds": durations,
         "toolRoundTripCoverage": {"measured": len(durations), "calls": len(calls)},
-        "agentSeconds": sum(turn_durations.get(k, ends[k] - starts[k]) for k in starts) if complete else None,
-        "timingSource": "transcript_task_events" if complete else "unavailable",
+        "agentSeconds":max(ends.values())-min(starts.values()) if complete else None,
+        "activeTurnSeconds":sum(turn_durations.get(k,ends[k]-starts[k]) for k in starts) if complete else None,
+        "betweenTurnSeconds":sum(max(0,starts[b]-ends[a]) for a,b in zip(ordered,ordered[1:])) if complete else None,
+        "timingSource": "transcript_first_start_to_last_complete" if complete else "unavailable",
+        "providerErrors":[value for value in turn_errors.values() if value is not None],
+        "terminalProviderError":turn_errors.get(last) if last else None,
         "transcriptComplete": complete, "malformedTranscriptLines": malformed,
         "agentTurns": len(starts), "modelContexts": contexts,
         "tokenUsage": usage, "transcriptImageItems": images,
         "nativeOperations": None,
         "measurementLimits": [
+            "Elapsed agent time includes waits between recovered turns; active turn durations are separate.",
             "Tool timestamps include transport and host overhead; intervals may overlap.",
             "Output bytes are serialized transcript payloads, not tokenizer or wire counts.",
             "Image items count only explicit transcript image items, not screenshots.",

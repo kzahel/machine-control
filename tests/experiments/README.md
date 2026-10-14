@@ -84,3 +84,11 @@ receipt. Add `--invalidate-oracle` when independent review establishes a defecti
 or inconclusive oracle. Reanalysis never turns a false effect oracle into a pass.
 Reports read these evaluations and carried attempts, retain all invalid-attempt
 costs, and require one qualified result per planned cell for completeness.
+
+For earlier receipts collected with an older measurement parser, use
+`report_batch.py BATCH --reanalyze`. It recomputes metrics from the preserved
+native transcripts, retains explicit oracle invalidations and route reviews,
+and includes evaluator/input hashes in the report. No receipt is overwritten.
+Elapsed Codex time includes YA retry backoff; provider active-turn durations
+and errors remain separate. Do not use old summed-turn timing for wall-time
+comparisons when capacity recovery occurred.

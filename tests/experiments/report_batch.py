@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import statistics
 from measurements import token_metrics
-from review_trial import load_receipt
+from review_trial import load_receipt, reevaluate, digest
 
 
 def distribution(values):
@@ -83,6 +83,8 @@ def summarize(manifest, records):
                 r['routeReview']['usageReportedBeforeFirstUICall']['totalTokens'] for r in rows
                 if (r.get('routeReview') or {}).get('usageReportedBeforeFirstUICall',{}).get('totalTokens') is not None]),
             "timedOut":sum(r.get('timedOut') is True for r in rows),
+            "providerErrors":dict(collections.Counter(str(error) for r in rows for error in r.get('providerErrors',[]))),
+            "betweenTurnSeconds":distribution([r['betweenTurnSeconds'] for r in rows if r.get('betweenTurnSeconds') is not None]),
             "infrastructureFailures":sum(bool(r.get('error')) for r in rows),
             "cleanupFailures":sum(bool(r.get('releaseError')) or not r.get('released') for r in rows),
             "successfulAgentSeconds":distribution([r['agentSeconds'] for r in passed if r.get('agentSeconds') is not None]),
@@ -111,8 +113,25 @@ def summarize(manifest, records):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('run',type=Path)
+    parser.add_argument('--reanalyze',action='store_true',help='Recompute from retained transcripts with the current parser; keep original receipts and oracle invalidations')
     args=parser.parse_args()
     manifest=json.loads((args.run/'manifest.json').read_text())
-    records=[x['record'] for x in manifest.get('carriedAttempts',[])]
-    records.extend(load_receipt(p.parent) for p in sorted(args.run.glob('*/*/trial.json')))
-    print(json.dumps(summarize(manifest,records),indent=2))
+    carried=manifest.get('carriedAttempts',[])
+    directories=[Path(x['directory']) for x in carried]+[p.parent for p in sorted(args.run.glob('*/*/trial.json'))]
+    records=[x['record'] for x in carried]+[load_receipt(p) for p in directories[len(carried):]]
+    reanalysis=[]
+    if args.reanalyze:
+        for attempt in carried:
+            if any(digest(Path(attempt['directory'])/name)!=value for name,value in attempt['hashes'].items()):
+                raise ValueError('Carried evidence changed after the manifest was frozen')
+        records=[]
+        for directory in directories:
+            loaded=load_receipt(directory)
+            evaluation_path=directory/'evaluation.json'
+            invalidated=json.loads(evaluation_path.read_text()).get('oracleInvalidated',False) if evaluation_path.is_file() else False
+            value=reevaluate(directory,reason='Explicit report-time parser reanalysis',invalidate_oracle=invalidated)
+            records.append({**value['record'],'routeReview':loaded.get('routeReview')})
+            reanalysis.append({k:v for k,v in value.items() if k not in ('record','reason')})
+    result=summarize(manifest,records)
+    result['reanalysis']=reanalysis
+    print(json.dumps(result,indent=2))

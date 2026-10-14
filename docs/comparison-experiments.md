@@ -205,9 +205,12 @@ arguments or result records. Each trial starts and closes a provisioning
 journal. Direct SSH, YA and oracle steps remain explicitly outside automatic
 command audit coverage.
 
-`agentSeconds` comes from matched transcript task events (the explicit duration
-when present), never from polling. `controllerWaitSeconds` retains the polling
-measurement separately. Missing process state waits until the deadline;
+`agentSeconds` spans the first task start to final completion, including waits
+between recovered provider turns; it never comes from polling. Codex
+`activeTurnSeconds` separately sums provider-reported turn durations, while
+`betweenTurnSeconds` exposes gaps and `providerErrors` records capacity/errors.
+`controllerWaitSeconds` retains polling separately. A final unresolved provider
+error makes a trial unqualified even if a partial application effect occurred. Missing process state waits until the deadline;
 missing completion, malformed transcripts and timeouts invalidate the trial.
 Timeout cancellation is verified before reading an oracle. An unresolved
 workspace release stops the batch.
