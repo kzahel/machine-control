@@ -42,6 +42,9 @@ the commits' `Topic:` trailers and register that exact string in
 
 ## Tactical index
 
+- [119 — VM route-comparison experiments](119-vm-comparison-experiments.md)
+  (proposed): disposable Tart guests running paired Machine Control and
+  Computer Use trials through tunnelled AAR, analyzed by host YA.
 - [118 — Usage friction journal](118-usage-friction-journal.md)
   (complete): private agent friction notes with session attribution and audit
   correlation; live load-unpacked comparison against Computer Use.

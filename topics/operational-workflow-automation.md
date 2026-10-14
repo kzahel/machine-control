@@ -28,6 +28,12 @@ corrections and fixtures. The first comparison found the macOS Open panel
 and missing desktop subcommand help to be the largest costs; see Tactical
 118's open follow-ups.
 
+**Proposal:** Scale these comparisons with the
+[route-comparison runbook](../docs/comparison-experiments.md): paired trials
+inside disposable Tart clones, guest agents routed through the host's
+agent-auth-router over an SSH reverse forward, oracles on application state,
+and host YA analysis ([Tactical 119](../docs/tactical/119-vm-comparison-experiments.md)).
+
 **Decision:** Every fresh bring-up records a run, including successful runs
 without friction. Notes preserve workarounds, fix commits and deferred ideas;
 recording a problem does not require fixing it during provisioning. Direct
