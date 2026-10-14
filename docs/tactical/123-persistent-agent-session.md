@@ -351,3 +351,12 @@ subsequently recovered. This validates the need to separate task success from
 input fidelity. An explicit Python regression now discards a refresh result
 and proves that the old button number refuses before dispatch instead of
 acting on the new field. The focused session suite contains 37 checks.
+
+The broader candidate smoke adds live stale-number recovery evidence: Opus
+completed extension installation after two refused stale-number attempts caused
+by intervening actions/observations. Both refusals reported no delivery; fresh
+observations, grounded capture clicks and the native chooser completed the
+independent registration/behavior oracle. This supports refusal correctness,
+while exposing the ergonomic cost of fresh numbers on a provider without stable
+identity. Model-added sleeps and redundant observations remain measured costs,
+not reasons to weaken reference fencing or claim settling proves completion.
