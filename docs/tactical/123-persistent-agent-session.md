@@ -317,5 +317,15 @@ Sol Settings passed (56.323 seconds, eight calls), as did Opus Settings
 (33.094 seconds, five calls). These are single smoke observations. Both Settings
 agents used semantic radio-button actions, so neither qualifies capture input.
 All three reruns recorded the actual provider identity and prompt claim release
-before VM disposal. A separate deterministic capture conformance probe is ready
-for live qualification; its independent fixture records click and scroll effects.
+before VM disposal. Opus window and TextEdit smokes also passed (39.752 seconds /
+seven calls and 40.583 seconds / eight calls), with normal profiles and cleanup.
+
+The separate deterministic capture probe passed with a 2× image scale, an actual
+mouse callback and revision change, a 180-point scroll-offset change, unchanged
+sentinel content, and refusal of reused or externally moved captures before
+input. Its first library attempt failed before admission because the guest's
+system Python 3.9 supplied process-local monotonic origins to separate claim
+processes. The queue now uses Mac kernel uptime for shared deadlines; 37 claim
+tests and 30 claim/control client tests pass, and the same guest probe succeeds
+through those older adapter processes. This preserves expiry and clock-rewind
+fencing. Visual model grounding remains a separate qualification.

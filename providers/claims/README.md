@@ -72,6 +72,12 @@ expiry. EOF, cancellation, parent loss or missed heartbeat releases only its
 matching claim. An interrupted activation record lets subsequent checks recover
 the exact abandoned reservation, preserving any replacement owner.
 
+Persisted queue deadlines use a host-wide monotonic epoch. On macOS this is
+`CLOCK_UPTIME_RAW`, including when the adapter resolves the system's older
+Python: its process-local `time.monotonic()` origin cannot be shared between
+the owner and separate claim checkers. Rewinds, missed heartbeats and claim
+expiry still end ownership; clock normalization does not extend a lease.
+
 Use `machine-control --target TARGET run --wait 5m` with the usual reason,
 claimant and local program, or the Python `ClaimSession` context. Existing runs
 remain fail-fast; queued workspace derivation is explicitly unsupported. See

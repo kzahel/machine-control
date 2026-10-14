@@ -22,7 +22,7 @@ class AdmissionTests(unittest.TestCase):
         audit_env.start()
         self.addCleanup(audit_env.stop)
         self.clock = time.monotonic()
-        self.patch = mock.patch.object(admission.time, "monotonic", side_effect=lambda:self.clock)
+        self.patch = mock.patch.object(admission, "shared_clock", side_effect=lambda:self.clock)
         self.patch.start()
 
     def tearDown(self):
@@ -163,6 +163,22 @@ class AdmissionTests(unittest.TestCase):
         self.assertFalse(claims.command_capabilities(args)["queueing"])
         args.version = 1
         self.assertTrue(claims.command_capabilities(args)["queueing"])
+
+
+class SharedClockTests(unittest.TestCase):
+    def test_mac_queue_deadlines_do_not_use_legacy_process_local_origin(self):
+        with mock.patch.object(admission.sys, 'platform', 'darwin'), \
+             mock.patch.object(admission.time, 'CLOCK_UPTIME_RAW', 8, create=True), \
+             mock.patch.object(admission.time, 'clock_gettime', return_value=12345.5, create=True) as clock, \
+             mock.patch.object(admission.time, 'monotonic', return_value=.01) as local:
+            self.assertEqual(admission.shared_clock(),12345.5)
+            clock.assert_called_once_with(8)
+            local.assert_not_called()
+
+    def test_other_platforms_preserve_their_system_monotonic_clock(self):
+        with mock.patch.object(admission.sys, 'platform', 'linux'), \
+             mock.patch.object(admission.time, 'monotonic', return_value=456.0):
+            self.assertEqual(admission.shared_clock(),456.0)
 
 
 if __name__ == "__main__":

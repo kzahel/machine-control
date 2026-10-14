@@ -15,6 +15,7 @@ from pathlib import Path
 import re
 import secrets
 import stat
+import sys
 import time
 
 import claims
@@ -25,6 +26,19 @@ WAIT_LEASE = 60
 OFFER_LEASE = 15
 ACTIVE_LEASE = 5
 MAX_ENTRIES = 256
+
+
+def shared_clock():
+    """A host-wide epoch for deadlines read by separate claim processes.
+
+    macOS Python 3.9's monotonic() subtracts a process-local origin. Persisting
+    those values makes a newly launched checker falsely detect a clock rewind.
+    CLOCK_UPTIME_RAW uses the same boot-relative clock as modern Mac Python.
+    Process-local transport timeouts can continue using time.monotonic().
+    """
+    if sys.platform == "darwin":
+        return time.clock_gettime(time.CLOCK_UPTIME_RAW)
+    return time.monotonic()
 
 
 def load(directory):
@@ -132,7 +146,7 @@ def sweep(directory, *, now=None):
         return None
     value = load(directory)
     before = copy.deepcopy(value)
-    refresh(directory, value, time.monotonic() if now is None else now)
+    refresh(directory, value, shared_clock() if now is None else now)
     if before != value:
         value["revision"] += 1
         save(directory, value)
@@ -151,13 +165,13 @@ def before_acquire(directory, provider, identity, owner=None):
 
 
 class Authority:
-    def __init__(self, args, *, clock=time.monotonic):
+    def __init__(self, args, *, clock=None):
         claims.validate_policy(args)
         self.args = args
         self.provider, self.identity = claims.resource(args)
         self.resource = claims.resource_digest(self.provider, self.identity)
         self.directory = claims.state_directory(args.state_dir)
-        self.clock = clock
+        self.clock = shared_clock if clock is None else clock
         self.owner = secrets.token_hex(16)
         self.options = None
 

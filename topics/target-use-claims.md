@@ -105,7 +105,7 @@ adapter's exact private resource identity. The initial portable policy is:
 - four-hour maximum requested duration and continuous lifetime;
 - explicit renewal by the current claim identifier;
 - idempotent release when no newer holder exists; and
-- no queueing or stealing of an unexpired claim.
+- no stealing of an unexpired claim; legacy v0 acquisition remains fail-fast.
 
 Provider policy may tighten these bounds and reports the effective values
 through claim capabilities. Expiry is the reliable forgotten-release
@@ -254,15 +254,21 @@ must wait for an exact pin and live claim, with `ensure-ready` providing the
 explicit path from an off target to a passing doctor. Physical-device adapters
 remain outside the initial policy pending target-specific contention decisions.
 
-## Planned admission extension
+## Queued admission
 
-**Proposal — queued admission:**
+**Current — opt-in v1 queued admission:**
 [access admission and pause](access-admission-and-pause.md) owns waiting leases,
 activation offers, cancellation and composition with a shared controller
 desktop for host-interfering recovery. Its
 [coordinating plan](../docs/tactical/074-access-admission-and-pause.md) preserves
 legacy fail-fast acquisition and exact-resource claim authority through a
-versioned extension. The current claim implementation still has no queue.
+versioned extension. [Tactical 082](../docs/tactical/082-queued-target-claims.md)
+implemented connection-owned waiting, activation offers and heartbeat fencing;
+queued workspace derivation remains unsupported. The
+[queue authority](../providers/claims/README.md) uses a common host clock for
+persisted deadlines. Mac Python 3.9's process-local monotonic origin caused
+false rewind refusals during the persistent-session study; kernel uptime now
+keeps independent claim processes on one epoch without relaxing expiry.
 
 ## Validation requirements
 
