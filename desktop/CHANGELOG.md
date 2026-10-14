@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+## [0.6.2]
+
+- Preserve Mac access enabled by the person when an agent calls `grant revoke`.
+  Grant status now reports whether access came from the person or an approved
+  agent request. Revoking a request still ends that grant; it preserves saved
+  personal consent so the person's access can return. The person's Stop still
+  ends all access and clears that consent.
+- Add Chrome extension icons and a side panel showing connection, access,
+  controlled tabs and recent operation activity without recording typed text
+  or page content. Native browser hosts on all three platforms accept the
+  Chrome Web Store extension as well as the existing unpacked copy. Store
+  review and installed store-copy acceptance remain separate.
+- Add offline `--help` for desktop, browser, grant and audit commands, clearer
+  argument and claim-ID errors, and guidance for until-stopped access. Keep
+  the built-in local host available alongside private inventory targets.
+- Add private `usage note|show` records for control friction and correlate
+  retained command history with the agent's published session reference.
+
+Includes all six desktop platform/architecture packages. Person-armed grant
+retention is a Mac change; Windows and Linux follow-up remains pending.
+Mac broker, consent and socket regression tests pass; installed retention,
+lock/restart and exact production-package GUI effects remain unqualified.
+
 ## [0.6.1]
 
 - Fix Mac covered locked-use startup that could immediately relock the screen
