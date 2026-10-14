@@ -325,6 +325,21 @@ Computer Use and browser plugins into a Git-ignored local folder, with a
 manifest of versions, signing team and hashes. The JavaScript is minified but
 not obfuscated, and ships without source maps.
 
+**Current, source-reviewed (local reference):** platform clients differ
+underneath one model-facing API. The macOS client keys calls by application
+and alone supports diffs, paste with clipboard restore and text selection; the
+Windows client keys calls by window and can return several screenshot regions
+for transient UI; the Linux client renders AT-SPI trees with pruning and
+static-text merging and keeps element numbers stable per native identity
+across reads. Actions return nothing and the model is taught to batch an
+observation; observation calls settle internally. Errors carry codes whose
+messages tell the model what to do next (re-read after user interference,
+stop after a user stop, call again while permissions are pending). A
+physical Escape on Windows rejects the rest of the turn. Machine Control's
+draft session API, which adapts these ideas to its claim, grant and
+delivery-effect contract, is in
+[Tactical 123](../../docs/tactical/123-persistent-agent-session.md#api-draft).
+
 **Open, deferred:** the native `SkyComputerUseService` is a compiled Swift
 executable; only its imports and strings have been inspected. How it builds
 and diffs accessibility trees, maps element numbers and posts input would need

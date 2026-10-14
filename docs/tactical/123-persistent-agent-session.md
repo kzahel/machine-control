@@ -51,6 +51,120 @@ checks or audit, unlike the experiment, which talks to the resident socket
 directly. Delivery, effect and uncertainty stay available behind the compact
 text. The existing CLI remains supported.
 
+## API draft
+
+**Proposal.** Inputs: the Computer Use interface study (local reference,
+summarized in the [Sky dossier](../../research/providers/sky-computer-use.md)),
+the `mc-repl` experiment, and the operations the Mac, Windows and Linux
+residents already share. Names are Pythonic and every call blocks until its
+result is known; the agent never writes `await`.
+
+### Session and lifecycle
+
+```python
+mc.target            # logical target and platform, e.g. "host (macos)"
+mc.state()           # running apps, windows, browsers; partial failures listed
+mc.apps(); mc.windows()
+app = mc.app("TextEdit")        # by name, bundle/app id, pid or window id
+app = mc.launch("com.apple.TextEdit")
+mc.help(topic=None)  # API notes; re-shows notes after context compaction
+```
+
+- A session holds one target, one claim (renewed in the background), the
+  grants it needs and, where the platform requires it, live owner admission.
+  `mc.app()` binds an application (Windows/Linux: a window) and shows its full
+  tree once.
+- Snippets run in one persistent namespace; the value of a final expression
+  is shown. Each snippet has a timeout that excludes time spent waiting for a
+  person's approval. A timeout or kill releases held keys, buttons and drags.
+- Facades: `machine-control mcp` (tools: run code, reset), `machine-control
+  session start|run|stop` for shell-only agents, and an importable library.
+  Reset clears the namespace but keeps the claim and open apps; stop releases.
+
+### Observation
+
+```python
+app.tree(query=None, full=False)   # diff by default; full=True forces a tree
+app.screenshot()                   # attached inline; never advances the diff
+app.observe(screenshot=False)      # tree (and optionally image) in one call
+```
+
+- Text, one line per element, indented by depth: `12 button "Save"`, with
+  states in parentheses (focused, selected, checked, expanded, disabled,
+  settable), value, and non-default actions. Prune empty non-interactive
+  leaves, merge adjacent static text, drop labels repeated from the parent,
+  and collapse menu bars to one line unless queried.
+- After the tree, short sections for the focused element, the selection and
+  document text when the provider reports them.
+- Numbers stay stable for the same native element across reads within one
+  resident/provider generation, so diffs are meaningful; a generation change
+  invalidates every number. A number not in the current map is refused with a
+  prompt to re-read, never retargeted.
+- Diffs mark changed and added lines and summarize removed numbers as ranges;
+  an unchanged tree is one line. Above a line budget the full tree is sent.
+  Output per call is capped, with explicit truncation notes.
+- The first read of an app may add one short hint, for example to use
+  `choose()` in Open and Save panels.
+- Settling happens inside observation (wait for the UI to stop changing, with
+  a cap), not as fixed sleeps after actions; agents are told not to sleep.
+
+### Actions
+
+```python
+app.press(n)                         # semantic press; clicks the centre if n cannot be pressed
+app.click(n | (x, y), button="left", count=1, modifiers=None, hold_ms=None)
+app.set_value(n, text); app.focus(n); app.action(n, "AXShowMenu")
+app.type(text); app.paste(text); app.key("cmd+s")
+app.scroll(n | (x, y), "down", pages=None, pixels=None)
+app.drag(a, b)
+app.select_text(n, text, prefix=None, suffix=None, caret=None)
+app.choose("/absolute/path", confirm=True)   # native Open/Save panel
+```
+
+- Each action returns one line: what it did, the route used (for example
+  semantic press or centre click), delivery and observed effect. Full
+  delivery/effect/uncertainty data stays available as attributes.
+- **Open:** whether to re-observe automatically. Candidates: nothing (the
+  agent batches a `tree()` call), a tree after every action (the prototype),
+  or one settled diff at the end of a snippet that acted without observing.
+  Measure all three in Tactical 119 batches.
+- Unsupported calls fail before any input is sent and name the platform's
+  alternative. Coordinates from a screenshot are bound to that capture.
+
+### Errors
+
+Typed exceptions with `code`, `retryable`, `delivered` (`no`, `yes`,
+`unknown`) and a one-line next step:
+
+| Exception | Meaning and next step |
+| --- | --- |
+| `StaleElement` | number no longer valid; re-read (the fresh diff is attached when cheap) |
+| `UserIntervened` | the person used the app; re-observe, then continue |
+| `Stopped` | the person stopped or revoked access; every later call fails until re-admitted |
+| `ApprovalRequired` / `ApprovalDenied` | a grant is needed or refused; never retried in a loop |
+| `ClaimLost` | the target-use claim expired or was taken; stop |
+| `Locked` | desktop locked; use an armed locked-use route if the target offers one |
+| `Unsupported` | the platform lacks the operation; nothing was sent |
+| `Timeout` | always `delivered=unknown`; observe before acting again, never replay |
+
+Unlike a fire-and-forget action API, a refusal and an uncertain delivery
+are never reported the same way.
+
+### Platform mapping
+
+| Call | macOS resident | Windows resident | Linux companion |
+| --- | --- | --- | --- |
+| apps, windows, tree, screenshot | yes | yes | yes |
+| press, focus, set_value | yes | invoke, set.value | action, set_value |
+| click, key, type, scroll, drag | yes | yes | yes |
+| launch, activate, terminate | yes | launch, activate | yes |
+| choose | yes | **Open** (common file dialog) | **Open** (portal/GTK chooser) |
+| select_text, paste with restore | **Open** | **Open** | **Open** |
+| diffs, stable numbers | client-side first | client-side first | client-side first |
+
+Diffing and numbering start in the client so all three residents gain them;
+moving them into residents is an optimization once measured.
+
 ## Ordered work
 
 ### 1 — build the Python session and keep a JavaScript A/B
