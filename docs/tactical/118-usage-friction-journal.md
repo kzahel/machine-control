@@ -115,7 +115,8 @@ because `chrome://` pages are outside the browser route.
    audit command, and usage refusals that name the problem and usage line.
 2. A typed native Open-panel path or folder choice for the Mac host; `browser
    upload` covers only file inputs, and the native panel is the root of the
-   task's difficulty on every route.
+   task's difficulty on every route. *Landed afterward:* `desktop dialog
+   choose`; see [macOS resident control](../../topics/macos-resident-control.md).
 3. Document that `chrome://` pages refuse `browser navigate` and snapshot,
    and that `about:blank`, cmd+l, `desktop input text` and Return works.
    *Landed afterward* in the macOS host skill and `browser --help`.

@@ -1869,7 +1869,7 @@ final class ResidentService {
                                         "application.terminate", "input.key",
                                         "input.text", "input.click", "input.move",
                                         "input.drag", "input.scroll", "window.close",
-                                        "capture", "authorization.begin",
+                                        "dialog.choose", "capture", "authorization.begin",
                                         "authorization.cancel"]],
                         ["id": "cua", "state": cua == nil ? "unavailable" : "ready",
                          "routeClass": "guest.user", "placement": "target_resident",
@@ -2336,6 +2336,61 @@ final class ResidentService {
                 result["effect"] = NSWorkspace.shared.frontmostApplication?
                     .processIdentifier == app.processIdentifier ? "confirmed" : "unknown"
                 result["focusConsequence"] = "target_application_activated"
+            case "dialog.choose":
+                guard AXIsProcessTrusted() else {
+                    result = refused(request, code: "authorization_required",
+                                     message: "Accessibility access is not granted",
+                                     route: "guest.user/macos.ax")
+                    break
+                }
+                guard let path = requestString(request, "path") else {
+                    result = refused(request, code: "invalid_request", message: "path is required",
+                                     route: "guest.user/macos.ax")
+                    break
+                }
+                let app: NSRunningApplication
+                if let target = requestString(request, "target") {
+                    guard let activated = try activateTarget(target) else {
+                        throw MacUIError.application("No running application matches target")
+                    }
+                    app = activated
+                } else {
+                    guard let frontmost = NSWorkspace.shared.frontmostApplication else {
+                        throw MacUIError.application("No frontmost application")
+                    }
+                    app = frontmost
+                }
+                guard app.processIdentifier != getpid() else {
+                    result = refused(request, code: "self_target_refused",
+                                     message: "Machine Control does not operate its own interface",
+                                     route: "guest.user/macos.ax")
+                    break
+                }
+                if let reason = inputCancellation() { throw MacUIError.action(reason) }
+                let chooser = PanelChooser(
+                    sendKey: { [unowned self] chord in try self.sendKey(chord) },
+                    typeText: { [unowned self] text in try self.sendText(text) })
+                do {
+                    let dialog = try chooser.choose(
+                        application: AXUIElementCreateApplication(app.processIdentifier),
+                        path: path, confirm: request["confirm"] as? Bool ?? true)
+                    let confirmed = dialog["confirmed"] as? Bool == true
+                    let closed = dialog["panelClosed"] as? Bool == true
+                    result = base(request, route: "guest.user/macos.ax")
+                    result["delivery"] = "confirmed"
+                    result["effect"] = !confirmed || closed ? "confirmed" : "unverifiable"
+                    result["uncertainty"] = !confirmed ? "none" :
+                        (closed ? "application_handling_unobserved" : "follow_up_prompt_visible")
+                    result["data"] = ["dialog": dialog, "application": applicationJSON(app)]
+                    result["evidence"] = [["kind": "semantic_state", "summary": !confirmed ?
+                        "Panel shows the requested folder; left open unconfirmed" : closed ?
+                        "Panel showed the requested folder and closed after confirmation" :
+                        "Panel confirmed; a follow-up prompt remains for the caller"]]
+                } catch let refusal as PanelChoiceRefusal {
+                    result = refused(request, code: refusal.code, message: refusal.message,
+                                     route: "guest.user/macos.ax")
+                    if !refusal.data.isEmpty { result["data"] = ["dialog": refusal.data] }
+                }
             case "window.close":
                 guard let query = requestString(request, "target") else {
                     result = refused(request, code: "invalid_request",

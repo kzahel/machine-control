@@ -140,6 +140,11 @@ Desktop workflow:
   machine-control --target host --claim CLAIM_ID desktop capture \\
     --scope window --target active_window
 
+For a native Open or Save panel an app has already shown (macOS), use
+  machine-control --target host --claim CLAIM_ID desktop dialog choose \\
+    --path /absolute/path --target APP
+instead of driving it with snapshots and keystrokes.
+
 Use desktop --help for action/input options. Observe before acting. References
 are scoped to runtime/session/desktop/provider generations; rediscover after
 navigation or restart. Never retarget or replay an uncertain mutation. Request

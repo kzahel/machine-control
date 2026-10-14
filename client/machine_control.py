@@ -2372,6 +2372,16 @@ DESKTOP_USAGE = {
         + APPLICATION_TARGET
     ),
     "artifact": "desktop artifact HANDLE [PATH]\n  Fetch a capture or other bounded resident artifact to PATH.",
+    "dialog": (
+        "desktop dialog choose --path PATH [--target APP] [--no-confirm]\n"
+        "  Choose a location in the application's open native Open or Save panel\n"
+        "  (macOS). The panel's Go to Folder sheet navigates; nothing is confirmed\n"
+        "  unless the panel shows the requested folder. Open panels take an existing\n"
+        "  file or folder; Save panels take the full path of the file to save. A\n"
+        "  follow-up prompt such as Replace is reported in data.dialog.followUp and\n"
+        "  left for you. --no-confirm leaves the panel open at the location.\n  "
+        + APPLICATION_TARGET
+    ),
     "input": (
         "desktop input text|key|click|move|drag|scroll ARGS\n"
         "  Raw keyboard and pointer input. Prefer desktop action on a snapshot\n"
@@ -2668,6 +2678,19 @@ def _desktop_request(arguments: list[str]) -> tuple[dict[str, Any], bool]:
             if f"input {kind}" in DESKTOP_USAGE
             else "desktop input kind must be text, key, click, move, drag or scroll"
         )
+    if command == "dialog":
+        if not rest or rest[0] != "choose":
+            raise ClientError("usage", "desktop dialog requires choose")
+        options = parse_options(rest[1:], [
+            (("--path",), {"required": True}),
+            (("--target",), {}),
+            (("--no-confirm",), {"action": "store_true"}),
+        ])
+        request = {"operation": "dialog.choose", "path": options.path,
+                   "confirm": not options.no_confirm}
+        if options.target is not None:
+            request["target"] = options.target
+        return request, False
     if command == "application":
         if not rest or rest[0] not in {"launch", "activate", "terminate"}:
             raise ClientError(
@@ -4101,6 +4124,19 @@ def _dispatch(alias, target, remainder):
 
 
 def main(argv: list[str] | None = None) -> int:
+    state: dict[str, int] = {}
+    try:
+        code = _main(argv, state)
+    except BaseException:
+        # A provisioning result that could not be persisted overrides even an
+        # escaping error; the run already has an unpaired intent to inspect.
+        if "override" in state:
+            return state["override"]
+        raise
+    return state.get("override", code)
+
+
+def _main(argv: list[str] | None, state: dict[str, int]) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     remainder: list[str] = []
     operation = "client"
@@ -4339,7 +4375,7 @@ def main(argv: list[str] | None = None) -> int:
         if provision_token is not None:
             _PROVISION_COMMAND.reset(provision_token)
         if persistence_failed and result is not None:
-            return result or 1
+            state["override"] = result or 1
 
 
 if __name__ == "__main__":

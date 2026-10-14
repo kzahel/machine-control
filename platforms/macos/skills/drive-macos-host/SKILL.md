@@ -70,6 +70,12 @@ or extend that lifetime.
   where `R` is a file input or the page's upload/attach button. It never opens
   the macOS file dialog. Do not click upload buttons and then drive the
   native Open dialog with keystrokes.
+- When an app has already opened a native Open or Save panel, for example
+  Chrome's **Load unpacked**, choose the location with
+  `desktop dialog choose --path /absolute/path --target APP`. It navigates
+  through the panel's Go to Folder sheet, confirms only after the panel shows
+  that folder, and reports a Replace prompt in `data.dialog.followUp` instead
+  of answering it. Save panels take the full path of the file to save.
 - For anything the typed commands do not cover, request the `devtools` scope.
   For a few calls, use `browser cdp --method Domain.method --params JSON` or
   `browser eval --expression JS`. For a live session or to watch events, run

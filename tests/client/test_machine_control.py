@@ -1418,6 +1418,24 @@ class ClientTests(unittest.TestCase):
                 # argparse must not print its own usage text beside the JSON.
                 self.assertNotIn("usage:", result.stderr)
 
+    def test_desktop_dialog_choose_request(self):
+        self.write_registry("macos")
+        result, value = self.run_cli(
+            "--target", "fixture", "desktop", "dialog", "choose",
+            "--path", "/tmp/folder", "--target", "com.google.Chrome")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["data"]["request"], {
+            "operation": "dialog.choose", "path": "/tmp/folder",
+            "confirm": True, "target": "com.google.Chrome"})
+        result, value = self.run_cli(
+            "--target", "fixture", "desktop", "dialog", "choose",
+            "--path", "/tmp/x", "--no-confirm")
+        self.assertIs(value["data"]["request"]["confirm"], False)
+        result, value = self.run_cli("--target", "fixture", "desktop", "dialog", "choose")
+        self.assertIn("required: --path", value["message"])
+        result, _ = self.run_cli("--target", "fixture", "desktop", "dialog", "--help")
+        self.assertIn("Replace", result.stdout)
+
     def test_desktop_input_key_help_and_target(self):
         self.write_registry("macos")
         result, value = self.run_cli(

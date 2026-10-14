@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Add `desktop dialog choose --path PATH` on Mac to choose a location in an
+  application's native Open or Save panel. It confirms only after the panel
+  shows the requested folder and leaves prompts such as Replace to the caller.
+
 ## [0.6.4]
 
 - Preserve access enabled by the person on Mac, Windows and Linux when an

@@ -14,6 +14,19 @@ fresh login, preboot, Recovery, and physical hardware remain open.
 
 ## Current state
 
+**Current:** `dialog.choose` (`desktop dialog choose --path P [--target APP]
+[--no-confirm]`) chooses a location in an application's open AppKit Open or
+Save panel. It navigates through the panel's own Go to Folder sheet (setting
+the field through accessibility and typing it only if the value does not
+take), refuses to confirm unless the panel's location shows the requested
+folder, and reports a follow-up such as Replace without answering it. The
+live system-dialogs suite covers folder, file, new save, unanswered Replace
+and no-panel refusal on macOS 26.6 through outside and guest-local callers;
+the same route loaded an unpacked extension in Chrome for Testing and saved
+from sandboxed TextEdit, whose panel is hosted out of process. Verification
+is by folder display name, so two folders with the same name are not
+distinguished; other macOS releases need the same suite before claiming them.
+
 The authoritative [`platforms/macos`](../platforms/macos/README.md) now packages
 a persistent ordinary-session facade inside the shared `Machine Control.app`
 identity that physical hosts also run; a root-owned appliance deployment

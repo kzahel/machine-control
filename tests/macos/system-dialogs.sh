@@ -155,6 +155,62 @@ wait_for_state '.surfaceEvent == "save_file" and
      value="$(cat "$path")"; test "$value" = "machine-control surface output"' \
     || fail 'saved file contents did not match the fixture oracle'
 
+# Typed choice navigates outside the panel's starting folder through its own
+# Go to Folder sheet and confirms only after verifying the location.
+choose_path() {
+    control "$1" "$(jq -nc --arg target "$FIXTURE_ID" --arg path "$2" \
+        '{operation:"dialog.choose",target:$target,path:$path,confirm:true}')"
+}
+"$TESTBED_DIR/bin/macvm" exec /bin/sh -c \
+    'root="$HOME/Documents/MachineControlSurfaceCorpus/elsewhere";
+     mkdir -p "$root/typed folder"; printf "%s\n" typed > "$root/typed file.txt"'
+elsewhere="$("$TESTBED_DIR/bin/macvm" exec /bin/sh -c \
+    'printf %s "$HOME/Documents/MachineControlSurfaceCorpus/elsewhere"')"
+
+press_named remote "$FIXTURE_ID" 'Choose Folder'
+wait_for_state '.surfaceEvent == "choose_folder" and
+                .surfaceEffect == "presented"' 'typed folder panel presentation'
+result="$(choose_path local "$elsewhere/typed folder")"
+require_accepted "$result" 'typed folder choice'
+jq -e '.data.dialog.locationVerified == "folder_name" and
+       .data.dialog.panelClosed == true' <<<"$result" >/dev/null \
+    || fail 'typed folder choice did not verify and close the panel'
+wait_for_state '.surfaceEffect == "chosen" and
+                .selectedName == "typed folder"' 'typed folder effect'
+
+press_named remote "$FIXTURE_ID" 'Open File'
+wait_for_state '.surfaceEvent == "open_file" and
+                .surfaceEffect == "presented"' 'typed open panel presentation'
+require_accepted "$(choose_path remote "$elsewhere/typed file.txt")" 'typed file choice'
+wait_for_state '.surfaceEffect == "opened" and
+                .selectedName == "typed file.txt"' 'typed file effect'
+
+press_named remote "$FIXTURE_ID" 'Save File'
+wait_for_state '.surfaceEvent == "save_file" and
+                .surfaceEffect == "presented"' 'typed save panel presentation'
+require_accepted "$(choose_path local "$elsewhere/typed output.txt")" 'typed save choice'
+wait_for_state '.surfaceEffect == "saved" and
+                .selectedName == "typed output.txt"' 'typed save effect'
+
+# An existing file raises Replace; the choice reports it and never answers.
+press_named remote "$FIXTURE_ID" 'Save File'
+wait_for_state '.surfaceEvent == "save_file" and
+                .surfaceEffect == "presented"' 'replace save panel presentation'
+result="$(choose_path remote "$elsewhere/typed output.txt")"
+require_accepted "$result" 'typed replace choice'
+jq -e '.data.dialog.panelClosed == false and
+       (.data.dialog.followUp | length) == 1 and
+       .uncertainty == "follow_up_prompt_visible"' <<<"$result" >/dev/null \
+    || fail 'replace prompt was not reported as an unanswered follow-up'
+wait_for_state '.surfaceEffect == "presented"' 'replace left unanswered'
+press_named remote "$FIXTURE_ID" Cancel
+press_named remote "$FIXTURE_ID" Cancel
+wait_for_state '.surfaceEffect == "cancelled"' 'replace cancelled by caller'
+
+result="$(choose_path local "$elsewhere/typed folder")"
+jq -e '.accepted == false and .errorCode == "dialog_not_found"' <<<"$result" \
+    >/dev/null || fail 'typed choice without a panel was not refused'
+
 press_named local "$FIXTURE_ID" 'Nested Sheet'
 wait_for_state '.surfaceEvent == "nested_sheet" and
                 .surfaceEffect == "presented"' 'nested sheet presentation'
