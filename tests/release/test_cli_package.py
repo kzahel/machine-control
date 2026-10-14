@@ -4,7 +4,11 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
+import shutil
+import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -41,6 +45,23 @@ class CliPackageTests(unittest.TestCase):
                 item.size = 7
                 output.addfile(item, io.BytesIO(b"fixture"))
         return archive
+
+    def test_installed_entry_point_never_writes_bytecode(self):
+        # Any Python may run the copied bin/machine-control inside the signed
+        # bundle; it must not add __pycache__ and break the bundle's seal.
+        installed = self.root / "mc-cli"
+        for name in prepare.SOURCES:
+            (installed / name).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / name, installed / name)
+        (installed / "client-runtime.json").write_text("{}", encoding="utf-8")
+        environment = {key: value for key, value in os.environ.items()
+                       if key not in {"PYTHONDONTWRITEBYTECODE", "PYTHONPYCACHEPREFIX"}}
+        for arguments in (["--help"], ["desktop", "--help"]):
+            result = subprocess.run(
+                [sys.executable, str(installed / "bin/machine-control"), *arguments],
+                env=environment, capture_output=True, text=True, check=False)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(sorted(installed.rglob("__pycache__")), [])
 
     def test_archive_root_and_traversal_refusal(self):
         for name in ["outside", "python/../../outside"]:

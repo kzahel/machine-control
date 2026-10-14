@@ -92,5 +92,10 @@ Deployment notes from that check:
   back, after which 0.6.0 also restored the until-stopped consent unaided.
   Swap complete, separately staged bundles by rename only.
 - The installed 0.6.0 bundle failed strict deep verification because the
-  bundled CLI had written `__pycache__` files inside it. **Open:** keep the
-  installed CLI from writing bytecode into the signed bundle.
+  bundled CLI had written `__pycache__` files inside it. The packaged
+  `mc-cli/bin/machine-control` is a copy of the repository entry point with a
+  `/usr/bin/env python3` shebang, so another Python could run it and write
+  bytecode; the `commands/` launcher already used `-B`. The entry point now
+  disables bytecode whenever it runs from an installed payload.
+- The rename-only swap is documented in the
+  [desktop README](../../desktop/README.md#replace-an-installed-mac-app-with-a-local-build).

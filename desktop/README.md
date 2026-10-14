@@ -331,4 +331,32 @@ Python inventory order with `python3 desktop/scripts/sign-macos-payload.py APP
 --identity SIGNING_IDENTITY`. This signs and verifies the bundle; notarization,
 stapling, updater signing and publication remain in `sign-macos.sh`.
 
+### Replace an installed Mac app with a local build
+
+Swap whole bundles by rename; never copy files into an installed bundle.
+macOS App Management protection refuses writes inside an app bundle from a
+process without that permission, such as an agent shell. A partly copied
+bundle leaves the LaunchAgent unable to start the resident, and access stays
+off until the bundle is repaired.
+
+1. Build, then sign a complete copy outside the Applications folders with the
+   same Developer ID as the installed app. Confirm the new `macui` satisfies
+   the installed designated requirement
+   (`codesign -v -R="$(codesign -dr - OLD/Contents/MacOS/macui | sed -n 's/^designated => //p')" NEW/Contents/MacOS/macui`);
+   otherwise macOS privacy permissions do not carry over. Unsigned or ad hoc
+   builds lose them.
+2. Stage it on the same volume as the installed app so both moves are atomic
+   renames, for example under `/tmp`.
+3. `mv` the installed bundle to a backup name ending in `.app.bak` (so Launch
+   Services does not register a second copy), `mv` the staged bundle into
+   place, and run `launchctl kickstart -k gui/$(id -u)/org.machine-control.resident`.
+   If the resident is not running a few seconds later, rename the backup
+   back and kick the job again.
+4. Check `target doctor`. Same-session until-stopped consent restores without
+   a click once permissions pass; a reboot or logout does not restore it.
+
+The root unlock helper pins the installed resident's code hash, so a new
+build reports `callerEligibility: denied` until locked-use maintenance
+re-registers it, exactly as after a production update.
+
 Desktop Activity now reads durable history. See [history and diagnostics](../docs/desktop-audit.md) for privacy, retention, storage failure, and local export.
