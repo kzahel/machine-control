@@ -393,3 +393,17 @@ and explains its per-tool-call lifetime. This is instruction development from
 the declared subset, not a change to the running current-guide baseline or a
 claim that the quickstart improves results. The example's argument forwarding
 was checked in both Bash and Zsh without controlling a target.
+
+### Second-round baseline gate
+
+The baseline completed two repetitions of all 35 cells: 68 of 70 qualified
+trials passed their effect oracles, including 35 of 35 in the second round.
+One of those effect passes has the confirmation-policy violation above, and
+both Sol/JS window passes contain an intermediate mistargeted action. These
+counts therefore do not certify clean workflow conformance.
+
+All 71 recorded attempts, including the earlier invalid oracle attempt, have
+hash-bound route reviews, reported usage and confirmed guest disposal. Explicit
+report-time reanalysis preserves timing corrections and all attempt costs.
+The baseline is paused after cleanup while the revised Python candidate runs
+its second round; the third baseline and candidate rounds remain pending.
