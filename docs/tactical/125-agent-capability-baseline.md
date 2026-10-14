@@ -8,8 +8,9 @@ frozen baseline has completed its first 35-cell round after evaluator repairs:
 33 passed, with a policy refusal and an agent discovery failure. All 36 attempts
 (including one invalid oracle attempt) retain their costs and reviewed traces.
 The original Python smoke passed 13 of 14 cells and stopped before repetitions.
-A revised candidate addresses discovery and explicit activation; its native
-activation/capture probe passed and its first agent round is running. No repeated broad baseline or candidate acceptance is claimed.
+The revised candidate passed its native activation/capture probe and all fourteen
+agent smoke cells. Repeated baseline/candidate rounds are running; no repeated
+broad baseline or candidate acceptance is claimed.
 Owning topics: [operational workflow automation](../../topics/operational-workflow-automation.md),
 [unified desktop client](../../topics/unified-desktop-client.md).
 
@@ -351,3 +352,22 @@ recorded campaign continuation before repeated runs, without changing clients,
 task prompts or setup. The shorter revised Opus menu trace used the save panel's
 Keep changes in original document checkbox, not activation or duplicate/cancel;
 it cannot establish an activation speedup.
+
+
+### Revised candidate smoke and repetition gate
+
+All fourteen revised Python cells passed, with complete reported usage,
+route-conforming reviews and normal ownership closure before guest disposal.
+The original 13/14 candidate remains a separate development observation with
+its failure and recovery costs. This is coverage evidence, not repeated
+performance or general desktop acceptance.
+
+Before repetitions, evaluator-only continuation carries the menu-source repair
+into both matrices and the already-qualified elapsed-time/terminal-error parser
+into the baseline collector. Earlier receipts are preserved and explicitly
+reanalyzed. Client behavior, prompts, fixture setup and model profiles stay
+pinned. Remaining rounds alternate baseline then candidate, retaining each
+matrix's seeded order and using one guest at a time; round-boundary pause guards
+prevent an unattended overlap. Baseline completion still gates final candidate
+acceptance. Report distributions and all-attempt accounting only when the
+corresponding planned batch is complete.

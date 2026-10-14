@@ -230,8 +230,8 @@ on both requested agent families, with thirteen passes and one discovery failure
 plus a separate grounded capture-input conformance check. These are calibration
 results, not repeated efficiency evidence or broad platform acceptance. A revised
 candidate clarifies tool discovery and exposes explicit application activation
-for menu-context recovery. Its native activation/capture probe passed; agent
-validation is still running. The baseline completed
+for menu-context recovery. Its native activation/capture probe and all fourteen
+revised agent smoke cells passed; repeated comparison is running. The baseline completed
 its first model/route round. Earlier invalid attempts retain their resource costs.
 [Tactical 123](../docs/tactical/123-persistent-agent-session.md) and
 [Tactical 125](../docs/tactical/125-agent-capability-baseline.md) own qualification

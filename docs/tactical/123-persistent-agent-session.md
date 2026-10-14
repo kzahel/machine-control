@@ -3,9 +3,9 @@
 Status: active. A typed Python core, claim/admission/audit transport and killable
 MCP facade are implemented as a [source candidate](../agent-session.md).
 Thirty-eight focused offline tests and strict type checking pass.
-The first seven-scenario, two-model smoke passed 13 of 14 cells; discovery and
-menu-context friction motivate a revised candidate. Repeated comparison and
-acceptance remain pending.
+The original seven-scenario smoke passed 13 of 14 cells; the revised candidate
+passed all fourteen on the two requested models. Native activation/capture
+qualification also passed. Repeated comparison and acceptance remain pending.
 The direct-socket JavaScript
 experiment remains `tests/experiments/mc-repl`.
 The completed [native efficiency investigation](124-native-behavior-and-efficiency.md)
@@ -398,3 +398,13 @@ input. Existing pointer callback, 180-point scroll, moved-window refusal and
 unchanged sentinel-content checks also passed. The session closed, the guest was
 discarded, and its stored credential handoff was verified. The revised agent
 matrix is now running its first round; this probe is not menu-workflow acceptance.
+
+
+The revised seven-scenario smoke passed all fourteen model/task cells with
+reviewed routes, reported usage, normal claim/session closure and discarded
+guests. Sol's previously blocked upload completed after successful discovery.
+Its menu trial used activation, cancellation/duplication and manual save-panel
+navigation; Opus instead used the original-document checkbox and did not need
+activation. These different strategies prevent attributing single-run timing
+changes to the new method or wording alone. Repeated baseline/candidate rounds
+are now running under the unchanged client pins with evaluator-only repairs.
