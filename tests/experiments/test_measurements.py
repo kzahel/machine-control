@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from measurements import transcript_metrics
+from measurements import transcript_metrics, token_metrics
 from route_comparison import wait_for_agent
 from unittest.mock import Mock
 
@@ -56,6 +56,28 @@ class MeasurementsTest(unittest.TestCase):
             event("task_complete", "2026-01-01T00:00:01Z"),
         ])
         self.assertIsNone(result["agentSeconds"])
+
+
+class TokenMetricsTest(unittest.TestCase):
+    def test_codex_breakdowns_are_not_added_twice(self):
+        metrics = token_metrics({"input_tokens":100, "cached_input_tokens":60,
+                                 "cache_write_input_tokens":10, "output_tokens":20,
+                                 "reasoning_output_tokens":12})
+        self.assertEqual(metrics['nonCachedInputTokens'],40)
+        self.assertEqual(metrics['totalTokens'],120)
+
+    def test_claude_input_excludes_cache_classes(self):
+        metrics = token_metrics({"input_tokens":30, "cache_read_input_tokens":60,
+                                 "cache_creation_input_tokens":10, "output_tokens":20}, 'claude')
+        self.assertEqual(metrics['inputTokens'],100)
+        self.assertEqual(metrics['nonCachedInputTokens'],40)
+        self.assertEqual(metrics['totalTokens'],120)
+        self.assertIsNone(metrics['reasoningOutputTokens'])
+
+    def test_missing_or_inconsistent_usage_stays_unknown(self):
+        self.assertEqual(token_metrics(None),{})
+        self.assertIsNone(token_metrics({'input_tokens':10})['totalTokens'])
+        self.assertIsNone(token_metrics({'input_tokens':10, 'cached_input_tokens':20})['nonCachedInputTokens'])
 
 
 class AgentWaitTest(unittest.TestCase):

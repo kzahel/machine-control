@@ -5,6 +5,44 @@ from datetime import datetime
 import json
 
 
+def token_metrics(usage, provider="codex"):
+    """Normalize reported totals without counting cache/reasoning twice.
+
+    Claude callers must supply deduplicated, session-summed API usage first.
+    This does not implement Claude transcript collection or infer missing usage.
+    Non-cached input includes cache writes; cache writes remain a breakdown.
+    """
+    if not isinstance(usage, dict):
+        return {}
+
+    def count(key):
+        value = usage.get(key)
+        return value if type(value) is int and value >= 0 else None
+
+    def add(*values):
+        return sum(values) if all(v is not None for v in values) else None
+
+    output = count("output_tokens")
+    reasoning = count("reasoning_output_tokens")
+    if provider == "codex":
+        total_input = count("input_tokens")
+        cached = count("cached_input_tokens")
+        writes = count("cache_write_input_tokens")
+        noncached = (total_input - cached if total_input is not None and
+                     cached is not None and cached <= total_input else None)
+    elif provider == "claude":
+        cached = count("cache_read_input_tokens")
+        writes = count("cache_creation_input_tokens")
+        noncached = add(count("input_tokens"), writes)
+        total_input = add(noncached, cached)
+    else:
+        return {}
+    return {"inputTokens": total_input, "cachedInputTokens": cached,
+            "nonCachedInputTokens": noncached, "cacheWriteInputTokens": writes,
+            "outputTokens": output, "reasoningOutputTokens": reasoning,
+            "totalTokens": add(total_input, output)}
+
+
 def timestamp(value):
     try:
         return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()

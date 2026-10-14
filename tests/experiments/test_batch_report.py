@@ -21,5 +21,16 @@ class BatchReportTest(unittest.TestCase):
         self.assertFalse(result['complete'])
         self.assertEqual(result['duplicateTrials'],1)
 
+    def test_failed_attempt_usage_is_retained_with_coverage(self):
+        rows=[{'task':'save','route':'cli','repetition':n,'validTrial':True,
+               'passed':n==1,'tokenUsage':{'input_tokens':n*100,'output_tokens':10}}
+              for n in (1,2)]
+        rows.append({'task':'save','route':'cli','repetition':3})
+        group=summarize({'plan':rows},rows)['groups'][0]
+        self.assertEqual(group['successfulTokenUsage']['totalTokens']['median'],110)
+        self.assertEqual(group['allRecordedTokenUsage']['totalTokens']['median'],160)
+        self.assertEqual(group['allRecordedTokenUsage']['totalTokens']['n'],2)
+        self.assertIsNone(group['allRecordedTokenUsage']['cachedInputTokens'])
+
 
 if __name__=='__main__':unittest.main()

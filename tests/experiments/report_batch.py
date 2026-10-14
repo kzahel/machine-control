@@ -5,6 +5,7 @@ import collections
 import json
 from pathlib import Path
 import statistics
+from measurements import token_metrics
 
 
 def distribution(values):
@@ -12,6 +13,13 @@ def distribution(values):
         return None
     return {"n": len(values), "median": statistics.median(values),
             "min": min(values), "max": max(values)}
+
+
+def token_distributions(rows):
+    metrics = [token_metrics(r.get('tokenUsage'), r.get('provider', 'codex')) for r in rows]
+    keys = sorted({key for item in metrics for key in item})
+    return {key: distribution([item[key] for item in metrics if item.get(key) is not None])
+            for key in keys}
 
 
 def summarize(manifest, records):
@@ -38,13 +46,18 @@ def summarize(manifest, records):
             "successfulOutputBytes":distribution([r['toolOutputBytes'] for r in passed if r.get('toolOutputBytes') is not None]),
             "successfulInputTokens":distribution([r['tokenUsage']['input_tokens'] for r in passed
                                                    if r.get('tokenUsage') and 'input_tokens' in r['tokenUsage']]),
+            "successfulTokenUsage":token_distributions(passed),
+            "allRecordedTokenUsage":token_distributions(rows),
+            "trialsWithReportedUsage":sum(bool(r.get('tokenUsage')) for r in rows),
             "models":sorted({c['model'] for r in rows for c in r.get('modelContexts',[]) if 'model' in c}),
         })
     result['limits'] = ["Pilot distributions, not population success-rate estimates.",
                         "Latency summaries include only valid successful trials; failures are separate.",
                         "Tool use restrictions are prompt-based; route adherence needs transcript review.",
                         "The JS prototype omits claims/controller audit; its timing is not enforcement parity.",
-                        "Input tokens include cached input; this is not a price calculation."]
+                        "Input tokens include cache reads/writes; output includes reported reasoning. Do not sum breakdowns again.",
+                        "Token distributions include coverage n; absent usage stays unknown. All-recorded usage includes failed/invalid attempts.",
+                        "Tokenizers differ across models; token counts are not a price calculation."]
     return result
 
 
