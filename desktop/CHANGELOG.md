@@ -19,11 +19,14 @@
   the built-in local host available alongside private inventory targets.
 - Add private `usage note|show` records for control friction and correlate
   retained command history with the agent's published session reference.
+- Prevent the installed CLI entry point from writing Python bytecode into
+  the signed application bundle, preserving its code signature.
 
 Includes all six desktop platform/architecture packages. Person-armed grant
 retention is a Mac change; Windows and Linux follow-up remains pending.
-Mac broker, consent and socket regression tests pass; installed retention,
-lock/restart and exact production-package GUI effects remain unqualified.
+Mac broker, consent and socket regression tests pass. A locally signed source
+build also verifies installed grant retention and capture; lock/unlock, Stop,
+and exact production-package GUI effects remain separate qualification.
 
 ## [0.6.1]
 

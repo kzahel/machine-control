@@ -62,3 +62,18 @@ regressions authenticate complete x64/ARM64 fixture inventories and reject
 omission of each resource. Historical inventory requirements stay unchanged.
 The immutable failed 0.6.2 tag remains intact. Use 0.6.3 from the repaired
 source and authenticate the complete candidate before creating another tag.
+
+The first 0.6.3 candidate
+([38519495134](https://github.com/kzahel/machine-control/actions/runs/38519495134))
+at `de253841f10c9df1da457dc5cd4780d20c9bfd68` passed both Mac and Linux
+package jobs. It was cancelled during Windows packaging after concurrent
+work advanced main with installed Mac evidence and a bundled CLI bytecode
+repair. The next candidate must include that completed work at exact main.
+No 0.6.3 tag or release was created from the cancelled candidate.
+
+The repaired-source cross-platform checks
+([38519495376](https://github.com/kzahel/machine-control/actions/runs/38519495376))
+passed after retrying the Windows coordinator job. Its first attempt found one
+claim winner but a losing process reported a lock error instead of the expected
+claim conflict. This unchanged concurrency test failure remains a separate
+diagnostic observation; the retry does not establish its cause or repair it.
