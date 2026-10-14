@@ -43,7 +43,7 @@ def main():
              'await app.click(Number(match[1])); await app.getAXState();'),
             ('pointer-and-type','var state = await app.getAXState({disableDiffing:true,emit:false}); '
              'var pointer = state.match(/^\\s*(\\d+) container Pointer only$/m); '
-             'var field = state.match(/^\\s*(\\d+) text field .*Probe text$/m); '
+             'var field = state.match(/^\\s*(\\d+) text field [^\\n]*Probe text\\b/m); '
              'if (!pointer || !field) throw new Error("fixture controls missing"); '
              'await app.click(Number(pointer[1])); await app.click(Number(field[1])); '
              'await app.typeText("x"); await app.getAXState();')):
@@ -67,6 +67,9 @@ def main():
                 try:
                     for _ in range(10):
                         r=m.js(code);samples.append(r)
+                        if r['result'].get('isError'):
+                            (args.output/'failed-workload.json').write_text(json.dumps(r,indent=2))
+                            raise RuntimeError('workload failed; do not use its timing or trace')
                     coverage = trace.poll() is None if trace else None
                     code_result=trace.wait(timeout=15) if trace else None
                 finally:
