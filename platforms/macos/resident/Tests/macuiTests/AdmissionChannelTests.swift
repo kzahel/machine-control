@@ -143,15 +143,18 @@ final class AdmissionChannelTests: XCTestCase {
         try FileManager.default.createDirectory(at:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])
         defer { try? FileManager.default.removeItem(at:directory) }
         server.callerTrust = DesktopCallerTrust(directory:directory.path)
-        for reason in ["stopped_by_person", "stopped_from_menu", "stopped_by_hotkey", "revoked_by_caller"] {
+        for reason in ["stopped_by_person", "stopped_from_menu", "stopped_by_hotkey"] {
             try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture", publisher:"FIXTUREONLY"), scopes:[.observe,.control])
             server.revoke(reason:reason)
             XCTAssertEqual(server.callerTrust.status["enabled"] as? Bool,false)
             XCTAssertTrue(DesktopCallerTrust(directory:directory.path).suspended)
         }
-        try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture", publisher:"FIXTUREONLY"), scopes:[.observe,.control])
-        server.revoke(reason:"operator_quit")
-        XCTAssertEqual(server.callerTrust.status["enabled"] as? Bool,true)
+        // Neither quitting nor an agent's revoke suspends the person's trust.
+        for reason in ["operator_quit", "revoked_by_caller"] {
+            try server.callerTrust.enroll(VerifiedDesktopIntegration(requirement:"fixture", publisher:"FIXTUREONLY"), scopes:[.observe,.control])
+            server.revoke(reason:reason)
+            XCTAssertEqual(server.callerTrust.status["enabled"] as? Bool,true)
+        }
     }
 
     func testInputCancellationUsesCurrentLeaseLatchAcrossSessions() {

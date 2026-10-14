@@ -154,6 +154,48 @@ final class ServerTests: XCTestCase {
         XCTAssertTrue(broker.audit.contains { $0.claimID == "c-test" })
     }
 
+    func testCallerRevokeRetainsPersonArmedAccess() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("mc-retain-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at:directory, withIntermediateDirectories:false, attributes:[.posixPermissions:0o700])
+        defer { try? FileManager.default.removeItem(at:directory) }
+        let console = server.grantConsoleObservation()
+        try OperatorConsentStore(directory:directory.path).enable(scopes:[.observe], duration:nil, console:console)
+        broker.consentStore = try OperatorConsentStore(directory:directory.path)
+        let armed = broker.issueUntilStopped(scopes:[.observe], reason:"Manually enabled by the person",
+                                             requester:"local operator", approver:"local_tauri")
+        let status = call(["operation": "grant.status"])
+        XCTAssertEqual(((status["data"] as? [String: Any])?["grant"] as? [String: Any])?["origin"] as? String, "person")
+
+        let revoked = call(["operation": "grant.revoke"])
+        let data = revoked["data"] as? [String: Any]
+        XCTAssertEqual(revoked["accepted"] as? Bool, true, "\(revoked)")
+        XCTAssertEqual(data?["revoked"] as? Bool, false)
+        XCTAssertEqual(data?["retained"] as? String, "person_armed")
+        XCTAssertEqual(broker.activeGrant?.id, armed.id)
+        XCTAssertEqual(call(["operation": "applications"])["accepted"] as? Bool, true)
+        XCTAssertNotNil(try OperatorConsentStore(directory:directory.path).consent(console:console))
+        XCTAssertNil(broker.lastEnded)
+
+        // A request the person's grant covers reuses it.
+        XCTAssertEqual((call(["operation": "grant.request", "scopes": ["observe"], "reason": "t"])["data"]
+            as? [String: Any])?["decision"] as? String, "existing_grant")
+        // An approved request for more replaces it; the caller may end that
+        // one, and the person's saved arming survives for restoration.
+        let approver = ScriptedApprover(.approved(scopes: [.control], durationSeconds: 600))
+        server.approver = approver
+        let replaced = call(["operation": "grant.request", "scopes": ["control"], "reason": "t"]); XCTAssertEqual(replaced["accepted"] as? Bool, true, "\(replaced)")
+        XCTAssertEqual(broker.activeGrant?.origin, .request)
+        let ended = call(["operation": "grant.revoke"])
+        XCTAssertEqual((ended["data"] as? [String: Any])?["revoked"] as? Bool, true)
+        XCTAssertNil(broker.activeGrant)
+        XCTAssertEqual(broker.lastEnded?.reason, "revoked_by_caller")
+        XCTAssertNotNil(try OperatorConsentStore(directory:directory.path).consent(console:console))
+
+        // With nothing active, a caller revoke is a harmless no-op.
+        XCTAssertEqual((call(["operation": "grant.revoke"])["data"] as? [String: Any])?["revoked"] as? Bool, false)
+        XCTAssertNotNil(try OperatorConsentStore(directory:directory.path).consent(console:console))
+    }
+
     func testDeniedAndTimedOutRequests() {
         let denier = ScriptedApprover(.denied)
         server.approver = denier

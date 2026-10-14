@@ -150,7 +150,8 @@ extension ResidentRuntime {
                             throw MacUIError.usage("Choose a supported access duration")
                         }
                         server.broker.issue(scopes: scopes, durationSeconds: duration,
-                            reason: "Manually enabled by the person", requester: "local operator", approver: "local_tauri")
+                            reason: "Manually enabled by the person", requester: "local operator", approver: "local_tauri",
+                            origin: .person)
                     }
                     guard server.broker.journal?.errorCode == nil else { throw MacUIError.action("Audit storage unavailable") }
                     do {

@@ -182,7 +182,8 @@ owns packaging and exact signed-artifact validation.
 **Decision:** Every packaged desktop local operator can choose **Until I turn it off** when
 manually enabling selected scopes. That in-memory grant has no timer and
 reports `lifetime: until_stopped` with null expiry and remaining seconds.
-Stop and caller revocation end access. Session changes, pause and restart
+Stop ends access; caller revocation does not end person-armed access (see
+[person-armed access](#person-armed-access-is-the-persons-to-end)). Session changes, pause and restart
 follow the native platform rules. Windows/Linux gain no restart persistence
 in this slice. Mac retains its separately implemented same-console/boot
 consent restoration, which derives fresh grants and never restores old owners
@@ -200,6 +201,44 @@ null expiry/countdown, selected scopes, independent fixture effect, Stop,
 Restart with access off and retained permissions, and bounded agent approval.
 [Tactical 057](../docs/tactical/057-macos-until-stopped-release.md) owns this
 targeted acceptance. Signed lock/recovery and full physical acceptance remain open.
+
+### Person-armed access is the person's to end
+
+**Current:** Through public 0.6.1, any same-user socket caller's
+`grant.revoke` ends whatever grant is active, including access the person
+armed until stopped. On Mac it also deletes the saved operator consent and
+suspends trusted callers, so the arming does not return after unlock or
+restart. An agent following the host skill's former "revoke when finished"
+step disarmed a person's indefinite access this way and nobody was told.
+Windows has the same unconditional revoke. Separately, a timed agent grant
+approved while person-armed access is active replaces it, and that grant's
+expiry also deletes the saved consent.
+
+**Decision:** Every grant records its origin. `person` grants come from the
+local operator (app, menu, restored consent); `request` grants come from an
+approved agent request.
+
+- A caller's `grant.revoke` of a `person` grant is a no-op that succeeds with
+  `revoked: false` and `retained: "person_armed"`. Agents run revoke in
+  cleanup, so a refusal would invite retries and workarounds.
+- A caller's `grant.revoke` of a `request` grant ends it, as before.
+- Caller revocation, and the end of any `request` grant, never deletes saved
+  operator consent or suspends trusted callers. The person's arming returns
+  when the request grant ends.
+- Only the person's own controls (Stop in the app or menu, the hotkey,
+  Settings) end person-armed access and clear its saved consent. A later
+  agent-initiated disarm, if wanted, must be a request the person confirms in
+  native UI, never a plain CLI flag.
+- Grant status reports `origin`.
+
+**Proposal:** Notify the person when access ends for any reason other than
+their own Stop, naming the reason and caller, and refuse `server.stop` from
+ordinary socket callers on personal hosts.
+
+**Open:** This prevents accidental disarming. A deliberate same-user agent
+with a shell can still quit the app or edit its state; that needs a separate
+OS identity. [Tactical 120](../docs/tactical/120-person-armed-access.md)
+tracks Mac, Windows and Linux implementation and validation.
 
 - An agent requests a scope (`observe`, `control`, or `browser`), a duration,
   and a free-text reason with `grant request`. The request blocks until approval, denial, or a

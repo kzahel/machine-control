@@ -649,12 +649,25 @@ final class ResidentServer {
         case "grant.status":
             return service.acceptance(request, data: broker.statusJSON)
         case "grant.revoke":
-            let had = broker.grant != nil
-            callerTrust.stop()
+            // Callers end only access an agent requested. Access the person
+            // armed stays on, along with its saved consent and caller trust;
+            // succeed so cleanup code does not retry or work around it.
+            guard let current = broker.activeGrant else {
+                var data = broker.statusJSON
+                data["revoked"] = false
+                return service.acceptance(request, data: data)
+            }
+            if current.origin == .person {
+                broker.journal?.event("access.revoke_retained")
+                var data = broker.statusJSON
+                data["revoked"] = false
+                data["retained"] = "person_armed"
+                return service.acceptance(request, data: data)
+            }
             broker.revoke(reason: "revoked_by_caller")
-            if had { service.invalidateReferences() }
+            service.invalidateReferences()
             var data = broker.statusJSON
-            data["revoked"] = had
+            data["revoked"] = true
             return service.acceptance(request, data: data)
         case "grant.request":
             if broker.policy.grantMode == .standing {
@@ -702,7 +715,7 @@ final class ResidentServer {
     func revoke(reason: String) {
         nativeProvider.invalidate()
         broker.fence()
-        if ["stopped_by_person", "stopped_from_menu", "stopped_by_hotkey", "revoked_by_caller"].contains(reason) { callerTrust.stop() }
+        if GrantBroker.personStopReasons.contains(reason) { callerTrust.stop() }
         lockedUse.end(reason)
         broker.revoke(reason: reason)
         service.invalidateReferences()
@@ -868,7 +881,7 @@ func runResident(socketPath: String) throws -> Never {
         try server.broker.consentStore?.enable(scopes:Set(GrantScope.allCases), duration:duration,
             console:server.grantConsoleObservation())
         if let duration { server.broker.issue(scopes:Set(GrantScope.allCases), durationSeconds:duration,
-            reason:"Armed from the menu bar", requester:"local operator", approver:"menu") }
+            reason:"Armed from the menu bar", requester:"local operator", approver:"menu", origin:.person) }
         else { server.broker.issueUntilStopped(scopes:Set(GrantScope.allCases),
             reason:"Armed from the menu bar", requester:"local operator", approver:"menu") }
         if server.broker.journal?.errorCode != nil { server.revoke(reason:"audit_storage_unavailable") }

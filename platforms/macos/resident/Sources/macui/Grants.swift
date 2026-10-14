@@ -46,6 +46,12 @@ func operationClass(_ operation: String) -> OperationClass {
     }
 }
 
+/// Who created a grant. Only the person may end `person` access; a socket
+/// caller's revoke leaves it in place.
+enum GrantOrigin: String {
+    case person, request
+}
+
 struct Grant {
     let id: String
     let scopes: Set<GrantScope>
@@ -55,6 +61,7 @@ struct Grant {
     let reason: String
     let requester: String
     let approver: String
+    var origin: GrantOrigin = .request
 
     func json(now: Date) -> [String: Any] {
         [
@@ -67,6 +74,7 @@ struct Grant {
             "reason": reason,
             "requester": requester,
             "approver": approver,
+            "origin": origin.rawValue,
             "binding": "target_wide",
         ]
     }
@@ -345,14 +353,15 @@ final class GrantBroker {
 
     @discardableResult
     func issue(scopes: Set<GrantScope>, durationSeconds: Int, reason: String,
-               requester: String, approver: String) -> Grant {
+               requester: String, approver: String, origin: GrantOrigin = .request) -> Grant {
         let clamped = min(max(durationSeconds, GrantRequest.durationRange.lowerBound),
                           GrantRequest.durationRange.upperBound)
         let issued = now()
         let next = Grant(id: UUID().uuidString.lowercased(), scopes: scopes,
                          issuedAt: issued,
                          expiresAt: issued.addingTimeInterval(TimeInterval(clamped)),
-                         reason: reason, requester: requester, approver: approver)
+                         reason: reason, requester: requester, approver: approver,
+                         origin: origin)
         guard journal?.event("access.enabled") != false else {
             lastEnded = ("audit_storage_unavailable", now()); notify(); return next
         }
@@ -370,7 +379,8 @@ final class GrantBroker {
                            requester: String, approver: String) -> Grant {
         let next = Grant(id: UUID().uuidString.lowercased(), scopes: scopes,
                          issuedAt: now(), expiresAt: nil,
-                         reason: reason, requester: requester, approver: approver)
+                         reason: reason, requester: requester, approver: approver,
+                         origin: .person)
         guard journal?.event("access.enabled") != false else {
             lastEnded = ("audit_storage_unavailable", now()); notify(); return next
         }
@@ -388,7 +398,8 @@ final class GrantBroker {
         let issued = now()
         let next = Grant(id: UUID().uuidString.lowercased(), scopes:scopes, issuedAt:issued,
             expiresAt:remainingSeconds.map { issued.addingTimeInterval(Double($0)) },
-            reason:"Restored local operator consent", requester:"local operator", approver:"local_consent")
+            reason:"Restored local operator consent", requester:"local operator", approver:"local_consent",
+            origin:.person)
         guard journal?.event("access.restored") != false else { return nil }
         grant = next; lastEnded = nil; notify()
         return next
@@ -399,12 +410,31 @@ final class GrantBroker {
     }
 
     /// Local authority ends before protected cleanup or durable writes wait.
-    func fence() { grant = nil }
+    func fence() {
+        if grant != nil { fenced = grant }
+        grant = nil
+    }
+    /// The grant a fence cleared, so its end can still see its origin.
+    private var fenced: Grant?
+
+    /// The person's own controls; only these always clear saved consent.
+    static let personStopReasons: Set<String> = ["stopped_from_menu", "stopped_by_hotkey", "stopped_by_person"]
+    private static let consentPreservingReasons: Set<String> = ["operator_quit", "operator_disconnected", "resident_stopping", "desktop_locked", "watchdog_interrupted", "helper_stopping", "helper_restarted", "system_sleep", "display_sleep", "display_changed", "owner_disconnected", "input_guard_unavailable"]
+
+    /// Saved consent is the person's arming. An agent's revoke or the end of
+    /// an agent-request grant must not clear it; the person's Stop always does.
+    static func clearsConsent(reason: String, ending: GrantOrigin?) -> Bool {
+        if personStopReasons.contains(reason) { return true }
+        if reason == "revoked_by_caller" || ending == .request { return false }
+        return !consentPreservingReasons.contains(reason)
+    }
 
     private func end(reason: String) {
+        let ending = grant ?? fenced
         grant = nil
+        fenced = nil
         journal?.event("access." + DesktopJournal.token(reason))
-        if !["operator_quit", "operator_disconnected", "resident_stopping", "desktop_locked", "watchdog_interrupted", "helper_stopping", "helper_restarted", "system_sleep", "display_sleep", "display_changed", "owner_disconnected", "input_guard_unavailable"].contains(reason) {
+        if Self.clearsConsent(reason: reason, ending: ending?.origin) {
             do { try consentStore?.disable() } catch { consentStorageError = String(describing:error) }
         }
         admission.stop(reason)

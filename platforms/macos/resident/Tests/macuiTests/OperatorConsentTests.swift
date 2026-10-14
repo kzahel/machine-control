@@ -77,6 +77,37 @@ final class OperatorConsentTests: XCTestCase {
         XCTAssertNil(try store().deferralRemaining)
         XCTAssertNil(try store().manualPauseRemaining)
     }
+    func testOnlyThePersonsStopClearsSavedConsent() throws {
+        try store().enable(scopes:[.observe, .control], duration:nil, console:console)
+        let broker = GrantBroker(policy:.workstation(issue:nil))
+        broker.consentStore = try store()
+        broker.issueUntilStopped(scopes:[.observe, .control], reason:"manual",
+                                 requester:"local operator", approver:"local_tauri")
+        // A caller's revoke never clears the person's arming.
+        broker.revoke(reason:"revoked_by_caller")
+        XCTAssertNotNil(try store().consent(console:console))
+        // An agent-request grant replacing it may expire or be fenced away.
+        broker.issue(scopes:[.observe], durationSeconds:60, reason:"agent", requester:"agent", approver:"test")
+        broker.revoke(reason:"expired")
+        XCTAssertNotNil(try store().consent(console:console))
+        broker.issue(scopes:[.observe], durationSeconds:60, reason:"agent", requester:"agent", approver:"test")
+        broker.fence(); broker.revoke(reason:"console_session_changed")
+        XCTAssertNotNil(try store().consent(console:console))
+        // The person's own Stop clears it whatever is active.
+        broker.issue(scopes:[.observe], durationSeconds:60, reason:"agent", requester:"agent", approver:"test")
+        broker.fence(); broker.revoke(reason:"stopped_from_menu")
+        XCTAssertNil(try store().consent(console:console))
+    }
+    func testPersonGrantEndingForNonPersonReasonsKeepsExistingRules() {
+        XCTAssertTrue(GrantBroker.clearsConsent(reason:"stopped_by_hotkey", ending:.request))
+        XCTAssertTrue(GrantBroker.clearsConsent(reason:"stopped_by_person", ending:nil))
+        XCTAssertTrue(GrantBroker.clearsConsent(reason:"console_session_changed", ending:.person))
+        XCTAssertTrue(GrantBroker.clearsConsent(reason:"expired", ending:.person))
+        XCTAssertFalse(GrantBroker.clearsConsent(reason:"desktop_locked", ending:.person))
+        XCTAssertFalse(GrantBroker.clearsConsent(reason:"revoked_by_caller", ending:.person))
+        XCTAssertFalse(GrantBroker.clearsConsent(reason:"revoked_by_caller", ending:nil))
+        XCTAssertFalse(GrantBroker.clearsConsent(reason:"expired", ending:.request))
+    }
     func testStopClearsSavedConsentEvenBeforeReadinessAllowsRestoration() throws {
         let saved = try store()
         try saved.enable(scopes:[.control], duration:nil, console:console)

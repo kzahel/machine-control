@@ -42,6 +42,9 @@ the commits' `Topic:` trailers and register that exact string in
 
 ## Tactical index
 
+- [120 — Person-armed access retention](120-person-armed-access.md)
+  (active): caller revoke cannot disarm access the person turned on; Mac
+  first, then Windows and Linux.
 - [119 — VM route-comparison experiments](119-vm-comparison-experiments.md)
   (proposed): disposable Tart guests running paired Machine Control and
   Computer Use trials through tunnelled AAR, analyzed by host YA.
