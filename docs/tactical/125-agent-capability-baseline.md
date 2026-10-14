@@ -2,8 +2,9 @@
 
 Status: active. Both requested profiles completed guest YA/AAR qualification;
 the runner now collects both transcript formats and verifies effective settings.
-Seven scenarios and three CLI instruction arms are implemented. Agent smoke
-and repeated baseline coverage remain pending; no broad baseline is claimed.
+Seven scenarios and three CLI instruction arms are implemented. Initial agent
+smokes passed Opus/JS TextEdit save and Sol/CLI extension installation. Broader
+smoke and repeated baseline coverage remain pending; no broad baseline is claimed.
 Owning topics: [operational workflow automation](../../topics/operational-workflow-automation.md),
 [unified desktop client](../../topics/unified-desktop-client.md).
 
@@ -49,7 +50,7 @@ Model effort labels are provider-specific, not equal compute budgets.
 | --- | --- | --- |
 | Load unpacked extension | Existing fixture | Upgrade path-presence check to enabled extension plus a fixture-page behavior change; reject a disabled or merely registered extension. |
 | Upload local file | Existing fixture | Upgrade filename-only check to received bytes/hash; retain native picker and direct upload as explicitly separate capability variants. |
-| Finder rename and move | Existing fixture | Destination name and exact original bytes; old paths absent. Add duplicate-name collision as a later recovery variant. |
+| Finder rename and move | Seeded contents, exact-byte oracle | Destination name and exact original bytes; old paths absent. Add duplicate-name collision as a later recovery variant. |
 | TextEdit save | Existing, repeated pilot | Saved document content and format/path; current text containment check is the initial baseline. |
 | System Settings option | Existing fixture | Persisted setting value with setup proving the opposite initial value. |
 | App menu bar and sheet | Added; agent smoke pending | Use TextEdit Format/menu action and save resulting plain text; verify actual format/content. Review calls to establish menu use rather than a keyboard shortcut. Include cancel/confirm sheet handling. |
@@ -172,7 +173,7 @@ prototype label until then.
 
 ## Validation and final result
 
-Twenty-two offline checks pass. Guest qualification completed one arithmetic
+Twenty-three offline checks pass. Guest qualification completed one arithmetic
 turn per requested model: Codex rollout model/effort and YA live standard-tier
 selection agree; Claude native records report exact model, medium effort and
 standard speed/tier. Codex's rollout omits speed, so its evidence does not attest
@@ -187,6 +188,17 @@ positive controls and rejected the untouched state. Menu verifier controls
 rejected missing/wrong-format results and accepted correct plain text; those
 controls do not establish real menu interaction. A subsequent extension check
 also requires a registered, non-disabled entry and still needs agent smoke.
+
+The first real Opus/JS TextEdit save passed (27.461 s, seven model tool calls),
+with complete reported usage across seven API messages. Sol/CLI extension
+installation passed the stronger oracle (85.585 s, fourteen model tool calls).
+Both retained the qualified profiles and discarded their clones. Transcript
+review found UI work on the assigned routes; Opus used read-only shell checks
+to verify its saved file. These are smoke observations, not repeated estimates.
+The collector now leaves session usage unknown if any observed Claude API
+message lacks usage, instead of reporting a partial sum as a session total.
+Finder verifier controls reject the initial state and extra bytes, and accept
+the exact renamed/moved contents. Settings setup verifies the opposite value.
 
 Three instruction arms are versioned, including the task-independent CLI
 quickstart. They have not yet been compared. Seven-scenario agent smoke and

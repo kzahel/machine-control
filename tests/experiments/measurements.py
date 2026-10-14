@@ -132,6 +132,8 @@ def transcript_metrics(text):
 def claude_transcript_metrics(text):
     """Measure native Claude JSONL, deduplicating streamed API-message usage."""
     calls, outputs, api_messages, contexts = {}, {}, {}, []
+    observed_messages = set()
+    unidentified_messages = 0
     starts, terminal_times = [], []
     malformed = 0
     sidechain = False
@@ -167,6 +169,11 @@ def claude_transcript_metrics(text):
             model = message.get('model')
             usage = message.get('usage')
             if model and model != '<synthetic>':
+                if message.get('id'):
+                    observed_messages.add(message['id'])
+                else:
+                    unidentified_messages += 1
+            if model and model != '<synthetic>':
                 context = {'model': model, 'effort': row.get('perTurnEffort', row.get('effort'))}
                 if isinstance(usage, dict):
                     context.update({k: usage[k] for k in ('service_tier', 'speed') if k in usage})
@@ -191,7 +198,8 @@ def claude_transcript_metrics(text):
     complete = (len(starts) == 1 and bool(terminal_times) and
                 terminal_times[-1] >= starts[0] and not sidechain)
     usage = None
-    if api_messages:
+    usage_complete = bool(observed_messages) and observed_messages == api_messages.keys() and not unidentified_messages
+    if api_messages and usage_complete:
         common = set.intersection(*(set(v) for v in api_messages.values()))
         usage = {k: sum(v[k] for v in api_messages.values()) for k in common}
     by_name, durations = {}, []
@@ -208,7 +216,9 @@ def claude_transcript_metrics(text):
             'timingSource':'claude_user_to_end_turn' if complete else 'unavailable',
             'transcriptComplete':complete, 'malformedTranscriptLines':malformed,
             'agentTurns':len(starts), 'modelContexts':contexts, 'tokenUsage':usage,
-            'apiMessagesWithUsage':len(api_messages), 'sidechainObserved':sidechain,
+            'apiMessagesWithUsage':len(api_messages), 'apiMessagesObserved':len(observed_messages),
+            'unidentifiedAssistantRecords':unidentified_messages, 'tokenUsageComplete':usage_complete,
+            'sidechainObserved':sidechain,
             'nativeOperations':None,
             'measurementLimits':['Claude time spans persisted user message to final end_turn; YA overhead is separate.',
                                  'Usage takes per-message maxima across streamed blocks, then sums distinct API messages.',

@@ -33,6 +33,25 @@ class ClaudeMetricsTest(unittest.TestCase):
         self.assertFalse(value['transcriptComplete'])
         self.assertIsNone(value['tokenUsage'])
 
+    def test_missing_api_usage_does_not_understate_session_total(self):
+        usage={'input_tokens':3,'cache_creation_input_tokens':10,
+               'cache_read_input_tokens':20,'output_tokens':4}
+        rows=[row('user',0,{'content':'task'}),
+              row('assistant',1,{'id':'m1','model':'claude-opus-5-5','content':[]}),
+              row('assistant',2,{'id':'m2','model':'claude-opus-5-5',
+                  'content':[],'usage':usage,'stop_reason':'end_turn'})]
+        result=claude_transcript_metrics('\n'.join(json.dumps(r) for r in rows))
+        self.assertTrue(result['transcriptComplete'])
+        self.assertEqual(result['apiMessagesObserved'],2)
+        self.assertEqual(result['apiMessagesWithUsage'],1)
+        self.assertFalse(result['tokenUsageComplete'])
+        self.assertIsNone(result['tokenUsage'])
+        # A later streamed block can complete usage for the same API message.
+        rows.append(row('assistant',1,{**rows[1]['message'],'usage':usage}))
+        result=claude_transcript_metrics('\n'.join(json.dumps(r) for r in rows))
+        self.assertTrue(result['tokenUsageComplete'])
+        self.assertEqual(result['tokenUsage']['input_tokens'],6)
+
     def test_wrong_effort_and_speed_refuse(self):
         metrics={'modelContexts':[{'model':'claude-opus-5-5','effort':'high','speed':'fast','service_tier':'standard'}]}
         value=qualify('claude','claude-opus-5-5','medium',metrics,{})
