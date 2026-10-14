@@ -2,8 +2,9 @@
 
 Status: active. A typed Python core, claim/admission/audit transport and killable
 MCP facade are implemented as a [source candidate](../agent-session.md).
-Thirty-two focused offline tests and strict type checking pass. A Codex/TextEdit
-smoke passed; broader live qualification and matched comparison remain pending.
+Thirty-two focused offline tests, 279 client tests and strict type checking pass.
+Codex TextEdit, window and Settings smokes passed, as did Claude Settings;
+broader live qualification and matched comparison remain pending.
 The direct-socket JavaScript
 experiment remains `tests/experiments/mc-repl`.
 The completed [native efficiency investigation](124-native-behavior-and-efficiency.md)
@@ -310,4 +311,11 @@ remain failed attempts with complete resource accounting. The optional MCP
 coordinator publication now supplies the actual provider ID without requiring
 model discovery. The harness waits for an exact matching native transcript,
 because YA's launch ID can be provisional; the server still refuses identity
-changes and retains normal admission and audit. Live reruns are pending.
+changes and retains normal admission and audit. The Sol window rerun passed
+(68.158 seconds, seven model calls), preserving Protected and both windows.
+Sol Settings passed (56.323 seconds, eight calls), as did Opus Settings
+(33.094 seconds, five calls). These are single smoke observations. Both Settings
+agents used semantic radio-button actions, so neither qualifies capture input.
+All three reruns recorded the actual provider identity and prompt claim release
+before VM disposal. A separate deterministic capture conformance probe is ready
+for live qualification; its independent fixture records click and scroll effects.

@@ -30,6 +30,7 @@ final class Fixture: NSObject, NSApplicationDelegate, NSTextFieldDelegate {
     let field = NSTextField(string: "")
     let status = NSTextField(labelWithString: "Revision 0")
     let rows = NSStackView()
+    let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 280))
     var counters: [String: Int] = [:]
     var revision = 0
     var events: [[String: Any]] = []
@@ -77,7 +78,6 @@ final class Fixture: NSObject, NSApplicationDelegate, NSTextFieldDelegate {
             button("Continuous updates", #selector(continuous)), pointer])
         top.orientation = .vertical; top.spacing = 8; top.alignment = .leading
         rows.orientation = .vertical; rows.alignment = .leading
-        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 280))
         scroll.hasVerticalScroller = true; scroll.documentView = rows
         scroll.heightAnchor.constraint(equalToConstant: 280).isActive = true
         top.addArrangedSubview(scroll)
@@ -156,6 +156,9 @@ final class Fixture: NSObject, NSApplicationDelegate, NSTextFieldDelegate {
                 counters = [:]; events = []; field.stringValue = ""; revision = 0
                 status.stringValue = "Revision 0"; closeSheet()
             case "rows": rebuild(cmd["count"] as? Int ?? 20)
+            case "move":
+                window.setFrameOrigin(NSPoint(x: cmd["x"] as? Double ?? 30,
+                                              y: cmd["y"] as? Double ?? 100))
             case "updates":
                 scheduleUpdates(delay: cmd["delay"] as? Double ?? 0.2,
                                 interval: cmd["interval"] as? Double ?? 0.05,
@@ -173,6 +176,9 @@ final class Fixture: NSObject, NSApplicationDelegate, NSTextFieldDelegate {
             "keyWindow": window.isKeyWindow, "revision": revision, "text": field.stringValue,
             "cursor": [point.x, point.y], "counters": counters, "events": events,
             "lastCommand": lastCommand, "sheetVisible": sheet != nil,
+            "scrollY": scroll.contentView.bounds.origin.y,
+            "scrollDocumentHeight": rows.frame.height,
+            "scrollViewportHeight": scroll.contentView.bounds.height,
             "clipboardChangeCount": NSPasteboard.general.changeCount]
         if let data = try? JSONSerialization.data(withJSONObject: state, options: [.sortedKeys]) {
             try? data.write(to: root.appendingPathComponent("state.json"), options: .atomic)

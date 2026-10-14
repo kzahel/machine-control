@@ -54,3 +54,19 @@ Raw result text, MCP documentation, screenshots, profiling stacks, concrete
 process identities and exact third-party artifacts never belong in public Git.
 Use the private spike for minimized pins and investigation records and the
 public provider dossier for portable conclusions.
+
+## Python capture conformance
+
+After preparing fresh fixture apps, run the source-checkout script
+`session_capture.py --root ROOT --disposable-guest --target host` in the guest.
+Publish the controlling agent's session ID through the normal environment for
+audit attribution. The script acquires and releases its own guest-local claim
+through the retained transport. Do not hold another guest-local claim for it.
+
+The test uses captured PNG dimensions and known fixture control bounds, then
+checks the fixture's independent mouse callback, revision and scroll-offset
+state. It also refuses a reused capture and an independently moved window before
+input, and verifies unchanged sentinel content. It does not establish visual
+model grounding, interference-free input, or mapping on another provider.
+The fixture's private command channel supplies setup and simulated external
+movement; it is not part of an agent-task result. Live qualification is pending.
