@@ -4,9 +4,11 @@ Status: active. Both requested profiles completed guest YA/AAR qualification;
 the runner now collects both transcript formats and verifies effective settings.
 Seven scenarios and three CLI instruction arms are implemented. Sol/CLI has a
 valid passing smoke on every scenario; Opus/JS TextEdit save also passed. The
-frozen 105-trial campaign is continuing after evaluator repairs, retaining its
-original attempts and costs. The prepared Python matrix has not started.
-Broader model/route coverage remains pending; no broad baseline is claimed.
+frozen baseline has completed its first 35-cell round after evaluator repairs:
+33 passed, with a policy refusal and an agent discovery failure. All 36 attempts
+(including one invalid oracle attempt) retain their costs and reviewed traces.
+The Python matrix is running its first 14-cell round. Repetitions remain gated;
+no repeated broad baseline or candidate acceptance is claimed.
 Owning topics: [operational workflow automation](../../topics/operational-workflow-automation.md),
 [unified desktop client](../../topics/unified-desktop-client.md).
 
@@ -301,3 +303,30 @@ a text field. The next press clicked the field; subsequent visible observations
 and recovery completed the task. The final-state oracle does not certify every
 intermediate action. Keep this incident as a prototype identity/output hazard;
 [Tactical 123](123-persistent-agent-session.md) records the Python refusal test.
+
+Sol/JS TextEdit save stopped after two tool-discovery calls without any UI
+operation. Both filters exclude the pinned tool metadata: JavaScript word
+boundaries do not separate underscore-delimited names, and the description did
+not contain either searched phrase. Empty filtered lists are not proof that the
+server failed to register. Retain this as a discovery failure, with unfiltered
+availability unknown, rather than rerunning it as an infrastructure repair.
+This supports testing a precise, task-independent entry instruction separately
+from runtime changes; it does not establish that such an instruction wins.
+
+
+### First-round review gate
+
+All 35 model/route/scenario cells have a qualified result, with 33 effect passes.
+Both CLI profiles and Opus/JS passed all seven scenarios. Sol/Computer Use passed
+six with the extension policy refusal above; Sol/JS passed six with the TextEdit
+discovery failure above. Every attempt has reported usage and a hash-bound route
+review; every disposable workspace was discarded without a release error.
+One additional attempt remains invalid because of the repaired extension oracle,
+and its resources remain in the all-attempt totals.
+
+Report-time reanalysis includes provider recovery backoff and records parser and
+input hashes without replacing original receipts. The first-round report has
+one qualified observation per cell, so it is a setup/coverage gate, not a median
+comparison or a population reliability estimate. Baseline repetitions remain
+paused while the pinned Python candidate runs the corresponding fourteen-cell
+smoke. No model, prompt, runtime or lifecycle changes enter the frozen baseline.

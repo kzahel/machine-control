@@ -14,7 +14,8 @@ and background interference. [Tactical 124](../docs/tactical/124-native-behavior
 separates this evidence from model workflow efficiency and records limits.
 
 **Decision:** qualify the [realistic agent baseline](../docs/tactical/125-agent-capability-baseline.md)
-before the supported-session implementation: explicit YA model/effort/speed,
+before supported-session acceptance, freezing its inputs before the thin
+implementation slice: explicit YA model/effort/speed,
 the existing developer tasks plus menu/recovery cases, complete token classes,
 and instruction variants measured independently of runtime changes. The
 Codex-only TextEdit pilot does not satisfy this broader gate.

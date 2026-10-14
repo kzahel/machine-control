@@ -229,8 +229,9 @@ records the bounded campaign and remaining cross-model repetitions.
 two-window smokes on both requested agent families, plus a separate grounded
 capture-input conformance check. These are calibration results, not repeated
 efficiency evidence or broad platform acceptance. The seven-scenario baseline
-is continuing from its frozen client pin after two evaluator repairs; earlier
-invalid attempts retain their resource costs. [Tactical 123](../docs/tactical/123-persistent-agent-session.md)
+has completed its first model/route round; repeated baseline and candidate
+coverage are still pending. Evaluator repairs retain earlier invalid-attempt
+resource costs. [Tactical 123](../docs/tactical/123-persistent-agent-session.md)
 and [Tactical 125](../docs/tactical/125-agent-capability-baseline.md) own qualification
 and comparison status. Shell-session packaging, native stable identity and
 notification-based settling remain later work.
