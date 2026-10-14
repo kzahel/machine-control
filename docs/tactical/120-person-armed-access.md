@@ -1,7 +1,7 @@
 # 120 — Person-armed access retention
 
-Status: active. Decision recorded; macOS implementation in progress;
-Windows and Linux pending.
+Status: active. macOS implemented and verified on a personal Mac with an
+installed Developer ID build; Windows and Linux pending.
 Owning topic: [host control](../../topics/host-control.md#person-armed-access-is-the-persons-to-end).
 
 ## Objective and completion conditions
@@ -67,4 +67,30 @@ access returns, and Stop ends it. Mac also checks lock/unlock and restart.
 
 ## Final result
 
-Pending.
+### macOS
+
+**Current:** Implemented in `94de04f`; 178 resident tests pass, including
+real-socket revoke retention and restoration after a request grant ends.
+
+Installed check on a personal Mac with until-stopped access armed: a local
+build of that commit, signed with the same Developer ID so it met the
+installed app's designated requirement, replaced the installed 0.6.0 and the
+resident restarted. Saved consent restored all four scopes with no click
+(`origin: person`, `approver: local_consent`), so macOS permissions carried
+over. A CLI `grant revoke` and a `desktop raw` revoke both returned
+`revoked: false, retained: "person_armed"`; the same grant stayed active, a
+display capture succeeded, the saved consent was byte-identical, and the
+Activity journal recorded `access.revoke_retained`. Lock/unlock, Stop and
+re-arm with the person present remain to be checked.
+
+Deployment notes from that check:
+
+- Writing files into an app bundle under `~/Applications` from an agent shell
+  was refused with "Operation not permitted" (App Management protection);
+  renaming whole bundles on the same volume worked. A partial copy left the
+  LaunchAgent unable to spawn the resident until the original was renamed
+  back, after which 0.6.0 also restored the until-stopped consent unaided.
+  Swap complete, separately staged bundles by rename only.
+- The installed 0.6.0 bundle failed strict deep verification because the
+  bundled CLI had written `__pycache__` files inside it. **Open:** keep the
+  installed CLI from writing bytecode into the signed bundle.
