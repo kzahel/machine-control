@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from review_trial import annotation, calls_from, load_review
+from review_trial import annotation, calls_from, load_review, reevaluate, load_receipt
 
 
 class TrialReviewTest(unittest.TestCase):
@@ -43,6 +43,31 @@ class TrialReviewTest(unittest.TestCase):
             self.assertEqual(load_review(path)['routeAdherence'],'uncertain')
             (path/'transcript.jsonl').write_text(text+'\n')
             with self.assertRaisesRegex(ValueError,'bound to this transcript'):load_review(path)
+
+    def test_reanalysis_preserves_original_and_cannot_promote_failed_oracle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)
+            receipt={'provider':'claude','requestedModel':'claude-opus-5-5',
+                     'requestedEffort':'medium','effectiveProcess':{},'oracleExit':0,
+                     'oracle':{'passed':True},'validTrial':False}
+            (path/'trial.json').write_text(json.dumps(receipt))
+            original=(path/'trial.json').read_bytes()
+            rows=[{'type':'user','timestamp':'2026-01-01T00:00:00Z','message':{'content':'task'}},
+                  {'type':'user','isMeta':True,'timestamp':'2026-01-01T00:00:01Z','message':{'content':'image metadata'}},
+                  {'type':'assistant','timestamp':'2026-01-01T00:00:02Z','effort':'medium',
+                   'message':{'id':'m1','model':'claude-opus-5-5','stop_reason':'end_turn',
+                              'usage':{'speed':'standard','service_tier':'standard'}}}]
+            (path/'transcript.jsonl').write_text('\n'.join(map(json.dumps,rows)))
+            evaluation=reevaluate(path,reason='metadata correction')
+            self.assertTrue(evaluation['record']['passed'])
+            self.assertEqual((path/'trial.json').read_bytes(),original)
+            (path/'evaluation.json').write_text(json.dumps(evaluation))
+            self.assertEqual(load_receipt(path)['agentSeconds'],2)
+            self.assertFalse(reevaluate(path,reason='bad oracle',invalidate_oracle=True)['record']['validTrial'])
+            receipt['oracle']['passed']=False
+            (path/'trial.json').write_text(json.dumps(receipt))
+            self.assertFalse(reevaluate(path,reason='metadata correction')['record']['passed'])
+            with self.assertRaisesRegex(ValueError,'not bound'):load_receipt(path)
 
 
 if __name__=='__main__':unittest.main()

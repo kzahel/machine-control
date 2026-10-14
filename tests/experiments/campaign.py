@@ -44,6 +44,47 @@ def private_secret(path):
         raise ValueError('Credential must be a nonempty regular mode-0600 file')
 
 
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def row_key(row):
+    return tuple(row[k] for k in ('provider','task','route','repetition'))
+
+
+def snapshot_attempt(path):
+    record=json.loads((path/'trial.json').read_text())
+    hashes={name:digest(path/name) for name in ('trial.json','transcript.jsonl','evaluation.json','review.json')
+            if (path/name).is_file()}
+    if 'evaluation.json' in hashes:
+        evaluation=json.loads((path/'evaluation.json').read_text())
+        if (evaluation.get('schema')!='route-comparison-evaluation/v1' or
+                evaluation.get('receiptSha256')!=hashes['trial.json'] or
+                evaluation.get('transcriptSha256')!=hashes.get('transcript.jsonl')):
+            raise ValueError('Prior evaluation evidence changed')
+        record=evaluation['record']
+    if 'review.json' in hashes:
+        review=json.loads((path/'review.json').read_text())
+        if review.get('transcriptSha256')!=hashes.get('transcript.jsonl'):
+            raise ValueError('Prior route review evidence changed')
+        record={**record,'routeReview':review}
+    return {'directory':str(path.resolve()),'hashes':hashes,'record':record}
+
+
+def reusable(attempts):
+    completed=set()
+    for attempt in attempts:
+        record=attempt['record']
+        if record.get('releaseError') or record.get('released')!='discarded':
+            raise ValueError('Prior workspace disposal unresolved')
+        if record.get('validTrial') is True and not record.get('error'):
+            key=row_key(record)
+            if key in completed:
+                raise ValueError('Duplicate qualified prior trial')
+            completed.add(key)  # Product failures count; never retry to improve a score.
+    return completed
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, required=True, help='Clean detached baseline checkout')
@@ -56,6 +97,9 @@ def main():
     parser.add_argument('--matrix', choices=sorted(MATRICES), default='baseline')
     parser.add_argument('--pause-after-smoke', action='store_true')
     parser.add_argument('--start-paused', action='store_true', help='Prepare the manifest and wait for removal of its private pause file')
+    parser.add_argument('--resume-from',type=Path,help='Continue a stopped campaign in a new immutable result directory')
+    parser.add_argument('--allow-evaluator-change',action='append',default=[],
+                        help='Explicit reviewed path changed between source pins; never allow client or prompt changes')
     parser.add_argument('--ssh-key', type=Path, default=Path.home()/'.ssh/mc-experiments_ed25519')
     parser.add_argument('--known-hosts', type=Path, default=Path.home()/'.ssh/mc-experiments_known_hosts')
     parser.add_argument('--host-key-alias', default='mc-experiment-base')
@@ -81,14 +125,45 @@ def main():
     if any(route not in harness.ROUTES for values in routes.values() for route in values):
         parser.error('selected source does not implement every requested matrix route')
     rounds = plan_rounds(sorted(tasks), options.repetitions, options.seed, routes)
+    carried={provider:[] for provider in routes}
+    continuation=None
+    completed=set()
+    if options.resume_from:
+        prior=options.resume_from.resolve()
+        prior_state=json.loads((prior/'state.json').read_text())
+        prior_manifest=json.loads((prior/'campaign.json').read_text())
+        if prior_state['state'] not in ('failed','stopped_between_trials','complete'):
+            parser.error('prior campaign must have stopped and finished cleanup')
+        if prior_manifest['rounds']!=rounds or prior_manifest.get('matrix','baseline')!=options.matrix:
+            parser.error('prior matrix, ordering, seed or repetition plan differs')
+        old_revision=prior_manifest.get('sourceRevision',prior_manifest.get('baselineRevision'))
+        changed=subprocess.check_output(['git','diff','--name-only',old_revision,revision],cwd=source,text=True).splitlines()
+        if set(changed)-set(options.allow_evaluator_change):
+            parser.error('source changed outside explicitly reviewed evaluator paths')
+        for provider in routes:
+            manifest=json.loads((prior/provider/'manifest.json').read_text())
+            if any(manifest.get(k)!=v for k,v in {'provider':provider,'model':harness.DEFAULT_MODELS[provider],
+                    'effort':'medium','speed':'standard','instructionProfile':'current','seed':options.seed}.items()):
+                parser.error('prior provider profile differs')
+            carried[provider]=manifest.get('carriedAttempts',[])
+            for attempt in carried[provider]:
+                if any(digest(Path(attempt['directory'])/name)!=value for name,value in attempt['hashes'].items()):
+                    parser.error('carried evidence changed')
+            carried[provider]+= [snapshot_attempt(p.parent) for p in sorted((prior/provider).glob('*/*/trial.json'))]
+        completed=reusable([a for values in carried.values() for a in values])
+        if not completed<={row_key(row) for rows in rounds for row in rows}:
+            parser.error('unexpected prior cells')
+        continuation={'campaign':str(prior),'campaignSha256':digest(prior/'campaign.json'),
+                      'sourceRevision':old_revision,'reviewedEvaluatorChanges':changed}
     campaign = options.results / ('campaign-' + harness.now())
     campaign.mkdir(mode=0o700, parents=True)
     if options.start_paused:
         (campaign/'pause').touch(mode=0o600)
-    state = {'state': 'prepared', 'completed': 0, 'planned': sum(map(len, rounds)),
+    state = {'state': 'prepared', 'completed': len(completed), 'newAttempts':0,
+             'carriedAttempts':sum(map(len,carried.values())), 'planned': sum(map(len, rounds)),
              'matrix': options.matrix,
              'sourceRevision': revision, 'driverSha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
-    (campaign/'campaign.json').write_text(json.dumps({**state, 'rounds': rounds}, indent=2)+'\n')
+    (campaign/'campaign.json').write_text(json.dumps({**state,'continuation':continuation,'rounds': rounds}, indent=2)+'\n')
     batches, summaries = {}, {}
     for provider in routes:
         directory = campaign/provider
@@ -100,6 +175,7 @@ def main():
         manifest = {'schema': 'route-comparison-batch/v1', 'revision': revision, 'provider': provider,
             'model': args.model, 'effort': args.effort, 'speed': 'standard', 'instructionProfile': 'current',
             'seed': options.seed, 'pollSeconds': 1.0, 'driverSha256': state['driverSha256'],
+            'continuation':continuation,'carriedAttempts':carried[provider],
             'plan': [{k: row[k] for k in ('task', 'route', 'repetition')}
                      for rows in rounds for row in rows if row['provider'] == provider],
             'fixtureHashes': {str(p.relative_to(source)): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -126,6 +202,8 @@ def main():
                 while not (campaign/'continue').exists() and not stopping and not (campaign/'stop').exists():
                     time.sleep(1)
             for row in rows:
+                if row_key(row) in completed:
+                    continue
                 while (campaign/'pause').exists() and not stopping and not (campaign/'stop').exists():
                     status('paused_between_trials')
                     time.sleep(1)
@@ -137,12 +215,13 @@ def main():
                 receipt = harness.run_trial(args, tasks[row['task']], row['route'], row['repetition'], directory)
                 summaries[row['provider']].append(receipt)
                 (directory/'summary.json').write_text(json.dumps(summaries[row['provider']], indent=2)+'\n')
-                state['completed'] += 1
+                state['newAttempts'] += 1
                 print(json.dumps({**row, **{key: receipt.get(key) for key in
                     ('passed', 'validTrial', 'agentSeconds', 'toolCalls', 'error', 'releaseError')}}), flush=True)
                 if receipt.get('error') or receipt.get('releaseError') or not receipt.get('released') \
                         or not receipt.get('validTrial'):
                     raise RuntimeError('Unqualified trial; inspect receipt before scheduling more work')
+                state['completed'] += 1
         status('complete', current=None)
         return 0
     except BaseException as error:

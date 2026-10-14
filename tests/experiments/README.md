@@ -69,3 +69,18 @@ Keep its source and receipts separate from the baseline. `--start-paused`
 prepares either matrix with a private pause file before any VM is acquired;
 remove that file only after the preceding driver confirms between-trial cleanup.
 Do not run two drivers against one appliance concurrently.
+
+A stopped campaign can continue with `--resume-from /private/campaign-ID`.
+This creates a new directory and snapshots the prior receipts and reviews with
+source hashes. Only unqualified cells are retried; qualified product failures
+remain results. Disposal must be confirmed for every prior attempt. The source
+pin, plan and profiles must match. After an evaluator repair, enumerate each
+reviewed changed path with `--allow-evaluator-change PATH`; client and instruction
+changes belong in a new comparison, not a continuation.
+
+`review_trial.py TRIAL --reevaluate --notes REASON` records corrected transcript
+measurements in a separate hash-bound `evaluation.json`; it preserves the original
+receipt. Add `--invalidate-oracle` when independent review establishes a defective
+or inconclusive oracle. Reanalysis never turns a false effect oracle into a pass.
+Reports read these evaluations and carried attempts, retain all invalid-attempt
+costs, and require one qualified result per planned cell for completeness.

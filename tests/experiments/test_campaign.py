@@ -1,6 +1,9 @@
 import collections
 import unittest
-from campaign import plan_rounds, MATRICES
+from campaign import plan_rounds, MATRICES, reusable, snapshot_attempt
+import json
+from pathlib import Path
+import tempfile
 
 
 class CampaignPlanTest(unittest.TestCase):
@@ -23,6 +26,25 @@ class CampaignPlanTest(unittest.TestCase):
             self.assertEqual({row['repetition'] for row in rows},{index})
             self.assertEqual({row['route'] for row in rows},{'mc-python'})
             self.assertEqual(collections.Counter(row['provider'] for row in rows),{'codex':7,'claude':7})
+
+    def test_only_unqualified_attempts_are_retried(self):
+        def attempt(n,valid,passed):
+            return {'record':{'provider':'codex','task':'save','route':'cli','repetition':n,
+                             'validTrial':valid,'passed':passed,'released':'discarded'}}
+        attempts=[attempt(1,True,True),attempt(2,True,False),attempt(3,False,False)]
+        self.assertEqual(reusable(attempts),{('codex','save','cli',1),('codex','save','cli',2)})
+        with self.assertRaisesRegex(ValueError,'Duplicate qualified'):reusable(attempts+[attempts[0]])
+        attempts[0]['record']['released']=None
+        with self.assertRaisesRegex(ValueError,'disposal unresolved'):reusable(attempts)
+
+    def test_changed_evaluation_evidence_is_refused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)
+            (path/'trial.json').write_text('{}')
+            (path/'transcript.jsonl').write_text('original')
+            (path/'evaluation.json').write_text(json.dumps({'schema':'route-comparison-evaluation/v1',
+                                                          'receiptSha256':'wrong'}))
+            with self.assertRaisesRegex(ValueError,'evidence changed'):snapshot_attempt(path)
 
 
 if __name__=='__main__':unittest.main()

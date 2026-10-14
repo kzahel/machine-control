@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import statistics
 from measurements import token_metrics
-from review_trial import load_review
+from review_trial import load_receipt
 
 
 def distribution(values):
@@ -50,13 +50,19 @@ def summarize(manifest, records):
     expected = {(x['task'], x['route'], x['repetition']) for x in manifest['plan']}
     observed = collections.Counter((x.get('task'), x.get('route'), x.get('repetition')) for x in records)
     duplicates = sum(n-1 for n in observed.values() if n>1)
+    qualified=collections.Counter((x.get('task'),x.get('route'),x.get('repetition'))
+        for x in records if x.get('validTrial') is True and not x.get('error'))
+    duplicate_qualified=sum(n-1 for n in qualified.values() if n>1)
     groups = collections.defaultdict(list)
     for row in records:
         groups[(row.get('task'),row.get('route'))].append(row)
     result = {"schema":"route-comparison-report/v1", "plannedTrials":len(expected),
               "recordedTrials":len(records), "missingTrials":len(expected-observed.keys()),
               "unexpectedTrials":len(observed.keys()-expected), "duplicateTrials":duplicates,
-              "complete":observed.keys()==expected and not duplicates, "groups":[]}
+              "duplicateQualifiedTrials":duplicate_qualified,
+              "unqualifiedCells":len(expected-qualified.keys()),
+              "complete":qualified.keys()==expected and not duplicate_qualified and observed.keys()<=expected,
+              "groups":[]}
     for (task,route), rows in sorted(groups.items()):
         valid = [r for r in rows if r.get('validTrial') is True and not r.get('error')]
         passed = [r for r in valid if r.get('passed') is True]
@@ -100,6 +106,6 @@ if __name__=='__main__':
     parser.add_argument('run',type=Path)
     args=parser.parse_args()
     manifest=json.loads((args.run/'manifest.json').read_text())
-    records=[{**json.loads(p.read_text()), 'routeReview':load_review(p.parent)}
-             for p in sorted(args.run.glob('*/*/trial.json'))]
+    records=[x['record'] for x in manifest.get('carriedAttempts',[])]
+    records.extend(load_receipt(p.parent) for p in sorted(args.run.glob('*/*/trial.json')))
     print(json.dumps(summarize(manifest,records),indent=2))

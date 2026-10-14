@@ -240,7 +240,8 @@ showed the seeded title and the agent's UI tree showed an enabled extension,
 but the oracle reported failure. It read Chrome's asynchronously written
 preferences only once. The repaired oracle polls registration and fresh-page
 behavior together, records each separately, and treats unreadable or conflicting
-evidence as unqualified. Live requalification is pending; the original attempt
+evidence as unqualified. Live requalification confirmed registration initially absent, then present
+after 5.1 seconds while behavior was already correct. The original attempt
 must not be counted as a product failure or silently changed into a pass.
 
 A separate Opus/window trial passed its effect oracle but the parser counted
@@ -250,5 +251,11 @@ The parser now excludes internal metadata from user-task counts and retains
 real additional user turns as unqualified. Reanalysis can recover its duration
 without rerunning the model; preserve the original receipt and parser provenance.
 
-Thirty-eight offline experiment tests pass, including delayed registration,
+Forty-two offline experiment tests pass, including delayed registration,
 disabled/wrong-path extensions, inconclusive evidence and image metadata.
+
+Campaign continuation now snapshots prior receipts and reviews into a new
+manifest, retains invalid-attempt costs, and retries only unqualified cells.
+Qualified product failures are never retried to improve a score. Source changes
+require individually declared evaluator paths; runtime and prompt changes must
+start a new comparison. The recovered Opus/window duration is 65.114 seconds.

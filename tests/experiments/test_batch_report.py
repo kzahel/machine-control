@@ -41,6 +41,16 @@ class BatchReportTest(unittest.TestCase):
         self.assertEqual(group['resourceAccounting']['allAttemptResourcesPerSuccess']['tokens'],220)
         self.assertEqual(group['resourceAccounting']['byOutcome']['failed']['seconds']['sum'],10)
 
+    def test_invalid_retry_costs_remain_in_completed_cell(self):
+        row={'task':'save','route':'cli','repetition':1,'agentSeconds':10,'toolCalls':2,
+             'tokenUsage':{'input_tokens':100,'output_tokens':10}}
+        result=summarize({'plan':[row]},[{**row,'validTrial':False,'passed':False},
+                                       {**row,'validTrial':True,'passed':True}])
+        self.assertTrue(result['complete'])
+        self.assertEqual(result['duplicateTrials'],1)
+        self.assertEqual(result['duplicateQualifiedTrials'],0)
+        self.assertEqual(result['groups'][0]['resourceAccounting']['allAttemptResourcesPerSuccess']['tokens'],220)
+
     def test_oracle_pass_does_not_imply_reviewed_route_adherence(self):
         rows=[{'task':'save','route':'cli','repetition':n,'validTrial':True,'passed':True}
               for n in (1,2,3)]
