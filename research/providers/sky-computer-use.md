@@ -279,6 +279,45 @@ persistence, tool and image output, lifecycle hooks and cleanup. The working
 external host is feasibility evidence, not a completed YA feature or a promise
 that the proprietary interface is stable or supported for third-party use.
 
+## Agent-facing mechanics and a signed-out guest (2026-10-14)
+
+**Current, bounded live-tested:** in a dedicated macOS 26.6 experiment guest,
+Codex Computer Use worked without a ChatGPT sign-in while Codex's model
+traffic used a router-provided provider. It needed the desktop app's installed
+component set copied from a matching installation, the desktop app running
+(signed out was enough; without it the runtime's launch request for the
+native service failed), and Accessibility plus Screen Recording for the
+service. `getState`, accessibility trees and screenshots then worked, and the
+same image's isolated clones inherited the setup
+([Tactical 119](../../docs/tactical/119-vm-comparison-experiments.md)).
+
+**Current, source-reviewed:** the model-facing `js` tool is a persistent REPL
+with top-level await; bindings such as an app handle survive between calls
+until `js_reset`. A bootstrap import installs `cua`, whose app and browser-tab
+handles share one target API (`getAXState`, `getScreenshot`, `click` by
+element number or coordinates, `setValue`, `scroll`, `drag`, key, type and
+paste). The JavaScript side reaches the native service through a trusted
+in-runtime service over a length-prefixed JSON-RPC Unix socket with a handful
+of request types. Mac trees are indented text lines with small integer element
+numbers; after the first read the native service returns diffs (`~` changed,
+`+` added, removed numbers summarized as ranges) or a one-line no-change
+sentinel. Numbers are reused across reads. Screenshots are attached inline.
+User interference surfaces as a typed, retryable "user changed the app"
+error. The bundled guidance tells the model to batch an action with the next
+observation, avoid sleeps, prefer element numbers, and verify visible results.
+
+**Current, measured on one task (three runs; caveats below):** Computer Use
+calls took about 1 s each with 1–5 k-character diffs; Machine Control CLI
+calls took about 2.5 s, of which roughly 1–2 s was CLI, adapter and claim
+overhead rather than resident work, and a full desktop snapshot was about
+140 KB of JSON. Computer Use addressed elements by number; the Machine Control
+run relied on coordinates and window captures retrieved in separate steps.
+Both Computer Use runs failed in the native Open panel; the Machine Control
+run succeeded. The runs used different probe folders and agent wrappers, so
+this is a qualitative interface comparison, not a success-rate result.
+[Unified desktop client](../../topics/unified-desktop-client.md) records the
+resulting persistent-interface experiment.
+
 ## Observed security posture
 
 Each row is a separate evidence claim. In particular, do not combine the

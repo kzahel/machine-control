@@ -154,6 +154,16 @@ profile. Interpreter persistence does not imply sandboxing or permission to
 forward arbitrary code into privileged providers. Its app/device handles call
 typed operations and still reject stale references and revoked authority.
 
+**Current, experiment:** `tests/experiments/mc-repl` is a dependency-free
+stdio MCP server exposing a persistent JavaScript context with an `mc` object:
+app handles, compact numbered trees with a no-change sentinel and stale-number
+refusal, actions that return the refreshed tree, inline screenshots and
+`choose` for native panels. It deliberately talks to the local resident
+socket directly and skips claims and controller audit, so it is confined to
+the disposable experiment guest. The route-comparison driver can run it as a
+third route against the CLI and Computer Use. It is evidence for the facade
+choice, not the supported runtime.
+
 **Proposal:** initially reuse the existing Python session client to prove the
 contract and compatibility CLI. Prototype one thin persistent model-facing
 runtime, comparing Python and JavaScript on identical fixture workflows before

@@ -23,6 +23,14 @@ import time
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
+MC_REPL = Path(__file__).resolve().parent / "mc-repl" / "mc-repl.mjs"
+# Registered only in mc-repl trial clones; the base image stays unchanged.
+MC_REPL_CONFIG = """
+[mcp_servers.mc]
+command = "/opt/homebrew/bin/node"
+args = ["/Users/admin/experiment/mc-repl.mjs"]
+startup_timeout_sec = 30
+"""
 TASKS = Path(__file__).resolve().parent / "tasks"
 CLI = [sys.executable, str(ROOT / "bin/machine-control")]
 
@@ -33,6 +41,11 @@ ROUTES = {
         "platforms/macos/skills/drive-macos-host/SKILL.md. Do not use Codex Computer Use, "
         "AppleScript, osascript or System Events, and do not use shell commands to change "
         "the files or settings the task is about."),
+    "mc-repl": (
+        "Use the mc tool (a persistent JavaScript session over this Mac's Machine Control "
+        "resident; its description lists the API) for all UI work. Do not use the "
+        "machine-control CLI, Codex Computer Use, AppleScript, osascript or System Events, and "
+        "do not use shell commands to change the files or settings the task is about."),
     "computer-use": (
         "Use Codex Computer Use (the cua object in your JavaScript tool) for all UI work. "
         "Do not use Machine Control, AppleScript, osascript or System Events, and do not use "
@@ -148,6 +161,9 @@ def run_trial(args, task, route, index, run_dir):
         guest.open_tunnel()
         common = (TASKS / "common-chrome.sh").read_text()
         guest.run("mkdir -p ~/experiment && cat > ~/experiment/common-chrome.sh", stdin=common)
+        if route == "mc-repl":
+            guest.run("cat > ~/experiment/mc-repl.mjs", stdin=MC_REPL.read_text())
+            guest.run("cat >> ~/.codex/config.toml", stdin=MC_REPL_CONFIG)
         setup = guest.run("bash -s", stdin=(TASKS / task["id"] / "setup.sh").read_text())
         record["setup"] = {"exit": setup.returncode, "stderr": setup.stderr[-500:]}
         if setup.returncode:
@@ -212,7 +228,7 @@ def run_trial(args, task, route, index, run_dir):
 
 
 def transcript_metrics(text):
-    calls = cua = mc_calls = 0
+    calls = cua = mc_calls = mc_repl = 0
     for line in text.splitlines():
         try:
             item = json.loads(line)
@@ -223,8 +239,10 @@ def transcript_metrics(text):
             calls += 1
             body = json.dumps(payload.get("arguments") or payload.get("input") or "")
             cua += "cua." in body or "getApp(" in body
+            mc_repl += payload.get("name") == "mc" or '"server": "mc"' in body
             mc_calls += body.count("machine-control")
-    return {"toolCalls": calls, "computerUseCalls": cua, "machineControlInvocations": mc_calls}
+    return {"toolCalls": calls, "computerUseCalls": cua, "machineControlInvocations": mc_calls,
+            "mcReplCalls": mc_repl}
 
 
 def audit_metrics(text):
@@ -245,7 +263,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", default="macos-exp")
     parser.add_argument("--task", action="append", help="Task id; repeat; default all")
-    parser.add_argument("--route", action="append", choices=sorted(ROUTES))
+    parser.add_argument("--route", action="append", choices=sorted(ROUTES),
+                        help="Default: machine-control and computer-use")
     parser.add_argument("--repetitions", type=int, default=1)
     parser.add_argument("--results", type=Path, default=Path(os.environ.get(
         "XDG_STATE_HOME", Path.home() / ".local/state")) / "machine-control/experiments")
@@ -258,7 +277,7 @@ def main():
 
     tasks = [json.loads((TASKS / name / "task.json").read_text())
              for name in (args.task or sorted(p.name for p in TASKS.iterdir() if p.is_dir()))]
-    plan = [(task, route, n) for task in tasks for route in (args.route or sorted(ROUTES))
+    plan = [(task, route, n) for task in tasks for route in (args.route or ["computer-use", "machine-control"])
             for n in range(1, args.repetitions + 1)]
     random.shuffle(plan)
     run_dir = args.results / f"run-{now()}"
