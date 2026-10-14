@@ -1,12 +1,12 @@
 # Run route-comparison experiments in a macOS VM
 
-Status: **Proposal** with explicit open checks; the experiment base and the
-Machine Control route are proven (see Tactical 119). The usage journal, session
-attribution, Tart workspaces and target-native `--target host` control are
-**Current**. Running Codex Computer Use and YepAnywhere inside a Tart guest,
-routing guest agents through the host's agent-auth-router, and the trial
-driver are not yet proven; [Tactical 119](tactical/119-vm-comparison-experiments.md)
-tracks that build-out.
+Status: **Current, bounded live-tested** for guest YA/Codex through AAR,
+Computer Use, MC CLI and the experimental JS route in disposable Tart guests.
+Five workflows have initial evidence; [Tactical 124](tactical/124-native-behavior-and-efficiency.md)
+adds a five-repeat TextEdit pilot and measurement hardening. Explicit model
+settings, Claude collection, menu/recovery scenarios and instruction comparisons
+are the next [baseline gate](tactical/125-agent-capability-baseline.md), not
+capabilities already implemented by the runner.
 
 Purpose: run many paired trials of the same UI task, one driven through
 Machine Control and one through Codex Computer Use, inside disposable macOS
@@ -57,14 +57,17 @@ Design choices:
   and oracle output to a private results directory on the host. Host YA
   analyzes that directory; it does not need a multi-host session view.
 
-## 0 — Prove the open checks first
+## 0 — Qualify a fresh experiment base
 
-Each check is cheap and decides the design. Record outcomes in Tactical 119.
+These checks established the current Codex base in Tactical 119. Repeat them
+for a fresh base/provider configuration; Tactical 125 adds explicit model,
+effort, speed and usage qualification before new comparison batches.
 
 1. **Computer Use through AAR.** On the host, start a YA Codex session whose
    Codex configuration uses the AAR provider and ask it to run
    `cua.getState()`. The earlier Computer Use runs used a direct ChatGPT
-   login (`model_provider: openai`), so this is unproven. If it fails, guest
+   login (`model_provider: openai`); the later guest trials proved AAR for the
+   pinned base. If qualification of a new base fails, guest
    Codex needs its own ChatGPT login for the Computer Use arm.
 2. **Computer Use in a Tart guest.** Install the ChatGPT app and Codex
    Computer Use in a guest, grant Accessibility and Screen Recording, and run
@@ -225,3 +228,13 @@ tool calls before attributing results to a route: the route restriction is a
 prompt, not a tool-isolation boundary. The legacy `wallSeconds` diagnostic
 excludes workspace acquisition and final cleanup; use transcript `agentSeconds`
 for the agent comparison, not that field as an end-to-end provisioning cost.
+
+`successfulTokenUsage` and `allRecordedTokenUsage` report input, cache-read,
+non-cached input, cache-write, output, reasoning and total-token distributions
+where available. Each metric's `n` is its coverage, not automatically all trials.
+The all-recorded view retains failed/invalid-attempt usage. Input includes cache
+classes; output includes reasoning. Do not add those breakdowns a second time.
+The legacy `successfulInputTokens` field is raw provider input; use the normalized
+fields for future cross-provider comparisons. Claude normalization accepts
+already-aggregated totals, but the current runner does not collect Claude
+transcripts. Missing usage stays unknown; token counts are not subscription cost.

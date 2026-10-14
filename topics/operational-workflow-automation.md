@@ -13,6 +13,12 @@ failures separately. Deterministic native probes independently check effects
 and background interference. [Tactical 124](../docs/tactical/124-native-behavior-and-efficiency.md)
 separates this evidence from model workflow efficiency and records limits.
 
+**Decision:** qualify the [realistic agent baseline](../docs/tactical/125-agent-capability-baseline.md)
+before the supported-session implementation: explicit YA model/effort/speed,
+the existing developer tasks plus menu/recovery cases, complete token classes,
+and instruction variants measured independently of runtime changes. The
+Codex-only TextEdit pilot does not satisfy this broader gate.
+
 **Current:** Fresh desktop appliance bring-ups have a
 [dated private provisioning journal](../docs/provisioning-journals.md), with
 automatic common CLI intent/result metadata and safe Windows/Linux/macOS phase

@@ -1,0 +1,178 @@
+# 125 — Agent capability baseline and instruction evaluation
+
+Status: planned; current runner is Codex-only. Token reporting is implemented;
+explicit launch-setting qualification, Claude collection and added scenarios
+remain open. No multi-model baseline has been claimed or run.
+Owning topics: [operational workflow automation](../../topics/operational-workflow-automation.md),
+[unified desktop client](../../topics/unified-desktop-client.md).
+
+## Objective
+
+The operator wants realistic developer workflows validated through guest YA,
+with Codex GPT-6.1 Sol and Claude Opus 5.5 at medium effort and normal speed,
+before implementing the supported session. Measure success, time, model tool
+calls and tokens, and test whether better entry instructions reduce discovery
+cost compared with simply pointing an agent at the repository.
+
+Extend the existing evaluator. [Tactical 124](124-native-behavior-and-efficiency.md)
+is a completed native study and one-task pilot, not this broader acceptance gate.
+
+## Completion conditions
+
+- Every scenario has deterministic setup and an independent application-effect
+  oracle, including negative checks that reject an unchanged or wrong result.
+- Both requested models complete a guest smoke through the intended AAR route;
+  requested and effective model, effort and speed are independently retained.
+  Missing or mismatched settings make a trial unqualified for that comparison.
+- Each supported model/route/scenario cell has three valid baseline repetitions,
+  with failures and infrastructure errors distinguished. Known product failures
+  are results; missing infrastructure or a defective oracle is not a baseline.
+- Instruction variants, tooling, source, apps and model settings are pinned.
+  Raw transcripts, usage and intervention evidence remain private.
+- Baseline results are frozen before the supported session changes. Candidate
+  comparison uses the same conditions and reports every scenario, including
+  regressions and unsuccessful-attempt resource use.
+
+## Boundaries
+
+Use disposable claimed guests, provisioning journals and verified credential
+handoff. Guest-local YA launches agents; a host tunnel reaches YA loopback
+(port 3400 in the existing appliance), and model traffic uses the existing
+loopback AAR reverse tunnel. Do not launch a benchmark on the personal desktop.
+Never change the sealed base during a batch or expose account/router secrets.
+Model effort labels are provider-specific, not equal compute budgets.
+
+## Scenario corpus
+
+| Scenario | Current state | Required effect oracle / coverage |
+| --- | --- | --- |
+| Load unpacked extension | Existing fixture | Upgrade path-presence check to enabled extension plus a fixture-page behavior change; reject a disabled or merely registered extension. |
+| Upload local file | Existing fixture | Upgrade filename-only check to received bytes/hash; retain native picker and direct upload as explicitly separate capability variants. |
+| Finder rename and move | Existing fixture | Destination name and exact original bytes; old paths absent. Add duplicate-name collision as a later recovery variant. |
+| TextEdit save | Existing, repeated pilot | Saved document content and format/path; current text containment check is the initial baseline. |
+| System Settings option | Existing fixture | Persisted setting value with setup proving the opposite initial value. |
+| App menu bar and sheet | Add | Use TextEdit Format/menu action and save resulting plain text; verify actual format/content. Review calls to establish menu use rather than a keyboard shortcut. Include cancel/confirm sheet handling. |
+| Two windows and recovery | Add owned app fixture | Edit the intended document while another window is frontmost; reject stale references after a controlled window replacement; verify no wrong-window edits and record focus/cursor disturbance. |
+
+The existing deterministic native corpus separately checks menus, background
+input, delayed/burst/continuous updates and tree observations without a model.
+Run those checks when changing native routing/settling; agent task success is
+not a substitute for delivery/interference conformance.
+
+Keep a small held-out set out of instruction tuning: for example Preview
+export, a browser popup/extension reload and a different app's file chooser.
+Implement their oracles before using them to claim generalization. Seed task
+paths/content so instructions cannot hard-code answers.
+
+## Ordered work
+
+### 1 — qualify YA launch settings and usage collection
+
+The inspected YA API accepts `provider`, `model`, `thinking` and `serviceTier`
+on `POST /api/projects/PROJECT_ID/sessions`. `thinking: "medium"` maps to
+explicit effort. The host catalog resolves `gpt-6.1-sol` and the Claude `opus`
+alias to `claude-opus-5-5`; this is host evidence, not proof of guest access.
+Prefer the exact model ID, with no silent alias/model fallback.
+The [official Sol model page](https://developers.openai.com/api/docs/models/gpt-6.1-sol)
+lists medium support; the inspected local Codex catalog reports a different
+default from the API page, reinforcing the need for an explicit selection.
+
+Qualify these profiles in the guest first:
+
+| Profile | Provider/model | Requested execution |
+| --- | --- | --- |
+| Codex baseline | `codex` / `gpt-6.1-sol` | medium effort, normal speed |
+| Claude baseline | `claude` / `claude-opus-5-5` | medium effort, normal speed |
+
+Normal speed must be verified in the installed provider's effective settings;
+omission alone may inherit a saved fast setting. Resolve the installed YA/CLI
+normal-tier representation, disable fast overrides in the disposable guest,
+and retain acknowledgements/config provenance. Record any AAR model/tier
+rewrite. Do not infer effective effort from the requested body or zero reported
+reasoning tokens. Fail qualification rather than silently calling it medium.
+The earlier pilot inherited base settings and cannot be relabeled retrospectively.
+
+Add explicit runner profiles and retain a sanitized request plus actual settings
+in each receipt. Suppress optional recap/helper/suggestion work or account for
+it separately. Freeze exposed tool inventories and instruction hashes. The
+current runner only collects Codex JSONL; Claude needs its own transcript path,
+matched completion semantics, message/usage deduplication and MCP registration.
+Do not reuse the Codex parser or assume Codex MCP config enables Claude tools.
+
+### 2 — establish comparable metrics
+
+Record independent success, wrong-window effects, timeouts, route violations,
+claim/grant refusals, retries, human requests and infrastructure/cleanup failures.
+Separate transcript task time from setup/polling and record model tool calls,
+serialized result volume and available provider-operation counts.
+
+Report total input, cache reads, non-cached input, cache writes where reported,
+output, reasoning where reported and total input plus output. Codex input
+already includes cache; Claude's raw input excludes its separate cache classes.
+Reasoning is an output breakdown and must not be added again. Use session totals,
+not context-window size or a sum of repeated cumulative events. Deduplicate
+Claude usage by actual API message/request, including streamed updates.
+Missing counters remain unknown with coverage; tokenizers differ across models.
+
+Show successful-task distributions and all-attempt token/time totals, including
+failed attempts and invalid runs separately. Cost-per-success is total trial
+resource use divided by successes, with complete accounting and zero-success
+handling; never silently drop failed spend. Subscription tokens are not dollars.
+Dollar estimates require pinned provider/tier prices and disclosed cache rules.
+
+**Current:** `report_batch.py` exposes normalized successful and all-recorded
+usage distributions and coverage. It still reads a single batch; cross-profile
+comparison, failure-separated resource totals and cost-per-success remain open.
+Claude normalization of supplied totals is tested, but transcript collection is
+not implemented. Raw usage stays available for later reconciliation.
+
+### 3 — compare instructions without changing the runtime
+
+Keep three versioned instruction arms, with identical tasks and route restrictions:
+
+- **Discovery:** the ordinary repository-pointer instruction the operator uses.
+- **Current guide:** the existing route/skill instruction (the Tactical 124 arm).
+- **Quickstart:** one short entry point explaining doctor, exact claim lifecycle,
+  app launch/addressing, observation, native panels and effect verification.
+
+The quickstart is task-independent: no element IDs, task-specific click sequence
+or oracle answers. Include one small generic working example and links for rare
+operations. Avoid loading the entire research corpus to perform a UI task.
+Measure documentation/help calls and tokens before the first useful UI action,
+as well as whole-task success/time/tokens. Include instruction tokens in costs.
+
+Tune on a declared development subset (extension, Finder and TextEdit), then
+freeze instructions before confirmation on the remaining/held-out scenarios.
+Compare the discovery/current-guide arms with quickstart on the same CLI first;
+do not simultaneously change persistence, language and prompts. Promote winning
+instructions to the real skill/agent entry point only after confirmation.
+
+### 4 — run the baseline and candidate gates
+
+First smoke each supported cell once to validate setup, model settings, tools,
+transcript collection and oracle. Then run three seeded repetitions per cell,
+serially within appliance limits. Start with CLI and JS prototype on both agent
+families, plus Computer Use on Codex. Computer Use on Claude is unsupported
+unless separately demonstrated; do not treat that missing cell as a failure.
+Seven scenarios across those five cells and three repeats is 105 trials, so
+keep smoke, instruction tuning and confirmation as separately bounded batches.
+Do not start the full matrix before the smoke/accounting checks pass.
+
+Freeze that baseline before Tactical 123's thin implementation slice. Rerun the
+same suite for the supported Python session with equivalent claims/audit and
+observation policy. A candidate must have no unexplained success/effect regression
+on previously passing scenarios; speed or fewer tokens cannot offset a wrong
+result. Investigate each new failure. Report median/range with three samples,
+then use five repetitions on changed or noisy cells. Avoid population claims.
+Only compare Python and JS language effects once their enforcement, operations,
+output and observation policies match. Preserve the original unsafe-to-generalize
+prototype label until then.
+
+## Validation and final result
+
+Seventeen offline checks pass, including usage normalization and accounting
+coverage. Existing
+five-task fixtures and the one-task repeated pilot are current evidence.
+Model-profile smoke, stronger oracles, new scenarios, instruction arms and the
+multi-model baseline are pending. This tactical is an explicit prerequisite to
+claiming the supported session improves realistic agent workflows.

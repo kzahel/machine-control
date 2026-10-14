@@ -5,6 +5,9 @@ Status: proposed. Planning only; the experiment prototype is
 The completed [native efficiency investigation](124-native-behavior-and-efficiency.md)
 prioritizes a thin claim-aware slice before broad packaging. Its repeated pilot
 does not isolate the prototype's combined changes.
+The [agent capability baseline](125-agent-capability-baseline.md) now gates the
+thin implementation: realistic scenarios, explicit model/effort/speed profiles,
+provider-correct tokens and separately measured instruction improvements.
 Owning topics: [unified desktop client](../../topics/unified-desktop-client.md),
 [installed agent CLI](../../topics/installed-agent-cli.md).
 Evidence: [Tactical 119](119-vm-comparison-experiments.md) and the
@@ -28,13 +31,14 @@ session interface that:
 - is reachable as an MCP tool, from a plain shell, and as a library, so
   agents without MCP still get the persistence benefit;
 - works locally and against a remote target through the same adapter; and
-- matches or beats the experiment prototype in repeated trials with more than
-  one agent family.
+- passes the scenario/effect regression gate on more than one agent family,
+  with repeated time/call/token comparisons and enforcement differences stated.
 
-## What made the prototype faster
+## Candidate sources of the prototype's efficiency difference
 
-- One long-lived process: no per-call CLI start, registry load, adapter spawn
-  or claim check (roughly 1–2 s of each CLI call).
+- One long-lived process reduces repeated CLI startup and adapter work. The
+  prototype also omits claim/controller-audit checks; those must be restored,
+  and their cost was not separately measured.
 - Several actions per model call, written as code.
 - Indented text trees with small numbers instead of JSON with long
   references, a one-line no-change reply, and the refreshed tree returned with
@@ -44,6 +48,7 @@ session interface that:
 
 Only the first needs a persistent process. Compact text observations, small
 numbers and element clicks also help the CLI and should land there too.
+These were combined changes, not individually established causal speedups.
 
 ## Boundaries
 
@@ -204,6 +209,15 @@ must remain separate. See the [provider findings](../../research/providers/sky-c
 
 ## Ordered work
 
+### 0 — freeze the realistic agent baseline
+
+Complete [Tactical 125](125-agent-capability-baseline.md)'s model-profile smoke,
+scenario/oracle qualification and repeated baseline before changing the session
+runtime. Include the existing five workflows, dedicated menu and two-window
+recovery cases, and instruction comparisons. The earlier fifteen-trial result
+covers TextEdit on one model only. Preserve a baseline that the thin slice can
+actually rerun, including token use and failed-attempt costs.
+
 ### 1 — build the Python session and keep a JavaScript A/B
 
 **Decision:** the supported session is Python: the installed CLI already
@@ -255,7 +269,9 @@ click, and a press fallback, so CLI-only agents improve as well.
 Unit tests for numbering, staleness, rendering, diffs and claim lifecycle;
 mock-adapter contract tests for each facade; live Mac fixture conformance;
 route-comparison batches with repetitions before and after, recorded in
-Tactical 119.
+Tactical 125. Task success/effect regressions block acceptance even if time or
+tokens improve. Use the same model settings, prompts, fixtures and enforcement
+when attributing a change to persistence, observation policy or language.
 
 ## Final result
 

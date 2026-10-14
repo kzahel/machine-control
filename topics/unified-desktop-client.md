@@ -182,6 +182,11 @@ choices, not the universal device or security model.
 
 ### Efficiency evidence and implementation order
 
+**Decision:** [Tactical 125](../docs/tactical/125-agent-capability-baseline.md)
+qualifies the multi-scenario, two-agent-family baseline before the thin session
+slice. Pin effective model settings, measure tokens as well as time/calls, and
+test task-independent entry instructions separately from runtime changes.
+
 **Current:** the [native study](../research/platforms/macos.md#native-efficiency-and-background-effects)
 separates fixture effects, interference and observation costs. Most measured MC
 CLI time was outside the resident's reported operation interval. Compact JSON

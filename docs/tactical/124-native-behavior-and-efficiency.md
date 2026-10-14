@@ -151,6 +151,21 @@ the assigned route, with no direct file-writing shortcut.
 | MC CLI | 5/5 | 53.0 (46.8–69.8) | 8 (7–12) | 65,255 |
 | Experimental JS session | 5/5 | 37.4 (32.9–38.1) | 5 (5–6) | 17,278 |
 
+Retained transcript usage, subsequently normalized for Tactical 125:
+
+| Route | Median input tokens | Median cached input | Median output | Median total tokens |
+| --- | --- | --- | --- | --- |
+| Computer Use | 138,782 | 62,592 | 300 | 139,082 |
+| MC CLI | 229,810 | 86,784 | 760 | 230,475 |
+| Experimental JS session | 113,978 | 57,728 | 292 | 114,247 |
+
+Each column is an independent median, so column medians need not add up.
+Input includes cached input; total is input plus output per trial, with no
+second addition of cache or reasoning. These are cumulative reported task
+tokens, not context-window occupancy or dollars. Every trial reported counters;
+reported reasoning-output counters were zero, which does not independently
+establish the effective effort setting.
+
 Timing uses matched transcript task events; calls count model tool invocations,
 not native operations. Output bytes count serialized transcript tool results.
 All transcripts identify `gpt-6.1-sol`; they do not expose a reasoning-effort
