@@ -3,7 +3,7 @@
 Status: active. A typed Python core, claim/admission/audit transport and killable
 MCP facade are implemented as a [source candidate](../agent-session.md).
 Thirty-six focused offline tests and strict type checking pass.
-Codex TextEdit, window and Settings smokes passed, as did Claude Settings;
+Codex and Claude TextEdit, window and Settings smokes passed;
 broader live qualification and matched comparison remain pending.
 The direct-socket JavaScript
 experiment remains `tests/experiments/mc-repl`.
@@ -302,8 +302,8 @@ single smoke does not establish a speedup. Cleanup instructions now explicitly
 release the session at task end, and a watchdog releases it at the admission
 bound even if the agent goes idle. The Settings CLI trace required scrolling
 and pixel input because its AX radio options were absent, so the candidate now
-has capture-bound pointer actions; live qualification of that fallback remains
-pending. Capture checks do not remove the observation-to-input race.
+has capture-bound pointer actions. The separate conformance results below
+qualify that fallback; capture checks do not remove the observation-to-input race.
 
 The next window and Settings attempts both stopped before UI work: their YA
 tool shells exposed none of the published session environment variables. They
@@ -341,4 +341,5 @@ terminal transport reset, and a timed-out worker whose child inherits stdout.
 Ownership now closes on those artifact failures, stopped transports end their
 MCP interpreter, and worker cleanup reuses the existing scoped process-tree
 owner. No same-user containment or automatic replay is introduced. The focused
-suite passes all 36 checks; the earlier full client run passed 279 tests.
+suite passes all 36 checks. The updated full client run passes 283 tests; eight
+CLI packaging checks and strict mypy over all three new modules also pass.

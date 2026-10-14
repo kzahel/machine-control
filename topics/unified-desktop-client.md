@@ -225,6 +225,16 @@ operations and enforcement. Broad native cache work follows evidence from
 those controls. [Tactical 124](../docs/tactical/124-native-behavior-and-efficiency.md)
 records the bounded campaign and remaining cross-model repetitions.
 
+**Current:** the thin Python source candidate passed TextEdit, Settings and
+two-window smokes on both requested agent families, plus a separate grounded
+capture-input conformance check. These are calibration results, not repeated
+efficiency evidence or broad platform acceptance. The seven-scenario baseline
+is continuing from its frozen client pin after two evaluator repairs; earlier
+invalid attempts retain their resource costs. [Tactical 123](../docs/tactical/123-persistent-agent-session.md)
+and [Tactical 125](../docs/tactical/125-agent-capability-baseline.md) own qualification
+and comparison status. Shell-session packaging, native stable identity and
+notification-based settling remain later work.
+
 ### Platform fit
 
 **Proposal:** use the same logical session vocabulary with platform-specific
