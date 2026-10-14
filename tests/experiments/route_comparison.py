@@ -241,6 +241,27 @@ def _run_trial(args, task, route, index, run_dir):
         record["guestRevision"] = args.revision
         record["enforcementProfile"] = ("prototype_direct_socket_no_claim_or_controller_audit"
                                         if route == "mc-repl" else "normal_route")
+        fingerprint = guest.run("cd ~/code/machine-control/tests/experiments/native-efficiency && python3 -", stdin="""
+import json
+from pathlib import Path
+from provenance import collect
+configs=list((Path.home()/'.codex/plugins/cache/openai-bundled/unified-computer-use').glob('*/.mcp.json'))
+if len(configs)!=1:
+    raise RuntimeError('ambiguous installed Computer Use configuration; resolve selection before trial')
+print(json.dumps(collect(configs[0])))
+""")
+        if fingerprint.returncode:
+            raise RuntimeError("runtime fingerprint unavailable")
+        runtime = json.loads(fingerprint.stdout)
+        (trial_dir / "runtime.json").write_text(json.dumps(runtime, indent=2) + "\n")
+        identity = {"service": runtime["service"], "artifacts": runtime["artifacts"],
+                    "configSha256": runtime["configSha256"], "commands": runtime["commands"]}
+        baseline = run_dir / "runtime-reference.json"
+        if baseline.exists():
+            if json.loads(baseline.read_text()) != identity:
+                raise RuntimeError("runtime drift within pinned batch")
+        else:
+            baseline.write_text(json.dumps(identity, indent=2) + "\n")
         common = (TASKS / "common-chrome.sh").read_text()
         guest.run("mkdir -p ~/experiment && cat > ~/experiment/common-chrome.sh", stdin=common)
         if route == "mc-repl":
