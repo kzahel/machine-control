@@ -328,4 +328,10 @@ system Python 3.9 supplied process-local monotonic origins to separate claim
 processes. The queue now uses Mac kernel uptime for shared deadlines; 37 claim
 tests and 30 claim/control client tests pass, and the same guest probe succeeds
 through those older adapter processes. This preserves expiry and clock-rewind
-fencing. Visual model grounding remains a separate qualification.
+fencing. A mixed-version check also passed with a modern-Python claim owner and
+a system-Python checker. A separate Sol visual-grounding turn passed in 72.988
+seconds and three model calls: it forwarded the inline image, selected image
+coordinates, used `Capture.click`, and closed the session. Independent pointer
+down/up callbacks establish the effect; the model correctly described the
+provider's own effect report as unverified. This remains a single conformance
+smoke, not a repeated efficiency comparison.

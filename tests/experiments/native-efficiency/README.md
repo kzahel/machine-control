@@ -72,4 +72,7 @@ The fixture's private command channel supplies setup and simulated external
 movement; it is not part of an agent-task result. Live Mac qualification passed
 with a 2× PNG-to-window scale, real pointer callbacks, a changed scroll offset,
 and refusal after an external move. This required the shared claim-clock fix
-for the guest's older system Python. Visual model grounding is a separate test.
+for the guest's older system Python. A separate Sol medium/normal-speed YA turn
+also forwarded the inline image and used `Capture.click` on the pointer-only
+region; independent down/up callbacks and prompt claim release passed. That
+single capability smoke is not a repeated efficiency estimate.

@@ -172,7 +172,12 @@ supported version: one claim-aware session core with MCP, shell-session and
 library facades. The [source candidate](../docs/agent-session.md) now implements
 the typed core and MCP facade over live claim/admission owners, with per-operation
 audit and a killable Python worker. Offline and packaging-import checks pass;
-live acceptance and the shell-session facade remain pending. Current Mac native
+TextEdit, Settings and window-replacement smokes pass on Sol and Opus. A separate
+Mac fixture and Sol image-grounding turn qualify capture coordinates, including
+2× image scaling and moved-window refusal. Broad repeated acceptance and the
+shell-session facade remain pending. Coordinator-published session identity
+keeps MCP attribution independent of tool-shell environment inheritance.
+Current Mac native
 references rotate per snapshot, so the candidate issues fresh numbers rather
 than inferring identity from equal labels or positions. Stable native identity
 is a remaining observation gap.
