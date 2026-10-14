@@ -9,6 +9,8 @@ Windows desktop/UAC, cold login and repeated lifecycle acceptance now pass
 under a declared compatibility profile with a bounded shutdown scheduling
 assist. A protected stopped Windows base and accepted full-copy development
 VM are retained. Linux passed repeated cold boots with a guest workaround.
+Later retained Windows use also exceeded the full shutdown deadline; the
+scheduling assist is not a guarantee. See the shutdown/recovery path below.
 
 Use native Windows Python, OpenSSH and VBoxManage through the common CLI.
 Keep Git in WSL. The platform directories continue to own guest bootstrap,
@@ -107,15 +109,69 @@ and serial logs are private recovery evidence, not ordinary test routes.
 `--paravirt-provider none|default|hyperv` selects the guest-facing interface
 with readback; it does not enable, disable or reconfigure the host hypervisor.
 
+### Shutdown and scheduling recovery
+
+These operations have different effects:
+
+| Operation | Effect and evidence |
+| --- | --- |
+| `target shutdown` | Runs guest `shutdown.exe /s /t 0` through SSH, then waits for provider `poweroff`. No `/hybrid` or `/f` is supplied. |
+| Configured scheduling assist | One hypervisor `pause` followed by `resume` **after** the native request, not before it. |
+| `testbed -- acpi-shutdown` | Sends a virtual power-button event. Returns delivery only; Windows must handle it and provider status must subsequently confirm Off. |
+| `testbed -- force-stop` | Cuts virtual power. Requires explicit operator authorization; cannot qualify a clean lifecycle. |
+
+Scheduling pause temporarily stops VM execution without saving it to disk.
+It is not Windows sleep, hibernation or Machine Control `target suspend`.
+Saved-state recovery is unqualified and `target suspend` remains unavailable.
+See [Oracle's command semantics](https://docs.oracle.com/en/virtualization/virtualbox/7.2/user/vboxmanage.html#vboxmanage-controlvm)
+and [Windows shutdown flags](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/shutdown).
+
 The explicit `shutdownRescheduleAfterSeconds` profile requires a disruptive
-claim before issuing shutdown. After Windows accepts native shutdown, the
-provider waits for the configured interval, then pauses and resumes scheduling
-at most once if the VM is still running. A `finally` path resumes a VM paused
-by that operation. It continues waiting for Windows to reach power-off and
-never substitutes a power cut. Doctor reports the opt-in outer lifecycle
-route, and each successful lifecycle receipt records whether it was used.
-This bounded compatibility path is distinct from an unassisted shutdown and
-from ordinary desktop tests, which continue to use only target-native control.
+claim before issuing shutdown. After the guest command returns, the provider
+waits for the configured interval, pauses/resumes at most once, then continues
+the original fifteen-minute wait. A `finally` path resumes a VM paused by that
+operation. The clock starts after the guest command returns, so command/SSH
+failure can prevent both the wait and the assist. Doctor reports this opt-in
+outer lifecycle route; successful qualification receipts record its use.
+
+Use this decision path while retaining the exact-target claim:
+
+1. Inspect `target doctor` and close only owned applications. If Windows is
+   visibly servicing updates, allow the full boot/servicing interval; absent
+   SSH or a static image alone does not establish a hang. Record the servicing
+   condition separately from an idle shutdown comparison.
+2. With guest administration available, run `target shutdown`. Allow its full
+   fifteen-minute wait. With the opt-in profile, the provider already performs
+   the delayed pause/resume; do not assume that this is a pre-request cycle.
+3. On failure, inspect claimed `target status` before deciding what to do next.
+   Off completes cleanup even if the request command reported failure. Running
+   means shutdown is unconfirmed; losing SSH or seeing Windows event 6006/109
+   does not prove power-off. Record a private usage note and retain the claim.
+4. For explicitly authorized outer recovery, `testbed -- acpi-shutdown` is the
+   available request when SSH is unavailable. Poll claimed `target status`
+   afterward; choose and record a bounded recovery observation interval.
+   Delivery is not completion. A scheduling cycle can also restore
+   an **already pending** shutdown, so observe its effect before sending another
+   request. Standalone pause/resume is not currently exposed by the public
+   adapter; do not invent `testbed -- pause` or substitute saved-state suspend.
+   Controller-level scheduling recovery must preserve the selected library,
+   exact VM/disk checks, disruptive claim, operation lock and resume cleanup;
+   it must not preserve qualification as if the boot were unassisted.
+5. If clean recovery remains unconfirmed, use `testbed -- force-stop` only when
+   the operator has explicitly authorized a power cut, then independently
+   verify Off. Otherwise leave the VM running and report it. Record the outcome
+   and release the claim; claim release itself does not stop the VM.
+
+The delayed assist is a compatibility workaround, not a guarantee. A recent
+full-deadline failure recovered after a second scheduling cycle. Changing both
+cycle order and request method in that recovery does not establish which was
+necessary. The one early assist can also precede a later shutdown stall; it
+does not monitor progress or issue a second cycle when teardown stalls later.
+[Tactical 122](../../docs/tactical/122-windows-virtualbox-shutdown-recovery.md)
+owns the follow-up comparisons and limitations; the
+[provider dossier](../../research/providers/virtualbox.md#unassisted-shutdown-investigation)
+owns the current cause hypothesis. Recovery observations do not replace the
+three qualified cold boots required below.
 
 Initial VM creation and Windows console bootstrap still use private exact-UUID
 factory scripts and need manual journal notes. No implicit fallback from SSH

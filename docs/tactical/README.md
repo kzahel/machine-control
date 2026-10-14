@@ -42,6 +42,9 @@ the commits' `Topic:` trailers and register that exact string in
 
 ## Tactical index
 
+- [122 — Windows VirtualBox shutdown recovery](122-windows-virtualbox-shutdown-recovery.md):
+  scheduling/request comparisons and explicit shutdown/recovery guidance.
+
 - [121 — Desktop 0.6.4 release](121-desktop-0.6.4-release.md)
   (complete): cross-platform personal access retention, browser side panel/store
   support, installed CLI help and usage notes; six-target authentication and delivery.

@@ -268,6 +268,15 @@ System Restore has no supporting evidence as the cause.
 Preserve the protected base and host hypervisor/WSL/security configuration;
 remove assistance only after repeated unassisted lifecycle acceptance.
 
+**Current:** a later retained-use shutdown exceeded the full deadline despite
+the configured assist. A second scheduling cycle restored power-off, but the
+accompanying ACPI request did not isolate order from method. Follow the
+[provider recovery guide](../providers/virtualbox-windows/README.md#shutdown-and-scheduling-recovery)
+and [Tactical 122](../docs/tactical/122-windows-virtualbox-shutdown-recovery.md)
+before treating pre-request pause/resume as a reliable replacement policy.
+Keep servicing boots separate from stable comparisons; preserve the existing
+profile and qualification requirements.
+
 - Determine whether storage divergence can be measured usefully enough to
   warn on a long-lived copy-on-write workspace without claiming false
   per-workspace precision.

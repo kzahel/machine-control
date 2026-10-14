@@ -58,6 +58,13 @@ Read the result before acting:
 - If all checks pass, use SSH for system work and semantic UI automation for
   desktop work.
 
+For a Windows-hosted VirtualBox target, read the
+[provider shutdown and recovery guide](../../../../providers/virtualbox-windows/README.md#shutdown-and-scheduling-recovery).
+The configured assist is **request shutdown, wait, pause, resume**. It does not
+perform **pause, resume, request shutdown**. Scheduling pause is not saved-state
+suspend; standalone pause/resume is not a public adapter command. The guide
+owns the supported recovery commands, full wait and independent Off checks.
+
 ## Choose the Least Fragile Channel
 
 1. Use `winvm ps` or `winvm ssh` for files, processes, services, registry,
@@ -152,8 +159,13 @@ usage note --kind friction|workaround|fallback|handoff|follow-up|summary
   the provider positively declares support; unavailable or unknown support
   selects a clean guest shutdown. A private profile may disable suspend to
   avoid saved-state storage entirely.
-- If clean shutdown fails, leave the VM running and report it. Do not quit UTM
-  or silently substitute suspend or `force-stop`.
+- If clean shutdown fails, inspect claimed power state and record a usage note.
+  Follow the selected provider's explicitly authorized recovery path. If the
+  operator has already authorized a power cut when clean recovery fails, use
+  its `force-stop` and independently verify Off; do not request the same
+  permission again. Otherwise leave the VM running and report it. Never
+  silently substitute suspend, quit the hypervisor, or force-stop. Keep the
+  claim through cleanup and release it after recording the final state.
 - Keep passwords and PINs only in their declared controller-local credential
   files. Never put them, private keys, machine identifiers, or screenshots in
   this repository or command logs.

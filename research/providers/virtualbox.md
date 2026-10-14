@@ -255,6 +255,55 @@ guest-only idle behavior is the next focused comparison, not a proven fix:
 configuration, and whether guest-only power settings improve shutdown without
 merely hiding a scheduling defect. Online resemblance does not close these gaps.
 
+### Later shutdown recovery — 2026-10-14
+
+**Current, source-reviewed and live-tested:** a retained-use shutdown exceeded
+the complete fifteen-minute budget with the existing delayed scheduling assist
+enabled. Audit records show a roughly 904-second failed call; the provider log
+confirms that the configured pause/resume actually occurred. A later explicitly
+authorized second cycle followed by ACPI delivery reached Off. The log records
+about 76 minutes of timer catch-up backlog being abandoned at that resume and
+power-off about 3.3 seconds later. Windows had already logged the original
+native shutdown and kernel shutdown progression. The later ACPI delivery does
+not establish that another request was necessary; the earlier instrumented
+pause-only recovery above already proves that a pending shutdown can complete
+without one. Neither observation proves pre-request ordering is superior.
+
+**Inference from retained timing:** the first resume was approximately 34
+seconds after the request; kernel shutdown event 109 was approximately 185
+seconds after it. The early cycle therefore preceded that later shutdown stage.
+This is consistent with a single early assist missing a later stall, rather
+than the sequence itself being wrong. Guest events and host/provider time can
+diverge during scheduling stalls, so this is not an exact stall-onset finding.
+The roughly 76-minute backlog reset is additional scheduling evidence, not a
+root-cause diagnosis or a reason to configure unlimited automatic retries.
+
+Source review confirms that normal shutdown uses `shutdown.exe /s /t 0` through
+SSH, then optionally pauses/resumes once after the configured delay. Its timer
+starts only after the guest command returns. An SSH/command failure can bypass
+both that wait and the assist. ACPI recovery is a virtual power-button event
+with a delivery-only result; it is not a direct power cut or proof of Off.
+Scheduling pause and saved-state suspend have different semantics in
+[Oracle's command reference](https://docs.oracle.com/en/virtualization/virtualbox/7.2/user/vboxmanage.html#vboxmanage-controlvm).
+
+The live follow-up and its servicing limitations belong to
+[Tactical 122](../../docs/tactical/122-windows-virtualbox-shutdown-recovery.md).
+
+**Current, live-tested:** its update-triggered restart remained unavailable
+after the initial ten-minute boot observation. One scheduling cycle reset an
+approximately eight-minute backlog without restoring administration or Off;
+subsequent ACPI delivery also left Running through a 120-second observation.
+Explicitly authorized force-stop completed cleanup. This servicing condition
+prevented a stable paired comparison and was not counted as clean lifecycle
+evidence. Timer-backlog reset alone is not a recovery-effect oracle.
+
+**Open:** a stable paired comparison of pre/post-request scheduling and
+native/ACPI methods. The public adapter still lacks a standalone typed
+pause/resume recovery operation. Do not turn one successful recovery into an
+automatic request-method change, unlimited scheduling retries, or forced
+shutdown. The current [operator guide](../../providers/virtualbox-windows/README.md#shutdown-and-scheduling-recovery)
+requires terminal-state evidence and explicit authority for a power cut.
+
 ## Fit and remaining gates
 
 **Current, staged x64 desktop campaign:** extended interactive load also

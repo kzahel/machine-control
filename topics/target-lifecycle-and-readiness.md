@@ -79,6 +79,15 @@ that state. Its native `down` escape hatch chooses guest shutdown unless
 suspend is positively available; it never treats suspend or force-stop as a
 failed-shutdown fallback.
 
+**Current:** The experimental Windows-hosted VirtualBox profile can opt into
+one scheduling pause/resume after a native shutdown request. That operation
+does not save guest state and does not make `target suspend` available. Its
+full wait and explicit ACPI/power-cut recovery rules belong to the
+[provider guide](../providers/virtualbox-windows/README.md#shutdown-and-scheduling-recovery).
+A failed command, lost administration channel or Windows shutdown event is
+not a terminal-state oracle; claimed provider status must confirm Off. A
+disruptive claim permits the route but does not itself authorize a power cut.
+
 **Current:** The macOS Tart adapter reports the same projection plus
 `extensions.hostSession`. Virtualization.framework protects saved VM state
 with the host user's keychain, and live tests on a locked controller failed
