@@ -340,10 +340,47 @@ draft session API, which adapts these ideas to its claim, grant and
 delivery-effect contract, is in
 [Tactical 123](../../docs/tactical/123-persistent-agent-session.md#api-draft).
 
-**Open, deferred:** the native `SkyComputerUseService` is a compiled Swift
-executable; only its imports and strings have been inspected. How it builds
-and diffs accessibility trees, maps element numbers and posts input would need
-disassembly-level study, deferred until the interface work needs it.
+**Current, static review of the native components (symbols, metadata,
+imports, strings; a few functions disassembled; nothing executed):** the
+service is an unsandboxed Swift background app. A lock-screen guardian runs
+the same code as a separate process, and a native MCP client reaches the
+service over XPC. Private system functions are resolved at runtime rather
+than linked, so the binary does not name its private dependencies. Detailed
+private notes stay with the local reference; security-relevant details are
+deliberately not reproduced here.
+
+- **Accessibility:** attributes are read in batches per element, with an
+  optional whole-subtree prefetch that can be disabled per application, and
+  trees are cached and invalidated from accessibility notifications. A
+  sequence of named clean-up passes prunes, merges and flattens the tree
+  (rich text becomes Markdown); long lists and text are cut to the visible
+  range with a note. Element numbers carry over between reads for the same
+  underlying element; diffs are structural with a line budget. Chromium and
+  Electron apps are switched into full accessibility mode.
+- **Capture:** the target window together with its attached sheets, menus
+  and popovers, as JPEG or PNG; no set-of-marks drawing and no OCR, Vision or
+  bundled models were found.
+- **Input:** mouse events are addressed to the target window and posted to
+  its process, so the user's real cursor does not move; a separate overlay
+  draws a virtual cursor, and focus guards keep the target from taking key
+  focus. Key names follow X keysym conventions mapped through the current
+  keyboard layout. A lazy pasteboard reveals when the target actually reads a
+  paste.
+- **User detection:** event monitoring distinguishes the service's own
+  synthetic events from the person's, raising a debounced "re-read" error.
+  There is no global stop hotkey; stop is in the desktop app's UI.
+- **Session UI:** an animated lens and cursor, and a live picture-in-picture
+  stream of a backgrounded app.
+- **Locked use (optional, not installed on the inspected Mac):** an
+  authorization plug-in lets the service approve unlocks for an active
+  session without storing a password; a guardian draws a privacy curtain and
+  relocks on any physical input, pausing automatic unlock until the person
+  unlocks.
+
+**Open:** which private functions are resolved, numeric budgets and capture
+defaults, when element clicks use accessibility actions versus synthetic
+events, and how well window-addressed events work in Catalyst, Electron and
+games. These need dynamic study.
 
 ## Observed security posture
 

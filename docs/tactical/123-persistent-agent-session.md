@@ -150,6 +150,26 @@ Typed exceptions with `code`, `retryable`, `delivered` (`no`, `yes`,
 Unlike a fire-and-forget action API, a refusal and an uncertain delivery
 are never reported the same way.
 
+### Inputs from the native study
+
+**Proposal**, mostly for the residents behind the session (see the
+[Sky dossier](../../research/providers/sky-computer-use.md)):
+
+- Batch attribute reads, cache trees and invalidate them from accessibility
+  notifications; settle on notification quiet rather than sleeps.
+- Implement tree clean-up as named, separately tested passes, and keep
+  element numbers keyed to the underlying element across reads.
+- Capture the target window with its attached sheets and menus, which also
+  excludes Machine Control's own overlays.
+- Prefer window-addressed input posted to the target process, which leaves
+  the person's cursor alone, with focus guards; report this route and
+  measure it per app family before relying on it.
+- Detect the person's input by excluding our own synthetic events, and turn
+  it into the `UserIntervened` error.
+- Keep private-API use explicit and reported, unlike runtime-hidden
+  resolution, and keep locked use behind Machine Control's own claim, grant
+  and lease checks.
+
 ### Platform mapping
 
 | Call | macOS resident | Windows resident | Linux companion |
