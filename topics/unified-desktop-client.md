@@ -156,7 +156,7 @@ typed operations and still reject stale references and revoked authority.
 
 **Current, experiment:** `tests/experiments/mc-repl` is a dependency-free
 stdio MCP server exposing a persistent JavaScript context with an `mc` object:
-app handles, compact numbered trees with a no-change sentinel and stale-number
+app handles, compact numbered trees with a no-change sentinel, absent-number
 refusal, actions that return the refreshed tree, inline screenshots and
 `choose` for native panels. It deliberately talks to the local resident
 socket directly and skips claims and controller audit, so it is confined to
@@ -167,6 +167,11 @@ passed all five tasks with 29 tool calls in total, against 66 for the CLI and
 32 for Computer Use (which failed one), after it learned to click an
 element's centre when the element cannot be pressed
 ([Tactical 119](../docs/tactical/119-vm-comparison-experiments.md)).
+Two later Sol window trials reproduced silent number rebinding after an
+unprinted refresh: a press aimed at the displayed Replace button clicked a text
+field. Both recovered to a passing final state. Absent-number refusal therefore
+does not establish reference safety; the supported candidate must refuse the
+old number before dispatch, as its regression now checks.
 [Tactical 123](../docs/tactical/123-persistent-agent-session.md) owns the
 supported version: one claim-aware session core with MCP, shell-session and
 library facades. The [source candidate](../docs/agent-session.md) now implements
