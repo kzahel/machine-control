@@ -3980,6 +3980,8 @@ Commands:
   control status | call JSON --reason TEXT [--wait 5m] [--duration 5m]
                                     Wait, accept, execute once and release
   control stream --reason TEXT [--scope SCOPE]  JSON lines; one live owner
+  mcp [--reason TEXT] [--observe action|explicit]
+                                    Candidate persistent Python MCP session
   desktop status|capabilities|applications|windows|snapshot|action|capture
         (desktop --help or desktop COMMAND --help; help works offline)
   desktop input text|key|click|move|drag|scroll
@@ -4126,6 +4128,12 @@ def _dispatch(alias, target, remainder):
         from control_session import handle_control
 
         return handle_control(alias, target, remainder[1:])
+    if operation == "mcp":
+        from agent_session_mcp import serve
+
+        if target.get("_claimId"):
+            raise ClientError("claim_selection_conflict", "The persistent MCP session acquires and owns its claim")
+        return serve(alias, target, remainder[1:])
     if operation == "desktop":
         return handle_desktop(alias, target, remainder[1:])
     if operation == "grant":

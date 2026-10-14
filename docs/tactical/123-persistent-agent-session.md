@@ -1,7 +1,10 @@
 # 123 — Persistent agent session interface
 
-Status: proposed. Planning only; the experiment prototype is
-`tests/experiments/mc-repl`.
+Status: active. A typed Python core, claim/admission/audit transport and killable
+MCP facade are implemented as a [source candidate](../agent-session.md).
+Twenty focused offline tests and strict type checking pass; live qualification
+and matched scenario comparison remain pending. The direct-socket JavaScript
+experiment remains `tests/experiments/mc-repl`.
 The completed [native efficiency investigation](124-native-behavior-and-efficiency.md)
 prioritizes a thin claim-aware slice before broad packaging. Its repeated pilot
 does not isolate the prototype's combined changes.

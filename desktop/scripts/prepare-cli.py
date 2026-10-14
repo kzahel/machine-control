@@ -18,6 +18,7 @@ SOURCES = [
     "client/scoped_process.py", "client/agent_interface.py", "client/control_session.py",
     "client/audit_history.py", "client/storage_analysis.py", "client/provision_journal.py",
     "client/usage_journal.py",
+    "client/agent_session.py", "client/agent_session_transport.py", "client/agent_session_mcp.py",
     "providers/claims/claims.py", "providers/claims/common.sh", "providers/claims/channel.py",
     "providers/claims/admission.py", "providers/claims/admission_channel.py", "client/claim_session.py", "client/outer_session.py",
     "platforms/macos/bin/machost", "platforms/macos/host/machost.py",

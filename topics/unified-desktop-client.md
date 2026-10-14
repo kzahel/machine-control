@@ -167,9 +167,15 @@ passed all five tasks with 29 tool calls in total, against 66 for the CLI and
 32 for Computer Use (which failed one), after it learned to click an
 element's centre when the element cannot be pressed
 ([Tactical 119](../docs/tactical/119-vm-comparison-experiments.md)).
-[Tactical 123](../docs/tactical/123-persistent-agent-session.md) plans the
+[Tactical 123](../docs/tactical/123-persistent-agent-session.md) owns the
 supported version: one claim-aware session core with MCP, shell-session and
-library facades.
+library facades. The [source candidate](../docs/agent-session.md) now implements
+the typed core and MCP facade over live claim/admission owners, with per-operation
+audit and a killable Python worker. Offline and packaging-import checks pass;
+live acceptance and the shell-session facade remain pending. Current Mac native
+references rotate per snapshot, so the candidate issues fresh numbers rather
+than inferring identity from equal labels or positions. Stable native identity
+is a remaining observation gap.
 
 **Proposal:** initially reuse the existing Python session client to prove the
 contract and compatibility CLI. Prototype one thin persistent model-facing
@@ -183,8 +189,10 @@ choices, not the universal device or security model.
 ### Efficiency evidence and implementation order
 
 **Decision:** [Tactical 125](../docs/tactical/125-agent-capability-baseline.md)
-qualifies the multi-scenario, two-agent-family baseline before the thin session
-slice. Pin effective model settings, measure tokens as well as time/calls, and
+freezes the multi-scenario, two-agent-family baseline inputs before the thin
+session slice and gates candidate acceptance on its completed results. Run
+serial trials from an isolated source pin while developing the candidate.
+Pin effective model settings, measure tokens as well as time/calls, and
 test task-independent entry instructions separately from runtime changes.
 
 **Current:** the [native study](../research/platforms/macos.md#native-efficiency-and-background-effects)

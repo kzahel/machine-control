@@ -63,6 +63,21 @@ class CliPackageTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(sorted(installed.rglob("__pycache__")), [])
 
+    def test_packaged_mcp_discovery_imports_without_target_control(self):
+        installed = self.root / "mc-cli"
+        for name in prepare.SOURCES:
+            (installed / name).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / name, installed / name)
+        (installed / "client-runtime.json").write_text("{}", encoding="utf-8")
+        environment = {**os.environ, "MACHINE_CONTROL_AUDIT_DIR": str(self.root / "audit")}
+        result = subprocess.run([sys.executable, str(installed / "bin/machine-control"),
+            "--target", "host", "mcp"], input=json.dumps({"jsonrpc":"2.0", "id":1,
+            "method":"tools/list"}) + "\n", env=environment, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        reply = json.loads(result.stdout)
+        self.assertEqual([tool['name'] for tool in reply['result']['tools']], ['mc', 'mc_reset'])
+        self.assertEqual(sorted(installed.rglob("__pycache__")), [])
+
     def test_archive_root_and_traversal_refusal(self):
         for name in ["outside", "python/../../outside"]:
             with self.assertRaises((ValueError, tarfile.FilterError)):
