@@ -50,3 +50,15 @@ the claim/admission/audit path; `--route mc-repl` retains the direct-socket JS
 prototype with its explicitly different enforcement. Both support the two
 model profiles. Do not attribute their differences to language alone. Candidate
 results stay separate from the frozen baseline and require live qualification.
+
+`campaign.py --source /private/frozen-checkout --target TARGET
+--credential-file /private/base-login.secret --gateway-credential-file
+/private/gateway.secret --pause-after-smoke` runs the five supported baseline
+model/route cells serially. Seven scenarios and three rounds produce 105 trials.
+The first 35 trials are the smoke round; a private `continue` file permits the
+remaining rounds after review. A private `pause` file pauses the active driver
+between trials, and removing it resumes; `stop` ends after current cleanup.
+The driver does not restart an interrupted campaign automatically. It records
+separate provider manifests/reports and the driver hash, and never reads guest
+fixtures or client code from the candidate checkout. Configure the normal
+private inventory provider for the detached source checkout explicitly.
