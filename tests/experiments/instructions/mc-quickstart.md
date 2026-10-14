@@ -2,12 +2,15 @@ Use Machine Control's CLI from ~/code/machine-control for all UI work on this gu
 
 Start with `bin/machine-control --target host target doctor`, then `bin/machine-control --target host claim acquire --duration 15m --reason 'Perform the requested UI task'`. Read the returned claim ID. Pass it as global `--claim CLAIM_ID` on every target operation. The agent's published session ID supplies claim attribution. Check `grant status`; this dedicated appliance normally already has the required grant. A claim is not a grant. Stop on a denied or unavailable authorization.
 
-The basic loop is launch/address an app, observe, act, then verify the effect. For example, with your actual claim ID:
+The basic loop is launch/address an app, observe, act, then verify the effect. For example, replace CLAIM_ID with your actual claim ID. If shortening repeated commands, use a shell function, which preserves argument boundaries in both Bash and Zsh:
 
 ```
-bin/machine-control --target host --claim CLAIM_ID desktop application launch --target com.apple.TextEdit
-bin/machine-control --target host --claim CLAIM_ID desktop snapshot --target com.apple.TextEdit --projection compact
+mc_cli() { bin/machine-control --target host --claim CLAIM_ID "$@"; }
+mc_cli desktop application launch --target com.apple.TextEdit
+mc_cli desktop snapshot --target com.apple.TextEdit --projection compact
 ```
+
+Define the function again in each separate shell tool call that uses it. Keep the executable and its arguments separate; putting the whole command in one string variable does not work consistently across shells.
 
 Use references from the returned tree with `desktop action --reference REF --action press|focus|set_value`; set_value takes `--text TEXT`. Use `desktop input text TEXT --target APP` and `desktop input key cmd+s --target APP` for text and key chords. Observe again after UI changes; do not reuse stale references. An accepted input is not proof of the intended app effect.
 

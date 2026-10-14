@@ -371,3 +371,12 @@ matrix's seeded order and using one guest at a time; round-boundary pause guards
 prevent an unattended overlap. Baseline completion still gates final candidate
 acceptance. Report distributions and all-attempt accounting only when the
 corresponding planned batch is complete.
+
+The second-round development traces reproduced a shell-wrapper failure in
+Opus/CLI Finder and extension loading: a scalar containing the executable and
+arguments was treated as one command by Zsh. Both agents recovered with a shell
+function. The untested quickstart arm now gives that portable function example
+and explains its per-tool-call lifetime. This is instruction development from
+the declared subset, not a change to the running current-guide baseline or a
+claim that the quickstart improves results. The example's argument forwarding
+was checked in both Bash and Zsh without controlling a target.
