@@ -60,5 +60,12 @@ remaining rounds after review. A private `pause` file pauses the active driver
 between trials, and removing it resumes; `stop` ends after current cleanup.
 The driver does not restart an interrupted campaign automatically. It records
 separate provider manifests/reports and the driver hash, and never reads guest
-fixtures or client code from the candidate checkout. Configure the normal
+fixtures or client code outside the selected frozen checkout. Configure the normal
 private inventory provider for the detached source checkout explicitly.
+
+`--matrix python` runs the two supported Python model cells: fourteen first-round
+smokes and 42 trials across three rounds. Its source must implement `mc-python`.
+Keep its source and receipts separate from the baseline. `--start-paused`
+prepares either matrix with a private pause file before any VM is acquired;
+remove that file only after the preceding driver confirms between-trial cleanup.
+Do not run two drivers against one appliance concurrently.

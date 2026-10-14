@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a serial, source-pinned baseline with a review gate after the first round.
+"""Run a serial, source-pinned matrix with a review gate after the first round.
 
 The selected checkout supplies every guest fixture and client. This driver can
 live in a newer checkout while candidate work proceeds independently. All
@@ -23,14 +23,16 @@ from types import SimpleNamespace
 
 ROUTES = {'codex': ['computer-use', 'machine-control', 'mc-repl'],
           'claude': ['machine-control', 'mc-repl']}
+MATRICES = {'baseline': ROUTES, 'python': {'codex': ['mc-python'], 'claude': ['mc-python']}}
 
 
-def plan_rounds(tasks, repetitions, seed):
+def plan_rounds(tasks, repetitions, seed, routes=None):
+    routes = ROUTES if routes is None else routes
     generator = random.Random(seed)
     rounds = []
     for repetition in range(1, repetitions + 1):
         rows = [{'provider': provider, 'task': task, 'route': route, 'repetition': repetition}
-                for provider, routes in ROUTES.items() for task in tasks for route in routes]
+                for provider, provider_routes in routes.items() for task in tasks for route in provider_routes]
         generator.shuffle(rows)
         rounds.append(rows)
     return rounds
@@ -51,7 +53,9 @@ def main():
     parser.add_argument('--results', type=Path, default=Path.home()/'.local/state/machine-control/experiments')
     parser.add_argument('--seed', type=int, default=125)
     parser.add_argument('--repetitions', type=int, default=3)
+    parser.add_argument('--matrix', choices=sorted(MATRICES), default='baseline')
     parser.add_argument('--pause-after-smoke', action='store_true')
+    parser.add_argument('--start-paused', action='store_true', help='Prepare the manifest and wait for removal of its private pause file')
     parser.add_argument('--ssh-key', type=Path, default=Path.home()/'.ssh/mc-experiments_ed25519')
     parser.add_argument('--known-hosts', type=Path, default=Path.home()/'.ssh/mc-experiments_known_hosts')
     parser.add_argument('--host-key-alias', default='mc-experiment-base')
@@ -73,14 +77,20 @@ def main():
         raise RuntimeError('Loaded a different harness checkout')
     tasks = {path.name: json.loads((path/'task.json').read_text())
              for path in harness.TASKS.iterdir() if path.is_dir()}
-    rounds = plan_rounds(sorted(tasks), options.repetitions, options.seed)
+    routes = MATRICES[options.matrix]
+    if any(route not in harness.ROUTES for values in routes.values() for route in values):
+        parser.error('selected source does not implement every requested matrix route')
+    rounds = plan_rounds(sorted(tasks), options.repetitions, options.seed, routes)
     campaign = options.results / ('campaign-' + harness.now())
     campaign.mkdir(mode=0o700, parents=True)
+    if options.start_paused:
+        (campaign/'pause').touch(mode=0o600)
     state = {'state': 'prepared', 'completed': 0, 'planned': sum(map(len, rounds)),
-             'baselineRevision': revision, 'driverSha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+             'matrix': options.matrix,
+             'sourceRevision': revision, 'driverSha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
     (campaign/'campaign.json').write_text(json.dumps({**state, 'rounds': rounds}, indent=2)+'\n')
     batches, summaries = {}, {}
-    for provider in ROUTES:
+    for provider in routes:
         directory = campaign/provider
         directory.mkdir()
         bundle = directory/'source.bundle'

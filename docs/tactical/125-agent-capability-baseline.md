@@ -177,7 +177,7 @@ prototype label until then.
 
 ## Validation and final result
 
-Thirty-two offline checks pass. Guest qualification completed one arithmetic
+Thirty-three offline checks pass. Guest qualification completed one arithmetic
 turn per requested model: Codex rollout model/effort and YA live standard-tier
 selection agree; Claude native records report exact model, medium effort and
 standard speed/tier. Codex's rollout omits speed, so its evidence does not attest
