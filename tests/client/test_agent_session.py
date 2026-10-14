@@ -64,6 +64,17 @@ class AgentSessionTest(unittest.TestCase):
         self.peer.snapshot['data']['elements']=original; self.app.tree()
         self.assertNotIn(old,self.app.elements)
 
+    def test_unprinted_refresh_cannot_retarget_button_number_to_field(self):
+        self.peer.snapshot['data']['elements'][0].update(role='AXButton',label='Replace editor')
+        self.app.tree(); button=next(iter(self.app.elements))
+        self.peer.snapshot['data']['elements']=[
+            dict(reference='new-field',role='AXTextField',label='Target content',depth=0),
+            dict(reference='new-button',role='AXButton',label='Replace editor',depth=0,actions=['AXPress'])]
+        self.app.tree()  # Deliberately discard output, as the JS trial did.
+        sent=len(self.peer.requests)
+        with self.assertRaises(StaleElement):self.app.press(button)
+        self.assertEqual(len(self.peer.requests),sent)
+
     def test_observation_error_invalidates_previous_numbers(self):
         self.app.tree()
         self.peer.snapshot=dict(accepted=False,errorCode='approval_required',delivery='refused')

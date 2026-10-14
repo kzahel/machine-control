@@ -287,3 +287,17 @@ empty. The oracle correctly found no registration or behavior. This is an
 unattended-workflow refusal, not evidence that the native API cannot install an
 extension. Preserve it in success/cost accounting and do not silently retry or
 weaken provider consent rules to improve the score.
+
+Interference scope is bounded: the counters describe the guest fixture, not
+the controller desktop. The existing Mac provider launches a graphical Tart
+runner; benchmark control remains entirely guest-native and never manipulates
+that window. Controller-side startup/focus effects and a headless operating
+profile need separate qualification. Keep lifecycle mode fixed within this
+campaign and do not claim controller noninterference from guest measurements.
+
+One JS window-recovery trace showed misdirected input despite final success:
+an unprinted tree refresh rebound the displayed Replace button's number to
+a text field. The next press clicked the field; subsequent visible observations
+and recovery completed the task. The final-state oracle does not certify every
+intermediate action. Keep this incident as a prototype identity/output hazard;
+[Tactical 123](123-persistent-agent-session.md) records the Python refusal test.

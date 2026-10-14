@@ -2,7 +2,7 @@
 
 Status: active. A typed Python core, claim/admission/audit transport and killable
 MCP facade are implemented as a [source candidate](../agent-session.md).
-Thirty-six focused offline tests and strict type checking pass.
+Thirty-seven focused offline tests and strict type checking pass.
 Codex and Claude TextEdit, window and Settings smokes passed;
 broader live qualification and matched comparison remain pending.
 The direct-socket JavaScript
@@ -343,3 +343,11 @@ MCP interpreter, and worker cleanup reuses the existing scoped process-tree
 owner. No same-user containment or automatic replay is introduced. The focused
 suite passes all 36 checks. The updated full client run passes 283 tests; eight
 CLI packaging checks and strict mypy over all three new modules also pass.
+
+A later baseline JS window trial exposed silent numeric retargeting despite a
+passing final-state oracle: an unprinted refresh changed the number map, so a
+press aimed at Replace editor clicked the target text field instead. The agent
+subsequently recovered. This validates the need to separate task success from
+input fidelity. An explicit Python regression now discards a refresh result
+and proves that the old button number refuses before dispatch instead of
+acting on the new field. The focused session suite contains 37 checks.
