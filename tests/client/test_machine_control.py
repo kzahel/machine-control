@@ -1352,8 +1352,9 @@ class ClientTests(unittest.TestCase):
     def test_browser_help_and_wait(self):
         self.write_registry("macos")
         result, value = self.run_cli("--target", "fixture", "browser", "key", "--help")
-        self.assertEqual(value["errorCode"], "usage")
-        self.assertIn("Enter", value["message"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIsNone(value)
+        self.assertIn("Enter", result.stdout)
         result, value = self.run_cli(
             "--target", "fixture", "browser", "wait", "--tab", "5", "--timeout", "10")
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -1383,12 +1384,45 @@ class ClientTests(unittest.TestCase):
             "--reason", "debug")
         self.assertEqual(value["data"]["request"]["scopes"], ["devtools"])
 
+    def test_command_help_is_offline_and_usage_errors_explain(self):
+        log = self.directory / "arguments.json"
+        environment = {"MACHINE_CONTROL_MOCK_LOG": str(log)}
+        for arguments, expected in (
+            (["desktop", "--help"], "desktop snapshot --target APP"),
+            (["desktop", "snapshot", "--help"], "--query"),
+            (["desktop", "input", "--help"], "desktop input KIND --help"),
+            (["desktop", "input", "click", "-h"], "[left|right|middle]"),
+            (["desktop", "capture", "--help"], "desktop artifact"),
+            (["browser", "--help"], "chrome://"),
+            (["grant", "--help"], "Revoke only a grant this task requested"),
+            (["audit", "--help"], "--session-ref"),
+        ):
+            with self.subTest(arguments=arguments):
+                # No registry target, claim or grant is needed for help.
+                result, value = self.run_cli(
+                    "--target", "missing", *arguments, extra_env=environment)
+                self.assertEqual(result.returncode, 0, result.stdout)
+                self.assertIsNone(value)
+                self.assertIn(expected, result.stdout)
+        self.assertFalse(log.exists())
+        for arguments, expected in (
+            (["desktop", "snapshot"], "required: --target"),
+            (["desktop", "input", "click", "1", "2", "--target", "x"], "desktop input click --help"),
+            (["desktop", "action", "--reference", "r", "--action", "jump"], "invalid choice"),
+            (["desktop", "frob"], "desktop --help"),
+        ):
+            with self.subTest(arguments=arguments):
+                result, value = self.run_cli("--target", "fixture", *arguments)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn(expected, value["message"])
+                self.assertEqual(result.stderr.strip(), "")
+
     def test_desktop_input_key_help_and_target(self):
         self.write_registry("macos")
         result, value = self.run_cli(
             "--target", "fixture", "desktop", "input", "key", "--help")
-        self.assertEqual(value["errorCode"], "usage")
-        self.assertIn("cmd+shift+g", value["message"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("cmd+shift+g", result.stdout)
         result, value = self.run_cli(
             "--target", "fixture", "desktop", "input", "text", "hello",
             "--target", "com.apple.TextEdit",

@@ -111,11 +111,14 @@ because `chrome://` pages are outside the browser route.
 
 1. `--help` for desktop and browser subcommands; nine of 45 audited commands
    in the successful run were usage refusals while learning grammar.
+   *Landed afterward:* offline help for every desktop, browser, grant and
+   audit command, and usage refusals that name the problem and usage line.
 2. A typed native Open-panel path or folder choice for the Mac host; `browser
    upload` covers only file inputs, and the native panel is the root of the
    task's difficulty on every route.
 3. Document that `chrome://` pages refuse `browser navigate` and snapshot,
    and that `about:blank`, cmd+l, `desktop input text` and Return works.
+   *Landed afterward* in the macOS host skill and `browser --help`.
 4. Accept application names or `--target` consistently on `desktop snapshot`
    and `desktop input click`.
 5. Consider binding `grant revoke` to the requesting caller.

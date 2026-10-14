@@ -16,7 +16,7 @@ import sqlite3
 import subprocess
 import sys
 import time
-from typing import Any
+from typing import Any, NoReturn
 
 import audit_history
 import provision_journal
@@ -2268,19 +2268,21 @@ def handle_target(
     return 0
 
 
+class _OptionParser(argparse.ArgumentParser):
+    """Report argparse's specific complaint as a JSON refusal, not stderr."""
+
+    def error(self, message: str) -> NoReturn:
+        raise ClientError("usage", message[:1].upper() + message[1:])
+
+
 def parse_options(
     arguments: list[str],
     definitions: list[tuple[tuple[str, ...], dict[str, Any]]],
 ) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(add_help=False)
+    parser = _OptionParser(add_help=False)
     for flags, settings in definitions:
         parser.add_argument(*flags, **settings)
-    try:
-        return parser.parse_args(arguments)
-    except SystemExit as error:
-        raise ClientError(
-            "usage", "Invalid command arguments"
-        ) from error
+    return parser.parse_args(arguments)
 
 
 def validate_lock_screen_status(value: Any) -> None:
@@ -2333,9 +2335,171 @@ def validate_unlock_status(value: Any) -> None:
         raise ClientError("invalid_unlock_status", "Unlock readiness contradicts prerequisites", 1)
 
 
+APPLICATION_TARGET = (
+    "APP selects a running application. On macOS it is a pid, an exact name or "
+    "bundle ID (Google Chrome, com.google.Chrome), or a unique partial match; "
+    "use desktop applications to list them."
+)
+
+DESKTOP_USAGE = {
+    "status": "desktop status\n  Resident, session, lock-screen, grant and readiness state.",
+    "capabilities": "desktop capabilities\n  Operations, routes, fidelity and privilege this target supports.",
+    "applications": "desktop applications\n  Running applications with names, application IDs and pids.",
+    "windows": "desktop windows [--target APP]\n  Top-level windows, optionally for one application.\n  "
+               + APPLICATION_TARGET,
+    "snapshot": (
+        "desktop snapshot --target APP [--query TEXT] [--projection compact|full]\n"
+        "                 [--max-depth N] [--max-elements N]\n"
+        "  Accessibility tree of one application, including open sheets and dialogs,\n"
+        "  with element references for desktop action. --target is required.\n"
+        "  --query keeps elements whose label, value or identifier contains TEXT\n"
+        "  (case-insensitive). compact (default) keeps actionable elements; full keeps\n"
+        "  every element. Deep dialogs such as a file chooser can need a larger\n"
+        "  --max-depth; prefer --query over raising --max-elements.\n  "
+        + APPLICATION_TARGET
+    ),
+    "action": (
+        "desktop action --reference REF --action press|focus|set_value [--text T]\n"
+        "  Act on an element from desktop snapshot. set_value requires --text.\n"
+        "  References belong to one snapshot generation; snapshot again after the UI\n"
+        "  changes instead of reusing an old reference. Verify the effect separately."
+    ),
+    "capture": (
+        "desktop capture [--scope display|window] [--target APP] [--window-id N]\n"
+        "  Screenshot artifact. --scope window with --target captures that\n"
+        "  application's window. Fetch the image with desktop artifact HANDLE PATH,\n"
+        "  passing data.artifactPath (macOS) or the returned handle unchanged.\n  "
+        + APPLICATION_TARGET
+    ),
+    "artifact": "desktop artifact HANDLE [PATH]\n  Fetch a capture or other bounded resident artifact to PATH.",
+    "input": (
+        "desktop input text|key|click|move|drag|scroll ARGS\n"
+        "  Raw keyboard and pointer input. Prefer desktop action on a snapshot\n"
+        "  reference when one exists. Run desktop input KIND --help for each kind."
+    ),
+    "input text": (
+        "desktop input text VALUE [--target APP]\n"
+        "  Type literal text. With --target the application is activated first;\n"
+        "  without it, keystrokes go to whatever has focus, named in the result's\n"
+        "  data.keyboardReceiver. Check it before typing anything sensitive."
+    ),
+    "input key": (
+        "desktop input key CHORD [--target APP]\n"
+        "  Press one key chord: modifiers (cmd, shift, option, ctrl) and one key\n"
+        "  joined with + or -, for example cmd+shift+g, cmd+l, return, escape, tab.\n"
+        "  Without --target, keys go to whatever has focus (data.keyboardReceiver).\n"
+        "  Some system sheets only accept untargeted input."
+    ),
+    "input click": (
+        "desktop input click X Y [left|right|middle]\n"
+        "  Click at integer screen coordinates in the target's global display space\n"
+        "  (macOS: points from the top-left of the main display; snapshot bounds and\n"
+        "  capture results report their coordinateSpace). There is no --target;\n"
+        "  activate the application first with desktop application activate."
+    ),
+    "input move": "desktop input move X Y\n  Move the pointer to screen coordinates (see desktop input click --help).",
+    "input drag": "desktop input drag X1 Y1 X2 Y2\n  Press at the first point, move, and release at the second.",
+    "input scroll": "desktop input scroll DX DY\n  Signed wheel deltas at the current pointer position.",
+    "application": (
+        "desktop application launch|activate|terminate [--target APP]\n"
+        "    [--application-id ID] [--executable PATH [--argument ARG]...]\n"
+        "    [--expect-target APP] [--unit UNIT] [--process-id PID]\n"
+        "  Launch, bring to front or quit an application. Which selectors apply\n"
+        "  depends on the platform; see desktop capabilities.\n  "
+        + APPLICATION_TARGET
+    ),
+    "session": (
+        "desktop session control [--duration 5m]\n"
+        "desktop session end --session-id ID\n"
+        "desktop session unlock --expected-desktop-generation ID\n"
+        "    [--expected-helper-generation ID] --request-id ID\n"
+        "  Bounded locked-use control and protected unlock where the target\n"
+        "  advertises them. Keep session control alive for the task, then end it."
+    ),
+    "call": (
+        "desktop call|call-local JSON\n"
+        "  Translate and send one common resident request object.\n"
+        "desktop raw|raw-local JSON\n"
+        "  Send one provider-native resident request unchanged."
+    ),
+}
+DESKTOP_USAGE["call-local"] = DESKTOP_USAGE["raw"] = DESKTOP_USAGE["raw-local"] = DESKTOP_USAGE["call"]
+
+
+def desktop_help_key(arguments: list[str]) -> str | None:
+    values = [value for value in arguments if value not in ("--help", "-h")]
+    if not values:
+        return None
+    if values[0] == "input" and len(values) > 1 and f"input {values[1]}" in DESKTOP_USAGE:
+        return f"input {values[1]}"
+    return values[0] if values[0] in DESKTOP_USAGE else None
+
+
+def desktop_overview() -> str:
+    lines = ["Usage: machine-control --target ALIAS --claim ID desktop COMMAND ...", ""]
+    for key, text in DESKTOP_USAGE.items():
+        if key in {"call-local", "raw", "raw-local"} or key.startswith("input "):
+            continue
+        lines.append("  " + text.splitlines()[0])
+    lines += ["", "Run desktop COMMAND --help (or desktop input KIND --help) for details."]
+    return "\n".join(lines) + "\n"
+
+
+def browser_overview() -> str:
+    lines = ["Usage: machine-control --target ALIAS --claim ID browser COMMAND ...", ""]
+    lines += ["  " + BROWSER_USAGE[name] for name in BROWSER_USAGE]
+    lines += ["", "chrome:// and other internal pages are outside the browser route; use",
+              "desktop commands for them. Run browser COMMAND --help for one command."]
+    return "\n".join(lines) + "\n"
+
+
+def command_help(arguments: list[str]) -> str | None:
+    """Offline help for target commands; needs no registry, claim or grant."""
+    if not arguments or not any(flag in arguments[1:] for flag in ("--help", "-h")):
+        return None
+    operation, rest = arguments[0], arguments[1:]
+    if operation == "desktop":
+        key = desktop_help_key(rest)
+        return DESKTOP_USAGE[key] + "\n" if key else desktop_overview()
+    if operation == "browser":
+        values = [value for value in rest if value not in ("--help", "-h")]
+        if values and values[0] in BROWSER_USAGE:
+            return BROWSER_USAGE[values[0]] + "\n"
+        return browser_overview()
+    if operation == "grant":
+        return (
+            "grant request --scope observe|control|browser|devtools... --reason TEXT\n"
+            "    [--duration D] [--timeout D]\n"
+            "  Ask the person at the target to approve access; waits for the decision.\n"
+            "grant status\n  The active grant, if any.\n"
+            "grant revoke\n  End the active grant. Revoke only a grant this task requested.\n"
+        )
+    if operation == "audit":
+        return (
+            "audit history [--claim-id ID] [--claimant-id ID] [--session-ref ID]\n"
+            "    [--since UTC] [--before N] [--limit 1..500]\n"
+            "  Private controller history of claims and common CLI commands (offline).\n"
+        )
+    return None
+
+
 def desktop_request(arguments: list[str]) -> tuple[dict[str, Any], bool]:
+    try:
+        return _desktop_request(arguments)
+    except ClientError as error:
+        key = desktop_help_key(arguments)
+        if error.code != "usage" or key is None:
+            raise
+        raise ClientError(
+            "usage",
+            f"{error}. Usage: {DESKTOP_USAGE[key].splitlines()[0]}. "
+            f"Run desktop {key} --help for details.",
+        ) from error
+
+
+def _desktop_request(arguments: list[str]) -> tuple[dict[str, Any], bool]:
     if not arguments:
-        raise ClientError("usage", "desktop requires an operation")
+        raise ClientError("usage", "desktop requires an operation; run desktop --help")
     command, rest = arguments[0], arguments[1:]
     if command in {"call", "call-local", "raw", "raw-local"}:
         if len(rest) != 1:
@@ -2468,14 +2632,8 @@ def desktop_request(arguments: list[str]) -> tuple[dict[str, Any], bool]:
             raise ClientError("usage", "desktop input requires a kind")
         kind, values = rest[0], rest[1:]
         if kind in {"text", "key"}:
-            if values[:1] in (["--help"], ["-h"]) or not values:
-                raise ClientError(
-                    "usage",
-                    f"desktop input {kind} VALUE [--target APP]. Keys join modifiers "
-                    "(cmd, shift, option, ctrl) and one key with - or +, for example "
-                    "cmd+shift+g. Without --target, keystrokes go to whatever has focus; "
-                    "the result names it in data.keyboardReceiver.",
-                )
+            if not values:
+                raise ClientError("usage", f"desktop input {kind} requires a value")
             request = {"operation": f"input.{kind}", kind: values[0]}
             if len(values) == 3 and values[1] == "--target":
                 request["target"] = values[2]
@@ -2507,6 +2665,8 @@ def desktop_request(arguments: list[str]) -> tuple[dict[str, Any], bool]:
             }, False
         raise ClientError(
             "usage", f"Invalid desktop input {kind} arguments"
+            if f"input {kind}" in DESKTOP_USAGE
+            else "desktop input kind must be text, key, click, move, drag or scroll"
         )
     if command == "application":
         if not rest or rest[0] not in {"launch", "activate", "terminate"}:
@@ -2548,7 +2708,7 @@ def desktop_request(arguments: list[str]) -> tuple[dict[str, Any], bool]:
         return request, False
     raise ClientError(
         "unsupported_desktop_command",
-        f"Unsupported desktop command '{command}'",
+        f"Unsupported desktop command '{command}'; run desktop --help",
     )
 
 
@@ -2713,6 +2873,7 @@ def browser_request(arguments: list[str], target_platform: str | None = None) ->
     if not arguments or arguments[0] not in BROWSER_COMMANDS:
         raise ClientError(
             "usage", "browser requires " + "|".join(sorted(BROWSER_COMMANDS))
+            + "; run browser --help"
         )
     command, rest = arguments[0], arguments[1:]
     if any(flag in rest for flag in ("--help", "-h")):
@@ -3768,7 +3929,7 @@ Commands:
                                     Ask a person at the target for access
   update check|status             Queue desktop update discovery or read status
   browser tabs|wait|navigate|snapshot|click|type|key|capture|upload|cdp|eval
-        |endpoint|release   (browser CMD --help for details)
+        |endpoint|release   (browser --help or browser CMD --help)
         [--tab ID] [--url URL] [--new-tab] [--background] [--reference R] [--text T]
         [--file PATH]... [--method M --params JSON] [--expression JS]
                                     Operate Chrome through the extension
@@ -3776,6 +3937,7 @@ Commands:
                                     Wait, accept, execute once and release
   control stream --reason TEXT [--scope SCOPE]  JSON lines; one live owner
   desktop status|capabilities|applications|windows|snapshot|action|capture
+        (desktop --help or desktop COMMAND --help; help works offline)
   desktop input text|key|click|move|drag|scroll
   desktop session unlock --expected-desktop-generation ID --expected-helper-generation ID --request-id ID
   desktop session control [--duration 5m]  Hold a bounded Mac locked-use session
@@ -3956,6 +4118,10 @@ def main(argv: list[str] | None = None) -> int:
             print(usage(), end="")
             return 0 if known.help else 2
         operation = remainder[0]
+        help_text = command_help(remainder)
+        if help_text is not None:
+            print(help_text, end="")
+            return 0
         if operation == "provision":
             try:
                 value = provision_journal.handle(remainder[1:])

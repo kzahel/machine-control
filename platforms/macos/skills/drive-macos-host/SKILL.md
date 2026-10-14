@@ -46,7 +46,7 @@ refused until the person at the computer approves a grant.
 
 - Prefer `browser` commands over desktop input in Chrome: `snapshot` gives
   references, then `click`, `type`, `key --key Enter`, and `navigate`. Run
-  `browser CMD --help` for a command's exact flags. `browser key` takes a
+  `browser --help` or `browser CMD --help` for exact flags; help works offline. `browser key` takes a
   named key (Enter, Tab, Escape, arrows, and aliases like `return`), not
   characters; use `browser type` for text.
 - After `navigate`, or before reading a tab that was discarded or still
@@ -77,8 +77,16 @@ refused until the person at the computer approves a grant.
   `file_access_not_allowed`, ask the person to turn on "Allow access to file
   URLs" for Machine Control in `chrome://extensions`.
 
+- `chrome://` pages (extensions, settings, history) are outside the browser
+  route: `navigate` refuses them and `snapshot` cannot attach. Open one with
+  `browser navigate --url about:blank --new-tab`, then `desktop input key
+  cmd+l --target com.google.Chrome`, `desktop input text chrome://extensions/`
+  and `desktop input key return`, and work on it with `desktop` commands.
+
 ## Desktop input
 
+- Every desktop command has offline help: `desktop --help`, `desktop COMMAND
+  --help` and `desktop input KIND --help`. Read it instead of client source.
 - Key chords join modifiers and one key with `-` or `+`: `cmd+shift+g`,
   `ctrl-option-cmd-.`, `return`, `escape`.
 - Pass `--target APP` when you know which application should receive keys.
