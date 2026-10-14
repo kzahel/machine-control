@@ -8,8 +8,8 @@ frozen baseline has completed its first 35-cell round after evaluator repairs:
 33 passed, with a policy refusal and an agent discovery failure. All 36 attempts
 (including one invalid oracle attempt) retain their costs and reviewed traces.
 The original Python smoke passed 13 of 14 cells and stopped before repetitions.
-A revised candidate addresses discovery and explicit activation; its validation
-is pending. No repeated broad baseline or candidate acceptance is claimed.
+A revised candidate addresses discovery and explicit activation; its native
+activation/capture probe passed and its first agent round is running. No repeated broad baseline or candidate acceptance is claimed.
 Owning topics: [operational workflow automation](../../topics/operational-workflow-automation.md),
 [unified desktop client](../../topics/unified-desktop-client.md).
 

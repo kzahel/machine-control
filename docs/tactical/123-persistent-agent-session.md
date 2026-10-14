@@ -389,3 +389,12 @@ refusal after the activation observation. All 38 focused checks and strict typin
 pass. The next live pin combines this addition with the clearer discovery text;
 it cannot isolate the effects of either change. The prepared description-only
 campaign was stopped before any trial, retaining the original fourteen results.
+
+
+The revised activation/capture probe passed in a fresh disposable guest. Fixture
+state independently confirmed passive lookup, intended foreground activation,
+unchanged cursor coordinates and refusal of the pre-activation capture before
+input. Existing pointer callback, 180-point scroll, moved-window refusal and
+unchanged sentinel-content checks also passed. The session closed, the guest was
+discarded, and its stored credential handoff was verified. The revised agent
+matrix is now running its first round; this probe is not menu-workflow acceptance.
