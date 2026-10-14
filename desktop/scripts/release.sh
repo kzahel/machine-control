@@ -44,4 +44,5 @@ if ! gh workflow run desktop-release.yml --ref main -f "version=$version" -f "re
   exit 1
 fi
 echo "Dispatched $tag: checks → signed platform builds → verified draft → publication."
-echo 'Verify the workflow, published assets, and https://machinecontrol.dev/downloads/.'
+echo 'CI publishes automatically after all checks pass; no monitoring is required.'
+echo 'Workflow: https://github.com/kzahel/machine-control/actions/workflows/desktop-release.yml'

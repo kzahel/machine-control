@@ -26,6 +26,14 @@ Protected signing runs only on main. Mac packages are signed, notarized, and
 stapled; Windows app, uninstaller, installer, provider, and runtime catalog are
 signed. All families authenticate updater signatures and signed versions.
 
+The default is fire-and-forget: the script returns after dispatch, and CI
+publishes automatically when every required check succeeds. Report the release
+as queued and provide the [workflow link](https://github.com/kzahel/machine-control/actions/workflows/desktop-release.yml).
+Waiting for completion, repairing failed builds, candidate acceptance, and
+independent public-download or installation checks are opt-in. A failed build
+or verification prevents publication. Pushing a tag alone does not start this
+workflow; use the script, which also dispatches the protected main-only workflow.
+
 Publication revalidates every package, receipt, source, version and workflow
 identity. It stages every installer, Linux Debian/AppImage package, Mac update archive,
 signature, build receipt, installed payload inventory, and one Tauri
@@ -36,6 +44,8 @@ published assets are never overwritten. It preserves the repository-wide latest
 pointer and the existing product update endpoint.
 
 ## Accept a candidate before publication
+
+Use this optional path only when prepublication acceptance is requested.
 
 Build the entire release matrix without creating a tag or public release:
 

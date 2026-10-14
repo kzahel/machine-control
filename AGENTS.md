@@ -239,6 +239,18 @@ fixtures. Preserve these rules:
 Use `dotnet format --verify-no-changes`, the contract tests, and appropriate
 Windows ARM64/x64 publishes before committing runtime changes.
 
+## Release workflow
+
+Desktop releases default to fire-and-forget. Prepare the versioned changelog,
+commit and push main, then run `desktop/scripts/release.sh VERSION` once.
+Report that publication is queued with the workflow link and end the task;
+CI owns builds, signing, package verification, and automatic publication.
+Do not wait for CI, retry failed builds, run a separate candidate first, or
+perform post-publication download and installation checks unless the user
+requests monitoring or acceptance. Report synchronous script failures.
+See [the release guide](release/desktop.md) for the automated pipeline and
+optional candidate workflow.
+
 ## Documentation workflow
 
 Use a research/topic/tactical convention:
