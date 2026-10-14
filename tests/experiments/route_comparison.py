@@ -337,10 +337,18 @@ f.write_text(json.dumps(x));os.chmod(f,0o600)
         record["finalText"] = (detail.get("session") or {}).get("lastAgentText", "")[-1500:]
 
         oracle = guest.run("bash -s", stdin=(TASKS / task["id"] / "oracle.sh").read_text())
+        record["oracleExit"] = oracle.returncode
         try:
             record["oracle"] = json.loads(oracle.stdout.strip().splitlines()[-1])
         except (IndexError, json.JSONDecodeError):
             record["oracle"] = {"passed": False, "detail": "oracle output unreadable"}
+            record["error"] = "oracle output unreadable"
+        if oracle.returncode:
+            record["error"] = "oracle infrastructure failed"
+        diagnostics = TASKS / task["id"] / "diagnostics.sh"
+        if diagnostics.is_file():
+            diagnostic = guest.run("bash -s", stdin=diagnostics.read_text())
+            (trial_dir / "fixture-diagnostics.txt").write_text(diagnostic.stdout + diagnostic.stderr)
 
         transcript_root = '~/.codex/sessions' if args.provider=='codex' else '~/.claude/projects'
         transcript = guest.run(
@@ -368,7 +376,7 @@ f.write_text(json.dumps(x));os.chmod(f,0o600)
         path = (capture.get("data") or {}).get("artifactPath")
         if path:
             mc(*selector, "desktop", "artifact", path, str(trial_dir / "final.png"), check=False)
-    except Exception as error:  # Record and continue with the next trial.
+    except Exception as error:  # Preserve evidence and clean up before stopping the batch.
         record["error"] = str(error)
     finally:
         record["wallSeconds"] = round(time.monotonic() - started)

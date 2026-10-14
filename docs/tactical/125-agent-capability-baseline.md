@@ -31,7 +31,8 @@ is a completed native study and one-task pilot, not this broader acceptance gate
   are results; missing infrastructure or a defective oracle is not a baseline.
 - Instruction variants, tooling, source, apps and model settings are pinned.
   Raw transcripts, usage and intervention evidence remain private.
-- Baseline results are frozen before the supported session changes. Candidate
+- Baseline inputs are frozen in an isolated checkout before session development;
+  results are frozen before candidate acceptance. Candidate
   comparison uses the same conditions and reports every scenario, including
   regressions and unsuccessful-attempt resource use.
 
@@ -161,7 +162,9 @@ Seven scenarios across those five cells and three repeats is 105 trials, so
 keep smoke, instruction tuning and confirmation as separately bounded batches.
 Do not start the full matrix before the smoke/accounting checks pass.
 
-Freeze that baseline before Tactical 123's thin implementation slice. Rerun the
+Freeze baseline inputs before Tactical 123's thin implementation slice. The
+serial matrix may run from its isolated pin during candidate development;
+complete and freeze its results before candidate acceptance. Rerun the
 same suite for the supported Python session with equivalent claims/audit and
 observation policy. A candidate must have no unexplained success/effect regression
 on previously passing scenarios; speed or fewer tokens cannot offset a wrong
@@ -173,7 +176,7 @@ prototype label until then.
 
 ## Validation and final result
 
-Twenty-three offline checks pass. Guest qualification completed one arithmetic
+Twenty-four offline checks pass. Guest qualification completed one arithmetic
 turn per requested model: Codex rollout model/effort and YA live standard-tier
 selection agree; Claude native records report exact model, medium effort and
 standard speed/tier. Codex's rollout omits speed, so its evidence does not attest
@@ -199,6 +202,17 @@ The collector now leaves session usage unknown if any observed Claude API
 message lacks usage, instead of reporting a partial sum as a session total.
 Finder verifier controls reject the initial state and extra bytes, and accept
 the exact renamed/moved contents. Settings setup verifies the opposite value.
+
+Sol/CLI upload and menu smokes also passed (80.783 s / thirteen calls and
+111.369 s / sixteen calls). Transcript review confirmed native picker use and
+actual TextEdit File/Format menu actions with the conversion sheet. The window
+smoke was invalid: a missing plist heredoc terminator swallowed the fixture's
+launch commands while Bash returned zero. The fixture now verifies its process,
+initial values and both visible windows; shell parse warnings fail an offline
+check. The corrected fixture remained live across separate SSH calls and its
+initial oracle rejected the untouched state. An agent rerun is still required.
+Oracle infrastructure errors now stop a batch after evidence collection and
+cleanup, and the window fixture retains diagnostic state privately.
 
 Three instruction arms are versioned, including the task-independent CLI
 quickstart. They have not yet been compared. Seven-scenario agent smoke and

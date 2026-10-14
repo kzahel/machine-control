@@ -211,12 +211,19 @@ must remain separate. See the [provider findings](../../research/providers/sky-c
 
 ### 0 — freeze the realistic agent baseline
 
-Complete [Tactical 125](125-agent-capability-baseline.md)'s model-profile smoke,
-scenario/oracle qualification and repeated baseline before changing the session
-runtime. Include the existing five workflows, dedicated menu and two-window
+Complete [Tactical 125](125-agent-capability-baseline.md)'s model-profile smoke
+and scenario/oracle qualification, then freeze its source and runtime inputs.
+Run the repeated baseline from that isolated pin while developing the candidate;
+baseline results remain a gate before candidate acceptance. Include the
+existing five workflows, dedicated menu and two-window
 recovery cases, and instruction comparisons. The earlier fifteen-trial result
 covers TextEdit on one model only. Preserve a baseline that the thin slice can
 actually rerun, including token use and failed-attempt costs.
+
+**Execution refinement:** serial disposable-guest setup makes the full matrix
+long-running. A detached private baseline checkout and per-batch source bundles
+keep candidate development out of its inputs. This removes an idle development
+dependency; it does not remove any comparison or acceptance check.
 
 ### 1 — build the Python session and keep a JavaScript A/B
 

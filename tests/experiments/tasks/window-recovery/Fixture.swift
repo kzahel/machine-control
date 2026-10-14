@@ -22,6 +22,7 @@ final class Fixture: NSObject, NSApplicationDelegate, NSTextFieldDelegate {
     func writeState() {
         let state: [String:Any] = ["target":targetField?.stringValue ?? "",
             "protected":guardField.stringValue,"replacements":replacements,
+            "targetVisible":target?.isVisible ?? false,"protectedVisible":guardWindow?.isVisible ?? false,
             "focusChanges":focusChanges,"cursorChanges":cursorChanges]
         if let data = try? JSONSerialization.data(withJSONObject:state,options:.sortedKeys) {
             try? data.write(to:root.appendingPathComponent("state.json"),options:.atomic)
