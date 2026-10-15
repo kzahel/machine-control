@@ -69,3 +69,12 @@ Locked use is already implemented and remains separate acceptance scope.
   This is launch/runtime selection evidence, not billing attestation.
 - Final results pending. Helpers and fixtures alone do not complete this
   tactical; live and repeated-comparison gates must be recorded.
+- Added a fourth worker for skill-harness implementation, then reused capacity
+  from the completed YA runbook worker for independent identity review. The
+  reusable [YA session runbook](../ya-agent-sessions.md) and helper preserve
+  launch/status/cleanup mechanics; live lifecycle checks caught and fixed a
+  missing mutation header before adoption.
+- User paused Opus because its five-hour quota was exhausted. No Opus trial
+  had started. Continue Sol-only work; Claude skill acceptance waits for user
+  resumption or confirmed reset of the applicable quota window. A different
+  account/provider quota showing capacity is not evidence of that reset.
