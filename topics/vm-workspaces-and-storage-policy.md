@@ -247,6 +247,19 @@ libvirt bases ended stopped and claim-free.
 
 ## Open work
 
+**Open:** preserve a structured recovery handoff when acquisition creates a
+workspace but startup fails. The Mac instruction campaign in
+[Tactical 128](../docs/tactical/128-control-efficiency-campaign.md) observed a
+retained stopped derivative and released acquisition claims, while the runner
+received a generic startup failure without a usable handle in its attempt
+record. Exact inventory/audit correlation and a new cleanup claim enabled
+guarded disposal. Retention itself follows the existing policy; the gap is
+carrying its handle, disposition, claim state and credential-handoff status
+through the refusal and runner evidence. Qualify a future fix with injected
+startup failures, preserving original failure cost and refusing ambiguous
+cleanup. Do not delete resources by guessed names or silently reuse a released
+claim.
+
 **Decision:** prioritize native builds on the operator-selected Windows host
 and a Windows guest test loop before further Windows desktop parity
 work. Host toolchains and caches serve compilation; claimed guests serve
