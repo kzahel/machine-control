@@ -1,5 +1,10 @@
 # Genuine Sky through an external agent host
 
+For a reusable Claude entry point, read the
+[repo-local guide](../../../info/claude-computer-use.md) and its skill. The
+skill's helper prepares a private config and optional startup probe; it uses
+this adapter and does not broaden the live qualification below.
+
 **Current, bounded live-tested:** YA-hosted Opus 5.5 at medium/normal completed
 TextEdit save and menu/conversion in separate disposable Mac guests, with
 independent file effects, two screenshots per workflow and explicit runtime

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Experiment-only MCP adapter for an already-installed genuine CUA runtime.
 
-No vendor code is copied. A controller explicitly names preauthorized fixture
+No vendor code is copied. A controller explicitly names preauthorized
 apps; all other approval requests are declined. Not a same-user sandbox.
 """
 import argparse
@@ -48,7 +48,7 @@ class Bridge:
                 'capabilities': {'tools': {}},
                 'serverInfo': {'name': 'mc-sky-external-experiment', 'version': '0.1'},
                 'instructions': upstream.get('instructions', '') +
-                    '\nUse only the explicitly authorized fixture app. Preserve native refusals. '
+                    '\nUse only the explicitly authorized apps for this session. Preserve native refusals. '
                     'After verification call sky_close. No MC UI or shell mutation fallback.'}
         if self.closed:
             raise ValueError('Experiment runtime closed; start a new explicitly authorized session')
@@ -83,7 +83,7 @@ def main():
     parser.add_argument('--config', type=Path, required=True,
                         help='Exact installed unified-computer-use .mcp.json, not a newest-cache guess')
     parser.add_argument('--allow-app', action='append', required=True,
-                        help='Exact fixture bundle ID explicitly authorized by the controller')
+                        help='Exact application bundle ID explicitly authorized by the controller')
     parser.add_argument('--evidence', type=Path, required=True,
                         help='Private directory for runtime stderr, approval requests and closure')
     args = parser.parse_args()

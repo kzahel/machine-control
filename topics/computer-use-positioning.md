@@ -83,3 +83,9 @@ cleanup. Two adapter-startup failures were diagnosed and retained. This proves
 a useful optional route and reinforces why provider independence is a package
 design advantage rather than a claim that Sky can only ever serve OpenAI models.
 It does not yet establish a general-purpose bridge or comparative performance.
+
+**Current:** a [repo-local Claude skill](../info/claude-computer-use.md) packages
+the tested adapter with scoped configuration generation and an optional
+initialize/list/close probe. It supports a direct file-pointer workflow without
+global installation. The host still has to load the MCP server; this packaging
+does not establish new application or runtime-version coverage.
