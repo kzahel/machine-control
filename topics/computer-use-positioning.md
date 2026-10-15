@@ -95,3 +95,9 @@ the tested adapter with scoped configuration generation and an optional
 initialize/list/close probe. It supports a direct file-pointer workflow without
 global installation. The host still has to load the MCP server; this packaging
 does not establish new application or runtime-version coverage.
+
+**Current:** [Fresh skill acceptance](../docs/evidence/claude-skill-acceptance-2026-10.md)
+now qualifies agent-led setup and the YA new-session handoff for two bounded
+TextEdit tasks. Setup, task, lifecycle and token costs are reported separately;
+failed setup attempts and a teardown-evaluation correction remain visible.
+This adds workflow evidence, not new general application or media coverage.

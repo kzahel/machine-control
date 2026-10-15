@@ -13,10 +13,10 @@ and raw evidence stay in private receipts.
 
 | Track | Deliverable and acceptance gate | Current state |
 | --- | --- | --- |
-| 1 — Claude skill acceptance | A fresh session follows the guide plus task/private runtime inputs, prepares scoped configuration and probes startup; host loading/new-session boundary is handled honestly; independent task effects and cleanup pass | Coordinator preparing isolated live acceptance |
-| 2 — Stable identity and compact observations | Unchanged/insertion/reorder retain correct identity; removal/replacement and generation changes refuse stale actions; compact output reconstructs state; deterministic measurements and live fixture acceptance | YA native worker, high effort, normal speed |
+| 1 — Claude skill acceptance | A fresh session follows the guide plus task/private runtime inputs, prepares scoped configuration and probes startup; host loading/new-session boundary is handled honestly; independent task effects and cleanup pass | Complete for two bounded TextEdit workflows; see evidence below |
+| 2 — Stable identity and compact observations | Unchanged/insertion/reorder retain correct identity; removal/replacement and generation changes refuse stale actions; compact output reconstructs state; deterministic measurements and live fixture acceptance | Offline implementation and review complete; live production gate pending |
 | 3 — Whole-package acceptance | Executable representative browser/dev, Finder and menu tasks; readiness, claims, credentials, assigned GUI route, independent effects and disposal recorded | YA harness worker, medium effort, normal speed |
-| 4 — Instruction experiment | Frozen seeded discovery/current/quickstart arms with matched profiles, repetitions and held-out tasks; failures retained; token/time/call distributions and limits reported | Same harness owner; live runs follow pilot gates |
+| 4 — Instruction experiment | Frozen seeded discovery/current/quickstart arms with matched profiles, repetitions and held-out tasks; failures retained; token/time/call distributions and limits reported | Frozen discovery/quickstart pilot running; repeated cells await review gate |
 
 ## Organization
 
@@ -116,3 +116,19 @@ Locked use is already implemented and remains separate acceptance scope.
   disappeared. The diagnostic clone was discarded after credential and child
   process cleanup checks. This is a system-surface check, not an agent score
   or a matched Sky policy comparison.
+
+- Fresh Claude setup plus separate task sessions passed two TextEdit workflows.
+  The [skill acceptance report](../evidence/claude-skill-acceptance-2026-10.md)
+  records setup/task/lifecycle costs, prior failures, preserved raw receipts
+  and the narrow teardown-evaluation correction. Inline media was not newly
+  qualified. Owned sessions and clones were cleaned up.
+- The first instruction pilot was stopped after an inconclusive Finder oracle
+  result and one passing extension cell. Ordinary Finder `.DS_Store` metadata
+  is now distinguished from payload files; exact payload/decoy contents and
+  symlink rejection remain required. The original failed receipt and cost are
+  retained, not retroactively declared a pass. A new source pin restarts the
+  complete eight-cell pilot before any repeated-comparison gate.
+- Independent production review found an acceptance cleanup-reporting defect
+  and gaps in semantic-route and boundary assertions. These are being fixed
+  before live deployment. The full native Swift suite passed 207 tests;
+  fixture and representative-app production acceptance remain required.

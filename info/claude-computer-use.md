@@ -31,7 +31,8 @@ server. The checkout supplies instructions and an experimental adapter, not
 the proprietary runtime.
 
 **Current:** YA-hosted Opus completed two TextEdit workflows through this
-adapter. Any Claude host capable of stdio MCP and inline images is a candidate,
+adapter, and a subsequent [fresh-session acceptance](../docs/evidence/claude-skill-acceptance-2026-10.md)
+qualified agent-led skill setup followed by a separate task session. Any Claude host capable of stdio MCP and inline images is a candidate,
 but that is not qualification of every host, application or runtime version.
 Reading a file cannot itself add tools to a running session: use the host's
 supported MCP loading mechanism, or start a new session with the generated
