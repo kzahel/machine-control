@@ -90,6 +90,8 @@ done
     guests/macos/privacy-fixture/PrivacyConsentFixture.swift
 /usr/bin/swiftc -typecheck -parse-as-library -framework SwiftUI \
     guests/macos/swiftui-fixture/SwiftUIFixture.swift
+/usr/bin/swiftc -typecheck guests/macos/keyboard-fixture/KeyboardFixture.swift
+/usr/bin/swiftc -typecheck guests/macos/keyboard-fixture/keysend.swift
 
 /usr/bin/python3 -m json.tool \
     guests/macos/electron-fixture/package.json >/dev/null

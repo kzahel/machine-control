@@ -134,5 +134,5 @@ Friction found while doing so:
 - Mac `input.key` chords post US-QWERTY virtual key codes. Under a Dvorak
   input source, `cmd+l` arrived as `cmd+n` and opened windows, `cmd+w` as
   `cmd+,` and `cmd+t` as `cmd+y`, while reporting `delivery: confirmed`.
-  Text input was unaffected. Chords should resolve characters through the
-  active keyboard layout or report the layout they assume.
+  Text input was unaffected. [126](126-macos-keyboard-layout-input.md) owns
+  the investigation and fix.

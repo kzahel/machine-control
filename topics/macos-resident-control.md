@@ -14,6 +14,13 @@ fresh login, preboot, Recovery, and physical hardware remain open.
 
 ## Current state
 
+**Current (2026-10-14):** keyboard chords and credential entry use fixed
+US-ANSI key positions, so under non-US layouts such as Dvorak `cmd+l` fires
+⌘N and a credential is typed as different characters; untargeted HID chords
+also leave Command set for later pointer events. Text input is unaffected.
+[Tactical 126](../docs/tactical/126-macos-keyboard-layout-input.md) owns the
+findings, keyboard fixture and fix plan.
+
 **Current:** `dialog.choose` (`desktop dialog choose --path P [--target APP]
 [--no-confirm]`) chooses a location in an application's open AppKit Open or
 Save panel. It navigates through the panel's own Go to Folder sheet (setting
