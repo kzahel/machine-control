@@ -5,6 +5,9 @@ earn full provider dossiers. Evidence levels follow the
 [corpus guide](README.md#evidence-levels). License fields describe the
 repository's declared top-level terms only.
 
+The [computer-use competitive landscape](competitive-landscape.md) compares
+Claude/Sky bridges, delegated Codex routes and independent desktop providers.
+
 | Project | Declared license | Evidence | Why it matters / why no dossier yet |
 | --- | --- | --- | --- |
 | [Playwright](https://playwright.dev/docs/browsers) | [Apache-2.0](https://github.com/microsoft/playwright/blob/main/LICENSE) | `upstream-claimed`; official docs reviewed 2026-08-25 | Deep browser automation across Chromium, WebKit, and Firefox, with mobile browser profiles and experimental Electron support. It is the preferred complementary page-level comparison, not a whole-machine lifecycle or system-UI layer. |

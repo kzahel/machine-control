@@ -5,6 +5,10 @@ Topic: `computer-use-positioning`
 Status: current product positioning and evidence-led roadmap. The Python MCP
 candidate is one interface within Machine Control, not the whole product.
 
+The [competitive landscape](../research/competitive-landscape.md) records the
+other repositories, route distinctions, licenses and review depth behind this
+positioning.
+
 ## Positioning
 
 **Decision:** Machine Control is a provider-agnostic machine and testbed control

@@ -105,6 +105,7 @@ acceptance cases rather than a lowest-common-denominator feature count.
 - [Provider index](providers/README.md)
 - [Platform index](platforms/README.md)
 - [Adjacent projects and benchmarks](adjacent-projects.md)
+- [Computer-use competitive landscape](competitive-landscape.md)
 - [Windows options and evidence](platforms/windows.md)
 - [Cross-provider decision topic](../topics/provider-landscape.md)
 - [Windows decision topic](../topics/windows-resident-control.md)
