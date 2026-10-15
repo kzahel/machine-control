@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import random
 import signal
+import stat
 import time
 import subprocess
 import sys
@@ -235,6 +236,63 @@ def check_source(source, revision=None):
     return head
 
 
+def private_runtime_config(source, path):
+    """Read only a regular mode-0600 controller file outside the source tree."""
+    path = Path(path).absolute()
+    info = path.lstat()
+    if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600:
+        raise ValueError('Runtime config must be a regular private mode-0600 file')
+    resolved = path.resolve(strict=True)
+    if resolved.is_relative_to(Path(source).resolve()):
+        raise ValueError('Runtime config must be outside the source checkout')
+    flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
+    descriptor = os.open(path, flags)
+    try:
+        opened = os.fstat(descriptor)
+        if (not stat.S_ISREG(opened.st_mode) or stat.S_IMODE(opened.st_mode) != 0o600 or
+                (info.st_dev, info.st_ino) != (opened.st_dev, opened.st_ino)):
+            raise ValueError('Runtime config changed identity or permissions before reading')
+        with os.fdopen(descriptor, 'rb', closefd=False) as stream:
+            content = stream.read()
+        if not content:
+            raise ValueError('Runtime config must not be empty')
+        return {'path': str(resolved), 'sha256': hashlib.sha256(content).hexdigest()}
+    finally:
+        os.close(descriptor)
+
+
+def pin_runtime_config(source, directory, path):
+    reference = directory/'runtime-config.json'
+    if path is None:
+        if reference.exists():
+            raise ValueError('Campaign requires its pinned runtime config file')
+        return None
+    selected = private_runtime_config(source, path)
+    if reference.exists():
+        if json.loads(reference.read_text()) != selected:
+            raise ValueError('Runtime config differs from campaign pin')
+    else:
+        if any(directory.glob('cell-*/attempt.json')):
+            raise ValueError('Runtime config cannot be added after campaign trials started')
+        write_new(reference, selected)
+    return selected
+
+
+def runner_command(source, args, task, route, root):
+    command = [sys.executable, str(source/'tests/experiments/route_comparison.py'),
+        '--task-root', str(args.task_root), '--task', task['id'], '--route', route,
+        '--provider', args.provider, '--model', args.model, '--effort', args.effort,
+        '--instructions', args.instructions, '--seed', str(args.seed), '--repetitions', '1',
+        '--revision', args.revision, '--results', str(root)]
+    for name in ('target', 'credential_file', 'ssh_key', 'known_hosts', 'host_key_alias', 'guest_user', 'project'):
+        command.extend(['--' + name.replace('_', '-'), str(getattr(args, name))])
+    if args.gateway_credential_file:
+        command.extend(['--gateway-credential-file', str(args.gateway_credential_file)])
+    if getattr(args, 'runtime_config_file', None) is not None:
+        command.extend(['--runtime-config-file', str(args.runtime_config_file)])
+    return command
+
+
 def execute_runner(command, source, root):
     """Wait for our isolated child even when the controller requests a stop.
 
@@ -327,6 +385,7 @@ def effective_record(attempt):
 def run_stage(source, plan, directory, stage, options, harness):
     """Injectable existing runner boundary; no implicit retries or parallel target use."""
     directory = Path(directory)
+    config = pin_runtime_config(source, directory, getattr(options, 'runtime_config_file', None))
     for cell in plan['rows']:
         if cell['stage'] != stage:
             continue
@@ -341,6 +400,13 @@ def run_stage(source, plan, directory, stage, options, harness):
             poll_seconds=1.0)
         attempt = {'cell': cell['id'], 'record': {'error': 'runner did not return'}}
         try:
+            if config is not None:
+                attempt['runtimeConfigSha256'] = config['sha256']
+                observed = private_runtime_config(source, config['path'])
+                attempt['runtimeConfigObservedSha256'] = observed['sha256']
+                if observed != config:
+                    raise ValueError('Runtime config changed before cell; refusing dispatch')
+                args.runtime_config_file = Path(config['path'])
             task = json.loads((args.task_root/cell['task']/'task.json').read_text())
             attempt['record'] = harness.run_trial(args, task, cell['route'], 1, root)
         except BaseException as error:
@@ -377,6 +443,10 @@ def load_attempts(directory, plan):
             if not trial.is_relative_to(path.parent.resolve()) or digest(trial/'trial.json') != attempt['receiptSha256']:
                 raise ValueError('Attempt receipt changed or escaped campaign')
             attempt['record'] = load_receipt(trial)
+        if attempt.get('runtimeConfigSha256') is not None:
+            config_pin = json.loads((directory/'runtime-config.json').read_text())
+            if config_pin.get('sha256') != attempt['runtimeConfigSha256']:
+                raise ValueError('Runtime config pin changed after attempt')
         for name, expected_hash in attempt.get('runtime', {}).get('evidenceHashes', {}).items():
             evidence_path = (directory/name).resolve()
             if not evidence_path.is_relative_to(directory.resolve()) or digest(evidence_path) != expected_hash:
@@ -393,8 +463,8 @@ def load_attempts(directory, plan):
 
 def pilot_evidence_hashes(directory):
     """Bind the review decision to both original receipts and subsequent reviews."""
-    names = {'invocation.json', 'runtime.json', 'runtime-reference.json', 'attempt.json', 'trial.json', 'transcript.jsonl', 'review.json', 'evaluation.json', 'acceptance.json'}
-    paths = list(directory.glob('cell-*/**/*')) + [directory/'runtime-reference.json']
+    names = {'invocation.json', 'runtime.json', 'runtime-reference.json', 'attempt.json', 'trial.json', 'transcript.jsonl', 'review.json', 'evaluation.json', 'acceptance.json', 'runtime-config.json'}
+    paths = list(directory.glob('cell-*/**/*')) + [directory/'runtime-reference.json', directory/'runtime-config.json']
     return {str(path.relative_to(directory)): digest(path)
             for path in sorted(paths) if path.is_file() and path.name in names}
 
@@ -442,6 +512,8 @@ def main():
     running.add_argument('--target', required=True)
     running.add_argument('--credential-file', type=Path, required=True)
     running.add_argument('--gateway-credential-file', type=Path)
+    running.add_argument('--runtime-config-file', type=Path,
+                         help='Private mode-0600 controller config outside source; hash pinned across campaign')
     running.add_argument('--ssh-key', type=Path, required=True)
     running.add_argument('--known-hosts', type=Path, required=True)
     running.add_argument('--host-key-alias', required=True)
@@ -485,16 +557,10 @@ def main():
     help_text = subprocess.check_output([sys.executable, str(source/'tests/experiments/route_comparison.py'), '--help'], text=True)
     if '--task-root' not in help_text:
         raise ValueError('Runner integration required: selected source must support --task-root')
+    if options.runtime_config_file is not None and '--runtime-config-file' not in help_text:
+        raise ValueError('Runner integration required: selected source must support --runtime-config-file')
     def invoke(args, task, route, index, root):
-        command = [sys.executable, str(source/'tests/experiments/route_comparison.py'),
-            '--task-root', str(args.task_root), '--task', task['id'], '--route', route,
-            '--provider', args.provider, '--model', args.model, '--effort', args.effort,
-            '--instructions', args.instructions, '--seed', str(args.seed), '--repetitions', '1',
-            '--revision', args.revision, '--results', str(root)]
-        for name in ('target', 'credential_file', 'ssh_key', 'known_hosts', 'host_key_alias', 'guest_user', 'project'):
-            command.extend(['--' + name.replace('_', '-'), str(getattr(args, name))])
-        if args.gateway_credential_file:
-            command.extend(['--gateway-credential-file', str(args.gateway_credential_file)])
+        command = runner_command(source, args, task, route, root)
         check_source(source, plan['revision'])
         execute_runner(command, source, root)
         paths = list(root.glob('run-*/*/*/trial.json'))

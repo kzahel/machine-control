@@ -448,6 +448,156 @@ except RuntimeError as error:
                             pass
 
 
+class RuntimeConfigTest(unittest.TestCase):
+    def setUp(self):
+        self.plan = campaign.make_plan('revision', 'codex', 'exact-model', 'medium', ['machine-control'], 128)
+
+    def prepare(self, root):
+        source = root/'source'
+        for cell in self.plan['rows']:
+            task = source/'tests/experiments'/cell['taskRoot']/cell['task']
+            task.mkdir(parents=True, exist_ok=True)
+            (task/'task.json').write_text(json.dumps({'id': cell['task']}))
+        results = root/'results'
+        results.mkdir()
+        config = root/'private runtime config.json'
+        config.write_text(json.dumps({'env': {'PRIVATE_FIXTURE_VALUE': 'never emit this content'}}))
+        config.chmod(0o600)
+        return source, results, config
+
+    def test_private_config_rejects_checkout_permissions_links_and_nonfiles(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source, results, config = self.prepare(Path(temp))
+            self.assertEqual(campaign.private_runtime_config(source, config)['sha256'], campaign.digest(config))
+            config.chmod(0o640)
+            with self.assertRaisesRegex(ValueError, 'mode-0600'):
+                campaign.private_runtime_config(source, config)
+            config.chmod(0o600)
+            inside = source/'private.json'
+            inside.write_bytes(config.read_bytes())
+            inside.chmod(0o600)
+            with self.assertRaisesRegex(ValueError, 'outside'):
+                campaign.private_runtime_config(source, inside)
+            linked = config.parent/'link.json'
+            linked.symlink_to(config)
+            with self.assertRaisesRegex(ValueError, 'regular private'):
+                campaign.private_runtime_config(source, linked)
+            with self.assertRaisesRegex(ValueError, 'regular private'):
+                campaign.private_runtime_config(source, results)
+            config.write_bytes(b'')
+            with self.assertRaisesRegex(ValueError, 'empty'):
+                campaign.private_runtime_config(source, config)
+            if hasattr(os, 'mkfifo'):
+                fifo = config.parent/'not-a-file'
+                os.mkfifo(fifo, 0o600)
+                with self.assertRaisesRegex(ValueError, 'regular private'):
+                    campaign.private_runtime_config(source, fifo)
+
+    def test_exact_config_forwarding_round_trips_through_fake_runner_without_env_output(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source, results, config = self.prepare(Path(temp))
+            args = SimpleNamespace(task_root=source/'tasks', provider='codex', model='exact-model', effort='medium',
+                instructions='discovery', seed=128, revision='revision', target='example', credential_file=Path('login'),
+                ssh_key=Path('key'), known_hosts=Path('known'), host_key_alias='example', guest_user='fixture',
+                project='fixture-project', gateway_credential_file=None, runtime_config_file=config)
+            command = campaign.runner_command(source, args, {'id': 'finder-decoy'}, 'machine-control', results)
+            # Execute the generated argument vector against a local fake CLI; no real runner.
+            fake = """import hashlib,json,sys
+from pathlib import Path
+index=sys.argv.index('--runtime-config-file')
+path=Path(sys.argv[index+1])
+print(json.dumps({'path':str(path),'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}))
+"""
+            campaign.execute_runner([sys.executable, '-c', fake, *command[2:]], source, results)
+            observed = json.loads((results/'runner.stdout').read_text())
+            self.assertEqual(observed, {'path': str(config), 'sha256': campaign.digest(config)})
+            self.assertNotIn('never emit this content', (results/'runner.stdout').read_text())
+            self.assertEqual((results/'runner.stderr').read_text(), '')
+            args.runtime_config_file = None
+            default = campaign.runner_command(source, args, {'id': 'finder-decoy'}, 'machine-control', results)
+            self.assertNotIn('--runtime-config-file', default)
+            self.assertEqual(command[:-2], default)
+
+    def test_config_hash_is_pinned_across_stages_bound_to_review_and_not_copied(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source, results, config = self.prepare(Path(temp))
+            options = SimpleNamespace(runtime_config_file=config)
+            seen = []
+            def run(args, task, route, index, cell_root):
+                seen.append(args.runtime_config_file)
+                cell = next(c for c in self.plan['rows'] if c['id'] == cell_root.name)
+                trial = write_runtime(cell_root)
+                value = receipt(self.plan, cell)
+                (trial/'trial.json').write_text(json.dumps(value))
+                return value
+            harness = SimpleNamespace(run_trial=run)
+            campaign.run_stage(source, self.plan, results, 'pilot', options, harness)
+            hashes = campaign.pilot_evidence_hashes(results)
+            self.assertIn('runtime-config.json', hashes)
+            campaign.run_stage(source, self.plan, results, 'paired', options, harness)
+            self.assertEqual(seen, [config.resolve()] * 32)
+            pin = json.loads((results/'runtime-config.json').read_text())
+            self.assertEqual(pin['sha256'], campaign.digest(config))
+            self.assertEqual((results/'runtime-config.json').stat().st_mode & 0o777, 0o600)
+            attempts = campaign.load_attempts(results, self.plan)
+            self.assertEqual({a['runtimeConfigSha256'] for a in attempts}, {pin['sha256']})
+            for path in results.rglob('*'):
+                if path.is_file():
+                    self.assertNotIn('never emit this content', path.read_text())
+            with self.assertRaisesRegex(ValueError, 'requires its pinned'):
+                campaign.pin_runtime_config(source, results, None)
+            config.write_text('{}')
+            with self.assertRaisesRegex(ValueError, 'differs from campaign pin'):
+                campaign.pin_runtime_config(source, results, config)
+            pin['sha256'] = 'changed-evidence'
+            (results/'runtime-config.json').write_text(json.dumps(pin))
+            with self.assertRaisesRegex(ValueError, 'pin changed after attempt'):
+                campaign.load_attempts(results, self.plan)
+
+    def test_mutation_between_cells_retains_pin_and_refuses_next_dispatch(self):
+        for mutation in ('bytes', 'permissions', 'missing'):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temp:
+                source, results, config = self.prepare(Path(temp))
+                expected_hash = campaign.digest(config)
+                seen = []
+                def run(args, task, route, index, cell_root):
+                    seen.append(cell_root.name)
+                    cell = self.plan['rows'][0]
+                    trial = write_runtime(cell_root)
+                    value = receipt(self.plan, cell)
+                    (trial/'trial.json').write_text(json.dumps(value))
+                    if mutation == 'bytes':
+                        config.write_text('{}')
+                    elif mutation == 'permissions':
+                        config.chmod(0o644)
+                    else:
+                        config.unlink()
+                    return value
+                with self.assertRaises((ValueError, FileNotFoundError)):
+                    campaign.run_stage(source, self.plan, results, 'pilot', SimpleNamespace(runtime_config_file=config),
+                                       SimpleNamespace(run_trial=run))
+                self.assertEqual(len(seen), 1)
+                attempts = campaign.load_attempts(results, self.plan)
+                self.assertEqual(len(attempts), 2)
+                self.assertEqual(attempts[-1]['runtimeConfigSha256'], expected_hash)
+                self.assertIn('driverError', attempts[-1])
+                self.assertFalse(campaign.valid_trial(campaign.effective_record(attempts[-1])))
+                if mutation == 'bytes':
+                    self.assertNotEqual(attempts[-1]['runtimeConfigObservedSha256'], expected_hash)
+                self.assertEqual(json.loads((results/'runtime-config.json').read_text())['sha256'], expected_hash)
+
+    def test_absent_default_does_not_create_pin_or_allow_late_config_selection(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source, results, config = self.prepare(Path(temp))
+            self.assertIsNone(campaign.pin_runtime_config(source, results, None))
+            self.assertFalse((results/'runtime-config.json').exists())
+            cell = results/self.plan['rows'][0]['id']
+            cell.mkdir()
+            (cell/'attempt.json').write_text('{}')
+            with self.assertRaisesRegex(ValueError, 'cannot be added'):
+                campaign.pin_runtime_config(source, results, config)
+
+
 class HeldOutTest(unittest.TestCase):
     def load(self, name):
         path = Path(__file__).parent/'control-scenarios'/name/'fixture.py'

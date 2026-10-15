@@ -35,6 +35,21 @@ Each invocation retains the runner's journal, doctor, isolated workspace/claim,
 secret handoff, oracle, transcript, usage, audit and disposal. The runner checks
 the effective model/effort/speed; the campaign also checks receipt identity.
 
+`run --runtime-config-file /private/selected-runtime.json` optionally supplies
+an already selected, privately startup-probed genuine runtime configuration.
+It forwards that exact controller file to the runner through the same option;
+it does not reconstruct configuration from the environment or cache discovery.
+The file must be nonempty, regular (no symlink), mode 0600 and outside the source
+checkout. The campaign records only its canonical private path and SHA-256 in
+private `runtime-config.json`, never its contents or environment values.
+Its path/hash are pinned from the start, revalidated before every cell and
+retained in each private attempt, including a refused dispatch. Pilot review
+hashes include the config pin. Paired stages require the same selection; do not
+add, omit or replace it after trials start. A file/mode change or disappearance
+stops scheduling before the next runner call. The campaign-wide installed-runtime
+fingerprint gate still applies independently. Without the option, the existing
+runner default stays unchanged and no runtime-config pin is created.
+
 The source must remain clean at the fixed commit before every cell. A selected
 checkout must include the campaign fixtures and runner interface in that same
 commit. Each cell has a private existing-runner batch below its own directory.
