@@ -1,8 +1,5 @@
 # Commit Topics
 
-- `computer-use-positioning` — complete-package positioning, Computer Use
-  capability gaps, provider independence and optional Sky experiments.
-
 Registry of topic strings used in `Topic:` commit trailers. This is not an
 index of [`topics/`](topics/README.md), although a series normally reuses the
 owning topic document's slug.
@@ -85,3 +82,5 @@ commits with no expected follow-up do not need a trailer or registry entry.
 
 - `runtime-and-presentation` — reusable runtime, nonblocking execution,
   configurable presentation and operator recovery in one package.
+- `computer-use-positioning` — complete-package positioning, Computer Use
+  capability gaps, provider independence and optional Sky experiments.

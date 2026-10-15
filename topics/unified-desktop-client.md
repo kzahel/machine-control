@@ -5,6 +5,11 @@ Topic: `unified-desktop-client`
 Status: accepted first three-desktop client over the current resident
 implementations.
 
+The [Computer Use positioning roadmap](computer-use-positioning.md) compares
+the complete Machine Control package with the optional Sky provider. Missing
+methods or qualification in the thin session facade do not remove existing
+locked use, browser control, system-shell access or VM lifecycle capabilities.
+
 ## Goal
 
 An agent should use the same ordinary desktop workflow on Windows, macOS, or

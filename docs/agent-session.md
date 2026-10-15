@@ -8,6 +8,11 @@ installed packaging, the shell facade, remote acceptance and broader platform
 conformance. This is bounded source acceptance, not general platform support;
 the existing CLI remains supported.
 
+This interface is a subset of Machine Control. Existing covered locked use,
+browser extension/CDP, system-surface and VM lifecycle capabilities have their
+own interfaces and acceptance records. Their integration into this session is
+tracked by the [capability roadmap](../topics/computer-use-positioning.md).
+
 Start the server with a logical target:
 
 ```sh

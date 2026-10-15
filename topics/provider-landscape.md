@@ -90,6 +90,12 @@ license posture, and actual evidence level.
 
 ## Optional Sky provider and agent-facing compatibility
 
+The [positioning and gap roadmap](computer-use-positioning.md) keeps GUI
+efficiency separate from Machine Control's broader VM/device/lifecycle scope.
+Provider independence remains a core design property even when an unofficial
+bridge lets a different model use Sky. [Tactical 127](../docs/tactical/127-opus-sky-computer-use.md)
+now qualifies that optional route through YA-hosted Opus.
+
 **Current:** the [Sky dossier](../research/providers/sky-computer-use.md) records
 an external MCP host successfully driving a user-authorized TextEdit workflow
 through the installed proprietary runtime, with an independent saved-file

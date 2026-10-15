@@ -579,6 +579,32 @@ comparison and separate policy annotation; exact transcripts stay private.
 
 ## Fit and next evidence
 
+### Other-model bridges (2026-10-15)
+
+**Current, source/documents reviewed:** public external-agent integrations exist.
+They are not all the same route:
+
+- [songkeys/claude-codex-computer-use](https://github.com/songkeys/claude-codex-computer-use)
+  is an MIT bridge to the installed native MCP client, using a signed Codex
+  launcher without a Codex reasoning model. Its reviewed adapter automatically
+  accepts elicitation and recycles after idle/user-stop results. Those policies
+  are not adopted by MC's bounded fixture experiment.
+- [promptadvisers/claude-mods-computer-use-threads](https://github.com/promptadvisers/claude-mods-computer-use-threads)
+  declares MIT and documents direct tool use, per-app approval choices and
+  caller leases through a mod-enabled Claude runtime. Its integration is not
+  established for YA by those upstream claims.
+- [leeguooooo/computer-use](https://github.com/leeguooooo/computer-use) now
+  documents an archived MIT broker rewrite that delegates whole tasks to a
+  Codex model. Its earlier patch/hook approach was removed. This is distinct
+  from Opus choosing every action and receiving each state/image.
+
+The [spike review](../../../machine-control-spike/docs/sky-other-agent-bridges.md)
+owns exact pins and review depth. No third-party bridge or proprietary asset
+was installed or adopted. **Proposal:** qualify the genuine installed unified
+runtime through YA/Opus with exact fixture-scoped host approval, native refusals
+preserved and explicit cleanup. [Tactical 127](../../docs/tactical/127-opus-sky-computer-use.md)
+owns that experiment; it is separate from the completed Sol/MC comparison.
+
 **Decision:** Use the separation between native caller authentication,
 app-specific consent and agent tool advertisement as a design benchmark.
 Machine Control must retain an agent-neutral interface and authenticated
