@@ -405,5 +405,9 @@ counts therefore do not certify clean workflow conformance.
 All 71 recorded attempts, including the earlier invalid oracle attempt, have
 hash-bound route reviews, reported usage and confirmed guest disposal. Explicit
 report-time reanalysis preserves timing corrections and all attempt costs.
-The baseline is paused after cleanup while the revised Python candidate runs
-its second round; the third baseline and candidate rounds remain pending.
+The corresponding Python second round then passed all fourteen effect oracles.
+Its cumulative 28 trials have complete usage, route-conforming reviews and
+normal ownership closure before disposal. Recovery from stale references and
+menu activation remains visible in the costs; final success is not evidence
+that these workflows were frictionless. The baseline third round is running
+while Python remains paused after cleanup; its final round follows.
