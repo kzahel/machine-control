@@ -92,3 +92,11 @@ Locked use is already implemented and remains separate acceptance scope.
   disposal; legacy wall-time semantics remain intact. Offline tests passed;
   live acceptance is next. YA visible-message extraction replaces reliance on
   an optional summary field that was absent in a real session response.
+- The campaign planner and held-out fixtures passed 20 focused tests. Review
+  fixes isolate child process groups for graceful cleanup, bind all cells to
+  one installed-runtime fingerprint, and measure invocation time through
+  disposal. These are harness checks; live pilot qualification remains pending.
+- The first skill attempt failed at runtime fingerprinting before any model
+  session started. Its isolated clone was discarded and its failure cost
+  retained. A separate claimed clone is diagnosing runtime selection; this
+  infrastructure failure is not an Opus task result.
