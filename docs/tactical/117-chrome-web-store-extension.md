@@ -87,11 +87,20 @@ boundaries and add a per-session clear on grant end.
 
 ### 5 — install without manual setup
 
-Have the desktop installers pre-register the store item through Chrome's
-external-extension mechanism (Windows registry, macOS preferences JSON, Linux
-external-extension JSON) so Chrome offers it on next start. Add an appliance
-recipe that force-installs the store ID by `ExtensionInstallForcelist` on a
-dedicated test VM, with doctor reporting extension presence and version.
+**Decision (2026-10-15):** personal computers do not pre-register the
+extension. Chrome's external-extension preferences only take effect after a
+browser restart, raise a "was added by another program" alert, and remember a
+decline permanently. Instead, the desktop app's **Set up** registers the
+native host and opens the store listing, keeping "use the bundled copy
+(Developer mode)" as a secondary path until the store copy has held across a
+few releases. Status names the connected copy (store or bundled, version) and
+warns when both are installed.
+
+Forced installation belongs to the VM recipe: a dedicated test appliance
+force-installs the store ID with `ExtensionInstallForcelist` (Windows policy
+registry, Linux managed policy JSON; macOS needs a configuration profile),
+and doctor reports extension presence, origin and version. Chrome for Testing
+automation keeps loading the bundled copy.
 
 ### 6 — go public
 
