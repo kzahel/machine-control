@@ -1,67 +1,64 @@
-# Give an agent a useful Machine Control entry point
+# Use Machine Control
 
-**Proposal:** this concise entry guide incorporates observed instruction
-friction. It has not been evaluated as an agent prompt. The frozen experiment
-uses its own unchanged discovery and quickstart treatments.
+Use the target specified in the task. Follow any required control route.
 
-Point a session at this file with the task and selected target:
+If Python `mc` tools are already loaded and support the selected target and
+operation, use them. Calls block; do not `await`. Variables persist. The server
+manages doctor, claims and renewal; do not pass it an existing claim. Observe
+after UI changes, verify effects, and call `mc.close()` in cleanup. See
+[session scope](../docs/agent-session.md) for supported capabilities.
 
-> Read `info/use-machine-control.md` in the Machine Control checkout. Use it
-> for the requested task on the selected target, verify the actual effect,
-> and clean up your owned session and claims. Report any missing capability.
+Otherwise, use the CLI from the repository root. Replace `TARGET` with the
+selected machine:
 
-## Choose an available interface
+```sh
+bin/machine-control --target TARGET target doctor
+bin/machine-control --target TARGET claim acquire --duration 15m --reason 'Perform the requested task'
+```
 
-Read [session scope](../docs/agent-session.md). If the persistent Python `mc`
-tools are already loaded, configured for this target and qualified for the
-requested placement/capabilities, use their tool description. Calls block;
-there is no `await`. Variables persist. Use truthful published session
-attribution, observe changed UI before acting, and call `mc.close()` in final
-cleanup. The server owns its doctor, claim, renewal and release. Do not pass
-it an existing global claim.
+Read the returned claim ID and pass `--claim CLAIM_ID` on every target operation.
+Check `grant status`; a claim is not a grant. Stop on denied authorization.
+For an existing workspace, use its returned claim rather than acquiring another.
+Follow the [CLI guide](../docs/cli-guide.md) for renewal and the selected
+[platform guide](../platforms/README.md) for platform-specific operations.
 
-Reading this file does not load MCP tools. When they are absent or the task
-needs a capability outside that facade, use the existing CLI and selected
-[platform guide](../platforms/README.md). Follow the
-[CLI guide](../docs/cli-guide.md) for readiness, claims, grants, renewal and
-cleanup. Preserve any explicit route restriction in the task. A borrowed claim
-remains owned by its coordinator; a workspace release needs its returned
-handle and claim. Keep target control inside the target's native provider.
+## Observe, act, verify
 
-## Avoid common CLI discovery mistakes
-
-These are syntax examples, not actions to run blindly. `TARGET`, `APP`,
-`CLAIM_ID` and `LABEL` are placeholders for the selected machine, an observed
-application, the live claim and a relevant control label.
+Discover actual application identities, then inspect the relevant UI. `APP`
+is an observed application identity; `LABEL` is the control text to find:
 
 ```sh
 bin/machine-control --target TARGET --claim CLAIM_ID desktop applications
 bin/machine-control --target TARGET --claim CLAIM_ID desktop snapshot --target APP --projection compact --query LABEL
 ```
 
-The global machine target and the command's application target are different.
-Discover application identities rather than guessing a test browser's bundle
-identifier. `desktop applications` lists apps; `desktop application list` does
-not. Use offline subcommand `--help` for grammar before retrying guessed forms.
+The global `--target` selects the machine; the snapshot's `--target` selects
+the app. Use references from the observation to act. Observe again after UI
+changes and use fresh references. Verify the application effect, not just
+whether the input call succeeded.
 
-Quote text and key chords, especially shell metacharacters such as `'cmd+['`.
-Use a shell function with `"$@"` if shortening commands; define it in each
-separate shell call. A trap in an earlier completed shell cannot clean up a
-later call.
+Use subcommand `--help` for exact grammar. Quote text and key chords such as
+`'cmd+['`. If shortening commands with a shell function, forward arguments with
+`"$@"` and define the function in each separate shell call.
 
-Prefer bounded relevant observations. An empty shallow query does not prove
-a control is absent; inspect app identity, depth and projection. Menus may
-need the full projection. Compact output can still be truncated. Parse complete
-captured CLI stdout, not a truncated tool display, and retain route, effect,
-uncertainty and truncation metadata in any summary. Use fresh action references
-after UI changes and independently verify effects.
+Keep observations focused. An empty query may need greater `--max-depth`;
+menus may need `--projection full`. Parse complete captured CLI stdout rather
+than a truncated tool display. Preserve route, effect, uncertainty and
+truncation metadata when filtering results.
 
-Record material friction through `usage note --kind friction`; it requires a
-kind and reads the note body from stdin. Use `fallback` for an authorized route
-change and finish with a `summary` note after friction. Keep secrets out of
-notes. Release owned claims promptly even when the task fails.
+## Cleanup
 
-For delegated agent work, follow the [YA session runbook](../docs/ya-agent-sessions.md).
-YA owns coordination; selecting a target does not require spawning an agent on
-it. For the optional installed Sky route in Claude, use the separate
-[Claude Computer Use guide](claude-computer-use.md).
+Release owned claims even when the task fails:
+
+```sh
+bin/machine-control --target TARGET --claim CLAIM_ID claim release
+```
+
+A workspace release needs its handle and claim. Leave borrowed claims to their
+owner. Record material friction with `usage note --kind friction`, supplying
+the note on stdin; use `fallback` for an authorized route change and finish
+with a `summary` note. Keep secrets out of notes.
+
+For YA delegation, use the [session runbook](../docs/ya-agent-sessions.md).
+For Claude with the installed Sky runtime, use the
+[Computer Use guide](claude-computer-use.md).
