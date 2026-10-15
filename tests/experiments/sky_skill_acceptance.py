@@ -20,7 +20,7 @@ import tarfile
 import time
 
 from agent_profiles import DEFAULT_MODELS, launch_request, qualify
-from measurements import claude_transcript_metrics
+from measurements import claude_transcript_metrics, timestamp
 
 APP = 'com.apple.TextEdit'
 TASKS = {'textedit-save', 'textedit-menu'}
@@ -150,9 +150,190 @@ def verify_generated_setup(repo, runtime_config, output, runtime_sha256, artifac
     tracked = [config, output / 'preflight/probe.json', runtime_config, host,
                *source_paths(repo), *(Path(p) for p in artifact_paths)]
     return {'passed': True, 'approvedApps': [APP], 'probe': probe,
-            'evidenceDir': str(output / 'runtime'), 'hostEntryVerified': True,
+            'evidenceDir': str(output / 'runtime'), 'hostEntryVerified': True, 'taskRuntimeEvidenceAbsent': True,
             'hashes': {str(p): digest(p) for p in tracked},
             'artifactModes': {str(p.relative_to(output)): oct(stat.S_IMODE(p.stat().st_mode)) for p in files}}
+
+
+# Narrow compatibility window: reviewed repository sources that emitted native
+# close receipts before MCP wrapper exit, but no runtime-closed protocol event.
+LEGACY_BRIDGE_SHA256 = '3304a8bc52c008cef2a2d575d51ce67f2ad0f6c7a60b44d176bb9e871b7fddf1'
+LEGACY_VERIFIER_SHA256 = '302bf06d1465a78e63b1f4a3c7ea3844a9d1384abccd08f2ca6448a5cee6ce03'
+
+
+def successful_sky_close(transcript):
+    calls = {}
+    for line in transcript.splitlines():
+        row = json.loads(line)
+        if row.get('isSidechain') or row.get('isSubagent'):
+            continue
+        blocks = (row.get('message') or {}).get('content', [])
+        if not isinstance(blocks, list):
+            continue
+        for block in blocks:
+            if not isinstance(block, dict):
+                continue
+            if row.get('type') == 'assistant' and block.get('type') == 'tool_use' and block.get('name') == 'mcp__sky_experiment__sky_close':
+                if isinstance(block.get('id'), str) and block.get('id') and block.get('input') == {}:
+                    calls[block['id']] = {'callId': block['id'], 'callAt': timestamp(row.get('timestamp'))}
+            elif row.get('type') == 'user' and block.get('type') == 'tool_result' and not block.get('is_error'):
+                call = calls.get(block.get('tool_use_id'))
+                content = block.get('content')
+                if isinstance(content, list):
+                    content = '\n'.join(b['text'] for b in content if isinstance(b, dict) and
+                                        b.get('type') == 'text' and isinstance(b.get('text'), str))
+                result_at = timestamp(row.get('timestamp'))
+                if (call and call['callAt'] is not None and result_at is not None and result_at >= call['callAt'] and
+                        isinstance(content, str) and content.strip() == 'Computer Use runtime closed.'):
+                    return {**call, 'resultAt': result_at}
+    return None
+
+
+def runtime_closure_evidence(evidence, *, verification, transcript, legacy_source_verified=False):
+    """Native teardown evidence; wrapper/process termination is a separate result."""
+    checks = {}
+    try:
+        closed = json.loads(evidence.get('closed.json', '{}'))
+        events = [json.loads(line) for line in evidence.get('protocol-events.jsonl', '').splitlines()]
+        starts = [e for e in events if e.get('event') == 'started']
+        teardown = [e for e in events if e.get('event') == 'runtime-closed']
+        checks['freshTaskEvidence'] = verification.get('passed') is True and verification.get('taskRuntimeEvidenceAbsent') is True
+        checks['scopedNativeCloseMarker'] = (closed.get('closed') is True and closed.get('approvalScope') == [APP]
+                                             and closed.get('automaticRestart') is False)
+        checks['singleWrapperStart'] = len(starts) == 1
+        close_call = successful_sky_close(transcript)
+        checks['successfulTranscriptSkyClose'] = close_call is not None
+        if legacy_source_verified:
+            checks['knownLegacyProtocol'] = not teardown and bool(starts) and isinstance(starts[0].get('at'), (int, float))
+        else:
+            start = starts[0] if len(starts) == 1 else {}
+            stop = teardown[0] if len(teardown) == 1 else {}
+            checks['nativeTeardownEvent'] = (len(teardown) == 1 and bool(start.get('runtimeId')) and
+                start.get('runtimeId') == stop.get('runtimeId') == closed.get('runtimeId') and
+                stop.get('reason') == 'sky_close' and stop.get('approvalScope') == [APP] and
+                stop.get('automaticRestart') is False and closed.get('runtimeClosed') is True and
+                isinstance(start.get('at'), (int, float)) and isinstance(stop.get('at'), (int, float)) and
+                start['at'] <= stop['at'] and closed.get('closedAt') == stop['at'])
+        return {'passed': all(checks.values()), 'checks': checks, 'skyCloseCall': close_call,
+                'wrapperExitEventObserved': any(e.get('event') == 'wrapper-process-closed' for e in events),
+                'basis': 'known_legacy_source_and_transcript' if legacy_source_verified else 'runtime_closed_event'}
+    except (ValueError, TypeError, AttributeError, KeyError):
+        return {'passed': False, 'checks': {**checks, 'readableClosureEvidence': False}, 'skyCloseCall': None}
+
+
+def retained_closure_hashes(directory):
+    """The review must bind to this exact completed attempt, including setup."""
+    directory = Path(directory)
+    names = ('trial.json', 'transcript.jsonl', 'sky-evidence.json', 'runtime.json', 'review.json',
+             'skill-setup/receipt.json', 'skill-setup/verification.json', 'skill-setup/begin.json',
+             'skill-setup/transcript.jsonl', 'skill-setup/setup-artifacts.tar')
+    return {name: digest(directory / name) for name in names}
+
+
+def reevaluate_retained_closure(directory, *, old_bridge_source, old_verifier_source, route_review=None, reason):
+    """Return a separate, explained evaluation; never mutate raw receipts.
+
+    A missing review is an explained refusal, not inferred route conformance.
+    The caller supplies source bytes from the recorded Git pin and a review
+    with evidenceHashes, noFallback/noTampering and explicit policy judgments.
+    """
+    directory = Path(directory)
+    hashes = retained_closure_hashes(directory)
+    record = json.loads((directory / 'trial.json').read_text())
+    setup = json.loads((directory / 'skill-setup/receipt.json').read_text())
+    verification = json.loads((directory / 'skill-setup/verification.json').read_text())
+    begin_inputs = json.loads((directory / 'skill-setup/begin.json').read_text())
+    runtime = json.loads((directory / 'runtime.json').read_text())
+    transcript = (directory / 'transcript.jsonl').read_text()
+    original_review = json.loads((directory / 'review.json').read_text())
+    review = route_review or {}
+    checks = {'knownOldBridgeSource': hashlib.sha256(old_bridge_source).hexdigest() == LEGACY_BRIDGE_SHA256,
+              'knownOldVerifierSource': hashlib.sha256(old_verifier_source).hexdigest() == LEGACY_VERIFIER_SHA256,
+              'reasonProvided': bool(reason.strip()),
+              'boundedProfile': record.get('provider') == 'claude' and record.get('route') == 'sky-external' and
+                                record.get('instructionProfile') == 'skill' and record.get('task') in TASKS,
+              'setupReceiptConsistent': setup == record.get('skillSetup') and verification == setup.get('verification') and
+                                       begin_inputs == setup.get('inputs'),
+              'setupAccepted': setup.get('passed') is True and setup.get('sourceAndRuntimeUnchanged') is True and
+                               setup.get('sessionCleanup', {}).get('terminationVerified') is True,
+              'setupTranscriptUnchanged': hashes['skill-setup/transcript.jsonl'] == setup.get('transcriptSha256'),
+              'setupArchiveUnchanged': hashes['skill-setup/setup-artifacts.tar'] == setup.get('artifactsSha256'),
+              'reviewBoundToEvidence': review.get('evidenceHashes') == hashes and
+                                       review.get('transcriptSha256') == hashes['transcript.jsonl'] and
+                                       all(review.get(key) == value for key, value in original_review.items()),
+              'reviewConforming': review.get('schema') == 'route-comparison-review/v1' and review.get('routeAdherence') == 'conforming' and review.get('noFallback') is True and
+                                  review.get('noTampering') is True and bool(review.get('notes')) and
+                                  review.get('confirmationPolicyAdherence') in ('conforming', 'not_applicable'),
+              'ownedProcessesStopped': bool(record.get('ownedSessionCleanup')) and all(
+                  entry.get('terminationVerified') is True for entry in record.get('ownedSessionCleanup', [])) and any(
+                  entry.get('sessionId', entry.get('providerSessionId')) == record.get('sessionId')
+                  for entry in record.get('ownedSessionCleanup', [])),
+              'workspaceDiscarded': record.get('released') == 'discarded' and not record.get('releaseError') and
+                                    not record.get('tunnelCleanupError')}
+    expected_hashes = {**begin_inputs.get('sourceHashes', {}),
+                       **{path: entry['sha256'] for path, entry in runtime.get('artifacts', {}).items()}}
+    observed = verification.get('hashes', {})
+    bridges = [path for path in expected_hashes if path.endswith('/tests/experiments/sky-external/bridge.py')]
+    checks['sourceAndRuntimePinsPreserved'] = (bool(expected_hashes) and len(bridges) == 1 and
+        observed.get(bridges[0]) == LEGACY_BRIDGE_SHA256 and all(observed.get(p) == sha for p, sha in expected_hashes.items()) and
+        runtime.get('configSha256') == begin_inputs.get('runtimeConfigSha256') == observed.get(begin_inputs.get('runtimeConfig')))
+    try:
+        with tarfile.open(directory / 'skill-setup/setup-artifacts.tar') as archive:
+            members = archive.getmembers()
+            config_member = archive.getmember('mcp.json')
+            probe_member = archive.getmember('preflight/probe.json')
+            if not config_member.isfile() or not probe_member.isfile():
+                raise ValueError('Expected regular setup artifacts')
+            config_bytes = archive.extractfile(config_member).read()
+            probe_bytes = archive.extractfile(probe_member).read()
+            config = json.loads(config_bytes)
+            probe = json.loads(probe_bytes)
+        output = begin_inputs['outputDir']
+        expected_args = [bridges[0], '--config', begin_inputs['runtimeConfig'], '--allow-app', APP,
+                         '--evidence', str(Path(output) / 'runtime')]
+        server = config['mcpServers']['sky_experiment']
+        checks['generatedConfigBoundAndScoped'] = (set(config) == {'mcpServers'} and
+            set(config['mcpServers']) == {'sky_experiment'} and set(server) == {'command', 'args'} and
+            server['args'] == expected_args and hashlib.sha256(config_bytes).hexdigest() == observed.get(str(Path(output) / 'mcp.json')) and
+            verification.get('approvedApps') == [APP] and verification.get('hostEntryVerified') is True and
+            record.get('skyEvidenceDir') == verification.get('evidenceDir') == str(Path(output) / 'runtime'))
+        checks['freshEvidenceFromKnownVerifier'] = (checks['knownOldVerifierSource'] and verification.get('passed') is True and
+            all(not (m.name == 'runtime' or m.name.startswith('runtime/')) for m in members) and
+            all(not (p == 'runtime' or p.startswith('runtime/')) for p in verification.get('artifactModes', {})))
+        checks['probePreserved'] = (probe == verification.get('probe') and probe.get('ok') is True and
+            probe.get('stage') == 'close' and probe.get('scope') == 'startup-and-tool-shape-only' and
+            set(probe.get('tools', [])) == TOOLS and hashlib.sha256(probe_bytes).hexdigest() == observed.get(str(Path(output) / 'preflight/probe.json')))
+    except (OSError, ValueError, KeyError, TypeError, IndexError, tarfile.TarError):
+        checks['setupArtifactsVerified'] = False
+    fresh = {**verification, 'taskRuntimeEvidenceAbsent': checks.get('freshEvidenceFromKnownVerifier') is True}
+    closure = runtime_closure_evidence(json.loads((directory / 'sky-evidence.json').read_text()), verification=fresh,
+        transcript=transcript, legacy_source_verified=checks['knownOldBridgeSource'] and checks['knownOldVerifierSource'])
+    checks['nativeRuntimeClosed'] = closure['passed']
+    metrics = claude_transcript_metrics(transcript)
+    qualification = qualify(record['provider'], record['requestedModel'], record['requestedEffort'], metrics, record.get('effectiveProcess', {}))
+    checks['taskQualified'] = (qualification['qualified'] and metrics['transcriptComplete'] and
+        metrics['malformedTranscriptLines'] == 0 and not record.get('error') and not record.get('timedOut') and
+        not metrics.get('terminalProviderError') and record.get('oracleExit') == 0)
+    corrected = {**record, **metrics, 'profileQualification': qualification, 'skyRuntimeClosed': closure['passed'],
+                 'skyRuntimeClosure': closure, 'validTrial': all(checks.values())}
+    corrected['passed'] = corrected['validTrial'] and record.get('oracle', {}).get('passed') is True
+    if isinstance(record.get('stageAccounting', {}).get('task'), dict):
+        corrected['stageAccounting'] = {**record['stageAccounting'], 'task': {
+            **record['stageAccounting']['task'],
+            'status': 'failed' if record.get('error') else 'passed' if corrected['passed'] else 'blocked'}}
+    return {'schema': 'sky-skill-closure-evaluation/v1', 'reason': reason, 'evidenceHashes': hashes,
+            'routeReviewSha256': hashlib.sha256(json.dumps(route_review, sort_keys=True).encode()).hexdigest(),
+            'sourceHashes': {'oldBridge': hashlib.sha256(old_bridge_source).hexdigest(),
+                             'oldVerifier': hashlib.sha256(old_verifier_source).hexdigest(),
+                             'evaluator': digest(Path(__file__)),
+                             'measurements': digest(Path(__file__).parent / 'measurements.py'),
+                             'agentProfiles': digest(Path(__file__).parent / 'agent_profiles.py')},
+            'checks': checks, 'refusalReasons': [key for key, passed in checks.items() if not passed],
+            'record': corrected, 'limits': ['Raw receipts are unchanged; this separate evaluation retains the original oracle.',
+                'Known legacy verifier acceptance and its setup archive establish the pre-task evidence absence.',
+                'Runtime teardown and owned wrapper/process stop are distinct evidence.',
+                'Route/no-fallback/no-tampering annotations are explicit reviewer judgments.',
+                'No image/media qualification or new screenshot observation is inferred.']}
 
 
 def setup_prompt(inputs, task_prompt):

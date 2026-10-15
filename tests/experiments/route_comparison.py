@@ -642,11 +642,10 @@ print(json.dumps({f.name:f.read_text() for f in p.glob('*') if f.is_file()}))
             closed = json.loads(data.get('closed.json', '{}'))
             record['skyRuntimeClosed'] = closed.get('closed', False)
             if args.instructions == 'skill':
-                events = [json.loads(line) for line in data.get('protocol-events.jsonl', '').splitlines()]
                 record['skyEvidenceDir'] = evidence_path
-                record['skyRuntimeClosed'] = (record['skyRuntimeClosed'] and closed.get('approvalScope') == [sky_skill.APP]
-                    and closed.get('automaticRestart') is False and any(e.get('event') == 'started' for e in events)
-                    and any(e.get('event') == 'closed' for e in events))
+                record['skyRuntimeClosure'] = sky_skill.runtime_closure_evidence(data,
+                    verification=record['skillSetup']['verification'], transcript=transcript.stdout)
+                record['skyRuntimeClosed'] = record['skyRuntimeClosure']['passed']
                 record['validTrial'] = record['validTrial'] and record['skyRuntimeClosed']
                 record['passed'] = record['passed'] and record['validTrial']
         capture = mc(*selector, "desktop", "capture", "--scope", "display", check=False)

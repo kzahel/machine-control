@@ -2,6 +2,9 @@
 import base64
 import copy
 import json
+import hashlib
+import io
+import tarfile
 import os
 from pathlib import Path
 import subprocess
@@ -37,6 +40,181 @@ def transcript(model=None, effort='medium', speed='standard', prepared=True):
             'cache_read_input_tokens': 4, 'cache_creation_input_tokens': 0,
             'speed': speed, 'service_tier': 'standard'}, 'content': [], 'stop_reason': 'end_turn'})]
     return '\n'.join(map(json.dumps, rows)) + '\n'
+
+
+def task_transcript():
+    rows=[json.loads(line) for line in transcript(prepared=False).splitlines()]
+    rows[1:1]=[
+        {'type':'assistant','timestamp':'2026-01-01T00:00:01Z','message':{'content':[
+            {'type':'tool_use','id':'close','name':'mcp__sky_experiment__sky_close','input':{}}]}},
+        {'type':'user','timestamp':'2026-01-01T00:00:02Z','message':{'content':[
+            {'type':'tool_result','tool_use_id':'close','content':[{'type':'text','text':'Computer Use runtime closed.'}]}]}}]
+    return '\n'.join(map(json.dumps,rows))+'\n'
+
+
+def closure_evidence():
+    return {'closed.json':json.dumps({'closed':True,'runtimeClosed':True,'runtimeId':'fixture-run',
+                'closedAt':2,'approvalScope':[skill.APP],'automaticRestart':False}),
+            'protocol-events.jsonl':'\n'.join(map(json.dumps,[
+                {'at':1,'event':'started','runtimeId':'fixture-run'},
+                {'at':2,'event':'runtime-closed','runtimeId':'fixture-run','reason':'sky_close',
+                 'approvalScope':[skill.APP],'automaticRestart':False}]))+'\n'}
+
+
+class ClosureEvidenceTests(unittest.TestCase):
+    def check(self, evidence=None, verification=None, text=None):
+        return skill.runtime_closure_evidence(evidence if evidence is not None else closure_evidence(),
+            verification=verification if verification is not None else {'passed':True,'taskRuntimeEvidenceAbsent':True},
+            transcript=text if text is not None else task_transcript())
+
+    def test_native_close_does_not_require_wrapper_exit(self):
+        value=self.check()
+        self.assertTrue(value['passed'],value)
+        self.assertFalse(value['wrapperExitEventObserved'])
+        self.assertEqual(value['skyCloseCall']['callId'],'close')
+
+    def test_wrong_scope_stale_marker_and_missing_events_refuse(self):
+        for field,value in [('approvalScope',[skill.APP,'com.apple.Finder']),('runtimeId','old-run'),
+                            ('closedAt',0),('automaticRestart',True),('runtimeClosed',False)]:
+            evidence=closure_evidence();marker=json.loads(evidence['closed.json']);marker[field]=value
+            evidence['closed.json']=json.dumps(marker)
+            with self.subTest(field=field):self.assertFalse(self.check(evidence)['passed'])
+        for events in ['',json.dumps({'event':'started','at':1,'runtimeId':'fixture-run'})+'\n',
+                       '{"event":"started"}\n{"event":"closed"}\n']:
+            evidence=closure_evidence();evidence['protocol-events.jsonl']=events
+            self.assertFalse(self.check(evidence)['passed'])
+
+    def test_missing_fresh_precondition_duplicate_start_or_failed_ack_refuse(self):
+        self.assertFalse(self.check(verification={'passed':True})['passed'])
+        evidence=closure_evidence()
+        evidence['protocol-events.jsonl']+=json.dumps({'at':3,'event':'started','runtimeId':'other'})+'\n'
+        self.assertFalse(self.check(evidence)['passed'])
+        self.assertFalse(self.check(text=task_transcript().replace('Computer Use runtime closed.','teardown failed'))['passed'])
+        rows=[json.loads(line) for line in task_transcript().splitlines()]
+        rows[2]['message']['content'][0]['is_error']=True
+        self.assertFalse(self.check(text='\n'.join(map(json.dumps,rows)))['passed'])
+
+
+class RetainedClosureTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name)
+        self.old_bridge=b'known old bridge';self.old_verifier=b'known old verifier'
+        self.bridge_sha=hashlib.sha256(self.old_bridge).hexdigest()
+        patch.object(skill,'LEGACY_BRIDGE_SHA256',self.bridge_sha).start()
+        patch.object(skill,'LEGACY_VERIFIER_SHA256',hashlib.sha256(self.old_verifier).hexdigest()).start()
+        self.addCleanup(patch.stopall)
+        bridge='/target/repo/tests/experiments/sky-external/bridge.py';output='/target/private/setup'
+        config_path='/target/private/runtime.json';config_sha=hashlib.sha256(b'private runtime').hexdigest()
+        inputs={'outputDir':output,'runtimeConfig':config_path,'runtimeConfigSha256':config_sha,
+                'sourceHashes':{bridge:self.bridge_sha,'/target/repo/guide':'guide-sha'}}
+        config={'mcpServers':{'sky_experiment':{'command':sys.executable,'args':[bridge,'--config',config_path,
+                    '--allow-app',skill.APP,'--evidence',output+'/runtime']}}}
+        probe={'ok':True,'stage':'close','scope':'startup-and-tool-shape-only','tools':sorted(skill.TOOLS)}
+        config_bytes=json.dumps(config).encode();probe_bytes=json.dumps(probe).encode()
+        verification={'passed':True,'approvedApps':[skill.APP],'hostEntryVerified':True,'probe':probe,
+            'evidenceDir':output+'/runtime','artifactModes':{'.':'0o700','mcp.json':'0o600','preflight/probe.json':'0o600'},
+            'hashes':{**inputs['sourceHashes'],'/target/native':'native-sha',config_path:config_sha,
+                output+'/mcp.json':hashlib.sha256(config_bytes).hexdigest(),
+                output+'/preflight/probe.json':hashlib.sha256(probe_bytes).hexdigest()}}
+        archive=io.BytesIO()
+        with tarfile.open(fileobj=archive,mode='w') as stream:
+            for name,data in [('mcp.json',config_bytes),('preflight/probe.json',probe_bytes)]:
+                member=tarfile.TarInfo(name);member.size=len(data);member.mode=0o600
+                stream.addfile(member,io.BytesIO(data))
+        setup={'passed':True,'sourceAndRuntimeUnchanged':True,'inputs':inputs,'verification':verification,
+            'sessionCleanup':{'terminationVerified':True},'transcriptSha256':hashlib.sha256(transcript().encode()).hexdigest(),
+            'artifactsSha256':hashlib.sha256(archive.getvalue()).hexdigest()}
+        record={'provider':'claude','requestedModel':DEFAULT_MODELS['claude'],'requestedEffort':'medium','effectiveProcess':{},
+            'route':'sky-external','instructionProfile':'skill','task':'textedit-menu','sessionId':'task',
+            'skyRuntimeClosed':False,'validTrial':False,'passed':False,'oracleExit':0,'oracle':{'passed':True},
+            'released':'discarded','skyEvidenceDir':output+'/runtime','skillSetup':setup,
+            'stageAccounting':{'task':{'status':'blocked','agentSeconds':12}},
+            'ownedSessionCleanup':[{'providerSessionId':'setup','terminationVerified':True},
+                                   {'sessionId':'task','terminationVerified':True}]}
+        evidence={'closed.json':json.dumps({'closed':True,'approvalScope':[skill.APP],'automaticRestart':False}),
+                  'protocol-events.jsonl':'{"event":"started","at":1}\n{"event":"received","method":"tools/call"}\n'}
+        for name,data in [('trial.json',record),('runtime.json',{'configSha256':config_sha,'artifacts':{'/target/native':{'sha256':'native-sha'}}}),
+            ('sky-evidence.json',evidence),('skill-setup/receipt.json',setup),('skill-setup/begin.json',inputs),
+            ('skill-setup/verification.json',verification),('review.json',{'schema':'route-comparison-review/v1',
+                'transcriptSha256':hashlib.sha256(task_transcript().encode()).hexdigest(),'routeAdherence':'conforming',
+                'confirmationPolicyAdherence':'not_applicable','notes':'Reviewed no fallback or tampering.'})]:
+            skill.private_write(self.root/name,json.dumps(data))
+        skill.private_write(self.root/'transcript.jsonl',task_transcript())
+        skill.private_write(self.root/'skill-setup/transcript.jsonl',transcript())
+        (self.root/'skill-setup/setup-artifacts.tar').write_bytes(archive.getvalue())
+
+    def review(self):
+        return {**json.loads((self.root/'review.json').read_text()),'evidenceHashes':skill.retained_closure_hashes(self.root),
+                'noFallback':True,'noTampering':True}
+
+    def evaluate(self,**kwargs):
+        return skill.reevaluate_retained_closure(self.root,old_bridge_source=kwargs.pop('old_bridge_source',self.old_bridge),
+            old_verifier_source=kwargs.pop('old_verifier_source',self.old_verifier),
+            route_review=kwargs.pop('route_review',self.review()),reason='Correct native/wrapper closure boundary',**kwargs)
+
+    def update_setup(self,change):
+        setup=json.loads((self.root/'skill-setup/receipt.json').read_text());change(setup)
+        record=json.loads((self.root/'trial.json').read_text());record['skillSetup']=setup
+        for name,value in [('trial.json',record),('skill-setup/receipt.json',setup),
+                           ('skill-setup/verification.json',setup['verification']),('skill-setup/begin.json',setup['inputs'])]:
+            skill.private_write(self.root/name,json.dumps(value))
+
+    def test_hash_bound_correction_preserves_raw_receipts_oracle_and_measurement_limits(self):
+        before={str(p.relative_to(self.root)):p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
+        value=self.evaluate()
+        self.assertTrue(value['record']['passed'],value['refusalReasons'])
+        self.assertTrue(value['record']['skyRuntimeClosed'])
+        self.assertTrue(value['checks']['ownedProcessesStopped'])
+        self.assertEqual(value['evidenceHashes'],skill.retained_closure_hashes(self.root))
+        self.assertEqual(value['record']['oracle'],{'passed':True})
+        self.assertEqual(value['record']['stageAccounting']['task'], {'status':'passed','agentSeconds':12})
+        self.assertNotIn('transcriptImageItems',value['record'])
+        self.assertEqual(before,{str(p.relative_to(self.root)):p.read_bytes() for p in self.root.rglob('*') if p.is_file()})
+
+    def test_unknown_old_sources_or_missing_bound_review_refuse(self):
+        for kwargs in [{'old_bridge_source':b'other'}, {'old_verifier_source':b'other'}, {'route_review':None}]:
+            with self.subTest(kwargs=kwargs):self.assertFalse(self.evaluate(**kwargs)['record']['passed'])
+        for field in ['noFallback','noTampering']:
+            review=self.review();review[field]=False
+            self.assertFalse(self.evaluate(route_review=review)['record']['passed'])
+        review=self.review();review['evidenceHashes']['sky-evidence.json']='stale'
+        self.assertFalse(self.evaluate(route_review=review)['record']['passed'])
+
+    def test_supplied_review_cannot_override_stored_review_and_oracle_is_not_promoted(self):
+        review=self.review();review['notes']='Replaced original judgment'
+        self.assertIn('reviewBoundToEvidence',self.evaluate(route_review=review)['refusalReasons'])
+        record=json.loads((self.root/'trial.json').read_text());record['oracle']={'passed':False}
+        skill.private_write(self.root/'trial.json',json.dumps(record))
+        value=self.evaluate()
+        self.assertFalse(value['record']['passed'])
+        self.assertEqual(value['record']['oracle'],{'passed':False})
+
+    def test_runtime_pin_drift_cannot_be_promoted_by_old_success_booleans(self):
+        self.update_setup(lambda setup:setup['verification']['hashes'].__setitem__('/target/native','changed'))
+        value=self.evaluate()
+        self.assertFalse(value['record']['passed'])
+        self.assertIn('sourceAndRuntimePinsPreserved',value['refusalReasons'])
+
+    def test_stale_setup_runtime_evidence_or_changed_archive_refuse(self):
+        self.update_setup(lambda setup:setup['verification']['artifactModes'].__setitem__('runtime/closed.json','0o600'))
+        value=self.evaluate()
+        self.assertFalse(value['record']['passed'])
+        self.assertIn('freshEvidenceFromKnownVerifier',value['refusalReasons'])
+        path=self.root/'skill-setup/setup-artifacts.tar';path.write_bytes(path.read_bytes()+b'changed')
+        self.assertIn('setupArchiveUnchanged',self.evaluate()['refusalReasons'])
+
+    def test_wrong_scope_no_events_and_failed_sky_close_refuse_with_fresh_review_hashes(self):
+        evidence=json.loads((self.root/'sky-evidence.json').read_text())
+        original=copy.deepcopy(evidence)
+        evidence['closed.json']=json.dumps({'closed':True,'approvalScope':['com.apple.Finder'],'automaticRestart':False})
+        skill.private_write(self.root/'sky-evidence.json',json.dumps(evidence))
+        self.assertFalse(self.evaluate()['record']['passed'])
+        original['protocol-events.jsonl']=''
+        skill.private_write(self.root/'sky-evidence.json',json.dumps(original))
+        self.assertFalse(self.evaluate()['record']['passed'])
+        skill.private_write(self.root/'transcript.jsonl',task_transcript().replace('Computer Use runtime closed.','failed'))
+        self.assertFalse(self.evaluate()['record']['passed'])
 
 
 class ArtifactTests(unittest.TestCase):
@@ -121,6 +299,7 @@ class ArtifactTests(unittest.TestCase):
         self.assertEqual(verified['evidenceDir'], str(self.output / 'runtime'))
         self.assertEqual(verified['hashes'][str(self.runtime)], self.sha)
         self.assertFalse((self.output / 'runtime').exists())
+        self.assertTrue(verified['taskRuntimeEvidenceAbsent'])
 
     def test_broad_invalid_duplicate_and_wrong_path_config_refuse(self):
         self.generate()
@@ -519,11 +698,9 @@ class TrialGateTests(unittest.TestCase):
         if command == 'bash -s':
             return result({'passed': True})
         if command.startswith('f=$(find'):
-            return result(transcript())
+            return result(task_transcript())
         if isinstance(kwargs.get('stdin'), str) and 'evidence_path=' in kwargs['stdin']:
-            return result({'closed.json': json.dumps({'closed': True, 'approvalScope': [skill.APP],
-                'automaticRestart': False}), 'protocol-events.jsonl':
-                '{"event":"started"}\n{"event":"closed"}\n'})
+            return result(closure_evidence())
         return result()
 
     def setup(self, *argv, **kwargs):
@@ -722,7 +899,7 @@ class TrialGateTests(unittest.TestCase):
     def test_success_launches_fresh_task_with_guide_and_generated_evidence_path(self):
         self.setup_receipt.update(passed=True, status='passed',
             inputs={'guide': '/private/checkout/info/claude-computer-use.md'},
-            verification={'evidenceDir': '/private/generated/runtime'})
+            verification={'evidenceDir': '/private/generated/runtime', 'passed': True, 'taskRuntimeEvidenceAbsent': True})
         record = self.trial()
         self.assertTrue(record['passed'], record)
         launches = [call for call in self.guest.ya.call_args_list if call.args[0] == 'POST']

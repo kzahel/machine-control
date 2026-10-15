@@ -11,6 +11,7 @@ from pathlib import Path
 import signal
 import sys
 import time
+import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'native-efficiency'))
 from mcp_client import MCP
@@ -27,8 +28,10 @@ class UnsupportedMethod(ValueError):
 
 
 class Bridge:
-    def __init__(self, factory):
+    def __init__(self, factory, *, on_runtime_closed=None):
         self.factory = factory
+        self.on_runtime_closed = on_runtime_closed
+        self.runtime_closed = False
         self.runtime = None
         self.closed = False
 
@@ -63,7 +66,7 @@ class Bridge:
         if method == 'tools/call':
             name = params.get('name')
             if name == 'sky_close':
-                self.close()
+                self.close(reason='sky_close')
                 return {'content': [{'type': 'text', 'text': 'Computer Use runtime closed.'}]}
             if name not in EXPOSED:
                 raise ValueError('Tool not exposed by experiment')
@@ -71,11 +74,14 @@ class Bridge:
             return self.runtime.request(method, params, timeout=180)
         raise UnsupportedMethod('Unsupported MCP method')
 
-    def close(self):
+    def close(self, *, reason='cleanup'):
         self.closed = True
         if self.runtime is not None:
             self.runtime.close()
             self.runtime = None
+            self.runtime_closed = True
+            if self.on_runtime_closed:
+                self.on_runtime_closed(reason)
 
 
 def main():
@@ -90,10 +96,19 @@ def main():
     os.umask(0o077)
     args.evidence.mkdir(parents=True, mode=0o700, exist_ok=True)
     config = json.loads(args.config.read_text())['mcpServers']['cua_repl']
-    bridge = Bridge(lambda: MCP(config, args.evidence, approved_apps=args.allow_app))
+    runtime_id = uuid.uuid4().hex
     def event(kind, **values):
+        row = {'at': time.time(), 'event': kind, 'runtimeId': runtime_id, **values}
         with (args.evidence/'protocol-events.jsonl').open('a') as stream:
-            stream.write(json.dumps({'at':time.time(),'event':kind,**values})+'\n')
+            stream.write(json.dumps(row)+'\n')
+        return row
+    def runtime_closed(reason):
+        row = event('runtime-closed', reason=reason, approvalScope=args.allow_app, automaticRestart=False)
+        (args.evidence / 'closed.json').write_text(json.dumps({'closed': True, 'runtimeClosed': True,
+            'runtimeId': runtime_id, 'closedAt': row['at'], 'approvalScope': args.allow_app,
+            'automaticRestart': False}) + '\n')
+    bridge = Bridge(lambda: MCP(config, args.evidence, approved_apps=args.allow_app),
+                    on_runtime_closed=runtime_closed)
     event('started')
     def stop(*unused):
         raise SystemExit(0)
@@ -105,7 +120,7 @@ def main():
             event('received', method=message.get('method'))
             if 'id' not in message:
                 if message.get('method') == 'notifications/cancelled':
-                    bridge.close()
+                    bridge.close(reason='cancelled')
                 continue
             try:
                 result = bridge.handle(message.get('method'), message.get('params', {}))
@@ -115,18 +130,15 @@ def main():
                          {'code': -32601, 'message': str(error)}}
             except Exception as error:
                 event('failed', error=str(error))
-                bridge.close()
+                bridge.close(reason='request_failed')
                 reply = {'jsonrpc': '2.0', 'id': message['id'], 'error':
                          {'code': -32000, 'message': str(error)}}
-            if bridge.closed:
-                (args.evidence / 'closed.json').write_text(json.dumps({'closed': True,
-                    'approvalScope': args.allow_app, 'automaticRestart': False}) + '\n')
             print(json.dumps(reply), flush=True)
     finally:
-        bridge.close()
-        event('closed')
-        (args.evidence / 'closed.json').write_text(json.dumps({'closed': True,
-            'approvalScope': args.allow_app, 'automaticRestart': False}) + '\n')
+        try:
+            bridge.close(reason='process_exit')
+        finally:
+            event('wrapper-process-closed', runtimeClosed=bridge.runtime_closed)
 
 
 if __name__ == '__main__':
