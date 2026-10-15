@@ -249,6 +249,9 @@ Comparison reports must distinguish final effects, intermediate targeting and
 agent confirmation compliance. A repeated JS mistarget and a Computer Use
 confirmation deviation both reached passing final states; neither is a clean
 workflow-conformance result.
+The menu corpus likewise checks final source bytes: one JS trace temporarily
+replaced the source and restored it through native version history before
+passing. Continuous preservation needs a separate intermediate-state check.
 
 ### Platform fit
 

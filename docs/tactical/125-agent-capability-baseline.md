@@ -419,3 +419,12 @@ without treating missing data as zero. This changes no trial behavior. The
 report labels fixture-startup inclusion, missed-transition risk and the absence
 of controller-host measurement. All 52 offline experiment checks pass; the final
 client tree also passes 285 client tests and strict typing of the session modules.
+
+The third Opus/JS menu trial passed after temporarily replacing the original
+RTF with a plain-text file. Undo did not recover the exact source; the agent
+used TextEdit's version browser and Restore, verified the original bytes, then
+duplicated and converted the copy. All mutations stayed on the assigned UI
+route. Its 29 calls and three absent-number refusals remain in the measured
+cost. The final oracle establishes restored source bytes and correct output,
+not uninterrupted source preservation. A future continuous-preservation claim
+requires an intermediate-state invariant, beyond this final-state oracle.
