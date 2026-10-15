@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import signal
 import sys
+import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'native-efficiency'))
 from mcp_client import MCP
@@ -82,6 +83,10 @@ def main():
     args.evidence.mkdir(parents=True, mode=0o700, exist_ok=True)
     config = json.loads(args.config.read_text())['mcpServers']['cua_repl']
     bridge = Bridge(lambda: MCP(config, args.evidence, approved_apps=args.allow_app))
+    def event(kind, **values):
+        with (args.evidence/'protocol-events.jsonl').open('a') as stream:
+            stream.write(json.dumps({'at':time.time(),'event':kind,**values})+'\n')
+    event('started')
     def stop(*unused):
         raise SystemExit(0)
     signal.signal(signal.SIGTERM, stop)
@@ -89,6 +94,7 @@ def main():
     try:
         for line in sys.stdin:
             message = json.loads(line)
+            event('received', method=message.get('method'))
             if 'id' not in message:
                 if message.get('method') == 'notifications/cancelled':
                     bridge.close()
@@ -97,6 +103,7 @@ def main():
                 result = bridge.handle(message.get('method'), message.get('params', {}))
                 reply = {'jsonrpc': '2.0', 'id': message['id'], 'result': result}
             except Exception as error:
+                event('failed', error=str(error))
                 bridge.close()
                 reply = {'jsonrpc': '2.0', 'id': message['id'], 'error':
                          {'code': -32000, 'message': str(error)}}
@@ -106,6 +113,7 @@ def main():
             print(json.dumps(reply), flush=True)
     finally:
         bridge.close()
+        event('closed')
         (args.evidence / 'closed.json').write_text(json.dumps({'closed': True,
             'approvalScope': args.allow_app, 'automaticRestart': False}) + '\n')
 

@@ -50,6 +50,8 @@ CLI = [sys.executable, str(ROOT / "bin/machine-control")]
 ROUTES = {
     "sky-external": (
         "Use the sky_experiment MCP server's js tool and genuine cua API for all UI work. "
+        "If MCP tools are still starting, use WaitForMcpServers when available, or tool "
+        "discovery, before declaring the server unavailable. "
         "This is persistent JavaScript, not Python. Start with exactly one API call: "
         "app = await cua.getApp(\"com.apple.TextEdit\"). Read the returned documentation "
         "before continuing. Follow the runtime's API and use fresh observations; retain "
@@ -359,7 +361,7 @@ print(json.dumps(collect(configs[0])))
         if route == 'sky-external':
             configured = guest.run('/opt/homebrew/bin/python3 -', stdin='''
 from pathlib import Path
-import json,os
+import json,os,subprocess
 configs=list((Path.home()/'.codex/plugins/cache/openai-bundled/unified-computer-use').glob('*/.mcp.json'))
 assert len(configs)==1, 'resolve exact installed runtime selection before running'
 base=Path.home()/'code/machine-control/tests/experiments/sky-external/bridge.py'
@@ -368,9 +370,21 @@ config={'command':'/opt/homebrew/bin/python3','args':[str(base), '--config', str
 f=Path.home()/'.claude.json';x=json.loads(f.read_text()) if f.exists() else {}
 x.setdefault('mcpServers',{})['sky_experiment']=config
 f.write_text(json.dumps(x));os.chmod(f,0o600)
+preflight=[config['command'],*config['args']]
+preflight[-1]=str(Path.home()/'experiment/sky-preflight')
+messages=[{'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':'2024-11-05'}},
+ {'jsonrpc':'2.0','id':2,'method':'tools/list','params':{}},
+ {'jsonrpc':'2.0','id':3,'method':'tools/call','params':{'name':'sky_close','arguments':{}}}]
+r=subprocess.run(preflight,input=''.join(json.dumps(m)+'\\n' for m in messages),capture_output=True,text=True,timeout=90)
+(Path.home()/'experiment/sky-preflight-result.json').write_text(json.dumps({'stdout':r.stdout,'stderr':r.stderr,'exit':r.returncode}))
+rows=[json.loads(line) for line in r.stdout.splitlines()]
+assert r.returncode==0 and len(rows)==3 and not any('error' in row for row in rows), 'Sky MCP preflight failed'
+assert {t['name'] for t in rows[1]['result']['tools']}=={'js','js_reset','sky_close'}
+print(json.dumps({'passed':True,'tools':['js','js_reset','sky_close']}))
 ''')
             if configured.returncode:
                 raise RuntimeError('External Sky experiment setup failed')
+            record['skyPreflight'] = json.loads(configured.stdout)
             record['enforcementProfile'] = 'genuine_sky_wrapper_fixture_scoped_host_approval'
         if route in ("mc-repl", "mc-python"):
             if route == "mc-repl":

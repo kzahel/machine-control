@@ -1,6 +1,10 @@
 import importlib.util
 from pathlib import Path
 import unittest
+import json
+import subprocess
+import sys
+import tempfile
 
 ROOT = Path(__file__).parent
 spec = importlib.util.spec_from_file_location('sky_bridge', ROOT/'sky-external/bridge.py')
@@ -26,6 +30,44 @@ class Runtime:
 
 
 class SkyExternalTests(unittest.TestCase):
+    def test_real_stdio_handshake_approval_images_and_cleanup(self):
+        source = '''import json,sys
+def send(v): print(json.dumps(v),flush=True)
+for line in sys.stdin:
+ r=json.loads(line)
+ if 'id' not in r: continue
+ method=r['method'];result={}
+ if method=='initialize':
+  assert 'elicitation' in r['params']['capabilities']
+  result={'protocolVersion':'2024-11-05','capabilities':{'tools':{}},'serverInfo':{'name':'fake','version':'1'},'instructions':'native help'}
+ elif method=='tools/list': result={'tools':[{'name':'js'},{'name':'js_reset'}]}
+ elif method=='tools/call' and r['params']['name']=='js':
+  app=r['params']['arguments']['app']
+  send({'jsonrpc':'2.0','id':'approval','method':'elicitation/create','params':{'_meta':{'connector_id':'computer-use','tool_params':{'app':app}}}})
+  answer=json.loads(sys.stdin.readline())['result']['action']
+  result={'content':[{'type':'text','text':answer},{'type':'image','mimeType':'image/png','data':'fixture'}]}
+ send({'jsonrpc':'2.0','id':r['id'],'result':result})
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory); fake=root/'fake.py';fake.write_text(source)
+            config=root/'config.json';config.write_text(json.dumps({'mcpServers':{'cua_repl':
+                {'command':sys.executable,'args':[str(fake)]}}}))
+            requests=[('initialize',{}),('tools/list',{}),
+                      ('tools/call',{'name':'js','arguments':{'app':'com.apple.TextEdit'}}),
+                      ('tools/call',{'name':'js','arguments':{'app':'com.apple.Finder'}}),
+                      ('tools/call',{'name':'sky_close'})]
+            data=''.join(json.dumps({'jsonrpc':'2.0','id':i,'method':m,'params':p})+'\n'
+                         for i,(m,p) in enumerate(requests))
+            run=subprocess.run([sys.executable,str(ROOT/'sky-external/bridge.py'),'--config',str(config),
+                '--allow-app','com.apple.TextEdit','--evidence',str(root/'evidence')],
+                input=data,capture_output=True,text=True,timeout=15)
+            self.assertEqual(run.returncode,0,run.stderr)
+            rows=[json.loads(line) for line in run.stdout.splitlines()]
+            self.assertEqual(rows[2]['result']['content'][0]['text'],'accept')
+            self.assertEqual(rows[3]['result']['content'][0]['text'],'decline')
+            self.assertEqual(rows[2]['result']['content'][1]['data'],'fixture')
+            self.assertTrue(json.loads((root/'evidence/closed.json').read_text())['closed'])
+
     def test_only_exact_connector_and_app_metadata_authorize(self):
         def request(connector, app):
             return {'params': {'_meta': {'connector_id': connector, 'tool_params': {'app': app}}}}
