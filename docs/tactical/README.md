@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [128 — Control efficiency campaign](128-control-efficiency-campaign.md):
+  active YA-assisted skill acceptance, native identity/compact observations,
+  whole-package scenarios and controlled instruction comparison.
+
 - [127 — Opus through YA with genuine Computer Use](127-opus-sky-computer-use.md):
   complete bounded save/menu qualification with exact fixture approvals,
   screenshots and reusable instructions; broader integration remains open.

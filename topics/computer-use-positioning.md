@@ -47,6 +47,12 @@ not an attempted bypass or a claim about every internal service operation.
 
 ## Roadmap ordered by evidence and impact
 
+**Current:** [Tactical 128](../docs/tactical/128-control-efficiency-campaign.md)
+coordinates the authorized next program: fresh-session skill acceptance,
+stable identity and compact observations, whole-package acceptance and a
+controlled instruction experiment. YA owns delegated workers; one coordinator
+owns live target claims, integration and incremental commits.
+
 | Priority / work | Gap and expected benefit | Acceptance gate |
 | --- | --- | --- |
 | 1 — Stable native element identity | Mac snapshots rotate references; Python must issue fresh numbers/full trees, increasing tokens and recovery | Preserve identity across unchanged reads, insertions and reordering; refuse replacement/stale references before dispatch; never match identity by label or position |
