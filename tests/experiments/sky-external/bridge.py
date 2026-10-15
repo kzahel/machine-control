@@ -22,6 +22,10 @@ CLOSE = {'name': 'sky_close', 'description':
     'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}}
 
 
+class UnsupportedMethod(ValueError):
+    pass
+
+
 class Bridge:
     def __init__(self, factory):
         self.factory = factory
@@ -29,6 +33,12 @@ class Bridge:
         self.closed = False
 
     def handle(self, method, params):
+        # Claude probes server/discover before standard MCP initialization.
+        # Unknown optional methods must not terminate the subsequent handshake.
+        if method not in {'initialize', 'tools/list', 'tools/call', 'ping'}:
+            raise UnsupportedMethod('Unsupported MCP method')
+        if method == 'ping':
+            return {}
         if method == 'initialize':
             if self.runtime is not None or self.closed:
                 raise ValueError('Already initialized or closed')
@@ -59,9 +69,7 @@ class Bridge:
                 raise ValueError('Tool not exposed by experiment')
             # Preserve images, native refusals and documentation without rewriting.
             return self.runtime.request(method, params, timeout=180)
-        if method == 'ping':
-            return {}
-        raise ValueError('Unsupported MCP method')
+        raise UnsupportedMethod('Unsupported MCP method')
 
     def close(self):
         self.closed = True
@@ -102,6 +110,9 @@ def main():
             try:
                 result = bridge.handle(message.get('method'), message.get('params', {}))
                 reply = {'jsonrpc': '2.0', 'id': message['id'], 'result': result}
+            except UnsupportedMethod as error:
+                reply = {'jsonrpc': '2.0', 'id': message['id'], 'error':
+                         {'code': -32601, 'message': str(error)}}
             except Exception as error:
                 event('failed', error=str(error))
                 bridge.close()

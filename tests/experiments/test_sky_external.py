@@ -52,7 +52,7 @@ for line in sys.stdin:
             root=Path(directory); fake=root/'fake.py';fake.write_text(source)
             config=root/'config.json';config.write_text(json.dumps({'mcpServers':{'cua_repl':
                 {'command':sys.executable,'args':[str(fake)]}}}))
-            requests=[('initialize',{}),('tools/list',{}),
+            requests=[('server/discover',{}),('initialize',{}),('tools/list',{}),
                       ('tools/call',{'name':'js','arguments':{'app':'com.apple.TextEdit'}}),
                       ('tools/call',{'name':'js','arguments':{'app':'com.apple.Finder'}}),
                       ('tools/call',{'name':'sky_close'})]
@@ -63,9 +63,10 @@ for line in sys.stdin:
                 input=data,capture_output=True,text=True,timeout=15)
             self.assertEqual(run.returncode,0,run.stderr)
             rows=[json.loads(line) for line in run.stdout.splitlines()]
-            self.assertEqual(rows[2]['result']['content'][0]['text'],'accept')
-            self.assertEqual(rows[3]['result']['content'][0]['text'],'decline')
-            self.assertEqual(rows[2]['result']['content'][1]['data'],'fixture')
+            self.assertEqual(rows[0]['error']['code'],-32601)
+            self.assertEqual(rows[3]['result']['content'][0]['text'],'accept')
+            self.assertEqual(rows[4]['result']['content'][0]['text'],'decline')
+            self.assertEqual(rows[3]['result']['content'][1]['data'],'fixture')
             self.assertTrue(json.loads((root/'evidence/closed.json').read_text())['closed'])
 
     def test_only_exact_connector_and_app_metadata_authorize(self):
