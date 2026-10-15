@@ -1,7 +1,8 @@
 # 117 — Chrome Web Store extension
 
-Status: active. Step 1 is submitted for review; step 2 desktop packaging is
-published in 0.6.4. Installed store-copy acceptance and later steps remain.
+Status: active. Step 1 is published unlisted (0.8.0); step 2 desktop
+packaging is published in 0.6.4; tag-driven store submission is set up.
+Installed store-copy acceptance and later steps remain.
 Owning topic: [browser control](../../topics/browser-control.md).
 Provider dossier: [Chrome extension](../../research/providers/chrome-extension.md).
 
@@ -111,6 +112,17 @@ Edge Add-ons afterwards.
   release from step 2 and record connection, panel and indicator behavior.
 
 ## Result
+
+**Current (2026-10-15):** Google approved 0.8.0; the item is published
+unlisted. `extension-v<version>` tags now test, package and submit the
+exact ZIP through `chrome-extension.yml`, mirroring the author's other
+extensions ([README](../../providers/chrome-extension/README.md#web-store-release)).
+The pinned store public key was read from the published CRX header and
+verified by deriving the item ID from it. The workload identity provider and
+service-account binding were created from Cloud Shell, driven through the
+Machine Control browser route with DevTools key events because text insertion
+does not reach its cross-origin terminal frame. No store submission has been
+made through the workflow yet.
 
 **Current (2026-10-14):** Public desktop 0.6.4 packages the side panel and
 native hosts accepting both origins on all three platforms.

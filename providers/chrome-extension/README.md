@@ -49,7 +49,41 @@ page content. A store install opens the same page once as setup guidance.
 
 ## Web Store release
 
-`python3 package.py OUT.zip` builds the upload without the development `key`.
+Store releases go to item `epejchbeajneooefnklikkfhbaeadkpc` through
+[`chrome-extension.yml`](../../.github/workflows/chrome-extension.yml),
+following the same pattern as the author's other extensions:
+
+1. Add a `## [<version>]` section to [`CHANGELOG.md`](CHANGELOG.md) and commit.
+2. From a clean, current `main`, run `providers/chrome-extension/release.py
+   <version>`. It bumps `manifest.json` when the version is newer (or keeps an
+   already-prepared untagged version), commits, and atomically pushes `main`
+   and `extension-v<version>`.
+3. CI runs the browser tests, then `package.py DIR`, which writes a
+   reproducible ZIP without the development `key` plus `build.json` (version,
+   store ID, source revision, clean-tree flag and SHA-256), refusing a dirty
+   source. Only then does it authenticate with Google and run
+   [`store/publish-store.mjs`](store/publish-store.mjs). The publisher checks
+   the revision, checksum and pinned store identity in
+   [`store/identity.json`](store/identity.json) (item ID and the public key the
+   store signs with), cancels an older pending submission once if needed,
+   uploads and submits with review enabled. A GitHub release (never marked
+   latest; the site and updater select only `desktop-v*` tags) keeps the ZIP,
+   build record and store receipt.
+
+Google still reviews and publishes; a green workflow means submitted, not
+delivered. Listing, screenshots, privacy and permission justifications remain
+dashboard forms. Verify store authentication without changing anything with
+`gh workflow run chrome-extension.yml --ref main -f mode=check`.
+
+Authentication uses GitHub OIDC through Google workload identity federation;
+no private key or refresh token is stored. The `chrome-web-store` environment
+admits only branch `main` and tags `extension-v*` and holds the variables
+`CWS_WIF_PROVIDER`, `CWS_SERVICE_ACCOUNT` and `CWS_PUBLISHER_ID`. Its provider
+condition pins this repository's immutable IDs, the environment's immutable
+OIDC subject, this workflow's `workflow_ref` and those refs; only that subject
+may impersonate the store service account. The concrete Google resources are
+deliberately not recorded in this public repository.
+
 `store/render.sh CHROMIUM OUTPUT_DIR` renders screenshots and the promo tile
 from the real panel with fictional mock data, and
 [`store/listing.md`](store/listing.md) holds listing text and review answers.
