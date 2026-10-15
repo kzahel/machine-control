@@ -627,11 +627,14 @@ All current actions had their intended independent fixture effects; all
 replacement controls preserved label, identifier and frame. Both owned child
 processes were reaped.
 
-Twenty-five destruction callbacks were observed; registration also returned
-errors, so callback absence is not a reliable lifetime boundary. One raw stale
-proxy press after window recreation invoked a retired control, with no effect
-on a current incarnation. Retention and a successful AX role read therefore
-cannot establish current membership. These results support investigating
+Twenty-five distinct destruction callbacks were observed. The nonzero
+registration responses were duplicate registrations, not failed installation;
+every distinct scoped incarnation had a successful registration. No recorded
+control deallocation lacked a callback in this run. One raw stale control
+proxy press after window recreation invoked a still-live retired control, with
+no effect on a current incarnation; its destruction callback arrived later.
+Retention, a successful AX role read, and awaiting destruction therefore cannot
+establish current tree membership. These results support investigating
 bounded stable observation identity with fresh action references and current
 membership validation. They do not prove never-reused native tokens, general
 application coverage, PID-reuse safety or a production performance gain.

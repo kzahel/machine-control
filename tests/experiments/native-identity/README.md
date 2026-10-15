@@ -86,6 +86,8 @@ identifiers are also reused after recreation.
   matching retained proxy handles and monotonic receipt times. The fixture
   never posts artificial destruction notifications. Oracle creation/removal,
   NSButton deinitialization and target/action effects are independent events.
+  The file is required for complete receipts; an existing empty array means
+  no callback was observed, while a missing file means incomplete evidence.
 - `process-*/state.json`, `command.json` and `fixture.log` retain independent
   oracle state and setup/error evidence. Keep all runtime files private.
 - Actions include current-control presses plus intentional old-proxy presses
@@ -104,10 +106,52 @@ exact fixture processes from the private receipts before guest disposal.
 
 The report fails closed for incomplete coverage, inconsistent receipts,
 non-identical replacement presentation, missing cleanup or bad oracle joins.
+It checks the prescribed snapshot/action sequence, the actual incarnation sets
+and slot order for each transition, and each action's exact source snapshot
+and slot. Oracle revisions, monotonic times, cumulative event prefixes and
+press/effect counters must agree across snapshots and actions. Action-before
+oracles must retain the preceding snapshot's tree and intervening effects.
+An operation name alone does not establish that it occurred.
+
+Native traversal must contain each expected fixture slot exactly once under
+the window root, with matching retained attributes and successful attribute
+reads. Oracle labels, relative geometry and layout order must agree with
+native controls. This owned equal-sized-button fixture permits a common
+per-snapshot coordinate translation and accessibility inset, including the
+AppKit/AX vertical-axis flip. AX child enumeration order need not equal visual
+layout order: in the live run, enumeration stayed unchanged during reorder.
+These presentation checks validate the experiment; they are not identity keys
+or a general coordinate-conversion contract.
+
 It distinguishes survivor inequality, same-scope cross-incarnation equality,
 cross-epoch equality, raw stale-action effects, validity and notification
-support/errors. Current actions require exactly the intended callback effect.
+support/errors. `destroyRegistration` separates successful registrations,
+`alreadyRegistered` (`-25209`) and actual errors; the raw status histogram is
+`destroyRegistrationStatuses`. Re-observing the same native object can produce
+duplicate registration responses without losing the original registration.
+Current actions require exactly the intended callback effect.
 No match is inferred from a hash, logical identifier, label, position or index.
+
+Lifetime evidence combines snapshot and action oracles, plus optional final
+`process-N/state.json` files matched to the corresponding owned launch. Final
+states must preserve run/PID/process/window identity, tree, effects and revision,
+extend the existing event prefix with only deallocation/quit events, and retain
+monotonic times. Invalid final files make the corpus incomplete and contribute
+no additional lifetime events; absent optional final files are reported.
+`finalProcessStates` records this status, and lifetime rows name their
+`evidenceSources`. `notificationObjectCoverage` groups registration and callback
+evidence by scoped incarnation. Callback correlation still depends on native
+equality. A callback may appear in both removal and deallocation rows: use
+unique `callbackIndices`, rather than summing per-event counts. Callback absence
+does not establish loss, and destruction is distinct from current membership.
+
+Re-evaluation does not change the original build manifest or qualify a new
+native build. The summary's separate `evaluator` field hashes the currently
+used `report.py` and accompanying `test_report.py`, records their original
+build-manifest hashes when present, and reports whether they match. Preserve
+the original summary and write a separately named reviewed summary when using
+a changed evaluator; the test-file hash records provenance, not proof that
+tests ran. Offline mutation tests are evaluator controls, not new AX evidence.
 
 `bounded_candidate_observed` proposes only a process/window-incarnation scope
 with native equality and a fresh complete membership check before each action;
