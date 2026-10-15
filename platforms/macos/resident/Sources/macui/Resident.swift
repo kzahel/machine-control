@@ -578,8 +578,8 @@ final class ResidentService {
         if notified || !NSDictionary(dictionary: next).isEqual(to: observedSession) ||
             next["desktopState"] as? String == "unknown" {
             desktopGeneration = UUID().uuidString.lowercased()
-            references.removeAll(); cuaReferences.removeAll()
-            referenceOrder.removeAll(); authorizationLeases.removeAll()
+            references.invalidate(); observationIdentity.invalidate(); referenceApplication = nil
+            cuaReferences.removeAll(); authorizationLeases.removeAll()
             observedSession = next
             referencesInvalidated?()
         }
@@ -594,14 +594,14 @@ final class ResidentService {
 
     func invalidateReferences() {
         desktopGeneration = UUID().uuidString.lowercased()
-        references.removeAll(); cuaReferences.removeAll()
-        referenceOrder.removeAll(); authorizationLeases.removeAll()
+        references.invalidate(); observationIdentity.invalidate(); referenceApplication = nil
+        cuaReferences.removeAll(); authorizationLeases.removeAll()
         referencesInvalidated?()
     }
 
     /// Worker-owned reference attribution for native self-interface screening.
     func referenceOwnerProjection() -> [String:pid_t] {
-        references.reduce(into:[:]) { result, item in
+        references.elements.reduce(into:[:]) { result, item in
             var pid: pid_t = 0
             if AXUIElementGetPid(item.value, &pid) == .success { result[item.key] = pid }
         }
@@ -898,9 +898,11 @@ final class ResidentService {
     let generation: String
     init(generation: String = UUID().uuidString.lowercased()) { self.generation = generation }
     private var snapshotNumber = 0
-    private var references: [String: AXUIElement] = [:]
+    private let references = NativeSnapshotReferences<AXUIElement>(equal: { CFEqual($0, $1) })
+    private let observationIdentity = NativeObservationIdentity<AXUIElement>(
+        equal: { CFEqual($0, $1) }, hash: { Int(truncatingIfNeeded: CFHash($0)) })
+    private var referenceApplication: NSRunningApplication?
     private var cuaReferences: [String: CuaReference] = [:]
-    private var referenceOrder: [String] = []
     private var authorizationLeases: [String: AuthorizationLease] = [:]
 
     private func requestString(_ request: [String: Any], _ key: String) -> String? {
@@ -1217,32 +1219,53 @@ final class ResidentService {
         return result
     }
 
-    private func remember(_ records: [ElementRecord]) -> (String, [[String: Any]], [[String: Any]]) {
+    private func remember(_ records: [ElementRecord], app: NSRunningApplication,
+                          reading: NativeApplicationRead) -> (String, [[String: Any]], [[String: Any]]) {
         snapshotNumber += 1
         let snapshot = "s\(snapshotNumber)"
         var full: [[String: Any]] = []
         var compact: [[String: Any]] = []
+        var freshReferences: [String: AXUIElement] = [:]
+        var pathsByRecord: [Int: [AXUIElement]] = [:]
+        var path: [AXUIElement] = []
+        for item in reading.records {
+            path = Array(path.prefix(item.depth))
+            path.append(item.element)
+            pathsByRecord[item.reference] = path
+        }
+        var freshPaths: [String: [AXUIElement]] = [:]
         for item in records {
             let reference = "\(generation):\(desktopGeneration):\(snapshot):\(item.reference)"
-            references[reference] = item.element
-            referenceOrder.append(reference)
-            full.append(elementJSON(item, reference: reference, compact: false))
-            compact.append(elementJSON(item, reference: reference, compact: true))
+            freshReferences[reference] = item.element
+            freshPaths[reference] = pathsByRecord[item.reference]
+            var fullItem = elementJSON(item, reference: reference, compact: false)
+            var compactItem = elementJSON(item, reference: reference, compact: true)
+            if let identity = observationIdentity.identity(for: item.element) {
+                fullItem["elementIdentity"] = identity; compactItem["elementIdentity"] = identity
+            }
+            full.append(fullItem); compact.append(compactItem)
         }
-        while referenceOrder.count > 4_000 {
-            references.removeValue(forKey: referenceOrder.removeFirst())
-        }
+        references.replace(freshReferences, paths: freshPaths, process: reading.process)
+        referenceApplication = app
         return (snapshot, full, compact)
     }
 
     private func applicationRecords(_ request: [String: Any]) throws
-        -> (NSRunningApplication, [ElementRecord]) {
-        try requireAccessibility()
-        let app = try resolveApplication(requestString(request, "target"))
-        let root = AXUIElementCreateApplication(app.processIdentifier)
-        let depth = max(0, min(requestInt(request, "maxDepth", default: 8), 30))
-        let limit = max(1, min(requestInt(request, "maxElements", default: 500), 2_000))
-        return (app, traverse(root: root, maxDepth: depth, limit: limit))
+        -> (NSRunningApplication, NativeApplicationRead) {
+        do {
+            try requireAccessibility()
+            let app = try resolveApplication(requestString(request, "target"))
+            let depth = max(0, min(requestInt(request, "maxDepth", default: 8), 30))
+            let limit = max(1, min(requestInt(request, "maxElements", default: 500), 2_000))
+            let reading = readNativeApplication(app, maxDepth: depth, limit: limit)
+            observationIdentity.observe(reading.records.map(\.element), process: reading.process,
+                windows: reading.windows, complete: reading.complete && reading.records.count < limit,
+                now: ProcessInfo.processInfo.systemUptime)
+            return (app, reading)
+        } catch {
+            observationIdentity.invalidate()
+            throw error
+        }
     }
 
     // Keep cheap process/focus observations global, but query only the affected
@@ -2010,6 +2033,9 @@ final class ResidentService {
                 result["coordinateSpace"] = "global_display_points_top_left"
                 result["data"] = ["windows": windowList(ownerPID: app?.processIdentifier)]
             case "snapshot":
+                // A stable display identity never revives an action reference
+                // issued by an earlier observation, including another app.
+                references.invalidate(); referenceApplication = nil
                 if useCua(request) {
                     guard let target = requestString(request, "target") else {
                         result = refused(request, code: "invalid_request",
@@ -2059,10 +2085,11 @@ final class ResidentService {
                     result["coordinateSpace"] = "window_points_top_left"
                     break
                 }
-                let (app, allRecords) = try applicationRecords(request)
+                let (app, reading) = try applicationRecords(request)
+                let allRecords = reading.records
                 let records = recordsMatchingQuery(
                     allRecords, query: requestString(request, "query"))
-                let remembered = remember(records)
+                let remembered = remember(records, app: app, reading: reading)
                 let compact = requestString(request, "projection") == "compact"
                 result = base(request, route: "guest.user/macos.ax")
                 result["delivery"] = "not_applicable"
@@ -2072,11 +2099,31 @@ final class ResidentService {
                 result["data"] = [
                     "application": applicationJSON(app),
                     "snapshotId": remembered.0,
+                    // Observation IDs convey bounded continuity only. Actions
+                    // require the latest snapshot's separate reference.
+                    "elementIdentityLifetime": observationIdentity.generation == nil ?
+                        "unavailable" : "consecutive_qualified_observations",
+                    "actionReferenceLifetime": "latest_snapshot",
                     "projection": compact ? "compact" : "full",
                     "elements": compact ? remembered.2 : remembered.1,
-                    "truncated": records.count >= min(requestInt(
+                    // Filtering cannot restore records omitted by traversal.
+                    "truncated": allRecords.count >= min(requestInt(
                         request, "maxElements", default: 500), 2_000),
                 ]
+                var data = result["data"] as! [String: Any]
+                data["observationComplete"] = reading.complete
+                data["nativeScopeDiagnostics"] = reading.scopeDiagnostics
+                data["observationIdentityPolicy"] = "consecutive_complete_native_reads_max_gap_30s_one_app"
+                data["actionReferencePolicy"] = "latest_snapshot_with_live_ancestor_membership_preflight"
+                data["actionReferenceCount"] = references.elements.count
+                if let identityGeneration = observationIdentity.generation {
+                    data["elementIdentityGeneration"] = identityGeneration
+                }
+                if let reason = reading.incompleteReason {
+                    data["observationIncompleteReason"] = reason
+                    if ["element_limit", "depth_limit", "native_read_failed"].contains(reason) { data["truncated"] = true }
+                }
+                result["data"] = data
             case "action":
                 if let reference = requestString(request, "reference"),
                    !reference.hasPrefix(generation + ":" + desktopGeneration + ":") {
@@ -2144,8 +2191,44 @@ final class ResidentService {
                 let action = requestString(request, "action") ?? "press"
                 var effectPID: pid_t = 0
                 guard AXUIElementGetPid(element, &effectPID) == .success,
-                      effectPID > 0 else { throw MacUIError.action("effect_target_unavailable") }
+                      effectPID > 0 else {
+                    references.invalidate(); observationIdentity.invalidate(); referenceApplication = nil
+                    result = refused(request, code: "stale_reference",
+                        message: "Native reference owner is no longer available; observe again",
+                        route: "guest.user/macos.ax", stale: true)
+                    break
+                }
+                // AXRole validity alone is insufficient: a retired NSButton
+                // can still accept AXPress after its window has been replaced.
+                guard let app = referenceApplication, !app.isTerminated else {
+                    references.invalidate(); observationIdentity.invalidate(); referenceApplication = nil
+                    result = refused(request, code: "stale_reference",
+                        message: "Native reference process is no longer current; observe again",
+                        route: "guest.user/macos.ax", stale: true)
+                    break
+                }
                 let before = observationFingerprint(targetPID:effectPID)
+                var membershipReadError: Int32?
+                let actionProcess = nativeProcessStamp(app)
+                let membership = references.validate(reference, process: actionProcess,
+                    root: AXUIElementCreateApplication(app.processIdentifier),
+                    processAfterValidation: { nativeProcessStamp(app) }) { parent in
+                        var value: CFTypeRef?
+                        let status = AXUIElementCopyAttributeValue(parent, kAXChildrenAttribute as CFString, &value)
+                        if status != .success { membershipReadError = status.rawValue }
+                        return try nativeChildrenValue(status: status, value: value, unsupportedLeafIsEmpty: false)
+                    }
+                guard membership == .current else {
+                    references.invalidate(); observationIdentity.invalidate(); referenceApplication = nil
+                    result = refused(request, code: membership == .stale ? "stale_reference" : "action_membership_unverifiable",
+                        message: "Native reference ancestry is absent, ambiguous or unreadable; observe again",
+                        route: "guest.user/macos.ax", stale: true)
+                    var detail: [String: Any] = ["validation": "latest_snapshot_ancestor_edges",
+                        "membership": membership == .stale ? "stale" : "unverifiable"]
+                    if let membershipReadError { detail["axChildrenError"] = membershipReadError }
+                    result["data"] = detail
+                    break
+                }
                 if let reason = inputCancellation() { throw MacUIError.action(reason) }
                 var delivery: AXError?
                 switch action {

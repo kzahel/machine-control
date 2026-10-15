@@ -72,8 +72,23 @@ Element numbers are never inferred from labels, positions or tree paths.
 Numbers persist only when the provider's opaque reference or declared native
 identity persists. Providers that rotate references without stable identity
 receive fresh numbers and full compact observations. Removed numbers cannot
-be reused. The current Mac native provider rotates references each snapshot;
-stable identity and useful no-change diffs still need native qualification.
+be reused. The Mac native provider now supplies bounded observation identities
+across qualified consecutive reads while issuing fresh action references for
+every snapshot. Native actions require a reference from the latest snapshot
+and revalidate its process and ancestor membership before dispatch. Observing
+another application also expires prior native action references; observe the
+intended application again before acting.
+
+Native continuity retains one complete application's tree, at most 2,000
+objects and 64 windows, with a maximum 30-second gap. Incomplete or ambiguous
+reads, window/process changes and generation changes reset it. Cross-process
+identity reuse remains unqualified. Missing process metadata or unverifiable
+ancestor edges refuse actions; no identity is inferred from a label or frame.
+The [bounded production acceptance](../research/platforms/macos.md#production-native-identity-acceptance)
+records fixture and representative-app evidence. It does not establish a new
+model-token or latency improvement. “No change” describes the compact semantic
+projection: it omits geometry and hides menus by default. Current element
+bounds and dispatch references still refresh.
 Unknown coordinate spaces refuse element-centre clicks before sending input.
 
 When semantics omit a control, `shot = app.screenshot()` attaches a window image.

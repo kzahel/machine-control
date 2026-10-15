@@ -14,9 +14,9 @@ and raw evidence stay in private receipts.
 | Track | Deliverable and acceptance gate | Current state |
 | --- | --- | --- |
 | 1 — Claude skill acceptance | A fresh session follows the guide plus task/private runtime inputs, prepares scoped configuration and probes startup; host loading/new-session boundary is handled honestly; independent task effects and cleanup pass | Complete for two bounded TextEdit workflows; see evidence below |
-| 2 — Stable identity and compact observations | Unchanged/insertion/reorder retain correct identity; removal/replacement and generation changes refuse stale actions; compact output reconstructs state; deterministic measurements and live fixture acceptance | Offline implementation and review complete; live production gate pending |
-| 3 — Whole-package acceptance | Executable representative browser/dev, Finder and menu tasks; readiness, claims, credentials, assigned GUI route, independent effects and disposal recorded | YA harness worker, medium effort, normal speed |
-| 4 — Instruction experiment | Frozen seeded discovery/current/quickstart arms with matched profiles, repetitions and held-out tasks; failures retained; token/time/call distributions and limits reported | Frozen discovery/quickstart pilot running; repeated cells await review gate |
+| 2 — Stable identity and compact observations | Unchanged/insertion/reorder retain correct identity; removal/replacement and generation changes refuse stale actions; compact output reconstructs state; deterministic measurements and live fixture acceptance | Complete for bounded native fixture and named surfaces; independent review accepted |
+| 3 — Whole-package acceptance | Executable representative browser/dev, Finder and menu tasks; readiness, claims, credentials, assigned GUI route, independent effects and disposal recorded | Eight-cell pilot passed task and reviewed lifecycle gates; broader limits retained |
+| 4 — Instruction experiment | Frozen seeded discovery/current/quickstart arms with matched profiles, repetitions and held-out tasks; failures retained; token/time/call distributions and limits reported | Eight-cell pilot reviewed and continuation gate accepted; 24 repeated cells next |
 
 ## Organization
 
@@ -132,3 +132,35 @@ Locked use is already implemented and remains separate acceptance scope.
   and gaps in semantic-route and boundary assertions. These are being fixed
   before live deployment. The full native Swift suite passed 207 tests;
   fixture and representative-app production acceptance remain required.
+
+- Bounded native production acceptance passed after three retained failures:
+  missing AppKit process launch metadata, startup chrome settling, and an
+  incorrect test assumption equating geometry order with AX enumeration.
+  Kernel process birth metadata, observed bounded warmup and explicit geometric
+  oracles address those separate causes. All ten measured unchanged reads,
+  21 stale refusals, 12 current native effects and three child cleanup receipts
+  passed. The [platform report](../../research/platforms/macos.md#production-native-identity-acceptance)
+  owns contract, representation measurements and exact qualification limits.
+- System Settings preference effects, TextEdit menus, Control Center and resident
+  smoke passed. Full Swift tests (211), focused Python checks and ARM64/x86_64
+  builds passed; static smoke passed unchanged. The live smoke uses resident
+  capture instead of the legacy script's outer screenshot. The native clone
+  was discarded, its absence checked, its guest claim available and stored
+  credentials verified. A coordinator release-syntax error was refused before
+  dispatch, corrected and recorded in the private journal/usage notes.
+- All eight revised pilot cells passed independent effects and manual route/
+  confirmation review. Hash-bound lifecycle annotations and the continuation
+  decision are retained privately. Exact candidate identity for appliance
+  promotion remains unverified; ordinary task acceptance does not erase that
+  limit. Repeated cells retain the pilot's source, inputs, runtime and base.
+- The revised Sky bridge passed a separate genuine-runtime closure-order check
+  without a model or GUI task. The campaign's scoped AAR client was revoked and
+  its revoked status verified; unrelated base/model credentials remain owned
+  by their existing configuration.
+
+- Independent final native review replayed every retained observation and
+  checked scopes, fresh references, action effects, oracle lineages, candidate
+  hashes and cleanup. It found no new actionable correctness defect. TextEdit's
+  transient open-menu tree remains incomplete, and real Settings evidence does
+  not establish foreign-AX-PID coverage. These limits remain in the platform
+  report; native agent-level performance has not been measured yet.

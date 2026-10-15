@@ -3,6 +3,8 @@ from copy import deepcopy
 from pathlib import Path
 import sys
 import struct
+import subprocess
+import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "client"))
@@ -153,6 +155,42 @@ class AgentSessionTest(unittest.TestCase):
     def test_filtered_native_truncation_note_is_preserved(self):
         self.peer.snapshot['data']['truncated'] = True
         self.assertIn('Truncated', self.app.tree(query='Target'))
+
+    def test_native_observation_identity_never_becomes_action_authority(self):
+        data = self.stable_elements(1)
+        data['elementIdentityLifetime'] = 'consecutive_qualified_observations'
+        data['actionReferenceLifetime'] = 'latest_snapshot'
+        data['observationIdentityPolicy'] = 'consecutive_complete_native_reads_max_gap_30s_one_app'
+        self.app.tree()
+        data['elements'][0]['reference'] = 'new-snapshot-action-reference'
+        self.assertIn('No change', self.app.tree())
+        self.app.set_value(1, 'new value')
+        self.assertEqual(self.peer.requests[-1], dict(operation='action',
+            reference='new-snapshot-action-reference', action='set_value', text='new value'))
+
+    def test_incomplete_native_read_cannot_resurrect_prior_observation_number(self):
+        data = self.stable_elements(1)
+        original = deepcopy(data)
+        self.app.tree()
+        del data['elementIdentityGeneration']
+        del data['elements'][0]['elementIdentity']
+        data.update(observationComplete=False, truncated=True, observationIncompleteReason='depth_limit')
+        data['elements'][0]['reference'] = 'incomplete-snapshot-reference'
+        self.assertIn('Truncated', self.app.tree())
+        with self.assertRaises(StaleElement): self.app.press(1)
+        self.peer.snapshot['data'] = original
+        self.app.tree()
+        with self.assertRaises(StaleElement): self.app.press(1)
+
+    def test_native_live_acceptance_refuses_before_connecting_without_guest_flag(self):
+        with tempfile.TemporaryDirectory() as root:
+            destination = Path(root) / 'must-not-exist'
+            runner = Path(__file__).with_name('native_identity_resident_acceptance.py')
+            value = subprocess.run([sys.executable, str(runner), '--fixture', str(Path(root) / 'not-an-app'),
+                '--output', str(destination)], capture_output=True, text=True, timeout=10)
+            self.assertEqual(value.returncode, 2)
+            self.assertIn('--disposable-guest', value.stderr)
+            self.assertFalse(destination.exists())
 
     def test_removed_number_is_never_recycled(self):
         self.app.tree(); old=next(iter(self.app.elements))

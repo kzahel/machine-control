@@ -68,6 +68,12 @@ route review, stopped owned processes and workspace disposal. Original failed
 receipts and costs remain unchanged; derived corrected records pass. This was
 an evaluation correction, not replacement of an unsuccessful task run.
 
+A subsequent startup-only check exercised the revised bridge against the genuine
+installed runtime. After initialize/list/sky_close, the native closure marker
+and event existed while the wrapper remained alive; wrapper exit was recorded
+only after stdin closed, and its process was reaped. This validates the forward
+teardown event ordering without another model or GUI task.
+
 ## Limits
 
 One task recovered from a ScreenCaptureKit capture error using accessibility

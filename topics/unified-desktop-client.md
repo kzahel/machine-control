@@ -249,8 +249,13 @@ reliability estimates, and the combined differences do not isolate persistence.
 Earlier invalid attempts retain their resource costs.
 [Tactical 123](../docs/tactical/123-persistent-agent-session.md) and
 [Tactical 125](../docs/tactical/125-agent-capability-baseline.md) own qualification
-and comparison status. Shell-session packaging, native stable identity and
-notification-based settling remain later work.
+and comparison status. Bounded native observation identity and fresh action
+membership now pass [production acceptance](../research/platforms/macos.md#production-native-identity-acceptance)
+on the owned fixture plus representative Mac surfaces. The session keeps
+stable display numbers without making them action authority; native references
+expire at the next snapshot. Broader identity qualification, shell-session
+packaging and notification-based settling remain later work. The new native
+candidate has representation measurements, not new agent performance results.
 Comparison reports must distinguish final effects, intermediate targeting and
 agent confirmation compliance. A repeated JS mistarget and a Computer Use
 confirmation deviation both reached passing final states; neither is a clean

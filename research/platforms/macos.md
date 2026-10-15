@@ -641,6 +641,75 @@ application coverage, PID-reuse safety or a production performance gain.
 [Tactical 128](../../docs/tactical/128-control-efficiency-campaign.md) owns
 implementation and further acceptance; raw receipts remain private.
 
+### Production native identity acceptance
+
+**Current (2026-10-15), bounded `live-tested`:** the resident now separates
+stable observation keys from latest-snapshot action references. Observation
+continuity uses CFEqual against the preceding qualified native tree; hashes
+only bucket candidates. It retains one application's last complete tree,
+at most 2,000 objects and 64 windows, with a 30-second maximum observation gap.
+PID plus kernel start seconds/microseconds from SDK-declared `sysctl` identifies
+the process incarnation. Unavailable metadata refuses qualification; there is
+no PID-only fallback. Unchanged native window membership, complete reads and
+unambiguous matching are required. Cross-process observation reuse remains
+unqualified. Removed identities are not resurrected.
+
+Before native dispatch, the latest reference must still belong to that process
+and each observed ancestor edge must occur exactly once in fresh AXChildren.
+The process stamp is checked again after membership validation. Missing edges
+refuse stale references; unreadable, ambiguous or oversized parent lists refuse
+unverifiable membership. Unrelated incomplete branches do not prohibit an
+otherwise proven current action. Observation keys never enter action lookup.
+Claim, admission and audit behavior remain in place.
+
+The production fixture completed 29 ordinary observations (including three
+warmup reads), two explicit incomplete reads and one partial-read action case.
+Ten measured unchanged reads retained Python numbers and observation IDs while
+refreshing action references. All 21 stale actions refused before dispatch with
+unchanged independent fixture effects. Eleven ordinary current actions plus the
+partial-read action produced exact incarnation-bound effects through native AX.
+The resident envelopes leave these effects unverifiable; independent fixture
+callbacks provide the stronger acceptance evidence.
+Coverage includes insertion, geometric reordering, five observation-first
+replacements, an immediate replacement refusal, removal, retired-window
+refusal, and both refusal-first and observation-first window/process resets.
+All three fixture children were reaped; an independent process check found no
+owned fixture child, and the guest claim returned to available.
+
+Three prior failed acceptance attempts remain retained: AppKit launchDate was
+absent for a fully launched directly started app, initial window chrome gained
+one group, and a test incorrectly assumed geometry reordering changes native
+AX enumeration. The fixes use kernel process metadata, bounded observed setup
+settling, and independent native/oracle geometry checks respectively. No
+production observation changes were hidden to force a no-change result.
+
+For the same ten retained unchanged observations, Python's compact semantic
+projection measured 66 UTF-8 bytes per diff versus 638 bytes for the full
+projection; serialized native envelopes had a 34,794-byte median. These are
+representation measurements on an owned fixture, not tokens, task latency or
+pixel-state reconstruction. Geometry is omitted and menus are hidden by default;
+current bounds and references still refresh even when semantic rows do not change.
+
+Representative compatibility also passed: a query-filtered System Settings
+Appearance menu and radio actions changed an independently read preference
+Automatic → Always → Automatic; native AX opened TextEdit Format and resident Escape dismissed it, changing
+independent on-screen window counts 1 → 2 → 1 with fixture bytes intact;
+Control Center native menu-bar actions produced counts 5 → 6 → 5. These qualify
+those real surfaces, not arbitrary foreign-process AX subtrees or background
+non-interference. TextEdit's open-menu read was incomplete (`native_read_failed`)
+and withheld observation identity; this does not qualify stable identity through
+transient menus or dispatch of Make Plain Text. Finder's 100-node smoke read
+was intentionally truncated. Resident capture, artifact retrieval, Finder inventory/tree
+and doctor checks passed. The legacy smoke's outer screenshot was replaced
+with resident capture; the static suite passed unchanged.
+
+The full Swift suite passed 211 tests; ARM64 and x86_64 builds passed. This
+bounded acceptance does not prove never-reused AX tokens, exec-generation
+identity, arbitrary app reach, long-run leak freedom or atomic validation and
+dispatch. New model trials are needed to establish end-to-end efficiency gains.
+[Tactical 128](../../docs/tactical/128-control-efficiency-campaign.md) owns
+execution; exact candidate hashes, failures and raw receipts remain private.
+
 ## Current direction
 
 **Decision:** Preserve Cua as a replaceable common-plane adapter and Peekaboo as

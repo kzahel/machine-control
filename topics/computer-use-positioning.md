@@ -55,7 +55,7 @@ owns live target claims, integration and incremental commits.
 
 | Priority / work | Gap and expected benefit | Acceptance gate |
 | --- | --- | --- |
-| 1 — Stable native element identity | Mac snapshots rotate references; Python must issue fresh numbers/full trees, increasing tokens and recovery | Preserve identity across unchanged reads, insertions and reordering; refuse replacement/stale references before dispatch; never match identity by label or position |
+| 1 — Extend stable native identity qualification | Bounded Mac observation continuity now passes owned-fixture and representative-surface acceptance; action references remain fresh | Extend application/lifetime coverage and measure agent-level gains; retain stale refusal and never match identity by label or position |
 | 1 — Compact observations and diffs | Repeated trees, action metadata and shallow-query misses inflate model work | Correct bounded diffs, explicit truncation and menu queries; measure serialized bytes, normalized tokens and task failures, including unchanged reads |
 | 1 — Background input and app menus | Current pointer routes can disturb focus/cursor; accepted background menu actions can lack effects | Independent sentinel, pointer/text/menu callbacks, actual app effects and sampled interference across representative native/Electron apps; report any foreground fallback |
 | 2 — Notification-assisted settling | Python polls; identical samples do not prove asynchronous completion | Delayed, burst and continuous updates with bounded deadlines and explicit effect predicates; compare AX calls, latency and missed changes |
@@ -101,3 +101,10 @@ now qualifies agent-led setup and the YA new-session handoff for two bounded
 TextEdit tasks. Setup, task, lifecycle and token costs are reported separately;
 failed setup attempts and a teardown-evaluation correction remain visible.
 This adds workflow evidence, not new general application or media coverage.
+
+**Current:** [Native production acceptance](../research/platforms/macos.md#production-native-identity-acceptance)
+now separates bounded stable observation identity from fresh action authority.
+Repeated unchanged fixture projections shrink to 66 bytes from 638 bytes, with
+current bounds and references refreshed. This is representation evidence, not
+a new agent-token or latency result; general app and lifetime coverage remain
+open. Native Settings, TextEdit menus and Control Center checks also pass.
