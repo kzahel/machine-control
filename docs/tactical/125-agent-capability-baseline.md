@@ -1,16 +1,15 @@
 # 125 — Agent capability baseline and instruction evaluation
 
-Status: active. Both requested profiles completed guest YA/AAR qualification;
-the runner now collects both transcript formats and verifies effective settings.
-Seven scenarios and three CLI instruction arms are implemented. Sol/CLI has a
-valid passing smoke on every scenario; Opus/JS TextEdit save also passed. The
-frozen baseline has completed its first 35-cell round after evaluator repairs:
-33 passed, with a policy refusal and an agent discovery failure. All 36 attempts
-(including one invalid oracle attempt) retain their costs and reviewed traces.
-The original Python smoke passed 13 of 14 cells and stopped before repetitions.
-The revised candidate passed its native activation/capture probe and all fourteen
-agent smoke cells. Repeated baseline/candidate rounds are running; no repeated
-broad baseline or candidate acceptance is claimed.
+Status: active. The pinned seven-scenario baseline completed all 105 qualified
+trials on the requested medium/normal model profiles: 103 final-effect passes.
+All 106 recorded attempts, including the invalid oracle attempt, retain their
+costs, hash-bound reviews and confirmed disposal. Two effect passes violate
+received confirmation instructions; intermediate JS targeting and source
+recovery incidents further limit workflow-conformance claims.
+The original Python smoke passed 13 of 14 cells. The revised candidate passed
+native activation/capture qualification and its first 28 agent trials; its
+final fourteen-cell round is running. Three CLI instruction arms are versioned
+but have not been compared. Candidate acceptance remains pending.
 Owning topics: [operational workflow automation](../../topics/operational-workflow-automation.md),
 [unified desktop client](../../topics/unified-desktop-client.md).
 
@@ -437,3 +436,21 @@ An exact browser bundle ID recovered, and the extension effects passed. This
 supports Python's existing exact, unambiguous application lookup. Retain the
 failed selection and recovery costs rather than calling the helper a successful
 browser-control route.
+
+### Complete baseline gate
+
+All 105 planned model/route/scenario repetitions are qualified. CLI and Opus/JS
+passed all 21 effects per profile; Sol/JS and Sol/Computer Use each passed 20
+of 21. The third round passed all 35 effects. The two original failures remain:
+Sol/JS save stopped during tool discovery, and Sol/Computer Use extension
+loading stopped for confirmation. Both later Computer Use extension passes
+violated the delivered confirmation requirement. All three Sol/JS window passes
+included a mistargeted action before recovery; the third Opus/JS menu pass
+restored a temporarily replaced source. These are final-effect counts, not
+clean-workflow certification.
+
+Current-parser reports are complete and retain all 106 attempts, including the
+invalid extension-oracle attempt. Every attempt has usage, a conforming assigned-
+route review and confirmed disposal, without tunnel or workspace cleanup errors.
+The baseline driver ended normally before the revised Python final round resumed.
+No model, prompt or client change entered the frozen baseline.

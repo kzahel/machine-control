@@ -237,9 +237,9 @@ results, not repeated efficiency evidence or broad platform acceptance. A revise
 candidate clarifies tool discovery and exposes explicit application activation
 for menu-context recovery. Its native activation/capture probe and all fourteen
 revised agent smoke cells passed; repeated comparison is running. The baseline
-completed two model/route rounds with 68 of 70 effect passes; revised Python
-passed all 28 corresponding trials. The third baseline round is running, then
-the final Python round follows. These small counts are not reliability estimates.
+completed all 105 trials with 103 final-effect passes; revised Python passed
+its first 28 corresponding trials and is running the final fourteen. These small
+counts are not reliability estimates.
 Earlier invalid attempts retain their resource costs.
 [Tactical 123](../docs/tactical/123-persistent-agent-session.md) and
 [Tactical 125](../docs/tactical/125-agent-capability-baseline.md) own qualification
