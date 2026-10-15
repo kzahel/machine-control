@@ -6,8 +6,10 @@ standard-library wrapper over existing YepAnywhere REST routes. It creates no
 session until explicitly invoked with `create`. Its tests use synthetic API
 responses. Coordinator checks additionally created a Sol 6.1 high/Fast review
 session, observed matching selected and applied settings, and verified shutdown
-of an owned completed worker. Queue correlation and resume remain separate
-acceptance cases. A first mutation refused for a missing `X-Yep-Anywhere`
+of an owned completed worker. Subsequent checks resumed terminated workers
+with new turns, observed the new process and matching settings, and verified
+their later shutdown. Queue correlation remains a separate acceptance case.
+A first mutation refused for a missing `X-Yep-Anywhere`
 header; the helper now supplies the normal YA CSRF header and tests it.
 
 [Delegation and placement](../topics/delegation-and-agent-placement.md) owns the
