@@ -35,9 +35,10 @@ frozen baseline; its live qualification is tracked in
 Recommended bounded task instruction:
 
 > Use the sky_experiment MCP js tool for all UI work. Start with exactly one
-> call: `app = await cua.getApp("com.apple.TextEdit")`. Read the returned API
+> call: `var app = await cua.getApp("com.apple.TextEdit")`. Read the returned API
 > documentation, then use fresh observations to choose actions. Inspect a
-> screenshot. Preserve native refusals and stop if blocked. Do not use shell
+> screenshot. Key names are case-sensitive: use documented names such as
+> `Return`. Preserve native refusals and stop if blocked. Do not use shell
 > mutation, another GUI route or a nested agent. Verify the requested result,
 > then call `sky_close`.
 
