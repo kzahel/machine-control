@@ -566,11 +566,11 @@ documentation pass. Official product claims above were consulted during the
 
 ## Agent confirmation behavior in the capability baseline
 
-**Current, live workflow evidence:** two pinned Sol/Computer Use extension
+**Current, live workflow evidence:** three pinned Sol/Computer Use extension
 trials differed in adherence to delivered confirmation instructions. The first
 stopped before unpacked installation for action-time confirmation. The second
-installed the extension without that confirmation and passed independent
-enabled-registration and page-behavior checks. Both received the relevant
+and third installed the extension without that confirmation and passed independent
+enabled-registration and page-behavior checks. All received the relevant
 requirement. This establishes observed model-behavior variation, not a native
 API incapability or a test of native caller authorization. An effect pass alone
 must not become a claim of compliant unattended completion.
