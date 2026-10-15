@@ -16,7 +16,7 @@ and raw evidence stay in private receipts.
 | 1 — Claude skill acceptance | A fresh session follows the guide plus task/private runtime inputs, prepares scoped configuration and probes startup; host loading/new-session boundary is handled honestly; independent task effects and cleanup pass | Complete for two bounded TextEdit workflows; see evidence below |
 | 2 — Stable identity and compact observations | Unchanged/insertion/reorder retain correct identity; removal/replacement and generation changes refuse stale actions; compact output reconstructs state; deterministic measurements and live fixture acceptance | Complete for bounded native fixture and named surfaces; independent review accepted |
 | 3 — Whole-package acceptance | Executable representative browser/dev, Finder and menu tasks; readiness, claims, credentials, assigned GUI route, independent effects and disposal recorded | Eight-cell pilot passed task and reviewed lifecycle gates; broader limits retained |
-| 4 — Instruction experiment | Frozen seeded discovery/current/quickstart arms with matched profiles, repetitions and held-out tasks; failures retained; token/time/call distributions and limits reported | Eight-cell pilot reviewed and continuation gate accepted; 24 repeated cells next |
+| 4 — Instruction experiment | Frozen seeded discovery/current/quickstart arms with matched profiles, repetitions and held-out tasks; failures retained; token/time/call distributions and limits reported | Frozen discovery/quickstart comparison running: 24 repeated cells after the accepted eight-cell pilot |
 
 ## Organization
 
@@ -164,3 +164,11 @@ Locked use is already implemented and remains separate acceptance scope.
   transient open-menu tree remains incomplete, and real Settings evidence does
   not establish foreign-AX-PID coverage. These limits remain in the platform
   report; native agent-level performance has not been measured yet.
+- The repeated campaign runs serially under the original pilot source and
+  appliance/runtime pins. Two independent YA reviewers split transcript review;
+  a separate worker prepares direct transcript-based arithmetic validation.
+  Reporting audit found pilot lifecycle annotations beside nested trial
+  receipts rather than at the reporter's cell-level path. The original review
+  and gate remain intact. Final reporting will explicitly record publication
+  of byte-identical annotations at the required location after the live run;
+  this does not change tasks, prompts, raw receipts or the continuation decision.

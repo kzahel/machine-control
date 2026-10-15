@@ -123,8 +123,13 @@ language effect because implementations/instructions/enforcement differ.
 
 Lifecycle acceptance stays separate from UI score: doctor, claim, workspace,
 oracle execution, disposal and credential handoff. Existing receipts directly
-cover only some checks. Per-cell private `acceptance.json` can supply reviewed
-evidence for the others, bound to the original trial receipt:
+cover only some checks. Write the private lifecycle annotation at
+`CAMPAIGN/cell-NNNN/acceptance.json`, beside `attempt.json`. The reporter reads
+that cell-level location; an `acceptance.json` beside the nested `trial.json`
+is retained evidence but is not automatically applied. In contrast, the route
+review belongs beside `trial.json`. Publish the lifecycle annotations before
+hashing the pilot continuation decision. They can supply reviewed evidence for
+the remaining checks, bound to the original trial receipt:
 
 ```json
 {
