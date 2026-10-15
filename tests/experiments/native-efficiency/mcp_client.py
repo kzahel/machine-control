@@ -9,12 +9,21 @@ import threading
 import time
 
 
+def approval_allowed(message, apps):
+    """Only connector/app metadata authorizes fixture access, never prompt text."""
+    meta = message.get('params', {}).get('_meta', {})
+    return (meta.get('connector_id') == 'computer-use' and
+            meta.get('tool_params', {}).get('app') in apps)
+
+
 class MCP:
-    def __init__(self, config, output):
+    def __init__(self, config, output, *, approved_apps=None):
         self.output = Path(output)
         self.messages = queue.Queue()
         self.sequence = 0
         self.elicitations = []
+        self.approved_apps = frozenset(approved_apps if approved_apps is not None else
+            {'org.machine-control.efficiency.target', 'org.machine-control.efficiency.sentinel'})
         env = {k: v for k, v in os.environ.items() if k in
                ('HOME', 'PATH', 'TMPDIR', 'USER', 'LOGNAME', 'SHELL')}
         env.update(config.get('env', {}))
@@ -31,10 +40,14 @@ class MCP:
             finally:
                 self.messages.put({'closed': True})
         threading.Thread(target=read, daemon=True).start()
-        self.request('initialize', {'protocolVersion': '2024-11-05',
-            'capabilities': {'elicitation': {}},
-            'clientInfo': {'name': 'mc-native-efficiency', 'version': '1'}})
-        self.send({'jsonrpc': '2.0', 'method': 'notifications/initialized'})
+        try:
+            self.initialization = self.request('initialize', {'protocolVersion': '2024-11-05',
+                'capabilities': {'elicitation': {}},
+                'clientInfo': {'name': 'mc-native-efficiency', 'version': '1'}})
+            self.send({'jsonrpc': '2.0', 'method': 'notifications/initialized'})
+        except BaseException:
+            self.close()
+            raise
 
     def send(self, value):
         self.process.stdin.write(json.dumps(value) + '\n'); self.process.stdin.flush()
@@ -52,11 +65,7 @@ class MCP:
             if message.get('method') == 'elicitation/create':
                 self.elicitations.append(message)
                 (self.output / 'elicitations.json').write_text(json.dumps(self.elicitations, indent=2))
-                meta = message.get('params', {}).get('_meta', {})
-                # Only our two owned fixture apps, never arbitrary requested apps.
-                apps = {'org.machine-control.efficiency.target', 'org.machine-control.efficiency.sentinel'}
-                allowed = (meta.get('connector_id') == 'computer-use' and
-                           meta.get('tool_params', {}).get('app') in apps)
+                allowed = approval_allowed(message, self.approved_apps)
                 self.send({'jsonrpc': '2.0', 'id': message['id'], 'result':
                     {'action': 'accept' if allowed else 'decline', 'content': {}}})
             elif message.get('id') == ident:

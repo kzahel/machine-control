@@ -44,6 +44,10 @@ defaults to `claude-opus-5-5`, medium effort and standard speed, and requires
 delivered over SSH stdin into a private guest file read by Claude's key helper.
 Computer Use is not a qualified Claude route. The sealed base is unchanged.
 
+The separate [`sky-external`](sky-external/README.md) qualification route tests
+Opus through the genuine installed runtime with TextEdit-only host approvals.
+It is outside the frozen comparison and is restricted to save/menu tasks.
+
 `--instructions discovery|current|quickstart` selects the CLI instruction arm;
 the default is the previous current-guide prompt. Other routes retain their
 own tool instructions. Actual composed prompts are hashed in private receipts.

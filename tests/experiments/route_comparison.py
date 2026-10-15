@@ -48,6 +48,16 @@ TASKS = Path(__file__).resolve().parent / "tasks"
 CLI = [sys.executable, str(ROOT / "bin/machine-control")]
 
 ROUTES = {
+    "sky-external": (
+        "Use the sky_experiment MCP server's js tool and genuine cua API for all UI work. "
+        "This is persistent JavaScript, not Python. Start with exactly one API call: "
+        "app = await cua.getApp(\"com.apple.TextEdit\"). Read the returned documentation "
+        "before continuing. Follow the runtime's API and use fresh observations; retain "
+        "native refusals. Only TextEdit is preauthorized for this experiment. "
+        "Obtain a screenshot at least once and inspect its returned image. "
+        "After final verification call sky_close to release the runtime. "
+        "Do not use Machine Control, AppleScript, osascript, System Events, other agents, "
+        "or shell commands to change the task files/settings."),
     "machine-control": (
         "Use Machine Control for all UI work: run its CLI from ~/code/machine-control "
         "(bin/machine-control --target host ...) as described in "
@@ -346,6 +356,22 @@ print(json.dumps(collect(configs[0])))
             baseline.write_text(json.dumps(identity, indent=2) + "\n")
         common = (TASKS / "common-chrome.sh").read_text()
         guest.run("mkdir -p ~/experiment && cat > ~/experiment/common-chrome.sh", stdin=common)
+        if route == 'sky-external':
+            configured = guest.run('/opt/homebrew/bin/python3 -', stdin='''
+from pathlib import Path
+import json,os
+configs=list((Path.home()/'.codex/plugins/cache/openai-bundled/unified-computer-use').glob('*/.mcp.json'))
+assert len(configs)==1, 'resolve exact installed runtime selection before running'
+base=Path.home()/'code/machine-control/tests/experiments/sky-external/bridge.py'
+config={'command':'/opt/homebrew/bin/python3','args':[str(base), '--config', str(configs[0]),
+    '--allow-app','com.apple.TextEdit','--evidence',str(Path.home()/'experiment/sky-evidence')]}
+f=Path.home()/'.claude.json';x=json.loads(f.read_text()) if f.exists() else {}
+x.setdefault('mcpServers',{})['sky_experiment']=config
+f.write_text(json.dumps(x));os.chmod(f,0o600)
+''')
+            if configured.returncode:
+                raise RuntimeError('External Sky experiment setup failed')
+            record['enforcementProfile'] = 'genuine_sky_wrapper_fixture_scoped_host_approval'
         if route in ("mc-repl", "mc-python"):
             if route == "mc-repl":
                 guest.run("cat > ~/experiment/mc-repl.mjs", stdin=MC_REPL.read_text())
@@ -427,6 +453,16 @@ f.write_text(json.dumps(x));os.chmod(f,0o600)
             f"--session-ref {session_id} --limit 500")
         (trial_dir / "audit.json").write_text(audit.stdout)
         record.update(audit_metrics(audit.stdout))
+        if route == 'sky-external':
+            evidence = guest.run('/opt/homebrew/bin/python3 -', stdin='''
+from pathlib import Path
+import json
+p=Path.home()/'experiment/sky-evidence'
+print(json.dumps({f.name:f.read_text() for f in p.glob('*') if f.is_file()}))
+''')
+            (trial_dir/'sky-evidence.json').write_text(evidence.stdout)
+            data = json.loads(evidence.stdout)
+            record['skyRuntimeClosed'] = json.loads(data.get('closed.json', '{}')).get('closed', False)
         capture = mc(*selector, "desktop", "capture", "--scope", "display", check=False)
         path = (capture.get("data") or {}).get("artifactPath")
         if path:
@@ -494,7 +530,10 @@ def main():
     args = parser.parse_args()
     args.model = args.model or DEFAULT_MODELS[args.provider]
     if args.provider=='claude' and (not args.route or 'computer-use' in args.route):
-        parser.error('Claude requires explicit MC routes; Computer Use is not qualified on Claude')
+        parser.error('Claude requires explicit routes; use sky-external for bounded Sky qualification')
+    if 'sky-external' in (args.route or []):
+        if args.provider != 'claude' or not args.task or not set(args.task) <= {'textedit-save','textedit-menu'}:
+            parser.error('sky-external qualification requires Claude and explicit TextEdit save/menu tasks')
     if args.provider=='claude':
         if not args.gateway_credential_file or not args.gateway_credential_file.is_file():
             parser.error('Claude requires gateway-credential-file')
