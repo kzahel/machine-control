@@ -7,7 +7,9 @@ The [final results](evidence/agent-capability-comparison-2026-10.md) include
 scenario distributions, tokens, failed-attempt costs and observed workflow issues.
 [Tactical 125](tactical/125-agent-capability-baseline.md) owns the
 current comparison, exact profile qualification and known outcome limitations.
-Instruction variants are versioned but have not been compared. The bounded
+The [instruction comparison](evidence/instruction-comparison-2026-10.md) passed
+24/24 measured tasks with lower quickstart token/call medians, but no established
+end-to-end speed improvement. The bounded
 [control campaign protocol](../tests/experiments/instructions/control-campaign/protocol.md)
 adds a pilot gate, paired discovery/quickstart trials, held-out fixtures,
 whole-package receipts and campaign-wide runtime pins. Its live execution is

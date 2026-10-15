@@ -48,10 +48,10 @@ not an attempted bypass or a claim about every internal service operation.
 ## Roadmap ordered by evidence and impact
 
 **Current:** [Tactical 128](../docs/tactical/128-control-efficiency-campaign.md)
-coordinates the authorized next program: fresh-session skill acceptance,
-stable identity and compact observations, whole-package acceptance and a
-controlled instruction experiment. YA owns delegated workers; one coordinator
-owns live target claims, integration and incremental commits.
+completed bounded fresh-session skill acceptance, stable identity and compact
+observations, whole-package acceptance and a controlled instruction experiment.
+The next performance question is whether the native changes reduce agent cost
+under identical instructions and claim enforcement.
 
 | Priority / work | Gap and expected benefit | Acceptance gate |
 | --- | --- | --- |
@@ -109,3 +109,11 @@ Repeated unchanged fixture projections shrink to 66 bytes from 638 bytes, with
 current bounds and references refreshed. This is representation evidence, not
 a new agent-token or latency result; general app and lifetime coverage remain
 open. Native Settings, TextEdit menus and Control Center checks also pass.
+
+**Current:** the [instruction comparison](../docs/evidence/instruction-comparison-2026-10.md)
+passed all 24 measured tasks. Quickstart reduced median task tokens from 720k to
+475k and calls from 16 to 13.5; paired full-invocation time was essentially
+unchanged. Use a concise entry guide to reduce discovery overhead, while keeping
+the newer guide explicitly unmeasured. Native identity/diff performance remains
+a separate next experiment; no further broad research is needed before that
+focused comparison.

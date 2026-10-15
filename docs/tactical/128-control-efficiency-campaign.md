@@ -3,8 +3,8 @@
 Owning topics: [Computer Use positioning](../../topics/computer-use-positioning.md),
 [unified desktop client](../../topics/unified-desktop-client.md).
 
-Status: **In progress**. Implementation and bounded live acceptance are complete;
-the repeated instruction comparison and final report remain in progress.
+Status: **Complete within the bounds below**. Software, guides, live acceptance
+and the repeated instruction comparison are committed; owned resources are closed.
 
 ## Objective
 
@@ -18,8 +18,8 @@ task cost. Deliver reusable software and evidence, with incremental commits.
 | --- | --- | --- |
 | Claude → Computer Use guide | Fresh agent-led setup, host registration, separate task session, independent effects and cleanup | Complete for two TextEdit workflows; [report](../evidence/claude-skill-acceptance-2026-10.md) |
 | Stable native identity and compact observations | Preserve unchanged controls; refuse removed/replaced controls; correct diffs; deterministic and live tests | Complete within documented bounds; [native acceptance](../../research/platforms/macos.md#production-native-identity-acceptance) |
-| Representative task harness | Extension loading, Finder, browser form and app menu tasks; readiness, claims, credential handoff, effects and disposal | Eight-cell pilot passed task and reviewed lifecycle gates |
-| Instruction comparison | Frozen discovery/quickstart prompts, matched model settings, repetitions, held-out tasks; report time, calls, tokens and failures | Running 24 measured trials after the qualified pilot |
+| Representative task harness | Extension loading, Finder, browser form and app menu tasks; readiness, claims, credential handoff, effects and disposal | All 8 pilot and 24 measured trials passed bounded task/lifecycle checks |
+| Instruction comparison | Frozen discovery/quickstart prompts, matched model settings, repetitions, held-out tasks; report time, calls, tokens and failures | Complete; [results](../evidence/instruction-comparison-2026-10.md) |
 
 ## Boundaries
 
@@ -78,11 +78,15 @@ cause remains unknown. Its results and costs remain separate from the complete
 are reused, counted once. A lifecycle-annotation placement correction preserves
 original reviews and raw receipts. Exact provenance stays with private evidence.
 
-## Remaining work
+## Final result and follow-up
 
-- Finish the repeated comparison and transcript review; publish a short result
-  with per-task time, call and token distributions, plus retained failure costs.
-- Verify final session, claim and workspace cleanup.
-- Record conclusions and next priorities in the owning topic. Appliance
-  promotion identity and independent focus/cursor interference checks remain
-  outside the completed acceptance claims.
+The [instruction report](../evidence/instruction-comparison-2026-10.md) records
+24/24 measured successes. Quickstart reduced median tokens from 720k to 475k
+and calls from 16 to 13.5. The median paired full-invocation difference was
+only 0.41 seconds; no end-to-end speed improvement is established.
+
+Owned workers stopped; final checks found no experiment workspaces and verified
+claim release and stored credentials. The scoped runtime client was revoked.
+Native agent-level performance, broader app coverage, appliance promotion
+identity and independent focus/cursor checks remain roadmap work, not unfinished
+claims of this bounded acceptance.

@@ -1,0 +1,2152 @@
+{
+  "schema": "instruction-comparison-aggregates/v1",
+  "sourceRevision": "e9a51f38401dd455bb84137b4a3ee4e94a7f54fd",
+  "profile": {
+    "provider": "codex",
+    "model": "gpt-6.1-sol",
+    "effort": "medium",
+    "speed": "standard"
+  },
+  "measurement": "Task-session tokens are input plus output; cached input is a subset. Agent and invocation time overlap. Paired differences are quickstart minus discovery.",
+  "paired": {
+    "overall": {
+      "label": "All paired",
+      "planned": 24,
+      "recorded": 24,
+      "missing": 0,
+      "success": 24,
+      "outcomes": {
+        "success": 24,
+        "failed": 0,
+        "unverified": 0,
+        "invalid": 0
+      },
+      "successfulDistributions": {
+        "agentSeconds": {
+          "n": 24,
+          "median": 93.61899995803833,
+          "min": 60.989999771118164,
+          "max": 350.51900005340576
+        },
+        "toolCalls": {
+          "n": 24,
+          "median": 15.0,
+          "min": 9,
+          "max": 20
+        },
+        "runnerInvocationSeconds": {
+          "n": 24,
+          "median": 194.04285552102374,
+          "min": 152.9433385420125,
+          "max": 442.06415241700597
+        },
+        "totalTokens": {
+          "n": 24,
+          "median": 575428.5,
+          "min": 292505,
+          "max": 1009623
+        },
+        "inputTokens": {
+          "n": 24,
+          "median": 573590.0,
+          "min": 291542,
+          "max": 1006796
+        },
+        "cachedInputTokens": {
+          "n": 24,
+          "median": 196672.0,
+          "min": 113536,
+          "max": 364928
+        },
+        "outputTokens": {
+          "n": 24,
+          "median": 2107.5,
+          "min": 963,
+          "max": 2827
+        }
+      },
+      "firstUIDiscovery": {
+        "measuredAttempts": 24,
+        "unknownAttempts": 0,
+        "distribution": {
+          "n": 24,
+          "median": 4.0,
+          "min": 1,
+          "max": 5
+        },
+        "sum": 85,
+        "firstUICall": {
+          "n": 24,
+          "median": 5.0,
+          "min": 2,
+          "max": 6
+        }
+      },
+      "allAttemptSums": {
+        "agentSeconds": {
+          "sum": 2468.0260004997253,
+          "measuredAttempts": 24,
+          "unknownAttempts": 0
+        },
+        "toolCalls": {
+          "sum": 359,
+          "measuredAttempts": 24,
+          "unknownAttempts": 0
+        },
+        "runnerInvocationSeconds": {
+          "sum": 4839.122870293795,
+          "measuredAttempts": 24,
+          "unknownAttempts": 0
+        },
+        "totalTokens": {
+          "sum": 14956377,
+          "measuredAttempts": 24,
+          "unknownAttempts": 0
+        },
+        "inputTokens": {
+          "sum": 14907937,
+          "measuredAttempts": 24,
+          "unknownAttempts": 0
+        },
+        "cachedInputTokens": {
+          "sum": 4991360,
+          "measuredAttempts": 24,
+          "unknownAttempts": 0
+        },
+        "outputTokens": {
+          "sum": 48440,
+          "measuredAttempts": 24,
+          "unknownAttempts": 0
+        }
+      }
+    },
+    "arms": [
+      {
+        "label": "discovery",
+        "planned": 12,
+        "recorded": 12,
+        "missing": 0,
+        "success": 12,
+        "outcomes": {
+          "success": 12,
+          "failed": 0,
+          "unverified": 0,
+          "invalid": 0
+        },
+        "successfulDistributions": {
+          "agentSeconds": {
+            "n": 12,
+            "median": 97.24849998950958,
+            "min": 60.989999771118164,
+            "max": 119.68300008773804
+          },
+          "toolCalls": {
+            "n": 12,
+            "median": 16.0,
+            "min": 12,
+            "max": 20
+          },
+          "runnerInvocationSeconds": {
+            "n": 12,
+            "median": 197.34474331204547,
+            "min": 152.9433385420125,
+            "max": 228.27369583398104
+          },
+          "totalTokens": {
+            "n": 12,
+            "median": 720366.5,
+            "min": 464687,
+            "max": 1009623
+          },
+          "inputTokens": {
+            "n": 12,
+            "median": 718408.0,
+            "min": 463463,
+            "max": 1006796
+          },
+          "cachedInputTokens": {
+            "n": 12,
+            "median": 235904.0,
+            "min": 123904,
+            "max": 364928
+          },
+          "outputTokens": {
+            "n": 12,
+            "median": 1985.5,
+            "min": 1222,
+            "max": 2827
+          }
+        },
+        "firstUIDiscovery": {
+          "measuredAttempts": 12,
+          "unknownAttempts": 0,
+          "distribution": {
+            "n": 12,
+            "median": 5.0,
+            "min": 4,
+            "max": 5
+          },
+          "sum": 59,
+          "firstUICall": {
+            "n": 12,
+            "median": 6.0,
+            "min": 5,
+            "max": 6
+          }
+        },
+        "allAttemptSums": {
+          "agentSeconds": {
+            "sum": 1155.1570000648499,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "toolCalls": {
+            "sum": 195,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "runnerInvocationSeconds": {
+            "sum": 2331.117336874944,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "totalTokens": {
+            "sum": 8839690,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "inputTokens": {
+            "sum": 8815424,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "cachedInputTokens": {
+            "sum": 2826368,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "outputTokens": {
+            "sum": 24266,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          }
+        }
+      },
+      {
+        "label": "quickstart",
+        "planned": 12,
+        "recorded": 12,
+        "missing": 0,
+        "success": 12,
+        "outcomes": {
+          "success": 12,
+          "failed": 0,
+          "unverified": 0,
+          "invalid": 0
+        },
+        "successfulDistributions": {
+          "agentSeconds": {
+            "n": 12,
+            "median": 88.64050006866455,
+            "min": 62.943000078201294,
+            "max": 350.51900005340576
+          },
+          "toolCalls": {
+            "n": 12,
+            "median": 13.5,
+            "min": 9,
+            "max": 18
+          },
+          "runnerInvocationSeconds": {
+            "n": 12,
+            "median": 191.37247514602495,
+            "min": 153.95461579202674,
+            "max": 442.06415241700597
+          },
+          "totalTokens": {
+            "n": 12,
+            "median": 474868.5,
+            "min": 292505,
+            "max": 846016
+          },
+          "inputTokens": {
+            "n": 12,
+            "median": 472663.0,
+            "min": 291542,
+            "max": 843375
+          },
+          "cachedInputTokens": {
+            "n": 12,
+            "median": 188864.0,
+            "min": 113536,
+            "max": 268416
+          },
+          "outputTokens": {
+            "n": 12,
+            "median": 2176.0,
+            "min": 963,
+            "max": 2641
+          }
+        },
+        "firstUIDiscovery": {
+          "measuredAttempts": 12,
+          "unknownAttempts": 0,
+          "distribution": {
+            "n": 12,
+            "median": 2.0,
+            "min": 1,
+            "max": 4
+          },
+          "sum": 26,
+          "firstUICall": {
+            "n": 12,
+            "median": 3.0,
+            "min": 2,
+            "max": 5
+          }
+        },
+        "allAttemptSums": {
+          "agentSeconds": {
+            "sum": 1312.8690004348755,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "toolCalls": {
+            "sum": 164,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "runnerInvocationSeconds": {
+            "sum": 2508.005533418851,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "totalTokens": {
+            "sum": 6116687,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "inputTokens": {
+            "sum": 6092513,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "cachedInputTokens": {
+            "sum": 2164992,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "outputTokens": {
+            "sum": 24174,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          }
+        }
+      }
+    ],
+    "cohorts": [
+      {
+        "label": "Familiar",
+        "planned": 12,
+        "recorded": 12,
+        "missing": 0,
+        "success": 12,
+        "outcomes": {
+          "success": 12,
+          "failed": 0,
+          "unverified": 0,
+          "invalid": 0
+        },
+        "successfulDistributions": {
+          "agentSeconds": {
+            "n": 12,
+            "median": 83.00250005722046,
+            "min": 60.989999771118164,
+            "max": 119.68300008773804
+          },
+          "toolCalls": {
+            "n": 12,
+            "median": 14.0,
+            "min": 9,
+            "max": 20
+          },
+          "runnerInvocationSeconds": {
+            "n": 12,
+            "median": 185.69523593748454,
+            "min": 152.9433385420125,
+            "max": 222.0382852499606
+          },
+          "totalTokens": {
+            "n": 12,
+            "median": 541041.0,
+            "min": 292505,
+            "max": 955896
+          },
+          "inputTokens": {
+            "n": 12,
+            "median": 539626.0,
+            "min": 291542,
+            "max": 953128
+          },
+          "cachedInputTokens": {
+            "n": 12,
+            "median": 195840.0,
+            "min": 123520,
+            "max": 364928
+          },
+          "outputTokens": {
+            "n": 12,
+            "median": 1832.5,
+            "min": 963,
+            "max": 2768
+          }
+        },
+        "firstUIDiscovery": {
+          "measuredAttempts": 12,
+          "unknownAttempts": 0,
+          "distribution": {
+            "n": 12,
+            "median": 4.0,
+            "min": 1,
+            "max": 5
+          },
+          "sum": 44,
+          "firstUICall": {
+            "n": 12,
+            "median": 5.0,
+            "min": 2,
+            "max": 6
+          }
+        },
+        "allAttemptSums": {
+          "agentSeconds": {
+            "sum": 1065.1170003414154,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "toolCalls": {
+            "sum": 177,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "runnerInvocationSeconds": {
+            "sum": 2248.3011524169706,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "totalTokens": {
+            "sum": 7455799,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "inputTokens": {
+            "sum": 7433095,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "cachedInputTokens": {
+            "sum": 2494080,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "outputTokens": {
+            "sum": 22704,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          }
+        }
+      },
+      {
+        "label": "Held-out",
+        "planned": 12,
+        "recorded": 12,
+        "missing": 0,
+        "success": 12,
+        "outcomes": {
+          "success": 12,
+          "failed": 0,
+          "unverified": 0,
+          "invalid": 0
+        },
+        "successfulDistributions": {
+          "agentSeconds": {
+            "n": 12,
+            "median": 94.72199988365173,
+            "min": 85.58000016212463,
+            "max": 350.51900005340576
+          },
+          "toolCalls": {
+            "n": 12,
+            "median": 15.0,
+            "min": 10,
+            "max": 20
+          },
+          "runnerInvocationSeconds": {
+            "n": 12,
+            "median": 195.09822504146723,
+            "min": 176.3324506249046,
+            "max": 442.06415241700597
+          },
+          "totalTokens": {
+            "n": 12,
+            "median": 598612.0,
+            "min": 407678,
+            "max": 1009623
+          },
+          "inputTokens": {
+            "n": 12,
+            "median": 596528.5,
+            "min": 405552,
+            "max": 1006796
+          },
+          "cachedInputTokens": {
+            "n": 12,
+            "median": 196672.0,
+            "min": 113536,
+            "max": 356608
+          },
+          "outputTokens": {
+            "n": 12,
+            "median": 2107.5,
+            "min": 1797,
+            "max": 2827
+          }
+        },
+        "firstUIDiscovery": {
+          "measuredAttempts": 12,
+          "unknownAttempts": 0,
+          "distribution": {
+            "n": 12,
+            "median": 4.0,
+            "min": 1,
+            "max": 5
+          },
+          "sum": 41,
+          "firstUICall": {
+            "n": 12,
+            "median": 5.0,
+            "min": 2,
+            "max": 6
+          }
+        },
+        "allAttemptSums": {
+          "agentSeconds": {
+            "sum": 1402.90900015831,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "toolCalls": {
+            "sum": 182,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "runnerInvocationSeconds": {
+            "sum": 2590.8217178768246,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "totalTokens": {
+            "sum": 7500578,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "inputTokens": {
+            "sum": 7474842,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "cachedInputTokens": {
+            "sum": 2497280,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          },
+          "outputTokens": {
+            "sum": 25736,
+            "measuredAttempts": 12,
+            "unknownAttempts": 0
+          }
+        }
+      }
+    ],
+    "scenarios": [
+      {
+        "label": "Browser form / discovery",
+        "planned": 3,
+        "recorded": 3,
+        "missing": 0,
+        "success": 3,
+        "outcomes": {
+          "success": 3,
+          "failed": 0,
+          "unverified": 0,
+          "invalid": 0
+        },
+        "successfulDistributions": {
+          "agentSeconds": {
+            "n": 3,
+            "median": 98.1489999294281,
+            "min": 93.05599999427795,
+            "max": 117.8600001335144
+          },
+          "toolCalls": {
+            "n": 3,
+            "median": 20,
+            "min": 18,
+            "max": 20
+          },
+          "runnerInvocationSeconds": {
+            "n": 3,
+            "median": 204.61381237499882,
+            "min": 181.60833554109558,
+            "max": 228.27369583398104
+          },
+          "totalTokens": {
+            "n": 3,
+            "median": 887766,
+            "min": 774079,
+            "max": 1009623
+          },
+          "inputTokens": {
+            "n": 3,
+            "median": 885641,
+            "min": 771989,
+            "max": 1006796
+          },
+          "cachedInputTokens": {
+            "n": 3,
+            "median": 321536,
+            "min": 232704,
+            "max": 356608
+          },
+          "outputTokens": {
+            "n": 3,
+            "median": 2125,
+            "min": 2090,
+            "max": 2827
+          }
+        },
+        "firstUIDiscovery": {
+          "measuredAttempts": 3,
+          "unknownAttempts": 0,
+          "distribution": {
+            "n": 3,
+            "median": 5,
+            "min": 5,
+            "max": 5
+          },
+          "sum": 15,
+          "firstUICall": {
+            "n": 3,
+            "median": 6,
+            "min": 6,
+            "max": 6
+          }
+        },
+        "allAttemptSums": {
+          "agentSeconds": {
+            "sum": 309.06500005722046,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "toolCalls": {
+            "sum": 58,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "runnerInvocationSeconds": {
+            "sum": 614.4958437500754,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "totalTokens": {
+            "sum": 2671468,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "inputTokens": {
+            "sum": 2664426,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "cachedInputTokens": {
+            "sum": 910848,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "outputTokens": {
+            "sum": 7042,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          }
+        }
+      },
+      {
+        "label": "Browser form / quickstart",
+        "planned": 3,
+        "recorded": 3,
+        "missing": 0,
+        "success": 3,
+        "outcomes": {
+          "success": 3,
+          "failed": 0,
+          "unverified": 0,
+          "invalid": 0
+        },
+        "successfulDistributions": {
+          "agentSeconds": {
+            "n": 3,
+            "median": 90.81900000572205,
+            "min": 86.46200013160706,
+            "max": 350.51900005340576
+          },
+          "toolCalls": {
+            "n": 3,
+            "median": 16,
+            "min": 14,
+            "max": 17
+          },
+          "runnerInvocationSeconds": {
+            "n": 3,
+            "median": 205.8568869169103,
+            "min": 193.19592158403248,
+            "max": 442.06415241700597
+          },
+          "totalTokens": {
+            "n": 3,
+            "median": 546753,
+            "min": 484187,
+            "max": 594666
+          },
+          "inputTokens": {
+            "n": 3,
+            "median": 544760,
+            "min": 482390,
+            "max": 592380
+          },
+          "cachedInputTokens": {
+            "n": 3,
+            "median": 198144,
+            "min": 184192,
+            "max": 229376
+          },
+          "outputTokens": {
+            "n": 3,
+            "median": 1993,
+            "min": 1797,
+            "max": 2286
+          }
+        },
+        "firstUIDiscovery": {
+          "measuredAttempts": 3,
+          "unknownAttempts": 0,
+          "distribution": {
+            "n": 3,
+            "median": 2,
+            "min": 2,
+            "max": 3
+          },
+          "sum": 7,
+          "firstUICall": {
+            "n": 3,
+            "median": 3,
+            "min": 3,
+            "max": 4
+          }
+        },
+        "allAttemptSums": {
+          "agentSeconds": {
+            "sum": 527.8000001907349,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "toolCalls": {
+            "sum": 47,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "runnerInvocationSeconds": {
+            "sum": 841.1169609179487,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "totalTokens": {
+            "sum": 1625606,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "inputTokens": {
+            "sum": 1619530,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "cachedInputTokens": {
+            "sum": 611712,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "outputTokens": {
+            "sum": 6076,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          }
+        }
+      },
+      {
+        "label": "Finder rename and move / discovery",
+        "planned": 3,
+        "recorded": 3,
+        "missing": 0,
+        "success": 3,
+        "outcomes": {
+          "success": 3,
+          "failed": 0,
+          "unverified": 0,
+          "invalid": 0
+        },
+        "successfulDistributions": {
+          "agentSeconds": {
+            "n": 3,
+            "median": 96.34800004959106,
+            "min": 91.26999998092651,
+            "max": 103.40199995040894
+          },
+          "toolCalls": {
+            "n": 3,
+            "median": 15,
+            "min": 14,
+            "max": 15
+          },
+          "runnerInvocationSeconds": {
+            "n": 3,
+            "median": 194.889789458015,
+            "min": 176.3324506249046,
+            "max": 207.04985020891763
+          },
+          "totalTokens": {
+            "n": 3,
+            "median": 645771,
+            "min": 602558,
+            "max": 666654
+          },
+          "inputTokens": {
+            "n": 3,
+            "median": 643896,
+            "min": 600677,
+            "max": 664827
+          },
+          "cachedInputTokens": {
+            "n": 3,
+            "median": 195200,
+            "min": 152960,
+            "max": 239104
+          },
+          "outputTokens": {
+            "n": 3,
+            "median": 1875,
+            "min": 1827,
+            "max": 1881
+          }
+        },
+        "firstUIDiscovery": {
+          "measuredAttempts": 3,
+          "unknownAttempts": 0,
+          "distribution": {
+            "n": 3,
+            "median": 5,
+            "min": 5,
+            "max": 5
+          },
+          "sum": 15,
+          "firstUICall": {
+            "n": 3,
+            "median": 6,
+            "min": 6,
+            "max": 6
+          }
+        },
+        "allAttemptSums": {
+          "agentSeconds": {
+            "sum": 291.0199999809265,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "toolCalls": {
+            "sum": 44,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "runnerInvocationSeconds": {
+            "sum": 578.2720902918372,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "totalTokens": {
+            "sum": 1914983,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "inputTokens": {
+            "sum": 1909400,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "cachedInputTokens": {
+            "sum": 587264,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "outputTokens": {
+            "sum": 5583,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          }
+        }
+      },
+      {
+        "label": "Finder rename and move / quickstart",
+        "planned": 3,
+        "recorded": 3,
+        "missing": 0,
+        "success": 3,
+        "outcomes": {
+          "success": 3,
+          "failed": 0,
+          "unverified": 0,
+          "invalid": 0
+        },
+        "successfulDistributions": {
+          "agentSeconds": {
+            "n": 3,
+            "median": 94.1819999217987,
+            "min": 85.58000016212463,
+            "max": 95.26199984550476
+          },
+          "toolCalls": {
+            "n": 3,
+            "median": 11,
+            "min": 10,
+            "max": 12
+          },
+          "runnerInvocationSeconds": {
+            "n": 3,
+            "median": 184.90057020809036,
+            "min": 176.72959208395332,
+            "max": 195.30666062491946
+          },
+          "totalTokens": {
+            "n": 3,
+            "median": 415293,
+            "min": 407678,
+            "max": 465550
+          },
+          "inputTokens": {
+            "n": 3,
+            "median": 412998,
+            "min": 405552,
+            "max": 462936
+          },
+          "cachedInputTokens": {
+            "n": 3,
+            "median": 135552,
+            "min": 113536,
+            "max": 138368
+          },
+          "outputTokens": {
+            "n": 3,
+            "median": 2295,
+            "min": 2126,
+            "max": 2614
+          }
+        },
+        "firstUIDiscovery": {
+          "measuredAttempts": 3,
+          "unknownAttempts": 0,
+          "distribution": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 2
+          },
+          "sum": 4,
+          "firstUICall": {
+            "n": 3,
+            "median": 2,
+            "min": 2,
+            "max": 3
+          }
+        },
+        "allAttemptSums": {
+          "agentSeconds": {
+            "sum": 275.0239999294281,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "toolCalls": {
+            "sum": 33,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "runnerInvocationSeconds": {
+            "sum": 556.9368229169631,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "totalTokens": {
+            "sum": 1288521,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "inputTokens": {
+            "sum": 1281486,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "cachedInputTokens": {
+            "sum": 387456,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "outputTokens": {
+            "sum": 7035,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          }
+        }
+      },
+      {
+        "label": "Unpacked extension / discovery",
+        "planned": 3,
+        "recorded": 3,
+        "missing": 0,
+        "success": 3,
+        "outcomes": {
+          "success": 3,
+          "failed": 0,
+          "unverified": 0,
+          "invalid": 0
+        },
+        "successfulDistributions": {
+          "agentSeconds": {
+            "n": 3,
+            "median": 73.66999983787537,
+            "min": 60.989999771118164,
+            "max": 76.69600009918213
+          },
+          "toolCalls": {
+            "n": 3,
+            "median": 12,
+            "min": 12,
+            "max": 13
+          },
+          "runnerInvocationSeconds": {
+            "n": 3,
+            "median": 165.33577725000214,
+            "min": 152.9433385420125,
+            "max": 181.84144316695165
+          },
+          "totalTokens": {
+            "n": 3,
+            "median": 502298,
+            "min": 464687,
+            "max": 556191
+          },
+          "inputTokens": {
+            "n": 3,
+            "median": 501076,
+            "min": 463463,
+            "max": 554800
+          },
+          "cachedInputTokens": {
+            "n": 3,
+            "median": 142976,
+            "min": 123904,
+            "max": 161024
+          },
+          "outputTokens": {
+            "n": 3,
+            "median": 1224,
+            "min": 1222,
+            "max": 1391
+          }
+        },
+        "firstUIDiscovery": {
+          "measuredAttempts": 3,
+          "unknownAttempts": 0,
+          "distribution": {
+            "n": 3,
+            "median": 5,
+            "min": 5,
+            "max": 5
+          },
+          "sum": 15,
+          "firstUICall": {
+            "n": 3,
+            "median": 6,
+            "min": 6,
+            "max": 6
+          }
+        },
+        "allAttemptSums": {
+          "agentSeconds": {
+            "sum": 211.35599970817566,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "toolCalls": {
+            "sum": 37,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "runnerInvocationSeconds": {
+            "sum": 500.1205589589663,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "totalTokens": {
+            "sum": 1523176,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "inputTokens": {
+            "sum": 1519339,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "cachedInputTokens": {
+            "sum": 427904,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "outputTokens": {
+            "sum": 3837,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          }
+        }
+      },
+      {
+        "label": "Unpacked extension / quickstart",
+        "planned": 3,
+        "recorded": 3,
+        "missing": 0,
+        "success": 3,
+        "outcomes": {
+          "success": 3,
+          "failed": 0,
+          "unverified": 0,
+          "invalid": 0
+        },
+        "successfulDistributions": {
+          "agentSeconds": {
+            "n": 3,
+            "median": 67.2829999923706,
+            "min": 62.943000078201294,
+            "max": 79.83800005912781
+          },
+          "toolCalls": {
+            "n": 3,
+            "median": 13,
+            "min": 9,
+            "max": 16
+          },
+          "runnerInvocationSeconds": {
+            "n": 3,
+            "median": 177.35913950006943,
+            "min": 153.95461579202674,
+            "max": 189.54902870801743
+          },
+          "totalTokens": {
+            "n": 3,
+            "median": 401912,
+            "min": 292505,
+            "max": 525891
+          },
+          "inputTokens": {
+            "n": 3,
+            "median": 400662,
+            "min": 291542,
+            "max": 524452
+          },
+          "cachedInputTokens": {
+            "n": 3,
+            "median": 193536,
+            "min": 123520,
+            "max": 198144
+          },
+          "outputTokens": {
+            "n": 3,
+            "median": 1250,
+            "min": 963,
+            "max": 1439
+          }
+        },
+        "firstUIDiscovery": {
+          "measuredAttempts": 3,
+          "unknownAttempts": 0,
+          "distribution": {
+            "n": 3,
+            "median": 4,
+            "min": 2,
+            "max": 4
+          },
+          "sum": 10,
+          "firstUICall": {
+            "n": 3,
+            "median": 5,
+            "min": 3,
+            "max": 5
+          }
+        },
+        "allAttemptSums": {
+          "agentSeconds": {
+            "sum": 210.0640001296997,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "toolCalls": {
+            "sum": 38,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "runnerInvocationSeconds": {
+            "sum": 520.8627840001136,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "totalTokens": {
+            "sum": 1220308,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "inputTokens": {
+            "sum": 1216656,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "cachedInputTokens": {
+            "sum": 515200,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "outputTokens": {
+            "sum": 3652,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          }
+        }
+      },
+      {
+        "label": "Text editor menus / discovery",
+        "planned": 3,
+        "recorded": 3,
+        "missing": 0,
+        "success": 3,
+        "outcomes": {
+          "success": 3,
+          "failed": 0,
+          "unverified": 0,
+          "invalid": 0
+        },
+        "successfulDistributions": {
+          "agentSeconds": {
+            "n": 3,
+            "median": 113.1340000629425,
+            "min": 110.89900016784668,
+            "max": 119.68300008773804
+          },
+          "toolCalls": {
+            "n": 3,
+            "median": 19,
+            "min": 17,
+            "max": 20
+          },
+          "runnerInvocationSeconds": {
+            "n": 3,
+            "median": 216.39086145802867,
+            "min": 199.79969716607593,
+            "max": 222.0382852499606
+          },
+          "totalTokens": {
+            "n": 3,
+            "median": 915430,
+            "min": 858737,
+            "max": 955896
+          },
+          "inputTokens": {
+            "n": 3,
+            "median": 912921,
+            "min": 856210,
+            "max": 953128
+          },
+          "cachedInputTokens": {
+            "n": 3,
+            "median": 270720,
+            "min": 264704,
+            "max": 364928
+          },
+          "outputTokens": {
+            "n": 3,
+            "median": 2527,
+            "min": 2509,
+            "max": 2768
+          }
+        },
+        "firstUIDiscovery": {
+          "measuredAttempts": 3,
+          "unknownAttempts": 0,
+          "distribution": {
+            "n": 3,
+            "median": 5,
+            "min": 4,
+            "max": 5
+          },
+          "sum": 14,
+          "firstUICall": {
+            "n": 3,
+            "median": 6,
+            "min": 5,
+            "max": 6
+          }
+        },
+        "allAttemptSums": {
+          "agentSeconds": {
+            "sum": 343.7160003185272,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "toolCalls": {
+            "sum": 56,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "runnerInvocationSeconds": {
+            "sum": 638.2288438740652,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "totalTokens": {
+            "sum": 2730063,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "inputTokens": {
+            "sum": 2722259,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "cachedInputTokens": {
+            "sum": 900352,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "outputTokens": {
+            "sum": 7804,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          }
+        }
+      },
+      {
+        "label": "Text editor menus / quickstart",
+        "planned": 3,
+        "recorded": 3,
+        "missing": 0,
+        "success": 3,
+        "outcomes": {
+          "success": 3,
+          "failed": 0,
+          "unverified": 0,
+          "invalid": 0
+        },
+        "successfulDistributions": {
+          "agentSeconds": {
+            "n": 3,
+            "median": 102.15000009536743,
+            "min": 86.16700005531311,
+            "max": 111.66400003433228
+          },
+          "toolCalls": {
+            "n": 3,
+            "median": 15,
+            "min": 13,
+            "max": 18
+          },
+          "runnerInvocationSeconds": {
+            "n": 3,
+            "median": 204.37585654191207,
+            "min": 170.3764682499459,
+            "max": 214.3366407919675
+          },
+          "totalTokens": {
+            "n": 3,
+            "median": 678686,
+            "min": 457550,
+            "max": 846016
+          },
+          "inputTokens": {
+            "n": 3,
+            "median": 676142,
+            "min": 455324,
+            "max": 843375
+          },
+          "cachedInputTokens": {
+            "n": 3,
+            "median": 214528,
+            "min": 167680,
+            "max": 268416
+          },
+          "outputTokens": {
+            "n": 3,
+            "median": 2544,
+            "min": 2226,
+            "max": 2641
+          }
+        },
+        "firstUIDiscovery": {
+          "measuredAttempts": 3,
+          "unknownAttempts": 0,
+          "distribution": {
+            "n": 3,
+            "median": 2,
+            "min": 1,
+            "max": 2
+          },
+          "sum": 5,
+          "firstUICall": {
+            "n": 3,
+            "median": 3,
+            "min": 2,
+            "max": 3
+          }
+        },
+        "allAttemptSums": {
+          "agentSeconds": {
+            "sum": 299.9810001850128,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "toolCalls": {
+            "sum": 46,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "runnerInvocationSeconds": {
+            "sum": 589.0889655838255,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "totalTokens": {
+            "sum": 1982252,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "inputTokens": {
+            "sum": 1974841,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "cachedInputTokens": {
+            "sum": 650624,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          },
+          "outputTokens": {
+            "sum": 7411,
+            "measuredAttempts": 3,
+            "unknownAttempts": 0
+          }
+        }
+      }
+    ],
+    "lifecycleAcceptedAttempts": 24
+  },
+  "pairedComparisons": {
+    "overall": {
+      "plannedPairs": 12,
+      "bothUIVerified": 12,
+      "uiPairOutcomes": {
+        "pass/pass": 12
+      },
+      "successfulPairDeltasQuickstartMinusDiscovery": {
+        "agentSeconds": {
+          "n": 12,
+          "median": -6.961999893188477,
+          "min": -26.967000007629395,
+          "max": 232.65899991989136
+        },
+        "toolCalls": {
+          "n": 12,
+          "median": -3.0,
+          "min": -6,
+          "max": 4
+        },
+        "runnerInvocationSeconds": {
+          "n": 12,
+          "median": -0.40557306207483634,
+          "min": -29.42322891613003,
+          "max": 213.79045658302493
+        },
+        "totalTokens": {
+          "n": 12,
+          "median": -228902.0,
+          "min": -525436,
+          "max": 61204
+        },
+        "inputTokens": {
+          "n": 12,
+          "median": -229063.5,
+          "min": -524406,
+          "max": 60989
+        },
+        "cachedInputTokens": {
+          "n": 12,
+          "median": -48576.0,
+          "min": -172416,
+          "max": 69632
+        },
+        "outputTokens": {
+          "n": 12,
+          "median": 71.0,
+          "min": -1030,
+          "max": 787
+        }
+      }
+    },
+    "scenarios": [
+      {
+        "label": "Browser form",
+        "plannedPairs": 3,
+        "bothUIVerified": 3,
+        "uiPairOutcomes": {
+          "pass/pass": 3
+        },
+        "successfulPairDeltasQuickstartMinusDiscovery": {
+          "agentSeconds": {
+            "n": 3,
+            "median": -6.593999862670898,
+            "min": -7.329999923706055,
+            "max": 232.65899991989136
+          },
+          "toolCalls": {
+            "n": 3,
+            "median": -3,
+            "min": -6,
+            "max": -2
+          },
+          "runnerInvocationSeconds": {
+            "n": 3,
+            "median": 11.587586042936891,
+            "min": 1.2430745419114828,
+            "max": 213.79045658302493
+          },
+          "totalTokens": {
+            "n": 3,
+            "median": -293100,
+            "min": -525436,
+            "max": -227326
+          },
+          "inputTokens": {
+            "n": 3,
+            "median": -293261,
+            "min": -524406,
+            "max": -227229
+          },
+          "cachedInputTokens": {
+            "n": 3,
+            "median": -92160,
+            "min": -172416,
+            "max": -34560
+          },
+          "outputTokens": {
+            "n": 3,
+            "median": -97,
+            "min": -1030,
+            "max": 161
+          }
+        }
+      },
+      {
+        "label": "Finder rename and move",
+        "plannedPairs": 3,
+        "bothUIVerified": 3,
+        "uiPairOutcomes": {
+          "pass/pass": 3
+        },
+        "successfulPairDeltasQuickstartMinusDiscovery": {
+          "agentSeconds": {
+            "n": 3,
+            "median": -2.1660001277923584,
+            "min": -17.8219997882843,
+            "max": 3.991999864578247
+          },
+          "toolCalls": {
+            "n": 3,
+            "median": -3,
+            "min": -5,
+            "max": -3
+          },
+          "runnerInvocationSeconds": {
+            "n": 3,
+            "median": -18.16019737406168,
+            "min": -22.149280000827275,
+            "max": 18.974210000014864
+          },
+          "totalTokens": {
+            "n": 3,
+            "median": -201104,
+            "min": -230478,
+            "max": -194880
+          },
+          "inputTokens": {
+            "n": 3,
+            "median": -201891,
+            "min": -230898,
+            "max": -195125
+          },
+          "cachedInputTokens": {
+            "n": 3,
+            "median": -59648,
+            "min": -125568,
+            "max": -14592
+          },
+          "outputTokens": {
+            "n": 3,
+            "median": 420,
+            "min": 245,
+            "max": 787
+          }
+        }
+      },
+      {
+        "label": "Unpacked extension",
+        "plannedPairs": 3,
+        "bothUIVerified": 3,
+        "uiPairOutcomes": {
+          "pass/pass": 3
+        },
+        "successfulPairDeltasQuickstartMinusDiscovery": {
+          "agentSeconds": {
+            "n": 3,
+            "median": -9.413000106811523,
+            "min": -10.726999759674072,
+            "max": 18.848000288009644
+          },
+          "toolCalls": {
+            "n": 3,
+            "median": 1,
+            "min": -4,
+            "max": 4
+          },
+          "runnerInvocationSeconds": {
+            "n": 3,
+            "median": 12.023362250067294,
+            "min": -27.886827374924906,
+            "max": 36.60569016600493
+          },
+          "totalTokens": {
+            "n": 3,
+            "median": -100386,
+            "min": -263686,
+            "max": 61204
+          },
+          "inputTokens": {
+            "n": 3,
+            "median": -100414,
+            "min": -263258,
+            "max": 60989
+          },
+          "cachedInputTokens": {
+            "n": 3,
+            "median": 55168,
+            "min": -37504,
+            "max": 69632
+          },
+          "outputTokens": {
+            "n": 3,
+            "median": 28,
+            "min": -428,
+            "max": 215
+          }
+        }
+      },
+      {
+        "label": "Text editor menus",
+        "plannedPairs": 3,
+        "bothUIVerified": 3,
+        "uiPairOutcomes": {
+          "pass/pass": 3
+        },
+        "successfulPairDeltasQuickstartMinusDiscovery": {
+          "agentSeconds": {
+            "n": 3,
+            "median": -17.532999992370605,
+            "min": -26.967000007629395,
+            "max": 0.7649998664855957
+          },
+          "toolCalls": {
+            "n": 3,
+            "median": -5,
+            "min": -6,
+            "max": 1
+          },
+          "runnerInvocationSeconds": {
+            "n": 3,
+            "median": -17.662428708048537,
+            "min": -29.42322891613003,
+            "max": -2.0542206660611555
+          },
+          "totalTokens": {
+            "n": 3,
+            "median": -277210,
+            "min": -457880,
+            "max": -12721
+          },
+          "inputTokens": {
+            "n": 3,
+            "median": -276986,
+            "min": -457597,
+            "max": -12835
+          },
+          "cachedInputTokens": {
+            "n": 3,
+            "median": -97024,
+            "min": -150400,
+            "max": -2304
+          },
+          "outputTokens": {
+            "n": 3,
+            "median": -224,
+            "min": -283,
+            "max": 114
+          }
+        }
+      }
+    ],
+    "cohorts": [
+      {
+        "label": "Familiar",
+        "plannedPairs": 6,
+        "bothUIVerified": 6,
+        "uiPairOutcomes": {
+          "pass/pass": 6
+        },
+        "successfulPairDeltasQuickstartMinusDiscovery": {
+          "agentSeconds": {
+            "n": 6,
+            "median": -10.069999933242798,
+            "min": -26.967000007629395,
+            "max": 18.848000288009644
+          },
+          "toolCalls": {
+            "n": 6,
+            "median": -1.5,
+            "min": -6,
+            "max": 4
+          },
+          "runnerInvocationSeconds": {
+            "n": 6,
+            "median": -9.858324687054846,
+            "min": -29.42322891613003,
+            "max": 36.60569016600493
+          },
+          "totalTokens": {
+            "n": 6,
+            "median": -182036.0,
+            "min": -457880,
+            "max": 61204
+          },
+          "inputTokens": {
+            "n": 6,
+            "median": -181836.0,
+            "min": -457597,
+            "max": 60989
+          },
+          "cachedInputTokens": {
+            "n": 6,
+            "median": -19904.0,
+            "min": -150400,
+            "max": 69632
+          },
+          "outputTokens": {
+            "n": 6,
+            "median": -98.0,
+            "min": -428,
+            "max": 215
+          }
+        }
+      },
+      {
+        "label": "Held-out",
+        "plannedPairs": 6,
+        "bothUIVerified": 6,
+        "uiPairOutcomes": {
+          "pass/pass": 6
+        },
+        "successfulPairDeltasQuickstartMinusDiscovery": {
+          "agentSeconds": {
+            "n": 6,
+            "median": -4.379999995231628,
+            "min": -17.8219997882843,
+            "max": 232.65899991989136
+          },
+          "toolCalls": {
+            "n": 6,
+            "median": -3.0,
+            "min": -6,
+            "max": -2
+          },
+          "runnerInvocationSeconds": {
+            "n": 6,
+            "median": 6.415330292424187,
+            "min": -22.149280000827275,
+            "max": 213.79045658302493
+          },
+          "totalTokens": {
+            "n": 6,
+            "median": -228902.0,
+            "min": -525436,
+            "max": -194880
+          },
+          "inputTokens": {
+            "n": 6,
+            "median": -229063.5,
+            "min": -524406,
+            "max": -195125
+          },
+          "cachedInputTokens": {
+            "n": 6,
+            "median": -75904.0,
+            "min": -172416,
+            "max": -14592
+          },
+          "outputTokens": {
+            "n": 6,
+            "median": 203.0,
+            "min": -1030,
+            "max": 787
+          }
+        }
+      }
+    ]
+  },
+  "pilot": {
+    "label": "All pilot",
+    "planned": 8,
+    "recorded": 8,
+    "missing": 0,
+    "success": 8,
+    "outcomes": {
+      "success": 8,
+      "failed": 0,
+      "unverified": 0,
+      "invalid": 0
+    },
+    "successfulDistributions": {
+      "agentSeconds": {
+        "n": 8,
+        "median": 105.51850008964539,
+        "min": 64.73899984359741,
+        "max": 116.1859998703003
+      },
+      "toolCalls": {
+        "n": 8,
+        "median": 15.5,
+        "min": 13,
+        "max": 19
+      },
+      "runnerInvocationSeconds": {
+        "n": 8,
+        "median": 192.9350466040196,
+        "min": 157.58388770802412,
+        "max": 237.80948295793496
+      },
+      "totalTokens": {
+        "n": 8,
+        "median": 611738.5,
+        "min": 431899,
+        "max": 906009
+      },
+      "inputTokens": {
+        "n": 8,
+        "median": 609641.5,
+        "min": 430553,
+        "max": 903500
+      },
+      "cachedInputTokens": {
+        "n": 8,
+        "median": 194944.0,
+        "min": 153856,
+        "max": 280320
+      },
+      "outputTokens": {
+        "n": 8,
+        "median": 2336.0,
+        "min": 1269,
+        "max": 2762
+      }
+    },
+    "firstUIDiscovery": {
+      "measuredAttempts": 8,
+      "unknownAttempts": 0,
+      "distribution": {
+        "n": 8,
+        "median": 4.5,
+        "min": 1,
+        "max": 5
+      },
+      "sum": 29,
+      "firstUICall": {
+        "n": 8,
+        "median": 5.5,
+        "min": 2,
+        "max": 6
+      }
+    },
+    "allAttemptSums": {
+      "agentSeconds": {
+        "sum": 786.438000202179,
+        "measuredAttempts": 8,
+        "unknownAttempts": 0
+      },
+      "toolCalls": {
+        "sum": 126,
+        "measuredAttempts": 8,
+        "unknownAttempts": 0
+      },
+      "runnerInvocationSeconds": {
+        "sum": 1577.4695803739596,
+        "measuredAttempts": 8,
+        "unknownAttempts": 0
+      },
+      "totalTokens": {
+        "sum": 5245727,
+        "measuredAttempts": 8,
+        "unknownAttempts": 0
+      },
+      "inputTokens": {
+        "sum": 5228676,
+        "measuredAttempts": 8,
+        "unknownAttempts": 0
+      },
+      "cachedInputTokens": {
+        "sum": 1602304,
+        "measuredAttempts": 8,
+        "unknownAttempts": 0
+      },
+      "outputTokens": {
+        "sum": 17051,
+        "measuredAttempts": 8,
+        "unknownAttempts": 0
+      }
+    }
+  },
+  "interruptedStage": {
+    "label": "Interrupted measured stage",
+    "planned": 24,
+    "recorded": 14,
+    "missing": 10,
+    "success": 13,
+    "outcomes": {
+      "success": 13,
+      "failed": 0,
+      "unverified": 0,
+      "invalid": 1
+    },
+    "successfulDistributions": {
+      "agentSeconds": {
+        "n": 13,
+        "median": 88.24799990653992,
+        "min": 68.44500017166138,
+        "max": 130.46200013160706
+      },
+      "toolCalls": {
+        "n": 13,
+        "median": 14,
+        "min": 11,
+        "max": 22
+      },
+      "runnerInvocationSeconds": {
+        "n": 13,
+        "median": 178.42257533303928,
+        "min": 158.879176583956,
+        "max": 237.049526165938
+      },
+      "totalTokens": {
+        "n": 13,
+        "median": 592020,
+        "min": 396874,
+        "max": 1108961
+      },
+      "inputTokens": {
+        "n": 13,
+        "median": 590168,
+        "min": 395148,
+        "max": 1105872
+      },
+      "cachedInputTokens": {
+        "n": 13,
+        "median": 178560,
+        "min": 135680,
+        "max": 297344
+      },
+      "outputTokens": {
+        "n": 13,
+        "median": 1951,
+        "min": 1480,
+        "max": 3089
+      }
+    },
+    "firstUIDiscovery": {
+      "measuredAttempts": 13,
+      "unknownAttempts": 1,
+      "distribution": {
+        "n": 13,
+        "median": 3,
+        "min": 1,
+        "max": 6
+      },
+      "sum": 42,
+      "firstUICall": {
+        "n": 13,
+        "median": 4,
+        "min": 2,
+        "max": 7
+      }
+    },
+    "allAttemptSums": {
+      "agentSeconds": {
+        "sum": 1178.066000699997,
+        "measuredAttempts": 13,
+        "unknownAttempts": 1
+      },
+      "toolCalls": {
+        "sum": 192,
+        "measuredAttempts": 13,
+        "unknownAttempts": 1
+      },
+      "runnerInvocationSeconds": {
+        "sum": 2403.8729308341863,
+        "measuredAttempts": 14,
+        "unknownAttempts": 0
+      },
+      "totalTokens": {
+        "sum": 7992526,
+        "measuredAttempts": 13,
+        "unknownAttempts": 1
+      },
+      "inputTokens": {
+        "sum": 7965911,
+        "measuredAttempts": 13,
+        "unknownAttempts": 1
+      },
+      "cachedInputTokens": {
+        "sum": 2356992,
+        "measuredAttempts": 13,
+        "unknownAttempts": 1
+      },
+      "outputTokens": {
+        "sum": 26615,
+        "measuredAttempts": 13,
+        "unknownAttempts": 1
+      }
+    }
+  },
+  "infrastructureFailure": {
+    "attempts": 1,
+    "preModel": true,
+    "taskOutcome": "unknown",
+    "runtime": "missing",
+    "runnerInvocationSeconds": 10.360435166978277,
+    "agentSeconds": null,
+    "toolCalls": null,
+    "inputTokens": null,
+    "cachedInputTokens": null,
+    "outputTokens": null,
+    "totalTokens": null,
+    "subsequentCleanupReceiptsAccepted": true,
+    "retainedWorkspacesInAfterInventory": 0
+  },
+  "earlierPilot": {
+    "attempts": [
+      {
+        "scenario": "Finder rename and move",
+        "classification": "invalid/inconclusive; task pass unknown",
+        "metrics": {
+          "agentSeconds": 110.26199984550476,
+          "toolCalls": 13,
+          "runnerInvocationSeconds": null,
+          "totalTokens": 481967,
+          "inputTokens": 478962,
+          "cachedInputTokens": 146304,
+          "outputTokens": 3005
+        }
+      },
+      {
+        "scenario": "Unpacked extension",
+        "classification": "raw effect pass; reviewed success unknown",
+        "metrics": {
+          "agentSeconds": 66.19700002670288,
+          "toolCalls": 12,
+          "runnerInvocationSeconds": null,
+          "totalTokens": 486138,
+          "inputTokens": 484887,
+          "cachedInputTokens": 108928,
+          "outputTokens": 1251
+        }
+      }
+    ],
+    "sums": {
+      "agentSeconds": {
+        "sum": 176.45899987220764,
+        "measuredAttempts": 2,
+        "unknownAttempts": 0
+      },
+      "toolCalls": {
+        "sum": 25,
+        "measuredAttempts": 2,
+        "unknownAttempts": 0
+      },
+      "runnerInvocationSeconds": {
+        "sum": null,
+        "measuredAttempts": 0,
+        "unknownAttempts": 2
+      },
+      "totalTokens": {
+        "sum": 968105,
+        "measuredAttempts": 2,
+        "unknownAttempts": 0
+      },
+      "inputTokens": {
+        "sum": 963849,
+        "measuredAttempts": 2,
+        "unknownAttempts": 0
+      },
+      "cachedInputTokens": {
+        "sum": 255232,
+        "measuredAttempts": 2,
+        "unknownAttempts": 0
+      },
+      "outputTokens": {
+        "sum": 4256,
+        "measuredAttempts": 2,
+        "unknownAttempts": 0
+      }
+    }
+  },
+  "validation": {
+    "passed": true,
+    "reusedPilotVerified": true,
+    "reusedPilotTrials": 8,
+    "reusedPilotCostCountedOnce": true,
+    "pairedStageRestartedInFull": true,
+    "interruptedObservationsExcluded": true,
+    "attemptsValidated": 32,
+    "pairedAttemptsValidated": 24,
+    "plannedPairs": 12,
+    "pairedObservationsValidated": true,
+    "outcomes": {
+      "success": 32
+    },
+    "lifecycleAcceptedAttempts": 32
+  }
+}

@@ -1,6 +1,7 @@
 # Bounded control campaign protocol
 
-Proposal; executable planning/aggregation, not live acceptance evidence.
+Current protocol; bounded live results are in the
+[instruction comparison](../../../../docs/evidence/instruction-comparison-2026-10.md).
 These are operator instructions. The existing discovery/quickstart agent prompts
 are the treatments. No extra campaign prose is injected into their task prompts.
 
@@ -150,8 +151,8 @@ oracle independence, credential locator/mode/value and actual owned-process and
 workspace disposal before recording pass. Reviewer assertions are not
 cryptographically authenticated identity or authority.
 
-The held-out fixtures have offline positive/negative oracle tests, not live
-qualification. Finder checks exact moved bytes and an untouched same-named
+The held-out fixtures have offline positive/negative oracle tests and bounded
+live qualification in that report. Finder checks exact moved bytes and an untouched same-named
 decoy. Browser uses the existing separately identified Chrome for Testing
 launcher and an owned loopback HTTP server; exactly one matching server-side
 submission is required. Workspace disposal owns their process cleanup. Fixture
