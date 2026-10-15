@@ -57,6 +57,103 @@ class AgentSessionTest(unittest.TestCase):
         self.app.tree()
         with self.assertRaises(StaleElement):self.app.press(old)
 
+    def stable_elements(self, count=8):
+        data = self.peer.snapshot['data']
+        data['elementIdentityGeneration'] = 'process-1/window-1'
+        data['elements'] = [dict(reference=f'r{i}', elementIdentity=f'native-{i}',
+            role='AXTextField', label='Same label', depth=0, value=str(i)) for i in range(count)]
+        return data
+
+    def test_stable_numbers_follow_insertion_and_reorder_with_ordered_output(self):
+        data = self.stable_elements()
+        self.app.tree()
+        original = deepcopy(data['elements'])
+        inserted = dict(original[0], reference='inserted', elementIdentity='new-native')
+        data['elements'].insert(1, inserted)
+        rendered = self.app.tree()
+        self.assertEqual(list(self.app.elements), [1, 9, 2, 3, 4, 5, 6, 7, 8])
+        self.assertLess(rendered.index('[9]'), rendered.index('[2]'))
+        data['elements'] = [original[7], *original[:7], inserted]
+        rendered = self.app.tree()
+        self.assertNotIn('No change', rendered)
+        self.assertEqual(list(self.app.elements), [8, 1, 2, 3, 4, 5, 6, 7, 9])
+        self.assertLess(rendered.index('[8]'), rendered.index('[1]'))
+        self.assertIn('No change', self.app.tree())
+
+    def test_bounded_value_and_removal_diffs_preserve_latest_references(self):
+        data = self.stable_elements()
+        self.app.tree()
+        data['elements'][2].update(value='changed', reference='fresh-reference')
+        rendered = self.app.tree()
+        self.assertIn('+ [3]', rendered)
+        self.assertNotIn('[1]', rendered)
+        self.app.set_value(3, 'right')
+        self.assertEqual(self.peer.requests[-1]['reference'], 'fresh-reference')
+        del data['elements'][2]
+        self.assertIn('Removed (stale): 3', self.app.tree())
+        sent = len(self.peer.requests)
+        with self.assertRaises(StaleElement): self.app.press(3)
+        self.assertEqual(len(self.peer.requests), sent)
+
+    def test_replacement_and_all_identity_scopes_refuse_old_numbers(self):
+        for change in ('element', 'runtime', 'route', 'process', 'window'):
+            with self.subTest(change=change):
+                self.setUp()
+                data = self.stable_elements()
+                self.app.tree()
+                if change == 'element': data['elements'][0]['elementIdentity'] = 'replacement'
+                elif change == 'runtime': self.peer.snapshot['generation'] = 'runtime-2'
+                elif change == 'route': self.peer.snapshot['actualRoute'] = 'other-provider'
+                elif change == 'process': data['elementIdentityGeneration'] = 'process-2/window-1'
+                else: data['elementIdentityGeneration'] = 'process-1/window-2'
+                self.app.tree()
+                sent = len(self.peer.requests)
+                with self.assertRaises(StaleElement): self.app.press(1)
+                self.assertEqual(len(self.peer.requests), sent)
+
+    def test_opaque_identity_components_and_reference_namespace_do_not_alias(self):
+        data = self.stable_elements(1)
+        data['elementIdentityGeneration'] = 'a:b'
+        data['elements'][0]['elementIdentity'] = 'c'
+        self.app.tree()
+        data['elementIdentityGeneration'] = 'a'
+        data['elements'][0]['elementIdentity'] = 'b:c'
+        self.app.tree()
+        self.assertNotIn(1, self.app.elements)
+        del data['elementIdentityGeneration']
+        data['elements'][0]['reference'] = 'a:b:c'
+        self.app.tree()
+        self.assertNotIn(2, self.app.elements)
+
+    def test_empty_identity_fields_cannot_establish_stability(self):
+        for generation, identity in (('', 'id'), ('epoch', '')):
+            with self.subTest(generation=generation, identity=identity):
+                self.setUp()
+                data = self.stable_elements(1)
+                data['elementIdentityGeneration'] = generation
+                data['elements'][0]['elementIdentity'] = identity
+                self.app.tree()
+                data['elements'][0]['reference'] = 'new-reference'
+                self.app.tree()
+                with self.assertRaises(StaleElement): self.app.press(1)
+
+    def test_duplicate_identity_invalidates_history_and_cannot_resurrect_numbers(self):
+        data = self.stable_elements()
+        self.app.tree()
+        original = deepcopy(data['elements'])
+        data['elements'].append(dict(original[0], reference='duplicate-reference'))
+        with self.assertRaises(SessionError) as error: self.app.tree()
+        self.assertEqual(error.exception.code, 'ambiguous_element_identity')
+        self.assertIsNone(self.app.last_observation)
+        with self.assertRaises(StaleElement): self.app.press(1)
+        data['elements'] = original
+        self.app.tree()
+        with self.assertRaises(StaleElement): self.app.press(1)
+
+    def test_filtered_native_truncation_note_is_preserved(self):
+        self.peer.snapshot['data']['truncated'] = True
+        self.assertIn('Truncated', self.app.tree(query='Target'))
+
     def test_removed_number_is_never_recycled(self):
         self.app.tree(); old=next(iter(self.app.elements))
         original=deepcopy(self.peer.snapshot['data']['elements'])

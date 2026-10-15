@@ -164,7 +164,7 @@ class App:
     def __init__(self, session: Session, target: str, name: str) -> None:
         self.session, self.target, self.name = session, target, name
         self.elements: dict[int, JSON] = {}
-        self.identities: dict[tuple[str, str, str], int] = {}
+        self.identities: dict[tuple[str, str, str, str, str], int] = {}
         self.next_number = 1
         self.previous: dict[int, str] = {}
         self.coordinate_space = ""
@@ -174,6 +174,7 @@ class App:
         self.elements.clear()
         self.identities.clear()
         self.previous.clear()
+        self.last_observation = None
 
     def _snapshot(self, query: str | None) -> JSON:
         request: JSON = {"operation": "snapshot", "target": self.target,
@@ -202,10 +203,15 @@ class App:
                 value = newer
                 if stable:
                     break
+            rendered = self._render_tree(value, query=query, full=full, settle=settle, stable=stable)
         except BaseException:
             self.invalidate()
             raise
         self.last_observation = value
+        return rendered
+
+    def _render_tree(self, value: JSON, *, query: str | None, full: bool,
+                     settle: bool, stable: bool) -> str:
         data = value.get("data", {})
         generation = str(value.get("generation", ""))
         route = str(value.get("actualRoute", ""))
@@ -215,7 +221,7 @@ class App:
         self.elements = {}
         lines: dict[int, str] = {}
         elements: dict[int, JSON] = {}
-        identities: dict[tuple[str, str, str], int] = {}
+        identities: dict[tuple[str, str, str, str, str], int] = {}
         size = 0
         omitted = False
         skip_below: int | None = None
@@ -228,10 +234,13 @@ class App:
             if not isinstance(reference, str) or not reference:
                 continue
             identity = element.get("elementIdentity")
-            if isinstance(identity_generation, str) and isinstance(identity, str):
-                key = (generation, route, identity_generation + ":" + identity)
+            if isinstance(identity_generation, str) and identity_generation \
+                    and isinstance(identity, str) and identity:
+                # Keep namespace and components separate: opaque strings can
+                # contain delimiters and must never alias reference keys.
+                key = (generation, route, "identity", identity_generation, identity)
             else:
-                key = (generation, route, reference)
+                key = (generation, route, "reference", "", reference)
             if key in identities:
                 raise SessionError("ambiguous_element_identity", "Provider returned duplicate element identities; re-observe")
             number = self.identities.get(key)
@@ -264,9 +273,17 @@ class App:
         self.elements, self.identities = elements, identities
         removed = sorted(self.previous.keys() - lines.keys())
         changed = {n: line for n, line in lines.items() if self.previous.get(n) != line}
-        if not full and lines == self.previous:
+        # A line-only patch cannot describe insertion position or reordering.
+        # Emit the ordered tree on structural additions/moves; retained native
+        # identities still keep their numbers. Removals and value edits can use
+        # the bounded patch because the remaining relative order is unchanged.
+        same_order = ([n for n in lines if n in self.previous] ==
+                      [n for n in self.previous if n in lines])
+        added = lines.keys() - self.previous.keys()
+        if not full and lines == self.previous and same_order:
             body = "No change. Existing numbers remain valid."
-        elif not full and self.previous and len(changed) + len(removed) < len(lines) / 2:
+        elif not full and self.previous and not added and same_order \
+                and len(changed) + len(removed) < len(lines) / 2:
             body = "\n".join("+ " + line for line in changed.values())
             if removed:
                 body += "\nRemoved (stale): " + ", ".join(map(str, removed))

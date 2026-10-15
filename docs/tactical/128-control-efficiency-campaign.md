@@ -78,3 +78,11 @@ Locked use is already implemented and remains separate acceptance scope.
   had started. Continue Sol-only work; Claude skill acceptance waits for user
   resumption or confirmed reset of the applicable quota window. A different
   account/provider quota showing capacity is not evidence of that reset.
+- User subsequently explicitly resumed Opus availability. Restore Claude skill
+  acceptance to the serial live schedule; development/review workers remain Sol.
+- First identity work repairs Python opaque-key collisions, structural diff
+  ordering and failure invalidation. Deterministic fixture bytes demonstrate
+  the benefit conditional on qualified stable identities, not a native latency
+  or token win. Independent YA review found no correctness defect in this
+  bounded change. A real guest-only AX lifetime probe is now being built;
+  synthetic token-reuse examples alone do not establish a native blocker.
