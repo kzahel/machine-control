@@ -39,6 +39,8 @@ Machine Control is independent of the agent's model provider. Its
 [Computer Use positioning and roadmap](topics/computer-use-positioning.md)
 separates the complete package's strengths from measured GUI-control gaps and
 the narrower coverage of the experimental persistent Python interface.
+For a concise proposed agent entry prompt, see the
+[Machine Control entry guide](info/use-machine-control.md).
 For the optional genuine Sky route from Claude, see the
 [repo-local guide and skill](info/claude-computer-use.md).
 

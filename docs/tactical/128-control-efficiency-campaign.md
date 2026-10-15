@@ -172,3 +172,20 @@ Locked use is already implemented and remains separate acceptance scope.
   and gate remain intact. Final reporting will explicitly record publication
   of byte-identical annotations at the required location after the live run;
   this does not change tasks, prompts, raw receipts or the continuation decision.
+- The first repeated phase stopped after 13 reviewed task passes when the next
+  workspace failed to start with an internal Virtualization framework error.
+  No model task started in that cell; ten cells were not scheduled. Original
+  acquisition claims were released, but the stopped clone was retained. The
+  coordinator correlated its exact audit/resource, recorded its inherited
+  credential, acquired a new cleanup claim, discarded it and verified inventory
+  absence. The initial failed journal was already closed; cleanup has its own
+  linked journal. The underlying startup cause remains unknown.
+- Preserve that interrupted phase and all its costs separately. A new plan
+  reuses only the eight byte-identical qualified pilot observations under the
+  same source/profile/prompts/runtime/base, records that provenance and a new
+  continuation decision, then restarts the entire 24-cell repeated phase.
+  No failed cell is overwritten or silently retried inside the scored phase.
+- The [proposed agent entry guide](../../info/use-machine-control.md) addresses
+  observed command-discovery and output-handling friction. Offline help checks
+  its command grammar; this new text is unmeasured and is not injected into the
+  frozen experiment.
