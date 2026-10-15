@@ -100,8 +100,11 @@ now qualifies that optional route through YA-hosted Opus.
 an external MCP host successfully driving a user-authorized TextEdit workflow
 through the installed proprietary runtime, with an independent saved-file
 oracle. MC was not part of the route. This is a candidate optional provider;
-it does not replace the owned target-native foundation or establish YA
-integration, fresh-install readiness, isolation or performance superiority.
+it does not replace the owned target-native foundation. The later
+[YA/Opus qualification](../docs/tactical/127-opus-sky-computer-use.md) now passes
+TextEdit save and menu/conversion through the genuine runtime with scoped host
+approval, screenshots and closure. General YA product integration, fresh-install
+readiness, isolation and performance superiority remain unproved.
 
 **Proposal:** evaluate two independent options:
 

@@ -600,10 +600,21 @@ They are not all the same route:
 
 The [spike review](../../../machine-control-spike/docs/sky-other-agent-bridges.md)
 owns exact pins and review depth. No third-party bridge or proprietary asset
-was installed or adopted. **Proposal:** qualify the genuine installed unified
-runtime through YA/Opus with exact fixture-scoped host approval, native refusals
-preserved and explicit cleanup. [Tactical 127](../../docs/tactical/127-opus-sky-computer-use.md)
-owns that experiment; it is separate from the completed Sol/MC comparison.
+was installed or adopted.
+
+**Current, bounded live-tested:** YA-hosted Opus 5.5 at medium/normal directly
+completed TextEdit save and menu/conversion through the genuine installed
+unified runtime. Both workflows returned two distinct inline screenshots,
+passed independent file oracles and explicitly closed the child runtime.
+All 37 app-approval elicitations identified the authorized TextEdit bundle;
+the host answered from that exact experiment scope, without saved Always allow.
+The adapter launched no Codex reasoning session. Two earlier startup failures
+exposed an optional Claude discovery request that must not kill MCP handshake;
+they remain retained. [Tactical 127](../../docs/tactical/127-opus-sky-computer-use.md)
+owns methods, costs, cleanup and the [setup recipe](../../tests/experiments/sky-external/README.md).
+General approval UI, live denied-app/physical-stop behavior, other apps and
+runtime versions remain unqualified. These are feasibility results, separate
+from the frozen performance comparison and not broad YA product support.
 
 **Decision:** Use the separation between native caller authentication,
 app-specific consent and agent tool advertisement as a design benchmark.
