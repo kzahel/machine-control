@@ -3,189 +3,86 @@
 Owning topics: [Computer Use positioning](../../topics/computer-use-positioning.md),
 [unified desktop client](../../topics/unified-desktop-client.md).
 
-Status: **In progress**. The user authorized autonomous execution of the four
-tracks below, YA workers using Sol 6.1 up to high effort at normal or fast
-speed, and incremental commits. This record owns execution and acceptance;
-the topic owns ongoing priorities. Session IDs, target identity, credentials
-and raw evidence stay in private receipts.
+Status: **In progress**. Implementation and bounded live acceptance are complete;
+the repeated instruction comparison and final report remain in progress.
 
-## Objective and completion conditions
+## Objective
 
-| Track | Deliverable and acceptance gate | Current state |
+Make Machine Control easier and more efficient for agents to use, prove its
+behavior on disposable machines, and measure whether better instructions reduce
+task cost. Deliver reusable software and evidence, with incremental commits.
+
+## Deliverables and completion conditions
+
+| Deliverable | Acceptance | Result |
 | --- | --- | --- |
-| 1 — Claude skill acceptance | A fresh session follows the guide plus task/private runtime inputs, prepares scoped configuration and probes startup; host loading/new-session boundary is handled honestly; independent task effects and cleanup pass | Complete for two bounded TextEdit workflows; see evidence below |
-| 2 — Stable identity and compact observations | Unchanged/insertion/reorder retain correct identity; removal/replacement and generation changes refuse stale actions; compact output reconstructs state; deterministic measurements and live fixture acceptance | Complete for bounded native fixture and named surfaces; independent review accepted |
-| 3 — Whole-package acceptance | Executable representative browser/dev, Finder and menu tasks; readiness, claims, credentials, assigned GUI route, independent effects and disposal recorded | Eight-cell pilot passed task and reviewed lifecycle gates; broader limits retained |
-| 4 — Instruction experiment | Frozen seeded discovery/current/quickstart arms with matched profiles, repetitions and held-out tasks; failures retained; token/time/call distributions and limits reported | Frozen discovery/quickstart comparison running: 24 repeated cells after the accepted eight-cell pilot |
-
-## Organization
-
-- Coordinator owns integration, public tracking, pins, live VM claims,
-  scheduling and commits. One writer owns each implementation area.
-- Native worker owns resident identity, Python integration and focused tests.
-- Harness worker owns new campaign planning/aggregation and held-out fixtures;
-  coordinator integrates changes into the existing runner.
-- YA workflow worker (medium effort, fast speed) owns a portable runbook and
-  helper over existing YA APIs. YA remains the coordinator; MC does not add a
-  competing session service.
-- Start with three independent workers. Add focused review where concrete work
-  merits it, rather than duplicating research or concurrent writes. Workers
-  do not operate VMs without an explicit target/claim ownership handoff.
-- Workers return files, tests, caveats and integration needs. The coordinator
-  reviews and commits coherent results on the current branch. A private ledger
-  retains exact sessions and reports for resumption after context loss.
-
-## Ordered work and validation
-
-1. Verify YA launch, effective model/effort/tier, identity remapping, monitoring,
-   follow-up and cleanup. Record reusable instructions rather than relying on
-   transcript memory or proposed cross-session commands.
-2. Run skill acceptance independently of optimization. Setup time, task time
-   and a required new-session transition are separate outcomes. A preconfigured
-   server does not count as agent-led setup.
-3. Qualify identity deterministically before live work. Keep authority/audit
-   unchanged. Compare full and compact output on identical observations;
-   labels and positions are not identities.
-4. Run a small campaign pilot, correct harness/oracle defects under new pins,
-   then freeze repeated instruction comparison. Include held-out scenarios;
-   never silently replace failures or mix source/prompt changes.
-5. Report effects, route adherence, cleanup, sampled interference, model calls,
-   setup/task time, input/cached input/output tokens and unknowns. Separate
-   lifecycle from warm-operation cost; cached tokens are not dollars.
-6. Close owned runtimes, sessions, claims, clones and scoped credentials. Update
-   this record and the topic with outcomes, gaps and commit references.
+| Claude → Computer Use guide | Fresh agent-led setup, host registration, separate task session, independent effects and cleanup | Complete for two TextEdit workflows; [report](../evidence/claude-skill-acceptance-2026-10.md) |
+| Stable native identity and compact observations | Preserve unchanged controls; refuse removed/replaced controls; correct diffs; deterministic and live tests | Complete within documented bounds; [native acceptance](../../research/platforms/macos.md#production-native-identity-acceptance) |
+| Representative task harness | Extension loading, Finder, browser form and app menu tasks; readiness, claims, credential handoff, effects and disposal | Eight-cell pilot passed task and reviewed lifecycle gates |
+| Instruction comparison | Frozen discovery/quickstart prompts, matched model settings, repetitions, held-out tasks; report time, calls, tokens and failures | Running 24 measured trials after the qualified pilot |
 
 ## Boundaries
 
+Use target-native control in disposable guests. Preserve claims and audit;
+provider success alone is not proof of application effect. Keep private
+inventory, credentials, transcripts and worker coordination outside Git.
+
 No release, global agent configuration, vendor patching, primary-browser test
-profiles or proprietary redistribution. Tactical 125's frozen comparison stays
-unchanged. A successful task does not prove input fidelity or non-interference.
-Locked use is already implemented and remains separate acceptance scope.
+profiles or proprietary redistribution. Tactical 125's comparison stays
+unchanged. Locked use is already implemented and has separate acceptance scope.
 
-## Execution record
+## Work and validation
 
-- Three YA sessions started with disjoint file ownership. YA process inspection
-  confirms requested Sol 6.1, high/medium effort and default/priority tiers.
-  This is launch/runtime selection evidence, not billing attestation.
-- Final results pending. Helpers and fixtures alone do not complete this
-  tactical; live and repeated-comparison gates must be recorded.
-- Added a fourth worker for skill-harness implementation, then reused capacity
-  from the completed YA runbook worker for independent identity review. The
-  reusable [YA session runbook](../ya-agent-sessions.md) and helper preserve
-  launch/status/cleanup mechanics; live lifecycle checks caught and fixed a
-  missing mutation header before adoption.
-- User paused Opus because its five-hour quota was exhausted. No Opus trial
-  had started. Continue Sol-only work; Claude skill acceptance waits for user
-  resumption or confirmed reset of the applicable quota window. A different
-  account/provider quota showing capacity is not evidence of that reset.
-- User subsequently explicitly resumed Opus availability. Restore Claude skill
-  acceptance to the serial live schedule; development/review workers remain Sol.
-- First identity work repairs Python opaque-key collisions, structural diff
-  ordering and failure invalidation. Deterministic fixture bytes demonstrate
-  the benefit conditional on qualified stable identities, not a native latency
-  or token win. Independent YA review found no correctness defect in this
-  bounded change. A real guest-only AX lifetime probe is now being built;
-  synthetic token-reuse examples alone do not establish a native blocker.
-- The skill harness now separates fresh agent-led setup from a fresh task
-  session, with exact app/config checks, source/runtime hashes and owned-process
-  cleanup. Private lifecycle receipts and stage timings include acquisition and
-  disposal; legacy wall-time semantics remain intact. Offline tests passed;
-  live acceptance is next. YA visible-message extraction replaces reliance on
-  an optional summary field that was absent in a real session response.
-- The campaign planner and held-out fixtures passed 20 focused tests. Review
-  fixes isolate child process groups for graceful cleanup, bind all cells to
-  one installed-runtime fingerprint, and measure invocation time through
-  disposal. These are harness checks; live pilot qualification remains pending.
-- The first skill attempt failed at runtime fingerprinting before any model
-  session started. Its isolated clone was discarded and its failure cost
-  retained. A separate claimed clone is diagnosing runtime selection; this
-  infrastructure failure is not an Opus task result.
-- The real native probe completed in an isolated guest with ordinary Settings
-  consent and secret-safe administrator authorization. Survivor identity and
-  all twenty replacement controls passed, while a raw stale window proxy still
-  invoked a retired control. The [platform report](../../research/platforms/macos.md#native-efficiency-and-background-effects)
-  owns the measured limits. Native implementation now separates stable
-  observation identity from fresh action references and membership validation.
-- Runtime diagnosis found zero expanded guest-cache configurations despite
-  installed runtime binaries. An explicitly selected expanded installation
-  manifest passed artifact fingerprinting and initialize/list/close in the
-  diagnostic clone. The runner now accepts private hash-bound runtime input;
-  fresh agent-led acceptance still follows under a new source pin.
-- Native Control Center open/close passed through the claimed guest route.
-  Independent CoreGraphics observations confirmed a panel appeared and
-  disappeared. The diagnostic clone was discarded after credential and child
-  process cleanup checks. This is a system-surface check, not an agent score
-  or a matched Sky policy comparison.
+1. Provide reusable [YA session operations](../ya-agent-sessions.md) for launch,
+   follow-up, monitoring and cleanup. YA remains the session coordinator.
+2. Test the [Claude guide](../../info/claude-computer-use.md) from fresh setup,
+   including the host's required registration/new-session transition.
+3. Implement identity and diffs, then test deterministic edge cases and real
+   native controls before making performance claims.
+4. Qualify task fixtures with a pilot; freeze source, prompts, model settings,
+   runtime and appliance inputs before the repeated comparison.
+5. Report task outcomes and cost distributions, keeping setup and task scopes
+   distinct. Retain unsuccessful attempts and unknown measurements.
+6. Verify cleanup, publish the comparison, and update the owning topics.
 
-- Fresh Claude setup plus separate task sessions passed two TextEdit workflows.
-  The [skill acceptance report](../evidence/claude-skill-acceptance-2026-10.md)
-  records setup/task/lifecycle costs, prior failures, preserved raw receipts
-  and the narrow teardown-evaluation correction. Inline media was not newly
-  qualified. Owned sessions and clones were cleaned up.
-- The first instruction pilot was stopped after an inconclusive Finder oracle
-  result and one passing extension cell. Ordinary Finder `.DS_Store` metadata
-  is now distinguished from payload files; exact payload/decoy contents and
-  symlink rejection remain required. The original failed receipt and cost are
-  retained, not retroactively declared a pass. A new source pin restarts the
-  complete eight-cell pilot before any repeated-comparison gate.
-- Independent production review found an acceptance cleanup-reporting defect
-  and gaps in semantic-route and boundary assertions. These are being fixed
-  before live deployment. The full native Swift suite passed 207 tests;
-  fixture and representative-app production acceptance remain required.
+## Results and material limitations
 
-- Bounded native production acceptance passed after three retained failures:
-  missing AppKit process launch metadata, startup chrome settling, and an
-  incorrect test assumption equating geometry order with AX enumeration.
-  Kernel process birth metadata, observed bounded warmup and explicit geometric
-  oracles address those separate causes. All ten measured unchanged reads,
-  21 stale refusals, 12 current native effects and three child cleanup receipts
-  passed. The [platform report](../../research/platforms/macos.md#production-native-identity-acceptance)
-  owns contract, representation measurements and exact qualification limits.
-- System Settings preference effects, TextEdit menus, Control Center and resident
-  smoke passed. Full Swift tests (211), focused Python checks and ARM64/x86_64
-  builds passed; static smoke passed unchanged. The live smoke uses resident
-  capture instead of the legacy script's outer screenshot. The native clone
-  was discarded, its absence checked, its guest claim available and stored
-  credentials verified. A coordinator release-syntax error was refused before
-  dispatch, corrected and recorded in the private journal/usage notes.
-- All eight revised pilot cells passed independent effects and manual route/
-  confirmation review. Hash-bound lifecycle annotations and the continuation
-  decision are retained privately. Exact candidate identity for appliance
-  promotion remains unverified; ordinary task acceptance does not erase that
-  limit. Repeated cells retain the pilot's source, inputs, runtime and base.
-- The revised Sky bridge passed a separate genuine-runtime closure-order check
-  without a model or GUI task. The campaign's scoped AAR client was revoked and
-  its revoked status verified; unrelated base/model credentials remain owned
-  by their existing configuration.
+**Claude guide:** two fresh setup/task workflows passed independent TextEdit
+file checks and cleanup. The evidence report retains prior setup failures and
+an evaluation correction distinguishing native runtime closure from wrapper
+process exit. This is bounded workflow acceptance, not universal app coverage.
 
-- Independent final native review replayed every retained observation and
-  checked scopes, fresh references, action effects, oracle lineages, candidate
-  hashes and cleanup. It found no new actionable correctness defect. TextEdit's
-  transient open-menu tree remains incomplete, and real Settings evidence does
-  not establish foreign-AX-PID coverage. These limits remain in the platform
-  report; native agent-level performance has not been measured yet.
-- The repeated campaign runs serially under the original pilot source and
-  appliance/runtime pins. Two independent YA reviewers split transcript review;
-  a separate worker prepares direct transcript-based arithmetic validation.
-  Reporting audit found pilot lifecycle annotations beside nested trial
-  receipts rather than at the reporter's cell-level path. The original review
-  and gate remain intact. Final reporting will explicitly record publication
-  of byte-identical annotations at the required location after the live run;
-  this does not change tasks, prompts, raw receipts or the continuation decision.
-- The first repeated phase stopped after 13 reviewed task passes when the next
-  workspace failed to start with an internal Virtualization framework error.
-  No model task started in that cell; ten cells were not scheduled. Original
-  acquisition claims were released, but the stopped clone was retained. The
-  coordinator correlated its exact audit/resource, recorded its inherited
-  credential, acquired a new cleanup claim, discarded it and verified inventory
-  absence. The initial failed journal was already closed; cleanup has its own
-  linked journal. The underlying startup cause remains unknown.
-- Preserve that interrupted phase and all its costs separately. A new plan
-  reuses only the eight byte-identical qualified pilot observations under the
-  same source/profile/prompts/runtime/base, records that provenance and a new
-  continuation decision, then restarts the entire 24-cell repeated phase.
-  No failed cell is overwritten or silently retried inside the scored phase.
-- The [proposed agent entry guide](../../info/use-machine-control.md) addresses
-  observed command-discovery and output-handling friction. Offline help checks
-  its command grammar; this new text is unmeasured and is not injected into the
-  frozen experiment.
+**Native control:** stable observation identities are separate from fresh action
+references. Live tests passed ten unchanged reads, 21 stale-action refusals and
+12 current-control effects. Settings, TextEdit menus and Control Center checks
+also passed. Validation included 211 Swift tests, focused Python tests, both Mac
+architecture builds and resident smoke checks. The platform report owns exact
+limits, including incomplete transient menus and unqualified lifetime cases.
+
+Compact unchanged observations were 66 bytes versus 638 bytes for the full
+semantic projection. This demonstrates smaller output; **agent-level token and
+time improvements from the native changes remain unmeasured**. The instruction
+comparison uses its earlier frozen source, not these newer native changes.
+
+**Task harness:** the initial Finder oracle incorrectly treated ordinary
+`.DS_Store` metadata as payload. The corrected oracle still verifies exact
+payload/decoy contents and rejects symlinks; a complete new pilot passed.
+The proposed [agent quickstart](../../info/use-machine-control.md) addresses
+observed discovery friction but is not injected into the frozen comparison.
+
+**Instruction comparison:** the first measured phase stopped after 13 reviewed
+task passes when a VM failed to start before model execution. The retained clone
+was subsequently discarded through claimed recovery. The underlying startup
+cause remains unknown. Its results and costs remain separate from the complete
+24-trial restart; only the eight byte-identical qualified pilot observations
+are reused, counted once. A lifecycle-annotation placement correction preserves
+original reviews and raw receipts. Exact provenance stays with private evidence.
+
+## Remaining work
+
+- Finish the repeated comparison and transcript review; publish a short result
+  with per-task time, call and token distributions, plus retained failure costs.
+- Verify final session, claim and workspace cleanup.
+- Record conclusions and next priorities in the owning topic. Appliance
+  promotion identity and independent focus/cursor interference checks remain
+  outside the completed acceptance claims.
