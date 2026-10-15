@@ -1,13 +1,13 @@
 # Run route-comparison experiments in a macOS VM
 
-Status: **Current, bounded live-tested** for guest YA/Codex through AAR,
-Computer Use, MC CLI and the experimental JS route in disposable Tart guests.
-Five workflows have initial evidence; [Tactical 124](tactical/124-native-behavior-and-efficiency.md)
-adds a five-repeat TextEdit pilot and measurement hardening. Explicit model
-settings, Claude collection, menu/recovery scenarios and instruction comparisons
-form the next [baseline gate](tactical/125-agent-capability-baseline.md). Both
-profiles have now completed arithmetic qualification; seven-scenario GUI smoke
-and repeated coverage remain pending.
+Status: **Current, bounded live-tested** for guest YA/Codex and YA/Claude through
+AAR in disposable Tart guests. The seven-scenario CLI/JS/Computer Use baseline
+is complete; the Python MCP candidate has passed two rounds and its final round
+is running. [Tactical 125](tactical/125-agent-capability-baseline.md) owns the
+current comparison, exact profile qualification and known outcome limitations.
+Instruction variants are versioned but have not been compared.
+[Tactical 124](tactical/124-native-behavior-and-efficiency.md) owns the earlier
+native investigation and five-repeat TextEdit pilot.
 
 Purpose: run many paired trials of the same UI task, one driven through
 Machine Control and one through Codex Computer Use, inside disposable macOS
@@ -31,10 +31,10 @@ Controller host (Apple Silicon Mac)
 Trial guest (isolated APFS clone of a sealed experiment base)
   Machine Control resident        appliance policy: standing grant
   machine-control checkout + CLI  agents use --target host (target-native)
-  YepAnywhere (guest, loopback)   launches the trial's Codex session
-  Codex CLI                       model traffic through the tunnelled AAR
+  YepAnywhere (guest, loopback)   launches the requested Codex/Claude session
+  Codex / Claude CLI              model traffic through the tunnelled AAR
   ChatGPT app + Computer Use      the comparison route
-  Chrome + Machine Control ext.   browser route for Machine Control
+  Chrome for Testing              native UI route in the current task fixtures
   task fixtures and oracles
 ```
 
@@ -57,6 +57,9 @@ Design choices:
 - **Results are pulled, not shared.** The driver copies transcripts, notes
   and oracle output to a private results directory on the host. Host YA
   analyzes that directory; it does not need a multi-host session view.
+- **Browser identity stays separate.** Current fixtures use Chrome for Testing.
+  Their native-control results do not qualify the optional Machine Control
+  browser-extension route; its provider was unavailable in these trials.
 
 ## 0 — Qualify a fresh experiment base
 
@@ -138,8 +141,13 @@ The driver appends exactly one route line to the prompt:
   skill) for UI control; no Computer Use, AppleScript or file edits.
 - *Computer Use:* use Codex Computer Use for UI control; no Machine Control,
   AppleScript or file edits.
+- *JS prototype:* use the experimental `mc` JavaScript tool for UI control.
+- *Python candidate:* use the blocking Python `mc` tool for UI control, without
+  `await`. This route retains claim/admission/audit ownership.
 
-Both add: nobody is at the computer; if blocked, stop and report.
+Each adds: nobody is at the computer; if blocked, stop and report. Alternative
+UI routes and shell mutations of the task's files/settings are disallowed;
+read-only inspection is permitted. This restriction requires transcript review.
 
 Oracles check the application's own state (preferences, files, databases)
 rather than the agent's claim. Start with tasks that exercise known weak
@@ -154,10 +162,10 @@ For each task × route × repetition, the driver:
    the experiment run, and waits for `target doctor`;
 2. opens the SSH connection with both forwards;
 3. runs `setup.sh` in the guest;
-4. creates the guest YA Codex session with the composed prompt, in bypass
-   permission mode, and polls until it is idle;
-5. runs `oracle.py`;
-6. collects the guest Codex transcript, `usage show --commands` JSON, guest
+4. creates the qualified guest YA Codex or Claude session with the composed
+   prompt and explicit model/effort/speed settings, then verifies completion;
+5. runs the task's independent oracle;
+6. collects the native provider transcript, `usage show --commands` JSON, guest
    `audit history`, the oracle result and a final capture into
    `RESULTS/RUN/TASK/ROUTE-N/`;
 7. closes the tunnel and releases the workspace, discarding the clone.
@@ -185,8 +193,8 @@ captures and session IDs stay in the private results directory.
 Guests are dedicated test appliances. Do not sign in to personal accounts in
 a guest beyond what the Computer Use arm proves it needs, and record that
 decision. The AAR client token is the only model credential in a guest;
-revoke it when a run ends or a guest image is retired. Experiments never use
-the controller's own desktop.
+revoke it when a run ends or a guest image is retired. All task UI control runs
+inside the guest; controller focus effects of VM launch are not measured.
 
 ## Reproducible measurement (Tactical 124)
 
@@ -256,3 +264,10 @@ the last available usage checkpoint before the first UI call. That checkpoint
 is not exact token attribution: provider usage can arrive later, and a model
 call can mix discovery and useful UI work. Use complete task tokens for the
 primary instruction comparison; this prefix measurement explains overhead.
+
+Route adherence does not certify confirmation-policy compliance or correct
+intermediate targeting. Record known confirmation deviations separately with
+`--confirmation-adherence`; omitted reviews remain unknown. The window report's
+sampled guest focus/cursor counters include fixture startup and can miss brief
+transitions. They do not measure controller-host interference or identify which
+individual action caused a transition.
