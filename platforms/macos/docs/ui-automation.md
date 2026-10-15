@@ -226,6 +226,8 @@ reading its context identifier:
 bin/macvm control \
   '{"operation":"authorization.begin","expectedRequester":"EXPECTED APP","contextId":"OPAQUE CONTEXT","timeoutMs":30000}'
 bin/macvm authorization-submit GENERATION_BOUND_LEASE_ID
+# Dedicated appliance with its canonical owner-only credential file:
+bin/macvm authorization-submit --stored GENERATION_BOUND_LEASE_ID
 ```
 
 `authorization.begin` requires one exact allowlisted owner and on-screen
@@ -251,13 +253,19 @@ The default expiry is 30 seconds. Callers may request 250 milliseconds through
 120 seconds; the upper bound accommodates an attended non-echoing credential
 step without making a lease durable.
 
-`authorization-submit` requires an interactive terminal and reads one
-credential without echo. The secret travels over stdin and the resident's
-mode-`0600` socket with a staged descriptor handshake; it is never a JSON
-field, command argument, environment variable, file, log, capture, or result
-value. The current target-local input mapping supports printable US-keyboard
-ASCII. The result reports only delivery, whether sheet dismissal was observed,
-the non-secret context, and uncertainty. The caller still verifies the
+`authorization-submit` reads one credential without echo from an interactive
+terminal, or uses the canonical owner-only appliance credential file with
+`--stored`. Resolve that locator through `machine-control inventory credentials`
+before unattended appliance authorization. The secret travels over stdin and
+the resident's mode-`0600` socket with a staged descriptor handshake; it is
+never a JSON field, command argument, environment variable, transient file,
+log, capture, or result
+value. The target-local input mapping supports printable ASCII through the
+selected keyboard layout. The resident requires the complete alphabet before
+requesting secret bytes, refuses unsupported layouts/composition methods, and
+plans the entire credential before clearing or typing into the secure field.
+The result reports only delivery, whether sheet dismissal was observed, the
+non-secret context, and uncertainty. The caller still verifies the
 intended privileged effect independently.
 
 This path does not help with the initial Machine Control Accessibility grant

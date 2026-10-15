@@ -21,10 +21,12 @@ Tart resident passes U.S., Dvorak and Dvorak–QWERTY Command with default and
 swapped Command/Option plus Caps→Control mappings; native fixture effects and
 real Chrome for Testing shortcuts/text are covered. Terminal/readline and a
 standalone Electron editor also pass all six configurations, including native
-menus and independently observed text/editing effects. Credential evidence
-uses only a fixed public dummy in a secure fixture, through the shared
-production planner/emitter. Broader layouts, composition input methods,
-login-window input, real authorization under alternate layouts and
+menus and independently observed text/editing effects. A separate six-cell
+real SecurityAgent authorization matrix passes stored credential submission
+and independently confirmed root-command effects. The secure dummy fixture
+also covers both credential delivery routes through the production planner.
+Broader layouts, composition input methods, login-window input, System
+Settings' real session-keyboard authorization under alternate layouts and
 keyboard-specific Java/additional-editor coverage remain unqualified.
 [The platform report](../research/platforms/macos.md#keyboard-layouts-and-modifier-remappings)
 owns the bounded evidence; [Tactical 126](../docs/tactical/126-macos-keyboard-layout-input.md)

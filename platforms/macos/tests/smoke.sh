@@ -100,7 +100,8 @@ done
     resident/Sources/macui/KeyboardInput.swift
 /usr/bin/python3 -m py_compile ../../tests/macos/keyboard-layouts.py \
     ../../tests/macos/keyboard-browser-guest.py \
-    ../../tests/macos/keyboard-apps-guest.py
+    ../../tests/macos/keyboard-apps-guest.py \
+    ../../tests/macos/keyboard-authorization.py
 /usr/bin/python3 -m unittest discover -s ../../tests/macos -p test_keyboard_layouts.py
 
 /usr/bin/python3 -m json.tool \

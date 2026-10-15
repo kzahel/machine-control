@@ -44,10 +44,12 @@ bounded macOS milestone.
 - Resolve character keys using the effective Command mapping, so plain
   Dvorak and Dvorak – QWERTY ⌘ can resolve the same shortcut differently.
   Named navigation/function keys retain fixed virtual key codes.
-- Credential experiments use fake values and the keyboard fixture only;
-  never a real login, authorization or unlock sheet. The live credential
-  probe links the production resolver/emitter; it does not qualify an actual
-  authentication transaction or bypass field discovery.
+- The ordinary keyboard suite's credential probe uses a public dummy in the
+  secure fixture. Real authorization is a separate explicitly selected runner
+  against the claimed appliance's ordinary SecurityAgent sheet, using only the
+  canonical stored credential transport and independent privileged effect.
+  No failed/uncertain credential is retried. Loginwindow, unlock and other
+  authorization sheet profiles require separate qualification.
 - Keep Unicode text separate from character-key/chord input. Preserve native
   key codes for shortcuts; overriding their Unicode payload can prevent
   AppKit menu equivalents from firing.
@@ -219,7 +221,27 @@ wrapper streams progress, allows ten minutes, and interrupts Python before
 escalating on timeout so its cleanup can run. These are bounded fixture tests,
 not qualification of arbitrary editors or terminal settings.
 
-### 6 — validation and remaining coverage
+### 6 — prove real administrator authorization
+
+[`tests/macos/keyboard-authorization.py`](../../tests/macos/keyboard-authorization.py)
+uses the existing administrator fixture, which invokes macOS authorization to
+run only `/usr/bin/id -u`. Each of the six keyboard cells requires a fresh
+fixture request and a real matching SecurityAgent sheet. A wrong requester is
+refused before a valid generation-bound lease is issued. The runner selects
+and reads back the exact layout after sheet discovery, then calls the common
+CLI's `authorization-submit --stored` once. It never handles the password in
+Python, JSON, arguments, environment variables or evidence.
+
+The normal owner-process credential route must confirm delivery and sheet
+dismissal. The independent fixture must report the same request authorized and
+the root command completed. Lease reuse is refused, resident generation stays
+stable, and HID/session modifiers remain clean. A failed or uncertain attempt
+stops the matrix. Cleanup removes the owned fixture and restores the selected
+input source and complete numeric HID mapping. The caller owns power/claims.
+This qualifies real ordinary SecurityAgent authorization, not System Settings'
+session-keyboard variant, loginwindow, unlock or every password prompt.
+
+### 7 — validation and remaining coverage
 
 - Swift tests cover Dvorak versus Command-specific lookup, punctuation and
   separators, named keys, complete credential preflight, refusal without a
@@ -232,7 +254,8 @@ not qualification of arbitrary editors or terminal settings.
   Its mock-keychain flags match the existing browser harness, keeping ordinary
   keychain prompts out of this disposable profile. Separate outside
   caller checks and reboot/profile readback qualify transport parity and
-  persistence. No real authentication attempt belongs to this suite.
+  persistence. Real authentication belongs to the separate administrator
+  runner above, not the ordinary keyboard/browser suite.
 - Java and additional editors, broader layouts,
   login-window layout selection, outer recovery layout translation and other
   platforms remain explicitly unqualified follow-ups.
@@ -267,11 +290,18 @@ key refusal with no text prefix through the same deployed resident. Doctor
 reported healthy native desktop, semantics, capture and input afterward.
 
 The shared credential planner/emitter passes the public dummy in the secure
-fixture through session and process delivery in every cell. No real password,
-login, authorization or unlock transaction was attempted. Unit tests cover
-preflight of the full supported alphabet, composition-method refusal and
-whole-value validation before any input; real secret-transport/field-profile
-acceptance under alternate layouts remains unqualified.
+fixture through session and process delivery in every cell. The separate
+real-authorization matrix additionally passes all six cells through the normal
+SecurityAgent owner-process route, using the canonical stored appliance
+credential. Each dialog dismisses and each matching fixture request confirms
+successful root-command completion. Wrong-requester and used-lease refusals
+pass, with clean modifier state and stable resident generation. No credential
+failed or was retried. No workstation password or login/unlock transaction was
+involved. Unit tests separately cover the full supported alphabet, composition
+refusal and whole-value validation; the appliance's real credential does not
+prove every possible password character. System Settings' session-keyboard
+profile and other real authorization profiles remain unqualified under these
+alternate layouts.
 
 Validation passed: 191 Swift tests, five Python mapping/host-observation
 regressions, portable checks, macOS native static checks and ARM64/x86_64 app

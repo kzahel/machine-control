@@ -31,6 +31,20 @@ report equality or an unattributed change; use `--require-host-unchanged` only
 when deliberately keeping the controller quiet. See
 [Tactical 126](../../docs/tactical/126-macos-keyboard-layout-input.md).
 
+`keyboard-authorization.py --target macos --claim CLAIM` separately tests real
+SecurityAgent administrator authorization in all six keyboard configurations.
+The canonical `guest-login-password` entry must be ready in private inventory
+(`--credential-testbed` selects that entry's testbed, default `macvm`). The
+runner requires an absent admin fixture, deploys the existing fixture, refuses
+a wrong requester, and submits once through `authorization-submit --stored`.
+Every cell requires dialog dismissal and the same request's independent
+`authorized`/root-command completion oracle, then checks single-use refusal
+and clean modifier state. Any failed or uncertain submission stops the matrix;
+there are no incorrect-password tests or automatic credential retries. Cleanup
+removes the owned fixture and restores the full input profile. The caller owns
+VM power and claim cleanup. This qualifies the ordinary SecurityAgent profile;
+System Settings inline sheets, loginwindow and unlock remain separate routes.
+
 `locked-use-live.py` exercises an explicitly installed and enabled covered
 workstation candidate under an existing claim and ordinary native approval.
 It checks covered capture plus an independent fixture effect, then one chosen

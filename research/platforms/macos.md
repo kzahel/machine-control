@@ -49,9 +49,14 @@ Unicode text, clipboard/undo and native Save/Find accelerators with independent
 state. This qualifies the tested fixtures, not arbitrary application keymaps.
 
 The production credential planner/emitter passes a fixed public dummy in the
-fixture's secure field through session and process routes. This is not a real
-authentication or one-shot secret-transport qualification. The candidate
-requires the full printable-ASCII alphabet before requesting secret bytes,
+fixture's secure field through session and process routes. A separate six-cell
+real SecurityAgent matrix also passes canonical stored-credential submission,
+strict requester/field discovery, dialog dismissal and an independently
+confirmed root-command effect. Wrong-requester and single-use refusals pass;
+no failed credential is retried. This qualifies the owner-process authorization
+profile, not System Settings' session route or login/unlock under alternate
+layouts. The real appliance password does not qualify every character. The
+candidate requires the full printable-ASCII alphabet before requesting secret bytes,
 rejects composition input methods/dead-key-only characters and stale layout
 selections, and resolves the whole value before any field clearing or input.
 No unqualified ASCII-layout fallback is adopted. Both Mac architectures build;
