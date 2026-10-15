@@ -4,8 +4,10 @@ Status: active. A typed Python core, claim/admission/audit transport and killabl
 MCP facade are implemented as a [source candidate](../agent-session.md).
 Thirty-eight focused offline tests and strict type checking pass.
 The original seven-scenario smoke passed 13 of 14 cells; the revised candidate
-passed all fourteen on the two requested models. Native activation/capture
-qualification also passed. Repeated comparison and acceptance remain pending.
+passed all 42 repeated trials on the two requested models. Native activation/
+capture qualification also passed. The [final comparison](../evidence/agent-capability-comparison-2026-10.md)
+accepts this bounded guest-local source MCP slice. Installed packaging, the
+shell facade, remote acceptance and broader platform conformance remain pending.
 The direct-socket JavaScript
 experiment remains `tests/experiments/mc-repl`.
 The completed [native efficiency investigation](124-native-behavior-and-efficiency.md)
@@ -412,3 +414,19 @@ navigation; Opus instead used the original-document checkbox and did not need
 activation. These different strategies prevent attributing single-run timing
 changes to the new method or wording alone. Repeated baseline/candidate rounds
 are now running under the unchanged client pins with evaluator-only repairs.
+
+### Bounded source acceptance
+
+The revised candidate completed all 42 repeated effects across seven scenarios
+and both requested model families. All traces were reviewed; reported usage,
+claim/session closure and guest disposal were verified. The full client tree
+passed 285 tests, the experiment suite passed 52, and all three session modules
+passed strict typing. [Tactical 125](125-agent-capability-baseline.md) and the
+[final comparison](../evidence/agent-capability-comparison-2026-10.md) own the
+measurements, regression cases and enforcement confounds.
+
+**Decision:** the guest-local macOS source MCP slice passes its bounded gate.
+Continue Python packaging over the existing session boundary; keep the
+experimental JS route for comparisons. This does not complete Tactical 123:
+the shell-session facade, installed acceptance, remote Python acceptance,
+approval-aware deadline refinements and broader platform conformance remain.

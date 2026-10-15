@@ -1,15 +1,18 @@
 # 125 — Agent capability baseline and instruction evaluation
 
-Status: active. The pinned seven-scenario baseline completed all 105 qualified
+Status: comparison complete; instruction evaluation pending. The pinned
+seven-scenario baseline completed all 105 qualified
 trials on the requested medium/normal model profiles: 103 final-effect passes.
 All 106 recorded attempts, including the invalid oracle attempt, retain their
 costs, hash-bound reviews and confirmed disposal. Two effect passes violate
 received confirmation instructions; intermediate JS targeting and source
 recovery incidents further limit workflow-conformance claims.
 The original Python smoke passed 13 of 14 cells. The revised candidate passed
-native activation/capture qualification and its first 28 agent trials; its
-final fourteen-cell round is running. Three CLI instruction arms are versioned
-but have not been compared. Candidate acceptance remains pending.
+native activation/capture qualification and all 42 repeated agent trials.
+The [final comparison](../evidence/agent-capability-comparison-2026-10.md)
+supports bounded source-level acceptance of the guest-local Python MCP slice.
+Three CLI instruction arms are versioned but have not been compared; installed,
+shell-facade, remote and broader platform acceptance remain separate gates.
 Owning topics: [operational workflow automation](../../topics/operational-workflow-automation.md),
 [unified desktop client](../../topics/unified-desktop-client.md).
 
@@ -454,3 +457,39 @@ invalid extension-oracle attempt. Every attempt has usage, a conforming assigned
 route review and confirmed disposal, without tunnel or workspace cleanup errors.
 The baseline driver ended normally before the revised Python final round resumed.
 No model, prompt or client change entered the frozen baseline.
+
+### Final comparison and acceptance decision
+
+The revised Python candidate completed all 42 planned trials with passing
+application effects, hash-bound route reviews, reported usage and normal
+claim/session closure. Both drivers ended normally. The complete comparison
+contains 147 qualified trials and 148 recorded attempts; no failed qualified
+result was replaced. All recorded guests were discarded without reported
+workspace or tunnel cleanup errors.
+Final inventory showed no experiment workspace or held target claim; the base
+and golden copy were stopped. Every recorded attempt's stored login credential
+was verified against the canonical mode-0600 source. The experiment-scoped AAR
+client was revoked after collection; retained evidence stays private.
+
+The [public result tables](../evidence/agent-capability-comparison-2026-10.md)
+and [aggregate data](../evidence/agent-capability-comparison-2026-10.json) own
+the distributions, token breakdowns, unsuccessful-attempt costs, sampled guest
+interference, source pins and interpretation limits. Across successful tasks,
+corpus medians favor Python over the CLI on time, calls and tokens for both models.
+That result is not universal: Sol/Python is slower on Finder, menu conversion,
+save and window recovery; Opus/Python is slower on Finder and window recovery.
+Reference refusals, activation recovery, discovery, manual save-panel navigation
+and provider delays remain in the measured costs.
+
+**Decision:** accept the bounded guest-local source MCP slice and continue with
+Python on the existing ownership boundary. Do not infer language causality,
+cross-platform readiness or native settling improvements from these results.
+Python includes a ten-second admission notice; the CLI uses a direct grant
+path, and JS omits controller claims/audit. Preserve those enforcement
+differences in every comparison summary.
+
+**Open:** installed packaging, the plain-shell facade and remote acceptance
+remain Tactical 123 work. Compare the versioned instruction arms separately,
+using held-out scenario oracles before claiming generalization. Stable native
+identity, background menu/input effects and notification-based settling require
+their own deterministic qualification. No instruction winner is declared.

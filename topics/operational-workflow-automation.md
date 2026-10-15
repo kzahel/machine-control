@@ -20,6 +20,14 @@ the existing developer tasks plus menu/recovery cases, complete token classes,
 and instruction variants measured independently of runtime changes. The
 Codex-only TextEdit pilot does not satisfy this broader gate.
 
+**Current:** the [seven-scenario comparison](../docs/evidence/agent-capability-comparison-2026-10.md)
+completed 147 qualified trials across the two requested model families. The
+Python MCP slice passed its 42 effects, with all attempts, usage, assigned-route
+reviews and cleanup accounted for. Final effects, intermediate targeting,
+confirmation compliance and sampled guest interference remain separate results.
+Instruction variants are prepared but unmeasured; the current-guide comparison
+does not establish that a quickstart improves performance.
+
 **Current:** Fresh desktop appliance bring-ups have a
 [dated private provisioning journal](../docs/provisioning-journals.md), with
 automatic common CLI intent/result metadata and safe Windows/Linux/macOS phase

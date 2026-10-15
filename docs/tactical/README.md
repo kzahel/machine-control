@@ -1,8 +1,8 @@
 # Implementation Tacticals
 
-- [125 — Agent capability baseline](125-agent-capability-baseline.md): planned
-  realistic scenarios, explicit YA model profiles, token accounting and
-  instruction comparisons before the supported-session acceptance gate.
+- [125 — Agent capability baseline](125-agent-capability-baseline.md): complete
+  seven-scenario, two-model baseline and Python comparison with 147 qualified
+  trials, token accounting and reviewed effects; instruction comparison pending.
 
 - [124 — Native behavior and efficiency](124-native-behavior-and-efficiency.md):
   complete bounded research: reproducible route measurements, deterministic

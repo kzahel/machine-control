@@ -2,8 +2,10 @@
 
 Status: **Current, bounded live-tested** for guest YA/Codex and YA/Claude through
 AAR in disposable Tart guests. The seven-scenario CLI/JS/Computer Use baseline
-is complete; the Python MCP candidate has passed two rounds and its final round
-is running. [Tactical 125](tactical/125-agent-capability-baseline.md) owns the
+is complete, and the Python MCP candidate passed all 42 repeated trials.
+The [final results](evidence/agent-capability-comparison-2026-10.md) include
+scenario distributions, tokens, failed-attempt costs and observed workflow issues.
+[Tactical 125](tactical/125-agent-capability-baseline.md) owns the
 current comparison, exact profile qualification and known outcome limitations.
 Instruction variants are versioned but have not been compared.
 [Tactical 124](tactical/124-native-behavior-and-efficiency.md) owns the earlier

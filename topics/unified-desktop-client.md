@@ -167,9 +167,9 @@ passed all five tasks with 29 tool calls in total, against 66 for the CLI and
 32 for Computer Use (which failed one), after it learned to click an
 element's centre when the element cannot be pressed
 ([Tactical 119](../docs/tactical/119-vm-comparison-experiments.md)).
-Two later Sol window trials reproduced silent number rebinding after an
+All three later Sol window trials reproduced silent number rebinding after an
 unprinted refresh: a press aimed at the displayed Replace button clicked a text
-field. Both recovered to a passing final state. Absent-number refusal therefore
+field. All recovered to a passing final state. Absent-number refusal therefore
 does not establish reference safety; the supported candidate must refuse the
 old number before dispatch, as its regression now checks.
 [Tactical 123](../docs/tactical/123-persistent-agent-session.md) owns the
@@ -179,7 +179,8 @@ the typed core and MCP facade over live claim/admission owners, with per-operati
 audit and a killable Python worker. Offline and packaging-import checks pass;
 TextEdit, Settings and window-replacement smokes pass on Sol and Opus. A separate
 Mac fixture and Sol image-grounding turn qualify capture coordinates, including
-2× image scaling and moved-window refusal. Broad repeated acceptance and the
+2× image scaling and moved-window refusal. The repeated seven-scenario MCP
+comparison inside the guest passed; installed packaging, remote acceptance and the
 shell-session facade remain pending. Coordinator-published session identity
 keeps MCP attribution independent of tool-shell environment inheritance.
 Current Mac native
@@ -187,14 +188,13 @@ references rotate per snapshot, so the candidate issues fresh numbers rather
 than inferring identity from equal labels or positions. Stable native identity
 is a remaining observation gap.
 
-**Proposal:** initially reuse the existing Python session client to prove the
-contract and compatibility CLI. Prototype one thin persistent model-facing
-runtime, comparing Python and JavaScript on identical fixture workflows before
-selecting a supported default. Evaluate task success, tool/output ergonomics,
-tokens, latency, packaging, process/resource counts and cancellation. A language
-choice should not require rewriting native providers or create another policy
-implementation. Sky-like handles, compact state/diffs and images are facade
-choices, not the universal device or security model.
+**Decision:** retain Python as the supported-session implementation direction,
+reusing the existing ownership boundary. The bounded MCP comparison supports
+continuing to packaging without replacing claims/audit or weakening reference
+fences to match the JS prototype's speed. Its enforcement and interface
+differences prevent a language-only conclusion. Installed and remote acceptance
+still gate broader support. Sky-like handles, compact state/diffs and images
+are facade choices, not the universal device or security model.
 
 ### Efficiency evidence and implementation order
 
@@ -236,10 +236,11 @@ plus a separate grounded capture-input conformance check. These are calibration
 results, not repeated efficiency evidence or broad platform acceptance. A revised
 candidate clarifies tool discovery and exposes explicit application activation
 for menu-context recovery. Its native activation/capture probe and all fourteen
-revised agent smoke cells passed; repeated comparison is running. The baseline
-completed all 105 trials with 103 final-effect passes; revised Python passed
-its first 28 corresponding trials and is running the final fourteen. These small
-counts are not reliability estimates.
+revised agent smoke cells passed. The [completed comparison](../docs/evidence/agent-capability-comparison-2026-10.md)
+contains all 105 baseline and 42 revised Python trials. Python passed all its
+effects and reduced whole-corpus median time, calls and reported tokens versus
+the CLI, while individual scenarios regressed. These small counts are not
+reliability estimates, and the combined differences do not isolate persistence.
 Earlier invalid attempts retain their resource costs.
 [Tactical 123](../docs/tactical/123-persistent-agent-session.md) and
 [Tactical 125](../docs/tactical/125-agent-capability-baseline.md) own qualification

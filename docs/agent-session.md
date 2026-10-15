@@ -1,9 +1,12 @@
 # Persistent Python session candidate
 
 **Current:** the source checkout has a typed Python core and a stdio MCP facade.
-It is under qualification in [Tactical 123](tactical/123-persistent-agent-session.md).
-Do not interpret offline tests as live platform acceptance or packaging support.
-The existing CLI remains the qualified path while the baseline runs.
+Its guest-local macOS MCP slice passed native qualification and all 42 repeated
+agent trials in the [comparison](evidence/agent-capability-comparison-2026-10.md).
+[Tactical 123](tactical/123-persistent-agent-session.md) remains active for
+installed packaging, the shell facade, remote acceptance and broader platform
+conformance. This is bounded source acceptance, not general platform support;
+the existing CLI remains supported.
 
 Start the server with a logical target:
 
