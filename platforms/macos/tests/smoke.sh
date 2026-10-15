@@ -31,6 +31,7 @@ for script in \
     scripts/certify-appliance.sh \
     scripts/deploy-maintenance.sh \
     scripts/deploy-ui.sh \
+    scripts/keyboard-profile.sh \
     scripts/grant-resident-consent.sh \
     scripts/unlock-provider.sh \
     guests/macos/unlock/build.sh \
@@ -92,6 +93,12 @@ done
     guests/macos/swiftui-fixture/SwiftUIFixture.swift
 /usr/bin/swiftc -typecheck guests/macos/keyboard-fixture/KeyboardFixture.swift
 /usr/bin/swiftc -typecheck guests/macos/keyboard-fixture/keysend.swift
+/usr/bin/swiftc -typecheck guests/macos/keyboard-fixture/environment.swift
+/usr/bin/swiftc -typecheck -parse-as-library \
+    guests/macos/keyboard-fixture/credential-probe.swift \
+    resident/Sources/macui/KeyboardInput.swift
+/usr/bin/python3 -m py_compile ../../tests/macos/keyboard-layouts.py
+/usr/bin/python3 -m unittest discover -s ../../tests/macos -p test_keyboard_layouts.py
 
 /usr/bin/python3 -m json.tool \
     guests/macos/electron-fixture/package.json >/dev/null

@@ -1,6 +1,6 @@
 # 126 — macOS keyboard-layout-correct input
 
-Status: proposed. Investigation recorded; no resident code changed yet.
+Status: complete for the bounded ordinary-session macOS milestone.
 Owning topic: [macOS resident control](../../topics/macos-resident-control.md).
 Origin: friction recorded in
 [117](117-chrome-web-store-extension.md#result) while driving Chrome on a Mac
@@ -8,35 +8,60 @@ whose input source is Dvorak.
 
 ## Objective and completion conditions
 
-Make synthesized keyboard input on macOS mean the same thing on every
-keyboard layout, and stop synthesized chords from leaking modifier state.
-Complete when:
+Make ordinary macOS keyboard input correct under alternate layouts and
+modifier remappings. The first acceptance milestone uses the existing Tart
+appliance, with U.S., plain Dvorak and Dvorak – QWERTY ⌘, each with default
+modifiers and Command/Option swapped plus Caps Lock mapped to Control.
 
-- `desktop input key` chords produce the requested character and modifiers
-  under U.S., Dvorak, Dvorak – QWERTY ⌘, at least one ISO Latin layout
-  (German or French) and one non-Latin layout (Russian or similar), and
-  report the resolved key code and layout;
-- credential entry types exactly the stored bytes on those layouts, or refuses
-  before reading the secret when the active layout cannot produce them;
-- no route leaves Command, Shift, Option or Control set in the session
-  modifier state, and resident pointer events never inherit modifiers they
-  were not asked for; and
-- the keyboard fixture covers these cases in a repeatable live suite.
+Complete this milestone when:
 
-## Boundaries
+- the actual resident produces intended menu actions, editing shortcuts,
+  character keys, shifted punctuation, Control/Option navigation and exact
+  Unicode text under all six configurations;
+- the production credential planner/emitter types a fixed public dummy into
+  the fixture's secure field through both session and process routes, and
+  refuses unsupported alphabets before requesting secret bytes;
+- keyboard chords leave session/HID modifier state clean and subsequent
+  pointer events and ordinary typing have no inherited modifiers;
+- layout/mapping changes take effect without restarting the resident, and
+  both guest-local and outside callers reach the same implementation; and
+- the existing VM retains the alternate profile across login/reboot, with a
+  repeatable runner that temporarily switches settings and restores them.
 
-- Never switch the input source of a person's workstation for testing. Layout
-  matrices run in a disposable macOS Tart guest.
-- Credential experiments use fake values and the keyboard fixture only; never
-  a real login, authorization or unlock sheet with a guessed or real secret.
-- `input.text` (Unicode route) already ignores layout; change it only if the
-  investigation shows a consumer that needs real key codes.
-- Windows and Linux are audited here but fixed under their own topics if
-  they need code changes.
+German/French, non-Latin input methods, additional app frameworks and the
+Windows/Linux layout audits remain follow-ups rather than blocking this
+bounded macOS milestone.
+
+## Boundaries and input semantics
+
+- Never switch the input source or modifier mappings of a person's
+  workstation for testing. Reuse the claimed Tart appliance; no extra VM is
+  needed. The configuration helper refuses mutations outside a virtual Mac.
+- Chord modifiers name logical Command, Option, Control and Shift. Hardware
+  modifier remappings must not be applied a second time by the injector.
+  Caps → Control is tested as an active mapping alongside logical Control
+  operations; this is not a physical-keyboard hardware test.
+- Resolve character keys using the effective Command mapping, so plain
+  Dvorak and Dvorak – QWERTY ⌘ can resolve the same shortcut differently.
+  Named navigation/function keys retain fixed virtual key codes.
+- Credential experiments use fake values and the keyboard fixture only;
+  never a real login, authorization or unlock sheet. The live credential
+  probe links the production resolver/emitter; it does not qualify an actual
+  authentication transaction or bypass field discovery.
+- Keep Unicode text separate from character-key/chord input. Preserve native
+  key codes for shortcuts; overriding their Unicode payload can prevent
+  AppKit menu equivalents from firing.
+- Refuse unresolvable keys and composition input methods rather than using
+  an unqualified underlying or fallback ASCII layout.
+  Exact credential entry requires the entire printable-ASCII alphabet before
+  the one-shot transport requests bytes, then resolves the entire credential
+  before clearing the field or sending any prefix. Dead keys are refused.
+- Ordinary acceptance prohibits outer UI. Separately claimed recovery
+  observation is recorded independently and cannot count as a suite pass.
 
 ## Findings
 
-All **Current**, observed on 2026-10-14 on a macOS 26 workstation with the
+Historical **Current** observations from 2026-10-14 on a macOS 26 workstation with the
 plain Dvorak layout selected and U.S. enabled, using the
 [keyboard fixture](../../platforms/macos/guests/macos/keyboard-fixture/README.md)
 and a replica of the resident's event code. The resident itself was not
@@ -118,9 +143,8 @@ account lockout. This is the most severe finding.
   code 0 confuse any of them?
 - Does the login window or a locked session use a different input source from
   the user session (affects locked-use credential entry)?
-- Behavior under "Dvorak – QWERTY ⌘", which keeps QWERTY positions while
-  Command is held, and under layouts with dead keys or AltGr/Option
-  characters.
+- Broader behavior under layouts with dead keys or AltGr/Option characters.
+  Dvorak – QWERTY ⌘ is covered by the completed six-cell matrix.
 - Should a chord be able to request a *physical* key when that is what a
   caller means? **Proposal:** chord names keep character semantics; an
   explicit physical form (for example `code:KeyL`) can be added later only
@@ -130,61 +154,120 @@ account lockout. This is the most severe finding.
   portal keysyms and has a noted Unicode/keymap edge in `provider.py`. Both
   need a layout audit with their own fixtures.
 
-## Ordered work
+## Implementation and repeatable validation
 
-### 1 — characterize the remaining matrix in a Tart guest
+### 1 — use the selected layout in the real resident
 
-In a disposable macOS guest, switch input sources programmatically and run
-the fixture matrix for U.S., Dvorak, Dvorak – QWERTY ⌘, German or French, and
-Russian. Add Terminal, an Electron app and the Java fixture as consumers.
-Record which consumers follow characters and which follow key codes.
+`KeyboardInput.swift` owns Carbon layout snapshots, Command-aware character
+resolution, typed unavailable-layout/key refusals, real key-code events and
+shared credential planning. Each request reads the current selection; a
+credential preflight binds the selection and keyboard type through secret
+receipt and every subsequent character. No U.S. positional fallback remains
+in the ordinary resident or credential path.
 
-### 2 — resolve chords through the active layout
+### 2 — isolate event state and release modifiers
 
-Replace the fixed table in `sendKey` with a resolver: named keys (Return,
-Tab, arrows, Escape, Delete, Space, function keys) keep fixed codes; single
-characters resolve through the current layout, then the ASCII-capable
-layout; unresolvable characters refuse with a typed error. Create events from
-a private-state `CGEventSource` with explicit flags. Report the resolved key
-code, the layout ID and whether a fallback layout was used in the result
-data. Unit-test the resolver with injected layout tables.
+Keyboard, text, pointer and scroll events use private-state sources. Pointer
+and scroll flags are explicitly empty. Session chords release their own
+modifiers while preserving flags already present before dispatch. Cancellation
+before dispatch emits nothing; key/button releases still complete once down
+has been sent. The separately guarded host/Tart recovery sender remains a
+physical U.S.-position route; it is not covered by this resident acceptance.
 
-### 3 — fix modifier hygiene
+### 3 — keep an alternate profile in the existing appliance
 
-After any HID-route chord with modifiers, post explicit modifier releases (or
-otherwise prove the session state is unchanged), and verify with
-`flagsState` in tests. Give pointer events explicit flags from a private-state
-source. Audit `OuterRecovery` and any other nil-source event creation.
+`macvm keyboard-profile install` enables the three layouts, selects Dvorak,
+swaps left/right Command with Option, and maps Caps Lock to left Control.
+An Aqua LaunchAgent reapplies the profile at login. `standard` temporarily
+selects U.S. with default modifiers; `alternate` reapplies the Dvorak profile;
+`status` reports the active settings. These commands run inside the selected
+claimed guest and never change the controller's settings.
 
-### 4 — make credential entry layout-correct
+### 4 — run live effects through the production facade
 
-Before reading the secret, confirm the active layout for the target sheet can
-produce every needed character class; after reading, resolve each byte
-through that layout and refuse without typing if any byte cannot be produced
-or would require a dead key. Never fall back to US-ANSI positions. Add a
-fixture test with fake values across the layout matrix.
+[`tests/macos/keyboard-layouts.py`](../../tests/macos/keyboard-layouts.py)
+builds and stages a unique AppKit/WebKit fixture, then uses the actual resident
+client for six configuration cells without restarting the resident. Independent
+fixture state proves menu, text, editing, Control/Option, web and pointer
+behavior. The public-dummy credential probe links the same production planner
+and emitter and tests session and process delivery into a secure field.
+Secure state retains only a match boolean. Settings and fixture processes are
+restored/removed in cleanup. Passive host samples record equality or an
+unattributed change; `--require-host-unchanged` is the explicit strict gate
+for a deliberately quiet controller. A change during ordinary controller use
+cannot be attributed from those two samples alone. `--install-profile`
+installs the persistent alternate setup after success. The caller owns power state and claim cleanup.
 
-### 5 — add a live conformance suite
+### 5 — validation and remaining coverage
 
-Package the fixture for the Tart guest like the other fixtures, drive it
-through the real resident (`desktop input key`, `input.text`, credential
-route, pointer after chord), and assert menu, key and web observations per
-layout. Run it on the workstation only for the current layout, without
-switching it.
-
-### 6 — audit Windows and Linux
-
-Repeat the matrix with platform fixtures under each platform's topic. Record
-results here; file separate tacticals if code changes are needed.
-
-## Validation
-
-- Resolver unit tests and the live suite in step 5.
-- `platforms/macos/tests/smoke.sh` typechecks the fixture and replica.
-- Manual reproduction: [fixture README](../../platforms/macos/guests/macos/keyboard-fixture/README.md).
+- Swift tests cover Dvorak versus Command-specific lookup, punctuation and
+  separators, named keys, complete credential preflight, refusal without a
+  partial plan, stale layout detection, explicit event flags and cancellation.
+- `platforms/macos/tests/smoke.sh --static` typechecks the production source
+  and keyboard fixture/configuration/probe, alongside existing native checks.
+- The live six-cell suite proves actual fixture effects. `--browser-smoke`
+  adds an isolated Chrome for Testing profile, independently observes page
+  navigation/text/clipboard and new/close-tab effects, and reaps the browser.
+  Its mock-keychain flags match the existing browser harness, keeping ordinary
+  keychain prompts out of this disposable profile. Separate outside
+  caller checks and reboot/profile readback qualify transport parity and
+  persistence. No real authentication attempt belongs to this suite.
+- Terminal, Electron and Java keyboard-specific acceptance, broader layouts,
+  login-window layout selection, outer recovery layout translation and other
+  platforms remain explicitly unqualified follow-ups.
 
 ## Result
 
-Investigation complete for findings 1–3 on one Dvorak workstation; private
-usage notes record the same observations with session attribution. Steps
-1–6 have not started.
+**Current (2026-10-15), ARM64 Tart, macOS 26.6.2, unreleased candidate:** the
+real resident passes all six layout/remapping cells, with 210 resident
+operations and independent AppKit/WebKit effects. It stays running across the
+configuration changes. The real Chrome for Testing smoke passes Command-L
+navigation, exact Unicode text, copy/paste, Command-T and Command-W under
+plain Dvorak with the alternate modifier mapping. It uses its own disposable
+profile and the existing harness's mock-keychain flags; without those flags,
+the first browser run entered the correct URL but never fetched the page.
+
+A real bounded Tart stop/start changed the guest boot-session UUID. On the
+new boot, the Aqua profile had selected Dvorak, enabled all three layouts and
+restored all five numeric HID remappings. Normal `target shutdown` refused
+its administrator preflight, so it was not counted as reboot evidence. The
+documented bounded stop/start was used instead. A fresh outside caller then
+proved Command-L (resolved key code 35), exact Unicode text and an unsupported
+key refusal with no text prefix through the same deployed resident. Doctor
+reported healthy native desktop, semantics, capture and input afterward.
+
+The shared credential planner/emitter passes the public dummy in the secure
+fixture through session and process delivery in every cell. No real password,
+login, authorization or unlock transaction was attempted. Unit tests cover
+preflight of the full supported alphabet, composition-method refusal and
+whole-value validation before any input; real secret-transport/field-profile
+acceptance under alternate layouts remains unqualified.
+
+Validation passed: 191 Swift tests, five Python mapping/host-observation
+regressions, portable checks, macOS native static checks and ARM64/x86_64 app
+builds with local signature verification. GUI execution is ARM64 only. The
+candidate is deployed in the existing guest; the installed workstation app
+and published packages were not replaced.
+
+One early cleanup sent OpenStep numeric strings back to HID mapping APIs;
+the guest WindowServer report aborted inside its keyboard-filter mapping
+routine. Recovery used a bounded stop/start and one separately claimed
+read-only outer screenshot, with no outer input. The corrected helper emits
+numeric JSON mappings; restoration of the nonempty alternate map passed.
+The final suite's input routes remained target-native with outer UI forbidden.
+
+One complete matrix observed unchanged controller focus/cursor. A later
+combined run passed every keyboard/browser effect but its old final strict
+host-equality assertion failed. Those two passive samples cannot attribute a
+change while the controller is in use. The runner now reports an unattributed
+change by default, retaining `--require-host-unchanged` for a deliberately
+quiet host; pure regressions cover both outcomes. Private usage notes retain
+session-attributed friction and recovery evidence.
+
+Terminal/Electron/Java keyboard-specific runs, German/French and non-Latin
+layouts, login-window layout selection, physical Caps-key behavior, and outer
+recovery layout translation remain follow-ups. The outer secret path must
+not be used against an unknown or alternate guest layout. The controller's
+keyboard settings were never changed. Acceptance cleanup powered down the
+guest and released its target-use claim; the private usage summary records
+the operational outcome.

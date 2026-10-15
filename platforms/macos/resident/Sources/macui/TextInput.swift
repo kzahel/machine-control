@@ -3,7 +3,7 @@ import CoreGraphics
 /// Literal Unicode must not inherit shortcut modifiers from preceding input.
 func literalTextEvents(_ character: Character,
                        create: (Bool) -> CGEvent? = {
-                           CGEvent(keyboardEventSource:nil, virtualKey:0, keyDown:$0)
+                           CGEvent(keyboardEventSource: CGEventSource(stateID: .privateState), virtualKey:0, keyDown:$0)
                        }) throws -> (CGEvent, CGEvent) {
     guard let down = create(true), let up = create(false) else {
         throw MacUIError.action("Unable to create text event")

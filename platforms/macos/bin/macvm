@@ -42,6 +42,7 @@ Start here:
 Setup:
   unlock-provider install --appliance | inspect | disable | uninstall
                          Explicit existing-session unlock provider setup
+  keyboard-profile CMD   Guest test keyboard: install|status|standard|alternate
   deploy-ui              Compile and deploy the semantic UI helper
   deploy-fixture         Compile and deploy the deterministic native fixture
   deploy-admin-fixture   Compile and deploy the administrator fixture
@@ -136,6 +137,7 @@ case "$command" in
         exec "$REPO_DIR/scripts/doctor.sh" "$@"
         ;;
     unlock-provider) exec "$REPO_DIR/scripts/unlock-provider.sh" "$@" ;;
+    keyboard-profile) exec "$REPO_DIR/scripts/keyboard-profile.sh" "$@" ;;
     deploy-ui) exec "$REPO_DIR/scripts/deploy-ui.sh" "$@" ;;
     deploy-fixture) exec "$REPO_DIR/scripts/deploy-fixture.sh" "$@" ;;
     deploy-admin-fixture) exec "$REPO_DIR/scripts/deploy-admin-fixture.sh" "$@" ;;

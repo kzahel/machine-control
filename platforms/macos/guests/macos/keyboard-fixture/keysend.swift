@@ -1,11 +1,11 @@
 // Replica sender for keyboard-layout experiments. It reproduces the
-// resident's event construction outside the resident so behavior can be
+// original fixed-U.S. event construction outside the resident so behavior can be
 // compared without an access grant. Post only to the keyboard fixture.
 //
-//   keysend PID ansi CHORD        Resident.sendKey: US-ANSI key code table
+//   keysend PID ansi CHORD        historical Resident.sendKey: US-ANSI key code table
 //   keysend PID layout CHORD      candidate: resolve the character through
 //                                 the current (then ASCII-capable) layout
-//   keysend PID credential TEXT   Resident.sendCredential/physicalKey replica
+//   keysend PID credential TEXT   historical credential/physicalKey replica
 //   keysend 0 ansi CHORD          HID tap; refuses unless the fixture is frontmost
 //   keysend - modifiers [release] read (or release) session modifier state
 import AppKit

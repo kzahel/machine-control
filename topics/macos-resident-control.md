@@ -14,12 +14,20 @@ fresh login, preboot, Recovery, and physical hardware remain open.
 
 ## Current state
 
-**Current (2026-10-14):** keyboard chords and credential entry use fixed
-US-ANSI key positions, so under non-US layouts such as Dvorak `cmd+l` fires
-⌘N and a credential is typed as different characters; untargeted HID chords
-also leave Command set for later pointer events. Text input is unaffected.
-[Tactical 126](../docs/tactical/126-macos-keyboard-layout-input.md) owns the
-findings, keyboard fixture and fix plan.
+**Current (2026-10-15), unreleased source candidate:** native keyboard input
+resolves character keys through the active layout and its Command mapping,
+with logical modifier semantics and explicit event-state cleanup. The real
+Tart resident passes U.S., Dvorak and Dvorak–QWERTY Command with default and
+swapped Command/Option plus Caps→Control mappings; native fixture effects and
+real Chrome for Testing shortcuts/text are covered. Credential evidence uses
+only a fixed public dummy in a secure fixture, through the shared production
+planner/emitter. Broader layouts, composition input methods, login-window
+input and keyboard-specific Electron/Java coverage remain unqualified.
+[The platform report](../research/platforms/macos.md#keyboard-layouts-and-modifier-remappings)
+owns the bounded evidence; [Tactical 126](../docs/tactical/126-macos-keyboard-layout-input.md)
+owns implementation and repeatable acceptance. The source is deployed to the
+test guest; this does not update the installed workstation app or publish a
+release.
 
 **Current:** `dialog.choose` (`desktop dialog choose --path P [--target APP]
 [--no-confirm]`) chooses a location in an application's open AppKit Open or

@@ -1278,58 +1278,17 @@ final class ResidentService {
         return app
     }
 
-    private func keyCode(_ name: String) -> CGKeyCode? {
-        let codes: [String: CGKeyCode] = [
-            "a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5,
-            "z": 6, "x": 7, "c": 8, "v": 9, "b": 11, "q": 12,
-            "w": 13, "e": 14, "r": 15, "y": 16, "t": 17,
-            "1": 18, "2": 19, "3": 20, "4": 21, "6": 22, "5": 23,
-            "=": 24, "9": 25, "7": 26, "-": 27, "8": 28, "0": 29,
-            "]": 30, "o": 31, "u": 32, "[": 33, "i": 34, "p": 35,
-            "enter": 36, "return": 36, "l": 37, "j": 38, "'": 39,
-            "k": 40, ";": 41, "\\": 42, ",": 43, "/": 44, "n": 45,
-            "m": 46, ".": 47, "tab": 48, "space": 49, "delete": 51,
-            "`": 50, "escape": 53, "esc": 53, "left": 123, "right": 124,
-            "down": 125, "up": 126,
-        ]
-        return codes[name.lowercased()]
-    }
+    private var credentialLayout: KeyboardLayoutSnapshot?
 
-    private func sendKey(_ chord: String, processID: pid_t? = nil) throws {
-        let parts = chord.lowercased().split(separator: "-").map(String.init)
-        guard let keyName = parts.last, let code = keyCode(keyName) else {
-            throw MacUIError.usage("Unsupported key chord: \(chord). Join modifiers "
-                + "(cmd, shift, option, ctrl) and one key with - or +, for example "
-                + "cmd-shift-g; keys are letters, digits, punctuation, return, tab, space, "
-                + "delete, escape, and arrow names")
-        }
-        var flags: CGEventFlags = []
-        for modifier in parts.dropLast() {
-            switch modifier {
-            case "cmd", "command": flags.insert(.maskCommand)
-            case "shift": flags.insert(.maskShift)
-            case "ctrl", "control": flags.insert(.maskControl)
-            case "option", "alt": flags.insert(.maskAlternate)
-            default: throw MacUIError.usage("Unsupported key modifier: \(modifier)")
-            }
-        }
-        guard let down = CGEvent(keyboardEventSource: nil, virtualKey: code,
-                                 keyDown: true),
-              let up = CGEvent(keyboardEventSource: nil, virtualKey: code,
-                               keyDown: false) else {
-            throw MacUIError.action("Unable to create keyboard event")
-        }
-        down.flags = flags
-        up.flags = flags
-        if let processID {
-            if let reason = inputCancellation() { throw MacUIError.action(reason) }
-            down.postToPid(processID)
-            up.postToPid(processID)
-        } else {
-            if let reason = inputCancellation() { throw MacUIError.action(reason) }
-            down.post(tap: .cghidEventTap)
-            up.post(tap: .cghidEventTap)
-        }
+    @discardableResult
+    private func sendKey(_ chord: String, processID: pid_t? = nil) throws -> [String: Any] {
+        let layout = try KeyboardLayoutSnapshot.current()
+        let key = try resolveKeyboardChord(chord, layout: layout)
+        try layout.verifyCurrent()
+        try postKeyboardKey(key, processID: processID, cancellation: inputCancellation)
+        var data = key.data
+        data["activeLayoutId"] = layout.id
+        return data
     }
 
     private func sendText(_ text: String) throws {
@@ -1648,76 +1607,40 @@ final class ResidentService {
         authorizationLeases[lease.id] = consumed
     }
 
-    private func physicalKey(for byte: UInt8) -> (CGKeyCode, CGEventFlags)? {
-        let character = Character(UnicodeScalar(byte))
-        let string = String(character)
-        if byte >= 97 && byte <= 122, let code = keyCode(string) {
-            return (code, [])
-        }
-        if byte >= 65 && byte <= 90,
-           let code = keyCode(string.lowercased()) {
-            return (code, .maskShift)
-        }
-        if byte >= 48 && byte <= 57, let code = keyCode(string) {
-            return (code, [])
-        }
-        let punctuation: [UInt8: (String, Bool)] = [
-            32: ("space", false), 45: ("-", false), 95: ("-", true),
-            61: ("=", false), 43: ("=", true), 91: ("[", false),
-            123: ("[", true), 93: ("]", false), 125: ("]", true),
-            59: (";", false), 58: (";", true),
-            39: ("'", false), 34: ("'", true), 44: (",", false),
-            60: (",", true), 46: (".", false), 62: (".", true),
-            47: ("/", false), 63: ("/", true), 92: ("\\", false),
-            124: ("\\", true), 96: ("`", false), 126: ("`", true),
-            33: ("1", true), 64: ("2", true), 35: ("3", true),
-            36: ("4", true), 37: ("5", true), 94: ("6", true),
-            38: ("7", true), 42: ("8", true), 40: ("9", true),
-            41: ("0", true),
-        ]
-        guard let entry = punctuation[byte], let code = keyCode(entry.0) else {
-            return nil
-        }
-        return (code, entry.1 ? .maskShift : [])
-    }
-
-    private func sendCredential(_ credential: Data, sheet: AuthorizationSheet) throws {
-        for byte in credential {
-            guard let (code, flags) = physicalKey(for: byte),
-                  let down = CGEvent(keyboardEventSource: nil,
-                                     virtualKey: code, keyDown: true),
-                  let up = CGEvent(keyboardEventSource: nil,
-                                   virtualKey: code, keyDown: false) else {
-                throw MacUIError.usage(
-                    "Credential contains a character unavailable to the input route")
-            }
-            down.flags = flags
-            up.flags = flags
-            if sheet.usesSessionKeyboard {
-                if let reason = inputCancellation() { throw MacUIError.action(reason) }
-                down.post(tap: .cghidEventTap)
-                up.post(tap: .cghidEventTap)
-            } else {
-                if let reason = inputCancellation() { throw MacUIError.action(reason) }
-                down.postToPid(sheet.processID)
-                up.postToPid(sheet.processID)
-            }
+    private func sendCredential(_ plan: [ResolvedKeyboardKey], layout: KeyboardLayoutSnapshot,
+                                sheet: AuthorizationSheet) throws {
+        for key in plan {
+            try layout.verifyCurrent()
+            try postKeyboardKey(key, processID: sheet.usesSessionKeyboard ? nil : sheet.processID,
+                                cancellation: inputCancellation)
             usleep(18_000)
         }
     }
 
     func credentialPreflight(_ request: [String: Any]) -> [String: Any]? {
+        credentialLayout = nil
         refreshSession()
         guard observedSession["desktopState"] as? String == "unlocked" else {
             return refused(request, code: "desktop_not_unlocked", message: "Credential channel requires an observed unlocked desktop")
         }
-        return authorizationLeaseForUse(request).1
+        if let refusal = authorizationLeaseForUse(request).1 { return refusal }
+        do {
+            let layout = try KeyboardLayoutSnapshot.current()
+            try credentialLayoutPreflight(layout)
+            credentialLayout = layout
+        }
+        catch { return refused(request, code: "credential_layout_unsupported",
+            message: "Active keyboard layout cannot safely type the supported credential alphabet",
+            route: "guest.user/macos.authorization") }
+        return nil
     }
 
     func handleCredential(_ request: [String: Any], credential: Data)
         -> [String: Any] {
         let started = DispatchTime.now().uptimeNanoseconds
         var result: [String: Any]
+        let preflightLayout = credentialLayout
+        credentialLayout = nil
         refreshSession()
         if let reason = inputCancellation() {
             return refused(request, code:reason, message:"Credential authority changed")
@@ -1763,6 +1686,10 @@ final class ResidentService {
                         route: "guest.user/macos.authorization")
                 } else {
                     do {
+                        guard let layout = preflightLayout else { throw KeyboardInputError.layoutUnavailable }
+                        try layout.verifyCurrent()
+                        let plan = try credentialKeyboardPlan(credential, layout: layout)
+                        try layout.verifyCurrent()
                         let targetPID = sheet.usesSessionKeyboard ? nil :
                             sheet.processID
                         try sendKey("cmd-a", processID: targetPID)
@@ -1775,7 +1702,7 @@ final class ResidentService {
                             throw MacUIError.action(
                                 "Authorization field lost foreground focus")
                         }
-                        try sendCredential(credential, sheet: sheet)
+                        try sendCredential(plan, layout: layout, sheet: sheet)
                         usleep(120_000)
                         if let reason = inputCancellation() { throw MacUIError.action(reason) }
                         let pressed = AXUIElementPerformAction(
@@ -2538,7 +2465,7 @@ final class ResidentService {
                         result = refused(request, code: "invalid_request",
                                          message: "key is required"); break
                     }
-                    try sendKey(key)
+                    inputData = try sendKey(key)
                     inputData["key"] = key
                 } else if operation == "input.text" {
                     guard let text = requestString(request, "text") else {
@@ -2555,12 +2482,13 @@ final class ResidentService {
                             message: "non-zero deltaX or deltaY is required")
                         break
                     }
-                    guard let event = CGEvent(scrollWheelEvent2Source: nil,
+                    guard let event = CGEvent(scrollWheelEvent2Source: try privateInputSource(),
                         units: .pixel, wheelCount: 2,
                         wheel1: Int32(deltaY), wheel2: Int32(deltaX), wheel3: 0) else {
                         throw MacUIError.action("Unable to create scroll event")
                     }
                     if let reason = inputCancellation() { throw MacUIError.action(reason) }
+                    event.flags = []
                     event.post(tap: .cghidEventTap)
                     inputData["deltaX"] = deltaX
                     inputData["deltaY"] = deltaY
@@ -2576,12 +2504,13 @@ final class ResidentService {
                     inputData["x"] = x
                     inputData["y"] = y
                     if operation == "input.move" {
-                        guard let move = CGEvent(mouseEventSource: nil,
+                        guard let move = CGEvent(mouseEventSource: try privateInputSource(),
                             mouseType: .mouseMoved, mouseCursorPosition: point,
                             mouseButton: .left) else {
                             throw MacUIError.action("Unable to create pointer event")
                         }
                         if let reason = inputCancellation() { throw MacUIError.action(reason) }
+                        move.flags = []
                         move.post(tap: .cghidEventTap)
                     } else {
                         let (button, downType, upType) = try pointerButton(
@@ -2602,24 +2531,26 @@ final class ResidentService {
                         }
                         // Allocate the entire sequence before pressing. Always
                         // release our own button, including interrupted drags.
-                        guard let down = CGEvent(mouseEventSource: nil,
+                        guard let down = CGEvent(mouseEventSource: try privateInputSource(),
                             mouseType: downType, mouseCursorPosition: point,
                             mouseButton: button),
-                              let up = CGEvent(mouseEventSource: nil,
+                              let up = CGEvent(mouseEventSource: try privateInputSource(),
                             mouseType: upType, mouseCursorPosition: point,
                             mouseButton: button) else {
                             throw MacUIError.action("Unable to create pointer event")
                         }
+                        down.flags = []; up.flags = []
                         if let end = dragEnd {
                             let dragType: CGEventType = button == .left ?
                                 .leftMouseDragged : (button == .right ?
                                     .rightMouseDragged : .otherMouseDragged)
-                            guard let drag = CGEvent(mouseEventSource: nil,
+                            guard let drag = CGEvent(mouseEventSource: try privateInputSource(),
                                 mouseType: dragType, mouseCursorPosition: end,
                                 mouseButton: button) else {
                                 throw MacUIError.action("Unable to create drag event")
                             }
                             if let reason = inputCancellation() { throw MacUIError.action(reason) }
+                            drag.flags = []
                             down.post(tap: .cghidEventTap)
                             defer { up.post(tap: .cghidEventTap) }
                             usleep(80_000)
@@ -2804,6 +2735,8 @@ final class ResidentService {
                 result = refused(request, code: "unsupported_operation",
                                  message: "Unsupported operation: \(operation)")
             }
+        } catch let error as KeyboardInputError {
+            result = refused(request, code: error.rawValue, message: "Keyboard layout cannot safely deliver the requested key")
         } catch let error as MacUIError {
             result = refused(request, code: "operation_failed", message: error.description)
         } catch {

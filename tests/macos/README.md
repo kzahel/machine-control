@@ -1,5 +1,23 @@
 # macOS conformance
 
+`keyboard-layouts.py --target macos --claim CLAIM [--install-profile]` runs
+keyboard acceptance in an already running, healthy, exclusively claimed Tart
+VM. It switches U.S., Dvorak and Dvorak–QWERTY Command with default and swapped
+Command/Option plus Caps→Control mappings, without restarting the real resident.
+AppKit menu/text and WebKit events are independent effect oracles; a fixed
+public dummy exercises the shared production credential planner/emitter in a
+secure field through both delivery routes. It never opens a real authentication
+sheet or requests a real secret. Settings are restored and the unique fixture
+is removed in cleanup. `--install-profile` persists the alternate Dvorak setup
+after success. Add `--browser-smoke` for real Chrome for Testing address-bar,
+text, clipboard and new/close-tab effects under Dvorak/remapped modifiers. It
+requires the existing separate test-browser fixture and uses an isolated
+profile with mock-keychain flags. The caller owns VM lifecycle, claim renewal/release, and any
+recovery. Outer UI is prohibited throughout this runner. Passive host samples
+report equality or an unattributed change; use `--require-host-unchanged` only
+when deliberately keeping the controller quiet. See
+[Tactical 126](../../docs/tactical/126-macos-keyboard-layout-input.md).
+
 `locked-use-live.py` exercises an explicitly installed and enabled covered
 workstation candidate under an existing claim and ordinary native approval.
 It checks covered capture plus an independent fixture effect, then one chosen

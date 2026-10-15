@@ -82,6 +82,35 @@ host session in `extensions.hostSession` and the resulting `states.outer`.
 A VM started by an agent outside the host's Aqua session may still have no
 Tart window at all; see [problems](docs/problems.md).
 
+## Alternate keyboard test profile
+
+Use the existing claimed Tart guest for keyboard-layout testing. From the
+repository root, install its persistent Dvorak profile through the common CLI:
+
+```bash
+bin/machine-control --target macos --claim CLAIM testbed -- keyboard-profile install
+bin/machine-control --target macos --claim CLAIM testbed -- keyboard-profile status
+bin/machine-control --target macos --claim CLAIM testbed -- keyboard-profile standard
+bin/machine-control --target macos --claim CLAIM testbed -- keyboard-profile alternate
+```
+
+Installation enables U.S., Dvorak and Dvorak–QWERTY Command, selects plain
+Dvorak, swaps Command/Option on both sides and maps Caps Lock to Control.
+The guest's Aqua LaunchAgent reapplies that profile at login. `standard`
+temporarily switches to U.S./default modifiers; `alternate` restores the
+normal Dvorak/remapped test configuration. The helper refuses configuration
+changes outside a virtual Mac. Controller settings are never changed.
+
+Run `python3 tests/macos/keyboard-layouts.py --target macos --claim CLAIM`
+from the repository root for the six-cell production-resident suite, or add
+`--install-profile` to retain the alternate setup after success. Add
+`--browser-smoke` for isolated real Chrome for Testing effects when that
+separate browser fixture is installed. This uses
+guest-native control and restores temporary settings in cleanup. Ordinary
+shortcuts name logical modifiers and characters, independently of physical
+modifier remappings. The bounded evidence and remaining layouts/frameworks are
+tracked in [Tactical 126](../../docs/tactical/126-macos-keyboard-layout-input.md).
+
 ## Daily Use
 
 ```bash
@@ -227,7 +256,12 @@ bin/macvm key enter
 ```
 
 The outer keyboard route supports US-keyboard ASCII and verified Shift/Command
-chords. It supplies both general and left-side device modifier flags; guest
+chords. It still sends physical U.S. key positions; it does not translate the
+guest's alternate keyboard profile. Do not use its text/secret path unless the
+guest's input source is independently verified as U.S. With healthy guest
+administration, `keyboard-profile standard` selects that temporary profile
+before an explicitly authorized recovery. An unknown layout is a blocker for
+outer secret entry, not a reason to try the stored password. It supplies both general and left-side device modifier flags; guest
 text and menu effects proved the correction. Control, Option, and Fn remain
 guarded. Use target-resident input after bootstrap; the
 [UI guide](docs/ui-automation.md#keyboard-input) explains the tested scope,

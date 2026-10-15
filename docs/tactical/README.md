@@ -55,8 +55,8 @@ the commits' `Topic:` trailers and register that exact string in
 ## Tactical index
 
 - [126 — macOS keyboard-layout-correct input](126-macos-keyboard-layout-input.md)
-  (proposed): chords and credentials use US-ANSI key positions, HID chords
-  leave modifiers set; findings, fixture and ordered fix plan.
+  (complete, bounded macOS milestone): layout-aware logical shortcuts, safe credential
+  planning, modifier cleanup and a persistent alternate Tart keyboard profile.
 - [123 — Persistent agent session interface](123-persistent-agent-session.md)
   (proposed): turn the persistent JavaScript experiment into a supported,
   claim-aware session with MCP, shell and library facades.

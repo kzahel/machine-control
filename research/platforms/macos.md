@@ -32,6 +32,32 @@ exact installer-recorded CDHash before its root broker can arm a short,
 one-use, console- and generation-bound grant. Keep that stronger boundary;
 publisher metadata alone is not protected-unlock authority.
 
+## Keyboard layouts and modifier remappings
+
+**Current (2026-10-15), `built` and bounded `live-tested`, unreleased owned
+native provider:** the real ARM64 Tart resident passes an AppKit/WebKit
+keyboard matrix for U.S., Dvorak and Dvorak–QWERTY Command, with default
+modifiers and with both Command/Option pairs swapped plus Caps→Control.
+The same resident remains running across configuration changes. Menu/editing
+effects, exact Unicode text, shifted punctuation, logical Control/Option,
+clean modifier state and a subsequent unmodified pointer effect are observed
+independently. Chrome for Testing additionally passes address-bar navigation,
+text, clipboard and new/close-tab effects under Dvorak/remapped modifiers.
+
+The production credential planner/emitter passes a fixed public dummy in the
+fixture's secure field through session and process routes. This is not a real
+authentication or one-shot secret-transport qualification. The candidate
+requires the full printable-ASCII alphabet before requesting secret bytes,
+rejects composition input methods/dead-key-only characters and stale layout
+selections, and resolves the whole value before any field clearing or input.
+No unqualified ASCII-layout fallback is adopted. Both Mac architectures build;
+GUI evidence remains ARM64. The installed workstation and public release have
+not been upgraded by this acceptance.
+
+[Tactical 126](../../docs/tactical/126-macos-keyboard-layout-input.md) owns the
+runner, alternate guest profile, recovery/cleanup evidence and remaining
+framework, layout, login-window and outer-recovery coverage.
+
 ## Resident responsiveness
 
 **Current (2026-10-11), `source-reviewed` and bounded `live-tested`:** two
