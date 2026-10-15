@@ -352,7 +352,7 @@ subsequently recovered. This validates the need to separate task success from
 input fidelity. An explicit Python regression now discards a refresh result
 and proves that the old button number refuses before dispatch instead of
 acting on the new field. The focused session suite contains 37 checks.
-The second Sol/JS window repetition reproduced the same mistargeted press and
+All three Sol/JS window repetitions reproduced the same mistargeted press and
 subsequent successful recovery. This is repeated evidence for the reference
 fence, not an isolated model mistake or a regression to waive because the final
 oracle passed. The frozen JS baseline remains unchanged and experimental.

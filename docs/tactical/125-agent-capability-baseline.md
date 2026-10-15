@@ -315,9 +315,9 @@ a text field. The next press clicked the field; subsequent visible observations
 and recovery completed the task. The final-state oracle does not certify every
 intermediate action. Keep this incident as a prototype identity/output hazard;
 [Tactical 123](123-persistent-agent-session.md) records the Python refusal test.
-The second Sol/JS window repetition reproduced that same mistargeted press,
-then recovered to a passing final state. Retain both the task pass and the
-intermediate targeting failure in the comparison.
+All three Sol/JS window repetitions reproduced that same mistargeted press,
+then recovered to passing final states. Retain both the task passes and the
+intermediate targeting failures in the comparison.
 
 Sol/JS TextEdit save stopped after two tool-discovery calls without any UI
 operation. Both filters exclude the pinned tool metadata: JavaScript word
