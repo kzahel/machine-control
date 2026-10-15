@@ -618,6 +618,29 @@ class HeldOutTest(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 fixture.setup(root, 'seed')
 
+    def test_finder_metadata_is_distinct_from_unexpected_task_files(self):
+        fixture = self.load('finder-decoy')
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)/'fixture'
+            fixture.setup(root, 'seed')
+            (root/'incoming/draft.txt').rename(root/'archive/reviewed.txt')
+            for name in ('incoming', 'archive', 'decoy'):
+                (root/name/'.DS_Store').write_bytes(b'Finder view metadata')
+            result = fixture.oracle(root)
+            self.assertTrue(result['passed'])
+            self.assertEqual(len(result['ignoredFinderMetadata']), 3)
+            self.assertEqual(set(result['observedFiles']), {'archive/reviewed.txt', 'decoy/draft.txt'})
+            for name, metadata in result['observedFiles'].items():
+                self.assertEqual(metadata['sha256'], result['expectedSha256'][name])
+            extra = root/'archive/.unexpected'
+            extra.write_text('must not be ignored')
+            self.assertFalse(fixture.oracle(root)['passed'])
+            extra.unlink()
+            (root/'archive/reviewed.txt').unlink()
+            (root/'archive/reviewed.txt').symlink_to(root/'decoy/draft.txt')
+            self.assertFalse(fixture.oracle(root)['passed'])
+            self.assertEqual(fixture.oracle(root)['symlinks'], ['archive/reviewed.txt'])
+
     def test_form_missing_wrong_duplicate_and_exact_effects(self):
         fixture = self.load('browser-form')
         with tempfile.TemporaryDirectory() as temp:
