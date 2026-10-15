@@ -8,6 +8,22 @@ for your task. For example:
 > its skill to use Computer Use for this TextEdit task. Prepare the scoped MCP
 > setup if it is missing, and tell me whether this session needs restarting.
 
+For a YA setup session on a dedicated disposable appliance, include that
+host context and the task's registration authorization. For example:
+
+> This is YA-hosted Claude on the selected dedicated disposable test
+> appliance. Scoped host registration for this task is authorized on this
+> appliance; preserve unrelated settings and leave model/AAR credentials
+> alone. Follow the guide's skill to complete setup, then report the required
+> fresh-session handoff. The coordinator will stop and verify this setup
+> session before launching the task session; do not launch a nested agent.
+
+The skill explains the tested YA user-scope host registration. A generated
+MCP file or a `claude --mcp-config` suggestion alone does not load it into YA.
+This task-local appliance mutation is cleaned up by clone disposal. It does
+not authorize persistent user/global configuration changes on a personal
+host; the CLI's per-session config remains supported for that case.
+
 The skill includes a configuration helper and startup probe. Claude chooses
 each UI action; no Codex reasoning agent is involved. The genuine OpenAI
 runtime must already be installed and usable on the Mac that runs the MCP

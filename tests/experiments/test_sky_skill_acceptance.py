@@ -155,6 +155,25 @@ class ArtifactTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'actual host MCP'):
                 self.verify()
 
+    def test_generated_file_or_project_scope_is_not_ya_user_scope_registration(self):
+        self.generate()
+        unrelated = {'apiKeyHelper': 'managed-by-coordinator', 'projects': {'fixture': {'keep': True}},
+                     'mcpServers': {'other': {'command': '/fixture/other'}}}
+        skill.private_write(self.host, json.dumps(unrelated))
+        with self.assertRaisesRegex(ValueError, 'actual host MCP'):
+            self.verify()
+        skill.private_write(self.repo / '.mcp.json', (self.output / 'mcp.json').read_text())
+        with self.assertRaisesRegex(ValueError, 'actual host MCP'):
+            self.verify()
+        (self.repo / '.mcp.json').unlink()
+        merged = copy.deepcopy(unrelated)
+        merged['mcpServers']['sky_experiment'] = self.server
+        skill.private_write(self.host, json.dumps(merged))
+        self.assertTrue(self.verify()['hostEntryVerified'])
+        stored = json.loads(self.host.read_text())
+        del stored['mcpServers']['sky_experiment']
+        self.assertEqual(stored, unrelated)
+
     def test_failed_probe_and_stale_task_marker_refuse(self):
         self.generate()
         probe = self.output / 'preflight/probe.json'
@@ -277,6 +296,37 @@ class SetupTests(unittest.TestCase):
         for path in self.directory.iterdir():
             self.assertEqual(path.stat().st_mode & 0o077, 0)
         self.assertTrue(json.loads((self.directory / 'receipt.json').read_text())['passed'])
+
+    def test_setup_launch_carries_ya_appliance_registration_context_without_action_recipe(self):
+        receipt = self.run_setup()
+        launches = [call for call in self.guest.ya.call_args_list if call.args[0] == 'POST']
+        self.assertEqual(len(launches), 1)
+        request = launches[0].args[2]
+        self.assertEqual(request['provider'], 'claude')
+        prompt = request['message']
+        for context in ['YA-hosted Claude', 'selected dedicated disposable test appliance',
+                        'Scoped host registration', 'authorized on this appliance',
+                        'preserve unrelated host settings and MCP servers', 'cleaned up by clone disposal',
+                        'coordinator manages model and AAR credentials',
+                        'stop and verify this setup session before starting a fresh task session']:
+            self.assertIn(context, prompt)
+        for recipe in ['prepare.py', 'mcpServers', '.claude.json', 'claude --mcp-config']:
+            self.assertNotIn(recipe, prompt)
+        self.assertIn('Do not delegate or spawn agents', prompt)
+        self.assertIn('Authorized application: ' + skill.APP, prompt)
+        self.assertEqual(prompt, (self.directory / 'prompt.txt').read_text())
+        self.assertEqual(receipt['promptSha256'], skill.digest(self.directory / 'prompt.txt'))
+
+    def test_new_session_report_and_probe_do_not_replace_actual_host_registration(self):
+        self.verification = {'passed': False, 'detail': 'actual host MCP entry missing, mismatched or shadowed'}
+        receipt = self.run_setup()
+        self.assertTrue(receipt['workflow']['agentPrepareProbeObserved'])
+        self.assertTrue(receipt['newSessionReported'])
+        self.assertTrue(receipt['profileQualification']['qualified'])
+        self.assertFalse(receipt['passed'])
+        self.assertEqual(receipt['status'], 'blocked')
+        self.assertTrue((self.directory / 'transcript.jsonl').is_file())
+        self.assertEqual(receipt['toolCalls'], 1)
 
     def test_source_or_runtime_artifact_changes_gate_task(self):
         self.verification['hashes']['/private/source'] = 'modified'

@@ -158,6 +158,12 @@ def verify_generated_setup(repo, runtime_config, output, runtime_sha256, artifac
 def setup_prompt(inputs, task_prompt):
     return (f"Read {inputs['guide']} and follow its skill to use Computer Use for this task. "
             "Prepare scoped setup if it is missing and report whether this session needs restarting.\n\n"
+            "Host context: This fresh setup session is YA-hosted Claude running on the selected dedicated "
+            "disposable test appliance. Scoped host registration of the generated server for this task is "
+            "authorized on this appliance; preserve unrelated host settings and MCP servers. This task-local "
+            "appliance configuration is cleaned up by clone disposal. The coordinator manages model and AAR "
+            "credentials; do not change them. Complete setup and report the new-session handoff. The coordinator "
+            "will stop and verify this setup session before starting a fresh task session.\n\n"
             f"Installed runtime config: {inputs['runtimeConfig']}\n"
             f"Authorized application: {inputs['authorizedApp']}\n"
             f"Private output directory: {inputs['outputDir']}\n\n"

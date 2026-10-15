@@ -65,25 +65,60 @@ If the current host already exposes the matching `sky_experiment` tools, use
 them after confirming the configured target/scope. Allow supported deferred
 tool discovery to complete before declaring them missing.
 
+### YA-hosted Claude on a dedicated appliance
+
+When the setup context identifies this as YA-hosted Claude on a selected
+**dedicated disposable appliance** and authorizes scoped host registration,
+complete that registration in the setup session. This is a task-local
+appliance mutation, cleaned up by clone disposal, even though the host calls
+its configuration scope "user". That authorization does not extend to
+persistent changes on a personal workstation.
+
+After the helper and startup probe succeed:
+
+1. Locate the appliance execution user's private host file at
+   `Path.home() / ".claude.json"` (`~/.claude.json`). The tested YA host reads
+   MCP registration there. This is separate from `~/.claude/settings.json`;
+   YA manages model, effort, speed and AAR credentials. Leave those alone.
+2. Read the generated private `mcp.json` and the existing host JSON, or an
+   empty object if the host file is absent. Merge exactly the generated
+   `mcpServers.sky_experiment` object into the host's top-level
+   `mcpServers.sky_experiment`. Preserve every unrelated setting, server and
+   project scope. A generated file alone or a suggested CLI command does not
+   register the server in YA. If an existing entry conflicts with the
+   generated entry, report the conflict rather than replacing it silently.
+3. Persist the merged host document using an owner-only temporary file in
+   the same directory and an atomic replace; keep `~/.claude.json` mode
+   `0600`. Refuse symlink files or malformed/non-object JSON. Check for
+   concurrent changes before replacement and preserve them rather than
+   overwriting a stale document. Re-read to confirm the exact generated
+   entry and preservation of unrelated settings. Do not print the host
+   document, copy model credentials into generated files, broaden app
+   approval or disable host tool permission checks.
+4. If this setup session began without the matching tools, finish setup and
+   report the probe outcome, registered host/config paths and required new
+   YA session. Reading this skill does not hot-load MCP. The coordinator
+   stops and verifies the setup process before starting the fresh task
+   session with this guide and the actual task. Do not start a nested agent
+   or perform the GUI task in the setup session.
+
+### Claude Code CLI and other hosts
+
 For a new Claude Code CLI session, the locally inspected CLI supports:
 
 ```sh
 claude --mcp-config /private/claude-sky-session/mcp.json
 ```
 
-Give that session this skill path and the actual task. Do not launch a nested
-reasoning session merely to hide a missing tool from the current session.
-For another host/version, inspect its supported configuration interface first.
-The tested YA route reads the guest's private Claude configuration: merge the
-generated `mcpServers.sky_experiment` entry while preserving other settings,
-then start a new YA Claude session. YA owns model, effort, speed and AAR
-credentials; none belong in this helper's arguments or evidence.
-
-If the host cannot load this server into the active session, finish setup and
-report the exact config path and new-session step. Reading the skill does not
-hot-load MCP. Do not silently change global configuration or disable the
-host's tool permission checks. Each live server needs its own generated
-configuration/evidence directory; do not share one between concurrent sessions.
+Give that session this skill path and the actual task. This per-session
+option remains suitable when persistent host registration is not authorized.
+On a personal host, make persistent user/global configuration changes only
+within the user's explicit authorization; appliance setup authorization does
+not carry over to that host. For another host/version, inspect its supported
+configuration interface first and report any unsupported loading step.
+Do not launch a nested reasoning session to supply missing tools. Each live
+server needs its own generated configuration/evidence directory; do not share
+one between concurrent sessions.
 
 ## Operate and finish
 
