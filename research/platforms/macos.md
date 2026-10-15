@@ -43,6 +43,10 @@ effects, exact Unicode text, shifted punctuation, logical Control/Option,
 clean modifier state and a subsequent unmodified pointer effect are observed
 independently. Chrome for Testing additionally passes address-bar navigation,
 text, clipboard and new/close-tab effects under Dvorak/remapped modifiers.
+Native Terminal/readline and a standalone pinned Electron editor also pass all
+six configurations: exact edited PTY lines and Terminal tab actions; Electron
+Unicode text, clipboard/undo and native Save/Find accelerators with independent
+state. This qualifies the tested fixtures, not arbitrary application keymaps.
 
 The production credential planner/emitter passes a fixed public dummy in the
 fixture's secure field through session and process routes. This is not a real

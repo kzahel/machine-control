@@ -105,9 +105,11 @@ Run `python3 tests/macos/keyboard-layouts.py --target macos --claim CLAIM`
 from the repository root for the six-cell production-resident suite, or add
 `--install-profile` to retain the alternate setup after success. Add
 `--browser-smoke` for isolated real Chrome for Testing effects when that
-separate browser fixture is installed. This uses
-guest-native control and restores temporary settings in cleanup. Ordinary
-shortcuts name logical modifiers and characters, independently of physical
+separate browser fixture is installed. Add `--apps-smoke` for Terminal/readline
+and the standalone Electron editor across all six configurations, or
+`--apps-only` for just that matrix; the pinned Electron framework runtime must
+be installed first. This uses guest-native control and restores temporary
+settings in cleanup. Ordinary shortcuts name logical modifiers and characters, independently of physical
 modifier remappings. The bounded evidence and remaining layouts/frameworks are
 tracked in [Tactical 126](../../docs/tactical/126-macos-keyboard-layout-input.md).
 

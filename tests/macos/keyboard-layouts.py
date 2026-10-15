@@ -8,7 +8,8 @@ import argparse
 import json
 import os
 from pathlib import Path
-import plistlib
+import shutil
+import signal
 import subprocess
 import sys
 import tarfile
@@ -21,11 +22,29 @@ LAYOUTS = ["com.apple.keylayout.US", "com.apple.keylayout.Dvorak", "com.apple.ke
 MODIFIERS = (1 << 16) | (1 << 17) | (1 << 18) | (1 << 19) | (1 << 20)
 
 
-def command(args, **kwargs):
-    result = subprocess.run([str(a) for a in args], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180, **kwargs)
+def command(args, timeout=180, **kwargs):
+    result = subprocess.run([str(a) for a in args], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout, **kwargs)
     if result.returncode:
         raise RuntimeError("Command failed: " + str(args[0]) + ": " + result.stderr.decode(errors="replace")[-1500:])
     return result.stdout
+
+
+def app_matrix(root):
+    # Keep progress visible and give six real application cells enough time.
+    # Interrupt Python before escalating so its settings/process finally runs.
+    root = Path(root)
+    proc = subprocess.Popen(["/usr/bin/python3", str(root / "keyboard-apps-guest.py"), str(root / "apps-smoke")])
+    try:
+        if proc.wait(timeout=600):
+            raise AssertionError("Guest application keyboard matrix failed")
+    finally:
+        if proc.poll() is None:
+            proc.send_signal(signal.SIGINT)
+            try:
+                proc.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
 
 
 def normalized_hid_mapping(value):
@@ -64,7 +83,7 @@ def host_observation(before, after, require_unchanged=False):
             "hostInputPolicy": "forbidden"}
 
 
-def guest(root, browser_smoke=False):
+def guest(root, browser_smoke=False, apps_smoke=False):
     root = Path(root)
     environment = root / "environment"
     binary = Path.home() / "Applications/Machine Control.app/Contents/MacOS/macui"
@@ -215,7 +234,9 @@ def guest(root, browser_smoke=False):
             env("remap", "swapped")
             output = command(["/usr/bin/python3", root / "keyboard-browser-guest.py", root / "browser-smoke"])
             print(output.decode(), end="", flush=True)
-        return {"passed": True, "cells": 6, "residentChecks": checks, "browserSmoke": browser_smoke}
+        if apps_smoke:
+            app_matrix(root)
+        return {"passed": True, "cells": 6, "residentChecks": checks, "browserSmoke": browser_smoke, "appsSmoke": apps_smoke}
     finally:
         env("select", initial["inputSourceId"])
         payload = json.dumps({"UserKeyMapping": old_mapping})
@@ -233,11 +254,16 @@ def main():
     parser.add_argument("--target", default="macos")
     parser.add_argument("--claim", default=os.environ.get("MACHINE_CONTROL_CLAIM_ID"))
     parser.add_argument("--require-host-unchanged", action="store_true", help="Require identical passive host samples; use only with a deliberately quiet controller")
+    parser.add_argument("--apps-smoke", action="store_true", help="Also test Terminal/readline and an Electron editor across all six keyboard configurations")
+    parser.add_argument("--apps-only", action="store_true", help="Run just the six-configuration Terminal/Electron matrix")
     parser.add_argument("--browser-smoke", action="store_true", help="Also verify real Chrome for Testing effects under Dvorak/remapped modifiers")
     parser.add_argument("--install-profile", action="store_true", help="Persist Dvorak, swapped Command/Option, and Caps→Control in the existing guest")
     args = parser.parse_args()
     if args.guest:
-        print(json.dumps(guest(args.guest, args.browser_smoke)), flush=True)
+        if args.apps_only:
+            app_matrix(args.guest)
+        else:
+            print(json.dumps(guest(args.guest, args.browser_smoke, args.apps_smoke)), flush=True)
         return
     if not args.claim:
         parser.error("--claim or MACHINE_CONTROL_CLAIM_ID is required")
@@ -262,16 +288,20 @@ def main():
                  repo / "platforms/macos/resident/Sources/macui/KeyboardInput.swift", "-o", stage / "credential-probe"])
         (stage / "keyboard-layouts.py").write_bytes(Path(__file__).read_bytes())
         (stage / "keyboard-browser-guest.py").write_bytes(Path(__file__).with_name("keyboard-browser-guest.py").read_bytes())
+        (stage / "keyboard-apps-guest.py").write_bytes(Path(__file__).with_name("keyboard-apps-guest.py").read_bytes())
+        (stage / "terminal-probe.sh").write_bytes((source / "terminal-probe.sh").read_bytes())
+        shutil.copytree(source / "electron-editor", stage / "electron-editor")
+        (stage / "framework-versions.env").write_bytes((source.parent / "framework-runtimes/versions.env").read_bytes())
         archive = stage / "payload.tar"
         with tarfile.open(archive, "w") as tar:
-            for name in ["KeyboardFixture.app", "environment", "credential-probe", "keyboard-layouts.py", "keyboard-browser-guest.py"]:
+            for name in ["KeyboardFixture.app", "environment", "credential-probe", "keyboard-layouts.py", "keyboard-browser-guest.py", "keyboard-apps-guest.py", "terminal-probe.sh", "electron-editor", "framework-versions.env"]:
                 tar.add(stage / name, arcname=name)
         before = json.loads(mc("testbed", "--", "host-state"))
         try:
             mc("testbed", "--", "exec", "/bin/mkdir", "-p", remote)
             mc("testbed", "--", "exec", "-i", "/usr/bin/tar", "-xf", "-", "-C", remote, input=archive.read_bytes())
             # Stream bounded progress while the single guest-native suite runs.
-            proc = subprocess.Popen([str(a) for a in [*base, "testbed", "--", "exec", "/usr/bin/python3", remote + "/keyboard-layouts.py", "--guest", remote, *(["--browser-smoke"] if args.browser_smoke else [])]], env=runtime_env)
+            proc = subprocess.Popen([str(a) for a in [*base, "testbed", "--", "exec", "/usr/bin/python3", remote + "/keyboard-layouts.py", "--guest", remote, *(["--browser-smoke"] if args.browser_smoke else []), *(["--apps-smoke"] if args.apps_smoke else []), *(["--apps-only"] if args.apps_only else [])]], env=runtime_env)
             try:
                 if proc.wait(timeout=900):
                     raise AssertionError("Guest keyboard matrix failed")

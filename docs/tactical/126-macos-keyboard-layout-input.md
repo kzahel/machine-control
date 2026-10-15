@@ -138,9 +138,10 @@ account lockout. This is the most severe finding.
 
 ## Open questions
 
-- Which macOS consumers read the raw key code rather than characters
-  (Terminal, Electron accelerators, Java, games)? Does sending text on key
-  code 0 confuse any of them?
+- Which additional macOS consumers read the raw key code rather than
+  characters (Java, games, other editors)? Terminal/readline and a standalone
+  Electron editor are now covered by the six-cell application matrix; that
+  does not qualify every app or custom keybinding configuration.
 - Does the login window or a locked session use a different input source from
   the user session (affects locked-use credential entry)?
 - Broader behavior under layouts with dead keys or AltGr/Option characters.
@@ -198,7 +199,27 @@ for a deliberately quiet controller. A change during ordinary controller use
 cannot be attributed from those two samples alone. `--install-profile`
 installs the persistent alternate setup after success. The caller owns power state and claim cleanup.
 
-### 5 — validation and remaining coverage
+### 5 — prove Terminal and Electron application effects
+
+`--apps-smoke` adds six configurations of native Terminal/readline and a
+standalone Electron editor; `--apps-only` runs that matrix separately. It
+requires the checksum-pinned Electron framework runtime and checks the guest
+version against the staged repository manifest. The Terminal PTY runs `read -e`
+and records NUL-delimited lines, never evaluating typed bytes. Exact text after
+Control-A/E/U and Option-Left, plus native new/close-tab effects, are the oracles.
+The real Electron app uses standard native Edit menu roles and Save/Find
+accelerators; independent file state proves exact Unicode text, copy/paste,
+undo, saved text and Find-field focus/query.
+
+Each app occupies an owned process and scratch files; Electron uses a copied,
+locally signed runtime and disposable profile with mock keychain. The resident
+must retain its generation and report the selected layout for every key. Input
+settings and owned processes are restored/reaped in cleanup. The application
+wrapper streams progress, allows ten minutes, and interrupts Python before
+escalating on timeout so its cleanup can run. These are bounded fixture tests,
+not qualification of arbitrary editors or terminal settings.
+
+### 6 — validation and remaining coverage
 
 - Swift tests cover Dvorak versus Command-specific lookup, punctuation and
   separators, named keys, complete credential preflight, refusal without a
@@ -212,7 +233,7 @@ installs the persistent alternate setup after success. The caller owns power sta
   keychain prompts out of this disposable profile. Separate outside
   caller checks and reboot/profile readback qualify transport parity and
   persistence. No real authentication attempt belongs to this suite.
-- Terminal, Electron and Java keyboard-specific acceptance, broader layouts,
+- Java and additional editors, broader layouts,
   login-window layout selection, outer recovery layout translation and other
   platforms remain explicitly unqualified follow-ups.
 
@@ -226,6 +247,15 @@ navigation, exact Unicode text, copy/paste, Command-T and Command-W under
 plain Dvorak with the alternate modifier mapping. It uses its own disposable
 profile and the existing harness's mock-keychain flags; without those flags,
 the first browser run entered the correct URL but never fetched the page.
+
+The follow-up Terminal/Electron application matrix passes all six cells
+through 206 real resident operations on the same candidate. Terminal proves
+readline editing, exact Unicode/punctuation and native new/close-tab shortcuts;
+the standalone Electron 43.2.0 editor proves text, copy/paste, undo and native
+Save/Find accelerators. An initial run exceeded the inherited three-minute
+child timeout; its exact owned processes were reaped and the alternate profile
+restored before rerunning with the corrected bounded wrapper. This expanded
+acceptance required no further production input changes.
 
 A real bounded Tart stop/start changed the guest boot-session UUID. On the
 new boot, the Aqua profile had selected Dvorak, enabled all three layouts and
@@ -264,7 +294,7 @@ change by default, retaining `--require-host-unchanged` for a deliberately
 quiet host; pure regressions cover both outcomes. Private usage notes retain
 session-attributed friction and recovery evidence.
 
-Terminal/Electron/Java keyboard-specific runs, German/French and non-Latin
+Java and additional editor keyboard-specific runs, German/French and non-Latin
 layouts, login-window layout selection, physical Caps-key behavior, and outer
 recovery layout translation remain follow-ups. The outer secret path must
 not be used against an unknown or alternate guest layout. The controller's

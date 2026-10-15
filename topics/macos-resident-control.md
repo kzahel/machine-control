@@ -19,10 +19,13 @@ resolves character keys through the active layout and its Command mapping,
 with logical modifier semantics and explicit event-state cleanup. The real
 Tart resident passes U.S., Dvorak and Dvorak–QWERTY Command with default and
 swapped Command/Option plus Caps→Control mappings; native fixture effects and
-real Chrome for Testing shortcuts/text are covered. Credential evidence uses
-only a fixed public dummy in a secure fixture, through the shared production
-planner/emitter. Broader layouts, composition input methods, login-window
-input and keyboard-specific Electron/Java coverage remain unqualified.
+real Chrome for Testing shortcuts/text are covered. Terminal/readline and a
+standalone Electron editor also pass all six configurations, including native
+menus and independently observed text/editing effects. Credential evidence
+uses only a fixed public dummy in a secure fixture, through the shared
+production planner/emitter. Broader layouts, composition input methods,
+login-window input, real authorization under alternate layouts and
+keyboard-specific Java/additional-editor coverage remain unqualified.
 [The platform report](../research/platforms/macos.md#keyboard-layouts-and-modifier-remappings)
 owns the bounded evidence; [Tactical 126](../docs/tactical/126-macos-keyboard-layout-input.md)
 owns implementation and repeatable acceptance. The source is deployed to the

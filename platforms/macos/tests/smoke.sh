@@ -35,6 +35,7 @@ for script in \
     scripts/grant-resident-consent.sh \
     scripts/unlock-provider.sh \
     guests/macos/unlock/build.sh \
+    guests/macos/keyboard-fixture/terminal-probe.sh \
     scripts/deploy-fixture.sh \
     scripts/deploy-admin-fixture.sh \
     scripts/deploy-privacy-fixture.sh \
@@ -97,11 +98,15 @@ done
 /usr/bin/swiftc -typecheck -parse-as-library \
     guests/macos/keyboard-fixture/credential-probe.swift \
     resident/Sources/macui/KeyboardInput.swift
-/usr/bin/python3 -m py_compile ../../tests/macos/keyboard-layouts.py
+/usr/bin/python3 -m py_compile ../../tests/macos/keyboard-layouts.py \
+    ../../tests/macos/keyboard-browser-guest.py \
+    ../../tests/macos/keyboard-apps-guest.py
 /usr/bin/python3 -m unittest discover -s ../../tests/macos -p test_keyboard_layouts.py
 
 /usr/bin/python3 -m json.tool \
     guests/macos/electron-fixture/package.json >/dev/null
+/usr/bin/python3 -m json.tool \
+    guests/macos/keyboard-fixture/electron-editor/package.json >/dev/null
 /usr/bin/python3 -m py_compile host/machost.py
 bin/machost help >/dev/null
 # The unpacked extension's fixed key must produce the ID that the native
@@ -117,6 +122,8 @@ assert f"DEFAULT_EXTENSION_ID='{derived}'" in script, derived
 PY
 if command -v node >/dev/null 2>&1; then
     node --check ../../providers/chrome-extension/service_worker.js
+    node --check guests/macos/keyboard-fixture/electron-editor/main.js
+    node --check guests/macos/keyboard-fixture/electron-editor/preload.js
 fi
 for policy in resident/policies/*.json; do
     /usr/bin/python3 -m json.tool "$policy" >/dev/null

@@ -12,8 +12,21 @@ is removed in cleanup. `--install-profile` persists the alternate Dvorak setup
 after success. Add `--browser-smoke` for real Chrome for Testing address-bar,
 text, clipboard and new/close-tab effects under Dvorak/remapped modifiers. It
 requires the existing separate test-browser fixture and uses an isolated
-profile with mock-keychain flags. The caller owns VM lifecycle, claim renewal/release, and any
-recovery. Outer UI is prohibited throughout this runner. Passive host samples
+profile with mock-keychain flags.
+
+Add `--apps-smoke` for Terminal/readline and a standalone Electron editor in
+all six configurations, or `--apps-only` to run that matrix separately. Install
+the [pinned framework runtime](../../platforms/macos/docs/ui-automation.md#resident-requests)
+first; the runner checks the Electron version against the repository manifest.
+Terminal checks exact PTY lines after Control/Option editing and new/close-tab
+shortcuts. Typed bytes go to `read -e`, never a shell evaluator. Electron checks
+exact Unicode text, clipboard/undo and native Save/Find menu accelerators with
+independent file state. Each app uses an owned process and scratch files;
+cleanup restores input settings and reaps both apps. This qualifies the fixture,
+not every Electron editor or terminal configuration.
+
+The caller owns VM lifecycle, claim renewal/release, and any recovery. Outer UI
+is prohibited throughout this runner. Passive host samples
 report equality or an unattributed change; use `--require-host-unchanged` only
 when deliberately keeping the controller quiet. See
 [Tactical 126](../../docs/tactical/126-macos-keyboard-layout-input.md).

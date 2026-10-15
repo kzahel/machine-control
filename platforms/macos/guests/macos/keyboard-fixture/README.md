@@ -17,7 +17,10 @@ source and complete HID mapping, and removes its process/files. Add
 `--install-profile` to persist plain Dvorak, Command/Option swapped on both
 sides and Caps→Control after success. Add `--browser-smoke` for real Chrome for Testing shortcuts and text using
 the existing separate test browser with a disposable profile and mock keychain.
-The browser is reaped afterward. The caller owns power and claim cleanup.
+The browser is reaped afterward. Add `--apps-smoke` for six-cell Terminal and
+Electron editor effects, or `--apps-only` to run only those apps. This requires
+the repository-pinned Electron runtime in the guest's framework-runtime store.
+The caller owns power and claim cleanup.
 Ordinary testing prohibits outer UI and leaves controller settings untouched.
 Passive host samples report equality or an unattributed change;
 `--require-host-unchanged` enables a strict gate for a deliberately quiet host.
@@ -50,3 +53,16 @@ investigation. Its `ansi` and `credential` modes reproduce the old fixed-U.S.
 behavior; they are not the current resident implementation or an acceptance
 route. Use only fake values, only against the fixture. The HID route refuses
 unless the fixture is frontmost.
+
+`terminal-probe.sh` runs Bash readline inside a separate native Terminal
+process. Each submitted line is appended, NUL-delimited, to a scratch oracle;
+it is never evaluated as a command. Control-A/E/U, Option-Left, Unicode typing
+and Command-T/W prove line editing and native tab effects.
+
+`electron-editor/` is a small real Electron application with a textarea,
+standard Edit menu roles and Command-S/Command-F accelerators. Renderer input
+and main-process menu effects write independent scratch state, including the
+saved text and Find query. The runner copies the pinned Electron runtime to a
+unique app bundle, signs and launches it with a disposable profile/mock
+keychain, then terminates its process group in cleanup. It does not install or
+modify a user's editor.
