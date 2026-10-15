@@ -14,6 +14,7 @@ import base64
 from datetime import datetime, timezone
 import json
 import hashlib
+import importlib.util
 import shlex
 import stat
 import os
@@ -31,6 +32,10 @@ from agent_profiles import DEFAULT_MODELS, launch_request, qualify
 import sky_skill_acceptance as sky_skill
 
 ROOT = Path(__file__).resolve().parents[2]
+_runtime_spec = importlib.util.spec_from_file_location('mc_runtime_selection',
+    Path(__file__).parent / 'native-efficiency/runtime_selection.py')
+runtime_selection = importlib.util.module_from_spec(_runtime_spec)
+_runtime_spec.loader.exec_module(runtime_selection)
 MC_REPL = Path(__file__).resolve().parent / "mc-repl" / "mc-repl.mjs"
 # Registered only in mc-repl trial clones; the base image stays unchanged.
 MC_REPL_CONFIG = """
@@ -298,14 +303,28 @@ def trial_inputs(args, task, route):
     return task_root
 
 
+def runtime_input(args):
+    path = getattr(args, 'runtime_config_file', None)
+    if path is None:
+        return None, None
+    raw, metadata = runtime_selection.private_input(path, ROOT)
+    expected = getattr(args, 'runtime_config_expected_sha256', None)
+    if expected and metadata['sha256'] != expected:
+        raise ValueError('runtime-config-file changed after batch selection')
+    return raw, metadata
+
+
 def _run_trial(args, task, route, index, run_dir):
     total_started = time.monotonic()
     task_root = trial_inputs(args, task, route)
+    runtime_bytes, runtime_metadata = runtime_input(args)
     trial_dir = run_dir / task["id"] / f"{route}-{index}"
     trial_dir.mkdir(parents=True, mode=0o700)
     record = {"task": task["id"], "route": route, "repetition": index, "startedAt": now(),
               "provider":args.provider, "requestedModel":args.model, "requestedEffort":args.effort,
               "instructionProfile":args.instructions}
+    if runtime_metadata:
+        record['runtimeConfigInput'] = runtime_metadata
     if task_root != TASKS or getattr(args, 'instruction_file', None):
         record['inputPins'] = {}
         if task_root != TASKS:
@@ -426,18 +445,40 @@ assert x.get('service_tier') in (None,'default'), 'remove saved fast-tier overri
         record["enforcementProfile"] = ("prototype_direct_socket_no_claim_or_controller_audit"
                                         if route == "mc-repl" else "retained_claim_owner_per_operation_audit"
                                         if route == "mc-python" else "normal_route")
-        fingerprint = guest.run("cd ~/code/machine-control/tests/experiments/native-efficiency && python3 -", stdin="""
-import json
-from pathlib import Path
-from provenance import collect
-configs=list((Path.home()/'.codex/plugins/cache/openai-bundled/unified-computer-use').glob('*/.mcp.json'))
-if len(configs)!=1:
-    raise RuntimeError('ambiguous installed Computer Use configuration; resolve selection before trial')
-print(json.dumps(collect(configs[0])))
-""")
+        selection_tool = str(Path(args.project) / 'tests/experiments/native-efficiency/runtime_selection.py')
+        selected_runtime = None
+        selection_args = []
+        if runtime_metadata:
+            # Only the manifest bytes travel over stdin. No env/config body in argv,
+            # shell source, YA prompts, subprocess output or controller receipts.
+            delivered_runtime = guest.run(shlex.join(['/opt/homebrew/bin/python3', selection_tool, 'receive',
+                '--checkout', args.project, '--expected-sha256', runtime_metadata['sha256']]),
+                stdin=runtime_bytes, binary=True)
+            transfer_diagnostic = {'exit': delivered_runtime.returncode,
+                'stdout': delivered_runtime.stdout.decode() if isinstance(delivered_runtime.stdout, bytes) else delivered_runtime.stdout,
+                'stderr': delivered_runtime.stderr.decode() if isinstance(delivered_runtime.stderr, bytes) else delivered_runtime.stderr}
+            (trial_dir / 'runtime-config-transfer-diagnostic.json').write_text(json.dumps(transfer_diagnostic, indent=2) + '\n')
+            if delivered_runtime.returncode:
+                raise RuntimeError('private runtime manifest transfer/target validation failed')
+            transferred_runtime = json.loads(delivered_runtime.stdout)
+            if transferred_runtime.get('configSha256') != runtime_metadata['sha256']:
+                raise RuntimeError('private runtime manifest transfer fingerprint mismatch')
+            selected_runtime = transferred_runtime['configPath']
+            record['runtimeConfigTransfer'] = transferred_runtime
+            selection_args = ['--config', selected_runtime, '--expected-sha256', runtime_metadata['sha256'], '--private']
+        fingerprint = guest.run(shlex.join(['/opt/homebrew/bin/python3', selection_tool, 'fingerprint',
+                                          '--checkout', args.project, *selection_args]))
+        (trial_dir / 'runtime-fingerprint-diagnostic.json').write_text(json.dumps({
+            'exit': fingerprint.returncode, 'stdout': fingerprint.stdout,
+            'stderr': fingerprint.stderr}, indent=2) + '\n')
         if fingerprint.returncode:
             raise RuntimeError("runtime fingerprint unavailable")
         runtime = json.loads(fingerprint.stdout)
+        selected_runtime = runtime['configPath']
+        if runtime_metadata and runtime.get('configSha256') != runtime_metadata['sha256']:
+            raise RuntimeError('runtime fingerprint differs from selected private manifest')
+        record['runtimeConfigSelection'] = {'path': selected_runtime, 'sha256': runtime['configSha256'],
+                                            'source': runtime.get('configSelection')}
         (trial_dir / "runtime.json").write_text(json.dumps(runtime, indent=2) + "\n")
         identity = {"service": runtime["service"], "artifacts": runtime["artifacts"],
                     "configSha256": runtime["configSha256"], "commands": runtime["commands"]}
@@ -450,13 +491,12 @@ print(json.dumps(collect(configs[0])))
         common = (TASKS / "common-chrome.sh").read_text()
         guest.run("mkdir -p ~/experiment && cat > ~/experiment/common-chrome.sh", stdin=common)
         if route == 'sky-external' and args.instructions != 'skill':
-            configured = guest.run('/opt/homebrew/bin/python3 -', stdin='''
+            configured = guest.run('/opt/homebrew/bin/python3 -', stdin=f'selected_runtime={selected_runtime!r}\nexpected_sha256={runtime["configSha256"]!r}\n'+'''
 from pathlib import Path
-import json,os,subprocess
-configs=list((Path.home()/'.codex/plugins/cache/openai-bundled/unified-computer-use').glob('*/.mcp.json'))
-assert len(configs)==1, 'resolve exact installed runtime selection before running'
+import hashlib,json,os,subprocess
+assert hashlib.sha256(Path(selected_runtime).read_bytes()).hexdigest()==expected_sha256, 'selected runtime config changed'
 base=Path.home()/'code/machine-control/tests/experiments/sky-external/bridge.py'
-config={'command':'/opt/homebrew/bin/python3','args':[str(base), '--config', str(configs[0]),
+config={'command':'/opt/homebrew/bin/python3','args':[str(base), '--config', selected_runtime,
     '--allow-app','com.apple.TextEdit','--evidence',str(Path.home()/'experiment/sky-evidence')]}
 f=Path.home()/'.claude.json';x=json.loads(f.read_text()) if f.exists() else {}
 x.setdefault('mcpServers',{})['sky_experiment']=config
@@ -505,7 +545,7 @@ f.write_text(json.dumps(x));os.chmod(f,0o600)
         if args.instructions == 'skill':
             record['enforcementProfile'] = 'genuine_sky_wrapper_fixture_scoped_host_approval'
             record['skillSetup'] = sky_skill.run_setup(guest, args, actual_task, trial_dir / 'skill-setup',
-                owned_sessions, wait_for_agent, runtime['configSha256'], runtime_artifacts=runtime['artifacts'])
+                owned_sessions, wait_for_agent, runtime['configSha256'], runtime_artifacts=runtime['artifacts'], runtime_config=selected_runtime)
             record['stageAccounting'] = sky_skill.stage_accounting(record['skillSetup'])
             if not record['skillSetup']['passed']:
                 record.update(error='skill setup gate failed; task session not launched', validTrial=False, passed=False)
@@ -684,6 +724,8 @@ def main():
     parser.add_argument('--model',help='Exact model ID; defaults to the requested baseline for this provider')
     parser.add_argument('--effort',choices=['low','medium','high'],default='medium')
     parser.add_argument('--instructions',choices=['discovery','current','quickstart','skill'],default='current')
+    parser.add_argument('--runtime-config-file', type=Path,
+                        help='Private mode-0600 exact installed target runtime manifest, outside checkout; copied over stdin')
     parser.add_argument('--gateway-credential-file',type=Path,help='Mode-0600 scoped Claude gateway client token')
     parser.add_argument('--skill-setup-timeout-seconds', type=float, default=600,
                         help='Separate bounded setup wait for the Claude sky-external skill profile')
@@ -706,6 +748,12 @@ def main():
     parser.add_argument("--project", default="/Users/admin/code/machine-control")
     args = parser.parse_args()
     args.model = args.model or DEFAULT_MODELS[args.provider]
+    try:
+        _, runtime_metadata = runtime_input(args)
+        if runtime_metadata:
+            args.runtime_config_expected_sha256 = runtime_metadata['sha256']
+    except (ValueError, OSError) as error:
+        parser.error(str(error))
     try:
         sky_skill.validate_profile(args.provider, args.model, args.route, args.task, args.instructions)
         if args.instructions == 'skill' and (args.task_root.resolve() != TASKS or args.instruction_file):
@@ -773,6 +821,8 @@ def main():
                                   for p in args.task_root.rglob("*") if p.is_file()}}
     if input_pins:
         manifest["inputPins"] = input_pins
+    if runtime_metadata:
+        manifest['runtimeConfigInput'] = runtime_metadata
     (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"Run {run_dir} with {len(plan)} trials", flush=True)
     summary = []

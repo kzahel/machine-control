@@ -212,6 +212,15 @@ remain the base image's; record their hashes separately before attributing a
 cross-batch change to client code. Model configuration must likewise be fixed
 in the base; transcript model context records disclose what actually ran.
 
+`--runtime-config-file` optionally selects an exact private expanded Computer
+Use launch manifest on the controller. It must be a regular mode-0600 file
+outside the checkout, with actual target installation paths. The runner sends
+its bytes over SSH stdin, validates target artifacts, and binds fingerprinting
+and Sky setup to the same hash. It never manufactures a vendor launcher from a
+disabled plugin template. Without this option, exactly one expanded guest
+cache config is required; missing or ambiguous selection fails before model
+launch. Keep the original failed attempt when correcting runtime selection.
+
 `--credential-file` names the canonical controller-local base login secret.
 The runner requires a regular mode-0600 file and preserves its inherited value
 in a separate private workspace secret file. Contents never enter command

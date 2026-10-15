@@ -100,6 +100,19 @@ class ArtifactTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'ambiguous'):
             skill.begin(self.repo, self.sha)
 
+    def test_explicit_begin_uses_pinned_path_with_zero_or_multiple_cached_configs(self):
+        selected = self.root / 'private-selected.json'
+        selected.write_bytes(self.runtime.read_bytes())
+        self.runtime.unlink()
+        inputs = skill.begin(self.repo, self.sha, selected)
+        self.assertEqual(inputs['runtimeConfig'], str(selected))
+        skill.private_write(self.runtime, '{}')
+        skill.private_write(self.runtime.parent.parent / 'other/.mcp.json', '{}')
+        inputs = skill.begin(self.repo, self.sha, selected)
+        self.assertEqual(inputs['runtimeConfig'], str(selected))
+        with self.assertRaisesRegex(ValueError, 'differs'):
+            skill.begin(self.repo, 'wrong', selected)
+
     def test_exact_scope_host_entry_probe_permissions_and_hashes(self):
         self.generate()
         verified = self.verify()
@@ -297,6 +310,14 @@ class SetupTests(unittest.TestCase):
         self.assertTrue(receipt['passed'], receipt)
         self.assertEqual(receipt['finalTextSource'], 'claude_transcript')
 
+    def test_setup_begin_receives_exact_selected_manifest_path(self):
+        receipt = skill.run_setup(self.guest, self.args, 'Actual task.', self.directory,
+            self.owned, self.wait, 'runtime-hash', runtime_config='/private/selected/runtime.json')
+        self.assertTrue(receipt['passed'], receipt)
+        begin_call = next(call for call in self.remote.call_args_list if call.args[2] == 'begin')
+        self.assertEqual(begin_call.kwargs['runtime_config'], '/private/selected/runtime.json')
+        self.assertEqual(begin_call.kwargs['runtime_sha256'], 'runtime-hash')
+
     def test_failed_probe_or_setup_absence_never_passes(self):
         self.native = transcript(prepared=False)
         receipt = self.run_setup()
@@ -441,7 +462,8 @@ class TrialGateTests(unittest.TestCase):
         if 'rev-parse HEAD' in command:
             return result('pin')
         if 'native-efficiency' in command:
-            return result({'service': {}, 'artifacts': {}, 'configSha256': 'runtime', 'commands': {}})
+            return result({'service': {}, 'artifacts': {}, 'configSha256': 'runtime', 'commands': {},
+                           'configPath': '/private/selected/runtime.json', 'configSelection': 'cache-exact-one'})
         if isinstance(kwargs.get('stdin'), str) and 'Sky MCP preflight failed' in kwargs['stdin']:
             return result({'passed': True, 'tools': sorted(skill.TOOLS)})
         if command == 'bash -s':
@@ -471,6 +493,97 @@ class TrialGateTests(unittest.TestCase):
                 patch.object(route, 'wait_for_agent', return_value={'providerSessionId': 'task-canonical',
                     'timedOut': False, 'controllerWaitSeconds': 4, 'effectiveProcess': {}}):
             return route._run_trial(self.args, {'id': 'textedit-save'}, 'sky-external', 1, self.root / 'results')
+
+    def explicit_runtime(self, *, transfer_hash=None, fingerprint_failure=False):
+        config = self.root / 'runtime-manifest.json'
+        raw = json.dumps({'mcpServers': {'cua_repl': {'command': '/target/installed/launcher',
+            'args': ['/target/installed/cua.js'], 'env': {'CUA_REPL_NODE_REPL_PATH': '/target/installed/repl.js',
+                'SKY_CUA_SERVICE_PATH': '/target/installed/Native.app', 'PRIVATE_CANARY': 'NEVER_ECHO_CONFIG_VALUE'}}}}).encode()
+        config.write_bytes(raw)
+        config.chmod(0o600)
+        sha = skill.digest(config)
+        selected = '/private/guest/experiment/runtime-input/installed-mcp.json'
+        self.args.runtime_config_file = config
+        self.args.runtime_config_expected_sha256 = sha
+        original_run = self.guest_run
+
+        def guest_run(command, **kwargs):
+            if ' receive ' in command:
+                return subprocess.CompletedProcess([], 0, json.dumps({'configPath': selected,
+                    'configSha256': transfer_hash or sha, 'mode': '0o600', 'directoryMode': '0o700'}).encode(), b'')
+            if ' fingerprint ' in command:
+                if fingerprint_failure:
+                    return result({'passed': False, 'stage': 'fingerprint', 'message': 'runtime command is missing'}, 1)
+                return result({'service': {}, 'artifacts': {}, 'configSha256': sha, 'commands': {},
+                               'configPath': selected, 'configSelection': 'explicit-private'})
+            return original_run(command, **kwargs)
+
+        self.guest.run.side_effect = guest_run
+        return raw, sha, selected
+
+    def test_private_runtime_bytes_use_stdin_and_direct_sky_uses_same_path_and_hash(self):
+        self.args.instructions = 'current'
+        raw, sha, selected = self.explicit_runtime()
+        record = self.trial()
+        self.assertTrue(record['passed'], record)
+        transfers = [call for call in self.guest.run.call_args_list if ' receive ' in call.args[0]]
+        self.assertEqual(len(transfers), 1)
+        self.assertEqual(transfers[0].kwargs['stdin'], raw)
+        self.assertTrue(transfers[0].kwargs['binary'])
+        fingerprints = [call for call in self.guest.run.call_args_list if ' fingerprint ' in call.args[0]]
+        self.assertEqual(len(fingerprints), 1)
+        self.assertIn(selected, fingerprints[0].args[0])
+        self.assertIn(sha, fingerprints[0].args[0])
+        self.assertNotIn('stdin', fingerprints[0].kwargs)
+        direct = next(call.kwargs['stdin'] for call in self.guest.run.call_args_list
+                      if isinstance(call.kwargs.get('stdin'), str) and 'Sky MCP preflight failed' in call.kwargs['stdin'])
+        self.assertIn('selected_runtime=' + repr(selected), direct)
+        self.assertIn('expected_sha256=' + repr(sha), direct)
+        self.assertNotIn('configs=list', direct)
+        self.assertEqual(record['runtimeConfigInput']['sha256'], sha)
+        self.assertEqual(record['runtimeConfigTransfer']['configPath'], selected)
+        self.assertEqual(record['runtimeConfigSelection']['path'], selected)
+        for call in self.guest.run.call_args_list:
+            self.assertNotIn('NEVER_ECHO_CONFIG_VALUE', call.args[0])
+            if isinstance(call.kwargs.get('stdin'), str):
+                self.assertNotIn('NEVER_ECHO_CONFIG_VALUE', call.kwargs['stdin'])
+        self.assertNotIn('NEVER_ECHO_CONFIG_VALUE', json.dumps(record))
+        directory = self.root / 'results/textedit-save/sky-external-1'
+        self.assertEqual(json.loads((directory / 'runtime.json').read_text())['configPath'], selected)
+        self.assertTrue((directory / 'runtime-fingerprint-diagnostic.json').is_file())
+        self.assertNotIn('NEVER_ECHO_CONFIG_VALUE', (directory / 'runtime-config-transfer-diagnostic.json').read_text())
+
+    def test_skill_trial_propagates_selected_runtime_without_rediscovery(self):
+        _, sha, selected = self.explicit_runtime()
+        seen = {}
+        original_setup = self.setup
+
+        def setup(*argv, **kwargs):
+            seen.update(kwargs)
+            self.assertEqual(argv[6], sha)
+            return original_setup(*argv, **kwargs)
+
+        self.setup = setup
+        record = self.trial()
+        self.assertEqual(seen['runtime_config'], selected)
+        self.assertEqual(record['runtimeConfigSelection']['sha256'], sha)
+        self.assertFalse(record['stageAccounting']['task']['launched'])
+
+    def test_transfer_hash_failure_prevents_model_launch_and_preserves_diagnostic(self):
+        self.explicit_runtime(transfer_hash='mismatch')
+        record = self.trial()
+        self.assertIn('transfer fingerprint mismatch', record['error'])
+        self.guest.ya.assert_not_called()
+        self.assertTrue((self.root / 'results/textedit-save/sky-external-1/runtime-config-transfer-diagnostic.json').exists())
+
+    def test_fingerprint_failure_prevents_model_launch_and_keeps_root_diagnostic(self):
+        self.explicit_runtime(fingerprint_failure=True)
+        record = self.trial()
+        self.assertIn('runtime fingerprint unavailable', record['error'])
+        self.guest.ya.assert_not_called()
+        diagnostic = json.loads((self.root / 'results/textedit-save/sky-external-1/runtime-fingerprint-diagnostic.json').read_text())
+        self.assertEqual(diagnostic['exit'], 1)
+        self.assertIn('runtime command is missing', diagnostic['stdout'])
 
     def test_setup_failed_means_no_task_session_or_oracle_and_cleanup_precedes_disposal(self):
         record = self.trial()

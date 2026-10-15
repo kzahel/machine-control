@@ -67,12 +67,17 @@ def source_paths(repo):
         'tests/experiments/native-efficiency/mcp_client.py')]
 
 
-def begin(repo, runtime_sha256):
+def begin(repo, runtime_sha256, runtime_config=None):
     """Remove inherited experiment entry, never create a replacement."""
-    configs = list((Path.home() / '.codex/plugins/cache/openai-bundled/unified-computer-use').glob('*/.mcp.json'))
-    if len(configs) != 1:
-        raise ValueError('ambiguous installed runtime selection')
-    selected = configs[0].resolve(strict=True)
+    if runtime_config is None:
+        configs = list((Path.home() / '.codex/plugins/cache/openai-bundled/unified-computer-use').glob('*/.mcp.json'))
+        if not configs:
+            raise ValueError('installed runtime config missing; supply the selected runtime path')
+        if len(configs) != 1:
+            raise ValueError('ambiguous installed runtime selection; supply the selected runtime path')
+        selected = configs[0].resolve(strict=True)
+    else:
+        selected = Path(runtime_config).resolve(strict=True)
     if digest(selected) != runtime_sha256:
         raise ValueError('installed runtime differs from trial fingerprint')
     if not isinstance(json.loads(selected.read_text())['mcpServers']['cua_repl'], dict):
@@ -336,13 +341,14 @@ def stage_accounting(setup, task=None):
             'limits': ['Setup and task costs are separate; missing measurements remain unknown.']}
 
 
-def run_setup(guest, args, actual_task, directory, owned_sessions, wait_for_agent, runtime_sha256, *, runtime_artifacts=None):
+def run_setup(guest, args, actual_task, directory, owned_sessions, wait_for_agent, runtime_sha256, *, runtime_artifacts=None, runtime_config=None):
     """Return a failed/blocked receipt on every gate failure; caller gates task launch."""
     directory = Path(directory)
     receipt = {'phase': 'skill-setup', 'status': 'failed', 'launched': False, 'passed': False}
     started = time.monotonic()
     try:
-        result = remote(guest, args.project, 'begin', runtime_sha256=runtime_sha256)
+        selection = {'runtime_config': runtime_config} if runtime_config is not None else {}
+        result = remote(guest, args.project, 'begin', runtime_sha256=runtime_sha256, **selection)
         private_write(directory / 'begin.json', result.stdout)
         if result.returncode:
             raise RuntimeError('fresh setup precondition failed')
@@ -441,7 +447,7 @@ def main():
     args = parser.parse_args()
     try:
         if args.phase == 'begin':
-            result = begin(args.repo, args.runtime_sha256)
+            result = begin(args.repo, args.runtime_sha256, args.runtime_config)
         elif args.phase == 'verify':
             result = verify_generated_setup(args.repo, args.runtime_config, args.output_dir, args.runtime_sha256,
                                             json.loads(args.artifact_paths))

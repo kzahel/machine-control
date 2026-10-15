@@ -106,3 +106,13 @@ Locked use is already implemented and remains separate acceptance scope.
   invoked a retired control. The [platform report](../../research/platforms/macos.md#native-efficiency-and-background-effects)
   owns the measured limits. Native implementation now separates stable
   observation identity from fresh action references and membership validation.
+- Runtime diagnosis found zero expanded guest-cache configurations despite
+  installed runtime binaries. An explicitly selected expanded installation
+  manifest passed artifact fingerprinting and initialize/list/close in the
+  diagnostic clone. The runner now accepts private hash-bound runtime input;
+  fresh agent-led acceptance still follows under a new source pin.
+- Native Control Center open/close passed through the claimed guest route.
+  Independent CoreGraphics observations confirmed a panel appeared and
+  disappeared. The diagnostic clone was discarded after credential and child
+  process cleanup checks. This is a system-surface check, not an agent score
+  or a matched Sky policy comparison.
