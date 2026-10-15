@@ -428,3 +428,11 @@ route. Its 29 calls and three absent-number refusals remain in the measured
 cost. The final oracle establishes restored source bytes and correct output,
 not uninterrupted source preservation. A future continuous-preservation claim
 requires an intermediate-state invariant, beyond this final-state oracle.
+
+The third Sol/JS extension trial selected a browser's AutoFill helper from a
+partial application name. The prototype falls back to the first substring
+match; its first key action then refused because helper activation failed.
+An exact browser bundle ID recovered, and the extension effects passed. This
+supports Python's existing exact, unambiguous application lookup. Retain the
+failed selection and recovery costs rather than calling the helper a successful
+browser-control route.
