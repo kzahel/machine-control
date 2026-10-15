@@ -31,6 +31,12 @@ The report omits session IDs and raw UI output, keeps unsuccessful/invalid
 trials out of successful-latency summaries, and reports missing trials. Review
 it before promoting any minimized result into public research.
 
+Window fixtures also contribute `sampledGuestInterference` distributions and
+their sampling intervals. These include all reported attempts and fixture
+startup, not just successful agent actions. Missing counters remain unknown;
+zero means no sampled transition, not proven noninterference. They do not
+measure the controller host's focus or pointer.
+
 Profiles are explicit: `--provider codex` defaults to `gpt-6.1-sol`, medium
 effort and standard thread tier. `--provider claude --route machine-control`
 defaults to `claude-opus-5-5`, medium effort and standard speed, and requires

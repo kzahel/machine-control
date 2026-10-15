@@ -91,6 +91,12 @@ def summarize(manifest, records):
             "betweenTurnSeconds":distribution([r['betweenTurnSeconds'] for r in rows if r.get('betweenTurnSeconds') is not None]),
             "infrastructureFailures":sum(bool(r.get('error')) for r in rows),
             "cleanupFailures":sum(bool(r.get('releaseError')) or not r.get('released') for r in rows),
+            "sampledGuestInterference":{key:distribution([
+                r['oracle']['interference'][key] for r in rows
+                if type((r.get('oracle') or {}).get('interference',{}).get(key)) is int])
+                for key in ('focusChanges','cursorChanges')},
+            "interferenceSamplingMs":sorted({r['oracle']['samplingMs'] for r in rows
+                if type((r.get('oracle') or {}).get('samplingMs')) is int}),
             "successfulAgentSeconds":distribution([r['agentSeconds'] for r in passed if r.get('agentSeconds') is not None]),
             "successfulToolCalls":distribution([r['toolCalls'] for r in passed if r.get('toolCalls') is not None]),
             "successfulOutputBytes":distribution([r['toolOutputBytes'] for r in passed if r.get('toolOutputBytes') is not None]),
@@ -107,6 +113,7 @@ def summarize(manifest, records):
                         "Tool use restrictions are prompt-based; route adherence needs transcript review.",
                         "Successful metrics mean oracle/profile success; use routeVerified metrics for reviewed route comparisons.",
                         "Route adherence does not certify confirmation-policy compliance. Report known violations separately; unreviewed is unknown, not compliant.",
+                        "Guest interference distributions include every reported attempt, including fixture startup and failed/invalid trials. Sampling can miss transitions; these are not controller-host measurements or per-action attribution. Missing counters stay unknown.",
                         "Route reviews and discovery indices are explicit judgments bound to transcript hashes; pre-UI usage is a reported checkpoint, not causal attribution.",
                         "The JS prototype omits claims/controller audit; its timing is not enforcement parity.",
                         "The pinned macOS CLI uses its direct grant path; Python retains owner admission and its notice. Timings do not isolate persistence alone.",

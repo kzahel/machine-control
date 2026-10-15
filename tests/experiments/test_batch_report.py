@@ -21,6 +21,20 @@ class BatchReportTest(unittest.TestCase):
         self.assertFalse(result['complete'])
         self.assertEqual(result['duplicateTrials'],1)
 
+    def test_interference_preserves_zero_failed_attempts_and_unknown(self):
+        rows=[{'task':'windows','route':'cli','repetition':n,
+               'validTrial':n!=2,'passed':n==1} for n in (1,2,3)]
+        rows[0]['oracle']={'interference':{'focusChanges':0,'cursorChanges':1},'samplingMs':20}
+        rows[1]['oracle']={'interference':{'focusChanges':4},'samplingMs':20}
+        group=summarize({'plan':rows},rows)['groups'][0]
+        self.assertEqual(group['sampledGuestInterference']['focusChanges'],
+                         {'n':2,'median':2,'min':0,'max':4})
+        self.assertEqual(group['sampledGuestInterference']['cursorChanges']['n'],1)
+        self.assertEqual(group['interferenceSamplingMs'],[20])
+        absent=summarize({'plan':[rows[2]]},[rows[2]])['groups'][0]
+        self.assertIsNone(absent['sampledGuestInterference']['focusChanges'])
+        self.assertEqual(absent['interferenceSamplingMs'],[])
+
     def test_confirmation_violation_does_not_erase_effect_or_costs(self):
         rows=[{'task':'install','route':'computer-use','repetition':n,
                'validTrial':True,'passed':True,'agentSeconds':10,'toolCalls':2,

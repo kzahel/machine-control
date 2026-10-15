@@ -411,3 +411,11 @@ normal ownership closure before disposal. Recovery from stale references and
 menu activation remains visible in the costs; final success is not evidence
 that these workflows were frictionless. The baseline third round is running
 while Python remains paused after cleanup; its final round follows.
+
+During the third round, report review exposed that retained guest focus/cursor
+counters were absent from aggregate reports. Reporting now includes their
+distributions, coverage and sample intervals, including failed/invalid attempts
+without treating missing data as zero. This changes no trial behavior. The
+report labels fixture-startup inclusion, missed-transition risk and the absence
+of controller-host measurement. All 52 offline experiment checks pass; the final
+client tree also passes 285 client tests and strict typing of the session modules.
