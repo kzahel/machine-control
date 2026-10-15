@@ -100,3 +100,9 @@ Locked use is already implemented and remains separate acceptance scope.
   session started. Its isolated clone was discarded and its failure cost
   retained. A separate claimed clone is diagnosing runtime selection; this
   infrastructure failure is not an Opus task result.
+- The real native probe completed in an isolated guest with ordinary Settings
+  consent and secret-safe administrator authorization. Survivor identity and
+  all twenty replacement controls passed, while a raw stale window proxy still
+  invoked a retired control. The [platform report](../../research/platforms/macos.md#native-efficiency-and-background-effects)
+  owns the measured limits. Native implementation now separates stable
+  observation identity from fresh action references and membership validation.

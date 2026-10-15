@@ -617,6 +617,27 @@ before a broad accessibility-cache rewrite. Separately qualify window-addressed
 input and background menu effects. Automatic observation needs bounded waits
 and explicit effect checks; a quiet tree is not an application completion oracle.
 
+**Current (2026-10-15), bounded `live-tested`:** the owned
+[AX identity probe](../../tests/experiments/native-identity/README.md) completed
+ten unchanged reads, twenty same-presentation replacements, insertion,
+reordering, removal, window recreation and process restart in an isolated
+ARM64 guest. Across 13,391 comparisons, including 1,982 surviving-incarnation
+pairs, no survivor inequality or cross-incarnation equality was observed.
+All current actions had their intended independent fixture effects; all
+replacement controls preserved label, identifier and frame. Both owned child
+processes were reaped.
+
+Twenty-five destruction callbacks were observed; registration also returned
+errors, so callback absence is not a reliable lifetime boundary. One raw stale
+proxy press after window recreation invoked a retired control, with no effect
+on a current incarnation. Retention and a successful AX role read therefore
+cannot establish current membership. These results support investigating
+bounded stable observation identity with fresh action references and current
+membership validation. They do not prove never-reused native tokens, general
+application coverage, PID-reuse safety or a production performance gain.
+[Tactical 128](../../docs/tactical/128-control-efficiency-campaign.md) owns
+implementation and further acceptance; raw receipts remain private.
+
 ## Current direction
 
 **Decision:** Preserve Cua as a replaceable common-plane adapter and Peekaboo as
