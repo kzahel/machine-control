@@ -34,6 +34,10 @@ its `Topic:` trailers.
 
 ## Current topics
 
+- [`computer-use-positioning.md`](computer-use-positioning.md): complete-package
+  positioning, existing locked/system/device capabilities, evidence-led gaps
+  relative to Computer Use, and optional provider-agnostic Sky integration.
+
 - [`runtime-and-presentation.md`](runtime-and-presentation.md): one reusable
   runtime, nonblocking execution, three presentation profiles in one package,
   and settings/configuration recovery independent of authorization policy.

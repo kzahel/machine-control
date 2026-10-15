@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [127 — Opus through YA with genuine Computer Use](127-opus-sky-computer-use.md):
+  bounded optional-provider experiment, exact fixture approvals and reusable
+  instructions, separate from the frozen performance comparison.
+
 - [125 — Agent capability baseline](125-agent-capability-baseline.md): complete
   seven-scenario, two-model baseline and Python comparison with 147 qualified
   trials, token accounting and reviewed effects; instruction comparison pending.

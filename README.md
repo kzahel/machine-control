@@ -26,12 +26,19 @@ Chromebooks, Android devices, and more.
   operate a Chromebook's desktop and browser, or deploy to Android and Quest.
 - **Test locally or remotely:** drive your own computer, a VM, or a configured
   physical device from the agent's existing session.
+- **Prepare test environments:** bring up VMs, check readiness, acquire isolated
+  workspaces, and clean up through the same target-selecting CLI.
 - **Keep access visible:** select scopes and duration in the desktop app, pause
   supported control sessions, stop access, and inspect activity.
 
 Available controls depend on the platform and selected permissions. Machine
 Control combines native UI information with screenshots and input, so agents
 can inspect what a button means as well as where it appears.
+
+Machine Control is independent of the agent's model provider. Its
+[Computer Use positioning and roadmap](topics/computer-use-positioning.md)
+separates the complete package's strengths from measured GUI-control gaps and
+the narrower coverage of the experimental persistent Python interface.
 
 ## Get the desktop app
 
