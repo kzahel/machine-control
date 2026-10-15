@@ -86,3 +86,9 @@ Locked use is already implemented and remains separate acceptance scope.
   or token win. Independent YA review found no correctness defect in this
   bounded change. A real guest-only AX lifetime probe is now being built;
   synthetic token-reuse examples alone do not establish a native blocker.
+- The skill harness now separates fresh agent-led setup from a fresh task
+  session, with exact app/config checks, source/runtime hashes and owned-process
+  cleanup. Private lifecycle receipts and stage timings include acquisition and
+  disposal; legacy wall-time semantics remain intact. Offline tests passed;
+  live acceptance is next. YA visible-message extraction replaces reliance on
+  an optional summary field that was absent in a real session response.

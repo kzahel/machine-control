@@ -1,0 +1,593 @@
+"""Offline setup acceptance, independent artifact validation and lifecycle gates."""
+import base64
+import copy
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+from types import SimpleNamespace
+import unittest
+from unittest.mock import Mock, patch
+
+import route_comparison as route
+import sky_skill_acceptance as skill
+from agent_profiles import DEFAULT_MODELS
+
+
+def result(value='', code=0):
+    return subprocess.CompletedProcess([], code, value if isinstance(value, str) else json.dumps(value), '')
+
+
+def transcript(model=None, effort='medium', speed='standard', prepared=True):
+    model = model or DEFAULT_MODELS['claude']
+    rows = [dict(type='user', timestamp='2026-01-01T00:00:00Z', message={'content': 'task'})]
+    if prepared:
+        rows += [dict(type='assistant', timestamp='2026-01-01T00:00:01Z', perTurnEffort=effort,
+            message={'id': 'm1', 'model': model, 'usage': {'input_tokens': 10, 'output_tokens': 5,
+                'cache_read_input_tokens': 3, 'cache_creation_input_tokens': 2,
+                'speed': speed, 'service_tier': 'standard'}, 'content': [{'type': 'tool_use',
+                'id': 'probe', 'name': 'Bash', 'input': {'command':
+                'python3 skills/claude-computer-use/scripts/prepare.py --runtime-config /private/runtime --probe'}}]}),
+            dict(type='user', timestamp='2026-01-01T00:00:02Z', message={'content': [
+                {'type': 'tool_result', 'tool_use_id': 'probe', 'content': '{"status":"startup-probed"}'}]})]
+    rows += [dict(type='assistant', timestamp='2026-01-01T00:00:03Z', perTurnEffort=effort,
+        message={'id': 'm2', 'model': model, 'usage': {'input_tokens': 11, 'output_tokens': 4,
+            'cache_read_input_tokens': 4, 'cache_creation_input_tokens': 0,
+            'speed': speed, 'service_tier': 'standard'}, 'content': [], 'stop_reason': 'end_turn'})]
+    return '\n'.join(map(json.dumps, rows)) + '\n'
+
+
+class ArtifactTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name).resolve()
+        self.home = self.root / 'home'
+        self.home.mkdir()
+        self.patch = patch.object(Path, 'home', return_value=self.home)
+        self.patch.start()
+        self.addCleanup(self.patch.stop)
+        self.repo = self.root / 'repo'
+        for relative in ['info/claude-computer-use.md', 'skills/claude-computer-use/SKILL.md',
+                         'skills/claude-computer-use/scripts/prepare.py', 'tests/experiments/sky-external/bridge.py', 'tests/experiments/native-efficiency/mcp_client.py']:
+            skill.private_write(self.repo / relative, 'source')
+        self.runtime = self.home / '.codex/plugins/cache/openai-bundled/unified-computer-use/fixture/.mcp.json'
+        skill.private_write(self.runtime, json.dumps({'mcpServers': {'cua_repl': {'command': sys.executable}}}))
+        self.sha = skill.digest(self.runtime)
+        self.output = self.home / 'experiment/sky-skill'
+        self.host = self.home / '.claude.json'
+
+    def generate(self):
+        self.output.mkdir(parents=True, mode=0o700)
+        self.server = {'command': sys.executable, 'args': [str(self.repo / 'tests/experiments/sky-external/bridge.py'),
+            '--config', str(self.runtime), '--allow-app', skill.APP, '--evidence', str(self.output / 'runtime')]}
+        self.write_config(self.server)
+        skill.private_write(self.host, json.dumps({'other': 'preserved', 'mcpServers': {'sky_experiment': self.server}}))
+        skill.private_write(self.output / 'preflight/probe.json', json.dumps({'ok': True,
+            'stage': 'close', 'scope': 'startup-and-tool-shape-only', 'tools': sorted(skill.TOOLS)}))
+
+    def write_config(self, server):
+        skill.private_write(self.output / 'mcp.json', json.dumps({'mcpServers': {'sky_experiment': server}}))
+
+    def verify(self):
+        return skill.verify_generated_setup(self.repo, self.runtime, self.output, self.sha)
+
+    def test_begin_removes_all_inherited_entries_and_preserves_unrelated_settings(self):
+        skill.private_write(self.host, json.dumps({'other': 'keep', 'mcpServers': {'sky_experiment': {}, 'retained': {}},
+            'projects': {str(self.repo): {'mcpServers': {'sky_experiment': {}, 'also': {}}}}}))
+        skill.private_write(self.repo / '.mcp.json', json.dumps({'mcpServers': {'sky_experiment': {}, 'project': {}}}))
+        inputs = skill.begin(self.repo, self.sha)
+        self.assertTrue(inputs['experimentEntryAbsent'])
+        self.assertEqual(inputs['removedEntries'], 3)
+        self.assertEqual(inputs['runtimeConfig'], str(self.runtime.resolve()))
+        self.assertFalse(self.output.exists())
+        data = json.loads(self.host.read_text())
+        self.assertEqual(data['other'], 'keep')
+        self.assertIn('retained', data['mcpServers'])
+        self.assertIn('also', data['projects'][str(self.repo)]['mcpServers'])
+        self.assertNotIn('sky_experiment', (self.repo / '.mcp.json').read_text())
+
+    def test_ambiguous_runtime_changed_pin_and_reused_output_refuse(self):
+        with self.assertRaisesRegex(ValueError, 'differs'):
+            skill.begin(self.repo, 'wrong')
+        self.generate()
+        with self.assertRaisesRegex(ValueError, 'fresh'):
+            skill.begin(self.repo, self.sha)
+        second = self.runtime.parent.parent / 'other/.mcp.json'
+        skill.private_write(second, '{}')
+        with self.assertRaisesRegex(ValueError, 'ambiguous'):
+            skill.begin(self.repo, self.sha)
+
+    def test_exact_scope_host_entry_probe_permissions_and_hashes(self):
+        self.generate()
+        verified = self.verify()
+        self.assertTrue(verified['passed'])
+        self.assertEqual(verified['approvedApps'], [skill.APP])
+        self.assertEqual(verified['evidenceDir'], str(self.output / 'runtime'))
+        self.assertEqual(verified['hashes'][str(self.runtime)], self.sha)
+        self.assertFalse((self.output / 'runtime').exists())
+
+    def test_broad_invalid_duplicate_and_wrong_path_config_refuse(self):
+        self.generate()
+        variants = []
+        for app in ['*', 'TextEdit', 'com.apple.*', 'com.apple.Finder']:
+            server = copy.deepcopy(self.server)
+            server['args'][4] = app
+            variants.append(server)
+        for extra in [['--allow-app', 'com.apple.Finder'], ['--allow-app', skill.APP]]:
+            server = copy.deepcopy(self.server)
+            server['args'].extend(extra)
+            variants.append(server)
+        server = copy.deepcopy(self.server)
+        server['env'] = {'APP': '*'}
+        variants.append(server)
+        for index, replacement in [(0, '/other/bridge.py'), (2, '/other/runtime'), (6, '/stale/evidence')]:
+            server = copy.deepcopy(self.server)
+            server['args'][index] = replacement
+            variants.append(server)
+        for server in variants:
+            with self.subTest(server=server):
+                self.write_config(server)
+                with self.assertRaisesRegex(ValueError, 'exact TextEdit'):
+                    self.verify()
+
+    def test_missing_mismatched_and_shadowed_actual_host_entries_refuse(self):
+        self.generate()
+        variants = [{}, {'mcpServers': {'sky_experiment': {}}}, {'mcpServers': {'sky_experiment': self.server},
+            'projects': {str(self.repo): {'mcpServers': {'sky_experiment': self.server}}}}]
+        for value in variants:
+            skill.private_write(self.host, json.dumps(value))
+            with self.assertRaisesRegex(ValueError, 'actual host MCP'):
+                self.verify()
+
+    def test_failed_probe_and_stale_task_marker_refuse(self):
+        self.generate()
+        probe = self.output / 'preflight/probe.json'
+        valid = probe.read_text()
+        for change in [{'ok': False}, {'stage': 'tools/list'}, {'tools': ['js']}, {'scope': 'other'}]:
+            data = json.loads(valid)
+            data.update(change)
+            skill.private_write(probe, json.dumps(data))
+            with self.assertRaisesRegex(ValueError, 'probe'):
+                self.verify()
+        skill.private_write(probe, valid)
+        skill.private_write(self.output / 'runtime/closed.json', '{"closed":true}')
+        with self.assertRaisesRegex(ValueError, 'absent'):
+            self.verify()
+
+    def test_public_modes_and_symlink_artifacts_refuse(self):
+        self.generate()
+        for path in [self.output, self.output / 'mcp.json', self.output / 'preflight/probe.json', self.host]:
+            mode = path.stat().st_mode & 0o777
+            path.chmod(mode | 0o040)
+            with self.subTest(path=path), self.assertRaisesRegex(ValueError, 'private'):
+                self.verify()
+            path.chmod(mode)
+        (self.output / 'linked').symlink_to(self.runtime)
+        with self.assertRaisesRegex(ValueError, 'linked'):
+            self.verify()
+
+
+class FinalTextTests(unittest.TestCase):
+    def test_normalized_messages_extract_only_last_visible_assistant_text(self):
+        detail = {'session': {}, 'messages': [
+            {'type': 'assistant', 'content': 'Earlier prose.'},
+            {'type': 'assistant', 'message': {'content': [
+                {'type': 'thinking', 'thinking': 'No restart required.'},
+                {'type': 'text', 'text': 'Setup is prepared.'},
+                {'type': 'tool_use', 'input': {'text': 'GUI done.'}},
+                {'type': 'text', 'text': 'Start a fresh YA Claude session.'}]}},
+            {'type': 'user', 'content': [{'type': 'tool_result', 'content': 'Ignore assistant prose.'}]},
+            {'type': 'assistant', 'content': [{'type': 'thinking', 'text': 'Hidden reasoning.'},
+                {'type': 'tool_use', 'text': 'Hidden tool text.'}]},
+            {'type': 'assistant', 'isSubagent': True, 'content': 'Other agent text.'}]}
+        extracted = skill.final_assistant_text(detail)
+        self.assertEqual(extracted['finalText'], 'Setup is prepared.\nStart a fresh YA Claude session.')
+        self.assertEqual(extracted['finalTextSource'], 'ya_normalized_messages')
+
+    def test_legacy_roles_and_nested_message_array_are_supported(self):
+        detail = {'session': {'messages': [{'role': 'assistant', 'content': 'Start a new session.'}]}}
+        self.assertEqual(skill.final_assistant_text(detail)['finalText'], 'Start a new session.')
+        detail = {'messages': [{'message': {'role': 'assistant', 'content': 'Nested visible text.'}}]}
+        self.assertEqual(skill.final_assistant_text(detail)['finalText'], 'Nested visible text.')
+
+    def test_raw_transcript_fallback_skips_thinking_tools_and_other_agents(self):
+        rows = [
+            {'type': 'assistant', 'message': {'content': [{'type': 'text', 'text': 'Start a new session.'}]}},
+            {'type': 'assistant', 'message': {'content': [{'type': 'thinking', 'text': 'Private thought.'}]}},
+            {'type': 'user', 'message': {'content': [{'type': 'tool_result', 'content': 'Not a final answer.'}]}},
+            {'type': 'assistant', 'isSidechain': True, 'message': {'content': 'Subagent text.'}},
+            {'type': 'assistant', 'message': {'model': '<synthetic>', 'content': 'Synthetic abort.'}}]
+        extracted = skill.final_assistant_text({'session': {}}, '\n'.join(map(json.dumps, rows)))
+        self.assertEqual(extracted, {'finalText': 'Start a new session.', 'finalTextSource': 'claude_transcript'})
+
+    def test_visible_normalized_response_overrides_legacy_and_transcript(self):
+        detail = {'session': {'lastAgentText': 'Start a new session.'},
+                  'messages': [{'type': 'assistant', 'content': 'No restart is required.'}]}
+        extracted = skill.final_assistant_text(detail,
+            json.dumps({'type': 'assistant', 'message': {'content': 'Start a new session.'}}))
+        self.assertFalse(skill.new_session_reported(extracted['finalText']))
+        self.assertEqual(extracted['finalTextSource'], 'ya_normalized_messages')
+
+
+class SetupTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.directory = Path(self.temp.name) / 'receipt'
+        self.args = SimpleNamespace(provider='claude', model=DEFAULT_MODELS['claude'], effort='medium',
+            project='/private/checkout', skill_setup_timeout_seconds=25, poll_seconds=1)
+        self.inputs = {'guide': '/private/checkout/info/claude-computer-use.md', 'runtimeConfig': '/private/runtime',
+                       'authorizedApp': skill.APP, 'outputDir': '/private/setup', 'sourceHashes': {'/private/source': 'pinned'}}
+        self.guest = Mock()
+        self.guest.ya.side_effect = lambda method, path, body=None: (
+            {'sessionId': 'launch', 'processId': 'p'} if method == 'POST' and path.endswith('/sessions') else
+            {'session': {'lastAgentText': 'Start a fresh YA Claude session; this session needs restarting.'}})
+        self.remote = patch.object(skill, 'remote', side_effect=self.reply).start()
+        self.addCleanup(patch.stopall)
+        self.native = transcript()
+        patch.object(skill, 'collect_transcript', side_effect=lambda *a: result(self.native)).start()
+        self.stop = patch.object(skill, 'stop_owned_session', return_value={'terminationVerified': True}).start()
+        self.verification = {'passed': True, 'evidenceDir': '/private/setup/runtime', 'hashes': {'/private/source': 'pinned'}}
+        self.wait = Mock(return_value={'providerSessionId': 'canonical', 'timedOut': False,
+                                      'controllerWaitSeconds': 2, 'effectiveProcess': {}})
+        self.owned = []
+
+    def reply(self, guest, repo, phase, **kwargs):
+        return result(self.inputs if phase == 'begin' else self.verification if phase == 'verify' else
+                      base64.b64encode(b'private archive').decode())
+
+    def run_setup(self):
+        return skill.run_setup(self.guest, self.args, 'Actual TextEdit task.', self.directory,
+                               self.owned, self.wait, 'runtime-hash')
+
+    def test_setup_uses_existing_launch_profile_fresh_session_and_separate_receipts(self):
+        receipt = self.run_setup()
+        self.assertTrue(receipt['passed'], receipt)
+        self.assertEqual(receipt['status'], 'passed')
+        self.wait.assert_called_once()
+        self.assertEqual(self.wait.call_args.args[2:4], (25, 1))
+        self.assertEqual(self.owned[0]['providerSessionId'], 'canonical')
+        prompt = (self.directory / 'prompt.txt').read_text()
+        self.assertIn(self.inputs['guide'], prompt)
+        self.assertIn('Actual TextEdit task.', prompt)
+        self.assertIn('/private/runtime', prompt)
+        self.assertNotIn('prepare.py', prompt)
+        self.assertNotIn('mcpServers', prompt)
+        self.assertNotIn('WaitForMcpServers', prompt)
+        self.assertTrue(receipt['profileQualification']['qualified'])
+        self.assertEqual(receipt['agentSeconds'], 3)
+        self.assertEqual(receipt['tokenUsage']['input_tokens'], 21)
+        self.assertTrue((self.directory / 'setup-artifacts.tar').exists())
+        for path in self.directory.iterdir():
+            self.assertEqual(path.stat().st_mode & 0o077, 0)
+        self.assertTrue(json.loads((self.directory / 'receipt.json').read_text())['passed'])
+
+    def test_source_or_runtime_artifact_changes_gate_task(self):
+        self.verification['hashes']['/private/source'] = 'modified'
+        receipt = self.run_setup()
+        self.assertFalse(receipt['passed'])
+        self.assertFalse(receipt['sourceAndRuntimeUnchanged'])
+        self.verification['hashes']['/private/source'] = 'pinned'
+        receipt = skill.run_setup(self.guest, self.args, 'Actual task.', self.directory,
+            self.owned, self.wait, 'runtime-hash', runtime_artifacts={'/private/vendor': {'sha256': 'original'}})
+        self.assertFalse(receipt['passed'])
+        self.assertFalse(receipt['sourceAndRuntimeUnchanged'])
+
+    def test_absent_last_agent_text_uses_normalized_messages_for_setup_gate(self):
+        self.guest.ya.side_effect = lambda method, path, body=None: (
+            {'sessionId': 'launch', 'processId': 'p'} if method == 'POST' else
+            {'session': {}, 'messages': [{'type': 'assistant', 'message': {'content': [
+                {'type': 'thinking', 'thinking': 'Hidden.'},
+                {'type': 'text', 'text': 'Start a fresh YA Claude session.'}]}}]})
+        receipt = self.run_setup()
+        self.assertTrue(receipt['passed'], receipt)
+        self.assertTrue(receipt['newSessionReported'])
+        self.assertEqual(receipt['finalTextSource'], 'ya_normalized_messages')
+
+    def test_absent_ya_prose_uses_raw_claude_final_text_for_setup_gate(self):
+        self.guest.ya.side_effect = lambda method, path, body=None: (
+            {'sessionId': 'launch', 'processId': 'p'} if method == 'POST' else {'session': {}, 'messages': []})
+        rows = [json.loads(line) for line in self.native.splitlines()]
+        rows[-1]['message']['content'] = [{'type': 'text', 'text': 'A new session is required.'}]
+        self.native = '\n'.join(map(json.dumps, rows)) + '\n'
+        receipt = self.run_setup()
+        self.assertTrue(receipt['passed'], receipt)
+        self.assertEqual(receipt['finalTextSource'], 'claude_transcript')
+
+    def test_failed_probe_or_setup_absence_never_passes(self):
+        self.native = transcript(prepared=False)
+        receipt = self.run_setup()
+        self.assertFalse(receipt['passed'])
+        self.assertFalse(receipt['workflow']['agentPrepareProbeObserved'])
+        self.assertEqual(receipt['status'], 'blocked')
+
+    def test_model_effort_and_speed_mismatches_block_setup(self):
+        for kwargs in [{'model': 'other'}, {'effort': 'high'}, {'speed': 'fast'}]:
+            with self.subTest(kwargs=kwargs):
+                self.native = transcript(**kwargs)
+                receipt = self.run_setup()
+                self.assertFalse(receipt['passed'])
+                self.assertFalse(receipt['profileQualification']['qualified'])
+
+    def test_timeout_and_wait_failure_retain_metrics_and_receipts(self):
+        self.wait.side_effect = RuntimeError('wait failed')
+        receipt = self.run_setup()
+        self.assertFalse(receipt['passed'])
+        self.assertEqual(receipt['waitError'], 'wait failed')
+        self.assertTrue((self.directory / 'transcript.jsonl').exists())
+        self.assertEqual(receipt['agentSeconds'], 3)
+
+    def test_failed_artifact_collection_and_termination_gate_task(self):
+        self.stop.side_effect = RuntimeError('not stopped')
+        receipt = self.run_setup()
+        self.assertFalse(receipt['passed'])
+        self.assertEqual(receipt['status'], 'failed')
+        self.stop.side_effect = None
+        self.remote.side_effect = lambda guest, repo, phase, **kw: result('failure', 1) if phase == 'archive' else self.reply(guest, repo, phase, **kw)
+        receipt = self.run_setup()
+        self.assertFalse(receipt['passed'])
+        self.assertIn('artifactCollectionError', receipt)
+
+    def test_setup_gui_and_unreported_transition_refuse(self):
+        row = {'type': 'assistant', 'message': {'content': [{'type': 'tool_use', 'id': 'gui',
+                'name': 'mcp__sky_experiment__js', 'input': {'code': 'ui'}}]}}
+        self.native += json.dumps(row) + '\n'
+        self.assertFalse(self.run_setup()['passed'])
+        self.native = transcript()
+        self.guest.ya.side_effect = lambda method, path, body=None: ({'sessionId': 'launch'} if method == 'POST'
+            else {'session': {'lastAgentText': 'GUI task complete.'}})
+        self.assertFalse(self.run_setup()['passed'])
+
+    def test_new_session_report_requires_a_directive_and_preserves_negative_report(self):
+        for text in ['Start a new YA Claude session.', 'This session needs restarting.',
+                     'A fresh session is required to load these tools.']:
+            self.assertTrue(skill.new_session_reported(text), text)
+        for text in ['GUI done.', 'No restart is required.', 'This session does not need restarting.',
+                     'Restart is optional.', 'A new session may work.']:
+            self.assertFalse(skill.new_session_reported(text), text)
+
+    def test_profile_restrictions_and_stage_costs(self):
+        skill.validate_profile('claude', DEFAULT_MODELS['claude'], ['sky-external'], ['textedit-save'], 'skill')
+        for provider, model, routes, tasks in [('codex', DEFAULT_MODELS['codex'], ['sky-external'], ['textedit-save']),
+                ('claude', 'other', ['sky-external'], ['textedit-save']),
+                ('claude', DEFAULT_MODELS['claude'], ['machine-control'], ['textedit-save']),
+                ('claude', DEFAULT_MODELS['claude'], ['sky-external'], ['web-upload']),
+                ('claude', DEFAULT_MODELS['claude'], ['sky-external', 'mc-python'], ['textedit-save'])]:
+            with self.subTest(provider=provider, routes=routes, tasks=tasks), self.assertRaises(ValueError):
+                skill.validate_profile(provider, model, routes, tasks, 'skill')
+        setup = {'launched': True, 'status': 'passed', 'agentSeconds': 10, 'tokenUsage': {'input_tokens': 20}}
+        accounting = skill.stage_accounting(setup)
+        self.assertFalse(accounting['task']['launched'])
+        self.assertIsNone(accounting['task']['agentSeconds'])
+        task = {'status': 'passed', 'agentSeconds': 2, 'tokenUsage': {'input_tokens': 4}}
+        accounting = skill.stage_accounting(setup, task)
+        self.assertEqual(accounting['setup']['agentSeconds'], 10)
+        self.assertEqual(accounting['task']['agentSeconds'], 2)
+        self.assertEqual(accounting['task']['tokenUsage'], {'input_tokens': 4})
+
+
+class LifecycleTests(unittest.TestCase):
+    def test_idle_session_is_aborted_and_verified_with_canonical_identity(self):
+        guest = Mock()
+        guest.ya.side_effect = [{'process': {'id': 'p', 'sessionId': 'canonical', 'state': 'idle'}},
+                               {}, {'process': {'id': 'p', 'state': 'terminated'}}]
+        owned = {'launchSessionId': 'launch'}
+        skill.stop_owned_session(guest, owned, sleep=lambda _: None)
+        guest.ya.assert_any_call('POST', '/api/processes/p/abort', {'blockResume': True})
+        guest.ya.assert_any_call('GET', '/api/sessions/canonical/process')
+        self.assertTrue(owned['terminationVerified'])
+
+    def test_absent_session_uses_known_process_before_declaring_stopped(self):
+        guest = Mock()
+        guest.ya.side_effect = [{}, {'processes': [{'id': 'p', 'sessionId': 'canonical', 'state': 'idle'}]},
+                               {}, {'process': {'id': 'p', 'state': 'terminated'}}]
+        skill.stop_owned_session(guest, {'launchSessionId': 'launch', 'processId': 'p'}, sleep=lambda _: None)
+        guest.ya.assert_any_call('POST', '/api/processes/p/abort', {'blockResume': True})
+
+    def test_unverified_stop_and_queue_cancel_refuse(self):
+        guest = Mock()
+        guest.ya.return_value = {'process': {'id': 'p', 'state': 'idle'}}
+        owned = {'launchSessionId': 'launch'}
+        with self.assertRaisesRegex(RuntimeError, 'unverified'):
+            skill.stop_owned_session(guest, owned, sleep=lambda _: None)
+        self.assertNotIn('terminationVerified', owned)
+        guest.ya.return_value = {'cancelled': False}
+        with self.assertRaisesRegex(RuntimeError, 'queue cancellation'):
+            skill.stop_owned_session(guest, {'queueId': 'q'})
+        guest.ya.return_value = {'cancelled': True}
+        self.assertTrue(skill.stop_owned_session(guest, {'queueId': 'q'})['terminationVerified'])
+
+
+class TrialGateTests(unittest.TestCase):
+    """Exercise the real trial driver with fake transport/lifecycle, never live targets."""
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        credential = self.root / 'credential'
+        credential.write_text('fixture')
+        bundle = self.root / 'source.bundle'
+        bundle.write_bytes(b'fixture')
+        self.args = SimpleNamespace(provider='claude', model=DEFAULT_MODELS['claude'], effort='medium',
+            instructions='skill', target='fixture', credential_file=credential,
+            gateway_credential_file=credential, bundle=bundle, revision='pin', seed=1,
+            project='/private/checkout', poll_seconds=1)
+        self.timeline = []
+        self.guest = Mock()
+        self.guest.run.side_effect = self.guest_run
+        self.guest.ya.side_effect = lambda method, path, body=None: ({'sessionId': 'task-launch', 'processId': 'task-p'}
+            if method == 'POST' else {'session': {'lastAgentText': 'RESULT: done'}})
+        self.setup_receipt = {'passed': False, 'status': 'blocked', 'launched': True, 'agentSeconds': 30}
+        self.stop_error = False
+        self.ready_doctor = True
+
+    def machine(self, *argv, **kwargs):
+        if 'doctor' in argv:
+            return {'ready': self.ready_doctor if '--claim' in argv else False,
+                    'target': {'logicalTarget': 'fixture'}, 'states': {'power': 'on' if '--claim' in argv else 'off'}}
+        if 'acquire' in argv:
+            return {'accepted': True, 'data': {'handle': 'fixture', 'claim': {'claimId': 'claim', 'resourceKey': 'exact-resource'}}}
+        if 'ensure-ready' in argv:
+            return {'accepted': True, 'data': {'ready': True}}
+        if 'release' in argv:
+            self.timeline.append('dispose')
+            return {'accepted': True, 'data': {'disposition': 'discarded'}}
+        return {}
+
+    def guest_run(self, command, **kwargs):
+        if 'rev-parse HEAD' in command:
+            return result('pin')
+        if 'native-efficiency' in command:
+            return result({'service': {}, 'artifacts': {}, 'configSha256': 'runtime', 'commands': {}})
+        if isinstance(kwargs.get('stdin'), str) and 'Sky MCP preflight failed' in kwargs['stdin']:
+            return result({'passed': True, 'tools': sorted(skill.TOOLS)})
+        if command == 'bash -s':
+            return result({'passed': True})
+        if command.startswith('f=$(find'):
+            return result(transcript())
+        if isinstance(kwargs.get('stdin'), str) and 'evidence_path=' in kwargs['stdin']:
+            return result({'closed.json': json.dumps({'closed': True, 'approvalScope': [skill.APP],
+                'automaticRestart': False}), 'protocol-events.jsonl':
+                '{"event":"started"}\n{"event":"closed"}\n'})
+        return result()
+
+    def setup(self, *argv, **kwargs):
+        argv[4].append({'launchSessionId': 'setup'})
+        return self.setup_receipt
+
+    def stop(self, *argv):
+        self.timeline.append('stop')
+        if self.stop_error:
+            raise RuntimeError('not stopped')
+        return {'terminationVerified': True}
+
+    def trial(self):
+        with patch.object(route, 'mc', side_effect=self.machine), patch.object(route, 'tart_names', side_effect=[set(), {'clone'}]), \
+                patch.object(route, 'Guest', return_value=self.guest), patch.object(Path, 'home', return_value=self.root), \
+                patch.object(skill, 'run_setup', side_effect=self.setup), patch.object(skill, 'stop_owned_session', side_effect=self.stop), \
+                patch.object(route, 'wait_for_agent', return_value={'providerSessionId': 'task-canonical',
+                    'timedOut': False, 'controllerWaitSeconds': 4, 'effectiveProcess': {}}):
+            return route._run_trial(self.args, {'id': 'textedit-save'}, 'sky-external', 1, self.root / 'results')
+
+    def test_setup_failed_means_no_task_session_or_oracle_and_cleanup_precedes_disposal(self):
+        record = self.trial()
+        self.assertFalse(record['passed'])
+        self.assertNotIn('launchSessionId', record)
+        self.assertFalse(record['stageAccounting']['task']['launched'])
+        self.assertEqual(record['released'], 'discarded')
+        self.assertEqual(self.timeline, ['stop', 'dispose'])
+        self.guest.ya.assert_not_called()
+        self.assertFalse(any(call.args[0] == 'bash -s' for call in self.guest.run.call_args_list))
+
+    def test_lifecycle_receipts_preserve_initial_off_ready_clone_claim_credentials_and_release(self):
+        record = self.trial()
+        evidence = record['lifecycleEvidence']
+        self.assertFalse(evidence['initialDoctor']['ready'])
+        self.assertEqual(evidence['initialDoctor']['states']['power'], 'off')
+        self.assertTrue(evidence['readyDoctor']['ready'])
+        self.assertTrue(evidence['readinessChecks'][-1]['data']['ready'])
+        acquisition = evidence['workspaceAcquisition']['data']
+        self.assertEqual(acquisition['handle'], 'fixture')
+        self.assertEqual(acquisition['claim'], {'claimId': 'claim', 'resourceKey': 'exact-resource'})
+        self.assertTrue(evidence['credentialHandoff']['verified'])
+        self.assertTrue(evidence['credentialHandoff']['inheritedBytesEqual'])
+        self.assertEqual(evidence['credentialHandoff']['mode'], '0o600')
+        self.assertNotIn('bytes', evidence['credentialHandoff'])
+        self.assertEqual(evidence['workspaceRelease']['data']['disposition'], 'discarded')
+
+    def test_unready_claimed_clone_stops_before_agent_launch(self):
+        self.ready_doctor = False
+        record = self.trial()
+        self.assertIn('doctor did not confirm', record['error'])
+        self.assertFalse(record['lifecycleEvidence']['readyDoctor']['ready'])
+        self.guest.ya.assert_not_called()
+        self.assertEqual(record['released'], 'discarded')
+
+    def test_lifecycle_timings_include_acquisition_disposal_and_match_persisted_receipt(self):
+        clock = [0.0]
+        original_machine = self.machine
+        original_stop = self.stop
+
+        def machine(*argv, **kwargs):
+            duration = (2 if 'doctor' in argv and '--claim' not in argv else 6 if 'doctor' in argv else
+                        3 if 'acquire' in argv else 4 if 'ensure-ready' in argv else
+                        7 if 'bootstrap-stages' in argv else 11 if 'release' in argv else 0)
+            clock[0] += duration
+            return original_machine(*argv, **kwargs)
+
+        def stop(*argv):
+            clock[0] += 9
+            return original_stop(*argv)
+
+        self.machine = machine
+        self.stop = stop
+        self.guest.close.side_effect = lambda: clock.__setitem__(0, clock[0] + 10)
+        with patch.object(route.time, 'monotonic', side_effect=lambda: clock[0]):
+            record = self.trial()
+        timings = record['lifecycleTimings']
+        for name, expected in [('doctorSeconds', 2), ('acquisitionSeconds', 3), ('readinessSeconds', 17),
+                ('ownedSessionCleanupSeconds', 9), ('tunnelCleanupSeconds', 10), ('workspaceCleanupSeconds', 11)]:
+            self.assertEqual(timings[name], expected, name)
+        self.assertIsNone(timings['taskWaitSeconds'])
+        self.assertEqual(timings['totalSeconds'], clock[0])
+        self.assertEqual(record['wallSeconds'], 17)
+        self.assertEqual(timings['totalSeconds'] - record['wallSeconds'], 2 + 3 + 9 + 10 + 11)
+        persisted = json.loads((self.root / 'results/textedit-save/sky-external-1/trial.json').read_text())
+        self.assertEqual(persisted, record)
+
+    def test_task_wait_legacy_metric_and_new_lifecycle_timing_remain_separate(self):
+        self.args.instructions = 'current'
+        record = self.trial()
+        self.assertEqual(record['controllerWaitSeconds'], 4)
+        timings = record['lifecycleTimings']
+        self.assertIsInstance(timings['taskWaitSeconds'], float)
+        self.assertGreaterEqual(timings['taskWaitSeconds'], 0)
+        self.assertGreaterEqual(timings['totalSeconds'], sum(
+            value for key, value in timings.items() if key != 'totalSeconds' and value is not None) - 1e-9)
+        self.assertIsNotNone(timings['workspaceCleanupSeconds'])
+
+    def test_unverified_session_stop_retains_workspace(self):
+        self.stop_error = True
+        record = self.trial()
+        self.assertIn('workspace retained', record['releaseError'])
+        self.assertEqual(self.timeline, ['stop'])
+        self.assertNotIn('released', record)
+
+    def test_success_launches_fresh_task_with_guide_and_generated_evidence_path(self):
+        self.setup_receipt.update(passed=True, status='passed',
+            inputs={'guide': '/private/checkout/info/claude-computer-use.md'},
+            verification={'evidenceDir': '/private/generated/runtime'})
+        record = self.trial()
+        self.assertTrue(record['passed'], record)
+        launches = [call for call in self.guest.ya.call_args_list if call.args[0] == 'POST']
+        self.assertEqual(len(launches), 1)
+        prompt = launches[0].args[2]['message']
+        actual = (route.TASKS / 'textedit-save/prompt.md').read_text()
+        self.assertEqual(prompt, skill.task_prompt(self.setup_receipt['inputs'], actual, route.COMMON))
+        self.assertNotIn('WaitForMcpServers', prompt)
+        self.assertEqual(record['skyEvidenceDir'], '/private/generated/runtime')
+        self.assertTrue(record['skyRuntimeClosed'])
+        self.assertEqual(record['stageAccounting']['setup']['agentSeconds'], 30)
+        self.assertEqual(record['stageAccounting']['task']['agentSeconds'], 3)
+        self.assertEqual(record['oracleExit'], 0)
+        self.assertTrue(any('usage show' in call.args[0] for call in self.guest.run.call_args_list))
+        self.assertTrue(any('audit history' in call.args[0] for call in self.guest.run.call_args_list))
+        self.assertTrue((self.root / 'results/textedit-save/sky-external-1/transcript.jsonl').exists())
+        self.assertEqual(self.timeline, ['stop', 'stop', 'dispose'])
+
+    def test_frozen_default_sky_prompt_and_preconfiguration_remain(self):
+        self.args.instructions = 'current'
+        record = self.trial()
+        self.assertTrue(record['passed'], record)
+        self.assertNotIn('skillSetup', record)
+        launch = next(call for call in self.guest.ya.call_args_list if call.args[0] == 'POST')
+        actual = (route.TASKS / 'textedit-save/prompt.md').read_text().strip()
+        self.assertEqual(launch.args[2]['message'], '\n\n'.join([actual, route.ROUTES['sky-external'], route.COMMON]))
+        self.assertTrue(record['skyPreflight']['passed'])
+
+
+if __name__ == '__main__':
+    unittest.main()

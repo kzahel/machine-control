@@ -28,6 +28,7 @@ import urllib.request
 
 from measurements import transcript_metrics, claude_transcript_metrics
 from agent_profiles import DEFAULT_MODELS, launch_request, qualify
+import sky_skill_acceptance as sky_skill
 
 ROOT = Path(__file__).resolve().parents[2]
 MC_REPL = Path(__file__).resolve().parent / "mc-repl" / "mc-repl.mjs"
@@ -191,7 +192,7 @@ temporary.replace(path)
 
 
 def wait_for_agent(guest, session_id, timeout, poll_seconds, *, clock=time.monotonic, sleep=time.sleep,
-                   publish_identity=None):
+                   publish_identity=None, observe_process=None):
     started = clock()
     deadline = started + timeout
     process = None
@@ -199,6 +200,8 @@ def wait_for_agent(guest, session_id, timeout, poll_seconds, *, clock=time.monot
     published_identity = None
     while clock() < deadline:
         process = guest.ya("GET", f"/api/sessions/{session_id}/process").get("process")
+        if observe_process and process:
+            observe_process(process)
         actual = (process or {}).get('sessionId')
         if publish_identity and actual:
             if published_identity and actual != published_identity:
@@ -250,22 +253,95 @@ def run_trial(args, task, route, index, run_dir):
                        capture_output=True, text=True, check=True)
 
 
+def pinned_input(path, revision, *, directory=False):
+    """Require exact tracked bytes from the selected checkout, including overrides."""
+    path = Path(path).resolve(strict=True)
+    if not path.is_relative_to(ROOT) or path == ROOT or path.is_dir() != directory:
+        raise ValueError('experiment input must be a tracked file/directory within the pinned checkout')
+    relative = path.relative_to(ROOT).as_posix()
+    tree = subprocess.check_output(['git', 'ls-tree', '-r', '-z', revision, '--', relative], cwd=ROOT)
+    entries = {}
+    for entry in tree.split(b'\0'):
+        if not entry:
+            continue
+        metadata, name = entry.split(b'\t', 1)
+        mode, kind, blob = metadata.decode().split()
+        if kind != 'blob' or mode not in ('100644', '100755'):
+            raise ValueError('experiment inputs must be regular tracked files')
+        tracked = ROOT / name.decode()
+        if tracked.is_symlink() or not tracked.is_file():
+            raise ValueError('experiment input missing or linked')
+        frozen = subprocess.check_output(['git', 'cat-file', 'blob', blob], cwd=ROOT)
+        if tracked.read_bytes() != frozen:
+            raise ValueError('experiment input differs from pinned revision')
+        entries[name.decode()] = hashlib.sha256(frozen).hexdigest()
+    actual = {p.relative_to(ROOT).as_posix() for p in path.rglob('*') if p.is_file() or p.is_symlink()} if directory else {relative}
+    if not entries or actual != set(entries):
+        raise ValueError('experiment input contains untracked or missing files')
+    return {'path': relative, 'hashes': entries}
+
+
+def trial_inputs(args, task, route):
+    task_root = Path(getattr(args, 'task_root', None) or TASKS).resolve()
+    instruction_file = getattr(args, 'instruction_file', None)
+    sky_skill.validate_profile(args.provider, args.model, [route], [task['id']], args.instructions)
+    if args.instructions == 'skill' and (task_root != TASKS or instruction_file):
+        raise ValueError('skill uses the frozen TextEdit fixtures and public guide only')
+    if instruction_file and route != 'machine-control':
+        raise ValueError('instruction-file applies only to machine-control')
+    if task_root != TASKS:
+        pinned_input(task_root, args.revision, directory=True)
+    if instruction_file:
+        pinned_input(instruction_file, args.revision)
+    if not re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', task['id']):
+        raise ValueError('invalid task ID')
+    return task_root
+
+
 def _run_trial(args, task, route, index, run_dir):
+    total_started = time.monotonic()
+    task_root = trial_inputs(args, task, route)
     trial_dir = run_dir / task["id"] / f"{route}-{index}"
     trial_dir.mkdir(parents=True, mode=0o700)
     record = {"task": task["id"], "route": route, "repetition": index, "startedAt": now(),
               "provider":args.provider, "requestedModel":args.model, "requestedEffort":args.effort,
               "instructionProfile":args.instructions}
+    if task_root != TASKS or getattr(args, 'instruction_file', None):
+        record['inputPins'] = {}
+        if task_root != TASKS:
+            record['inputPins']['taskRoot'] = pinned_input(task_root, args.revision, directory=True)
+        if getattr(args, 'instruction_file', None):
+            record['inputPins']['instructionFile'] = pinned_input(args.instruction_file, args.revision)
+    timings = record['lifecycleTimings'] = {name: None for name in (
+        'preflightSeconds', 'doctorSeconds', 'acquisitionSeconds', 'readinessSeconds',
+        'setupSeconds', 'taskLaunchSeconds', 'taskWaitSeconds', 'taskEvidenceSeconds',
+        'ownedSessionCleanupSeconds', 'tunnelCleanupSeconds', 'workspaceCleanupSeconds', 'totalSeconds')}
+    phase, phase_started = 'preflightSeconds', total_started
+
+    def advance_phase(next_phase=None):
+        nonlocal phase, phase_started
+        stamp = time.monotonic()
+        if phase is not None:
+            timings[phase] = stamp - phase_started
+        phase, phase_started = next_phase, stamp
+        return stamp
+
+    advance_phase('doctorSeconds')
     # Read-only identity resolution precedes workspace acquisition.
-    mc("--target", args.target, "target", "doctor", check=False)
+    lifecycle = record['lifecycleEvidence'] = {
+        'initialDoctor': mc('--target', args.target, 'target', 'doctor', check=False)}
+    advance_phase('acquisitionSeconds')
     before = tart_names()
     acquired = mc("--target", args.target, "workspace", "acquire", "--intent", "isolated",
                   "--claim-duration", "2h", "--reason",
                   f"Route comparison trial {task['id']} {route} {index}")
+    lifecycle['workspaceAcquisition'] = acquired
     handle = acquired["data"]["handle"]
     claim = acquired["data"]["claim"]["claimId"]
     guest = None
+    owned_sessions = []
     started = time.monotonic()
+    advance_phase('readinessSeconds')
     try:
         created = sorted(tart_names() - before)
         if len(created) != 1:
@@ -278,20 +354,34 @@ def _run_trial(args, task, route, index, run_dir):
         fd = os.open(secret, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "wb") as stream:
             stream.write(args.credential_file.read_bytes())
-        if secret.read_bytes() != args.credential_file.read_bytes():
+        secret_stat = secret.lstat()
+        inherited_equal = secret.read_bytes() == args.credential_file.read_bytes()
+        lifecycle['credentialHandoff'] = {
+            'path': str(secret), 'regularFile': stat.S_ISREG(secret_stat.st_mode),
+            'mode': oct(stat.S_IMODE(secret_stat.st_mode)), 'inheritedBytesEqual': inherited_equal,
+            'verified': inherited_equal and stat.S_ISREG(secret_stat.st_mode) and
+                        stat.S_IMODE(secret_stat.st_mode) == 0o600}
+        if not lifecycle['credentialHandoff']['verified']:
             raise RuntimeError("cloned credential handoff verification failed")
         record["credentialFile"] = str(secret)
         record["credentialVerification"] = "inherited_base_bytes_equal_mode_0600"
         deadline = time.monotonic() + 600
+        lifecycle['readinessChecks'] = []
         while True:
             ready = mc(*selector, "target", "ensure-ready", check=False)
-            if ready.get("data", {}).get("ready"):
+            lifecycle['readinessChecks'].append(ready)
+            if ready.get('accepted') is True and ready.get("data", {}).get("ready") is True:
                 break
             if time.monotonic() > deadline:
                 raise RuntimeError("clone did not become ready")
             time.sleep(15)
+        lifecycle['readyDoctor'] = mc(*selector, 'target', 'doctor', check=False)
+        if lifecycle['readyDoctor'].get('ready') is not True:
+            raise RuntimeError('claimed clone doctor did not confirm ready=true')
         stages = mc(*selector, "testbed", "--", "bootstrap-stages", "--kind", "prepared", "--json", check=False)
+        lifecycle["bootstrapStages"] = stages
         record["bootstrapStagesAvailable"] = stages.get("schema") is not None
+        advance_phase('setupSeconds')
         guest = Guest(args, created[0])
         guest.open_tunnel()
         if args.provider == 'claude':
@@ -359,7 +449,7 @@ print(json.dumps(collect(configs[0])))
             baseline.write_text(json.dumps(identity, indent=2) + "\n")
         common = (TASKS / "common-chrome.sh").read_text()
         guest.run("mkdir -p ~/experiment && cat > ~/experiment/common-chrome.sh", stdin=common)
-        if route == 'sky-external':
+        if route == 'sky-external' and args.instructions != 'skill':
             configured = guest.run('/opt/homebrew/bin/python3 -', stdin='''
 from pathlib import Path
 import json,os,subprocess
@@ -406,32 +496,62 @@ f.write_text(json.dumps(x));os.chmod(f,0o600)
 ''')
         fixture_seed = hashlib.sha256(f"{args.seed}:{task['id']}:{index}".encode()).hexdigest()
         record['fixtureSeed'] = fixture_seed
-        setup = guest.run(f"MC_EXPERIMENT_SEED={fixture_seed} bash -s", stdin=(TASKS / task["id"] / "setup.sh").read_text())
+        setup = guest.run(f"MC_EXPERIMENT_SEED={fixture_seed} bash -s", stdin=(task_root / task["id"] / "setup.sh").read_text())
         record["setup"] = {"exit": setup.returncode, "stderr": setup.stderr[-500:]}
         if setup.returncode:
             raise RuntimeError("task setup failed")
 
-        route_prompt = ROUTES[route]
-        if route == 'machine-control' and args.instructions != 'current':
-            route_prompt = (Path(__file__).parent/'instructions'/f'mc-{args.instructions}.md').read_text()
-        prompt = "\n\n".join([(TASKS / task["id"] / "prompt.md").read_text().strip(), route_prompt, COMMON])
+        actual_task = (task_root / task['id'] / 'prompt.md').read_text()
+        if args.instructions == 'skill':
+            record['enforcementProfile'] = 'genuine_sky_wrapper_fixture_scoped_host_approval'
+            record['skillSetup'] = sky_skill.run_setup(guest, args, actual_task, trial_dir / 'skill-setup',
+                owned_sessions, wait_for_agent, runtime['configSha256'], runtime_artifacts=runtime['artifacts'])
+            record['stageAccounting'] = sky_skill.stage_accounting(record['skillSetup'])
+            if not record['skillSetup']['passed']:
+                record.update(error='skill setup gate failed; task session not launched', validTrial=False, passed=False)
+                return record
+            prompt = sky_skill.task_prompt(record['skillSetup']['inputs'], actual_task, COMMON)
+        else:
+            route_prompt = ROUTES[route]
+            if getattr(args, 'instruction_file', None):
+                route_prompt = Path(args.instruction_file).read_text()
+            elif route == 'machine-control' and args.instructions != 'current':
+                route_prompt = (Path(__file__).parent/'instructions'/f'mc-{args.instructions}.md').read_text()
+            prompt = "\n\n".join([actual_task.strip(), route_prompt, COMMON])
         record['promptSha256'] = hashlib.sha256(prompt.encode()).hexdigest()
         project = project_id(args.project)
         request = launch_request(args.provider, args.model, args.effort, prompt)
+        if args.instructions == 'skill':
+            record['taskStartedAt'] = now()
+            task_started = time.monotonic()
         record['launchSettings'] = {k:v for k,v in request.items() if k!='message'}
+        advance_phase('taskLaunchSeconds')
         session = guest.ya("POST", f"/api/projects/{project}/sessions",
                            request)
-        session_id = session["sessionId"]
+        task_session = sky_skill.register_owned_session(session)
+        owned_sessions.append(task_session)
+        if not task_session.get('launchSessionId') or task_session.get('queueId'):
+            raise RuntimeError('task launch queued or missing session identity')
+        session_id = task_session['launchSessionId']
+        if args.instructions == 'skill' and session_id in {record['skillSetup'].get(k) for k in
+                                                         ('launchSessionId', 'providerSessionId', 'sessionId')}:
+            raise RuntimeError('task session reused setup identity')
         record["launchSessionId"] = session_id
+        advance_phase('taskWaitSeconds')
         record.update(wait_for_agent(guest, session_id, task.get("timeoutSeconds", 600), args.poll_seconds,
             publish_identity=(lambda identifier: publish_session_identity(guest,args.provider,identifier))
-                             if route == 'mc-python' else None))
+                             if route == 'mc-python' else None,
+            observe_process=lambda process: sky_skill.observe_owned_process(task_session, process)))
+        advance_phase('taskEvidenceSeconds')
         session_id = record['providerSessionId']
+        task_session['providerSessionId'] = session_id
+        if args.instructions == 'skill' and session_id == record['skillSetup'].get('sessionId'):
+            raise RuntimeError('task session resolved to setup identity')
         record['sessionId'] = session_id
         detail = guest.ya("GET", f"/api/projects/{project}/sessions/{session_id}")
         record["finalText"] = (detail.get("session") or {}).get("lastAgentText", "")[-1500:]
 
-        oracle = guest.run("bash -s", stdin=(TASKS / task["id"] / "oracle.sh").read_text())
+        oracle = guest.run("bash -s", stdin=(task_root / task["id"] / "oracle.sh").read_text())
         record["oracleExit"] = oracle.returncode
         try:
             record["oracle"] = json.loads(oracle.stdout.strip().splitlines()[-1])
@@ -440,7 +560,7 @@ f.write_text(json.dumps(x));os.chmod(f,0o600)
             record["error"] = "oracle output unreadable"
         if oracle.returncode:
             record["error"] = "oracle infrastructure failed"
-        diagnostics = TASKS / task["id"] / "diagnostics.sh"
+        diagnostics = task_root / task["id"] / "diagnostics.sh"
         if diagnostics.is_file():
             diagnostic = guest.run("bash -s", stdin=diagnostics.read_text())
             (trial_dir / "fixture-diagnostics.txt").write_text(diagnostic.stdout + diagnostic.stderr)
@@ -469,15 +589,26 @@ f.write_text(json.dumps(x));os.chmod(f,0o600)
         (trial_dir / "audit.json").write_text(audit.stdout)
         record.update(audit_metrics(audit.stdout))
         if route == 'sky-external':
-            evidence = guest.run('/opt/homebrew/bin/python3 -', stdin='''
+            evidence_path = (record['skillSetup']['verification']['evidenceDir']
+                             if args.instructions == 'skill' else None)
+            evidence = guest.run('/opt/homebrew/bin/python3 -', stdin=f'evidence_path={evidence_path!r}\n'+'''
 from pathlib import Path
 import json
-p=Path.home()/'experiment/sky-evidence'
+p=Path(evidence_path) if evidence_path else Path.home()/'experiment/sky-evidence'
 print(json.dumps({f.name:f.read_text() for f in p.glob('*') if f.is_file()}))
 ''')
             (trial_dir/'sky-evidence.json').write_text(evidence.stdout)
             data = json.loads(evidence.stdout)
-            record['skyRuntimeClosed'] = json.loads(data.get('closed.json', '{}')).get('closed', False)
+            closed = json.loads(data.get('closed.json', '{}'))
+            record['skyRuntimeClosed'] = closed.get('closed', False)
+            if args.instructions == 'skill':
+                events = [json.loads(line) for line in data.get('protocol-events.jsonl', '').splitlines()]
+                record['skyEvidenceDir'] = evidence_path
+                record['skyRuntimeClosed'] = (record['skyRuntimeClosed'] and closed.get('approvalScope') == [sky_skill.APP]
+                    and closed.get('automaticRestart') is False and any(e.get('event') == 'started' for e in events)
+                    and any(e.get('event') == 'closed' for e in events))
+                record['validTrial'] = record['validTrial'] and record['skyRuntimeClosed']
+                record['passed'] = record['passed'] and record['validTrial']
         capture = mc(*selector, "desktop", "capture", "--scope", "display", check=False)
         path = (capture.get("data") or {}).get("artifactPath")
         if path:
@@ -486,20 +617,45 @@ print(json.dumps({f.name:f.read_text() for f in p.glob('*') if f.is_file()}))
         record["error"] = str(error)
     finally:
         record["wallSeconds"] = round(time.monotonic() - started)
+        advance_phase('ownedSessionCleanupSeconds')
+        sessions_stopped = True
+        if guest:
+            record['ownedSessionCleanup'] = []
+            for owned in owned_sessions:
+                try:
+                    if not owned.get('terminationVerified'):
+                        record['ownedSessionCleanup'].append(sky_skill.stop_owned_session(guest, owned))
+                    else:
+                        record['ownedSessionCleanup'].append(dict(owned))
+                except Exception as error:
+                    sessions_stopped = False
+                    record['ownedSessionCleanup'].append({'session': dict(owned), 'error': str(error)})
+        if args.instructions == 'skill':
+            task_stage = dict(record, controllerWallSeconds=time.monotonic() - task_started if record.get('taskStartedAt') else None,
+                              status='failed' if record.get('error') else 'passed' if record.get('passed') else 'blocked')
+            record['stageAccounting'] = sky_skill.stage_accounting(record.get('skillSetup', {}),
+                task_stage if record.get('launchSessionId') else None)
+        advance_phase('tunnelCleanupSeconds')
         try:
             if guest:
                 guest.close()
         except Exception as error:
             record["tunnelCleanupError"] = str(error)
+        advance_phase('workspaceCleanupSeconds')
         try:
+            if not sessions_stopped:
+                raise RuntimeError('owned session termination unverified; workspace retained for recovery')
             released = mc("--target", args.target, "--claim", claim, "workspace", "release", handle,
                           check=False)
+            lifecycle["workspaceRelease"] = released
             record["released"] = (released.get("data") or {}).get("disposition")
             if released.get("accepted") is not True or record["released"] != "discarded":
                 record["releaseError"] = released.get("errorCode", "disposal_not_confirmed")
         except Exception as error:
             record["releaseError"] = str(error)
+            lifecycle["releaseError"] = str(error)
         finally:
+            timings['totalSeconds'] = advance_phase() - total_started
             (trial_dir / "trial.json").write_text(json.dumps(record, indent=2) + "\n")
     return record
 
@@ -527,8 +683,14 @@ def main():
     parser.add_argument('--provider',choices=sorted(DEFAULT_MODELS),default='codex')
     parser.add_argument('--model',help='Exact model ID; defaults to the requested baseline for this provider')
     parser.add_argument('--effort',choices=['low','medium','high'],default='medium')
-    parser.add_argument('--instructions',choices=['discovery','current','quickstart'],default='current')
+    parser.add_argument('--instructions',choices=['discovery','current','quickstart','skill'],default='current')
     parser.add_argument('--gateway-credential-file',type=Path,help='Mode-0600 scoped Claude gateway client token')
+    parser.add_argument('--skill-setup-timeout-seconds', type=float, default=600,
+                        help='Separate bounded setup wait for the Claude sky-external skill profile')
+    parser.add_argument('--task-root', type=Path, default=TASKS,
+                        help='Tracked task tree within the pinned checkout; default frozen tasks')
+    parser.add_argument('--instruction-file', type=Path,
+                        help='Tracked pinned route instructions; machine-control only')
     parser.add_argument("--poll-seconds", type=float, default=1.0)
     parser.add_argument("--revision", default="HEAD", help="Freeze this local commit for the batch")
     parser.add_argument("--task", action="append", help="Task id; repeat; default all")
@@ -544,6 +706,14 @@ def main():
     parser.add_argument("--project", default="/Users/admin/code/machine-control")
     args = parser.parse_args()
     args.model = args.model or DEFAULT_MODELS[args.provider]
+    try:
+        sky_skill.validate_profile(args.provider, args.model, args.route, args.task, args.instructions)
+        if args.instructions == 'skill' and (args.task_root.resolve() != TASKS or args.instruction_file):
+            raise ValueError('skill uses the frozen TextEdit fixtures and public guide only')
+        if args.instruction_file and set(args.route or ['computer-use', 'machine-control']) != {'machine-control'}:
+            raise ValueError('instruction-file requires only the machine-control route')
+    except ValueError as error:
+        parser.error(str(error))
     if args.provider=='claude' and (not args.route or 'computer-use' in args.route):
         parser.error('Claude requires explicit routes; use sky-external for bounded Sky qualification')
     if 'sky-external' in (args.route or []):
@@ -561,8 +731,8 @@ def main():
         parser.error("credential-file must be a regular mode-0600 file")
     if not args.credential_file.read_bytes():
         parser.error("credential-file must not be empty")
-    if args.repetitions < 1 or args.poll_seconds <= 0:
-        parser.error("repetitions and poll-seconds must be positive")
+    if args.repetitions < 1 or args.poll_seconds <= 0 or args.skill_setup_timeout_seconds <= 0:
+        parser.error("repetitions, poll-seconds and skill-setup-timeout-seconds must be positive")
     args.revision = subprocess.check_output(
         ["git", "rev-parse", "--verify", args.revision + "^{commit}"], cwd=ROOT, text=True).strip()
     # Fixtures and runner must come from the same commit as the client.
@@ -571,8 +741,22 @@ def main():
         parser.error("commit experiment changes before running a batch")
     if args.revision != subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip():
         parser.error("run from the selected revision's checkout to freeze fixtures too")
-    tasks = [json.loads((TASKS / name / "task.json").read_text())
-             for name in (args.task or sorted(p.name for p in TASKS.iterdir() if p.is_dir()))]
+    args.task_root = args.task_root.resolve()
+    input_pins = {}
+    try:
+        if args.task_root != TASKS:
+            input_pins['taskRoot'] = pinned_input(args.task_root, args.revision, directory=True)
+        if args.instruction_file:
+            args.instruction_file = args.instruction_file.resolve()
+            input_pins['instructionFile'] = pinned_input(args.instruction_file, args.revision)
+    except (ValueError, OSError) as error:
+        parser.error(str(error))
+    task_names = args.task or sorted(p.name for p in args.task_root.iterdir() if p.is_dir())
+    if any(not re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', name) for name in task_names):
+        parser.error('invalid task ID')
+    tasks = [json.loads((args.task_root / name / 'task.json').read_text()) for name in task_names]
+    if any(task['id'] != name for task, name in zip(tasks, task_names)):
+        parser.error('task manifest ID must match directory')
     plan = [(task, route, n) for task in tasks for route in (args.route or ["computer-use", "machine-control"])
             for n in range(1, args.repetitions + 1)]
     random.Random(args.seed).shuffle(plan)
@@ -586,7 +770,9 @@ def main():
                 "seed": args.seed, "pollSeconds": args.poll_seconds,
                 "plan": [{"task": t["id"], "route": r, "repetition": n} for t, r, n in plan],
                 "fixtureHashes": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
-                                  for p in TASKS.rglob("*") if p.is_file()}}
+                                  for p in args.task_root.rglob("*") if p.is_file()}}
+    if input_pins:
+        manifest["inputPins"] = input_pins
     (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"Run {run_dir} with {len(plan)} trials", flush=True)
     summary = []

@@ -95,6 +95,14 @@ Recommended bounded task instruction:
 
 This is a qualification recipe, not a general installation or supported Sky SDK.
 
+The separate `--instructions skill` profile tests agent-led setup from the
+repo-local guide in a fresh guest, followed by a new task session only when
+independent configuration/probe checks pass. Select the same Claude model and
+explicit TextEdit task as above. Setup and task usage/time are retained
+separately; a preconfigured MCP entry cannot count as setup success. This
+profile is outside the frozen baseline and is tracked in
+[Tactical 128](../../../docs/tactical/128-control-efficiency-campaign.md).
+
 Troubleshooting:
 
 - No tools: inspect the private protocol events. An optional `server/discover`
