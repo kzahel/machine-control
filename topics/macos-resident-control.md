@@ -14,6 +14,17 @@ fresh login, preboot, Recovery, and physical hardware remain open.
 
 ## Current state
 
+**Current (2026-10-16):** native AX `set_value` accepts an empty string,
+including independently checked editor clearing/restoration. The bounded
+SecurityAgent recognizer also accepts the exact `security` requester and
+System Certificate Trust Settings prompt with its unique Update Settings
+button. Existing process/window/secure-field, generation and one-use lease
+checks still apply; a stored-credential cleanup and independent removal check
+passed on the test appliance. Resident Swift tests (215) and the isolated
+`tests/smoke.sh --static` suite pass. The live smoke tail requires a disruptive
+claim and was not run under the ordinary application-test claim. This does
+not grant arbitrary prompt matching.
+
 **Current (2026-10-15), unreleased source candidate:** native keyboard input
 resolves character keys through the active layout and its Command mapping,
 with logical modifier semantics and explicit event-state cleanup. The real

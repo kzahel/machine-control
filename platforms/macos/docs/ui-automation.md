@@ -240,8 +240,10 @@ or changed-sheet lease fails closed.
 The strict SecurityAgent profiles currently admit the ordinary
 `REQUESTER wants to make changes` sheet with its OK button and Installer's
 exact `Installer is trying to install new software` sheet with its Install
-Software button. Other prompts fail closed even when they contain a secure
-field.
+Software button. The `security` requester also admits the exact `You are
+making changes to the System Certificate Trust Settings.` prompt with its
+`Update Settings` button, for explicitly initiated certificate administration.
+Other prompts fail closed even when they contain a secure field.
 
 The broker also admits the exact LocalAuthentication `Privacy & Security`
 sheet shown after Gatekeeper's Open Anyway action. It requires the fixed

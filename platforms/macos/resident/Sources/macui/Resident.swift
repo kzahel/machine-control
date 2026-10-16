@@ -1504,13 +1504,16 @@ final class ResidentService {
                 text.contains("\(expectedRequester) wants to make changes.")
             let installerPrompt = expectedRequester == "Installer" &&
                 text.contains("Installer is trying to install new software.")
+            let trustSettingsPrompt = expectedRequester == "security" &&
+                text.contains("You are making changes to the System Certificate Trust Settings.")
             guard text.contains(expectedRequester),
                   text.contains("Enter your password to allow this."),
-                  ordinaryPrompt != installerPrompt else {
+                  [ordinaryPrompt, installerPrompt, trustSettingsPrompt].filter({ $0 }).count == 1 else {
                 throw MacUIError.element(
                     "SecurityAgent sheet did not match the expected requester")
             }
-            confirmTitle = installerPrompt ? "Install Software" : "OK"
+            confirmTitle = trustSettingsPrompt ? "Update Settings" :
+                (installerPrompt ? "Install Software" : "OK")
         case "com.apple.systempreferences":
             guard text.contains(expectedRequester),
                   text.contains(
@@ -2238,7 +2241,8 @@ final class ResidentService {
                     delivery = AXUIElementSetAttributeValue(
                         element, kAXFocusedAttribute as CFString, kCFBooleanTrue)
                 case "set_value":
-                    guard let value = requestString(request, "text") else {
+                    // Empty is a valid value for clearing an ordinary field.
+                    guard let value = request["text"] as? String else {
                         result = refused(request, code: "invalid_request",
                                          message: "text is required for set_value",
                                          route: "guest.user/macos.ax")
