@@ -2,9 +2,34 @@
 
 ## [Unreleased]
 
+## [0.6.5]
+
 - Add `desktop dialog choose --path PATH` on Mac to choose a location in an
   application's native Open or Save panel. It confirms only after the panel
   shows the requested folder and leaves prompts such as Replace to the caller.
+- Fix Mac keyboard shortcuts and credential text delivery across supported
+  keyboard layouts and modifier remappings. Accept both plus and hyphen chord
+  separators, and refuse unsupported input before sending a partial value.
+- Improve Mac accessibility reliability: non-finite values no longer crash
+  replies, and bounded observation identities preserve unchanged controls
+  across reads. Actions still require fresh snapshot references and recheck
+  process and ancestor membership before dispatch.
+- Include a candidate persistent Python MCP session through
+  `machine-control mcp`, with compact tree observations, capture-bound input,
+  explicit application activation and owned claim/session cleanup. This
+  interface has bounded source acceptance on Mac; installed-package, remote
+  and broader platform qualification remain open.
+- Improve offline claim/workspace help and claim renewal/release arguments,
+  use a shared Mac clock for queued admission deadlines, and preserve failed
+  provisioning-journal persistence errors in the CLI exit status.
+
+Targets all six desktop platform/architecture packages. Mac keyboard candidate
+acceptance covers six layout/remapping combinations with AppKit, WebKit,
+Terminal, Electron and real administrator authorization; browser shortcuts
+also pass a focused Chrome for Testing smoke. Native identity and persistent
+session acceptance are bounded by their documented fixtures and agent trials.
+GUI execution for these changes is ARM64 Mac; Intel execution, broader
+hardware/layouts and exact signed production-package acceptance remain separate.
 
 ## [0.6.4]
 
