@@ -89,11 +89,10 @@ def main():
     assert not initial["lockedUse"]["pausedUntilManualUnlock"]
     grant = request({"operation":"grant.status"})["grant"]
     assert grant, "Approve ordinary access first"
-    applications = request({"operation":"applications", "provider":"macos-native"})["applications"]
-    fixtures = [app for app in applications if app.get("bundleId") == "org.machine-control.fixture"]
-    assert len(fixtures) == 1, "Launch exactly one native fixture before acceptance"
-    fixture_pid = fixtures[0]["processId"]
-    fixture_state()  # Bind the independent oracle before control begins.
+    # The file oracle is available while locked; ordinary app enumeration is
+    # intentionally unavailable until covered activation. Bind now and verify
+    # the exact semantic process only after the console is safely covered.
+    fixture_pid = fixture_state()["pid"]
     fixture = str(fixture_pid)
     owner = subprocess.Popen(command({"operation":"session.control", "durationSeconds":90 if args.case == "duration_expired" else 300}),
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -127,6 +126,10 @@ def main():
         wait(active, timeout=180 if args.manual_lock else 45)
         current = state()
         assert current["desktopState"] == "unlocked" and current["lockedUse"]["coveredDisplays"] > 0
+        applications = request({"operation":"applications", "provider":"macos-native"})["applications"]
+        fixtures = [app for app in applications if app.get("bundleId") == "org.machine-control.fixture"]
+        assert len(fixtures) == 1, "Launch exactly one native fixture before acceptance"
+        assert fixtures[0]["processId"] == fixture_pid, "Semantic fixture differs from the independent oracle"
         print("Covered session active; keep hardware still until the requested takeover", flush=True)
         before = fixture_state()
         tree = request({"operation":"snapshot", "target":fixture, "provider":"macos-native"})
@@ -207,15 +210,18 @@ def main():
     finally:
         if suspended:
             execute("os", "--", "/bin/kill", "-CONT", suspended)
-        if args.case != "resident_crash":
-            current = state()["lockedUse"]
-            if current["controlSessionId"] == session_id and session_id:
-                request({"operation":"session.control.end", "controlSessionId":session_id})
         try:
-            owner.communicate(timeout=15)
-        except subprocess.TimeoutExpired:
-            owner.terminate()
-            owner.communicate(timeout=15)
+            if args.case != "resident_crash":
+                current = state()["lockedUse"]
+                if current["controlSessionId"] == session_id and session_id:
+                    request({"operation":"session.control.end", "controlSessionId":session_id})
+        finally:
+            # A busy/refusing status endpoint must not skip owner cleanup.
+            try:
+                owner.communicate(timeout=15)
+            except subprocess.TimeoutExpired:
+                owner.terminate()
+                owner.communicate(timeout=15)
 
 
 if __name__ == "__main__":

@@ -174,6 +174,32 @@ completion cycle, not expiry, takeover, repeated tasks, multiple displays or
 public-package distribution. Physical cover appearance was not separately
 confirmed by an operator or an external capture oracle.
 
+## Covered unlock password-panel investigation
+
+**Current (2026-10-16), bounded `live-tested`:** signed ARM64 desktop 0.6.1
+on a one-display macOS 26.6.2 VM reaches actual covered activation from lock.
+Independent IOKit readback observes unlock and subsequent completion relock;
+the native fixture oracle confirms AX, pointer and keyboard effects. Filtered
+capture, zero remaining covers/owner and retained ordinary approval pass. A
+preceding trial ends with the distinct `disabled` reason, followed by a helper
+disconnect pause and revoked access. Its cause remains unisolated.
+
+This does not reproduce the reported physical password-panel failure or qualify
+Touch ID entry and multiple displays. Installed 0.6.1 declares revision
+`de253841f10c9df1da457dc5cd4780d20c9bfd68`; its trigger matches the reviewed
+source. Added Python bytecode caches invalidate strict bundle resource checks;
+removing only those added files in VM staging restores verification. No causal
+relationship to the reported unlock failure is established.
+
+**Current, `source-reviewed` and deterministic regression evidence:** fixed
+diagnostic suffixes separate unavailable/ambiguous login windows, AX failures,
+traversal exhaustion and field absence/ambiguity/disabled/focus conditions.
+No password value or arbitrary lock-screen text is read. Unexpected AX failures
+refuse; process identity, strict field matching, PID-targeted Return and the
+retry duration remain. Tests and both architecture builds pass; live acceptance
+of the modified trigger remains open. [Tactical
+129](../../docs/tactical/129-macos-unlock-panel-diagnostics.md) owns execution.
+
 ## Resumable admission
 
 **Current, `built` and bounded `live-tested`:** the owned admission channel

@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [129 — macOS unlock-panel diagnostics](129-macos-unlock-panel-diagnostics.md):
+  bounded signed-build VM completion and secret-free discovery reasons;
+  the reported physical password-panel failure remains open.
+
 - [128 — Control efficiency campaign](128-control-efficiency-campaign.md):
   active YA-assisted skill acceptance, native identity/compact observations,
   whole-package scenarios and controlled instruction comparison.

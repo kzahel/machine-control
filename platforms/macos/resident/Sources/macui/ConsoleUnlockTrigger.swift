@@ -40,27 +40,64 @@ struct ConsoleUnlockTrigger {
     }
 
     /// Reads role/identity/focus metadata only, never the secure field's value.
-    private func passwordField() -> AXUIElement? {
+    private func passwordPanelIssue() -> String? {
         let app = AXUIElementCreateApplication(identity.pid)
         AXUIElementSetMessagingTimeout(app, 0.3)
-        let windows = (attribute(app, kAXWindowsAttribute as CFString) as? [AXUIElement] ?? [])
-            .filter { stringAttribute($0, kAXIdentifierAttribute as CFString) == "login" }
-        guard windows.count == 1 else { return nil }
-        var fields: [AXUIElement] = []
+        return Self.passwordPanelIssue(app:app) { element, name in
+            var value: CFTypeRef?
+            let result = AXUIElementCopyAttributeValue(element, name as CFString, &value)
+            switch result {
+            case .success: return value
+            case .noValue, .attributeUnsupported: return nil
+            default: throw MacUIError.action("ax_read_failed")
+            }
+        }
+    }
+
+    /// The injectable reader admits only the metadata used by the production
+    /// discovery path. Diagnostics are fixed codes, with no UI text or values.
+    static func passwordPanelIssue<Element>(app: Element,
+        read: (Element, String) throws -> Any?) -> String? {
+        var readFailed = false
+        func value(_ element: Element, _ name: String) -> Any? {
+            do { return try read(element, name) }
+            catch { readFailed = true; return nil }
+        }
+        guard let allWindows = value(app, kAXWindowsAttribute) as? [Element] else {
+            return readFailed ? "ax_read_failed" : "windows_unavailable"
+        }
+        let windows = allWindows.filter { value($0, kAXIdentifierAttribute) as? String == "login" }
+        if readFailed { return "ax_read_failed" }
+        guard !windows.isEmpty else { return "login_window_absent" }
+        guard windows.count == 1 else { return "login_window_ambiguous" }
+        var fields = 0, ready = 0, disabled = false, unfocused = false, depthLimited = false
         var remaining = 64
-        func visit(_ element: AXUIElement, depth:Int) {
-            guard remaining > 0, depth <= 6 else { return }; remaining -= 1
-            if stringAttribute(element, kAXRoleAttribute as CFString) == "AXTextField",
-               stringAttribute(element, kAXSubroleAttribute as CFString) == "AXSecureTextField",
-               stringAttribute(element, kAXIdentifierAttribute as CFString) == "UserPasswordTextField",
-               boolAttribute(element, kAXEnabledAttribute as CFString) == true,
-               boolAttribute(element, kAXFocusedAttribute as CFString) == true { fields.append(element) }
-            for child in (attribute(element, kAXChildrenAttribute as CFString) as? [AXUIElement] ?? []) {
+        func visit(_ element: Element, depth:Int) {
+            guard remaining > 0 else { return }
+            guard depth <= 6 else { depthLimited = true; return }
+            remaining -= 1
+            if value(element, kAXRoleAttribute) as? String == "AXTextField",
+               value(element, kAXSubroleAttribute) as? String == "AXSecureTextField",
+               value(element, kAXIdentifierAttribute) as? String == "UserPasswordTextField" {
+                fields += 1
+                let enabled = value(element, kAXEnabledAttribute) as? Bool == true
+                let focused = value(element, kAXFocusedAttribute) as? Bool == true
+                disabled = disabled || !enabled; unfocused = unfocused || !focused
+                if enabled && focused { ready += 1 }
+            }
+            for child in (value(element, kAXChildrenAttribute) as? [Element] ?? []) {
                 visit(child, depth:depth + 1)
             }
         }
         visit(windows[0], depth:0)
-        return remaining > 0 && fields.count == 1 ? fields[0] : nil
+        if readFailed { return "ax_read_failed" }
+        guard remaining > 0 else { return "node_limit" }
+        if ready == 1 { return nil }
+        if ready > 1 { return "password_field_ambiguous" }
+        if fields == 0 { return depthLimited ? "depth_limit" : "password_field_absent" }
+        if disabled { return "password_field_disabled" }
+        if unfocused { return "password_field_unfocused" }
+        return "password_field_unavailable"
     }
 
     /// The caller must already own covers, hardware cancellation, and the
@@ -89,16 +126,18 @@ struct ConsoleUnlockTrigger {
             up.postToPid(identity.pid)
         }
         guard try stillLocked() else { return }
-        if passwordField() == nil {
+        if passwordPanelIssue() != nil {
             try enter() // Reveal the password panel on Touch ID lock screens.
             let deadline = ProcessInfo.processInfo.systemUptime + 2
-            while passwordField() == nil, ProcessInfo.processInfo.systemUptime < deadline {
+            while passwordPanelIssue() != nil, ProcessInfo.processInfo.systemUptime < deadline {
                 guard try stillLocked() else { return }
                 Thread.sleep(forTimeInterval:0.05)
             }
         }
         guard try stillLocked() else { return }
-        guard passwordField() != nil else { throw MacUIError.action("unlock_password_panel_unavailable") }
+        if let issue = passwordPanelIssue() {
+            throw MacUIError.action("unlock_password_panel_unavailable_\(issue)")
+        }
         try enter()
     }
 }

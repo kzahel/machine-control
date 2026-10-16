@@ -8,6 +8,18 @@ on macOS 26.6.2. Operator-confirmed physical takeover/recovery is live-tested
 with a scripted timing caveat. Multiple displays, additional OS revisions,
 Intel execution and distribution qualification remain open.
 
+**Current (2026-10-16):** a reported physical task ended with
+`unlock_password_panel_unavailable`. A bounded one-display VM completion on
+signed 0.6.1 passes covered activation, independent native fixture effects,
+filtered capture, independently observed relock and retained approval. An
+earlier VM trial ended with the distinct `disabled` reason. Neither result
+explains the physical failure. Source diagnostics now distinguish login-window
+discovery, AX read errors, traversal limits and field readiness without reading
+password values; identity, focused-field and targeted-input requirements remain.
+The physical diagnostic build is not installed or qualified. See
+[Tactical 129](../docs/tactical/129-macos-unlock-panel-diagnostics.md) and the
+[platform evidence](../research/platforms/macos.md#covered-unlock-password-panel-investigation).
+
 **Current (2026-10-13):** desktop 0.6.0 has bounded physical evidence of
 covered startup ending immediately despite approved access and a healthy
 helper. The asynchronous session cache can overwrite newer native evidence.

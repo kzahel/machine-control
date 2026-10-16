@@ -83,6 +83,19 @@ unlock grant. Remove the helper separately in Permissions while the Mac is unloc
 
 ## Agent task lifecycle
 
+In current source, a failed password-panel probe ends with
+`unlock_password_panel_unavailable_` followed by a fixed diagnostic suffix:
+`windows_unavailable`, `login_window_absent`, `login_window_ambiguous`,
+`ax_read_failed`, `node_limit`, `depth_limit`, `password_field_absent`,
+`password_field_ambiguous`, `password_field_disabled`, or
+`password_field_unfocused`. Older builds return only
+`unlock_password_panel_unavailable`. These reasons describe discovery, not
+proof of Return delivery or the cause of a missing panel. They contain no
+password values or lock-screen text. Record ending state before recovery;
+do not automatically retry after access is revoked. [Tactical
+129](../../../docs/tactical/129-macos-unlock-panel-diagnostics.md) records the
+bounded VM result and the still-open physical failure.
+
 Use doctor, an exclusive claim, ordinary approval, and fresh status/capabilities
 as usual. A launcher or agent must explicitly own the task connection; the
 setting does not infer a task from unrelated one-shot requests.
