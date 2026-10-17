@@ -2,7 +2,7 @@
 
 Owning topic: [native distribution](../../topics/native-distribution.md).
 
-Status: in progress.
+Status: complete; published on 2026-10-17.
 
 ## Objective and completion conditions
 
@@ -51,8 +51,38 @@ Local portable checks pass. All 79 release regression tests pass (one native
 platform skip), including required Linux module omission cases for both
 architectures. Focused MCP (12) and scoped-run (22) tests pass; Windows
 publication refusal and deterministic prelaunch renewal cleanup are covered.
-Release preflight and whitespace validation pass. Hosted execution and
-publication remain pending.
+Release preflight and whitespace validation pass.
 The revised desktop suite passes 25 tests (one skip). Its four locked-browser
 tests also pass with `getuid` and `fchmod` removed to emulate missing Windows
 APIs, skipping only native preference persistence.
+
+
+**Current:** [Public desktop 0.6.8](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.6.8)
+uses immutable annotated tag `desktop-v0.6.8` at source
+`fa776a64fde531464c9b9e0c2ea5f5033f4a22b9`.
+[Unified release 39037695500](https://github.com/kzahel/machine-control/actions/runs/39037695500),
+attempt 1, passed all six signed package jobs, Windows authentication and
+final draft authentication/publication. Both
+[source checks](https://github.com/kzahel/machine-control/actions/runs/39037689795)
+and [tag checks](https://github.com/kzahel/machine-control/actions/runs/39037695739)
+passed all six coordinator/native jobs across Mac, Windows and Linux.
+
+All 29 independently downloaded public assets match GitHub SHA-256 digests
+and sizes. Six build receipts bind the exact version, source and workflow
+attempt. Eight package updater signatures and their signed versions verify
+against the configured product key. The updater manifest contains exactly
+six targets, matching public package URLs and signatures, and the release
+body/manifest notes match the versioned changelog. All eight website download
+redirects select 0.6.8.
+
+After the shared service's cached 0.6.4 selection refreshed, all 24 production
+update responses across the shared service and website proxy pass: 0.6.4
+clients receive the exact 0.6.8 package URLs/signatures for all six targets,
+and 0.6.8 clients receive HTTP 204. This required no service or site deployment.
+
+Publication verifies package authenticity and delivery; this recovery does
+not add installed GUI, protected-session, physical-hardware or sleep coverage.
+The changelog preserves the existing feature acceptance limits. No published
+assets or existing release tags were replaced. The 0.6.7 run was canceled
+before publication when its source check exposed the remaining Linux fixture
+portability errors.

@@ -3,9 +3,9 @@
 One desktop version, required changelog, annotated `desktop-vX.Y.Z` tag, and
 release script cover every currently packaged platform: Mac Apple silicon and
 Intel, Windows x64 and ARM64, and from 0.5.0 Linux x64 and ARM64.
-Workstation components remain independent. Public desktop 0.6.4 includes all
+Workstation components remain independent. Public desktop 0.6.8 includes all
 six architectures; the acceptance matrix distinguishes packaging from GUI execution.
-The [0.6.4 release record](../docs/tactical/121-desktop-0.6.4-release.md)
+The [0.6.8 release record](../docs/tactical/132-desktop-0.6.8-release.md)
 owns exact source, workflow identities, public authentication and delivery.
 
 ## Release

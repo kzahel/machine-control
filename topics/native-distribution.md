@@ -4,7 +4,7 @@ Topic: `native-distribution`
 
 Status: signed Windows headless workstation preview remains available; YA now
 consumes the installed desktop CLI and has retired its component lifecycle.
-Unified Mac/Windows/Linux desktop `0.6.4` is published; package
+Unified Mac/Windows/Linux desktop `0.6.8` is published; package
 signatures, public downloads, and production metadata are verified for all six
 architectures.
 ARM64 Tart has targeted signed browser-indicator evidence; Windows x64 retains
@@ -49,19 +49,17 @@ its authority or silently installing it on personal machines.
 
 ## Current implementation
 
-**Current:** Desktop 0.6.5 and 0.6.6 did not publish. The
-[0.6.8 recovery](../docs/tactical/132-desktop-0.6.8-release.md) repairs Linux
-payload validation and Windows portable-check failures, preserving existing
-tags and cumulative feature notes. Publication verification is in progress.
-
-**Current:** [Public desktop 0.6.4](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.6.4)
-ships person-armed access retention on all three platforms, the Chrome side
-panel/store-origin support, and installed CLI help, usage notes and code-seal
-protection. Public asset signatures, source/run identities, download redirects
-and both production metadata routes pass verification.
-[Tactical 121](../docs/tactical/121-desktop-0.6.4-release.md) owns current
-publication evidence and qualification repairs; [116](../docs/tactical/116-desktop-0.6.1-release.md)
-retains the preceding covered-startup repair release.
+**Current:** [Public desktop 0.6.8](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.6.8)
+includes the unpublished 0.6.5/0.6.6 features and release-gate repairs for
+Linux payload inventories and Windows portable tests. Both source/tag checks
+and the complete six-target signed publication pass. Public downloads,
+package signatures and source/workflow receipts verify independently.
+Website downloads and both production update metadata routes select 0.6.8
+after the shared service cache refresh.
+[Tactical 132](../docs/tactical/132-desktop-0.6.8-release.md) owns recovery and
+publication evidence; [121](../docs/tactical/121-desktop-0.6.4-release.md)
+retains the preceding published 0.6.4 qualification. Native feature execution
+keeps its existing platform/fixture limits; publication adds no GUI acceptance.
 Personal, minimal and appliance presentations ship in one app with bounded runtime work and local
 recovery. [Runtime and presentation](runtime-and-presentation.md) owns their
 native qualification and remaining installed replacement, protected-session
@@ -243,7 +241,7 @@ then published the same draft by ID without replacing bytes or its tag. Future
 CI publication now resolves and verifies the draft by ID. Both re-downloaded
 public DMGs and archives passed publisher signatures, notarization/stapling,
 updater signature/version and tamper rejection. The live download page selects
-unified `0.6.4` for all eight installer/package routes. Both the shared server
+unified `0.6.8` for all eight installer/package routes. Both the shared server
 and website proxy return signed archive metadata with cumulative required changelogs for older clients and 204
 for current clients. Product registration and the website proxy preserve the
 endpoint already embedded in 0.3.3.
