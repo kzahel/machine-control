@@ -56,6 +56,17 @@ produces CI candidates with an empty release tag. Tagged publication uses
 
 ## Approval and control boundaries
 
+On macOS, Settings has an unreleased, default-off **Allow approved browser
+access while locked** option. Enable it and approve browser access before
+locking. Browser tabs and separately approved browser scripts/DevTools can
+continue through the extension while macOS stays locked, without an unlock
+helper. Mixed approvals retain their original expiry, while desktop observation
+and input remain unavailable until unlock unless covered desktop control is
+separately enabled. Pause, Stop and expiry still apply; turning the option off
+while locked ends retained access. New or broader approval requires unlocking.
+This covers an awake existing console, not system sleep or browser/OS
+authentication dialogs. See [validation and limits](../docs/tactical/130-macos-browser-while-locked.md).
+
 Linux targets Ubuntu 24.04 GNOME 46 Wayland first. Install the Debian package to
 resolve its Python/GI, portal, PipeWire/GStreamer, and Wayland clipboard
 dependencies. AppImage uses those same system dependencies; it is not a bundled

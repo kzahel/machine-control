@@ -159,6 +159,21 @@ package and environment boundaries.
 
 ## Open
 
+- **Current, unreleased macOS source (2026-10-17):** Settings includes a
+  default-off **Allow approved browser access while locked** preference,
+  independent of covered desktop unlock. Approve access while unlocked, then
+  keep approved `browser` and separately approved `devtools` operations across
+  a lock of that exact console. Mixed grants retain identity and expiry;
+  desktop scopes are unavailable until unlock unless covered desktop control
+  separately authorizes them. New or expanded approval still requires an
+  unlocked console. Pause, Stop, expiry, disabling, session replacement and
+  unknown session state remain effective. Browser-only owner connections do
+  not activate the unlock helper. Grant status reports effective scopes and
+  the lock restriction; status reports the preference. Only the local operator
+  may change it. [Tactical 130](../docs/tactical/130-macos-browser-while-locked.md)
+  owns validation. Signed installed Settings acceptance, physical Macs,
+  streamed DevTools and other platforms remain separate qualification.
+
 - **Current, unreleased Windows x64 candidate:** `browser.upload` uses the
   shared extension's direct CDP input/chooser interception with native local-file
   validation, browser scope and live ownership. All 23 focused VM checks pass,

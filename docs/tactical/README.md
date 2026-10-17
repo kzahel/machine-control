@@ -1,5 +1,8 @@
 # Implementation Tacticals
 
+- [130 — macOS browser access while locked](130-macos-browser-while-locked.md):
+  default-off browser-only approval retention without covered desktop unlock.
+
 - [129 — macOS unlock-panel diagnostics](129-macos-unlock-panel-diagnostics.md):
   bounded signed-build VM completion and secret-free discovery reasons;
   the reported physical password-panel failure remains open.

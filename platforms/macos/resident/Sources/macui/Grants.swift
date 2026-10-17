@@ -194,6 +194,15 @@ final class GrantBroker {
     private let auditLimit = 100
     var consentStore: OperatorConsentStore?
     var consentStorageError: String?
+    /// A retained mixed grant keeps its identity and expiry, but cannot expose
+    /// desktop observation/input while only browser access is permitted.
+    var browserOnlyWhileLocked = false {
+        didSet { if oldValue != browserOnlyWhileLocked { notify() } }
+    }
+    static let browserScopes: Set<GrantScope> = [.browser, .devtools]
+    private func scopeAvailable(_ scope: GrantScope) -> Bool {
+        !browserOnlyWhileLocked || Self.browserScopes.contains(scope)
+    }
     var availabilityChanged: (() -> Void)?
     private var availabilityRevision = 0
     lazy var admission: AccessAdmission = {
@@ -247,7 +256,7 @@ final class GrantBroker {
     var devtoolsAllowed: Bool { allows(.devtools) }
 
     private func allows(_ scope: GrantScope) -> Bool {
-        admission.blocks("desktop").isEmpty &&
+        scopeAvailable(scope) && admission.blocks("desktop").isEmpty &&
             (policy.grantMode == .standing || activeGrant?.scopes.contains(scope) == true)
     }
 
@@ -277,6 +286,11 @@ final class GrantBroker {
             }
             return nil
         case let .scoped(scope):
+            guard scopeAvailable(scope) else {
+                return GrantRefusal("desktop_locked_browser_only",
+                    "Only previously approved browser access is available while locked",
+                    requiredScope: scope)
+            }
             if !controlled && admission.reserved {
                 return GrantRefusal("control_session_required", "The desktop is reserved; use an owner-bound control channel", requiredScope:scope)
             }
@@ -310,6 +324,7 @@ final class GrantBroker {
 
     func admissionAuthority(scopes: Set<GrantScope>) -> String? {
         if journal?.errorCode != nil { return "audit_storage_unavailable" }
+        if !scopes.allSatisfy(scopeAvailable) { return "desktop_locked_browser_only" }
         if policy.grantMode == .standing { return nil }
         guard let grant = activeGrant, scopes.isSubset(of:grant.scopes) else { return "approval_required" }
         return nil
@@ -317,7 +332,8 @@ final class GrantBroker {
 
     /// Returns an existing grant that already covers the request.
     func covering(_ request: GrantRequest) -> Grant? {
-        guard let current = activeGrant, request.scopes.isSubset(of: current.scopes) else {
+        guard let current = activeGrant, request.scopes.isSubset(of: current.scopes),
+              request.scopes.allSatisfy(scopeAvailable) else {
             return nil
         }
         return current
@@ -466,6 +482,9 @@ final class GrantBroker {
                  "at": ISO8601DateFormatter().string(from: ended.at)]
             } ?? NSNull(),
             "consentStorageError":consentStorageError as Any? ?? NSNull(),
+            "browserOnlyWhileLocked": browserOnlyWhileLocked,
+            "effectiveScopes": (policy.grantMode == .standing ? Set(GrantScope.allCases) : activeGrant?.scopes ?? [])
+                .filter(allows).sorted().map(\.rawValue),
             "availability": ["paused": !admission.blocks("desktop").isEmpty,
                 "blockingReasons": admission.blocks("desktop")],
         ]

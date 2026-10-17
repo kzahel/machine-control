@@ -23,12 +23,17 @@ final class ServerTests: XCTestCase {
     private var socketPath = ""
     private var server: ResidentServer!
     private var broker: GrantBroker!
+    private var preferences: UserDefaults!
+    private var preferenceSuite = ""
 
     override func setUpWithError() throws {
         signal(SIGPIPE, SIG_IGN)
         socketPath = "/tmp/mc-test-\(getpid())-\(Int.random(in: 0..<100_000)).sock"
         broker = GrantBroker(policy: .workstation(issue: nil))
-        server = ResidentServer(socketPath: socketPath, service: ResidentService(), broker: broker)
+        preferenceSuite = "mc-browser-lock-test-" + UUID().uuidString
+        preferences = UserDefaults(suiteName:preferenceSuite)!
+        server = ResidentServer(socketPath: socketPath, service: ResidentService(), broker: broker,
+                                preferences:preferences)
         server.approvalDesktopUnlocked = { true }
         server.grantConsoleObservation = {
             ["desktopState":"unlocked", "uuid":"test-console", "boot":123, "uid":getuid()]
@@ -37,6 +42,8 @@ final class ServerTests: XCTestCase {
     }
 
     override func tearDown() {
+        server.stop()
+        preferences.removePersistentDomain(forName:preferenceSuite)
         unlink(socketPath)
     }
 
@@ -131,6 +138,151 @@ final class ServerTests: XCTestCase {
                        "approval_unavailable_while_locked")
         XCTAssertTrue(approver.presented.isEmpty)
         XCTAssertNil(broker.grant)
+    }
+
+    private func console(_ state: String, uuid: String = "test-console") {
+        server.grantConsoleObservation = {
+            ["desktopState":state, "uuid":uuid, "boot":123, "uid":getuid()]
+        }
+        server.approvalDesktopUnlocked = { state == "unlocked" }
+    }
+
+    private func approve(_ scopes: Set<GrantScope>) -> Grant? {
+        let approver = ScriptedApprover(.approved(scopes:scopes, durationSeconds:60))
+        server.approver = approver
+        XCTAssertEqual(call(["operation":"grant.request", "scopes":scopes.map(\.rawValue),
+                             "reason":"Locked browser fixture"])["accepted"] as? Bool, true)
+        withExtendedLifetime(approver) {}
+        return broker.activeGrant
+    }
+
+    func testBrowserLockPreferenceDefaultsOffAndDoesNotGrantAccess() throws {
+        XCTAssertFalse(server.browserWhileLockedEnabled)
+        try server.configureBrowserWhileLocked(enabled:true)
+        XCTAssertTrue(server.browserWhileLockedEnabled)
+        XCTAssertNil(broker.activeGrant)
+        XCTAssertEqual(broker.authorize("browser.tabs")?.code, "approval_required")
+        // Preference is durable, but a setting command on the agent socket is
+        // an unsupported provider operation and cannot change it.
+        XCTAssertEqual(call(["operation":"browser_while_locked", "enabled":false])["accepted"] as? Bool, false)
+        XCTAssertTrue(server.browserWhileLockedEnabled)
+        let replacement = ResidentServer(socketPath:socketPath + ".replacement", service:ResidentService(),
+                                        broker:GrantBroker(policy:.workstation(issue:nil)), preferences:preferences)
+        XCTAssertTrue(replacement.browserWhileLockedEnabled)
+        console("locked")
+        XCTAssertThrowsError(try server.configureBrowserWhileLocked(enabled:true))
+    }
+
+    func testBrowserApprovalStillEndsOnLockWithoutOptIn() {
+        _ = approve([.browser])
+        console("locked")
+        _ = call(["operation":"grant.status"])
+        XCTAssertNil(broker.activeGrant)
+        XCTAssertEqual(broker.lastEnded?.reason, "desktop_locked")
+    }
+
+    func testMixedApprovalRetainsOnlyBrowserAvailabilityWhileLocked() throws {
+        try server.configureBrowserWhileLocked(enabled:true)
+        let grant = try XCTUnwrap(approve([.observe, .control, .browser]))
+        console("locked")
+        let status = call(["operation":"grant.status"])["data"] as? [String:Any]
+        XCTAssertEqual(broker.activeGrant?.id, grant.id)
+        XCTAssertEqual(broker.activeGrant?.expiresAt, grant.expiresAt)
+        XCTAssertEqual(status?["effectiveScopes"] as? [String], ["browser"])
+        XCTAssertNil(broker.authorize("browser.tabs"))
+        XCTAssertTrue(broker.browserAllowed)
+        XCTAssertFalse(broker.devtoolsAllowed)
+        XCTAssertEqual(broker.authorize("browser.eval")?.code, "approval_required")
+        for operation in ["applications", "snapshot", "capture", "input.key", "application.launch", "session.control"] {
+            XCTAssertEqual(call(["operation":operation])["errorCode"] as? String, "desktop_locked_browser_only", operation)
+        }
+        XCTAssertEqual(broker.authorize("input.key", controlled:true, delegatedScopes:[.control])?.code,
+                       "desktop_locked_browser_only")
+        XCTAssertEqual(broker.admissionAuthority(scopes:[.browser, .control]), "desktop_locked_browser_only")
+        XCTAssertNil(broker.admissionAuthority(scopes:[.browser]))
+        XCTAssertEqual((call(["operation":"grant.request", "scopes":["browser"], "reason":"reuse"])["data"] as? [String:Any])?["decision"] as? String, "existing_grant")
+        for scope in ["observe", "control", "devtools"] {
+            XCTAssertEqual(call(["operation":"grant.request", "scopes":[scope], "reason":"more"])["errorCode"] as? String,
+                           "approval_unavailable_while_locked")
+        }
+        console("unlocked")
+        _ = call(["operation":"grant.status"])
+        XCTAssertEqual(broker.activeGrant?.id, grant.id)
+        XCTAssertNil(broker.authorize("input.key"))
+    }
+
+    func testLockedBrowserPauseExpiryAndStopRemainEffective() throws {
+        try server.configureBrowserWhileLocked(enabled:true)
+        var clock = Date()
+        broker.now = { clock }
+        let grant = try XCTUnwrap(approve([.browser, .devtools]))
+        console("locked")
+        _ = call(["operation":"grant.status"])
+        XCTAssertTrue(broker.devtoolsAllowed)
+        XCTAssertNil(broker.authorize("browser.eval"))
+        server.devtools.setTokenForTesting("fixture-token")
+        let endpoint = WebSocketUpgrade(path:"/devtools/page/1", query:["token":"fixture-token"],
+                                       key:"k", origin:nil, host:"127.0.0.1")
+        XCTAssertEqual(server.devtools.acceptedTab(endpoint), 1)
+        try broker.pause()
+        XCTAssertFalse(broker.browserAllowed)
+        XCTAssertFalse(broker.devtoolsAllowed)
+        XCTAssertNil(server.devtools.acceptedTab(endpoint))
+        XCTAssertEqual(broker.authorize("browser.tabs")?.code, "access_paused")
+        try broker.resume()
+        XCTAssertEqual(broker.activeGrant?.id, grant.id)
+        XCTAssertTrue(broker.browserAllowed)
+        clock = clock.addingTimeInterval(61)
+        _ = call(["operation":"grant.status"])
+        XCTAssertNil(broker.activeGrant)
+        XCTAssertFalse(broker.browserAllowed)
+        console("unlocked")
+        _ = approve([.browser, .devtools])
+        console("locked")
+        _ = call(["operation":"grant.status"])
+        server.revoke(reason:"stopped_by_person")
+        XCTAssertFalse(broker.browserAllowed)
+        XCTAssertFalse(broker.devtoolsAllowed)
+    }
+
+    func testDisableLockedBrowserRevokesRetainedGrant() throws {
+        try server.configureBrowserWhileLocked(enabled:true)
+        _ = approve([.browser])
+        console("locked")
+        _ = call(["operation":"grant.status"])
+        try server.configureBrowserWhileLocked(enabled:false)
+        XCTAssertFalse(server.browserWhileLockedEnabled)
+        XCTAssertNil(broker.activeGrant)
+        XCTAssertFalse(broker.browserAllowed)
+    }
+
+    func testBrowserOptInCannotPreserveDesktopOnlyOrUnknownConsole() throws {
+        try server.configureBrowserWhileLocked(enabled:true)
+        _ = approve([.observe, .control])
+        console("locked")
+        _ = call(["operation":"grant.status"])
+        XCTAssertNil(broker.activeGrant)
+        console("unlocked")
+        _ = approve([.browser])
+        console("locked", uuid:"replacement")
+        _ = call(["operation":"grant.status"])
+        XCTAssertNil(broker.activeGrant)
+        XCTAssertEqual(broker.lastEnded?.reason, "console_session_changed")
+        console("unlocked")
+        _ = approve([.browser])
+        console("unknown")
+        _ = call(["operation":"grant.status"])
+        XCTAssertNil(broker.activeGrant)
+    }
+
+    func testBrowserOptInCannotBindNewApprovalOnLockedConsole() throws {
+        try server.configureBrowserWhileLocked(enabled:true)
+        console("locked")
+        broker.issue(scopes:[.browser], durationSeconds:60, reason:"invalid fixture issue",
+                     requester:"fixture", approver:"fixture")
+        _ = call(["operation":"grant.status"])
+        XCTAssertNil(broker.activeGrant)
+        XCTAssertFalse(broker.browserAllowed)
     }
 
     func testApprovedGrantAllowsScopeUntilRevoked() {

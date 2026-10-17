@@ -101,6 +101,13 @@ revision rather than inheriting these new semantics.
 
 ## Boundaries
 
+**Current, unreleased source:** [Browser-only locked access](browser-control.md#open)
+has a separate default-off preference that leaves the OS console locked and
+requires no unlock helper. It retains existing approval for browser operations
+without conferring desktop authority. The [platform evidence](../research/platforms/macos.md#browser-control-with-the-console-locked)
+and [Tactical 130](../docs/tactical/130-macos-browser-while-locked.md) distinguish
+source-native validation from signed installed qualification.
+
 - First version: awake Mac, open lid, existing console session only.
 - No sleep prevention, closed-lid control, fresh login, FileVault/preboot,
   general remote unlock, or arbitrary privileged command API.

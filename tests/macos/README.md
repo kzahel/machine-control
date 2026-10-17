@@ -1,5 +1,30 @@
 # macOS conformance
 
+[`../browser/locked-macos-live.py`](../browser/locked-macos-live.py) is a
+guest-only browser feasibility probe. Stage it, the owned extension directory,
+and `platforms/chromeos/cdp.py` in the guest; supply `--source-root`, the current
+exclusive `--claim`, a private `--output` directory, and explicit `--lock`.
+It requires the existing standing appliance observer and Chrome for Testing at
+the fixture location, an unlocked console and disabled covered unlock. It
+checks independent HTTP effects and IOKit lock state, reaps its test browser
+and deletes its disposable profile. It deliberately leaves the guest locked;
+the caller owns authorized unlock or shutdown, staging/evidence cleanup, and
+claim release.
+
+For source-native workstation acceptance, first use
+`build-browser-locked-fixture.py --output PRIVATE_BUILD --socket
+/tmp/browser-lock-fixture/session/control.sock --preferences-suite
+org.machine-control.browser-lock-fixture.preferences`. Stage that app in the
+guest and pass its path as `--workstation-app`. The fixture starts with no
+grant, enables the preference through its in-process local operator, and uses
+real native approval pressed through the independent appliance. It checks
+mixed-grant retention, desktop/new-scope refusals, browser-only admission,
+Pause/Resume and disabling. Its operator input cannot answer approval.
+Use `--appliance-identity` only in a source-native VM whose ordinary resident
+already uses the same ad-hoc requirement; it reuses that existing TCC consent.
+Otherwise grant the fixture its normal OS permissions first. This qualifies
+source-native authorization, not the signed installed Settings UI.
+
 `keyboard-layouts.py --target macos --claim CLAIM [--install-profile]` runs
 keyboard acceptance in an already running, healthy, exclusively claimed Tart
 VM. It switches U.S., Dvorak and Dvorak–QWERTY Command with default and swapped

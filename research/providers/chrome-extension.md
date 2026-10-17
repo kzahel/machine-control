@@ -34,6 +34,8 @@ tab lifecycle APIs. It is not the approval authority.
 | Platform and route | Evidence | Boundary |
 | --- | --- | --- |
 | macOS source-native extension/native messaging | `conformance-tested` | Fixture effects, navigation, capture and provider refusal in a Tart guest; predates signed Tauri acceptance |
+| macOS locked-console extension/native messaging | `live-tested` | macOS 26.6.2 Tart appliance, Chrome for Testing 155: tab enumeration, AX, independent click/text/navigation effects, PNG capture and reattachment with the OS still locked; standing authority, no covered unlock; workstation source has a separate opt-in |
+| macOS source-native workstation locked-console extension | `live-tested` | 26 checks with native approval, retained mixed-grant ID/expiry, desktop/new-approval refusals, browser-owner admission, independent effects, capture, Pause/Resume and disable; ad-hoc VM identity, not signed installed Settings acceptance |
 | macOS per-tab raw CDP WebSocket | `live-tested` | Reads/actions/events on physical and guest Chrome; browser-root native changes build in the signed candidate; focused live qualification remains open |
 | macOS unreleased signed ARM64 runtime/presentation candidate | `conformance-tested` | Chrome for Testing 154, workstation native approval and no Settings WebView: 21 page/indicator/capture/worker checks through the packaged CLI; no YA agent probe or browser-root streaming qualification |
 | macOS signed Tauri, installed Python CLI and YA local Codex | `conformance-tested` | Chrome for Testing 145 in a claimed appliance: independent HTTP counter effect, tab PNG consumed by the built-in agent image tool, plus 21 existing indicator/worker checks; standing policy, not workstation approval |
@@ -54,6 +56,12 @@ The [desktop matrix](../../docs/desktop-acceptance.md) separates source-native
 and exact installed product evidence.
 
 ## Fidelity, consequences, and gaps
+
+**Current (2026-10-17):** bounded [macOS locked-console evidence](../platforms/macos.md#browser-control-with-the-console-locked)
+shows browser operations need not unlock the OS console under standing
+appliance authority. Unreleased workstation source provides a separate default-off
+preference and scope enforcement; the existing covered desktop setting is a
+different mechanism. New approval while locked remains unavailable.
 
 **Current:** Snapshots expose tab accessibility nodes. References bind grant,
 provider, and extension snapshot generations. Clicking and typing may activate

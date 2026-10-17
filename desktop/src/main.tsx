@@ -106,6 +106,11 @@ type State = {
   manualUntilStoppedSupported?: boolean;
   pauseSupported?: boolean;
   updateInstallSupported?: boolean;
+  browserWhileLocked?: {
+    supported: boolean;
+    enabled: boolean;
+    active: boolean;
+  };
   uac?: {
     installed: boolean;
     enabled: boolean;
@@ -1390,6 +1395,33 @@ function App() {
                     in use.
                   </p>
                 )}
+              </section>
+            )}
+            {state?.browserWhileLocked?.supported && (
+              <section
+                className="group"
+                aria-label="Browser access while locked"
+              >
+                <label className="scope">
+                  <input
+                    type="checkbox"
+                    checked={state.browserWhileLocked.enabled}
+                    disabled={busy || !!update?.installing}
+                    onChange={(event) =>
+                      void act({
+                        method: "browser_while_locked",
+                        enabled: event.target.checked,
+                      })
+                    }
+                  />
+                  Allow approved browser access while locked
+                </label>
+                <p className="note group-note">
+                  Approve access before locking. Browser tabs and separately
+                  approved scripts can keep working while your Mac stays locked.
+                  Desktop control and new approvals still require unlocking.
+                  Pause, Stop and expiry still apply.
+                </p>
               </section>
             )}
             {state?.controlPolicy?.supported && (

@@ -32,6 +32,48 @@ exact installer-recorded CDHash before its root broker can arm a short,
 one-use, console- and generation-bound grant. Keep that stronger boundary;
 publisher metadata alone is not protected-unlock authority.
 
+## Browser control with the console locked
+
+**Current (2026-10-17), bounded `live-tested`:** in an exclusively claimed Tart
+guest running macOS 26.6.2 and Chrome for Testing 155.0.8059.79, the owned
+extension/native-messaging route remains usable while the actual console is
+locked. The existing resident uses standing appliance authority, with covered
+locked use disabled and no unlock helper installed. No workstation grant policy
+was changed. Independent IOKit lock readback and resident state both report
+locked; no covered-control session is created.
+
+The [guest-only probe](../../tests/browser/locked-macos-live.py) passes tab
+enumeration, page AX snapshot, semantic click, Unicode typing, tab PNG capture,
+navigation and release/reattachment while locked. The fixture HTTP server
+independently observes exactly one click, the expected text and navigation;
+the captured PNG is visually checked against the fixture. The test browser and
+its fresh profile are reaped/removed, and the experiment VM is returned to its
+initial powered-off state. Raw receipts and the fixture image remain private.
+
+This establishes feasibility for this awake VM/browser/appliance route only.
+It does not qualify physical Macs, sleep, closed lids, other OS/browser
+versions, browser permission dialogs, passkeys or browser-root streaming.
+Workstation source now adds a separate, default-off browser-only retention
+preference; [Tactical 130](../../docs/tactical/130-macos-browser-while-locked.md)
+owns its validation. The [browser topic](../../topics/browser-control.md#open)
+owns current policy and remaining qualification. The [provider dossier](../providers/chrome-extension.md)
+owns the route comparison.
+
+**Current (2026-10-17), source-native workstation `live-tested`:** a separate
+workstation runtime compiled from the implementation passes 26 guest checks
+using the same macOS/Chrome fixture above. The independent appliance resident
+presses the real native approval dialog. With the local preference enabled,
+the mixed approval keeps its original ID and expiry through lock; desktop
+capture/input and new DevTools approval refuse. A browser-only admission owner
+starts and enumerates tabs without covered unlock. Independent click/text/
+navigation effects, page capture, reattachment, Pause/Resume and disabling pass
+while IOKit continues to report locked. The fixture uses the existing source
+appliance's ad-hoc designated requirement to retain its VM TCC permissions;
+its policy and preferences are isolated, and no root policy is changed.
+ARM64 and x86_64 fixture builds, 222 Swift tests, the Mac static smoke suite,
+TypeScript and the unsigned ARM64 desktop bundle pass. This is not signed
+installed Settings acceptance, physical-Mac or streamed DevTools evidence.
+
 ## Keyboard layouts and modifier remappings
 
 **Current (2026-10-15), `built` and bounded `live-tested`, unreleased owned

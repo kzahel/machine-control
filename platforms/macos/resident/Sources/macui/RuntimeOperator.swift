@@ -56,6 +56,7 @@ extension ResidentRuntime {
                                          "helper":server.service.helperObservation.metadata],
                         "desktopCallerTrust": server.callerTrust.status,
                         "lockedUse": server.lockedUse.status,
+                        "browserWhileLocked": server.browserWhileLockedStatus,
                         "presentation":presentationJSON, "nativeApproval":true,
                         "socket": server.socketPath, "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "development"]
                     if let pending = approver.request {
@@ -128,6 +129,11 @@ extension ResidentRuntime {
                         throw MacUIError.usage("Choose whether locked use is enabled")
                     }
                     try server.lockedUse.configure(enabled:enabled)
+                case "browser_while_locked":
+                    guard !updating, let enabled = command["enabled"] as? Bool else {
+                        throw MacUIError.usage("Choose whether approved browser access continues while locked")
+                    }
+                    try server.configureBrowserWhileLocked(enabled:enabled)
                 case "decision":
                     if command["allow"] as? Bool == true, server.broker.journal?.event("access.approve.intent") == false { throw MacUIError.action("Audit storage unavailable") }
                     try approver.decide(id: command["id"] as? String ?? "", scopes: command["scopes"] as? [String] ?? [],

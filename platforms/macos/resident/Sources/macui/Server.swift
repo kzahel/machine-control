@@ -175,6 +175,11 @@ final class ResidentServer {
     func activateCovered(_ channel: AdmissionChannel, view: [String:Any]) throws {
         if let coveredActivation { try coveredActivation(channel, view); return }
         guard service.observedDesktopState == "locked" else { return }
+        if browserWhileLockedEnabled && channel.scopes.isSubset(of: GrantBroker.browserScopes) {
+            // Browser-native operations do not need a temporarily unlocked
+            // console, even when the desktop helper is also prepared.
+            return
+        }
         guard channel.scopes.contains(.control) else { throw MacUIError.action("locked_control_scope_required") }
         var pair: [Int32] = [-1, -1]
         guard socketpair(AF_UNIX, SOCK_STREAM, 0, &pair) == 0 else { throw MacUIError.action("control_transport_unavailable") }
@@ -295,8 +300,34 @@ final class ResidentServer {
     // Tests provide a desktop observation without relying on host lock state.
     var approvalDesktopUnlocked: () -> Bool
     var grantConsoleObservation: () -> [String:Any]
+    private let preferences: UserDefaults
+    private static let browserWhileLockedKey = "machineControl.browserWhileLocked"
+    var browserWhileLockedEnabled: Bool { preferences.bool(forKey: Self.browserWhileLockedKey) }
+    var browserWhileLockedStatus: [String:Any] {
+        ["supported":broker.policy.grantMode == .approval,
+         "enabled":browserWhileLockedEnabled,
+         "active":broker.browserOnlyWhileLocked && (broker.browserAllowed || broker.devtoolsAllowed),
+         "requiresUnlockedApproval":true, "route":BrowserRelay.route]
+    }
 
-    init(socketPath: String, service: ResidentService, broker: GrantBroker) {
+    /// Local operator authority only; no agent-facing command changes this.
+    func configureBrowserWhileLocked(enabled: Bool) throws {
+        service.refreshSession()
+        let observation = grantConsoleObservation()
+        guard broker.policy.grantMode == .approval,
+              !enabled || (observation["desktopState"] as? String == "unlocked" &&
+                  sameConsoleSession(observation, observation) &&
+                  (observation["uid"] as? NSNumber)?.uint32Value == getuid()) else {
+            throw MacUIError.permission("browser_locked_use_operator_unavailable")
+        }
+        preferences.set(enabled, forKey:Self.browserWhileLockedKey)
+        reconcileObservedSession()
+        broker.journal?.event(enabled ? "browser.locked_access_enabled" : "browser.locked_access_disabled")
+    }
+
+    init(socketPath: String, service: ResidentService, broker: GrantBroker,
+         preferences: UserDefaults = .standard) {
+        self.preferences = preferences
         self.socketPath = socketPath
         callerTrust = DesktopCallerTrust(directory:(socketPath as NSString).deletingLastPathComponent)
         self.service = service
@@ -417,6 +448,10 @@ final class ResidentServer {
         restoreOperatorConsent()
         let observation = grantConsoleObservation()
         let state = observation["desktopState"] as? String ?? "unknown"
+        let coveredRetention = state == "locked" && lockedUse.preservesGrantAcrossLock
+        let browserRetention = state == "locked" && browserWhileLockedEnabled &&
+            broker.activeGrant?.scopes.isDisjoint(with:GrantBroker.browserScopes) == false
+        broker.browserOnlyWhileLocked = broker.policy.grantMode == .approval && browserRetention && !coveredRetention
         let noticeState = "\(state):\(lockedUse.isCovered):\(noticeSeconds)"
         if noticeState != noticePolicyState {
             noticePolicyState = noticeState
@@ -426,7 +461,7 @@ final class ResidentServer {
             let reason: String?
             if grantConsoleBinding?.matches(grantID:grant.id, observation:observation) != true {
                 reason = "console_session_changed"
-            } else if state != "unlocked" && !(state == "locked" && lockedUse.preservesGrantAcrossLock) {
+            } else if state != "unlocked" && !coveredRetention && !browserRetention {
                 reason = "desktop_\(state)"
             } else { reason = nil }
             if let reason {
@@ -644,6 +679,7 @@ final class ResidentServer {
                     data["presentation"] = self.presentationStatus()
                     data["deployment"] = self.broker.statusJSON
                     data["lockedUse"] = self.lockedUse.status
+                    data["browserWhileLocked"] = self.browserWhileLockedStatus
                     data["physicalActivity"] = self.activity.status
                     data["admission"] = self.broker.admission.status
                     data["admissionChannel"] = ["schema":AdmissionChannel.schema, "ownerBinding":"live_same_user_transport", "callerAssurance":"unverified_same_user", "delegatedAutomaticAccess":false, "outerRecovery":"borrowed_exact_claim/v1", "preparedConsole":"explicit_consent_and_prepared_helper/v1"]
@@ -713,7 +749,7 @@ final class ResidentServer {
             }
             if lockedUse.isCovered || !approvalDesktopUnlocked() {
                 return refused(request, GrantRefusal("approval_unavailable_while_locked",
-                    "Unlock manually before approving additional access"))
+                    "Approve new access while unlocked; previously approved browser access can continue if enabled in Settings"))
             }
             guard let approver else {
                 return refused(request, GrantRefusal("approval_unavailable",

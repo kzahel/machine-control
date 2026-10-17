@@ -34,7 +34,8 @@ final class ResidentRuntime {
 
     init(socketPath: String, policy: DeploymentPolicy = .load(),
          journal: DesktopJournal? = DesktopJournal(), service: ResidentService = ResidentService(),
-         presentationOverride: PresentationProfile? = nil) throws {
+         presentationOverride: PresentationProfile? = nil,
+         preferences: UserDefaults = .standard) throws {
         // Do not let a second shell unlink the authoritative resident endpoint.
         let existing = try residentSocket()
         defer { Darwin.close(existing) }
@@ -54,7 +55,7 @@ final class ResidentRuntime {
         let broker = GrantBroker(policy:policy)
         broker.journal = journal
         if policy.grantMode == .approval { attachOperatorConsent(broker, socketPath:socketPath) }
-        server = ResidentServer(socketPath:socketPath, service:service, broker:broker)
+        server = ResidentServer(socketPath:socketPath, service:service, broker:broker, preferences:preferences)
         resumeHelper = { observation, cancelled in
             try service.resumeCoveredAvailability(observation:observation, cancellation:cancelled)
         }

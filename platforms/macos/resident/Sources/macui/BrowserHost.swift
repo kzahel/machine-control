@@ -4,8 +4,7 @@ import Foundation
 /// Chrome native-messaging host mode. Chrome starts the bundle executable
 /// with the extension origin; this process relays Chrome's length-prefixed
 /// messages to the resident socket as JSON lines and back.
-func runBrowserHost(origin: String) -> Never {
-    let socketPath = defaultResidentSocket
+func runBrowserHost(origin: String, socketPath: String = defaultResidentSocket) -> Never {
     guard let resident = try? residentSocket(), let unix = try? unixAddress(socketPath) else {
         FileHandle.standardError.write(Data("Machine Control resident is unavailable\n".utf8))
         exit(1)
