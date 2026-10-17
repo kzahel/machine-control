@@ -2,6 +2,32 @@
 
 ## [Unreleased]
 
+## [0.6.6]
+
+- Add the default-off **Allow approved browser access while locked** setting
+  on Mac, Windows and GNOME Wayland Linux. Approve browser access before
+  locking, then continue browser work while the computer stays locked,
+  without preparing desktop unlock. Browser scripts and DevTools still
+  require their separate approval.
+- Preserve the existing approval and its expiry while locked. Desktop
+  observation/input and new or broader approvals remain gated. Pause, Stop,
+  expiry, disabling the option and session loss still end or suspend access.
+- Fix Linux browser setup to include nested extension assets such as icons.
+- Allow clearing ordinary Mac accessibility text fields and recognize the
+  exact system certificate trust-settings authorization prompt while retaining
+  requester, window and one-use credential guards.
+- Add secret-free Mac covered-unlock diagnostics for password-panel discovery
+  failures. The reported physical-Mac unlock failure remains unresolved.
+
+Targets all six desktop platform/architecture packages. Browser work with the
+OS locked passes source-native VM acceptance on Mac, Windows and Ubuntu GNOME
+Wayland Linux, including independent click/text effects and tab captures.
+Windows also passes per-tab streamed DevTools while locked. These tests cover
+an awake, existing console; sleep, physical hardware and other Linux desktops
+remain separate qualification. The Linux fixture used an empty, explicitly
+unsandboxed Chrome for Testing profile; signed installed Settings and
+production-browser acceptance remain separate.
+
 ## [0.6.5]
 
 - Add `desktop dialog choose --path PATH` on Mac to choose a location in an
