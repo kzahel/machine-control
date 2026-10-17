@@ -188,6 +188,12 @@ the operation path. ADB may provision and independently observe the test. Real
 provider acceptance is a further check, distinct from deterministic Python
 execution. Keep concrete selectors, grants, captures and logs private.
 
+**Current — bounded live acceptance:** the
+[resident spike](../platforms/android/resident-spike/README.md#acceptance) passes
+the initial persistent Python, semantic effect, PNG, stale-reference, wrong-grant
+and outside-scope checks on a physical Pixel 7a. It is fixture-scoped and does
+not replace the existing Android adapter or qualify the broader phone capabilities.
+
 ### Existing device implementation follow-ups
 
 - Run one supervised correct-PIN acceptance through the hidden prompt and

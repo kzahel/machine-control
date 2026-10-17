@@ -65,6 +65,19 @@ See the [resident-provider exploration](../../topics/android-family-control.md#a
 for proposed ownership and validation. Existing ADB implementation status below
 is unchanged.
 
+**Built/live-tested, 2026-10-17:** the owned
+[fixture-scoped resident spike](../../platforms/android/resident-spike/README.md)
+reuses MC's unchanged Python session/interpreter with a native accessibility
+provider. A physical Pixel 7a/API 37 passed eight persistent snippets, semantic
+text/click with an independent fixture-file witness, window PNG capture,
+same-label replacement/stale-reference refusal, invalid-grant refusal and
+outside-package refusal. Python ran inside the YA app's Alpine/PRoot under its
+ordinary kernel app UID/SELinux domain; the fixture service had its own app UID.
+ADB provisioned and independently observed the test, but the phone-local control
+channel used direct authenticated loopback with no ADB command or forwarding.
+This is bounded deterministic acceptance, not real-provider, remote, reboot,
+background, desktop-claims/audit or stable-observation-ID/diff qualification.
+
 ### Existing ADB implementation
 
 **Decision:** Do not reimplement ADB. Add consistent target selection,

@@ -1,0 +1,21 @@
+<resources>
+    <string name="accessibility_description">Experimental fixture-only Machine Control bridge. Enable, then arm from the fixture. Stop revokes its temporary access.</string>
+    <string name="input_hint">Fixture input</string>
+    <string name="apply">Apply</string>
+    <string name="replace">Replace input</string>
+    <string name="arm">Arm bridge (15 minutes)</string>
+    <string name="stop">Stop bridge</string>
+    <string name="enable">Accessibility settings</string>
+    <string name="title">Machine Control Android fixture</string>
+    <string name="result">Result: %1$s</string>
+    <string name="write_failed">Fixture write failed</string>
+    <string name="input_replaced">Input replaced</string>
+    <string name="pending">Result: pending</string>
+    <string name="enable_first">Enable the accessibility service first</string>
+    <string name="armed">Bridge armed for owned fixture only</string>
+    <string name="arm_failed">Could not arm bridge</string>
+    <string name="stopped">Bridge stopped</string>
+    <item name="fixture_input" type="id" />
+    <item name="fixture_apply" type="id" />
+    <item name="fixture_replace" type="id" />
+</resources>
