@@ -416,6 +416,28 @@ serializes an input batch without interspersing other keyboard/mouse events,
 but is not proof of credential acceptance or a general UI transaction. The
 implementation separately observes WTS account/lock state and the input desktop.
 
+### Password-free session reconnect investigation
+
+**Current (2026-10-17), `live-tested` negative evidence:** on a locked Windows
+11 ARM64 local console, empty-password `WTSConnectSessionW` with source and
+destination equal to that console returned error 7045 for both LocalSystem
+and the same interactive user. LocalSystem `tscon SESSION /dest:console`
+exited 1. Independent WTS lock observations and token authentication LUIDs
+showed no unlock and no session/logon replacement. The reusable bounded
+[probe](../../tests/windows/session-reconnect-probe.ps1) and
+[Tactical 133](../../docs/tactical/133-windows-unlock-usability-investigation.md)
+record scope and limitations.
+
+Microsoft's [WTSConnectSessionW documentation](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsconnectsessionw)
+describes an empty password for a matching user/domain, not a general
+LocalSystem exemption from console authentication. The
+[tscon documentation](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/tscon)
+explicitly says the console session cannot be connected this way. A privileged
+session token alone therefore is not an accepted unlock route here. This does
+not evaluate a Windows authentication extension or establish impossibility on
+other Windows builds. Mac authorization plug-in evidence cannot be transferred
+to Windows. The protected-unlock topic owns the proposed enrollment direction.
+
 ## Desktop audit validation
 
 **Current (2026-10-03), `live-tested`:** source-native desktop audit and

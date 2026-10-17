@@ -145,10 +145,10 @@ def main():
         check(direct({'operation': 'capabilities'})['data']['protectedDesktop']['installed'], 'Protected helper installed through operator UI')
         ui('Access')
         if not direct({'operation': 'capabilities'})['data']['lockedUse']['permissionReady']:
-            ui('Set up Machine Control helper'); external('approve-controller')
+            ui('Import controller approval'); external('approve-controller')
             wait(ready, 'controller approval completion', 90)
         check(direct({'operation': 'capabilities'})['data']['lockedUse']['permissionReady'], 'Exact local account controller approval is ready')
-        ui('Also while the screen is locked', toggle=True)
+        ui('Covered desktop access while locked', toggle=True)
         ui('Enable access')
         check(direct({'operation': 'capabilities'})['data']['lockedUse']['enabled'], 'Explicit operator opt-in enabled')
         check(not direct({'operation': 'session.unlock.prepare'})['accepted'], 'An unowned caller cannot prepare unlock')

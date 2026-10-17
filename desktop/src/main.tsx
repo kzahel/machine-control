@@ -737,7 +737,9 @@ function App() {
                           })
                         }
                       />
-                      Also while the screen is locked
+                      {windows
+                        ? "Covered desktop access while locked"
+                        : "Also while the screen is locked"}
                     </label>
                     <span className="row-status">
                       {!lockedUse.supported
@@ -767,7 +769,9 @@ function App() {
                           aria-label={
                             lockedUse.setupState === "approval"
                               ? "Open Machine Control helper settings"
-                              : "Set up Machine Control helper"
+                              : windows
+                                ? "Import controller approval"
+                                : "Set up Machine Control helper"
                           }
                           disabled={
                             busy ||
@@ -784,7 +788,9 @@ function App() {
                         >
                           {lockedUse.setupState === "approval"
                             ? "Open Settings"
-                            : "Set up…"}
+                            : windows
+                              ? "Import controller approval…"
+                              : "Set up…"}
                         </button>
                       )}
                   </div>
@@ -794,12 +800,14 @@ function App() {
                 )}
                 {windows && lockedUse && (
                   <p className="note group-note">
-                    An approved controller supplies your password once per task.
-                    Locked-screen tasks use an opaque cover on one display and
-                    relock before removing it. Tasks that start unlocked stay
-                    unlocked when they finish. No password is saved. Install the
-                    helper in Permissions, then choose the controller's public
-                    approval.
+                    Advanced setup: install the helper in Permissions, then
+                    import the public approval JSON generated on your
+                    controller. This does not set up automatic unlock: the
+                    controller must supply your Windows password for each task.
+                    Windows unlocks behind an opaque cover on one display and
+                    relocks when the task ends. For browser-only work, enable
+                    “Allow approved browser access while locked” in Settings;
+                    Windows stays locked.
                   </p>
                 )}
                 {trustSupported && (
@@ -923,8 +931,16 @@ function App() {
                     <span className="row-label">
                       Other users and cold login
                     </span>
-                    <span className="row-status">Unavailable</span>
+                    <span className="row-status">
+                      Not supported by this app
+                    </span>
                   </div>
+                  <p className="note">
+                    Cold login means signing in after startup or signing out.
+                    This desktop app controls your already signed-in account.
+                    Other accounts and cold login require the separate dedicated
+                    appliance service.
+                  </p>
                 </>
               )}
               {linux && (

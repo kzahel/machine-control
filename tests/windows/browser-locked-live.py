@@ -1,14 +1,16 @@
-"""Source-native Windows workstation browser acceptance; leaves OS locked.
+"""Windows workstation browser acceptance; leaves OS locked.
 
 Run only inside an exclusively claimed test VM. The controller owns staging,
 native launch, power restoration and claim release. Uses Chrome for Testing,
-real native approval, inherited local operator commands and independent HTTP
-effects. Never installs or invokes a protected unlock provider.
+real native approval and independent HTTP effects. --install exercises the
+installed Settings UI; --runtime exercises the inherited native operator
+channel. Never installs or invokes a protected unlock provider.
 """
 import argparse
 import base64
 import concurrent.futures
 import ctypes
+import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -27,10 +29,22 @@ from cdp_socket import CdpSocket
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--runtime", type=Path, required=True)
+    product = parser.add_mutually_exclusive_group(required=True)
+    product.add_argument("--runtime", type=Path)
+    product.add_argument("--install", type=Path)
     parser.add_argument("--chrome", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--finish", choices=("disable", "stop", "expiry"), default="disable")
+    parser.add_argument("--grant-duration", type=int, default=600)
+    parser.add_argument("--failure-hold", type=int, default=0,
+                        help="Hold owned processes for controller diagnostics, at most 120 seconds")
     args = parser.parse_args()
+    if not 60 <= args.grant_duration <= 600:
+        parser.error("--grant-duration must be between 60 and 600 seconds")
+    if not 0 <= args.failure_hold <= 120:
+        parser.error("--failure-hold must be between 0 and 120 seconds")
+    if args.install:
+        args.runtime = args.install / "runtime"
     args.output.mkdir(parents=True, exist_ok=True)
     exe = args.runtime / "machine-control-windows.exe"
     session = ctypes.c_uint()
@@ -54,7 +68,10 @@ def main():
 
     def save(passed=False, error=None):
         (args.output / "result.json").write_text(json.dumps({"passed": passed, "checks": checks,
-            "effects": effects, "failure": error}, indent=2), encoding="utf-8")
+            "effects": effects, "failure": error,
+            "finish": args.finish,
+            "operatorRoute": "installed_settings_uia" if args.install else "inherited_native_operator",
+            "runtimeSha256": hashlib.sha256(exe.read_bytes()).hexdigest()}, indent=2), encoding="utf-8")
 
     def check(label, value):
         assert value, label
@@ -71,7 +88,44 @@ def main():
             time.sleep(.2)
         raise AssertionError("Timed out waiting for independent state")
 
+    def ui(name, checked=None):
+        """Independent fixture actor, bound to this exact Settings process."""
+        literal = lambda value: "'" + str(value).replace("'", "''") + "'"
+        kind = "Button" if checked is None else "CheckBox"
+        script = "Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes;"
+        script += "$deadline=[DateTime]::UtcNow.AddSeconds(20);do{"
+        script += "$root=[Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty," + str(child.pid) + "));"
+        script += "if($root){$item=$root.FindFirst([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.AndCondition]::new([Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty," + literal(name) + "),[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::" + kind + "),[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::IsOffscreenProperty,$false)));if($item){break}};Start-Sleep -Milliseconds 100}while([DateTime]::UtcNow -lt $deadline);"
+        script += "if(!$item){throw " + literal("Settings control unavailable: " + name) + "};"
+        if checked is None:
+            script += "$item.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()"
+        else:
+            script += "$toggle=$item.GetCurrentPattern([Windows.Automation.TogglePattern]::Pattern);if($toggle.Current.ToggleState -ne [Windows.Automation.ToggleState]::" + ("On" if checked else "Off") + "){$toggle.Toggle()}"
+        encoded = base64.b64encode(script.encode("utf-16-le")).decode()
+        subprocess.run(["powershell.exe", "-NoProfile", "-EncodedCommand", encoded],
+                       check=True, timeout=30, stdout=log, stderr=log)
+        time.sleep(.3)
+
     def operator(method, **fields):
+        if args.install:
+            if method == "hello":
+                poll(lambda: direct("status").get("accepted"))
+            elif method == "state":
+                deployment = direct("grant.status")["data"]
+                return {"state": {"pending": deployment.get("pendingRequest"),
+                    "browserWhileLocked": {"active": deployment["browserOnlyWhileLocked"]},
+                    "browser": direct("capabilities")["data"].get("browser")}}
+            elif method == "browser_while_locked":
+                ui("Settings")
+                ui("Allow approved browser access while locked", fields["enabled"])
+            elif method == "browser.setup":
+                ui("Permissions"); ui("Set up browser extension")
+            elif method in ("pause", "resume", "stop"):
+                ui("Access")
+                ui({"pause": "Pause access", "resume": "Resume access", "stop": "Stop access"}[method])
+            else:
+                raise ValueError("Unsupported installed operator method: " + method)
+            return {"ok": True}
         child.stdin.write(json.dumps(dict(method=method, **fields)) + "\n")
         child.stdin.flush()
         reply = json.loads(child.stdout.readline())
@@ -83,6 +137,9 @@ def main():
         reply = subprocess.run([str(exe), "call", "--profile", "user", "--instance", "desktop",
             "--session-id", str(session.value)], input=json.dumps(dict(operation=operation, **fields)),
             capture_output=True, text=True, timeout=150)
+        if reply.returncode or not reply.stdout.strip():
+            print("Native client failure:", operation, reply.returncode, reply.stderr, file=log, flush=True)
+            raise RuntimeError("Native client transport failed: " + operation)
         return json.loads(reply.stdout)
 
     def start_owner(scopes):
@@ -141,10 +198,17 @@ def main():
     url = f"http://127.0.0.1:{server.server_port}/"
     try:
         check("initial OS unlocked", not locked())
-        child = subprocess.Popen([str(exe), "desktop"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=log, text=True)
+        if args.install:
+            os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--force-renderer-accessibility"
+            child = subprocess.Popen([str(args.install / "machine-control.exe"), "--gui"],
+                stdout=log, stderr=log)
+        else:
+            child = subprocess.Popen([str(exe), "desktop"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=log, text=True)
         operator("hello", processId=os.getpid())
         poll(lambda: operator("state")["state"].get("availability", {}).get("healthy", True))
+        baseline_helper = direct("capabilities")["data"]["lockedUse"]
+        check("covered desktop unlock stays disabled", not baseline_helper["enabled"])
         check("no initial grant", direct("grant.status")["data"].get("grant") is None)
         operator("browser_while_locked", enabled=True)
         check("preference grants no authority", direct("browser.tabs").get("errorCode") == "approval_required")
@@ -177,15 +241,23 @@ def main():
         poll(lambda: operator("state")["state"]["browser"]["connected"])
         with concurrent.futures.ThreadPoolExecutor() as pool:
             pending = pool.submit(direct, "grant.request", scopes=["observe", "control", "browser", "devtools"],
-                reason="Verify browser control behind the Windows lock screen", durationSeconds=600, timeoutSeconds=120)
+                reason="Verify browser control behind the Windows lock screen", durationSeconds=args.grant_duration, timeoutSeconds=120)
             poll(lambda: operator("state")["state"].get("pending"))
+            if args.install:
+                # The native dialog belongs to the installed companion, not
+                # the Tauri launcher. Resolve its exact image/session pair.
+                script = "$p=@(Get-Process machine-control-windows | Where-Object {$_.Path -eq '" + str(exe).replace("'", "''") + "' -and $_.SessionId -eq " + str(session.value) + "});if($p.Count -ne 1){throw 'Ambiguous resident'};$p[0].Id"
+                encoded = base64.b64encode(script.encode("utf-16-le")).decode()
+                approval_pid = int(subprocess.check_output(["powershell.exe", "-NoProfile", "-EncodedCommand", encoded], text=True).strip())
+            else:
+                approval_pid = child.pid
             script = r'''Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes;
 $condition=[Windows.Automation.AndCondition]::new(
 [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty,PID),
 [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,'Allow'),
 [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Button));
 $deadline=[DateTime]::UtcNow.AddSeconds(15); do {$button=[Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Descendants,$condition); if($button){break}; Start-Sleep -Milliseconds 100}while([DateTime]::UtcNow -lt $deadline);
-if(!$button){throw 'Native approval button missing'}; $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()'''.replace("PID", str(child.pid))
+if(!$button){throw 'Native approval button missing'}; $button.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()'''.replace("PID", str(approval_pid))
             encoded = base64.b64encode(script.encode("utf-16-le")).decode()
             subprocess.run(["powershell.exe", "-NoProfile", "-EncodedCommand", encoded], check=True, timeout=25, stdout=log, stderr=log)
             check("real native approval", pending.result(timeout=30)["accepted"])
@@ -227,17 +299,31 @@ if(!$button){throw 'Native approval button missing'}; $button.GetCurrentPattern(
         check("live DevTools behind lock", "Locked Windows browser fixture" in json.dumps(result) and locked())
         websocket.close(); websocket = None
         owner.close(); owner = None
-        operator("browser_while_locked", enabled=False)
-        check("disable revokes retained grant", direct("grant.status")["data"].get("grant") is None)
-        check("OS remains locked and no unlock helper was armed", locked())
+        if args.finish == "expiry":
+            poll(lambda: direct("grant.status")["data"].get("grant") is None, args.grant_duration + 15)
+            check("expiry revokes retained grant", direct("browser.tabs").get("errorCode") == "approval_required")
+        elif args.finish == "stop":
+            operator("stop")
+            check("Stop revokes retained grant", direct("grant.status")["data"].get("grant") is None)
+        else:
+            operator("browser_while_locked", enabled=False)
+            check("disable revokes retained grant", direct("grant.status")["data"].get("grant") is None)
+        helper = direct("capabilities")["data"]["lockedUse"]
+        check("browser work did not enable or arm desktop unlock", not helper["enabled"] and
+              helper["permissionReady"] == baseline_helper["permissionReady"])
+        check("OS remains locked after browser work", locked())
         save(True)
     except BaseException as error:
-        if child and child.poll() is None:
-            try:
-                print(json.dumps(operator("state")["state"].get("browser")), file=log, flush=True)
-            except Exception:
-                pass
         save(False, str(error))
+        if args.failure_hold:
+            (args.output / "diagnostic-processes.json").write_text(json.dumps({
+                "operatorPid": child.pid if child else None,
+                "operatorExit": child.poll() if child else None,
+                "browserPid": chrome.pid if chrome else None,
+            }))
+            deadline = time.monotonic() + args.failure_hold
+            while time.monotonic() < deadline and not (args.output / "continue-cleanup").exists():
+                time.sleep(.2)
         raise
     finally:
         if websocket:
@@ -248,7 +334,10 @@ if(!$button){throw 'Native approval button missing'}; $button.GetCurrentPattern(
             subprocess.run(["taskkill.exe", "/PID", str(chrome.pid), "/T", "/F"], stdout=log, stderr=log)
             chrome.wait(timeout=15)
         if child and child.poll() is None:
-            child.stdin.close()
+            if args.install:
+                subprocess.run(["taskkill.exe", "/PID", str(child.pid), "/T", "/F"], stdout=log, stderr=log)
+            else:
+                child.stdin.close()
             try:
                 child.wait(timeout=15)
             except subprocess.TimeoutExpired:

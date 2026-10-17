@@ -8,7 +8,7 @@ Earlier x64 coverage remains; full ARM64 and physical acceptance remain open.
 
 ## Product and boundaries
 
-**Current, unreleased (2026-10-17):** The shared Settings option retains
+**Current, shipped in desktop 0.6.8 (2026-10-17):** The shared Settings option retains
 previously approved browser access while the same console stays locked. It
 defaults off, grants no authority itself, preserves expiry and separate
 DevTools scope, and refuses desktop control and new approval. Unknown or

@@ -270,3 +270,24 @@ Older direct-IPC desktop grant/browser/release runners describe the pre-owner
 contract and are not substitutes for this runner on an owner-required candidate.
 Their full release/lifecycle cases need session-aware migration before release;
 this focused pass does not qualify those unexecuted cases.
+
+## Locked-console investigation
+
+[`browser-locked-live.py`](browser-locked-live.py) accepts exactly one of
+`--runtime` (inherited native operator) and `--install` (actual Settings UI),
+plus a separate Chrome for Testing `--chrome` and private `--output`.
+`--finish disable|stop|expiry` selects the end fence; `--grant-duration`
+is 60–600 seconds. `--failure-hold` optionally retains owned processes for
+at most 120 seconds; the controller may create `continue-cleanup` in the output
+directory to end that diagnostic hold. Failures are saved before cleanup.
+The actor leaves Windows locked; the claimed controller owns restoration,
+tasks, evidence, staging, normal shutdown and claim release. A configured
+scenario is not an acceptance claim; Tactical 133 records what actually ran.
+
+[`session-reconnect-probe.ps1`](session-reconnect-probe.ps1) is an appliance
+experiment, not an unlock provider. Require an exclusive target claim and
+an already locked `-ExpectedSession`; choose `-Operation wts-connect|tscon`
+and a private `-Output`. Source and destination cannot be selected separately,
+no credential is accepted, and before/after WTS lock plus authentication-LUID
+observations distinguish native delivery from session effect. The controller
+owns launch identity, lock/restoration and task/process cleanup.

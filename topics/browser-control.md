@@ -159,7 +159,7 @@ package and environment boundaries.
 
 ## Open
 
-- **Current, unreleased desktop source (2026-10-17):** Settings includes a
+- **Current, shipped in desktop 0.6.8 (2026-10-17):** Settings includes a
   default-off **Allow approved browser access while locked** preference,
   independent of covered desktop unlock. Approve access while unlocked, then
   keep approved `browser` and separately approved `devtools` operations across

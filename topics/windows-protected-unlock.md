@@ -5,7 +5,43 @@ Topic: `windows-protected-unlock`
 Status: signed Windows ARM64/x64 preview accepted on disposable local-console
 VMs; bounded desktop consumer integration has source and staged x64 evidence.
 
-## Decision
+## Simple desktop setup
+
+**Decision:** The desktop experience should install/approve its helper through
+native setup and show ready/enabled state without asking people to generate or
+browse for controller JSON. Keep the advanced outside-controller protocol as a
+separate workflow. Browser-only access remains independent and leaves Windows
+locked, without a helper or cover. Cold login means a new sign-in after boot or
+sign-out; it is outside existing-session desktop unlock.
+
+**Current (2026-10-17):** The existing Windows implementation still imports a
+public controller approval and requires a one-shot password per task. The UI
+now names that action explicitly and explains the separate browser option and
+cold-login limitation. [Tactical 133](../docs/tactical/133-windows-unlock-usability-investigation.md)
+records the investigation. The [platform report](../research/platforms/windows.md#password-free-session-reconnect-investigation)
+rejects the tested reconnect shortcuts on one Windows build; this is not proof
+that all password-free authentication extensions are impossible.
+
+**Proposal — next implementation:** enroll the current local account's password
+once in native privileged setup, with clear disclosure. Authenticate the exact
+console account, protect the credential using service-owned DPAPI and an
+administrator/SYSTEM-only file, and expose no export or generic decryption API.
+Ordinary access approval plus a finite locked-origin owner must authorize each
+use. Reuse stock credential-provider discovery, the independent cover/relock
+guardian and fresh session/logon checks. Decrypt only after exact field readiness;
+submit once, erase transient buffers and never retry failed/unknown delivery.
+A password change or rejected credential requires explicit local repair.
+Revocation/removal erases enrollment and fences pending work. Agent requests,
+ordinary JSON, arguments, environment and logs carry no password.
+
+Setup must distinguish installation, enrollment readiness and access enabled.
+Test cancellation, wrong account/identity, ordinary ACL denial, stale authority,
+rotation/revocation, failure relock and fresh tasks before claiming Mac-like
+usability. PIN, cloud/domain accounts, other users and cold login remain outside
+the first local-account slice. No enrollment or new authentication provider is
+implemented by Tactical 133.
+
+## Existing controller protocol
 
 Add unattended unlock as a separately installed and explicitly armed component.
 The ordinary workstation host remains Medium integrity. The dedicated appliance

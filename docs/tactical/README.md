@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [133 — Windows unlock usability investigation](133-windows-unlock-usability-investigation.md):
+  native reconnect refusals, explicit advanced setup wording and incomplete
+  signed installed locked-browser acceptance.
+
 - [132 — Desktop 0.6.8 release recovery](132-desktop-0.6.8-release.md):
   Linux payload verification, Windows portable checks and monitored publication.
 
