@@ -102,8 +102,8 @@ internal static class AdmissionChannel
                             var effect = Contract.ParseRequest(Required(request, "request").ToJsonString()) with { RequestId = id };
                             var scope = DesktopGrants.ScopeFor(effect.Operation);
                             if (scope is null || !scopes.Contains(scope)) throw new InvalidOperationException("operation_not_permitted_by_control_channel");
-                            if (effect.Operation == "session.unlock.prepare" && !prepared) throw new InvalidOperationException("prepared_console_required");
-                            if (effect.Operation == "session.unlock.prepare" && fence.StartedLocked != true) throw new InvalidOperationException("task_did_not_start_locked");
+                            if (effect.Operation is "session.unlock.prepare" or "session.unlock" && !prepared) throw new InvalidOperationException("prepared_console_required");
+                            if (effect.Operation is "session.unlock.prepare" or "session.unlock" && fence.StartedLocked != true) throw new InvalidOperationException("task_did_not_start_locked");
                             action = Task.Run(async () =>
                             {
                                 try

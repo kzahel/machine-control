@@ -145,7 +145,9 @@ def main():
         check(direct({'operation': 'capabilities'})['data']['protectedDesktop']['installed'], 'Protected helper installed through operator UI')
         ui('Access')
         if not direct({'operation': 'capabilities'})['data']['lockedUse']['permissionReady']:
-            ui('Import controller approval'); external('approve-controller')
+            # The outside actor uses unlock-desktop-advanced-setup; the
+            # ordinary desktop setup button now enrolls through native CredUI.
+            external('approve-controller')
             wait(ready, 'controller approval completion', 90)
         check(direct({'operation': 'capabilities'})['data']['lockedUse']['permissionReady'], 'Exact local account controller approval is ready')
         ui('Covered desktop access while locked', toggle=True)

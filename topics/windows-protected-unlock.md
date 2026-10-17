@@ -14,32 +14,37 @@ separate workflow. Browser-only access remains independent and leaves Windows
 locked, without a helper or cover. Cold login means a new sign-in after boot or
 sign-out; it is outside existing-session desktop unlock.
 
-**Current (2026-10-17):** The existing Windows implementation still imports a
-public controller approval and requires a one-shot password per task. The UI
-now names that action explicitly and explains the separate browser option and
-cold-login limitation. [Tactical 133](../docs/tactical/133-windows-unlock-usability-investigation.md)
-records the investigation. The [platform report](../research/platforms/windows.md#password-free-session-reconnect-investigation)
-rejects the tested reconnect shortcuts on one Windows build; this is not proof
-that all password-free authentication extensions are impossible.
+**Current, unreleased source (2026-10-17):** Desktop setup installs/updates the
+helper and uses native Windows CredUI to enroll the exact current local console
+account's password once. Successful setup enables covered desktop use; that
+preference persists independently of ordinary access consent. Native update and
+removal actions replace/erase enrollment. [Tactical 134](../docs/tactical/134-windows-native-unlock-enrollment.md)
+owns implementation and native qualification; [Tactical 133](../docs/tactical/133-windows-unlock-usability-investigation.md)
+retains the earlier reconnect investigation and installed 0.6.8 timeout.
 
-**Proposal — next implementation:** enroll the current local account's password
-once in native privileged setup, with clear disclosure. Authenticate the exact
-console account, protect the credential using service-owned DPAPI and an
-administrator/SYSTEM-only file, and expose no export or generic decryption API.
-Ordinary access approval plus a finite locked-origin owner must authorize each
-use. Reuse stock credential-provider discovery, the independent cover/relock
-guardian and fresh session/logon checks. Decrypt only after exact field readiness;
-submit once, erase transient buffers and never retry failed/unknown delivery.
-A password change or rejected credential requires explicit local repair.
-Revocation/removal erases enrollment and fences pending work. Agent requests,
-ordinary JSON, arguments, environment and logs carry no password.
+The service authenticates the installed elevated setup peer and unlocked console
+before accepting a dedicated binary frame, validates the password once and
+protects it using SYSTEM-user DPAPI plus a SYSTEM/admin-only file. Public policy
+binds the exact local account and a fresh revision; it contains no credential.
+There is no credential export or generic decryption operation. Cancellation does
+not change existing enrollment. Standard users elevating with another admin
+still enroll the independently discovered console account.
 
-Setup must distinguish installation, enrollment readiness and access enabled.
-Test cancellation, wrong account/identity, ordinary ACL denial, stale authority,
-rotation/revocation, failure relock and fresh tasks before claiming Mac-like
-usability. PIN, cloud/domain accounts, other users and cold login remain outside
-the first local-account slice. No enrollment or new authentication provider is
-implemented by Tactical 133.
+`session.unlock` requires the actual installed Medium resident, ordinary access
+approval and a finite locked-origin owner. It reuses stock credential-provider
+discovery, the independent cover/relock guardian and fresh session/logon checks.
+It decrypts only after exact field readiness, submits once, erases transient
+buffers and never retries failed/unknown delivery. Such credential use
+invalidates enrollment; a fresh task cannot replay it. Password changes require
+explicit native repair. Removal erases enrollment and fences pending work.
+Ordinary JSON, arguments, environment, logs and agent requests carry no password.
+The separate external controller mode retains its signature and one-shot secret
+requirements. Neither mode implements PIN, cloud/domain accounts, other users
+or cold login in this desktop profile.
+
+The [platform report](../research/platforms/windows.md#password-free-session-reconnect-investigation)
+rejects only the tested reconnect shortcuts on one Windows build; this is not
+proof that all password-free Windows authentication extensions are impossible.
 
 ## Existing controller protocol
 
@@ -66,8 +71,8 @@ Machine Control owns the native protocol and enforcement.
 **Current, unreleased:** the desktop's optional UAC payload
 also hosts an independently armed `desktop` unlock instance. Native opt-in,
 observation/control consent and a prepared owner session are all required.
-The controller supplies a password once after exact field readiness; the
-desktop stores none. A separately launched SYSTEM guardian binds relock to the
+The advanced controller supplies a password once after exact field readiness;
+the native enrolled mode uses its protected service copy. A separately launched SYSTEM guardian binds relock to the
 same account/logon session and fences owner loss, authority changes, deadlines
 and failure. The current single-display profile places an opaque cover before
 possible credential submission; only a locked-origin task can prepare unlock

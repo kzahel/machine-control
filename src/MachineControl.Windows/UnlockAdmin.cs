@@ -48,6 +48,7 @@ internal static class UnlockAdmin
         // Read once, validate and display the exact immutable value later written.
         var grant = UnlockPolicy.Validate(JsonSerializer.Deserialize<UnlockGrant>(File.ReadAllText(proposalFile), Contract.Json)
             ?? throw new InvalidDataException());
+        if (grant.CredentialSource != "controller_one_shot") throw new InvalidDataException("Use native enrollment for saved credentials");
         var display = UnlockAccount.UniqueDisplayName(grant.TargetUserSid);
         var account = new SecurityIdentifier(grant.TargetUserSid).Translate(typeof(NTAccount)).Value;
         var transport = new SecurityIdentifier(grant.TransportUserSid).Translate(typeof(NTAccount)).Value;

@@ -103,7 +103,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     {
         "windows" or "snapshot" or "screenshot" => "observe",
         "app.launch" or "app.activate" or "invoke" or "set.value" or
-        "click" or "move" or "drag" or "scroll" or "key" or "key.timeline" or "key.delayed_hold" or "type" or "window.state" or "uac.respond" or "session.unlock.prepare" => "control",
+        "click" or "move" or "drag" or "scroll" or "key" or "key.timeline" or "key.delayed_hold" or "type" or "window.state" or "uac.respond" or "session.unlock.prepare" or "session.unlock" => "control",
         "browser.tabs" or "browser.wait" or "browser.navigate" or "browser.snapshot" or
         "browser.click" or "browser.type" or "browser.key" or "browser.capture" or
         "browser.upload" or "browser.release" => "browser",
@@ -128,7 +128,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             _ready = ready;
             _lockedConsole = lockedConsole;
             _consoleIdentity = consoleIdentity;
-            if (_browserWhileLocked && _grant is not null && (consoleIdentity is null ||
+            if (_browserWhileLocked && _grant is not null && _grant.Scopes.Any(BrowserScope) && (consoleIdentity is null ||
                 _grant.ConsoleIdentity != consoleIdentity || !ready && !lockedConsole)) Stop("console_session_changed");
             Admission.SetReady("desktop", ready || _preparedConsole && lockedConsole || BrowserOnlyWhileLocked);
         }
@@ -168,7 +168,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             if (scope is null) return "unsupported_operation";
             if (!controlled && Admission.Reserved) return "control_session_required";
             if (!_ready && !(BrowserOnlyWhileLocked && BrowserScope(scope)) &&
-                !(controlled && operation == "session.unlock.prepare" && _preparedConsole && _lockedConsole))
+                !(controlled && operation is ("session.unlock.prepare" or "session.unlock") && _preparedConsole && _lockedConsole))
                 return BrowserOnlyWhileLocked ? "desktop_locked_browser_only" : "desktop_unavailable";
             if (_updating) return "update_in_progress";
             if (Admission.Blocks("desktop").Length > 0) return "access_paused";

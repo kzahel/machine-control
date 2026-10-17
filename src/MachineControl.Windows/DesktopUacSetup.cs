@@ -31,6 +31,32 @@ internal static class DesktopUacSetup
             DesktopController.GetIntegrityRid() < 12288 || RuntimeProfile.SessionId == 0 || DesktopController.GetInputDesktopName() != "Default")
             throw new UnauthorizedAccessException("UAC helper setup requires an elevated interactive administrator");
     }
+    internal static int RequestEnrollment(bool remove)
+    {
+        var launch = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = true, Verb = "runas" };
+        launch.ArgumentList.Add("unlock-desktop-install-enroll");
+        if (remove) launch.ArgumentList.Add("--remove");
+        using var process = Process.Start(launch) ?? throw new InvalidOperationException("Windows elevation did not start setup");
+        process.WaitForExit();
+        return process.ExitCode;
+    }
+    internal static int InstallAndEnroll(bool remove)
+    {
+        RequireAdmin();
+        if (remove && !DesktopUacNative.Installed()) throw new InvalidOperationException("Unlock helper is unavailable");
+        if (!remove)
+        {
+            if (Directory.Exists(DesktopUacNative.Root) && Resolve() != DesktopUacNative.Executable)
+                RemoveCore(preserveEnrollment: true);
+            if (!DesktopUacNative.Installed()) InstallCore(preserveEnrollment: true);
+        }
+        var launch = new ProcessStartInfo(DesktopUacNative.Executable) { UseShellExecute = false };
+        launch.ArgumentList.Add("unlock-enroll-native");
+        if (remove) launch.ArgumentList.Add("--remove");
+        using var process = Process.Start(launch) ?? throw new InvalidOperationException("Native unlock setup did not start");
+        process.WaitForExit();
+        return process.ExitCode;
+    }
     internal static int RequestUnlockApproval()
     {
         if (!DesktopUacNative.Installed()) throw new InvalidOperationException("Install the desktop helper first");
@@ -78,12 +104,17 @@ internal static class DesktopUacSetup
             InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
         new DirectoryInfo(path).SetAccessControl(security);
     }
-    internal static int Install()
+    internal static int Install() => InstallCore(preserveEnrollment: false);
+    private static int InstallCore(bool preserveEnrollment)
     {
         RequireAdmin();
         if (Directory.Exists(DesktopUacNative.Root)) throw new InvalidOperationException("Remove the existing UAC helper before installing this version");
         var grants = UnlockPolicy.Root(DesktopLockedUse.Instance);
-        if (Directory.Exists(grants)) throw new InvalidOperationException("Remove existing desktop unlock preparation before installing");
+        if (Directory.Exists(grants))
+        {
+            if (!preserveEnrollment) throw new InvalidOperationException("Remove existing desktop unlock preparation before installing");
+            UnlockAdmin.RequireProtectedPath(grants, Path.GetDirectoryName(grants)!);
+        }
         var source = AppContext.BaseDirectory;
         // Validate the entire source topology before creating the privileged
         // payload. No links or writable destinations can escape this root.
@@ -119,9 +150,12 @@ internal static class DesktopUacSetup
                 new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
                 FileSystemRights.ReadPermissions, AccessControlType.Allow));
             new DirectoryInfo(parent).SetAccessControl(parentSecurity);
-            if (Directory.Exists(grants)) throw new InvalidOperationException("Remove existing desktop unlock preparation before installing");
-            Directory.CreateDirectory(grants); ProtectDirectory(grants);
-            grantsCreated = true;
+            if (!Directory.Exists(grants))
+            {
+                Directory.CreateDirectory(grants); ProtectDirectory(grants);
+                grantsCreated = true;
+            }
+            else UnlockAdmin.RequireProtectedPath(grants, parent);
             ServiceCommand("create", DesktopUacNative.Service, "binPath=", $"\"{DesktopUacNative.Executable}\" uac-service", "start=", "auto", "DisplayName=", "Machine Control desktop UAC helper");
             registered = true;
             ServiceCommand("start", DesktopUacNative.Service);
@@ -137,7 +171,8 @@ internal static class DesktopUacSetup
             throw;
         }
     }
-    internal static int Remove()
+    internal static int Remove() => RemoveCore(preserveEnrollment: false);
+    private static int RemoveCore(bool preserveEnrollment)
     {
         RequireAdmin();
         UnlockAdmin.RequireProtectedPath(DesktopUacNative.Root, DesktopUacNative.Root);
@@ -161,7 +196,10 @@ internal static class DesktopUacSetup
         ServiceCommand("delete", DesktopUacNative.Service);
         var grants = UnlockPolicy.Root(DesktopLockedUse.Instance);
         if (Directory.Exists(grants))
-        { UnlockAdmin.RequireProtectedPath(grants, Path.GetDirectoryName(grants)!); Directory.Delete(grants, true); }
+        {
+            UnlockAdmin.RequireProtectedPath(grants, Path.GetDirectoryName(grants)!);
+            if (!preserveEnrollment) Directory.Delete(grants, true);
+        }
         Directory.Delete(DesktopUacNative.Root, true);
         return 0;
     }

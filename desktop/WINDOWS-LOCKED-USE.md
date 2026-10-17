@@ -1,66 +1,82 @@
 # Windows desktop bounded locked use
 
-This feature ships in public desktop 0.5.7. Signed installed feature, ARM64
+The advanced controller feature ships in public desktop 0.5.7. Native one-time
+enrollment below is unreleased source. Signed installed feature, ARM64
 live and physical takeover acceptance remain separate gates. The current
 source profile places an **opaque cover on one display** before possible
 password submission. Windows 10 version 2004 or newer, active DWM composition
 and exactly one display are required; unsupported preparation refuses before
 credential use. Covered VM qualification is tracked in Tactical 102.
 
-## Operator preparation
+## Native desktop setup (unreleased source)
 
-1. Stop access and install the optional helper in **Permissions → UAC and
-   elevated apps → Install helper…**. Complete Windows administrator approval.
-2. Prepare a controller key and public approval proposal using the existing
-   [unlock controller guide](../release/windows-unlock.md#controller-preparation).
-   Keep the private key and credential source on the controller. Only the
-   public proposal belongs on the Windows target.
-3. In **Access**, choose **Set up Machine Control helper**. Select the public
-   proposal, elevate, then approve the displayed account, transport account,
-   controller fingerprint and lifetime. Both accounts must match the desktop
-   operator's current local console account for this profile.
-4. Enable **Also while the screen is locked**, then enable observation and
-   control access. Locked use starts off on each app run. Changing the option
-   revokes access and requires fresh native consent.
+1. Stop ordinary access. In **Access**, choose **Set up…** beside **Covered
+   desktop access while locked**. Windows requests administrator approval and
+   installs the helper if needed; no file or JSON proposal is required.
+2. In the native Windows credential dialog, enter the displayed local account's
+   Windows password once, rather than its PIN. The helper validates it once and
+   saves a SYSTEM-user DPAPI encrypted copy with SYSTEM/admin-only file access.
+   Cancellation leaves existing enrollment unchanged. A newly installed helper
+   can remain installed and unarmed after cancellation.
+3. Successful setup enables the covered-desktop option. It persists as a local
+   preference, separate from ordinary access consent. Enable observation and
+   control access for the work you authorize. Setup itself grants no agent access.
 
-Installing the helper alone neither arms unlock nor enables desktop access.
-The desktop and its resident remain Medium integrity. The administrator-owned
-`MachineControlDesktopUac` service hosts a separate `desktop` unlock grant and
-an independently supervised SYSTEM relock worker. It inherits no appliance
-authority. Removing the helper also removes this controller approval; replacing
-its version requires explicit removal, installation and approval again.
+Use **Update saved password…** after changing the Windows password. Use
+**Remove unlock setup…** to erase enrollment. Changing the covered-desktop
+option revokes ordinary access; approve access again. Browser-only work uses
+**Settings → Allow approved browser access while locked**, requires no unlock
+password/helper/cover, and leaves Windows locked.
 
-## Agent task and credential transport
+The resident remains Medium integrity. The administrator-owned
+`MachineControlDesktopUac` service hosts the protected `desktop` policy and
+credential store. It exposes no credential export or generic decryption API.
+Removing the helper erases enrollment. Updating the protected helper preserves
+existing enrollment if the new native prompt is cancelled. Cold login means
+a new sign-in after boot or sign-out; other users and cold login remain outside
+this desktop profile.
+
+## Enrolled agent task
 
 Retain a `ControlSession` with `prepared_console=True`, exactly `observe` and
-`control` scopes, and a finite duration of at most 900 seconds. Ordinary
-operations refuse while the console is locked. Call `session.unlock.prepare`
-through that owner to obtain public task preparation. Unowned callers cannot
-prepare an unlock, and ordinary JSON has no password transport.
-The owner must have begun with the console locked. An unlocked-origin task
-cannot gain unlock or relock authority from a later idle lock; close it and
-acquire a fresh locked-origin task instead.
+`control` scopes and a finite duration of at most 900 seconds. The owner must
+start with the console locked. Dispatch `session.unlock` through that owner;
+no controller key, credential file or password is sent by the agent. Unowned
+requests and ordinary JSON credentials are refused. An unlocked-origin task
+cannot gain unlock/relock authority from a later idle lock; acquire a fresh
+locked-origin task instead.
 
-Supply the returned `data` as a controller-local JSON preparation file to
-`unlock-controller.py unlock --instance desktop --desktop-preparation FILE`,
-along with the approved proposal, controller key, canonical private credential
-file, and an authenticated carrier command. The carrier runs the installed
-protected executable with `unlock --relay --instance desktop`. The bundled
-helper is under `mc-cli/release/`; it requires Python 3 and OpenSSL on the
-controller. Outside machine-testbed callers must retain their exclusive target
-claim on this transport.
+The service accepts this route only from the actual installed Medium resident,
+with live owner and consent checks. It starts the independent cover/relock
+guardian, prepares the stock lock screen, and discovers the exact account's
+password field before decrypting the saved credential. It submits once and
+erases transient credential buffers. Failed or unknown credential use
+invalidates enrollment and requires explicit local setup; no new task can
+silently replay the credential. Unknown delivery must never be retried.
 
-The signed challenge binds the exact resident and task callback. The service
-checks the live owner and native grants, and starts its relock guardian before
-credential delivery is possible. The controller opens its credential source
-only after native authorization and exact stock password-field readiness.
-Passwords travel once through the dedicated bounded binary stream and are not
-cached. Failed or unknown delivery is never automatically retried.
-
-Wait for confirmed unlock, then use the same task owner for ordinary semantic
+Wait for confirmed unlock, then use the same owner for ordinary semantic
 control and capture. Unlock rotates ordinary observation generations: discard
-old window references. Close the owner when work finishes. Password unlock
-confirms an existing session; it does not establish cold login or switch users.
+old window references. Close the owner when work finishes. This confirms an
+existing session; it never establishes cold login or switches users.
+
+## Advanced outside-controller protocol
+
+The separate [controller-key protocol](../release/windows-unlock.md) remains
+available. Install the optional helper in Permissions. Launch its installed
+`machine-control-windows.exe unlock-desktop-advanced-setup` from the interactive
+console to import and approve a public proposal; keep the private key and
+credential source on the outside controller. Both target and transport account
+must match the desktop operator's current local console account.
+
+With this policy, a retained locked-origin owner dispatches
+`session.unlock.prepare` and gives its public preparation to
+`unlock-controller.py unlock --instance desktop --desktop-preparation FILE`,
+alongside the approved proposal, controller key, canonical private credential
+file and authenticated carrier. The carrier runs the protected executable with
+`unlock --relay --instance desktop`. Keep the exclusive testbed claim on that
+transport. This advanced mode reads a credential once after native field
+readiness and does not cache it. It cannot use native enrollment metadata to
+bypass controller proof. Native enrollment instead uses `session.unlock`.
 
 ## Relock, takeover and failure
 
@@ -103,6 +119,12 @@ physical hardware have no privacy qualification. Covers are ordinary Windows
 presentation windows; no zero-frame exposure guarantee is claimed.
 
 ## Validation
+
+[Tactical 134](../docs/tactical/134-windows-native-unlock-enrollment.md) owns
+native enrollment and `tests/windows/desktop-enrolled-live.py`. The separate
+`WindowsUnlock.Contracts` prompt fixture accepts a one-shot binary credential
+only after discovering the exact native setup password field. Its controller
+resolves the canonical credential locator and retains the target claim.
 
 [Tactical 101](../docs/tactical/101-windows-desktop-locked-use.md) owns candidate
 identity, live checks, cleanup and remaining gates. The command-driven actor

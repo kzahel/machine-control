@@ -21,7 +21,11 @@ internal static class DesktopHost
         var browserPreference = new DesktopBrowserPreference(Path.Combine(
             Path.GetDirectoryName(DesktopPresentationIpc.PathFor(instance))!, instance + "-browser-while-locked.json"));
         broker.ConfigureBrowserWhileLocked(browserPreference.Enabled, loading: true);
+        var lockedPreference = new DesktopBrowserPreference(Path.Combine(
+            Path.GetDirectoryName(DesktopPresentationIpc.PathFor(instance))!, instance + "-covered-desktop.json"),
+            "machine-control-covered-desktop/v1");
         var lockedUse = new DesktopLockedUse(broker, stop.Token);
+        if (lockedPreference.Enabled && DesktopLockedUse.Prepared()) lockedUse.Enable(true);
         DesktopLockedUse.Current = lockedUse;
         var updates = new DesktopUpdates();
         DesktopSafety.Broker = broker;
@@ -115,7 +119,9 @@ internal static class DesktopHost
                             DesktopUacClient.Enable(command["enabled"]?.GetValue<bool>() == true, broker);
                             reply = new { ok = true }; break;
                         case "locked_use":
-                            lockedUse.Enable(command["enabled"]?.GetValue<bool>() == true);
+                            var lockedEnabled = command["enabled"]?.GetValue<bool>() == true;
+                            lockedUse.Enable(lockedEnabled);
+                            lockedPreference.Set(lockedEnabled);
                             reply = new { ok = true }; break;
                         case "browser_while_locked":
                             DesktopSafety.RefreshAvailability(broker);

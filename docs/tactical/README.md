@@ -1,5 +1,8 @@
 # Implementation Tacticals
 
+- [134 — Native Windows unlock enrollment](134-windows-native-unlock-enrollment.md):
+  one-time native password setup and enrolled task-owned unlock.
+
 - [133 — Windows unlock usability investigation](133-windows-unlock-usability-investigation.md):
   native reconnect refusals, explicit advanced setup wording and incomplete
   signed installed locked-browser acceptance.

@@ -8,6 +8,14 @@ Earlier x64 coverage remains; full ARM64 and physical acceptance remain open.
 
 ## Product and boundaries
 
+**Current, unreleased source:** Native covered-desktop setup enrolls the current
+local account's password once through Windows CredUI, with service-owned DPAPI
+storage and task-owned `session.unlock`. No JSON picker or per-task password is
+needed in that mode. Setup enables its independent, persistent option and grants
+no ordinary access. [Tactical 134](../docs/tactical/134-windows-native-unlock-enrollment.md)
+owns implementation and acceptance; cold login and other accounts stay outside
+this desktop profile.
+
 **Current, shipped in desktop 0.6.8 (2026-10-17):** The shared Settings option retains
 previously approved browser access while the same console stays locked. It
 defaults off, grants no authority itself, preserves expiry and separate

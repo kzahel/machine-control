@@ -12,7 +12,8 @@ internal sealed record UnlockGrant(
     string TargetUserSid,
     string TransportUserSid,
     string ControllerPublicKey,
-    DateTimeOffset? ExpiresAt);
+    DateTimeOffset? ExpiresAt,
+    string CredentialSource = "controller_one_shot");
 
 internal static class UnlockPolicy
 {
@@ -30,6 +31,13 @@ internal static class UnlockPolicy
             throw new InvalidDataException("Invalid grant schema or revision");
         _ = new SecurityIdentifier(grant.TargetUserSid);
         _ = new SecurityIdentifier(grant.TransportUserSid);
+        if (grant.CredentialSource == "local_enrollment")
+        {
+            if (grant.ControllerPublicKey != "" || grant.TargetUserSid != grant.TransportUserSid || grant.ExpiresAt is not null)
+                throw new InvalidDataException("Invalid local enrollment policy");
+            return grant;
+        }
+        if (grant.CredentialSource != "controller_one_shot") throw new InvalidDataException("Unknown credential source");
         using var key = ECDsa.Create();
         var bytes = Convert.FromBase64String(grant.ControllerPublicKey);
         key.ImportSubjectPublicKeyInfo(bytes, out var consumed);
@@ -53,8 +61,11 @@ internal static class UnlockPolicy
             parent.Length >= Root(instance).Length; parent = Path.GetDirectoryName(parent))
             if ((File.GetAttributes(parent) & FileAttributes.ReparsePoint) != 0)
                 throw new InvalidDataException("grant_store_invalid");
-        return Validate(JsonSerializer.Deserialize<UnlockGrant>(File.ReadAllText(path), Contract.Json)
+        var grant = Validate(JsonSerializer.Deserialize<UnlockGrant>(File.ReadAllText(path), Contract.Json)
             ?? throw new InvalidDataException("grant_invalid"));
+        if (grant.CredentialSource == "local_enrollment" && instance != DesktopLockedUse.Instance)
+            throw new InvalidDataException("Local enrollment requires desktop ownership");
+        return grant;
     }
 
     public static string Fingerprint(UnlockGrant grant) => Convert.ToHexString(
@@ -62,6 +73,7 @@ internal static class UnlockPolicy
 
     public static bool Verify(UnlockGrant grant, string challenge, string signature)
     {
+        if (grant.CredentialSource != "controller_one_shot") return false;
         using var key = ECDsa.Create();
         key.ImportSubjectPublicKeyInfo(Convert.FromBase64String(grant.ControllerPublicKey), out _);
         return key.VerifyData(Encoding.UTF8.GetBytes(challenge), Convert.FromBase64String(signature),

@@ -34,7 +34,13 @@ internal static class Program
                 case "relock-guardian":
                     return await DesktopRelockGuardian.RunAsync(GetOption(args, "--pipe") ?? throw new ArgumentException("--pipe required"));
                 case "unlock-desktop-setup":
+                    return DesktopUacSetup.RequestEnrollment(args.Contains("--remove"));
+                case "unlock-desktop-advanced-setup":
                     return DesktopUacSetup.RequestUnlockApproval();
+                case "unlock-desktop-install-enroll":
+                    return DesktopUacSetup.InstallAndEnroll(args.Contains("--remove"));
+                case "unlock-enroll-native":
+                    return await DesktopUnlockEnrollment.RunSetupAsync(args.Contains("--remove"));
                 case "uac-setup":
                     return DesktopUacSetup.Request(args.Contains("--remove"));
                 case "uac-install":

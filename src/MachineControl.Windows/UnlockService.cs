@@ -135,6 +135,20 @@ internal sealed class UnlockService(string instance)
             return;
         }
         var desktop = instance == DesktopLockedUse.Instance;
+        if (desktop && hello.Operation is "desktop.enrollment" or "desktop.enrollment.remove")
+        {
+            var remove = hello.Operation == "desktop.enrollment.remove";
+            if (remove)
+            {
+                await DesktopUnlockEnrollment.ServeAsync(pipe, true, stop);
+                Invalidate();
+                return;
+            }
+            if (!_attempt.Wait(0)) { await RefuseAsync(pipe, "unlock_attempt_active", stop); return; }
+            try { await DesktopUnlockEnrollment.ServeAsync(pipe, false, stop); }
+            finally { _attempt.Release(); }
+            return;
+        }
         if (hello.Operation != (desktop ? "desktop.unlock" : "unlock") ||
             hello.CredentialKind is not ("password" or "pin") || desktop && hello.CredentialKind != "password")
             throw new InvalidDataException();
@@ -158,6 +172,14 @@ internal sealed class UnlockService(string instance)
             await RefuseAsync(pipe, "not_armed_or_expired", stop);
             return;
         }
+        var enrolled = grant.CredentialSource == "local_enrollment";
+        // The enrollment route accepts the actual protected Medium resident,
+        // never a relay naming somebody else's resident PID.
+        if (enrolled && (!desktop || hello.ResidentPid != DesktopUacNative.ClientPid(pipe)))
+        {
+            await RefuseAsync(pipe, "enrolled_resident_required", stop);
+            return;
+        }
         string? caller = null;
         pipe.RunAsClient(() => { using var identity = WindowsIdentity.GetCurrent(); caller = identity.User?.Value; });
         if (caller != grant.TransportUserSid)
@@ -178,15 +200,18 @@ internal sealed class UnlockService(string instance)
             Convert.ToHexString(RandomNumberGenerator.GetBytes(32)), DateTimeOffset.UtcNow.AddSeconds(45), control?.Binding);
         var challengeText = Contract.Serialize(challenge);
         var timer = Stopwatch.StartNew();
-        await UnlockWire.WriteAsync(pipe, new { stage = "challenge", challenge = challengeText }, stop);
-        progress.Phase = "controller_proof";
-        using var proofTimeout = CancellationTokenSource.CreateLinkedTokenSource(stop);
-        proofTimeout.CancelAfter(TimeSpan.FromSeconds(15));
-        var proof = JsonSerializer.Deserialize<UnlockProof>(await UnlockWire.ReadLineAsync(pipe, proofTimeout.Token), Contract.Json);
-        if (proof is null || !UnlockPolicy.Verify(grant, challengeText, proof.Signature))
+        if (!enrolled)
         {
-            await RefuseAsync(pipe, "controller_signature_denied", stop);
-            return;
+            await UnlockWire.WriteAsync(pipe, new { stage = "challenge", challenge = challengeText }, stop);
+            progress.Phase = "controller_proof";
+            using var proofTimeout = CancellationTokenSource.CreateLinkedTokenSource(stop);
+            proofTimeout.CancelAfter(TimeSpan.FromSeconds(15));
+            var proof = JsonSerializer.Deserialize<UnlockProof>(await UnlockWire.ReadLineAsync(pipe, proofTimeout.Token), Contract.Json);
+            if (proof is null || !UnlockPolicy.Verify(grant, challengeText, proof.Signature))
+            {
+                await RefuseAsync(pipe, "controller_signature_denied", stop);
+                return;
+            }
         }
         void Check()
         {
@@ -201,9 +226,19 @@ internal sealed class UnlockService(string instance)
         Check();
         if (control is not null) await control.StartAsync(challenge, stop);
         using var attempt = CancellationTokenSource.CreateLinkedTokenSource(stop, control?.Interrupted ?? CancellationToken.None);
-        await ExecuteAsync(pipe, grant, challenge, Check, progress, attempt.Token, prepareDesktop: true);
-        Check();
-        await ExecuteAsync(pipe, grant, challenge, Check, progress, attempt.Token);
+        try
+        {
+            await ExecuteAsync(pipe, grant, challenge, Check, progress, attempt.Token, prepareDesktop: true);
+            Check();
+            await ExecuteAsync(pipe, grant, challenge, Check, progress, attempt.Token);
+        }
+        finally
+        {
+            // A rejected/unknown credential is never replayed on a fresh task.
+            // Explicit local setup is required before this enrollment can run again.
+            if (enrolled && progress.CredentialRead && !progress.UnlockConfirmed)
+                DesktopUnlockEnrollment.Revoke(grant);
+        }
         if (control is not null && progress.UnlockConfirmed) await control.WaitForEndAsync(stop);
     }
 
@@ -245,13 +280,14 @@ internal sealed class UnlockService(string instance)
                 else if (message.Stage == "ready" && !prepareDesktop && !secretRequested)
                 {
                     secretRequested = true;
-                    await UnlockWire.WriteAsync(client, new { stage = "ready", credentialTransport = "uint16le-length+utf8", maximumBytes = 256 }, stop);
+                    var enrolled = grant.CredentialSource == "local_enrollment";
+                    if (!enrolled) await UnlockWire.WriteAsync(client, new { stage = "ready", credentialTransport = "uint16le-length+utf8", maximumBytes = 256 }, stop);
                     byte[]? secret = null;
                     try
                     {
                         progress.Phase = "credential_transport";
                         progress.CredentialRead = true;
-                        secret = await UnlockWire.ReadSecretAsync(client, stop);
+                        secret = enrolled ? DesktopUnlockEnrollment.Read(grant) : await UnlockWire.ReadSecretAsync(client, stop);
                         check();
                         progress.ForwardAttempted = true;
                         await UnlockWire.WriteSecretAsync(worker, secret, stop);

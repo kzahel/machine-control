@@ -1,6 +1,13 @@
+using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using MachineControl.Windows;
+
+if (args.Length > 0 && args[0].StartsWith("--enrollment-", StringComparison.Ordinal))
+{
+    await EnrollmentPromptLive.RunAsync(args);
+    return;
+}
 
 if (args.Contains("--activity-live"))
 {
@@ -44,6 +51,14 @@ Refuses(() => UnlockClient.ValidateChallenge(challenge with { GrantRevision = Gu
 Refuses(() => UnlockClient.ValidateChallenge(challenge with { Deadline = DateTimeOffset.UtcNow.AddSeconds(-1) }, grant, "contracts", "password"), "stale challenge");
 Refuses(() => UnlockClient.ValidateChallenge(challenge, grant, "another-instance", "password"), "other instance");
 Refuses(() => UnlockClient.ValidateChallenge(challenge, grant, "contracts", "pin"), "other provider");
+Assert(RuntimeProfile.SessionId == System.Diagnostics.Process.GetCurrentProcess().SessionId, "Direct current-process session matches independent OS process metadata");
+var enrolled = grant with { TransportUserSid = grant.TargetUserSid, ControllerPublicKey = "", CredentialSource = "local_enrollment" };
+UnlockPolicy.Validate(enrolled);
+Refuses(() => UnlockPolicy.Validate(enrolled with { TransportUserSid = grant.TransportUserSid }), "enrollment transport is exact account");
+Refuses(() => UnlockPolicy.Validate(enrolled with { ControllerPublicKey = grant.ControllerPublicKey }), "enrollment cannot carry controller authority");
+Refuses(() => UnlockPolicy.Validate(enrolled with { ExpiresAt = DateTimeOffset.UtcNow.AddHours(1) }), "enrollment lifetime is local revocation");
+Refuses(() => UnlockPolicy.Validate(enrolled with { CredentialSource = "unknown" }), "unknown credential source");
+Assert(!UnlockPolicy.Verify(enrolled, text, Sign(controller, text)), "Enrollment never verifies outside-controller proof");
 using var stream = new MemoryStream();
 await UnlockWire.WriteAsync(stream, new { hello = true }, CancellationToken.None);
 await UnlockWire.WriteSecretAsync(stream, [65, 66], CancellationToken.None);

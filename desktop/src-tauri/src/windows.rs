@@ -23,6 +23,7 @@ use windows_sys::Win32::{
 static RUNTIME: Mutex<Option<Runtime>> = Mutex::new(None);
 static APP: OnceLock<tauri::AppHandle> = OnceLock::new();
 static UAC_SETUP: Mutex<Option<Child>> = Mutex::new(None);
+static ENROLL_SETUP: AtomicBool = AtomicBool::new(false);
 static UAC_SETUP_ERROR: Mutex<Option<String>> = Mutex::new(None);
 static STOP_WINDOW: AtomicIsize = AtomicIsize::new(0);
 static STOP_PROCESS: AtomicU32 = AtomicU32::new(0);
@@ -330,6 +331,10 @@ pub fn command(command: Value) -> Result<Value, String> {
         }
         match launch.spawn() {
             Ok(child) => {
+                ENROLL_SETUP.store(
+                    command["method"] == "permission" && command["remove"] != true,
+                    Ordering::Release,
+                );
                 *setup = Some(child);
                 *UAC_SETUP_ERROR.lock().map_err(|e| e.to_string())? = None;
             }
@@ -352,6 +357,17 @@ pub fn command(command: Value) -> Result<Value, String> {
                     );
                 }
                 spawn_runtime(app)?;
+                if ENROLL_SETUP.swap(false, Ordering::AcqRel) && status.success() {
+                    let mut owner = RUNTIME.lock().map_err(|e| e.to_string())?;
+                    let runtime = owner.as_mut().ok_or("Resident unavailable")?;
+                    let enabled = runtime.call(&json!({"method":"locked_use","enabled":true}))?;
+                    if enabled["ok"] != true {
+                        *UAC_SETUP_ERROR.lock().map_err(|e| e.to_string())? = Some(
+                            "Unlock setup completed. Enable covered desktop access in Access."
+                                .into(),
+                        );
+                    }
+                }
             } else {
                 return Ok(json!({"ok":true,"setupPending":true}));
             }
@@ -387,6 +403,8 @@ pub fn command(command: Value) -> Result<Value, String> {
     }
     if command["method"] == "state" {
         reply["state"]["uac"]["setupError"] =
+            json!(UAC_SETUP_ERROR.lock().map_err(|e| e.to_string())?.clone());
+        reply["state"]["lockedUse"]["setupError"] =
             json!(UAC_SETUP_ERROR.lock().map_err(|e| e.to_string())?.clone());
         reply["state"]["sourceRevision"] = json!(env!("MC_SOURCE_REVISION"));
         reply["state"]["version"] = json!(app.package_info().version.to_string());

@@ -360,6 +360,16 @@ for (var i = 0; i < 150; i++) broker.Record(new Result { RequestId = "test", Ope
 Assert(State(broker).GetProperty("activity").GetArrayLength() == 30, "Bounded activity projection");
 await AdmissionChannelFixtures.RunAsync();
 DesktopActivityFixtures.Run();
+var independentDesktop = new DesktopGrants(new TestTime());
+independentDesktop.SetReady(true, consoleIdentity: "same-logon");
+independentDesktop.ConfigureBrowserWhileLocked(true);
+independentDesktop.PrepareConsole(true);
+independentDesktop.Arm(["observe", "control"], 300);
+independentDesktop.SetReady(false, false, "same-logon");
+Assert(independentDesktop.AdmissionAuthority(["control"]) is null, "Browser preference cannot revoke a desktop-only approval during a lock transition");
+Assert(independentDesktop.Authorize("snapshot", controlled: true) == "desktop_unavailable", "Unavailable desktop still refuses ordinary effects");
+independentDesktop.SetReady(false, true, "same-logon");
+Assert(independentDesktop.Authorize("session.unlock", controlled: true) is null, "Stable locked desktop permits its enrolled operation independently of browser preference");
 var preparedGrant = new DesktopGrants(new TestTime());
 preparedGrant.SetReady(true);
 preparedGrant.Arm(["observe", "control"], 300);
@@ -453,6 +463,8 @@ try
     Assert(!browserPreference.Enabled, "Missing browser preference defaults off");
     browserPreference.Set(true);
     Assert(new DesktopBrowserPreference(browserFile).Enabled, "Browser preference persists without granting authority");
+    Assert(!new DesktopBrowserPreference(browserFile, "machine-control-covered-desktop/v1").Enabled,
+        "Browser preference cannot enable covered desktop access");
     browserPreference.Set(false);
     Assert(!new DesktopBrowserPreference(browserFile).Enabled, "Browser preference disable persists");
     foreach (var invalid in new[] { "{", "{}", "{\"schema\":\"wrong\",\"enabled\":true}", "{\"schema\":\"machine-control-browser-locked/v1\",\"enabled\":1}", new string('x', 1025) })

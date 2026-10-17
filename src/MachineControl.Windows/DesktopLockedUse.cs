@@ -6,8 +6,8 @@ using System.Text.Json;
 namespace MachineControl.Windows;
 
 /// The ordinary resident owns consent and task admission. Its SYSTEM-only
-/// callback grants no credential authority: the unlock broker also requires
-/// its independently approved controller signature and stock field discovery.
+/// callback retains live owner authority. The broker independently requires
+/// native enrollment or an approved controller plus stock field discovery.
 internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken stop)
 {
     private Lease? _lease;
@@ -19,6 +19,7 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
         internal readonly long Revision = revision;
         internal readonly UnlockGrant ProtectedGrant = protectedGrant;
         internal readonly string Pipe = "machine-control-locked-guard-" + Guid.NewGuid().ToString("n");
+        internal readonly CancellationTokenSource Done = new();
         internal bool Ending;
         internal bool Complete;
         internal bool ServiceStarted;
@@ -50,13 +51,16 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
         // Protected installation discovery may block on filesystem/provider
         // state. Never run it under the authority lock used by native Stop.
         var preparation = PreparationRefusal();
+        var enrolled = false;
+        try { enrolled = UnlockPolicy.Read(Instance).CredentialSource == "local_enrollment"; }
+        catch (Exception) { }
         lock (grants.Gate) return new
         {
             supported = DesktopDisplayCovers.Supported,
             permissionReady = preparation is null,
             preparationRefusal = preparation,
             enabled = grants.PreparedConsole,
-            helperApproval = "approved_controller_required",
+            helperApproval = enrolled ? "local_account_enrolled" : "approved_controller_required",
             helperHealthy = preparation is null,
             setupState = "idle",
             phase = _lease is null ? "idle" : _lease.Ending ? "relocking" : "task_owned",
@@ -65,13 +69,13 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
             privacy = "opaque_single_display_cover",
             supportedDisplays = 1,
             relockPolicy = "only_if_task_started_locked",
-            credentialSource = "approved_controller_one_shot",
+            credentialSource = enrolled ? "service_enrolled_password" : "approved_controller_one_shot",
         };
     }
 
     internal void Enable(bool enabled)
     {
-        if (enabled && !Prepared()) throw new InvalidOperationException("Install the helper and approve a controller for this account first");
+        if (enabled && !Prepared()) throw new InvalidOperationException("Set up covered desktop access for this account first");
         lock (grants.Gate)
         {
             if (_lease is not null) throw new InvalidOperationException("Finish the locked-screen task and relock before changing setup");
@@ -98,6 +102,7 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
             if (lease.Ending && (lease.Complete || !lease.ServiceStarted) && locked)
             {
                 _lease = null;
+                lease.Done.Cancel();
                 DesktopSafety.CoverProcessId = 0;
                 grants.Admission.Resume("desktop", "relock_pending");
             }
@@ -112,6 +117,16 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
         var locked = SessionStateInspector.IsLocked((uint)RuntimeProfile.SessionId) == true;
         var policy = prepared ? UnlockPolicy.Read(Instance) : null;
         cancellation.ThrowIfCancellationRequested();
+        if (policy?.CredentialSource == "local_enrollment" && request.Operation == "session.unlock.prepare")
+            return new Result
+            {
+                RequestId = request.RequestId!,
+                Operation = request.Operation,
+                Generation = generation,
+                ErrorCode = "use_session_unlock",
+                Delivery = "refused",
+                Effect = "refused"
+            };
         lock (grants.Gate)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -155,16 +170,118 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
         }
     }
 
-    private async Task ServeGuardAsync(Lease lease)
+    internal async Task<Result> UnlockAsync(Request request, string generation, CancellationToken cancellation)
     {
         try
         {
-            while (!stop.IsCancellationRequested)
+            if (UnlockPolicy.Read(Instance).CredentialSource != "local_enrollment")
+                return new Result
+                {
+                    RequestId = request.RequestId!,
+                    Operation = request.Operation,
+                    Generation = generation,
+                    ErrorCode = "native_enrollment_required",
+                    Delivery = "refused",
+                    Effect = "refused"
+                };
+        }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            return new Result
+            {
+                RequestId = request.RequestId!,
+                Operation = request.Operation,
+                Generation = generation,
+                ErrorCode = "native_enrollment_required",
+                Delivery = "refused",
+                Effect = "refused"
+            };
+        }
+        var prepared = Prepare(request, generation, cancellation);
+        if (!prepared.Accepted) return prepared;
+        Lease lease;
+        lock (grants.Gate) lease = _lease!;
+        var result = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _ = RunEnrolledAsync(lease, result, generation, cancellation);
+        return await result.Task.WaitAsync(cancellation);
+    }
+
+    private async Task RunEnrolledAsync(Lease lease, TaskCompletionSource<Result> completion, string generation, CancellationToken cancellation)
+    {
+        try
+        {
+            using var pipe = new NamedPipeClientStream(".", UnlockPolicy.Pipe(Instance), PipeDirection.InOut,
+                PipeOptions.Asynchronous, TokenImpersonationLevel.Identification);
+            // Before result, request cancellation closes the service connection;
+            // afterward the live owner callback and runtime lifetime fence it.
+            using var requestCancellation = cancellation.Register(() => pipe.Dispose());
+            await pipe.ConnectAsync(5000, stop);
+            UnlockNative.RequireServicePeer(pipe, Instance);
+            await UnlockWire.WriteAsync(pipe, new UnlockHello("desktop.unlock", "password", lease.Pipe, (uint)Environment.ProcessId), stop);
+            using var frame = JsonDocument.Parse(await UnlockWire.ReadLineAsync(pipe, stop));
+            var root = frame.RootElement;
+            if (root.GetProperty("stage").GetString() == "result")
+            {
+                var received = root.GetProperty("result").Deserialize<Result>(Contract.Json)!;
+                completion.TrySetResult(received with { RequestId = lease.Request.RequestId!, Operation = lease.Request.Operation, Generation = generation });
+            }
+            else completion.TrySetResult(new Result
+            {
+                RequestId = lease.Request.RequestId!,
+                Operation = lease.Request.Operation,
+                Generation = generation,
+                ErrorCode = "enrolled_unlock_refused",
+                Delivery = root.TryGetProperty("delivery", out var delivery) && delivery.GetString() == "unknown" ? "unknown" : "refused",
+                Effect = root.TryGetProperty("delivery", out delivery) && delivery.GetString() == "unknown" ? "unknown" : "refused",
+                RetrySafety = "never_automatically",
+                Evidence = root.Clone()
+            });
+            requestCancellation.Unregister();
+            // Keep the authenticated connection alive for the finite task. EOF
+            // means the service guardian has finished (or its process failed).
+            var remaining = new byte[1];
+            while (await pipe.ReadAsync(remaining, stop) != 0) { }
+        }
+        catch (Exception)
+        {
+            // A detached native task must always complete its waiting request,
+            // including unexpected malformed service frames or peer failures.
+            completion.TrySetResult(new Result
+            {
+                RequestId = lease.Request.RequestId!,
+                Operation = lease.Request.Operation,
+                Generation = generation,
+                ErrorCode = "enrolled_unlock_interrupted",
+                Delivery = "unknown",
+                Effect = "unknown",
+                RetrySafety = "never_automatically"
+            });
+        }
+        finally
+        {
+            lock (grants.Gate)
+            {
+                if (_lease == lease)
+                {
+                    lease.Ending = true;
+                    grants.Admission.Pause("desktop", "relock_pending");
+                }
+            }
+        }
+    }
+
+    private async Task ServeGuardAsync(Lease lease)
+    {
+        using var guardStop = CancellationTokenSource.CreateLinkedTokenSource(stop, lease.Done.Token);
+        var guardToken = guardStop.Token;
+        try
+        {
+            while (!guardToken.IsCancellationRequested)
             {
                 lock (grants.Gate) if (_lease != lease) break;
                 using var pipe = DesktopUacNative.Server(lease.Pipe, systemOnly: true);
-                await pipe.WaitForConnectionAsync(stop);
-                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(stop);
+                await pipe.WaitForConnectionAsync(guardToken);
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(guardToken);
                 deadline.CancelAfter(TimeSpan.FromSeconds(2));
                 try
                 {
@@ -200,8 +317,9 @@ internal sealed class DesktopLockedUse(DesktopGrants grants, CancellationToken s
                 { lock (grants.Gate) grants.Stop("locked_use_guard_failed"); }
             }
         }
-        catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (guardToken.IsCancellationRequested) { }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         { lock (grants.Gate) grants.Stop("locked_use_guard_failed"); }
+        finally { lease.Done.Dispose(); }
     }
 }

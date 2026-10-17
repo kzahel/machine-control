@@ -381,6 +381,15 @@ evidence shows that Cua/WinApp cannot be layered or upstreamed coherently.
 
 ### Optional workstation unlock
 
+**Current — unreleased native enrollment source:** the desktop's native setup
+uses Windows CredUI for the current local console account and SYSTEM-user DPAPI
+for its encrypted credential store. The ARM64 native fixture has verified
+enrollment, cancellation, ordinary-user file denial, unowned request refusal
+and cancellation of an update without changing enrollment. The owner-bound
+existing-session lifecycle and actual Tauri UI have separate acceptance gates;
+[Tactical 134](../../docs/tactical/134-windows-native-unlock-enrollment.md) owns
+those results. This is distinct from the external controller protocol below.
+
 **Current — live-tested password unlock and authorization:** Tactical 037
 inspected the stock credential surface through the appliance's protected native
 UIA route in a disposable Windows x64 workspace. The field exposes password
@@ -436,7 +445,8 @@ explicitly says the console session cannot be connected this way. A privileged
 session token alone therefore is not an accepted unlock route here. This does
 not evaluate a Windows authentication extension or establish impossibility on
 other Windows builds. Mac authorization plug-in evidence cannot be transferred
-to Windows. The protected-unlock topic owns the proposed enrollment direction.
+to Windows. The protected-unlock topic owns native enrollment and its remaining
+qualification.
 
 ## Desktop audit validation
 

@@ -120,6 +120,7 @@ type State = {
   lockedUse?: {
     permissionReady: boolean;
     helperApproval: string;
+    credentialSource?: string;
     supported: boolean;
     enabled: boolean;
     phase: string;
@@ -762,7 +763,10 @@ function App() {
                     </span>
                     {!on &&
                       lockedUse.supported &&
-                      !lockedUse.permissionReady &&
+                      (!lockedUse.permissionReady ||
+                        (windows &&
+                          lockedUse.credentialSource !==
+                            "service_enrolled_password")) &&
                       !yaOnly &&
                       ["idle", "approval"].includes(lockedUse.setupState) && (
                         <button
@@ -770,12 +774,11 @@ function App() {
                             lockedUse.setupState === "approval"
                               ? "Open Machine Control helper settings"
                               : windows
-                                ? "Import controller approval"
+                                ? "Set up covered desktop access"
                                 : "Set up Machine Control helper"
                           }
                           disabled={
                             busy ||
-                            (windows && !state?.uac?.installed) ||
                             !!lockedUse.controlSessionId ||
                             !!state?.pending
                           }
@@ -789,7 +792,7 @@ function App() {
                           {lockedUse.setupState === "approval"
                             ? "Open Settings"
                             : windows
-                              ? "Import controller approval…"
+                              ? "Set up…"
                               : "Set up…"}
                         </button>
                       )}
@@ -800,16 +803,52 @@ function App() {
                 )}
                 {windows && lockedUse && (
                   <p className="note group-note">
-                    Advanced setup: install the helper in Permissions, then
-                    import the public approval JSON generated on your
-                    controller. This does not set up automatic unlock: the
-                    controller must supply your Windows password for each task.
-                    Windows unlocks behind an opaque cover on one display and
-                    relocks when the task ends. For browser-only work, enable
-                    “Allow approved browser access while locked” in Settings;
-                    Windows stays locked.
+                    Setup asks for your Windows account password once in a
+                    native dialog. The helper saves an encrypted copy on this PC
+                    for approved tasks. Windows unlocks behind an opaque cover
+                    on one display and relocks when the task ends. If you change
+                    your password, run setup again. For browser-only work,
+                    enable “Allow approved browser access while locked” in
+                    Settings; Windows stays locked.
                   </p>
                 )}
+                {windows &&
+                  lockedUse?.credentialSource === "service_enrolled_password" &&
+                  !on && (
+                    <div className="lock-row">
+                      <button
+                        disabled={
+                          busy ||
+                          !!lockedUse.controlSessionId ||
+                          !!state?.pending
+                        }
+                        onClick={() =>
+                          void act({
+                            method: "permission",
+                            permission: "lockedUse",
+                          })
+                        }
+                      >
+                        Update saved password…
+                      </button>
+                      <button
+                        disabled={
+                          busy ||
+                          !!lockedUse.controlSessionId ||
+                          !!state?.pending
+                        }
+                        onClick={() =>
+                          void act({
+                            method: "permission",
+                            permission: "lockedUse",
+                            remove: true,
+                          })
+                        }
+                      >
+                        Remove unlock setup…
+                      </button>
+                    </div>
+                  )}
                 {trustSupported && (
                   <div className="ya-row">
                     <label className="scope" title={on ? lockedOff : undefined}>

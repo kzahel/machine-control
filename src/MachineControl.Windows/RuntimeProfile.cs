@@ -1,4 +1,5 @@
-using System.Diagnostics;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.IO;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
@@ -9,7 +10,18 @@ internal static class RuntimeProfile
 {
     public static bool IsUser { get; private set; }
     public static string Instance { get; private set; } = "default";
-    public static int SessionId => Process.GetCurrentProcess().SessionId;
+    // A process's session is fixed at launch. Process.SessionId asks .NET for
+    // system-wide process information; never do that inside admission/Stop's
+    // authority lock on every readiness refresh.
+    public static int SessionId { get; } = CurrentSessionId();
+    private static int CurrentSessionId()
+    {
+        if (!ProcessIdToSessionId((uint)Environment.ProcessId, out var session))
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        return checked((int)session);
+    }
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool ProcessIdToSessionId(uint processId, out uint sessionId);
     public static string StateRoot => IsUser
         ? Path.Combine(Environment.GetFolderPath(
             Environment.SpecialFolder.LocalApplicationData),
