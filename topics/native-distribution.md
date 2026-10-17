@@ -50,7 +50,7 @@ its authority or silently installing it on personal machines.
 ## Current implementation
 
 **Current:** Desktop 0.6.5 and 0.6.6 did not publish. The
-[0.6.7 recovery](../docs/tactical/132-desktop-0.6.7-release.md) repairs Linux
+[0.6.8 recovery](../docs/tactical/132-desktop-0.6.8-release.md) repairs Linux
 payload validation and Windows portable-check failures, preserving existing
 tags and cumulative feature notes. Publication verification is in progress.
 

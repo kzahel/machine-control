@@ -2,6 +2,41 @@
 
 ## [Unreleased]
 
+## [0.6.8]
+
+- Add the default-off **Allow approved browser access while locked** setting
+  on Mac, Windows and GNOME Wayland Linux. Existing browser approvals retain
+  their expiry; desktop control and broader approvals remain gated. Pause,
+  Stop, expiry and session loss still end or suspend access. Scripts and
+  DevTools require their separate approval.
+- Add `desktop dialog choose --path PATH` on Mac for native Open/Save panels,
+  keyboard-layout and modifier-remapping fixes, reliable empty accessibility
+  text values, bounded observation identities and exact certificate
+  trust-settings prompt recognition.
+- Include the candidate persistent Python MCP session with compact trees,
+  capture-bound input, explicit activation and owned claim/session cleanup.
+  Improve offline help, claim arguments, queued deadlines and provisioning
+  journal error reporting.
+- Add secret-free Mac covered-unlock diagnostics. The reported physical-Mac
+  password-panel discovery failure remains unresolved.
+- Fix Linux release verification to require the new locked-browser runtime
+  modules, and include nested extension assets such as icons.
+- Fix Windows CI coverage of POSIX-only session publication. Windows keeps
+  refusing file-based session IDs pending native ACL validation; explicit
+  tool/session-environment identities remain available. Report lease-renewal
+  failures correctly when they occur before a scoped child starts. Keep Linux
+  preference persistence tests on POSIX and test logon identity with a portable
+  fixture UID.
+
+Includes the changes from unpublished 0.6.5 through 0.6.7, targeting all six desktop
+platform/architecture packages. Source-native VM acceptance covers locked
+browser click/text effects and tab capture on Mac, Windows and Ubuntu GNOME
+Wayland, plus Windows streamed per-tab DevTools. Mac keyboard, native identity
+and Python-session acceptance retain their bounded fixture coverage. Physical
+hardware, sleep, Intel Mac execution, other Linux desktops and signed installed
+feature acceptance remain separate. The Linux browser fixture used an empty,
+explicitly unsandboxed Chrome for Testing profile.
+
 ## [0.6.7]
 
 - Add the default-off **Allow approved browser access while locked** setting

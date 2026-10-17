@@ -1,4 +1,4 @@
-# 132 — Desktop 0.6.7 release recovery
+# 132 — Desktop 0.6.8 release recovery
 
 Owning topic: [native distribution](../../topics/native-distribution.md).
 
@@ -6,9 +6,9 @@ Status: in progress.
 
 ## Objective and completion conditions
 
-Repair the failed 0.6.6 release, publish a new immutable 0.6.7 release and
+Repair the failed 0.6.6 release, publish a new immutable 0.6.8 release and
 verify successful CI publication with all six platform/architecture packages.
-Keep 0.6.5 and 0.6.6 tags unchanged. Installation and new native feature
+Keep 0.6.5, 0.6.6 and 0.6.7 tags unchanged. Installation and new native feature
 acceptance are outside this recovery.
 
 ## Ordered work
@@ -27,10 +27,16 @@ One Windows x64 scoped-run test exposed a prelaunch renewal failure reported
 as setup failure. Classify it as renewal failure and cover cleanup and refusal
 to start the child with a deterministic test.
 
+Windows CI for source `ef60f19` then reached the desktop suite and exposed
+Linux preference persistence and logon-identity tests using unavailable Unix
+APIs. Run preference file-mode checks on POSIX and use an explicit fixture UID
+for the pure session-identity test on every platform. The 0.6.7 release run
+was canceled before publication; its tag remains unchanged.
+
 ### 2 — validate source and publish
 
-Run portable checks and focused regressions. Prepare cumulative 0.6.7 notes
-because 0.6.5 and 0.6.6 never published. Commit/push main and dispatch the
+Run portable checks and focused regressions. Prepare cumulative 0.6.8 notes
+because 0.6.5 through 0.6.7 never published. Commit/push main and dispatch the
 standard release script once.
 
 ### 3 — verify publication
@@ -47,3 +53,6 @@ architectures. Focused MCP (12) and scoped-run (22) tests pass; Windows
 publication refusal and deterministic prelaunch renewal cleanup are covered.
 Release preflight and whitespace validation pass. Hosted execution and
 publication remain pending.
+The revised desktop suite passes 25 tests (one skip). Its four locked-browser
+tests also pass with `getuid` and `fchmod` removed to emulate missing Windows
+APIs, skipping only native preference persistence.
