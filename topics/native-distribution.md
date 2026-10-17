@@ -49,6 +49,11 @@ its authority or silently installing it on personal machines.
 
 ## Current implementation
 
+**Current:** Desktop 0.6.5 and 0.6.6 did not publish. The
+[0.6.7 recovery](../docs/tactical/132-desktop-0.6.7-release.md) repairs Linux
+payload validation and Windows portable-check failures, preserving existing
+tags and cumulative feature notes. Publication verification is in progress.
+
 **Current:** [Public desktop 0.6.4](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.6.4)
 ships person-armed access retention on all three platforms, the Chrome side
 panel/store-origin support, and installed CLI help, usage notes and code-seal

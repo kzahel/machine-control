@@ -412,6 +412,15 @@ class LinuxUnifiedReleaseTests(unittest.TestCase):
             'coordinator.py', 'notice.py', 'one_shot.py', 'presentation.py', 'work.py')]
         self.assert_linux_inventory_requires_every_module('0.6.3', modules, runtime)
 
+    def test_linux_locked_browser_inventory_requires_every_module(self):
+        modules = ['linux-runtime/browser_preference.py', 'linux-runtime/session.py']
+        runtime = ['linux-runtime/' + name for name in (
+            'coordinator.py', 'notice.py', 'one_shot.py', 'presentation.py', 'work.py')]
+        extension = ['linux-runtime/extension/' + name for name in (
+            'panel.html', 'panel.css', 'panel.js', 'icons/16.png', 'icons/32.png',
+            'icons/48.png', 'icons/128.png')]
+        self.assert_linux_inventory_requires_every_module('0.6.7', modules, [*runtime, *extension])
+
     def assert_linux_inventory_requires_every_module(self, version, modules, extra_modules=()):
         for target in release.linux_package.TARGETS:
             folder = self.candidates / ('linux-desktop-' + target)

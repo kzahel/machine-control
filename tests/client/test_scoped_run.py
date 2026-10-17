@@ -14,10 +14,28 @@ ROOT = Path(__file__).resolve().parents[2]
 CLI = ROOT / "bin" / "machine-control"
 sys.path.insert(0, str(ROOT / "client"))
 import machine_control as mc
+import scoped_run
 from scoped_process import bounded_capture
 
 
 class ScopedRunTests(unittest.TestCase):
+    def test_prelaunch_renewal_failure_is_reported_and_cleaned_up(self):
+        run = mock.Mock(signal=None, renew_at=0, claim_cleanup="released",
+                        workspace_cleanup="not_acquired")
+        run.environment.return_value = {}
+        run.cleanup.return_value = None
+        run.renew.side_effect = mc.ClientError("run_claim_renew_refused", "Fixture refusal", 1)
+        with mock.patch.object(scoped_run, "Run", return_value=run), \
+                mock.patch.object(scoped_run, "ProcessTree") as process:
+            result = scoped_run.handle_run("fixture", self.target, [
+                "--claimant-authority", "tests", "--claimant-id", "test",
+                "--reason", "exercise prelaunch renewal", "--", "unused"])
+        self.assertEqual(result, 1)
+        process.assert_not_called()
+        run.cleanup.assert_called_once()
+        self.assertEqual(run.audit.call_args.kwargs["outcome"], "renewal_failed")
+        self.assertEqual(run.audit.call_args.kwargs["errorCode"], "run_claim_renew_refused")
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.directory = Path(self.temp.name)

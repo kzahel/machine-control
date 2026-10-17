@@ -65,6 +65,8 @@ SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
 def published_session(path: Path) -> str:
     """Read an explicit coordinator publication, never search other sessions."""
     try:
+        if sys.platform == "win32":
+            raise ValueError("Private session-file ACL validation is not implemented on Windows")
         path = path.expanduser()
         if path.is_symlink():
             raise ValueError("Session publication must not be a symbolic link")

@@ -144,6 +144,7 @@ class FacadeTest(unittest.TestCase):
         self.assertTrue(replies[1]['result']['isError'])
         self.assertIn('session_mismatch',replies[1]['result']['content'][0]['text'])
 
+    @unittest.skipIf(sys.platform == 'win32', 'Publication requires POSIX mode validation')
     def test_coordinator_publication_binds_and_cannot_switch_the_worker(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'session.id'
@@ -170,6 +171,7 @@ class FacadeTest(unittest.TestCase):
             self.assertEqual(len(configs),1)
             self.assertIn('session_mismatch',replies[2]['result']['content'][0]['text'])
 
+    @unittest.skipIf(sys.platform == 'win32', 'Publication requires POSIX mode validation')
     def test_unready_or_invalid_publication_refuses_before_claiming(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'session.id'
@@ -184,6 +186,15 @@ class FacadeTest(unittest.TestCase):
             link=Path(directory)/'link';link.symlink_to(path)
             with self.assertRaises(SessionError):published_session(link)
             self.assertEqual(published_session(path),'session')
+
+    def test_windows_publication_refuses_before_opening_file(self):
+        with patch('agent_session_mcp.sys.platform', 'win32'), \
+                patch('agent_session_mcp.os.open') as opened:
+            with self.assertRaises(SessionError) as error:
+                published_session(Path('session.id'))
+        self.assertEqual(error.exception.code, 'session_identity_unavailable')
+        self.assertEqual(error.exception.delivered, 'no')
+        opened.assert_not_called()
 
 
 if __name__=='__main__':unittest.main()

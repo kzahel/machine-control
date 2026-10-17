@@ -1,5 +1,8 @@
 # Implementation Tacticals
 
+- [132 — Desktop 0.6.7 release recovery](132-desktop-0.6.7-release.md):
+  Linux payload verification, Windows portable checks and monitored publication.
+
 - [131 — Windows and Linux browser access while locked](131-windows-linux-browser-while-locked.md):
   default-off browser approval retention on the same console, with desktop
   and new approval gates.

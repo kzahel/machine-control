@@ -209,6 +209,9 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
         required.update("linux-runtime/extension/" + name for name in (
             "panel.html", "panel.css", "panel.js", "icons/16.png", "icons/32.png",
             "icons/48.png", "icons/128.png"))
+    if tuple(map(int, version.split("."))) >= (0, 6, 6):
+        required.update("linux-runtime/" + name for name in (
+            "browser_preference.py", "session.py"))
     for record in records:
         found = set()
         for item in record.get("files", []):

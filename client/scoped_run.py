@@ -359,7 +359,9 @@ def handle_run(alias, target, arguments):
             env = run.environment(temporary.name)
             # File setup/launch must not consume the lease unnoticed.
             if time.monotonic() >= run.renew_at:
+                outcome = "renewal_failed"
                 run.renew()
+                outcome = "setup_failed"
             run.child = ProcessTree(command, env=env)
             outcome = "completed"
             while True:
