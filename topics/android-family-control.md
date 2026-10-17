@@ -122,6 +122,74 @@ out of scope.
 
 ## Recommended next work
 
+### App-resident provider exploration
+
+**Direction discussed 2026-10-17; not implemented or a scheduled delivery
+commitment.** Add a complementary Android app-resident provider that is useful
+without developer mode or an armed ADB listener. Preserve the existing richer
+ADB route and report the actual provider per operation. The
+[Android research](../research/platforms/android.md#app-resident-capabilities-without-adb)
+owns source findings, Android API options and limitations.
+
+The ChromeOS composition is a useful architectural reference: several native
+facilities supply different capabilities behind one ergonomic facade. On
+Android, accessibility, document providers, media, intents and optional ADB
+similarly need honest per-operation routing rather than one universal privilege.
+
+- MC owns reusable Android operations, capability/readiness reporting and
+  delivery/effect results. YA owns provider sessions, full work UI and product
+  entry points; its [Android-host topic](../../yepanywhere/topics/android-host.md#phone-capabilities-and-assistant-entry-points)
+  owns that product direction. APK/module packaging is not selected yet.
+- Both MCP and a small CLI can call one native implementation. Agents may run
+  on the phone or reach it through authenticated transport; neither a local YA
+  agent nor a new on-device worker is required for remote control.
+- User enablement and grants are separate capabilities: accessibility, chosen
+  folders, photos, contacts/calendar, camera/mic, location, notifications and
+  optional assistant role. Query only relevant records; do not automatically
+  place whole personal databases into provider context.
+- Start file access with document tools and explicit workspace import/export.
+  Explore direct shared-storage paths separately. Ordinary FUSE mounting and
+  access to other apps' private databases are not assumptions.
+- Report locked screens, revoked grants, sparse semantic trees, secure capture
+  failures and foreground-only facilities explicitly. Do not equate push wake,
+  assistant-service liveness, runtime readiness and ADB readiness.
+- PRoot and same-UID IPC are not containment from an unrestricted app-UID
+  shell. Strong isolation of permission enforcement would need a separate
+  identity or authority outside that shell; packaging remains an open question.
+
+A candidate first experiment is for both real provider CLIs, with ADB disabled,
+to process a selected/shared document using ordinary Linux tools, perform a
+semantic app action, and export a result to an Android app. Use deterministic
+fixtures and independently observe effects. Camera and broader shared-storage
+access can follow. This records fertile ground without reprioritizing the
+existing device implementation work.
+
+**Authorized spike, 2026-10-17:** reuse the persistent Python session's
+`Session`/`App` presentation and typed `Transport` boundary. Add a standalone
+Android accessibility provider and deterministic native fixture under
+`platforms/android/resident-spike`, with a narrow authenticated transport.
+Python/model code stays outside the Android service. The service supplies
+snapshots, actions and screenshots; it rejects stale references and revoked
+authority before dispatch. The first scope is the owned fixture, not arbitrary
+personal apps. Preserve existing ADB listeners and accessibility services.
+
+The Python namespace, Android service generation, current observation/action
+references and durable provider transcript have separate lifetimes. A service
+restart invalidates handles; it does not resume or replay a snippet. Reuse the
+current compact output and image sink, but do not claim desktop admission,
+claims/audit, screenshot-coordinate control or remote acceptance from the spike.
+The prototype transport must disclose those integration limits.
+
+Verify on an explicitly selected attached handheld or emulator: semantic read,
+text entry and click with an independent fixture-file oracle; an actual PNG
+capture; stale-node and revoked-session refusal; separate interpreter calls
+retaining a handle; and phone-local Python execution without an ADB command in
+the operation path. ADB may provision and independently observe the test. Real
+provider acceptance is a further check, distinct from deterministic Python
+execution. Keep concrete selectors, grants, captures and logs private.
+
+### Existing device implementation follow-ups
+
 - Run one supervised correct-PIN acceptance through the hidden prompt and
   retain only redacted delivery/effect evidence.
 - Add a compact UIAutomator semantic adapter and deterministic Android fixture,

@@ -26,6 +26,47 @@ and recovery constraints.
 
 ## Current direction
 
+### App-resident capabilities without ADB
+
+**Source-reviewed reference, 2026-10-17:**
+[Buddy's Android tool implementation](https://github.com/ghorbelhamdi/buddy-android/blob/dc6c0a965c8d72042a12d07ffa5203ccbd541cd2/app/src/main/java/app/buddy/assistant/Tools.java)
+walks accessibility windows/nodes, invokes semantic actions and gestures, and
+captures screenshots through `AccessibilityService`. Its
+[MCP server](https://github.com/ghorbelhamdi/buddy-android/blob/dc6c0a965c8d72042a12d07ffa5203ccbd541cd2/app/src/main/java/app/buddy/assistant/McpServer.java)
+binds loopback and checks a bearer token. MCP exposes native Android authority;
+it does not supply that authority. This is source inspection, not an MC
+implementation or physical-device acceptance of these operations.
+
+**Platform-documented candidates, not MC-tested:**
+
+| Facility | Useful scope and material boundary |
+| --- | --- |
+| [Accessibility service](https://developer.android.com/reference/android/accessibilityservice/AccessibilityService) | Semantic observations/actions, gestures and screenshots after user enablement; sparse trees and secure content remain limitations. |
+| [Storage Access Framework](https://developer.android.com/training/data-storage/shared/documents-files) | Persistable access to chosen documents/trees through content URIs; not automatic POSIX paths, with restricted directory choices. |
+| [All-files access](https://developer.android.com/training/data-storage/manage-all-files) | Optional broad shared-storage access through real paths; excludes other apps' private storage. PRoot access needs device validation. |
+| [Photo picker](https://developer.android.com/training/data-storage/shared/photo-picker) and [MediaStore](https://developer.android.com/training/data-storage/shared/media) | Selected images/videos, including supported cloud selections, or permission-backed media queries; not unrestricted cloud-library access. |
+| [Contacts](https://developer.android.com/identity/providers/contacts-provider) and [calendar](https://developer.android.com/identity/providers/calendar-provider) | Query/mutate shared providers with appropriate permissions; system intents can hand individual edits to their owning apps. |
+| [Common intents](https://developer.android.com/guide/components/intents-common) | Compose messages, open the dialer/maps, create alarms/timers and share results; handing off an intent is not proof of the resulting action. |
+| Camera, microphone and [location](https://developer.android.com/develop/sensors-and-location/location/permissions) | Physical-world observations and voice input, subject to individual grants and [foreground/while-in-use restrictions](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start). |
+| [Notification listener](https://developer.android.com/reference/android/service/notification/NotificationListenerService) | Observe exposed notifications/actions after separate user enablement; not universal message history. |
+| [Assistant role](https://developer.android.com/training/articles/assistant) | System invocation and app-provided assist structure/screenshots; custom hotword, locked-screen and heavy-runtime survival remain separate experiments. |
+| [Health Connect](https://developer.android.com/health-and-fitness/health-connect/get-started) | Optional access to available health records under data-type-specific grants. |
+
+For SAF, start with document tools and explicit import/export to an ordinary
+Linux workspace. A real FUSE mount is not the baseline: AOSP's
+[untrusted-app policy](https://android.googlesource.com/platform/system/sepolicy/+/refs/heads/main/private/app_neverallows.te)
+denies ordinary apps access to `/dev/fuse`, and PRoot does not change that.
+An inverse [DocumentsProvider](https://developer.android.com/guide/topics/providers/create-document-provider)
+could expose selected agent workspace files to Android document-aware apps.
+[Termux:API](https://github.com/termux/termux-api) is a reference for bridging
+native device facilities into command-line programs, not an adopted dependency.
+
+See the [resident-provider exploration](../../topics/android-family-control.md#app-resident-provider-exploration)
+for proposed ownership and validation. Existing ADB implementation status below
+is unchanged.
+
+### Existing ADB implementation
+
 **Decision:** Do not reimplement ADB. Add consistent target selection,
 capability/result vocabulary, semantic adapters, leases, and evidence around
 it. Keep Quest- and device-specific policy in their authoritative testbeds.
