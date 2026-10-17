@@ -1418,9 +1418,9 @@ function App() {
                 </label>
                 <p className="note group-note">
                   Approve access before locking. Browser tabs and separately
-                  approved scripts can keep working while your Mac stays locked.
-                  Desktop control and new approvals still require unlocking.
-                  Pause, Stop and expiry still apply.
+                  approved scripts can keep working while your computer stays
+                  locked. Desktop control and new approvals still require
+                  unlocking. Pause, Stop and expiry still apply.
                 </p>
               </section>
             )}

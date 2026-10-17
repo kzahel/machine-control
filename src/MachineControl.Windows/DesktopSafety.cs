@@ -25,7 +25,8 @@ internal static class DesktopSafety
     internal static void RefreshAvailability(DesktopGrants broker)
     {
         var sameConsole = NativeMethods.WTSGetActiveConsoleSessionId() == (uint)RuntimeProfile.SessionId;
-        broker.SetReady(Ready(), sameConsole && SessionStateInspector.IsLocked((uint)RuntimeProfile.SessionId) == true);
+        broker.SetReady(Ready(), sameConsole && SessionStateInspector.IsLocked((uint)RuntimeProfile.SessionId) == true,
+            sameConsole ? SessionStateInspector.ConsoleIdentity((uint)RuntimeProfile.SessionId) : null);
     }
 
     internal static string? Check(Request request, string generation, int? resolvedProcess = null)

@@ -57,11 +57,13 @@ class Browser:
         temporary.chmod(0o700)
         temporary.replace(self.host)
         self.extension.mkdir(mode=0o700, exist_ok=True)
-        for source in (root / "extension").glob("*"):
+        for source in (root / "extension").rglob("*"):
             if source.is_file():
-                temp = self.extension / (source.name + ".new")
+                target = self.extension / source.relative_to(root / "extension")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                temp = target.with_name(target.name + ".new")
                 shutil.copyfile(source, temp)
-                temp.replace(self.extension / source.name)
+                temp.replace(target)
         for path in paths:
             path.parent.mkdir(parents=True, exist_ok=True)
             temp = path.with_suffix(".new")

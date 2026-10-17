@@ -1,6 +1,6 @@
 # Desktop product acceptance matrix
 
-Reviewed: 2026-10-14.
+Reviewed: 2026-10-17.
 
 This is an index of recorded acceptance for the shared Tauri desktop product,
 with earlier runtime evidence kept separate. Linked tactical records own exact
@@ -12,6 +12,13 @@ relocation smoke, including native Windows ARM64; this is separate from GUI
 execution.
 An unrecorded cell is not a failure or a requirement to test that environment
 immediately. Concrete targets and raw evidence stay in private inventory/storage.
+
+**Current, unreleased browser access while locked:**
+[Tactical 130](tactical/130-macos-browser-while-locked.md) records Mac
+source-native acceptance; [Tactical 131](tactical/131-windows-linux-browser-while-locked.md)
+adds Windows ARM64 (18 checks) and GNOME Wayland Linux ARM64 (37 checks).
+These are native runtime/operator fixtures with independent locked browser
+effects, separate from signed installed Settings and public-package acceptance.
 
 ## Terms
 

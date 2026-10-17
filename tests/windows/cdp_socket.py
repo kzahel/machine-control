@@ -9,15 +9,16 @@ from urllib.parse import urlsplit
 
 
 class CdpSocket:
-    def __init__(self, url, origin=None):
+    def __init__(self, url, origin=None, timeout=5):
         parts = urlsplit(url)
         if parts.scheme != 'ws' or parts.hostname != '127.0.0.1':
             raise ValueError('Fixture requires target loopback')
-        self.socket = socket.create_connection((parts.hostname, parts.port), timeout=5)
+        self.socket = socket.create_connection((parts.hostname, parts.port), timeout=timeout)
         self.events = []
         self.next_id = 0
         key = base64.b64encode(os.urandom(16)).decode()
-        request = (f'GET {parts.path}?{parts.query} HTTP/1.1\r\n'
+        target = parts.path + ('?' + parts.query if parts.query else '')
+        request = (f'GET {target} HTTP/1.1\r\n'
                    f'Host: 127.0.0.1:{parts.port}\r\nUpgrade: websocket\r\n'
                    f'Connection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: {key}\r\n')
         if origin is not None:
@@ -30,8 +31,11 @@ class CdpSocket:
                 if len(header) > 8192:
                     raise ValueError('Oversized handshake')
             expected = base64.b64encode(hashlib.sha1((key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').encode()).digest()).decode()
-            if not header.startswith(b'HTTP/1.1 101 ') or f'Sec-WebSocket-Accept: {expected}'.encode() not in header:
-                raise ConnectionError('Upgrade refused')
+            lines = bytes(header).split(b'\r\n')
+            fields = {key.strip().lower(): value.strip() for line in lines[1:] if b':' in line
+                      for key, value in [line.split(b':', 1)]}
+            if not header.startswith(b'HTTP/1.1 101 ') or fields.get(b'sec-websocket-accept') != expected.encode():
+                raise ConnectionError('Upgrade refused: ' + lines[0].decode('ascii', errors='replace'))
         except BaseException:
             self.socket.close()
             raise

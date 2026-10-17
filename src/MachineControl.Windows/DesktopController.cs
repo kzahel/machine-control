@@ -2943,6 +2943,23 @@ internal sealed record CachedSelector(
 
 internal static class SessionStateInspector
 {
+    // WTSINFOEX_LEVEL1_W binds retained browser authority to a logon, rather
+    // than a numeric session ID that Windows can later reuse.
+    public static string? ConsoleIdentity(uint sessionId)
+    {
+        if (!NativeMethods.WTSQuerySessionInformation(IntPtr.Zero, sessionId,
+                NativeMethods.WTSSessionInfoEx, out var buffer, out var length)) return null;
+        try
+        {
+            if (length < 176 || Marshal.ReadInt32(buffer) != 1 ||
+                Marshal.ReadInt32(buffer, 8) != sessionId || Marshal.ReadInt32(buffer, 12) != 0) return null;
+            // Data begins at byte 8; the fixed WCHAR arrays occupy the region
+            // before its eight-byte-aligned LogonTime at Data + 160.
+            var logon = Marshal.ReadInt64(buffer, 168);
+            return logon > 0 ? $"{sessionId}:{logon}" : null;
+        }
+        finally { NativeMethods.WTSFreeMemory(buffer); }
+    }
     public static bool HasInteractiveUser(uint sessionId)
     {
         if (!NativeMethods.WTSQuerySessionInformation(

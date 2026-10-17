@@ -52,6 +52,9 @@ class Grants:
         self.ready = False
         self.paused = False
         self.notice_ready = True
+        self.browser_while_locked = False
+        self.locked = False
+        self.session = None
         self.last_ended = None
         self.activity = deque(maxlen=100)
 
@@ -61,11 +64,32 @@ class Grants:
         if self.pending and self.clock() >= self.pending["expires"]:
             self.finish_pending(False, "approval_timeout")
 
-    def set_ready(self, value):
+    @property
+    def browser_only_while_locked(self):
+        return (not self.ready and self.locked and self.browser_while_locked and self.grant is not None
+                and self.session is not None and self.grant.get("session") == self.session
+                and bool(self.grant["scopes"] & {"browser", "devtools"}))
+
+    def configure_browser_while_locked(self, enabled, loading=False):
+        if type(enabled) is not bool or (enabled and not loading and (not self.ready or self.session is None)):
+            raise ValueError("Enable browser access on the current unlocked console")
+        self.browser_while_locked = enabled
+        if not enabled and self.locked and self.grant:
+            self.stop("browser_locked_access_disabled")
+        self.changed()
+
+    def set_ready(self, value, locked=False, session=None):
+        changed = self.ready != value
         lost = self.ready and not value
         self.ready = value
-        if lost:
+        self.locked, self.session = locked, session
+        if self.browser_while_locked and self.grant and (session is None or self.grant.get("session") != session):
+            self.stop("console_session_changed")
+        elif (lost or self.grant and not value) and not self.browser_only_while_locked:
             self.stop("desktop_unavailable")
+        elif changed:
+            self.generation = uuid.uuid4().hex
+            self.changed()
 
     def authorize(self, operation, expected=None):
         self.refresh()
@@ -76,8 +100,8 @@ class Grants:
         scope = scope_for(operation)
         if not scope:
             return "unsupported_operation"
-        if not self.ready:
-            return "desktop_unavailable"
+        if not self.ready and not (self.browser_only_while_locked and scope in {"browser", "devtools"}):
+            return "desktop_locked_browser_only" if self.browser_only_while_locked else "desktop_unavailable"
         if self.updating:
             return "update_in_progress"
         if self.paused:
@@ -103,6 +127,7 @@ class Grants:
         elif self.grant and self.grant.get("origin") == "person":
             self.armed = self.grant
         self.grant = {"scopes": selected, "expires": self.clock() + seconds if seconds is not None else None,
+                      "grantId": uuid.uuid4().hex, "session": self.session,
                       "lifetime": "timed" if seconds is not None else "until_stopped",
                       "reason": reason, "requester": caller, "origin": origin}
         self.last_ended = None
@@ -126,14 +151,18 @@ class Grants:
         reason = request.get("reason")
         if not isinstance(reason, str) or not reason.strip() or len(reason) > 240:
             raise ValueError("Choose a reason (1-240 characters)")
-        if not self.ready or self.updating:
-            complete(False, "desktop_unavailable" if not self.ready else "update_in_progress")
+        if self.updating:
+            complete(False, "update_in_progress")
             return
         if self.pending:
             complete(False, "approval_pending")
             return
-        if self.grant and selected <= self.grant["scopes"]:
+        if self.grant and selected <= self.grant["scopes"] and (self.ready or
+                self.browser_only_while_locked and selected <= {"browser", "devtools"}):
             complete(True, None)
+            return
+        if not self.ready:
+            complete(False, "approval_unavailable_while_locked" if self.locked else "desktop_unavailable")
             return
         if self.journal and not self.journal.event("access.requested"):
             complete(False, "audit_storage_unavailable")
@@ -201,7 +230,7 @@ class Grants:
         return True, False
 
     def pause(self, value):
-        if not self.grant or self.pending or not self.ready or self.updating:
+        if not self.grant or self.pending or not (self.ready or self.browser_only_while_locked) or self.updating:
             raise ValueError("Active access and an available desktop required")
         self.paused = value
         self.generation = uuid.uuid4().hex
@@ -228,12 +257,19 @@ class Grants:
                      "remainingSeconds": max(0, math.ceil(self.grant["expires"] - self.clock()))
                      if self.grant["expires"] is not None else None}
             del grant["expires"]
+            del grant["session"]
         pending = None
         if self.pending:
             pending = {k: self.pending[k] for k in ["id", "reason", "caller", "duration"]}
             pending["scopes"] = sorted(self.pending["scopes"])
         return {"generation": self.generation, "manualUntilStoppedSupported": True,
                 "deployment": {"policy": {"preset": "workstation", "grantMode": "approval"},
-                               "grant": grant, "pendingRequest": pending},
+                               "grant": grant, "pendingRequest": pending,
+                               "browserOnlyWhileLocked": self.browser_only_while_locked,
+                               "effectiveScopes": sorted(scope for scope in self.grant["scopes"]
+                                   if self.ready or self.browser_only_while_locked and scope in {"browser", "devtools"}) if self.grant else []},
+                "browserWhileLocked": {"supported": True, "enabled": self.browser_while_locked,
+                                       "active": self.browser_only_while_locked,
+                                       "requiresUnlockedApproval": True, "route": "chrome.extension/cdp"},
                 "paused": self.paused, "pending": pending, "activity": list(reversed(self.activity)),
                 "lastEnded": self.last_ended, "logging": self.journal.health if self.journal else None}

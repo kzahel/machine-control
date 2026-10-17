@@ -19,6 +19,39 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     private bool _ready;
     private bool _preparedConsole;
     private bool _lockedConsole;
+    private bool _browserWhileLocked;
+    private string? _consoleIdentity;
+    internal bool BrowserOnlyWhileLocked
+    {
+        get
+        {
+            lock (Gate) return !_ready && _lockedConsole && _browserWhileLocked &&
+                _grant is not null && _consoleIdentity is not null && _grant.ConsoleIdentity == _consoleIdentity &&
+                _grant.Scopes.Any(BrowserScope);
+        }
+    }
+    internal static bool BrowserScope(string scope) => scope is "browser" or "devtools";
+    internal bool ReadyForScopes(string[] scopes) => ConsoleReady || BrowserOnlyWhileLocked && scopes.All(BrowserScope);
+    internal bool CanEnableBrowserWhileLocked { get { lock (Gate) return _ready && _consoleIdentity is not null; } }
+    internal object BrowserWhileLockedState() => new
+    {
+        supported = true,
+        enabled = _browserWhileLocked,
+        active = BrowserOnlyWhileLocked,
+        requiresUnlockedApproval = true,
+        route = "chrome.extension/cdp"
+    };
+    internal void ConfigureBrowserWhileLocked(bool enabled, bool loading = false)
+    {
+        lock (Gate)
+        {
+            if (!loading && enabled && (!_ready || _consoleIdentity is null))
+                throw new InvalidOperationException("Enable browser access on the current unlocked console");
+            _browserWhileLocked = enabled;
+            if (!enabled && !_ready && _lockedConsole && _grant is not null) Stop("browser_locked_access_disabled");
+            Admission.SetReady("desktop", _ready || _preparedConsole && _lockedConsole || BrowserOnlyWhileLocked);
+        }
+    }
     private long _authorizationRevision;
     internal bool PreparedConsole { get { lock (Gate) return _preparedConsole; } }
     internal bool ConsoleReady { get { lock (Gate) return _ready; } }
@@ -78,7 +111,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         _ => null,
     };
 
-    internal void SetReady(bool ready, bool lockedConsole = false)
+    internal void SetReady(bool ready, bool lockedConsole = false, string? consoleIdentity = null)
     {
         lock (Gate)
         {
@@ -94,7 +127,10 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             }
             _ready = ready;
             _lockedConsole = lockedConsole;
-            Admission.SetReady("desktop", ready || _preparedConsole && lockedConsole);
+            _consoleIdentity = consoleIdentity;
+            if (_browserWhileLocked && _grant is not null && (consoleIdentity is null ||
+                _grant.ConsoleIdentity != consoleIdentity || !ready && !lockedConsole)) Stop("console_session_changed");
+            Admission.SetReady("desktop", ready || _preparedConsole && lockedConsole || BrowserOnlyWhileLocked);
         }
     }
 
@@ -131,7 +167,9 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
             var scope = ScopeFor(operation);
             if (scope is null) return "unsupported_operation";
             if (!controlled && Admission.Reserved) return "control_session_required";
-            if (!_ready && !(controlled && operation == "session.unlock.prepare" && _preparedConsole && _lockedConsole)) return "desktop_unavailable";
+            if (!_ready && !(BrowserOnlyWhileLocked && BrowserScope(scope)) &&
+                !(controlled && operation == "session.unlock.prepare" && _preparedConsole && _lockedConsole))
+                return BrowserOnlyWhileLocked ? "desktop_locked_browser_only" : "desktop_unavailable";
             if (_updating) return "update_in_progress";
             if (Admission.Blocks("desktop").Length > 0) return "access_paused";
             if (_pending is not null && (scope is "control" or "devtools" ||
@@ -147,6 +185,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         lock (Gate)
         {
             if (Journal?.Available == false) return "audit_storage_unavailable";
+            if (BrowserOnlyWhileLocked && !_preparedConsole && !scopes.All(BrowserScope)) return "desktop_locked_browser_only";
             if (_grant?.Duration is int duration && Elapsed(_grant.Started) >= duration) return "expired";
             return _grant is not null && scopes.All(scope => _grant.Scopes.Contains(scope) ||
                 scope == "browser" && _grant.Scopes.Contains("devtools")) ? null : "approval_required";
@@ -158,9 +197,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         lock (Gate)
         {
             Refresh();
-            if (!_ready || _updating)
-                return Task.FromResult(new GrantReply(false, !_ready ? "desktop_unavailable" : "update_in_progress"));
-            if (!ApprovalPresentationAvailable) return Task.FromResult(new GrantReply(false, "native_presentation_unavailable"));
+            if (_updating) return Task.FromResult(new GrantReply(false, "update_in_progress"));
             var scopes = ValidateScopes(request.Scopes);
             var duration = ValidateDuration(request.DurationSeconds ?? 900);
             var timeout = request.TimeoutSeconds ?? 120;
@@ -168,7 +205,13 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
                 throw new ArgumentException("Choose a reason (1-240 characters) and timeout (5-600 seconds)");
             if (_pending is not null) return Task.FromResult(new GrantReply(false, "approval_pending"));
             if (_grant is not null && scopes.IsSubsetOf(_grant.Scopes))
-                return Task.FromResult(new GrantReply(true, Data: DeploymentState()));
+            {
+                if (_ready || BrowserOnlyWhileLocked && scopes.All(BrowserScope))
+                    return Task.FromResult(new GrantReply(true, Data: DeploymentState()));
+            }
+            if (!_ready) return Task.FromResult(new GrantReply(false,
+                _lockedConsole ? "approval_unavailable_while_locked" : "desktop_unavailable"));
+            if (!ApprovalPresentationAvailable) return Task.FromResult(new GrantReply(false, "native_presentation_unavailable"));
             var completion = new TaskCompletionSource<GrantReply>(TaskCreationOptions.RunContinuationsAsynchronously);
             if (Journal?.Available == false) return Task.FromResult(new GrantReply(false, "audit_storage_unavailable"));
             Journal?.QueueEvent("access.requested");
@@ -250,7 +293,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         _generation = Guid.NewGuid().ToString("n");
         if (origin == "person") _armed = null;
         else if (_grant?.Origin == "person") _armed = _grant;
-        _grant = new LiveGrant(scopes, duration, reason, caller, _time.GetTimestamp(), origin);
+        _grant = new LiveGrant(scopes, duration, reason, caller, _time.GetTimestamp(), origin, _consoleIdentity);
         ++_authorizationRevision;
         _lastEnded = null;
     }
@@ -350,6 +393,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
     private double Elapsed(long stamp) => _time.GetElapsedTime(stamp).TotalSeconds;
     private object? GrantState() => _grant is null ? null : new
     {
+        grantId = _grant.Id,
         scopes = _grant.Scopes.Order().ToArray(),
         lifetime = _grant.Duration is null ? "until_stopped" : "timed",
         remainingSeconds = System.Text.Json.JsonSerializer.SerializeToElement(_grant.Duration is int duration
@@ -371,6 +415,8 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
                 grant = GrantState(),
                 pendingRequest = _pending?.Id,
                 lastEnded = _lastEnded,
+                browserOnlyWhileLocked = BrowserOnlyWhileLocked,
+                effectiveScopes = _grant?.Scopes.Where(scope => _ready || BrowserOnlyWhileLocked && BrowserScope(scope)).Order().ToArray() ?? [],
                 availability = new { paused = Admission.Blocks("desktop").Length > 0, blockingReasons = Admission.Blocks("desktop") },
             };
         }
@@ -399,6 +445,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
                 logging = Journal?.Health,
                 admission = Admission.Status(),
                 pauseSupported = true,
+                browserWhileLocked = BrowserWhileLockedState(),
             };
         }
     }
@@ -414,7 +461,10 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         ? seconds : throw new ArgumentException("Duration must be 60-28800 seconds");
 
     private sealed record LiveGrant(HashSet<string> Scopes, int? Duration, string Reason, string Caller, long Started,
-        string Origin = "request");
+        string Origin = "request", string? ConsoleIdentity = null)
+    {
+        internal string Id { get; } = Guid.NewGuid().ToString("n");
+    }
     private sealed record PendingGrant(string Id, HashSet<string> Scopes, int Duration, int Timeout,
         string Reason, string Caller, long Started, TaskCompletionSource<GrantReply> Completion);
 }

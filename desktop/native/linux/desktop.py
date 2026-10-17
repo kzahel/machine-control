@@ -16,6 +16,8 @@ import subprocess
 import sys
 import threading
 import time
+from browser_preference import BrowserPreference
+import session as desktop_session
 
 # The resident has no operator window. Exporting its GTK invisible clipboard
 # surface into the AT-SPI bus creates an in-process accessibility recursion.
@@ -102,6 +104,10 @@ class Desktop:
                 context.iteration(False)
         self.work = Work(self.scheduler.post, linuxui.Atspi.init, pump)
         self.grants = Grants(self.changed, journal=self.journal)
+        self.browser_preference = BrowserPreference(self.presentation.root, instance)
+        self.grants.browser_while_locked = self.browser_preference.enabled
+        self.locked = False
+        self.session_identity = None
         self.session_pending = False
         self.session_observed = 0.0
         self.updates = Updates()
@@ -151,43 +157,42 @@ class Desktop:
             self.work.cancel()
         if hasattr(self, "portal"):
             previous, self.last_portal_state = self.last_portal_state, self.portal.state
-            if previous == "ready" and self.portal.state != "ready":
+            if previous == "ready" and self.portal.state != "ready" and not self.grants.browser_only_while_locked:
                 self.grants.stop("sharing_ended")
-            self.grants.set_ready(self.unlocked and self.safety_available and self.portal.state != "pending")
+            self.refresh_availability()
         if hasattr(self, "dialog"):
             self.approval()
         if hasattr(self, "browser"):
             self.browser.sync()
         if hasattr(self, "safety"):
-            self.grants.notice_ready = self.grants.grant is None
+            self.grants.notice_ready = self.grants.grant is None or self.grants.browser_only_while_locked
             with self.safety_condition:
                 self.safety_state = {"generation": self.grants.generation, "grant": self.grants.state()["deployment"]["grant"],
                                      "paused": self.grants.paused}
                 self.safety_condition.notify()
 
+    def refresh_availability(self):
+        self.grants.set_ready(self.unlocked and self.safety_available and self.portal.state != "pending",
+                              locked=self.locked and self.safety_available, session=self.session_identity)
+
     def monitor(self):
         if time.monotonic() - self.session_observed > 2:
             self.unlocked = False
+            self.locked, self.session_identity = False, None
             self.grants.set_ready(False)
         if not self.session_pending:
             self.session_pending = True
-            bus = self.portal.bus
-
-            def observed(connection, result, _data):
+            def observed(unlocked, locked, identity):
                 self.session_pending = False
-                try:
-                    locked = connection.call_finish(result).unpack()[0]
-                    self.unlocked = not locked and os.environ.get("XDG_SESSION_TYPE") == "wayland" and (
-                        "GNOME" in os.environ.get("XDG_CURRENT_DESKTOP", ""))
-                    self.session_observed = time.monotonic()
-                except GLib.Error:
-                    self.unlocked = False
-                self.grants.set_ready(self.unlocked and self.safety_available and self.portal.state != "pending")
+                self.unlocked, self.locked, self.session_identity = unlocked, locked, identity
+                self.session_observed = time.monotonic()
+                self.refresh_availability()
                 if not self.unlocked and self.portal.state != "off":
                     self.portal.close()
-            bus.call("org.gnome.ScreenSaver", "/org/gnome/ScreenSaver",
-                     "org.gnome.ScreenSaver", "GetActive", None,
-                     GLib.VariantType("(b)"), Gio.DBusCallFlags.NONE, 500, None, observed, None)
+            try:
+                desktop_session.observe(self.portal.bus, observed)
+            except GLib.Error:
+                observed(False, False, None)
         self.grants.refresh()
         self.approval()
         self.browser.sync()
@@ -287,6 +292,12 @@ class Desktop:
         if method == "arm":
             self.grants.arm(command.get("scopes"), command.get("duration", 900),
                             command.get("lifetime", "timed"))
+        elif method == "browser_while_locked":
+            enabled = command.get("enabled")
+            if type(enabled) is not bool or self.grants.updating or (enabled and not self.grants.ready):
+                raise ValueError("Use the unlocked console before enabling browser access")
+            self.browser_preference.set(enabled)
+            self.grants.configure_browser_while_locked(enabled)
         elif method == "decision":
             self.grants.decide(command.get("id"), command.get("allow") is True,
                                command.get("scopes"), command.get("duration", 0))

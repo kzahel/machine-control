@@ -9,6 +9,13 @@ remains. ARM64 portal/browser/lifecycle acceptance remains separate. The unpubli
 runtime/presentation candidate passes bounded x64 native acceptance in
 [Tactical 111](../docs/tactical/111-linux-runtime-presentation.md).
 
+**Current, unreleased (2026-10-17):** The shared Settings option retains
+previously approved browser access while the same console stays locked. It
+defaults off, grants no authority itself, preserves expiry and separate
+DevTools scope, and refuses desktop control and new approval. Unknown or
+replaced session identity revokes. [Tactical 131](../docs/tactical/131-windows-linux-browser-while-locked.md)
+owns implementation and bounded source-native acceptance.
+
 **Decision:** Extend the shared Tauri settings and tray app with an ordinary-user
 Linux companion. Reuse the owned AT-SPI facade, with compositor-mediated XDG
 RemoteDesktop and ScreenCast consent for input and pixels. The dedicated

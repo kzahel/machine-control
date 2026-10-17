@@ -55,10 +55,10 @@ internal static class AdmissionChannel
             var prepared = open["preparedConsole"]?.GetValue<bool>() == true;
             if (prepared && (!grants.PreparedConsole || !scopes.Order().SequenceEqual(new[] { "control", "observe" })))
                 throw new InvalidOperationException("prepared_console_unavailable");
-            if (!grants.ConsoleReady && !prepared) throw new InvalidOperationException("prepared_console_required");
+            if (!grants.ReadyForScopes(scopes) && !prepared) throw new InvalidOperationException("prepared_console_required");
             var initial = admission.Submit(owner, Required(open, "requestId").GetValue<string>(), ["desktop"],
                 Required(open, "waitSeconds").GetValue<int>(), Required(open, "durationSeconds").GetValue<int>(),
-                Required(open, "reason").GetValue<string>(), () => grants.AdmissionAuthority(scopes), prepared && !grants.ConsoleReady ? 0 : noticeSeconds);
+                Required(open, "reason").GetValue<string>(), () => grants.AdmissionAuthority(scopes), !grants.ConsoleReady ? 0 : noticeSeconds);
             intentId = JsonSerializer.SerializeToElement(initial).GetProperty("intentId").GetString()!;
             await Reply(Required(open, "requestId").GetValue<string>(), initial);
             while (!lifetime.IsCancellationRequested)

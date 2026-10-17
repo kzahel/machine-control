@@ -18,6 +18,9 @@ internal static class DesktopHost
         var presentation = new DesktopPresentation(DesktopPresentationIpc.PathFor(instance), temporaryPresentation);
         var journal = new DesktopJournal(instance == "desktop" ? null : Path.Combine(RuntimeProfile.StateRoot, "logs"));
         var broker = new DesktopGrants(journal: journal);
+        var browserPreference = new DesktopBrowserPreference(Path.Combine(
+            Path.GetDirectoryName(DesktopPresentationIpc.PathFor(instance))!, instance + "-browser-while-locked.json"));
+        broker.ConfigureBrowserWhileLocked(browserPreference.Enabled, loading: true);
         var lockedUse = new DesktopLockedUse(broker, stop.Token);
         DesktopLockedUse.Current = lockedUse;
         var updates = new DesktopUpdates();
@@ -113,6 +116,16 @@ internal static class DesktopHost
                             reply = new { ok = true }; break;
                         case "locked_use":
                             lockedUse.Enable(command["enabled"]?.GetValue<bool>() == true);
+                            reply = new { ok = true }; break;
+                        case "browser_while_locked":
+                            DesktopSafety.RefreshAvailability(broker);
+                            var browserEnabled = command["enabled"]?.GetValue<bool>() ?? throw new ArgumentException("Choose browser access while locked");
+                            lock (broker.Gate)
+                            {
+                                if (browserEnabled && !broker.CanEnableBrowserWhileLocked) throw new InvalidOperationException("Use the unlocked console before enabling browser access");
+                                browserPreference.Set(browserEnabled);
+                                broker.ConfigureBrowserWhileLocked(browserEnabled);
+                            }
                             reply = new { ok = true }; break;
                         case "arm":
                             broker.Arm(command["scopes"]?.Deserialize<string[]>(), command["duration"]?.GetValue<int>() ?? 900,

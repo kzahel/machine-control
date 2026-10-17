@@ -159,7 +159,7 @@ package and environment boundaries.
 
 ## Open
 
-- **Current, unreleased macOS source (2026-10-17):** Settings includes a
+- **Current, unreleased desktop source (2026-10-17):** Settings includes a
   default-off **Allow approved browser access while locked** preference,
   independent of covered desktop unlock. Approve access while unlocked, then
   keep approved `browser` and separately approved `devtools` operations across
@@ -171,8 +171,12 @@ package and environment boundaries.
   not activate the unlock helper. Grant status reports effective scopes and
   the lock restriction; status reports the preference. Only the local operator
   may change it. [Tactical 130](../docs/tactical/130-macos-browser-while-locked.md)
-  owns validation. Signed installed Settings acceptance, physical Macs,
-  streamed DevTools and other platforms remain separate qualification.
+  owns Mac validation; [Tactical 131](../docs/tactical/131-windows-linux-browser-while-locked.md)
+  owns Windows and GNOME Wayland Linux. Windows binds authority to the active
+  console logon; Linux binds it to the active logind graphical session and
+  GNOME screensaver owner. Unknown or replaced identities revoke access.
+  Signed installed Settings acceptance, physical hardware and other Linux
+  desktops remain separate qualification.
 
 - **Current, unreleased Windows x64 candidate:** `browser.upload` uses the
   shared extension's direct CDP input/chooser interception with native local-file

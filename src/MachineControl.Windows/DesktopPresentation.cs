@@ -32,7 +32,7 @@ internal sealed class DesktopPresentation(string path, string? temporary = null)
         }
     }
 
-    private static void SafePath(string location)
+    internal static void SafePath(string location)
     {
         for (var current = System.IO.Path.GetFullPath(location); current is not null; current = System.IO.Path.GetDirectoryName(current))
             if ((File.Exists(current) || Directory.Exists(current)) && (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)

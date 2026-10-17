@@ -157,6 +157,7 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
     private async Task<Result> ExecuteAsync(Request request, string caller, CancellationToken cancellationToken, ControlOwnership? ownership = null)
     {
         request = request with { ControlOwnership = ownership };
+        if (grants is not null) DesktopSafety.RefreshAvailability(grants);
         var admittedGeneration = Generation;
         var result = Envelope(request);
         string? OwnershipRefusal() => ownership is null ? null : grants!.Admission.Authorize(ownership.Owner, ownership.Intent, ownership.Session, ownership.Generations);
@@ -267,14 +268,14 @@ internal sealed class UserHost(string instance, DesktopGrants? grants = null, Br
                 Data = data,
             };
         }
-        if (!ready)
-            return result with { ErrorCode = "desktop_unavailable", Message = "The active unlocked user desktop is unavailable" };
         if (browser is not null && BrowserWire.Operations.Contains(request.Operation, StringComparer.Ordinal))
         {
             if (grants?.Authorize(request, request.ExpectedGeneration) is { } denied)
                 return Envelope(request) with { ErrorCode = denied, Data = DesktopGrants.RefusalData(request.Operation, denied) };
             return await browser.ExecuteAsync(request, Envelope(request), cancellationToken, ownership is not null);
         }
+        if (!ready)
+            return result with { ErrorCode = "desktop_unavailable", Message = "The active unlocked user desktop is unavailable" };
         return await _providerWork.RunAsync(request, admittedGeneration, async token =>
         {
             var generation = admittedGeneration;

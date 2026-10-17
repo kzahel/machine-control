@@ -92,6 +92,42 @@ updates.Sync(busyUpdates);
 updates.Request(true);
 Assert(!updates.Sync(idleUpdates), "Installation excludes discovery");
 var broker = new DesktopGrants(clock);
+var lockedBrowser = new DesktopGrants(clock);
+lockedBrowser.SetReady(true, consoleIdentity: "logon-one");
+lockedBrowser.ConfigureBrowserWhileLocked(true);
+Assert(lockedBrowser.Authorize("browser.tabs") == "approval_required", "Browser lock preference grants no access");
+lockedBrowser.Arm(["observe", "control", "browser"], 300);
+var lockedGrantId = JsonSerializer.SerializeToElement(lockedBrowser.DeploymentState()).GetProperty("grant").GetProperty("grantId").GetString();
+lockedBrowser.SetReady(false, true, "logon-one");
+Assert(lockedBrowser.BrowserOnlyWhileLocked && lockedBrowser.ReadyForScopes(["browser"]), "Same locked logon supports browser owners");
+Assert(lockedBrowser.Authorize("browser.tabs", controlled: true) is null, "Locked browser operation allowed");
+Assert(lockedBrowser.Authorize("snapshot", controlled: true) == "desktop_locked_browser_only", "Mixed grant cannot observe locked desktop");
+Assert(lockedBrowser.Authorize("browser.eval", controlled: true) == "approval_required", "DevTools remains separate");
+Assert(lockedBrowser.AdmissionAuthority(["control"]) == "desktop_locked_browser_only", "Desktop admission fenced while locked");
+Assert(JsonSerializer.SerializeToElement(lockedBrowser.DeploymentState()).GetProperty("grant").GetProperty("grantId").GetString() == lockedGrantId, "Lock preserves grant identity");
+Assert((await lockedBrowser.RequestAsync(new Request { Operation = "grant.request", Scopes = ["browser"], Reason = "reuse" }, "fixture")).Accepted, "Covered browser approval reused while locked");
+Assert((await lockedBrowser.RequestAsync(new Request { Operation = "grant.request", Scopes = ["control"], Reason = "expand" }, "fixture")).ErrorCode == "approval_unavailable_while_locked", "New locked approval refused");
+lockedBrowser.Pause();
+Assert(lockedBrowser.Authorize("browser.tabs", controlled: true) == "access_paused", "Locked browser honors Pause");
+lockedBrowser.Resume();
+Assert(lockedBrowser.Authorize("browser.tabs", controlled: true) is null, "Locked browser resumes same approval");
+lockedBrowser.ConfigureBrowserWhileLocked(false);
+Assert(lockedBrowser.Authorize("browser.tabs", controlled: true) == "desktop_unavailable", "Disable ends retained access");
+lockedBrowser.SetReady(true, consoleIdentity: "logon-one");
+lockedBrowser.ConfigureBrowserWhileLocked(true);
+lockedBrowser.Arm(["browser", "devtools"], 60);
+lockedBrowser.SetReady(false, true, "logon-one");
+Assert(lockedBrowser.Authorize("browser.eval", controlled: true) is null, "Approved DevTools works while locked");
+clock.Advance(61);
+Assert(lockedBrowser.Authorize("browser.eval", controlled: true) is not null, "Locked browser expiry enforced");
+lockedBrowser.SetReady(true, consoleIdentity: "logon-one");
+lockedBrowser.Arm(["browser"], 300);
+lockedBrowser.SetReady(false, true, "replacement-logon");
+Assert(!lockedBrowser.BrowserOnlyWhileLocked && lockedBrowser.AdmissionAuthority(["browser"]) == "approval_required", "Replacement logon loses authority");
+lockedBrowser.SetReady(true, consoleIdentity: "logon-one");
+lockedBrowser.Arm(["browser"], 300);
+lockedBrowser.SetReady(false, false, null);
+Assert(lockedBrowser.AdmissionAuthority(["browser"]) == "approval_required", "Unknown session loses authority");
 broker.SetReady(true);
 Assert(State(broker).GetProperty("manualUntilStoppedSupported").GetBoolean(), "Indefinite manual access advertised");
 Refuses(() => broker.Arm(["observe"], 60, "unknown"), "Unknown lifetime");
@@ -412,6 +448,18 @@ var preferenceDirectory = Path.Combine(Path.GetTempPath(), "presentation-contrac
 Directory.CreateDirectory(preferenceDirectory);
 try
 {
+    var browserFile = Path.Combine(preferenceDirectory, "browser.json");
+    var browserPreference = new DesktopBrowserPreference(browserFile);
+    Assert(!browserPreference.Enabled, "Missing browser preference defaults off");
+    browserPreference.Set(true);
+    Assert(new DesktopBrowserPreference(browserFile).Enabled, "Browser preference persists without granting authority");
+    browserPreference.Set(false);
+    Assert(!new DesktopBrowserPreference(browserFile).Enabled, "Browser preference disable persists");
+    foreach (var invalid in new[] { "{", "{}", "{\"schema\":\"wrong\",\"enabled\":true}", "{\"schema\":\"machine-control-browser-locked/v1\",\"enabled\":1}", new string('x', 1025) })
+    {
+        File.WriteAllText(browserFile, invalid);
+        Assert(!new DesktopBrowserPreference(browserFile).Enabled, "Invalid browser preference defaults off");
+    }
     var preferenceFile = Path.Combine(preferenceDirectory, "profile.json");
     JsonElement Profile(object value) => JsonSerializer.SerializeToElement(value);
     var preferences = new DesktopPresentation(preferenceFile);

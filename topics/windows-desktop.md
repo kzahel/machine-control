@@ -8,6 +8,13 @@ Earlier x64 coverage remains; full ARM64 and physical acceptance remain open.
 
 ## Product and boundaries
 
+**Current, unreleased (2026-10-17):** The shared Settings option retains
+previously approved browser access while the same console stays locked. It
+defaults off, grants no authority itself, preserves expiry and separate
+DevTools scope, and refuses desktop control and new approval. Unknown or
+replaced session identity revokes. [Tactical 131](../docs/tactical/131-windows-linux-browser-while-locked.md)
+owns implementation and bounded source-native acceptance.
+
 **Decision:** Package the existing ordinary-user .NET resident with the shared
 Tauri settings and tray application. Preserve the providers and named-pipe
 contract. Supervise a self-contained companion; require neither a separately

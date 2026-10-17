@@ -12,6 +12,24 @@ and Unicode fixture effects, capture verification, credentials and repeated
 cold boots. This does not extend the full accepted platform matrix; the guest
 needs a kernel boot workaround and factory/workspace adoption is unfinished.
 
+## Browser control with the console locked
+
+**Current — live-tested, unreleased source (2026-10-17):** Ubuntu 24.04
+GNOME 46 Wayland ARM64 and native Chrome for Testing 156 pass 37 focused
+checks. Local operator arming precedes a real GNOME lock; independent logind
+lock readback and HTTP effects establish snapshot, click, Unicode insertion
+and tab PNG capture while locked. Approval identity/deadline survive; desktop
+observation/input, new approval and unapproved DevTools refuse. Pause/Resume
+and disabling are effective. No unlock provider is used.
+
+The empty disposable browser fixture uses explicit `--no-sandbox` because this
+appliance rejects its namespace sandbox. OS sandbox policy is unchanged; this
+is not sandboxed production-browser or signed installed Settings acceptance.
+GNOME observation timeouts conservatively revoke rather than silently retain
+unknown authority. Other compositors, X11, physical systems and sleep remain
+unqualified. [Tactical 131](../../docs/tactical/131-windows-linux-browser-while-locked.md)
+owns the execution record and portable contract tests.
+
 ## Native foundation
 
 AT-SPI is the semantic foundation in the active user D-Bus session. X11

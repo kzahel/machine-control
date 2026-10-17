@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [131 — Windows and Linux browser access while locked](131-windows-linux-browser-while-locked.md):
+  default-off browser approval retention on the same console, with desktop
+  and new approval gates.
+
 - [130 — macOS browser access while locked](130-macos-browser-while-locked.md):
   default-off browser-only approval retention without covered desktop unlock.
 

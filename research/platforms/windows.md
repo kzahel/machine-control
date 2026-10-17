@@ -68,6 +68,18 @@ displays before credential submission. This is presentation privacy, not a
 security boundary against local software using other capture routes. Broader
 capture/provider, physical and signed-package qualification remain separate.
 
+**Current — live-tested, unreleased ARM64 locked-browser source:**
+Windows 11 ARM64 with x64-emulated Chrome for Testing 155 passes 18 focused
+checks under real native workstation approval. The OS stays locked throughout
+browser-only owner admission, independent HTTP click/Unicode effects, tab PNG
+capture and per-tab streamed DevTools. Grant identity/deadline, desktop/new
+approval refusals, Pause/Resume and disable are checked. The ordinary-user
+route neither installs nor arms an unlock provider. Software rendering and a
+separate disposable profile bound this evidence; signed installed Settings,
+native ARM browsers, physical hardware and browser-root transition streaming
+remain separate. [Tactical 131](../../docs/tactical/131-windows-linux-browser-while-locked.md)
+owns execution and contract coverage.
+
 **Current — conformance-tested for staged x64 streaming CDP:**
 [Tactical 099](../../docs/tactical/099-windows-streaming-cdp.md) adds per-tab
 WebSockets through the owned Chrome extension under retained DevTools
