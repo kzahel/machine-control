@@ -78,6 +78,19 @@ channel used direct authenticated loopback with no ADB command or forwarding.
 This is bounded deterministic acceptance, not real-provider, remote, reboot,
 background, desktop-claims/audit or stable-observation-ID/diff qualification.
 
+**Real-provider follow-up:** Codex and Claude subsequently passed the same
+phone-local bridge with seven and six actual MCP calls respectively, separate
+interpreter calls retaining state, independently verified fixture effects and
+one actual inline PNG result each. Inference used temporary AAR subscription
+grants and an owned USB reverse; native control still used direct phone
+loopback. Live operator revocation closed ownership and refused re-admission,
+and an externally replaced same-label input rejected its outstanding reference.
+Ordinary content events had initially over-invalidated references; the provider
+now rechecks live node membership and preserves ownership on recoverable stale
+refusals. The [spike acceptance](../../platforms/android/resident-spike/README.md#acceptance)
+owns the evidence limits. This does not establish remote, reboot/background,
+general app, claims/audit or stable-ID/diff acceptance.
+
 ### Existing ADB implementation
 
 **Decision:** Do not reimplement ADB. Add consistent target selection,

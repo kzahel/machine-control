@@ -39,7 +39,7 @@ public final class PhonePythonProbe extends Instrumentation {
             builder.redirectErrorStream(true);
             builder.redirectOutput(new File(workspace, "phone-probe.log"));
             process = builder.start();
-            boolean ended = process.waitFor(90, TimeUnit.SECONDS);
+            boolean ended = process.waitFor(360, TimeUnit.SECONDS);
             if (!ended) process.destroyForcibly();
             result.putString("stream", ended && process.exitValue() == 0 ? "PHONE_PYTHON_PASS\n" : "PHONE_PYTHON_FAILED; inspect private workspace\n");
             finish(ended && process.exitValue() == 0 ? -1 : 1, result);

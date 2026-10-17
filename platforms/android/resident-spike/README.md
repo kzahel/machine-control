@@ -25,11 +25,14 @@ The operator enables accessibility and arms a 15-minute grant in the fixture.
 Its private mode-0600 receipt contains the random loopback port, token and
 service generation. Each request checks that grant; one connection owns control.
 Stop, expiry, disconnect, service disablement and process loss end ownership.
-An idle connection times out after 60 seconds. Refusals close the spike's native
-connection and require explicit reset/re-admission; no operation is replayed.
+An idle connection times out after 60 seconds. Authority refusals close the
+connection and require explicit reset/re-admission. Stale-reference and
+unsupported-operation refusals allow a fresh observation on the same owner;
+no operation is replayed.
 
-Snapshots have fresh opaque references, invalidated by accessibility events and
-actions. Dispatch refreshes the retained node and checks membership in the current
+Snapshots have fresh opaque references, invalidated by new snapshots, actions
+and active-window changes. Content events alone do not prove node replacement.
+Dispatch refreshes the retained node and checks membership in the current
 fixture tree. Identical labels/resource IDs do not establish identity. Stable
 Android observation IDs and compact unchanged/diff performance remain unqualified;
 the initial implementation deliberately allocates fresh observation numbers.
@@ -80,7 +83,11 @@ observation; this is not an unplugged endurance test.
 
 The script exercises separate interpreter calls retaining variables/app handles,
 text and click, actual PNG capture, replacement/stale reference, bad grant and
-outside-scope refusal. PRoot reports guest UID 0; the kernel UID witness comes
+outside-scope refusal. The controller replaces the input independently while an
+old native reference is outstanding, and later taps Stop while ownership is
+live. The probe verifies stale refusal, connection closure and rejection of the
+revoked grant. It also proves agents cannot press the operator's Arm control.
+PRoot reports guest UID 0; the kernel UID witness comes
 from `/proc/self/status`, alongside the SELinux domain. Private evidence and a
 failure-recovery receipt stay in ignored `.local/`; never commit those files.
 
@@ -90,6 +97,27 @@ MCP server. It exposes `mc` and `mc_reset`; every call supplies the provider's
 published `session_id` for attribution. That ID is not bearer authority. One
 interpreter binds to one such ID. Registration and discovery do not acquire the
 native grant; the first code call opens it.
+
+`--session-id-file PRIVATE_FILE` instead uses MC's existing validated session-ID
+publication reader, checking the published native provider ID on every tool call.
+The real-provider probe publishes that ID from the CLI's own startup event;
+it does not invent an ID or assume a late environment variable reaches MCP.
+
+Opt in to real subscription-backed inference with an existing AAR checkout:
+
+```sh
+python3 platforms/android/resident-spike/live.py --serial "$ANDROID_TEST_SERIAL" \
+  --replace-spike --aar-checkout "$AAR_CHECKOUT"
+```
+
+The harness selects an existing enabled enrollment for each provider, creates a
+temporary scoped gateway grant, and uses an owned ADB reverse only for inference.
+Control still travels directly over phone localhost. It runs Codex and Claude
+serially with only the phone MCP tools, captures their real tool events, and
+checks each fixture-file result independently before the next provider runs.
+The grant is revoked with HTTP 401 verification and only its owned reverse is
+removed. A private recovery lease remains on cleanup failure. No upstream OAuth,
+normal provider home or YA development configuration is imported or replaced.
 
 ## Acceptance
 
@@ -104,8 +132,22 @@ in the YA app, separate from the native fixture app. No ADB command or forwardin
 was used for the phone-local operation channel. Cleanup restored accessibility
 settings and removed the temporary host workspace.
 
-Build and native lint pass without warnings. All 49 existing session tests and
-four additional transport-boundary tests pass. Deterministic Python acceptance
-is separate from real Codex/Claude MCP use, restart/revocation coverage and remote
-acceptance. No unplugged, background/Doze, stable-ID/diff efficiency or broader
-personal-app capability claim follows from this fixture result.
+**Real providers, 2026-10-17:** Codex completed seven MCP calls and Claude six
+on the same physical phone, using real subscription inference through temporary
+AAR grants. Both retained Python state across calls, entered/applied their own
+challenge with an independent controller file witness, returned an actual inline
+PNG tool result, and closed ownership. Final tool events contain no failed calls.
+The subsequent deterministic run also passed externally triggered same-label
+replacement, operator-rearm refusal, live Stop/connection closure and revoked
+grant re-admission refusal. Accessibility settings and temporary workspaces were
+restored/removed; the inference grant and tunnel were cleaned up.
+
+The earlier real Codex attempt exposed over-broad invalidation on content events
+and terminal handling of recoverable stale references. Both are corrected;
+removed nodes still fail dispatch membership checks. An initial provider launch
+also inherited open stdin; provider subprocesses now explicitly use `/dev/null`.
+
+Build/native lint pass without warnings, as do 49 existing session tests, five
+spike transport tests and ten Android adapter tests. Restart, remote, unplugged,
+background/Doze, stable-ID/diff efficiency and broader personal-app acceptance
+remain open. This spike is not yet registered automatically in YA sessions.

@@ -8,6 +8,12 @@ installed packaging, the shell facade, remote acceptance and broader platform
 conformance. This is bounded source acceptance, not general platform support;
 the existing CLI remains supported.
 
+The separate [Android resident spike](../platforms/android/resident-spike/README.md)
+reuses this Python core and killable interpreter against a fixture-scoped native
+accessibility service. Real on-phone Codex/Claude MCP acceptance is recorded
+there. It has a distinct native grant transport and is not the desktop
+claim/admission/audit path or general Android support for this command.
+
 This interface is a subset of Machine Control. Existing covered locked use,
 browser extension/CDP, system-surface and VM lifecycle capabilities have their
 own interfaces and acceptance records. Their integration into this session is

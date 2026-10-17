@@ -51,6 +51,7 @@ public final class ResidentService extends AccessibilityService {
     private String token = "";
     private long deadline;
     private int walked;
+    private int observedWindow = -1;
 
     @Override protected void onServiceConnected() {
         current = this;
@@ -85,9 +86,12 @@ public final class ResidentService extends AccessibilityService {
     }
 
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
-        // Membership is independently rechecked at dispatch, including before
-        // this coalesced event arrives. Never reuse a reference after an event.
-        references.clear();
+        // Content events are invalidation hints for observations, not proof
+        // that every native node was replaced. Revalidate membership at action
+        // dispatch; unrelated events must not make ordinary model latency fail.
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null || root.getWindowId() != observedWindow ||
+            !getPackageName().contentEquals(root.getPackageName())) references.clear();
     }
     @Override public void onInterrupt() { revoke(); }
     @Override public boolean onUnbind(Intent intent) { revoke(); return false; }
@@ -162,7 +166,7 @@ public final class ResidentService extends AccessibilityService {
                 if (response.length > 8 * 1024 * 1024) throw new IOException("Reply too large");
                 connection.getOutputStream().write(response);
                 connection.getOutputStream().flush();
-                if (!reply.optBoolean("accepted")) break;
+                if (!reply.optBoolean("accepted") && reply.optBoolean("sessionClosed")) break;
                 admitted = true;
             }
         } catch (Exception ignored) {
@@ -180,7 +184,10 @@ public final class ResidentService extends AccessibilityService {
             .put("hostInterference", "target_foreground");
     }
     private JSONObject refused(String code, String message) throws Exception {
+        boolean terminal = code.equals("approval_denied") || code.equals("approval_required") ||
+            code.equals("claim_not_held") || code.equals("control_session_closed");
         return new JSONObject().put("accepted", false).put("errorCode", code).put("message", message)
+            .put("sessionClosed", terminal)
             .put("generation", generation).put("actualRoute", ROUTE).put("delivery", "refused")
             .put("effect", "none").put("uncertainty", "none");
     }
@@ -212,12 +219,13 @@ public final class ResidentService extends AccessibilityService {
                     new JSONObject().put("windowId", root.getWindowId()).put("applicationId", getPackageName()))));
             case "snapshot": {
                 references.clear();
+                observedWindow = root.getWindowId();
                 walked = 0;
                 JSONArray elements = new JSONArray();
                 walk(root, 0, elements, request.optString("query").toLowerCase(java.util.Locale.ROOT), UUID.randomUUID().toString());
                 return reply.put("data", new JSONObject().put("elements", elements)
                     .put("truncated", walked >= 1000 || elements.length() >= 400)
-                    .put("actionReferenceLifetime", "latest_snapshot_and_no_accessibility_event"));
+                    .put("actionReferenceLifetime", "latest_snapshot_with_live_node_membership"));
             }
             case "action": {
                 AccessibilityNodeInfo node = references.get(request.optString("reference"));

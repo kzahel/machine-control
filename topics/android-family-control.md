@@ -190,9 +190,14 @@ execution. Keep concrete selectors, grants, captures and logs private.
 
 **Current — bounded live acceptance:** the
 [resident spike](../platforms/android/resident-spike/README.md#acceptance) passes
-the initial persistent Python, semantic effect, PNG, stale-reference, wrong-grant
-and outside-scope checks on a physical Pixel 7a. It is fixture-scoped and does
-not replace the existing Android adapter or qualify the broader phone capabilities.
+the persistent Python, semantic effect, PNG, stale-reference, wrong-grant,
+outside-scope and live-revocation checks on a physical Pixel 7a. Real on-phone
+Codex and Claude sessions also passed through that bridge with independent
+fixture effects and inline images. Content events alone no longer expire every
+reference; dispatch rechecks live native node membership. Recoverable stale
+refusals preserve ownership for an explicit fresh observation. The provider is
+fixture-scoped and does not replace the existing Android adapter or qualify
+broader phone capabilities, remote use or production session integration.
 
 ### Existing device implementation follow-ups
 

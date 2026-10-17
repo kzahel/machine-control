@@ -23,7 +23,7 @@ if not CLIENT.is_dir():
     CLIENT = Path(__file__).resolve().parents[3] / "client"
 sys.path.insert(0, str(CLIENT))
 from agent_session import Session, SessionError, Result, Capture, refusal
-from agent_session_mcp import Namespace, BoundedOutput, Worker, MAX_REQUEST, MAX_REPLY
+from agent_session_mcp import Namespace, BoundedOutput, Worker, MAX_REQUEST, MAX_REPLY, published_session
 
 JSON = dict[str, Any]
 
@@ -64,8 +64,9 @@ class AndroidTransport:
             result: JSON = json.loads(response)
             if result.get("generation") != self.generation:
                 raise ValueError("Native generation changed")
-            if not result.get("accepted"):
-                # The bounded spike closes native ownership on every refusal.
+            if not result.get("accepted") and result.get('sessionClosed', result.get('errorCode') in
+                    {'approval_denied','approval_required','claim_not_held','control_session_closed'}):
+                # A stale observation is recoverable without reacquiring grants.
                 self.close()
             return result
         except (OSError, ValueError) as error:
@@ -146,13 +147,17 @@ native fixture grant, not desktop claims/audit. Supply your published agent
 session_id on every call; this is attribution, not bearer authority."""
 
 
-def serve(receipt: Path) -> int:
+def serve(receipt: Path, session_file: Path | None = None) -> int:
     current: Worker | None = None
     owner: str | None = None
     tools = [{"name": "mc", "description": HELP, "inputSchema": {"type": "object", "properties": {
         "code": {"type": "string"}, "session_id": {"type": "string"}}, "required": ["code", "session_id"]}},
         {"name": "mc_reset", "description": "Reset this session explicitly.", "inputSchema": {
             "type": "object", "properties": {"session_id": {"type": "string"}}, "required": ["session_id"]}}]
+    if session_file is not None:
+        for tool in tools:
+            tool['inputSchema']['required'].remove('session_id')
+            tool['description'] += ' The coordinator publishes your actual session ID; omit session_id.'
     try:
         while line := sys.stdin.buffer.readline(MAX_REQUEST + 1):
             if len(line) > MAX_REQUEST:
@@ -173,6 +178,11 @@ def serve(receipt: Path) -> int:
                     params = request["params"]
                     arguments = params.get("arguments", {})
                     identity = arguments.get("session_id")
+                    if session_file is not None:
+                        published = published_session(session_file)
+                        if identity not in (None,published):
+                            raise SessionError('session_identity_mismatch','Published session does not match')
+                        identity = published
                     if not isinstance(identity, str) or not identity or len(identity) > 128 or owner not in (None, identity):
                         raise SessionError("session_identity_mismatch", "One interpreter per published agent session")
                     if params["name"] not in {"mc", "mc_reset"}:
@@ -200,5 +210,6 @@ if __name__ == "__main__":
         raise SystemExit(worker())
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--receipt", required=True, type=Path)
+    parser.add_argument("--session-id-file", type=Path)
     args = parser.parse_args()
-    raise SystemExit(serve(args.receipt))
+    raise SystemExit(serve(args.receipt,args.session_id_file))

@@ -78,5 +78,16 @@ class TransportTest(unittest.TestCase):
                 module.AndroidTransport(path)
             self.assertEqual(invalid.exception.code,'invalid_receipt')
 
+    def test_stale_reference_refusal_keeps_live_connection_for_fresh_observation(self):
+        def stale(stream):
+            stream.write(b'{"accepted":false,"generation":"generation-one","errorCode":"stale_reference","sessionClosed":false,"delivery":"refused"}\n')
+            stream.flush()
+        self.peer(stale)
+        transport = module.AndroidTransport(self.receipt)
+        self.addCleanup(transport.close)
+        result = transport.call({'operation':'action','reference':'old'})
+        self.assertFalse(result['accepted'])
+        self.assertFalse(transport.closed)
+
 
 if __name__ == '__main__': unittest.main()
