@@ -448,6 +448,72 @@ other Windows builds. Mac authorization plug-in evidence cannot be transferred
 to Windows. The protected-unlock topic owns native enrollment and its remaining
 qualification.
 
+### Password-free authentication extensions
+
+**Current (2026-10-18), documentation and bounded source review:** Windows
+supports additional authentication packages that validate data other than the
+account password. A credential provider gathers and serializes that data;
+LSA and its authentication packages decide whether authentication succeeds.
+Microsoft documents both the [authentication model](https://learn.microsoft.com/en-us/windows/win32/secauthn/lsa-authentication-model)
+and the [credential-provider boundary](https://learn.microsoft.com/en-us/windows/win32/secauthn/credential-providers-in-windows).
+The negative reconnect probes above do not test this extension route.
+
+| Route | What it avoids | Fit for unattended existing local-console unlock |
+| --- | --- | --- |
+| Owned credential provider plus LSA authentication package | Can validate a separate signed grant without the account password | Credible candidate; documented extensibility and source example, but no MC build or live effect yet |
+| Windows Hello / Hello for Business | Password replay during normal key-based sign-in | Documented PIN/biometric key release; not a documented service-only grant-to-unlock API |
+| Hello trusted signal unlock | Adds a device/network proximity signal | Signal is supported only as a second factor; does not replace the required first PIN/biometric factor |
+| Inbox smart-card or FIDO2 sign-in | Password-based sign-in in supported identity deployments | Smart-card documentation limits inbox support to domain accounts; documented FIDO2 device sign-in uses Entra joined/hybrid identity, not a generic local-SAM service grant |
+| Third-party local-account smart-card package | Can provide an additional local authentication authority | Product-specific; password-free marketing does not establish absence of stored hashes, setup passwords or user-presence requirements |
+| Existing token, S4U or session reconnect | Can obtain/use some user tokens without password entry | A token is not an independently observed unlock; tested reconnect paths failed on one build |
+| Browser-only locked access | Avoids desktop unlock entirely | Already implemented independently; cannot substitute for arbitrary desktop semantics/input |
+
+[Hello documentation](https://learn.microsoft.com/en-us/windows/security/identity-protection/hello-for-business/how-it-works)
+describes device-bound keys and PIN/biometric release. Its
+[trusted-signal policy](https://learn.microsoft.com/windows/security/identity-protection/hello-for-business/feature-multifactor-unlock)
+explicitly requires a first factor; familiarity of a network/device alone is
+not the supported unlock route. The inbox
+[smart-card reference](https://learn.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-windows-smart-card-technical-reference)
+and [FIDO2 deployment guide](https://learn.microsoft.com/entra/identity/authentication/howto-authentication-passwordless-security-key-windows)
+describe their account/deployment requirements. These are limits of those
+documented paths, not a claim that third parties cannot extend Windows.
+
+The [ReversePassword dossier](../providers/reverse-password.md) records a
+`source-reviewed` example of a custom package authorizing without account
+password validation. It is an insecure demonstration, not a component to
+install. Its [exact spike audit](../../../machine-control-spike/docs/windows-passwordless-authentication.md)
+distinguishes the source path from untested existing-session unlock and policy
+continuity. No native acceptance level follows from source review.
+
+**Current, vendor claim only:** commercial
+[EIDAuthenticate 2.0](https://www.mysmartlogon.com/products/eidauthenticate.html)
+advertises local-account smart-card logon/unlock, ARM64/x64 and Microsoft-signed
+protected-LSA packages. Its documentation also describes a setup password and
+card-encrypted password hashes for credential continuity. Its licensing is
+commercial; the shipped implementation, signature, hash usage and behavior
+were not inspected. Do not equate that product with older public EID forks,
+or treat its claims as proof of a no-account-secret MC design.
+
+The owned-extension deployment gate is substantial:
+[protected LSASS requires Microsoft-signed plug-ins](https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection).
+The [LSA signing program](https://learn.microsoft.com/en-us/windows-hardware/drivers/dashboard/file-signing-reqs)
+has EV certificate and submission requirements; an ordinary application
+Authenticode signature is insufficient. Signing eligibility and acceptance for
+this package remain open. Microsoft
+[permits adding security packages](https://learn.microsoft.com/en-us/windows/win32/secauthn/restrictions-around-registering-and-installing-a-security-package),
+not wrapping/replacing inbox packages. PPL and Credential Guard are distinct
+protections and need separate qualification.
+
+**Proposal:** investigate an unlock-only grant-verifying package while keeping
+PPL, Credential Guard, Secure Boot, stock authentication and account policy
+intact. Windows 10/11
+[combine logon/unlock credential-provider scenarios](https://learn.microsoft.com/en-us/windows/win32/api/credentialprovider/ne-credentialprovider-credential_provider_usage_scenario),
+so a UI scenario flag cannot enforce the existing-session restriction. A native
+test must show independent unlocked state, the same original WTS account/session
+and resident token LUID, ordinary application effects, existing DPAPI access,
+owner-loss relock and stock fallback. A new token or successful cold login is
+insufficient. No authentication extension was installed for this research.
+
 ## Desktop audit validation
 
 **Current (2026-10-03), `live-tested`:** source-native desktop audit and

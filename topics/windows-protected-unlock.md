@@ -2,8 +2,53 @@
 
 Topic: `windows-protected-unlock`
 
-Status: signed Windows ARM64/x64 preview accepted on disposable local-console
-VMs; bounded desktop consumer integration has source and staged x64 evidence.
+Status: existing controller/password protocol has bounded native evidence;
+password-free authorization is the preferred research direction. No owned
+Windows password-free unlock has been built or live-tested.
+
+## Password-free direction
+
+**Decision (2026-10-18):** Prefer an explicitly authorized unlock mechanism
+that does not ask for, retain or recover the user's Windows password. The
+unreleased encrypted-password enrollment remains an implemented experiment,
+not the selected final solution to Mac-like password-free setup. Do not promote
+it as satisfying this requirement. Browser-only locked access stays independent.
+
+The [platform comparison](../research/platforms/windows.md#password-free-authentication-extensions)
+finds a documented candidate: a custom credential provider paired with an LSA
+authentication package. The provider submits a bounded proof; the package
+authorizes it without validating/replaying the account password. A
+[source-reviewed sample](../research/providers/reverse-password.md) illustrates
+that separation, but has an insecure authorization check and no acceptable
+protected-LSA deployment evidence. Earlier session-reconnect failures do not
+rule this route out. Hello, trusted signals, smart cards and commercial local
+authentication products have different presence/account/secret requirements.
+
+**Proposal:** Bind setup to the independently discovered current local account
+after administrator consent, without reading its password. The broker issues
+an authenticated, one-use, short-lived grant for the existing console's exact
+SID, session/logon, runtime/helper generation and finite approved task. The
+authentication package verifies that grant; the existing guardian owns cover
+and failure relock. No password, password hash or PIN is retained or transported.
+Any new authorization key serves only this scoped grant protocol and is
+independent of Windows account credentials. Key custody and the minimal LSASS
+protocol still need design; never infer authority from a public owner
+label, PID, file marker or credential-provider UI alone.
+
+This introduces an alternate unlock authority. Removing password custody does
+not contain an administrator or compromised broker that can exercise that
+authority. The improvement is avoiding disclosure/reuse of the account's
+password, not making privileged compromise harmless.
+
+**Open, next gates:** Confirm Microsoft LSA signing eligibility without disabling
+PPL, then prove a minimal existing-session unlock on a disposable, recoverable
+appliance. Preserve stock providers and qualify PPL, Credential Guard, Secure
+Boot, account restrictions and ARM64/x64 separately. Verify same-session effect,
+application/DPAPI continuity, owner/Stop relock, replay/expiry/revocation and
+removal/reboot. Refuse cold login, account switching, UAC/CredUI and other users
+even where Windows supplies the combined `CPUS_LOGON` scenario. A successful
+token creation or fresh sign-in does not complete that gate. This research
+installs no extension and changes no runtime behavior.
 
 ## Simple desktop setup
 

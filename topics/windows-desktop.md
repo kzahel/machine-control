@@ -14,7 +14,9 @@ storage and task-owned `session.unlock`. No JSON picker or per-task password is
 needed in that mode. Setup enables its independent, persistent option and grants
 no ordinary access. [Tactical 134](../docs/tactical/134-windows-native-unlock-enrollment.md)
 owns implementation and acceptance; cold login and other accounts stay outside
-this desktop profile.
+this desktop profile. The [protected-unlock topic](windows-protected-unlock.md#password-free-direction)
+now prefers investigating password-free authorization over promoting this
+recoverable-password experiment as the final setup.
 
 **Current, shipped in desktop 0.6.8 (2026-10-17):** The shared Settings option retains
 previously approved browser access while the same console stays locked. It
