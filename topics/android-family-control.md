@@ -199,6 +199,47 @@ refusals preserve ownership for an explicit fresh observation. The provider is
 fixture-scoped and does not replace the existing Android adapter or qualify
 broader phone capabilities, remote use or production session integration.
 
+### Planned session cleanup and independent data capabilities
+
+**Direction, 2026-10-18; production integration remains future work.** Keep
+one native Android broker with separate client interpreters per provider
+conversation. Interpreter state, Android permission grants, active resource
+ownership and historical audit are distinct. YA session end/reaping must close
+or kill its MCP/interpreter process tree; native EOF releases ownership without
+requiring the agent to call a cleanup tool. A broker watchdog/heartbeat and
+bounded lease expiry cover lost connections or failed cleanup. An orphan MCP
+process must not renew ownership forever after its YA session ends.
+
+The native MC broker owns authoritative active leases and terminal reasons;
+YA's session database must not become the device lock authority. Existing MC
+adapters use private JSON resource/queue records and SQLite audit history. An
+Android SQLite lease/history store is a candidate, not a selected or implemented
+migration. Persisted active rows must be fenced by runtime generation and live
+ownership; they cannot keep a resource reserved after owner loss. Record normal
+release, session end/reap, disconnect, heartbeat loss, expiry and revocation as
+distinct terminal reasons. Audit-store failure must not prevent release.
+
+Acquire UI ownership for a coherent action sequence, not for the lifetime of
+an idle conversation. Releasing that ownership should not require destroying
+Python variables. Reacquisition requires a fresh observation; uncertain actions
+are never replayed. Phone users retain physical control.
+
+Photo/document reads are a separate capability plane and must not acquire the
+exclusive UI claim. Several authorized sessions may read selected media and
+SAF documents concurrently. Onboarding pickers still require user interaction;
+subsequent reads use native providers without UI automation or accessibility.
+Write coordination, if later added, should address a particular document or
+workspace rather than reserving the whole phone.
+
+The next bounded spike uses user-selected photos and a persistable read-only
+SAF tree, native ContentResolver operations and ordinary Linux workspace export.
+Use JSTorrent's SAF lifecycle and provider-boundary experience as a reference,
+without copying its storage engine or source. Verify concurrent independent
+readers, Linux byte/image processing, process-restart grant persistence and
+revocation with owned synthetic fixtures on an explicit test device. Broad
+gallery permissions, arbitrary URIs, writable trees and filesystem mounting are
+not assumptions for this experiment.
+
 ### Existing device implementation follow-ups
 
 - Run one supervised correct-PIN acceptance through the hidden prompt and
