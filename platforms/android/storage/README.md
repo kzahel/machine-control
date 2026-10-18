@@ -5,6 +5,13 @@ Experimental Java boundary, exercised by the sibling Yep Anywhere disposable
 `src/main/java` and retain this repository's MIT notice when packaging it. It has no third-party runtime
 dependencies and requires Android API 30+.
 
+`SharedStorage.primary` resolves raw primary shared storage without a SAF
+grant. It requires actual all-files access, mounted read/write state, and an
+accessible canonical directory from Android's primary StorageVolume. It neither
+requests permission nor creates a private fallback. Callers own naming (`/sdcard`
+in YA), blocked placeholders, applied-source identity and permission rechecks.
+Primary shared storage and a removable SD card are distinct volumes.
+
 `LocalWorkspace.resolve` accepts only a persisted read/write tree grant from
 Android's built-in external-storage provider on the primary shared volume.
 It separately checks actual all-files access, obtains the volume through
@@ -65,3 +72,11 @@ transport upload preserved its destination before native mutation. Fixture,
 owned trees and temporary authorization/transports were removed. Cloud/removable
 providers and store-policy approval remain unqualified. The fixture packaged this
 repository's MIT notice; no third-party reference code was imported.
+
+2026-10-18 primary-storage extension: `SharedStorage.primary` is exercised by
+YA's disposable no-picker/no-SAF-grant PRoot fixture. Moto G Power (2022)/Android
+12 also exposed one mounted public exFAT card through StorageManager; a temporary
+raw binding passed independent writes/hashes, restart, authority revocation and
+fixture data-clear recovery. This qualifies the observed raw route, not
+removable support in `LocalWorkspace`, dynamic unmount handling or a shipping
+YA card mapping. See the owning [YA workspace guide](../../../../yepanywhere/packages/android-host/docs/workspaces.md#removable-card-investigation).
