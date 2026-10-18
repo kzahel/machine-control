@@ -263,13 +263,26 @@ by real reselection. SAF and broad authority were revoked/repaired separately.
 See the [YA acceptance and filesystem limits](../../yepanywhere/packages/android-host/workspace-spike/README.md#evidence).
 The signed-in host and existing documents were preserved; fixture cleanup passed.
 
-**Decision:** Keep this direct local-folder route distinct from future bucket-like
-SAF CLI/document operations for arbitrary providers. SAF selection alone does not
-grant raw access. PRoot does not confine broad app-UID authority to one directory;
-SAF revocation only blocks resolver admission while all-files remains active.
+**Decision:** Support multiple named folder registrations with optional direct
+local-folder access and explicit bucket-like SAF CLI/document operations for
+arbitrary providers. One root may support both methods; permission and health
+remain distinct per method/root. Broad storage access is optional, and SAF tools
+must work without it. YA owns shortcut names, UI, project/runtime integration and
+reselection; MC owns reusable native qualification and document operations. See
+[YA's workspace contract](../../yepanywhere/packages/android-host/docs/workspaces.md).
+**Current:** MC now supplies bounded writable `SafDocuments` operations; the
+experimental YA host consumes them for `ya saf` against its named roots and
+uses `LocalWorkspace` for independent optional direct mappings. YA packages MC's
+MIT notice. [Storage API and acceptance](../platforms/android/storage/README.md)
+record ownership, limits and physical evidence. No reference-project source was
+copied. The resident-data experiment has not been extended with these mutations.
+
+SAF selection alone does not grant raw access. PRoot does not confine broad
+app-UID authority to chosen directories; SAF revocation only blocks resolver
+admission while all-files remains active.
 Runtime binaries, credentials and internal live databases remain private.
-Production packaging, YA onboarding/session lifecycle, running-handle revocation
-and per-session grants/audit remain open. The existing read-only resident-data
+Store-policy acceptance, running-handle revocation and per-session grants/audit
+remain open. YA now owns experimental onboarding and project/session integration. The existing read-only resident-data
 service remains a separate experiment.
 
 ### Existing device implementation follow-ups

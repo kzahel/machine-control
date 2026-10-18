@@ -151,8 +151,16 @@ ordinary file editing, not a general Linux filesystem or crash/power-loss safety
 All-files authority outlives SAF grant revocation and is broader than PRoot's
 visible workspace; fresh raw access failed when all-files was disabled. Existing
 handles and running-session revocation remain unqualified. Arbitrary SAF
-providers, removable volumes, production YA integration and store-policy
-acceptance were not tested.
+providers, removable volumes and store-policy acceptance remain unqualified.
+
+**Current — adopted by the experimental YA host:** MC's `SafDocuments` now adds
+bounded provider-based stat/list, create, rename, delete and stream read/write,
+independent of all-files access. YA supplies multi-root registrations, explicit
+CLI transfers over a same-app-UID bridge, controlled mapping restarts and native
+admission checks. See [YA multi-root acceptance](../../../yepanywhere/packages/android-host/docs/workspaces.md#physical-acceptance-and-limits)
+for physical evidence; the original single-root spike alone did not prove this.
+Provider support is not general POSIX support, and cloud-provider durability is
+not inferred from local external-storage testing.
 
 ### Existing ADB implementation
 
