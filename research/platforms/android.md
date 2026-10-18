@@ -43,7 +43,7 @@ implementation or physical-device acceptance of these operations.
 | --- | --- |
 | [Accessibility service](https://developer.android.com/reference/android/accessibilityservice/AccessibilityService) | Semantic observations/actions, gestures and screenshots after user enablement; sparse trees and secure content remain limitations. |
 | [Storage Access Framework](https://developer.android.com/training/data-storage/shared/documents-files) | Persistable access to chosen documents/trees through content URIs; not automatic POSIX paths, with restricted directory choices. |
-| [All-files access](https://developer.android.com/training/data-storage/manage-all-files) | Optional broad shared-storage access through real paths; excludes other apps' private storage. PRoot access needs device validation. |
+| [All-files access](https://developer.android.com/training/data-storage/manage-all-files) | Optional broad shared-storage access through real paths; excludes other apps' private storage. Primary-volume PRoot route live-tested below. |
 | [Photo picker](https://developer.android.com/training/data-storage/shared/photo-picker) and [MediaStore](https://developer.android.com/training/data-storage/shared/media) | Selected images/videos, including supported cloud selections, or permission-backed media queries; not unrestricted cloud-library access. |
 | [Contacts](https://developer.android.com/identity/providers/contacts-provider) and [calendar](https://developer.android.com/identity/providers/calendar-provider) | Query/mutate shared providers with appropriate permissions; system intents can hand individual edits to their owning apps. |
 | [Common intents](https://developer.android.com/guide/components/intents-common) | Compose messages, open the dialer/maps, create alarms/timers and share results; handing off an intent is not proof of the resulting action. |
@@ -124,6 +124,35 @@ the data service does not require the accessibility service or a UI owner.
 [Acceptance and limits](../../platforms/android/resident-spike/README.md#acceptance)
 remain scoped to local synthetic media and documents. Cloud/provider availability,
 reboot/Doze, writable access and production lifecycle integration are unqualified.
+
+### Direct local shared-folder workspace (2026-10-18)
+
+**Current — source-reviewed, built and live-tested:** the sibling MIT-licensed
+Web Server Chrome reference keeps SAF content URIs separate from filesystem
+roots and checks actual all-files access. JSTorrent's writable document creation,
+seekable-descriptor handoff and native positional I/O demonstrate document
+operations without supplying a POSIX namespace for unmodified programs. No
+reference-project code was copied into this implementation.
+
+MC now owns a narrow [local workspace resolver](../../platforms/android/storage/README.md).
+YA owns its disposable Android fixture, shared Alpine/PRoot mapping and physical
+acceptance. Pixel 7a/API 37 passed actual picker plus separate Settings consent,
+SAF/raw sentinel agreement, both real Codex/Claude file-edit and shell writes,
+external SHA-256 checks, process restart, grant revocation/repair and recovery
+after fixture data clear and reinstall. The
+[YA evidence](../../../yepanywhere/packages/android-host/workspace-spike/README.md#evidence)
+owns commands, measured semantics and cleanup.
+
+The tested shared storage is case-insensitive, rejects symlinks/execution,
+ignores executable mode changes and returns ENOSYS for `flock`. POSIX record
+locks and bounded SQLite WAL contention passed. Git required rename-based object
+publication and explicit repository trust under simulated root. This qualifies
+ordinary file editing, not a general Linux filesystem or crash/power-loss safety.
+All-files authority outlives SAF grant revocation and is broader than PRoot's
+visible workspace; fresh raw access failed when all-files was disabled. Existing
+handles and running-session revocation remain unqualified. Arbitrary SAF
+providers, removable volumes, production YA integration and store-policy
+acceptance were not tested.
 
 ### Existing ADB implementation
 

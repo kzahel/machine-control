@@ -147,9 +147,11 @@ similarly need honest per-operation routing rather than one universal privilege.
   folders, photos, contacts/calendar, camera/mic, location, notifications and
   optional assistant role. Query only relevant records; do not automatically
   place whole personal databases into provider context.
-- Start file access with document tools and explicit workspace import/export.
-  Explore direct shared-storage paths separately. Ordinary FUSE mounting and
-  access to other apps' private databases are not assumptions.
+- Use document tools and explicit workspace import/export for arbitrary SAF
+  providers. The separate local primary-storage route now has a live-tested
+  resolver with optional all-files authority; see the workspace qualification
+  below. Ordinary FUSE mounting and access to other apps' private databases are
+  not assumptions.
 - Report locked screens, revoked grants, sparse semantic trees, secure capture
   failures and foreground-only facilities explicitly. Do not equate push wake,
   assistant-service liveness, runtime readiness and ADB readiness.
@@ -243,6 +245,32 @@ trees and filesystem mounting remain outside this experiment. Production YA
 onboarding, per-session capability grants, lease/audit integration and exported
 file retention remain future work. Revocation cannot erase copies already
 exported into an agent workspace.
+
+### Durable local workspace qualification
+
+**Current — built and live-tested, 2026-10-18:**
+[`platforms/android/storage`](../platforms/android/storage/README.md) owns the
+reusable, dependency-free `LocalWorkspace` resolver. It qualifies a persisted
+read/write tree from Android's built-in primary external-storage provider,
+checks actual all-files authority and verifies an accessible canonical folder.
+It is not a generic SAF-to-path converter or a mount implementation.
+
+YA's separate disposable fixture consumed this source and bound the selected
+folder directly at `/workspace` in its existing Alpine/PRoot payload. On Pixel
+7a/API 37, both real provider CLIs wrote through normal file tools and shell;
+independent hashes survived restart, fixture data clear and reinstall followed
+by real reselection. SAF and broad authority were revoked/repaired separately.
+See the [YA acceptance and filesystem limits](../../yepanywhere/packages/android-host/workspace-spike/README.md#evidence).
+The signed-in host and existing documents were preserved; fixture cleanup passed.
+
+**Decision:** Keep this direct local-folder route distinct from future bucket-like
+SAF CLI/document operations for arbitrary providers. SAF selection alone does not
+grant raw access. PRoot does not confine broad app-UID authority to one directory;
+SAF revocation only blocks resolver admission while all-files remains active.
+Runtime binaries, credentials and internal live databases remain private.
+Production packaging, YA onboarding/session lifecycle, running-handle revocation
+and per-session grants/audit remain open. The existing read-only resident-data
+service remains a separate experiment.
 
 ### Existing device implementation follow-ups
 
