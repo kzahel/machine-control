@@ -3,16 +3,25 @@
 Topic: `windows-protected-unlock`
 
 Status: existing controller/password protocol has bounded native evidence;
-password-free authorization is the preferred research direction. No owned
+native saved-password enrollment is the selected near-term direction, with
+acceptance still incomplete. Password-free authorization is deferred. No owned
 Windows password-free unlock has been built or live-tested.
 
 ## Password-free direction
 
-**Decision (2026-10-18):** Prefer an explicitly authorized unlock mechanism
-that does not ask for, retain or recover the user's Windows password. The
-unreleased encrypted-password enrollment remains an implemented experiment,
-not the selected final solution to Mac-like password-free setup. Do not promote
-it as satisfying this requirement. Browser-only locked access stays independent.
+**Decision (2026-10-18):** Defer password-free Windows authentication extensions
+and use native saved-password enrollment for now. Setup should remain simple:
+administrator approval and a native password prompt once, followed by task-owned
+unlock/relock. This selects the existing unreleased implementation for further
+qualification; it does not establish completed acceptance or release readiness.
+Browser-only locked access stays independent and needs no desktop unlock.
+
+The service retains a recoverable Windows password protected by SYSTEM-user
+DPAPI and SYSTEM/admin-only file access. Administrator/SYSTEM access or a
+compromised privileged helper can recover or use it; absence of an export API
+does not prevent that. Password-free research below is retained for a possible
+future revisit, with no signing investigation or extension implementation
+currently planned.
 
 The [platform comparison](../research/platforms/windows.md#password-free-authentication-extensions)
 finds a documented candidate: a custom credential provider paired with an LSA
@@ -24,8 +33,8 @@ protected-LSA deployment evidence. Earlier session-reconnect failures do not
 rule this route out. Hello, trusted signals, smart cards and commercial local
 authentication products have different presence/account/secret requirements.
 
-**Proposal:** Bind setup to the independently discovered current local account
-after administrator consent, without reading its password. The broker issues
+**Proposal, deferred:** Bind setup to the independently discovered current local
+account after administrator consent, without reading its password. The broker issues
 an authenticated, one-use, short-lived grant for the existing console's exact
 SID, session/logon, runtime/helper generation and finite approved task. The
 authentication package verifies that grant; the existing guardian owns cover
@@ -40,7 +49,7 @@ not contain an administrator or compromised broker that can exercise that
 authority. The improvement is avoiding disclosure/reuse of the account's
 password, not making privileged compromise harmless.
 
-**Open, next gates:** Confirm Microsoft LSA signing eligibility without disabling
+**Open, if resumed:** Confirm Microsoft LSA signing eligibility without disabling
 PPL, then prove a minimal existing-session unlock on a disposable, recoverable
 appliance. Preserve stock providers and qualify PPL, Credential Guard, Secure
 Boot, account restrictions and ARM64/x64 separately. Verify same-session effect,

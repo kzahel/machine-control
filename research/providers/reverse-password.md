@@ -42,9 +42,9 @@ Credential Guard compatibility and safe rollback are separate gaps.
 
 ## Fit and next evidence
 
-**Decision:** use the source as an architecture reference for the Windows
-password-free investigation, with no adoption decision. An owned package would
-need to consume a cryptographically authenticated, one-use grant for one already
+**Decision:** retain the source as an architecture reference for the deferred
+Windows password-free investigation, with no adoption decision. An owned package
+would need to consume a cryptographically authenticated, one-use grant for one already
 logged-in account/session and refuse every other context. It must preserve stock
 sign-in options, account restrictions, ordinary consent, finite ownership and
 independent relock.

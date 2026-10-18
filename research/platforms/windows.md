@@ -504,7 +504,7 @@ this package remain open. Microsoft
 not wrapping/replacing inbox packages. PPL and Credential Guard are distinct
 protections and need separate qualification.
 
-**Proposal:** investigate an unlock-only grant-verifying package while keeping
+**Proposal, deferred:** an unlock-only grant-verifying package while keeping
 PPL, Credential Guard, Secure Boot, stock authentication and account policy
 intact. Windows 10/11
 [combine logon/unlock credential-provider scenarios](https://learn.microsoft.com/en-us/windows/win32/api/credentialprovider/ne-credentialprovider-credential_provider_usage_scenario),
@@ -513,6 +513,9 @@ test must show independent unlocked state, the same original WTS account/session
 and resident token LUID, ordinary application effects, existing DPAPI access,
 owner-loss relock and stock fallback. A new token or successful cold login is
 insufficient. No authentication extension was installed for this research.
+The [protected-unlock decision](../../topics/windows-protected-unlock.md#password-free-direction)
+selects saved-password enrollment for now; extension implementation and signing
+investigation are deferred.
 
 ## Desktop audit validation
 

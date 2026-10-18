@@ -2,9 +2,9 @@
 
 The advanced controller feature ships in public desktop 0.5.7. Native one-time
 enrollment below is unreleased source. It stores a recoverable password and is
-not the preferred final setup; the [password-free investigation](../topics/windows-protected-unlock.md#password-free-direction)
-tracks the alternative authentication-extension route. Signed installed
-feature, ARM64 live and physical takeover acceptance remain separate gates. The current
+the selected near-term setup; the [protected-unlock decision](../topics/windows-protected-unlock.md#password-free-direction)
+defers the alternative password-free authentication-extension route. Signed
+installed feature, ARM64 live and physical takeover acceptance remain separate gates. The current
 source profile places an **opaque cover on one display** before possible
 password submission. Windows 10 version 2004 or newer, active DWM composition
 and exactly one display are required; unsupported preparation refuses before
