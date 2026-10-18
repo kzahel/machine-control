@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Experimental Android transport using MC's existing Session and interpreter.
 
-No desktop claims/audit equivalence is claimed. The native fixture grant and
-exclusive connection are authoritative. This module never invokes ADB.
+No desktop claims/audit equivalence is claimed. The native fixture grant is
+authoritative; UI connections are exclusive, data readers are independent.
+This module never invokes ADB.
 """
 from __future__ import annotations
 
@@ -37,6 +38,7 @@ class AndroidTransport:
         if value.get("schema") != "mc-android-spike/v1":
             raise SessionError("invalid_receipt", "Unknown bridge grant schema")
         self.token = value["token"]
+        self.plane = value.get('plane','ui')
         self.generation = value["generation"]
         self.closed = False
         self.connection = socket.create_connection(("127.0.0.1", int(value["port"])), timeout=10)
@@ -104,11 +106,17 @@ def worker() -> int:
                         transport = AndroidTransport(Path(config["receipt"]))
                         session = Session(transport, target="android-fixture", emit=print)
                         namespace = Namespace(session)
+                        if transport.plane == 'data':
+                            from data_client import PhoneData
+                            namespace.values['phone'] = PhoneData(session)
                     assert namespace is not None
                     session.emit_image = lambda data: images.append({"type": "image", "mimeType": "image/png",
                         "data": base64.b64encode(data).decode("ascii")})
                     if request.get("reset"):
                         namespace.reset()
+                        if transport.plane == 'data':
+                            from data_client import PhoneData
+                            namespace.values['phone'] = PhoneData(session)
                         print("Namespace reset; native connection retained.")
                     else:
                         value = namespace.run(request["code"])
@@ -147,13 +155,21 @@ native fixture grant, not desktop claims/audit. Supply your published agent
 session_id on every call; this is attribution, not bearer authority."""
 
 
-def serve(receipt: Path, session_file: Path | None = None) -> int:
+def serve(receipt: Path, session_file: Path | None = None, plane: str = 'ui') -> int:
     current: Worker | None = None
     owner: str | None = None
     tools = [{"name": "mc", "description": HELP, "inputSchema": {"type": "object", "properties": {
         "code": {"type": "string"}, "session_id": {"type": "string"}}, "required": ["code", "session_id"]}},
         {"name": "mc_reset", "description": "Reset this session explicitly.", "inputSchema": {
             "type": "object", "properties": {"session_id": {"type": "string"}}, "required": ["session_id"]}}]
+    if plane == 'data':
+        tools[0]['description'] = '''Read-only Android data via persistent Python.
+phone.photos(), phone.roots(), phone.list(directory_id), phone.read(file_id),
+phone.export(file_id, new_local_path), phone.thumbnail(photo_id).
+Use opaque IDs returned by listings; arbitrary URIs and writes are unsupported.
+Variables persist; no await. Selected data reads do not acquire a UI claim and
+can run concurrently with other readers. mc.close() ends this connection only.
+Supply your published session_id unless the coordinator publishes it for you.'''
     if session_file is not None:
         for tool in tools:
             tool['inputSchema']['required'].remove('session_id')
@@ -211,5 +227,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--receipt", required=True, type=Path)
     parser.add_argument("--session-id-file", type=Path)
+    parser.add_argument('--plane', choices=('ui','data'), default='ui')
     args = parser.parse_args()
-    raise SystemExit(serve(args.receipt,args.session_id_file))
+    raise SystemExit(serve(args.receipt,args.session_id_file,args.plane))

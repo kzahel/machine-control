@@ -62,6 +62,7 @@ public final class FixtureActivity extends Activity {
             if (ResidentService.current != null) ResidentService.current.revoke();
             result.setText(R.string.stopped);
         });
+        button(R.string.data_tools, v -> startActivity(new Intent(this, DataActivity.class)));
         setContentView(layout);
     }
 

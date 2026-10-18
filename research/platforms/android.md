@@ -91,6 +91,40 @@ refusals. The [spike acceptance](../../platforms/android/resident-spike/README.m
 owns the evidence limits. This does not establish remote, reboot/background,
 general app, claims/audit or stable-ID/diff acceptance.
 
+### Selected media and SAF reference study (2026-10-18)
+
+Read-only source study of the MIT-licensed sibling JSTorrent checkout at
+`0cd892064cd772cc6a71f9eec793d5878578e04b`:
+
+- `clients/android/app/src/main/java/org/rstorrent/bootstrap/MainActivity.kt`:
+  accept actual picker results and persist only returned grant flags.
+- `ProductSafDocuments.kt`: recheck persisted grants; use ContentResolver and
+  DocumentsContract rather than inventing filesystem paths; validate path
+  components and reject ambiguous duplicate child names; support cancellation.
+- `ProductSafRootRegistry.kt`: durable root identity is distinct from grant
+  health, so revoked roots remain understandable and repairable.
+- `experiments/android-storage-probe/run_probe.py`: use a dedicated child of
+  Downloads, exercise the actual system tree picker, then verify persistence
+  after process restart and release only the owned grant/fixtures.
+
+Adopt these boundary/lifecycle lessons without copying source or its storage
+engine. The MC experiment starts narrower: selected-photo and SAF read access,
+opaque document handles, bounded listings/transfers, native thumbnail export,
+and concurrent readers without a UI claim. Photo selection uses Android's
+system picker, not a broad gallery permission. A tree grant stays a content URI;
+Linux tools receive explicit exported bytes. Provider mutation, duplicate-name
+path resolution and descriptor-based random-write integration remain outside
+this first read-only slice.
+
+**Current — live-tested, 2026-10-18:** the physical Pixel 7a passed actual photo
+and SAF picker consent, simultaneous independent readers under the YA app UID,
+Linux byte export/thumbnail presentation, persisted grants after app restart
+and live per-capability revocation. Accessibility settings were unchanged;
+the data service does not require the accessibility service or a UI owner.
+[Acceptance and limits](../../platforms/android/resident-spike/README.md#acceptance)
+remain scoped to local synthetic media and documents. Cloud/provider availability,
+reboot/Doze, writable access and production lifecycle integration are unqualified.
+
 ### Existing ADB implementation
 
 **Decision:** Do not reimplement ADB. Add consistent target selection,

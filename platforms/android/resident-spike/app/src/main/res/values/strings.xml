@@ -18,4 +18,17 @@
     <item name="fixture_input" type="id" />
     <item name="fixture_apply" type="id" />
     <item name="fixture_replace" type="id" />
+    <string name="data_tools">Photo and document access</string>
+    <string name="pick_photo">Select photo</string>
+    <string name="pick_tree">Select read-only folder</string>
+    <string name="arm_data">Arm data bridge</string>
+    <string name="stop_data">Stop data bridge</string>
+    <string name="revoke_photo">Revoke photo access</string>
+    <string name="revoke_tree">Revoke folder access</string>
+    <string name="forget_data">Forget selections</string>
+    <string name="data_status">Selected photo available: %1$b\nSelected folder available: %2$b\nRead-only data tools; no accessibility or UI claim.</string>
+    <string name="selection_failed">Selection was not saved. Choose an image or folder with persistable read access.</string>
+    <string name="data_channel">Selected file tools</string>
+    <string name="data_notification">Read-only data bridge is armed</string>
+    <string name="data_notification_detail">Open the app to stop access. Automatically expires in 15 minutes.</string>
 </resources>

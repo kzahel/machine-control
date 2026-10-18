@@ -231,14 +231,18 @@ subsequent reads use native providers without UI automation or accessibility.
 Write coordination, if later added, should address a particular document or
 workspace rather than reserving the whole phone.
 
-The next bounded spike uses user-selected photos and a persistable read-only
-SAF tree, native ContentResolver operations and ordinary Linux workspace export.
-Use JSTorrent's SAF lifecycle and provider-boundary experience as a reference,
-without copying its storage engine or source. Verify concurrent independent
-readers, Linux byte/image processing, process-restart grant persistence and
-revocation with owned synthetic fixtures on an explicit test device. Broad
-gallery permissions, arbitrary URIs, writable trees and filesystem mounting are
-not assumptions for this experiment.
+**Current — live-tested data spike, 2026-10-18:** the separate native data
+service uses selected photos, a persistable read-only SAF tree, ContentResolver
+and explicit Linux workspace export. JSTorrent informed the grant lifecycle;
+no source or storage engine was copied. Physical acceptance established
+concurrent independent readers without accessibility, original-byte export and
+inline thumbnails, app-restart permission persistence and live revocation.
+[The spike acceptance](../platforms/android/resident-spike/README.md#acceptance)
+owns details and limits. Broad gallery permissions, arbitrary URIs, writable
+trees and filesystem mounting remain outside this experiment. Production YA
+onboarding, per-session capability grants, lease/audit integration and exported
+file retention remain future work. Revocation cannot erase copies already
+exported into an agent workspace.
 
 ### Existing device implementation follow-ups
 

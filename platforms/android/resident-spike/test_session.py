@@ -3,6 +3,8 @@ import importlib.util
 import json
 from pathlib import Path
 import socket
+import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -88,6 +90,25 @@ class TransportTest(unittest.TestCase):
         result = transport.call({'operation':'action','reference':'old'})
         self.assertFalse(result['accepted'])
         self.assertFalse(transport.closed)
+
+
+class DataDiscoveryTest(unittest.TestCase):
+    def test_data_tool_discovery_needs_neither_grant_nor_native_service(self):
+        with tempfile.TemporaryDirectory() as directory:
+            missing = Path(directory)/'never-created.json'
+            requests = [
+                {'jsonrpc':'2.0','id':1,'method':'initialize','params':{}},
+                {'jsonrpc':'2.0','id':2,'method':'tools/list'},
+            ]
+            result = subprocess.run([sys.executable,str(Path(__file__).with_name('session.py')),
+                '--receipt',str(missing),'--plane','data'],
+                input=''.join(json.dumps(r)+'\n' for r in requests),text=True,
+                capture_output=True,check=True,timeout=10)
+            replies = [json.loads(line) for line in result.stdout.splitlines()]
+            description = replies[1]['result']['tools'][0]['description']
+            self.assertIn('phone.photos()',description)
+            self.assertIn('concurrently',description)
+            self.assertFalse(missing.exists())
 
 
 if __name__ == '__main__': unittest.main()
