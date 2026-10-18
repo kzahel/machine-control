@@ -12,6 +12,16 @@ requests permission nor creates a private fallback. Callers own naming (`/sdcard
 in YA), blocked placeholders, applied-source identity and permission rechecks.
 Primary shared storage and a removable SD card are distinct volumes.
 
+`SharedStorage.removableVolumes` inventories non-primary removable volumes,
+retaining label, UUID, mount state and a reason when unavailable. Safe, unique
+UUIDs identify volumes; labels and list position never supply identity.
+`SharedStorage.removable` re-resolves one exact UUID and requires actual broad
+authority, a mounted read/write state and an accessible canonical directory.
+Unsafe/missing or ambiguous duplicate IDs, absent/read-only media and revoked
+authority fail explicitly. Callers own guest paths, media-event invalidation,
+applied-source checks and controlled restarts; an open descriptor is not revoked
+by rechecking this resolver.
+
 `LocalWorkspace.resolve` accepts only a persisted read/write tree grant from
 Android's built-in external-storage provider on the primary shared volume.
 It separately checks actual all-files access, obtains the volume through
@@ -26,8 +36,9 @@ no filesystem mount, synchronization, write cache, permission request or private
 fallback. This resolver does not constrain an all-files-authorized app UID to the
 returned directory. Holding a path or open descriptor is not a revocable grant.
 
-Direct mapping of removable volumes and arbitrary document providers is
-unsupported. File recovery after reset requires a new user selection and permissions, not a marker
+Selected-folder direct resolution remains primary-only; arbitrary document
+providers are not converted to paths. Raw removable volumes use the separate
+resolver above. File recovery after reset requires a new user selection and permissions, not a marker
 written into the selected project. YA owns product onboarding and runtime mapping.
 
 ## Explicit SAF operations
@@ -80,3 +91,11 @@ raw binding passed independent writes/hashes, restart, authority revocation and
 fixture data-clear recovery. This qualifies the observed raw route, not
 removable support in `LocalWorkspace`, dynamic unmount handling or a shipping
 YA card mapping. See the owning [YA workspace guide](../../../../yepanywhere/packages/android-host/docs/workspaces.md#removable-card-investigation).
+
+
+The production removable-volume resolver and YA `/storage/<volume-id>` binding
+subsequently passed Motorola/exFAT physical writes, external hashes, process
+restart, broad-permission loss and disposable-app reset recovery. YA also
+exercises the same-runtime media invalidation handler and disappearing-source
+failure without private fallback. These are not physical hot-unplug or
+power-loss tests. YA owns lifecycle/UI qualification and its limits.
