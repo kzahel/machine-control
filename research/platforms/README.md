@@ -13,6 +13,7 @@ requiring one library to win everywhere.
 | [ChromeOS](chromeos.md) | Existing testbed is the North Star desktop reference |
 | [iOS](ios.md) | CoreDevice plus Agent Device/XCTest is already adopted |
 | [Android](android.md) | ADB is the mature foundation; semantic adapter shape remains to normalize |
+| [Steam Deck](steamdeck.md) | SteamOS Devkit administration and Gamescope panel control; native Steam idle presentation |
 
 These reports own research comparison, not lifecycle policy. The corresponding
 authoritative testbed remains the source of operational truth.

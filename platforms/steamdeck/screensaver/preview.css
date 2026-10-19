@@ -1,0 +1,12 @@
+:root { color-scheme: dark; font: 16px system-ui, sans-serif; background: #151718; color: #e4e7e5; }
+body { margin: 0; }
+main { max-width: 780px; margin: 48px auto; padding: 0 24px; }
+h1 { margin-bottom: 4px; font-size: 36px; letter-spacing: -1px; }
+p { color: #a7b1ac; line-height: 1.6; }
+iframe { display: block; width: 100%; aspect-ratio: 8 / 5; border: 1px solid #343b37; border-radius: 12px; background: #000; }
+form { display: grid; gap: 24px; margin: 28px 0; }
+label { display: grid; grid-template-columns: 1fr auto; gap: 12px; }
+input { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: #a8c6b7; }
+select { font: inherit; padding: 4px 8px; }
+output { color: #a8c6b7; font-variant-numeric: tabular-nums; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; padding: 16px; background: #202623; border-radius: 8px; }

@@ -105,6 +105,9 @@ doctor [--json]               Check local tools, SSH, Devkit, Steam, and panel
 power-status                  Report AC, suspend timers, Gamescope, and panel
 screen-off | screen-on        Sleep or wake only the built-in panel
 screen-shortcut install       Register a Gaming Mode screen-off shortcut
+screensaver install           Install the native Steam Quiet Ball screensaver
+screensaver configure         Change black/ball mode, diameter, gray level, speed
+screensaver status            Inspect installed files and configuration
 prepare-upload GAME_ID        Print the validated managed upload directory
 install MANIFEST              Upload and register a staged Linux game
 register MANIFEST             Update registration without uploading
@@ -119,6 +122,73 @@ shell                         Open an interactive Deck SSH session
 forcing the internal connector to sleep. The next mapped Deck button restores
 the panel. `screen-on` over SSH remains the recovery path. These commands do
 not suspend the Deck and do not affect a docked external display.
+
+## Automatic OLED screensaver
+
+Quiet Ball uses Steam's custom-screensaver support, introduced in the
+[October 13, 2026 client update](https://www.steamdeck.com/en/news).
+Steam owns inactivity detection, presentation, and dismissal on input. No
+separate game, input grab, root change, or background idle daemon is required.
+
+```bash
+bin/machine-control --target steamdeck testbed -- screensaver install
+bin/machine-control --target steamdeck testbed -- screensaver configure \
+  --mode ball --size 32 --brightness 10 --speed 40
+bin/machine-control --target steamdeck testbed -- screensaver configure --mode black
+bin/machine-control --target steamdeck testbed -- screensaver status
+```
+
+Install writes only the owned `quiet-ball` folder under Steam's
+`config/uioverrides/screensavers/`. Reinstall preserves existing configuration.
+Select **quiet-ball (User Created)** under **Settings > Customization**, and
+set **Start screensaver after** in Steam's power settings separately for AC
+and battery operation.
+Keep **Sleep after** disabled on AC if indefinite remote reachability is needed.
+Installation/status reports file presence, not proof of selection or activation.
+The installer does not edit Steam's live configuration or restart Steam.
+
+The background is pure black. Ball mode draws one circle with no text, logo,
+glow, or trails; black mode draws nothing and schedules no animation frames.
+Invalid or unavailable configuration fails to black. Changes apply on the next
+screensaver page load; dismiss and reactivate an already-running screensaver.
+
+| Option | Default | Range and meaning |
+| --- | --- | --- |
+| `--mode` | `ball` | `ball` or `black` |
+| `--size` | `32` | Diameter in CSS pixels, 1–512; capped at half the viewport's shorter side |
+| `--brightness` | `10` | Gray channel as a percentage of full white, 0–100; zero is entirely black |
+| `--speed` | `40` | Horizontal motion in CSS pixels per second, 1–200 |
+
+Brightness changes the ball's RGB value, not panel brightness or calibrated
+luminance. This screensaver keeps the display enabled and is distinct from
+`screen-off`, which physically sleeps the internal panel. It is an OLED-friendly
+presentation, not a guarantee against panel wear. Steam's video idle inhibitors
+and its **Show screensavers when playing a game** setting still apply.
+
+For a local interactive preview, serve `platforms/steamdeck/screensaver/` with
+`python3 -m http.server --bind 127.0.0.1` and open `/preview.html`. Its sliders
+affect only the preview and show the command for applying settings to the Deck.
+No third-party scripts, fonts, images, or network services are used.
+
+Validation:
+
+```bash
+cd platforms/steamdeck
+python3 -m unittest discover -s tests -v
+python3 -m compileall -q steamdeck.py scripts/screensaver-files.py tests
+# With Playwright installed and its separate Chromium downloaded:
+node tests/screensaver-browser.cjs
+```
+
+`PLAYWRIGHT_MODULE` may name an installed Playwright module. Browser checks
+verify exact black output, bounded dim-ball pixels, motion, edge reflections,
+resize behavior, configuration-failure fallback, and preview controls. The
+browser process is closed in cleanup. Native Steam selection, preview rendering,
+movement, automatic AC idle activation, and target-local keyboard dismissal
+were also observed on physical SteamOS hardware. The compositor
+capture contained only black and the moving gray circle; Steam scales CSS pixels
+with its UI scale. Physical controller dismissal, restart persistence, and
+behavior across client updates remain separate acceptance work.
 
 ## Environment
 

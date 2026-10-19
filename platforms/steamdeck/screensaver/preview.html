@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quiet Ball settings preview</title>
+  <link rel="stylesheet" href="preview.css">
+  <script src="preview.js" defer></script>
+</head>
+<body>
+  <main>
+    <h1>Quiet Ball</h1>
+    <p>A little motion. Almost all black.</p>
+    <iframe title="Screensaver preview" src="index.html"></iframe>
+    <form>
+      <label>Mode <select name="mode"><option value="ball">Bouncing ball</option><option value="black">All black</option></select></label>
+      <label>Ball diameter <output id="size-value">32 px</output><input name="size" type="range" min="1" max="160" value="32"></label>
+      <label>Ball brightness <output id="brightness-value">10%</output><input name="brightness" type="range" min="0" max="100" value="10"></label>
+      <label>Speed <output id="speed-value">40 px/s</output><input name="speed" type="range" min="1" max="200" value="40"></label>
+    </form>
+    <p>Brightness controls the ball’s gray level, not the panel brightness. Only the preview changes here.</p>
+    <p>Apply to the Deck:</p><pre id="command"></pre>
+  </main>
+</body>
+</html>

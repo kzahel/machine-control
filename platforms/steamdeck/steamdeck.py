@@ -20,6 +20,7 @@ from typing import Any, Sequence
 ROOT = Path(__file__).resolve().parent
 SCREEN_CONTROL = ROOT / "scripts" / "screen-control.sh"
 SCREEN_WAKE = ROOT / "scripts" / "screen-wake.py"
+SCREENSAVER_FILES = ROOT / "scripts" / "screensaver-files.py"
 MANIFEST_SCHEMA = "steamdeck-testbed.game.v1"
 GAME_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
 
@@ -305,6 +306,18 @@ class SteamDeck:
         remote_directory = self.deploy_screen_helpers()
         self.remote(f'{remote_directory}/screen-control.sh {shlex.quote(mode)}')
 
+    def screensaver(self, action: str, settings: dict[str, Any]) -> None:
+        request: dict[str, Any] = {"action": action, "settings": settings}
+        if action == "install":
+            request["assets"] = {
+                name: (ROOT / "screensaver" / name).read_text(encoding="utf-8")
+                for name in ("index.html", "main.js", "main.css")
+            }
+        self.remote(
+            ["python3", "-c", SCREENSAVER_FILES.read_text(encoding="utf-8")],
+            input_text=json.dumps(request),
+        )
+
 
 def validate_game_id(game_id: str) -> None:
     if not GAME_ID_PATTERN.fullmatch(game_id):
@@ -454,6 +467,14 @@ def parser() -> argparse.ArgumentParser:
     )
     screen_shortcut.add_argument("action", choices=["install"])
     screen_shortcut.add_argument("--game-id", default="screenoff")
+    screensaver = subcommands.add_parser(
+        "screensaver", help="install/configure the native Steam Quiet Ball screensaver"
+    )
+    screensaver.add_argument("action", choices=["install", "configure", "status"])
+    screensaver.add_argument("--mode", choices=["black", "ball"])
+    screensaver.add_argument("--size", type=float, help="ball diameter in CSS pixels (1–512)")
+    screensaver.add_argument("--brightness", type=float, help="ball gray level, percent (0–100)")
+    screensaver.add_argument("--speed", type=float, help="horizontal speed in CSS pixels/second (1–200)")
     prepare = subcommands.add_parser(
         "prepare-upload", help="print a validated Devkit upload directory"
     )
@@ -507,6 +528,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "screen-shortcut":
         print(install_screen_shortcut(deck, args.game_id))
+        return 0
+    if args.command == "screensaver":
+        settings = {
+            key: getattr(args, key)
+            for key in ("mode", "size", "brightness", "speed")
+            if getattr(args, key) is not None
+        }
+        if args.action == "status" and settings:
+            raise TestbedError("screensaver status does not accept settings")
+        if args.action == "configure" and not settings:
+            raise TestbedError("screensaver configure requires at least one setting")
+        for key, low, high in (("size", 1, 512), ("brightness", 0, 100), ("speed", 1, 200)):
+            if key in settings and not low <= settings[key] <= high:
+                raise TestbedError(f"{key} must be between {low} and {high}")
+        deck.screensaver(args.action, settings)
         return 0
     if args.command == "prepare-upload":
         print(deck.prepare_upload(args.game_id))
