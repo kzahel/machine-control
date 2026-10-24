@@ -55,3 +55,10 @@ asset completeness and identity without changing the controller's installed app.
 Pending monitored candidate validation and publication. Earlier development
 evidence belongs to [135](135-browser-file-dialog-crash.md) and
 [136](136-desktop-crash-hardening.md); it cannot qualify this release receipt.
+
+The first candidate was cancelled before promotion to correct shared Mac CI
+concurrency: a push and a reusable release workflow could replace each other's
+pending check. Include the caller workflow in the group while retaining serial
+runs within each caller/ref. Complete the notes for the pre-existing Windows
+native enrollment changes, keeping their incomplete signed lifecycle gate
+explicit. No release tag was created for the cancelled candidate.

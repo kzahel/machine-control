@@ -21,7 +21,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: macos-desktop-${{ github.ref }}
+  group: macos-desktop-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   check:

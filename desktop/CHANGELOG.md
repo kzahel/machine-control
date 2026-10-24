@@ -19,6 +19,14 @@
 - Require acceptance of the exact signed Mac package before publication,
   including real downloads/uploads, native file dialogs, Settings, Stop,
   forced-exit recovery and diagnostic export.
+- Replace the Windows covered-desktop setup file picker with native local
+  account password enrollment and update/removal actions. Enrollment does not
+  grant ordinary control; browser access while locked remains independent.
+  Full signed enrollment/unlock/relock acceptance is still pending.
+
+Targets all six desktop architectures. Mac ARM64 exact-package acceptance is
+required for this release. Intel/physical GUI execution and the new Windows
+enrollment lifecycle remain separate from build and signature verification.
 
 ## [0.6.8]
 
