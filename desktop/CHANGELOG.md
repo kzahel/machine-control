@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+## [0.6.9]
+
+- Fix the installed Mac app crashing while choosing a browser download or
+  upload location. Read keyboard-layout properties on the main thread while
+  keeping file-dialog and accessibility work on the provider worker.
+- Show when a previous Mac session ended without a clean shutdown, with
+  unfinished-operation context and build identity in diagnostics. Add an
+  explicit, reviewed OS crash-report export; ordinary exports still exclude
+  those reports and nothing is uploaded automatically.
+- Keep bounded diagnostics for thirty days on Mac, Windows and Linux.
+  Preserve matching Mac executable and native-framework symbols separately
+  from the installers.
+- Refuse old browser references and queued actions after access ends or
+  changes, including native-host reconnection and app restart.
+- Require acceptance of the exact signed Mac package before publication,
+  including real downloads/uploads, native file dialogs, Settings, Stop,
+  forced-exit recovery and diagnostic export.
+
 ## [0.6.8]
 
 - Add the default-off **Allow approved browser access while locked** setting

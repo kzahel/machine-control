@@ -1,5 +1,8 @@
 # Implementation Tacticals
 
+- [137 — Desktop 0.6.9 release](137-desktop-0.6.9-release.md): monitored
+  six-target CI, exact signed-package VM acceptance and public promotion.
+
 - [136 — Desktop crash hardening](136-desktop-crash-hardening.md): packaged
   acceptance gate, unclean-exit evidence, opt-in crash export, matching symbols,
   authority fences and seeded recovery testing.
