@@ -24,6 +24,21 @@ final class KeyboardInputTests: XCTestCase {
         wait(for: [completed], timeout: 10)
     }
 
+    func testUIThreadReadReturnsToWorkerAndPropagatesErrors() {
+        let done = expectation(description:"Thread-affine read completed")
+        DispatchQueue(label:"machine-control.affinity-regression").async {
+            enum Fixture: Error { case expected }
+            XCTAssertEqual(NativeUIThread.perform { Thread.isMainThread },true)
+            do {
+                let _: Bool = try NativeUIThread.perform { throw Fixture.expected }
+                XCTFail("Expected the original error")
+            } catch Fixture.expected {} catch { XCTFail("Unexpected error: \(error)") }
+            XCTAssertFalse(Thread.isMainThread, "Only the OS read moves to main")
+            done.fulfill()
+        }
+        wait(for:[done],timeout:5)
+        XCTAssertTrue(NativeUIThread.perform { Thread.isMainThread })
+    }
     private func layout(_ table: [UInt16: [UInt64: String]]) -> KeyboardLayoutSnapshot {
         KeyboardLayoutSnapshot(id: "fixture", inputSourceID: "fixture", keyboardType: 0) { code, flags in
             table[code]?[flags.rawValue]

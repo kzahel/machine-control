@@ -44,7 +44,12 @@ let retryDelayMs = 1000;
 let retryTimer = null;
 const attached = new Set();
 const generations = new Map();
+let referenceEpoch = crypto.randomUUID();
 let authorityGeneration = 0;
+const REQUEST_AUTHORITY = Symbol("requestAuthority");
+// Ordinary requests execute serially in residentMessages. Keep their arrival
+// authority across every await; a later grant cannot adopt queued old work.
+let activeRequestAuthority = null;
 let grantGeneration = null;
 const attaching = new Map();
 const indicators = new TabIndicators((tabId, method, params = {}) =>
@@ -112,9 +117,10 @@ async function connect() {
       devtools = false;
       cleanup = detachAll();
     }
+    if (message?.type === "request") message = { ...message, [REQUEST_AUTHORITY]: authorityGeneration };
     residentMessages = residentMessages.then(async () => {
       await cleanup;
-      if (port === connection) return onResidentMessage(message);
+      if (port === connection) return onResidentMessage(message, connection);
     }).catch(() => {});
   });
   port.onDisconnect.addListener(() => {
@@ -222,7 +228,7 @@ function updateBadge() {
   });
 }
 
-async function onResidentMessage(message) {
+async function onResidentMessage(message, connection) {
   if (message?.type === "grant") {
     const revoked = (granted || devtools) && !message.browser && !message.devtools;
     granted = message.browser === true;
@@ -256,15 +262,26 @@ async function onResidentMessage(message) {
   const reply = { type: "response", id: message.id };
   const startedAt = Date.now();
   try {
+    activeRequestAuthority = message[REQUEST_AUTHORITY];
+    requireRequestAuthority();
     reply.data = await perform(message.operation, message.params || {});
+    if (message.operation !== "browser.release") requireRequestAuthority();
     reply.ok = true;
   } catch (error) {
     reply.ok = false;
     reply.errorCode = error.code || "browser_operation_failed";
     reply.message = String(error.message || error);
+  } finally {
+    activeRequestAuthority = null;
   }
-  port?.postMessage(reply);
+  if (port === connection) connection.postMessage(reply);
   recordActivity(message.operation, message.params || {}, reply, startedAt);
+}
+
+function requireRequestAuthority() {
+  if (activeRequestAuthority !== authorityGeneration || (!granted && !devtools)) {
+    throw new ProviderError("approval_required", "Browser access changed; issue a new request");
+  }
 }
 
 async function perform(operation, params) {
@@ -352,11 +369,14 @@ async function navigate(params) {
   const url = checkURL(params.url);
   let tab;
   if (params.newTab === true) {
+    requireRequestAuthority();
     tab = await chrome.tabs.create({ url, active: params.active !== false });
+    requireRequestAuthority();
     await ensureAttached(tab.id, true);
   } else {
     const current = await resolveTab(params);
     await ensureAttached(current.id);
+    requireRequestAuthority();
     tab = await chrome.tabs.update(current.id, { url });
   }
   const loaded = await waitForLoad(tab.id);
@@ -392,16 +412,23 @@ async function ensureAttached(tabId, newTab = false) {
 }
 
 async function send(tabId, method, params = {}) {
+  requireRequestAuthority();
   await ensureAttached(tabId);
+  requireRequestAuthority();
   try {
-    return await chrome.debugger.sendCommand({ tabId }, method, params);
+    const result = await chrome.debugger.sendCommand({ tabId }, method, params);
+    requireRequestAuthority();
+    return result;
   } catch (error) {
+    if (error instanceof ProviderError) throw error;
     throw new ProviderError("cdp_command_failed", `${method}: ${error.message || error}`);
   }
 }
 
 async function detachAll() {
   authorityGeneration += 1;
+  referenceEpoch = crypto.randomUUID();
+  generations.clear();
   await streaming.closeAll("access_ended");
   const tabs = [...attached];
   attached.clear();
@@ -446,7 +473,7 @@ async function snapshot(params) {
     }
     const properties = propertyMap(node);
     const element = {
-      reference: `${tab.id}:${generation}:${node.backendDOMNodeId}`,
+      reference: `${tab.id}:${referenceEpoch}:${generation}:${node.backendDOMNodeId}`,
       role, name, interactive,
     };
     if (value) element.value = value;
@@ -459,10 +486,11 @@ async function snapshot(params) {
 }
 
 async function resolveReference(reference) {
-  const match = /^(\d+):(\d+):(\d+)$/.exec(String(reference || ""));
+  const match = /^(\d+):([a-f0-9-]{36}):(\d+):(\d+)$/.exec(String(reference || ""));
   if (!match) throw new ProviderError("invalid_reference", "reference is malformed");
-  const [tabId, generation, backendNodeId] = match.slice(1).map(Number);
-  if (generations.get(tabId) !== generation) {
+  const [, rawTab, epoch, rawGeneration, rawNode] = match;
+  const [tabId, generation, backendNodeId] = [rawTab, rawGeneration, rawNode].map(Number);
+  if (epoch !== referenceEpoch || generations.get(tabId) !== generation) {
     throw new ProviderError("stale_reference", "The page changed since this snapshot; take a new one");
   }
   return { tabId, backendNodeId };
@@ -517,6 +545,7 @@ async function waitReady(params) {
   const deadline = Date.now() + timeoutMs;
   let tab = await resolveTab(params);
   while (Date.now() < deadline) {
+    requireRequestAuthority();
     tab = await chrome.tabs.get(tab.id);
     if (tab.status === "complete" && !tab.discarded) {
       return { tab: tabJSON(tab), ready: true };
@@ -630,6 +659,7 @@ async function capture(params) {
 
 chrome.debugger.onDetach.addListener(({ tabId }) => {
   attached.delete(tabId);
+  generations.set(tabId, (generations.get(tabId) || 0) + 1);
   notifyPanels();
   indicators.release(tabId).catch(() => {});
 });

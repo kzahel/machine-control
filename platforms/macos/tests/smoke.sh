@@ -97,7 +97,8 @@ done
 /usr/bin/swiftc -typecheck guests/macos/keyboard-fixture/environment.swift
 /usr/bin/swiftc -typecheck -parse-as-library \
     guests/macos/keyboard-fixture/credential-probe.swift \
-    resident/Sources/macui/KeyboardInput.swift
+    resident/Sources/macui/KeyboardInput.swift \
+    resident/Sources/macui/NativeUIThread.swift
 /usr/bin/python3 -m py_compile ../../tests/macos/keyboard-layouts.py \
     ../../tests/macos/keyboard-browser-guest.py \
     ../../tests/macos/keyboard-apps-guest.py \

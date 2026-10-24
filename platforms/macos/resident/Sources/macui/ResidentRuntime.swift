@@ -70,6 +70,7 @@ final class ResidentRuntime {
         guard !stopped else { throw MacUIError.action("A stopped runtime must be relaunched") }
         guard !running else { return }
         try server.start()
+        server.broker.journal?.startRuntime(instance:server.socketPath)
         server.devtools.start()
         server.notice = AdmissionNotice(server:server)
         if server.broker.policy.grantMode == .approval { server.activity.enable() }

@@ -67,6 +67,7 @@ public func mcDesktopStart(_ path: UnsafePointer<CChar>) -> UnsafeMutablePointer
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification,
             object:nil, queue:.main) { [weak server] _ in
                 server?.revoke(reason:"operator_quit")
+                server?.broker.journal?.finishRuntime()
             }
         NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: .main) { _ in desktopMenuTracking = true }
         NotificationCenter.default.addObserver(forName: NSMenu.didEndTrackingNotification, object: nil, queue: .main) { _ in desktopMenuTracking = false }

@@ -46,6 +46,16 @@ try
     var expired = Path.Combine(paged.Root, "audit", "00000000000000000000-expired.jsonl");
     File.WriteAllText(expired, "{}\n"); File.SetLastWriteTimeUtc(expired, DateTime.UtcNow.AddDays(-31));
     paged.Event("storage.recovered"); Assert(!File.Exists(expired), "Age retention");
+    paged.Diagnostic("fixture", "failed");
+    foreach (var days in new[] { 8, 31 })
+    {
+        var diagnostic = Path.Combine(paged.Root, "diagnostics", $"00000000000000000000-{days}.jsonl");
+        File.WriteAllText(diagnostic, "{}\n"); File.SetLastWriteTimeUtc(diagnostic, DateTime.UtcNow.AddDays(-days));
+    }
+    paged.Diagnostic("fixture", "failed");
+    Assert(File.Exists(Path.Combine(paged.Root, "diagnostics", "00000000000000000000-8.jsonl")), "Previous-week diagnostics retained");
+    Assert(!File.Exists(Path.Combine(paged.Root, "diagnostics", "00000000000000000000-31.jsonl")), "Diagnostic age cap");
+    Assert(JsonSerializer.SerializeToElement(paged.Health, Contract.Json).GetProperty("diagnosticDays").GetInt32() == 30, "Thirty-day diagnostics");
     var blocked = Path.Combine(journalRoot, "blocked"); File.WriteAllText(blocked, "");
     var unavailable = new DesktopJournal(blocked);
     Assert(!unavailable.Begin("click", "x"), "Unavailable storage refuses intent");

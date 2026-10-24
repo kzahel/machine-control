@@ -72,6 +72,17 @@ tab PNGs, not whole-desktop captures. CDP acknowledgement establishes delivery,
 not independent application effect; the fixture's own marker supplies that
 oracle.
 
+**Current (2026-10-24), source-reviewed and contract-tested:** worker references
+now also carry a random authority epoch. It changes on native disconnect,
+release and grant replacement; a fresh worker starts with a new epoch. Numeric
+snapshot counters alone previously allowed old references to become valid
+again. Ordinary requests bind authority at message arrival and recheck it
+around CDP awaits and before navigation effects. A held-geometry regression
+proves that a revoked click cannot resume its mouse press under a new grant,
+and queued old work refuses. This fence does not undo input already delivered
+before revocation. [Tactical 136](../../docs/tactical/136-desktop-crash-hardening.md)
+owns packaged recovery evidence.
+
 **Current:** Ordinary browser operations and unrestricted script/CDP access
 have separate scopes. Stop, expiry, session loss, and provider replacement
 revoke or invalidate authority. Same-user shell access is not contained by this

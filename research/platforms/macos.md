@@ -825,6 +825,18 @@ storage-failure acceptance runs on the platform's dedicated VM. The shared
 platform/architecture results. This does not broaden provider privilege or
 signed-package acceptance.
 
+**Current (2026-10-24), bounded packaged `live-tested`:** a locally Developer ID
+signed full application passes native-host reconnection, Stop during a blocked
+browser navigation, and a forced app exit with LaunchAgent recovery, access Off,
+an unfinished-operation/build-UUID breadcrumb and stale-reference refusal.
+The first seeded soak passes 47 checks with nine real download/upload cycles
+and Settings recreation; the next full candidate passes 53 checks with ten
+cycles and actual operator crash-preview/export. [Tactical 136](../../docs/tactical/136-desktop-crash-hardening.md)
+owns final candidate results and limits, including 32 focused checks after the
+last marker-ownership fix. This adds owned-provider evidence;
+notarized publication, Intel/physical execution and Windows/Linux faults remain
+separate.
+
 **Current, bounded physical ARM64 evidence:** the unlocked admission notice
 retained independently observed fixture application/key/field focus; one native
 AX effect changed the fixture counter once. Two owners serialized, manual pause

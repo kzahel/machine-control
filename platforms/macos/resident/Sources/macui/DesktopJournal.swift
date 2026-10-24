@@ -6,13 +6,24 @@ import Foundation
 final class DesktopJournal {
     let root: URL
     private let runtime = UUID().uuidString.lowercased()
+    private var exitMarker: DesktopExitMarker?
+    private var exitTrackingAvailable = false
+    private var previousExitUnclean = false
+    private let build = DesktopBuildIdentity.current
+    var crashReports = DesktopCrashReports()
+    var previewClock: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    private var crashPreview: (id: String, expires: TimeInterval, value: [String:Any])?
     private var sequence = 0
     private var files: [String: URL] = [:]
     private(set) var errorCode: String?
     private(set) var historyGap = false
     private var diagnosticsAvailable = true
     private var debugUntil: TimeInterval = 0
-    func debug(_ enabled: Bool) { debugUntil = enabled ? ProcessInfo.processInfo.systemUptime + 900 : 0; event(enabled ? "diagnostics.debug.enabled" : "diagnostics.debug.disabled") }
+    func debug(_ enabled: Bool) {
+        lock.lock(); defer { lock.unlock() }
+        debugUntil = enabled ? ProcessInfo.processInfo.systemUptime + 900 : 0
+        event(enabled ? "diagnostics.debug.enabled" : "diagnostics.debug.disabled")
+    }
     private let segmentBytes: Int
     private let auditBytes: Int
     private let diagnosticBytes: Int
@@ -33,6 +44,44 @@ final class DesktopJournal {
         self.root = root ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/MachineControl")
         self.segmentBytes = segmentBytes; self.auditBytes = auditBytes; self.diagnosticBytes = diagnosticBytes
         _ = event("resident.start")
+    }
+    func startRuntime(instance: String) {
+        lock.lock(); defer { lock.unlock() }
+        do {
+            try privateDirectory(root)
+            try privateDirectory(root.appendingPathComponent("lifecycle"))
+            let marker = DesktopExitMarker(root:root, instance:instance, runtime:runtime)
+            let previous = try marker.start(build:build)
+            exitMarker = marker; exitTrackingAvailable = true
+            guard let previous, let prior = previous["runtimeId"] as? String else { return }
+            previousExitUnclean = true
+            var results: [String:Int] = [:], pending: [String] = []
+            for row in read("audit", limit:500) where row["runtimeId"] as? String == prior {
+                guard let request = row["requestId"] as? String else { continue }
+                if row["phase"] as? String == "result" { results[request, default:0] += 1 }
+                else if row["phase"] as? String == "intent" {
+                    if results[request, default:0] > 0 { results[request, default:0] -= 1 }
+                    else if pending.count < 10 {
+                        let operation = row["operation"] as? String ?? "unknown"
+                        pending.append(Self.known.contains(operation) ? operation : "unknown")
+                    }
+                }
+            }
+            let fields: [String:Any] = ["phase":"event", "operation":"resident.previous_exit_unclean",
+                "errorCode":"previous_exit_unclean", "previousRuntimeId":prior,
+                "build":build, "previousBuild":DesktopBuildIdentity.sanitized(previous["build"] as? [String:Any] ?? [:]),
+                "unfinishedOperations":pending, "historyWindowLimited":true,
+                "effect":"unknown", "uncertainty":"previous_runtime_termination_unobserved"]
+            _ = append("audit",fields); _ = append("diagnostics",fields)
+        } catch {
+            exitTrackingAvailable = false
+            diagnostic("resident.exit_tracking", code:"exit_marker_unavailable")
+        }
+    }
+    func finishRuntime() {
+        lock.lock(); defer { lock.unlock() }
+        do { try exitMarker?.finish(); exitMarker = nil }
+        catch { exitTrackingAvailable = false; diagnostic("resident.exit_tracking", code:"exit_marker_unavailable") }
     }
     private func privateDirectory(_ url: URL) throws {
         var st = stat()
@@ -55,7 +104,7 @@ final class DesktopJournal {
         var total: Int64 = 0
         for url in urls { var st = stat(); if lstat(url.path, &st) == 0 { total += st.st_size } }
         let cap = Int64(stream == "audit" ? auditBytes : diagnosticBytes)
-        let cutoff = Date().timeIntervalSince1970 - Double((stream == "audit" ? 30 : 7) * 86400)
+        let cutoff = Date().timeIntervalSince1970 - Double(30 * 86400)
         for url in urls {
             var st = stat(); guard lstat(url.path, &st) == 0 else { continue }
             if Double(st.st_mtimespec.tv_sec) >= cutoff && total <= cap { break }
@@ -136,9 +185,11 @@ final class DesktopJournal {
         if result["errorCode"] != nil && !(result["errorCode"] is NSNull) || debugUntil > ProcessInfo.processInfo.systemUptime { append("diagnostics", value) }
         return append("audit", value)
     }
-    var health: [String: Any] { ["available": errorCode == nil, "errorCode": errorCode.map { $0 as Any } ?? NSNull(),
+    var health: [String: Any] {
+        lock.lock(); defer { lock.unlock() }
+        return ["available": errorCode == nil, "errorCode": errorCode.map { $0 as Any } ?? NSNull(),
         "diagnosticsAvailable": diagnosticsAvailable, "historyGap": historyGap, "debugRemainingSeconds": max(0, Int(debugUntil - ProcessInfo.processInfo.systemUptime)),
-        "auditDays": 30, "diagnosticDays": 7, "auditBytes": auditBytes, "diagnosticBytes": diagnosticBytes] }
+        "crashReportsSupported": true, "unexpectedExitTrackingAvailable": exitTrackingAvailable, "previousExitUnclean": previousExitUnclean, "auditDays": 30, "diagnosticDays": 30, "auditBytes": auditBytes, "diagnosticBytes": diagnosticBytes] }
     private func read(_ stream: String, limit: Int, offset: Int = 0, operation: String = "", outcome: String = "") -> [[String: Any]] {
         var result: [[String: Any]] = []; var skipped = 0
         for path in paths(stream).reversed() {
@@ -181,17 +232,37 @@ final class DesktopJournal {
     }
     func preview() -> [String: Any] {
         lock.lock(); defer { lock.unlock() }
-        return ["schema": "machine-control-diagnostics-export/v0", "health": health, "audit": read("audit", limit: 500), "diagnostics": read("diagnostics", limit: 500)]
+        return ["schema": "machine-control-diagnostics-export/v0", "build": build, "health": health, "audit": read("audit", limit: 500), "diagnostics": read("diagnostics", limit: 500)]
     }
-    func export() throws -> String {
+    func previewWithCrashReports() -> [String:Any] {
+        var value = preview()
+        // OS report reads never hold the audit lock needed by Stop/revocation.
+        lock.lock(); let catalog = crashReports; lock.unlock()
+        value["osCrashReports"] = catalog.read()
+        let id = UUID().uuidString.lowercased()
         lock.lock(); defer { lock.unlock() }
+        crashPreview = (id, previewClock() + 300, value)
+        return ["previewId":id, "preview":value]
+    }
+    func cancelCrashPreview() { lock.lock(); defer { lock.unlock() }; crashPreview = nil }
+    func exportCrashPreview(id: String) throws -> String {
+        lock.lock()
+        guard let saved = crashPreview, saved.id == id, previewClock() < saved.expires else {
+            crashPreview = nil; lock.unlock(); throw MacUIError.action("crash_preview_expired")
+        }
+        crashPreview = nil; lock.unlock()
+        return try writeExport(saved.value)
+    }
+    func export() throws -> String { try writeExport(preview()) }
+    private func writeExport(_ value: [String:Any]) throws -> String {
         let dir = root.appendingPathComponent("exports"); try privateDirectory(dir)
         let path = dir.appendingPathComponent("diagnostics.json")
         let temporary = dir.appendingPathComponent(UUID().uuidString + ".tmp")
         let fd = open(temporary.path, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW | O_CLOEXEC, 0o600)
         guard fd >= 0 else { throw CocoaError(.fileWriteUnknown) }
         let file = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
-        try file.write(contentsOf: JSONSerialization.data(withJSONObject: preview(), options: [.sortedKeys]))
+        defer { unlink(temporary.path) }
+        try file.write(contentsOf: JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]))
         try file.synchronize()
         guard rename(temporary.path, path.path) == 0 else { throw CocoaError(.fileWriteUnknown) }
         return path.path

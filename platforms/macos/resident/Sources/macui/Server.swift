@@ -381,6 +381,7 @@ final class ResidentServer {
         handshakes.removeAll()
         if listener >= 0 { Darwin.close(listener); listener = -1; unlink(socketPath) }
         activity.stop()
+        broker.journal?.finishRuntime()
     }
     deinit { stop() }
 
@@ -985,6 +986,7 @@ func runResident(socketPath: String) throws -> Never {
 /// window server list can omit some system-hosted windows such as status
 /// items, so AppKit's own windows are included as well.
 func ownWindowFrames(_ processID: pid_t, extra: [NSWindow] = [], excluding: Set<Int> = []) -> [CGRect] {
+    precondition(Thread.isMainThread)
     let listed = (CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID)
         as? [[String: Any]] ?? []).compactMap { window -> CGRect? in
         guard (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == processID,

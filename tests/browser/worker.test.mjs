@@ -17,6 +17,10 @@ test("real worker cleans markers on resident revocation, release and disconnect"
   let next = 1;
   let releaseHeld;
   let heldStarted = false;
+  let holdQuads = false;
+  let releaseQuads;
+  let presses = 0;
+  const inserted = [];
   const originalInterval = globalThis.setInterval;
   const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
   globalThis.setInterval = () => 0;
@@ -51,6 +55,16 @@ test("real worker cleans markers on resident revocation, release and disconnect"
       async detach({ tabId }) { attached.delete(tabId); chrome.debugger.onDetach.emit({ tabId }); },
       async sendCommand({ tabId }, method, params) {
         assert.ok(attached.has(tabId));
+        if (method === "Accessibility.getFullAXTree") return { nodes: [
+          { backendDOMNodeId: 7, role: { value: "button" }, name: { value: "Fixture" } },
+        ] };
+        if (method === "DOM.getContentQuads") {
+          const result = { quads: [[0, 0, 20, 0, 20, 20, 0, 20]] };
+          if (holdQuads) return new Promise((resolve) => { releaseQuads = () => resolve(result); });
+          return result;
+        }
+        if (method === "Input.dispatchMouseEvent" && params.type === "mousePressed") presses++;
+        if (method === "Input.insertText") inserted.push(params.text);
         if (method === "Runtime.fixturePending") {
           heldStarted = true;
           return new Promise((resolve) => { releaseHeld = resolve; });
@@ -106,11 +120,31 @@ test("real worker cleans markers on resident revocation, release and disconnect"
     assert.equal(JSON.stringify(panel.states).includes("private words"), false);
     native.onMessage.emit({ type: "session.open", id: "browser-only", tabId: tab });
     await wait(() => replies.find((reply) => reply.type === "session.failed" && reply.id === "browser-only"));
+    const oldReference = (await request("browser.snapshot", { tabId: tab })).data.elements[0].reference;
     // Same scopes with a new resident grant must clear prior control state.
     native.onMessage.emit({ type: "grant", browser: true, devtools: true, grantGeneration: "second" });
     await request("browser.tabs");
     assert.equal(markers.get(tab), false);
     assert.equal(tabs.get(tab).groupId, -1);
+    assert.equal((await request("browser.click", { reference: oldReference })).errorCode, "stale_reference");
+    const freshReference = (await request("browser.snapshot", { tabId: tab })).data.elements[0].reference;
+    assert.equal((await request("browser.click", { reference: oldReference })).errorCode, "stale_reference");
+    assert.equal((await request("browser.click", { reference: freshReference })).ok, true);
+    assert.equal(presses, 1);
+    // Revoke while geometry is pending. Neither the in-flight click nor a
+    // request queued under its old grant may resume with fresh authority.
+    holdQuads = true;
+    const pendingClick = request("browser.click", { reference: freshReference });
+    await wait(() => releaseQuads);
+    const queuedType = request("browser.type", { tabId: tab, text: "old grant" });
+    native.onMessage.emit({ type: "grant", browser: true, devtools: true, grantGeneration: "third" });
+    releaseQuads();
+    assert.equal((await pendingClick).errorCode, "approval_required");
+    assert.equal((await queuedType).errorCode, "approval_required");
+    assert.equal(presses, 1, "revoked click must not press after its geometry reply");
+    assert.equal(inserted.includes("old grant"), false, "queued old-grant text must not be inserted");
+    holdQuads = false;
+    assert.equal((await request("browser.capture", { tabId: tab })).ok, true);
     native.onMessage.emit({ type: "session.open", id: "raw", tabId: tab });
     await wait(() => replies.find((reply) => reply.type === "session.opened" && reply.id === "raw"));
     native.onMessage.emit({ type: "session.command", id: "raw", cmdId: 42, method: "Runtime.enable", params: {} });

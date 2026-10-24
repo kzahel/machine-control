@@ -108,6 +108,7 @@ fn main() {
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
         let root = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
         let sources = root.join("../../platforms/macos/resident/Sources/macui");
+        println!("cargo:rerun-if-changed={}", sources.display());
         let native = root.join("native");
         let sudo = root.join("../../platforms/macos/sudo");
         for file in [
@@ -188,6 +189,9 @@ fn main() {
             .args([
                 "swiftc",
                 "-O",
+                "-gline-tables-only",
+                "-file-compilation-dir",
+                "/source",
                 "-emit-library",
                 "-module-name",
                 "MCResident",
@@ -199,7 +203,12 @@ fn main() {
                 "@rpath/MCResident.framework/MCResident",
                 "-o",
             ])
-            .arg(framework.join("MCResident"));
+            .arg(framework.join("MCResident"))
+            .arg("-debug-prefix-map")
+            .arg(format!(
+                "{}=/source",
+                repository.canonicalize().unwrap().display()
+            ));
         let mut files: Vec<_> = fs::read_dir(&sources)
             .unwrap()
             .map(|e| e.unwrap().path())
@@ -217,6 +226,16 @@ fn main() {
         println!("cargo:rerun-if-changed={}", bridge.display());
         swift.arg(bridge);
         run(&mut swift);
+        // Swift already ran dsymutil before deleting its temporary objects.
+        // Preserve that completed sidecar outside the shipped framework.
+        let symbols = native.join("symbols");
+        fs::create_dir_all(&symbols).unwrap();
+        let saved = symbols.join("MCResident.dSYM");
+        if saved.exists() {
+            fs::remove_dir_all(&saved).unwrap();
+        }
+        fs::rename(framework.join("MCResident.dSYM"), saved)
+            .expect("Swift must produce native framework symbols");
         fs::write(framework.join("Info.plist"), r#"<?xml version="1.0"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>org.machine-control.resident.framework</string><key>CFBundleExecutable</key><string>MCResident</string><key>CFBundlePackageType</key><string>FMWK</string><key>CFBundleVersion</key><string>1</string></dict></plist>"#).unwrap();
         let probe = root.join("../../platforms/macos/guests/macos/unlock/Probe.m");
         println!("cargo:rerun-if-changed={}", probe.display());

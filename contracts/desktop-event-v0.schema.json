@@ -5,6 +5,7 @@
   "type": "object",
   "required": ["schema", "stream", "eventId", "at", "component", "phase", "operation"],
   "additionalProperties": false,
+  "$defs": {"buildIdentity": {"type": "object","additionalProperties": false,"properties": {"sourceRevision": {"type": ["string","null"],"pattern": "^[a-f0-9]{40}$"},"executableUUID": {"type": ["string","null"],"format": "uuid"},"nativeFrameworkUUID": {"type": ["string","null"],"format": "uuid"}}}},
   "properties": {
     "schema": {"const": "machine-control-desktop-event/v0"},
     "stream": {"enum": ["audit", "diagnostics"]},
@@ -27,6 +28,11 @@
     "effect": {"type": ["string", "null"], "maxLength": 160},
     "uncertainty": {"type": ["string", "null"], "maxLength": 160},
     "errorCode": {"type": ["string", "null"], "maxLength": 160},
-    "elapsedMs": {"type": "integer", "minimum": 0}
+    "elapsedMs": {"type": "integer", "minimum": 0},
+    "build": {"$ref": "#/$defs/buildIdentity"},
+    "previousBuild": {"$ref": "#/$defs/buildIdentity"},
+    "previousRuntimeId": {"type": "string","format": "uuid"},
+    "unfinishedOperations": {"type": "array","maxItems": 10,"items": {"type": "string","maxLength": 160}},
+    "historyWindowLimited": {"type": "boolean"}
   }
 }

@@ -90,6 +90,20 @@ class JournalTests(unittest.TestCase):
         journal.event("storage.recovered")
         self.assertFalse(old.exists())
 
+    def test_diagnostics_retain_previous_weeks_with_size_cap(self):
+        journal = Journal(self.root)
+        journal.diagnostic("fixture", "failed")
+        paths = {}
+        for days in (8, 31):
+            path = self.root / f"diagnostics/00000000000000000000-{days}.jsonl"
+            path.write_text('{}\n')
+            os.utime(path, (time.time() - days * 86400,) * 2)
+            paths[days] = path
+        journal.diagnostic("fixture", "failed")
+        self.assertTrue(paths[8].exists())
+        self.assertFalse(paths[31].exists())
+        self.assertEqual(journal.health["diagnosticDays"], 30)
+
     def test_partial_record_and_symlink_refused(self):
         journal = Journal(self.root)
         path = next((self.root / "audit").glob("*.jsonl"))

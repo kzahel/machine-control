@@ -90,7 +90,7 @@ pub fn record(code: &str) {
             .sum();
         for f in files {
             let m = f.metadata()?;
-            let expired = m.modified()?.elapsed().unwrap_or_default().as_secs() > 7 * 86400;
+            let expired = m.modified()?.elapsed().unwrap_or_default().as_secs() > 30 * 86400;
             if !expired && total <= 52_428_800 - 4096 {
                 break;
             }

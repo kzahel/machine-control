@@ -11,6 +11,14 @@ package set; production installed replacement remains separate.
 [Tactical 107](../docs/tactical/107-runtime-and-presentation.md) coordinates the
 migration.
 
+**Current (Mac crash hardening):** short input-source reads marshal to the main
+thread while AX/provider waits stay on workers. OS-report preview/export uses
+the bounded operator dependency and leaves ordinary audit/Stop independent of
+report scanning. Packaged recovery tests cover native-host loss, Stop during a
+held provider, access-Off recovery after forced termination and stale-reference
+refusal. [Tactical 136](../docs/tactical/136-desktop-crash-hardening.md) owns exact
+candidate evidence and the publication receipt gate.
+
 ## Current boundary and evidence
 
 **Current:** The common CLI is a client of the target resident; it is not a

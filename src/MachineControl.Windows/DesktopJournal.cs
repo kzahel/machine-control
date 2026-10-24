@@ -119,7 +119,7 @@ internal sealed class DesktopJournal
                 if (_root == DefaultRoot) PrivateDirectory(Path.GetDirectoryName(_root)!);
                 PrivateDirectory(_root);
                 var dir = Path.Combine(_root, stream); PrivateDirectory(dir);
-                Prune(dir, stream == "audit" ? 30 : 7, stream == "audit" ? _auditBytes : _diagnosticBytes);
+                Prune(dir, 30, stream == "audit" ? _auditBytes : _diagnosticBytes);
                 if (!_files.TryGetValue(stream, out var path) || !File.Exists(path) || new FileInfo(path).Length >= _segmentBytes)
                 {
                     path = Path.Combine(dir, ((DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1000).ToString("D20")) + "-" + _runtime + ".jsonl");
@@ -135,7 +135,7 @@ internal sealed class DesktopJournal
                 var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(value, Contract.Json) + "\n");
                 using var file = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
                 file.Write(bytes); file.Flush(true);
-                Prune(dir, stream == "audit" ? 30 : 7, stream == "audit" ? _auditBytes : _diagnosticBytes);
+                Prune(dir, 30, stream == "audit" ? _auditBytes : _diagnosticBytes);
                 if (stream == "audit") _error = null;
                 else _diagnosticsAvailable = true;
                 return true;
@@ -158,7 +158,7 @@ internal sealed class DesktopJournal
             total -= file.Length; file.Delete();
         }
     }
-    internal object Health => new { available = Available, errorCode = _eventGap ? "audit_event_queue_full" : _error, auditDays = 30, diagnosticDays = 7, auditBytes = _auditBytes, diagnosticBytes = _diagnosticBytes, diagnosticsAvailable = _diagnosticsAvailable, historyGap = _historyGap, debugRemainingSeconds = Math.Max(0, (int)(_debugUntil - DateTimeOffset.UtcNow).TotalSeconds) };
+    internal object Health => new { available = Available, errorCode = _eventGap ? "audit_event_queue_full" : _error, auditDays = 30, diagnosticDays = 30, auditBytes = _auditBytes, diagnosticBytes = _diagnosticBytes, diagnosticsAvailable = _diagnosticsAvailable, historyGap = _historyGap, debugRemainingSeconds = Math.Max(0, (int)(_debugUntil - DateTimeOffset.UtcNow).TotalSeconds) };
     internal object Query(int offset = 0, string operation = "", string outcome = "", string stream = "audit")
     {
         lock (_gate)

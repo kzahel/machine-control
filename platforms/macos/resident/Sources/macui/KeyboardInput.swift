@@ -18,6 +18,7 @@ struct KeyboardLayoutSnapshot {
     let translate: (CGKeyCode, CGEventFlags) -> String?
 
     static func sourceID(_ source: TISInputSource) -> String {
+        precondition(Thread.isMainThread)
         guard let value = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) else { return "unknown" }
         return Unmanaged<CFString>.fromOpaque(value).takeUnretainedValue() as String
     }
@@ -28,7 +29,7 @@ struct KeyboardLayoutSnapshot {
         // run on the provider worker. Copy only the layout snapshot on main;
         // AX calls and panel waits must stay off the UI queue.
         if !Thread.isMainThread {
-            return try DispatchQueue.main.sync { try current() }
+            return try NativeUIThread.perform { try current() }
         }
         let selected = TISCopyCurrentKeyboardInputSource().takeRetainedValue()
         let source = TISCopyCurrentKeyboardLayoutInputSource().takeRetainedValue()

@@ -241,15 +241,18 @@ Windows ARM64/x64 publishes before committing runtime changes.
 
 ## Release workflow
 
-Desktop releases default to fire-and-forget. Prepare the versioned changelog,
-commit and push main, then run `desktop/scripts/release.sh VERSION` once.
+Desktop publication defaults to fire-and-forget after candidate acceptance.
+Prepare the versioned changelog and commit/push main. From 0.6.9, build the
+unified candidate and run the claimed packaged Mac acceptance harness at its
+exact clean source; then run `desktop/scripts/release.sh VERSION CANDIDATE_RUN_ID
+ACCEPTANCE_JSON` once. Earlier releases retain the historical one-argument flow.
 Report that publication is queued with the workflow link and end the task;
 CI owns builds, signing, package verification, and automatic publication.
-Do not wait for CI, retry failed builds, run a separate candidate first, or
+Do not wait for publication, retry failed builds, or
 perform post-publication download and installation checks unless the user
 requests monitoring or acceptance. Report synchronous script failures.
 See [the release guide](release/desktop.md) for the automated pipeline and
-optional candidate workflow.
+required packaged candidate evidence and earlier optional candidate workflow.
 
 ## Documentation workflow
 

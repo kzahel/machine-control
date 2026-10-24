@@ -99,6 +99,8 @@ type State = {
     available: boolean;
     errorCode?: string;
     debugRemainingSeconds?: number;
+    crashReportsSupported?: boolean;
+    previousExitUnclean?: boolean;
   };
   version: string;
   socket: string;
@@ -165,6 +167,7 @@ async function native(command: Record<string, unknown>) {
     extensionPath?: string;
     history?: History;
     preview?: unknown;
+    previewId?: string;
     path?: string;
     setupPending?: boolean;
   }>("operator_command", {
@@ -193,6 +196,7 @@ function App() {
   const [historyOutcome, setHistoryOutcome] = useState("");
   const [historyStream, setHistoryStream] = useState("audit");
   const [exportPreview, setExportPreview] = useState<unknown>();
+  const [crashPreviewId, setCrashPreviewId] = useState<string>();
   const loadHistory = async () => {
     try {
       const r = await native({
@@ -1227,6 +1231,12 @@ function App() {
         )}
         {page === "activity" && (
           <>
+            {state?.logging?.previousExitUnclean && (
+              <p role="status">
+                The previous session ended without a clean shutdown. Review
+                diagnostics for context.
+              </p>
+            )}
             <section
               className="group history-controls"
               aria-label="Activity filters"
@@ -1266,7 +1276,7 @@ function App() {
               <button onClick={() => void loadHistory()}>Refresh</button>
             </section>
             <p className="row-status">
-              Audit: 30 days / 100 MB. Diagnostics: 7 days / 50 MB. Oldest
+              Audit: 30 days / 100 MB. Diagnostics: 30 days / 50 MB. Oldest
               entries are removed when either limit is reached.
             </p>
             {(history?.health.available === false ||
@@ -1366,12 +1376,29 @@ function App() {
               <button
                 onClick={() =>
                   void native({ method: "logs.preview" })
-                    .then((r) => setExportPreview(r.preview))
+                    .then((r) => {
+                      setCrashPreviewId(undefined);
+                      setExportPreview(r.preview);
+                    })
                     .catch((e) => setError(String(e)))
                 }
               >
                 Preview diagnostic export
               </button>
+              {state?.logging?.crashReportsSupported && (
+                <button
+                  onClick={() =>
+                    void native({ method: "logs.crashes.preview" })
+                      .then((r) => {
+                        setCrashPreviewId(r.previewId);
+                        setExportPreview(r.preview);
+                      })
+                      .catch((e) => setError(String(e)))
+                  }
+                >
+                  Preview with crash reports
+                </button>
+              )}
             </div>
             {exportPreview !== undefined && (
               <section
@@ -1382,12 +1409,27 @@ function App() {
                   Includes up to 500 recent events from each stream. Saved
                   locally; nothing is uploaded.
                 </p>
+                {crashPreviewId && (
+                  <p>
+                    Includes matching OS crash reports, which can contain
+                    private paths and system details. Review before saving. This
+                    preview expires after five minutes.
+                  </p>
+                )}
                 <pre>{JSON.stringify(exportPreview, null, 2)}</pre>
                 <button
                   onClick={() =>
-                    void native({ method: "logs.export" })
+                    void native(
+                      crashPreviewId
+                        ? {
+                            method: "logs.crashes.export",
+                            previewId: crashPreviewId,
+                          }
+                        : { method: "logs.export" },
+                    )
                       .then((r) => {
                         setNotice(`Diagnostics saved to ${r.path}`);
+                        setCrashPreviewId(undefined);
                         setExportPreview(undefined);
                       })
                       .catch((e) => setError(String(e)))
@@ -1395,7 +1437,16 @@ function App() {
                 >
                   Save diagnostics
                 </button>
-                <button onClick={() => setExportPreview(undefined)}>
+                <button
+                  onClick={() => {
+                    if (crashPreviewId)
+                      void native({ method: "logs.crashes.cancel" }).catch(
+                        () => {},
+                      );
+                    setCrashPreviewId(undefined);
+                    setExportPreview(undefined);
+                  }}
+                >
                   Cancel
                 </button>
               </section>

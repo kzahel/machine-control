@@ -285,7 +285,8 @@ def main():
         command(["/usr/bin/codesign", "--force", "--sign", "-", app.parent])
         command(["/usr/bin/xcrun", "swiftc", source / "environment.swift", "-o", stage / "environment"])
         command(["/usr/bin/xcrun", "swiftc", "-parse-as-library", source / "credential-probe.swift",
-                 repo / "platforms/macos/resident/Sources/macui/KeyboardInput.swift", "-o", stage / "credential-probe"])
+                 repo / "platforms/macos/resident/Sources/macui/KeyboardInput.swift",
+                 repo / "platforms/macos/resident/Sources/macui/NativeUIThread.swift", "-o", stage / "credential-probe"])
         (stage / "keyboard-layouts.py").write_bytes(Path(__file__).read_bytes())
         (stage / "keyboard-browser-guest.py").write_bytes(Path(__file__).with_name("keyboard-browser-guest.py").read_bytes())
         (stage / "keyboard-apps-guest.py").write_bytes(Path(__file__).with_name("keyboard-apps-guest.py").read_bytes())

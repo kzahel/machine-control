@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [136 — Desktop crash hardening](136-desktop-crash-hardening.md): packaged
+  acceptance gate, unclean-exit evidence, opt-in crash export, matching symbols,
+  authority fences and seeded recovery testing.
+
 - [135 — Browser file-dialog crash investigation](135-browser-file-dialog-crash.md):
   audit/OS-report correlation, main-queue keyboard-layout lookup and real
   browser download/upload/native-panel smoke coverage.

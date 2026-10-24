@@ -2,6 +2,19 @@
 
 Topic: `native-distribution`
 
+**Decision:** From desktop 0.6.9, publication requires an exact signed Mac ARM64
+candidate's packaged VM acceptance receipt, including seeded browser/dialog
+soak, Settings, Stop, native-host recovery, forced-exit recovery, stale-reference
+refusal and operator diagnostic export. The main-only publisher verifies source,
+workflow attempt and archive hash. The controller attests execution; this is
+not hardware attestation. Raw target/log/crash evidence stays private.
+Hosted CI has no prepared-VM controller runner; a maintainer runs the claimed
+controller harness before promoting those same bytes. Intel, Windows and Linux
+GUI execution gaps remain explicit. [Release guidance](../release/desktop.md)
+owns the workflow; [Tactical 136](../docs/tactical/136-desktop-crash-hardening.md)
+owns the implementation record. Mac signed builds also retain matching,
+nonempty executable/framework symbols separately from product artifacts.
+
 Status: signed Windows headless workstation preview remains available; YA now
 consumes the installed desktop CLI and has retired its component lifecycle.
 Unified Mac/Windows/Linux desktop `0.6.8` is published; package

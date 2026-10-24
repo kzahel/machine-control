@@ -7,6 +7,23 @@ extension ResidentRuntime {
     /// returns to the coordinator only while the initiating intent is live.
     func operatorCommand(_ command: [String:Any], completion: @escaping ([String:Any]) -> Void) {
         precondition(Thread.isMainThread)
+        if let method = command["method"] as? String, ["logs.preview", "logs.export", "logs.crashes.preview", "logs.crashes.export"].contains(method) {
+            final class Reply { var value: [String:Any] = [:] }
+            let reply = Reply()
+            guard let journal = server.broker.journal else { completion(["ok":false, "error":"Logging unavailable"]); return }
+            operatorDependency.perform(timeout:5, work:{ _ in
+                switch method {
+                case "logs.preview": reply.value = ["preview":journal.preview()]
+                case "logs.export": reply.value = ["path":try journal.export()]
+                case "logs.crashes.preview": reply.value = journal.previewWithCrashReports()
+                default: reply.value = ["path":try journal.exportCrashPreview(id:command["previewId"] as? String ?? "")]
+                }
+            }, commit:{}, completion:{ result in
+                guard result["ok"] as? Bool == true else { completion(result); return }
+                completion(reply.value.merging(["ok":true]) { _, new in new })
+            })
+            return
+        }
         guard command["method"] as? String == "resume" else {
             completion(operatorCommand(command)); return
         }
@@ -72,6 +89,7 @@ extension ResidentRuntime {
                 case "logs.query":
                     return ["ok": true, "history": server.broker.journal?.query(offset: command["offset"] as? Int ?? 0, operation: command["operation"] as? String ?? "", outcome: command["outcome"] as? String ?? "", stream: command["stream"] as? String ?? "audit") ?? [:]]
                 case "logs.debug": server.broker.journal?.debug(command["enabled"] as? Bool == true)
+                case "logs.crashes.cancel": server.broker.journal?.cancelCrashPreview()
                 case "logs.preview": return ["ok": true, "preview": server.broker.journal?.preview() ?? [:]]
                 case "logs.export": return ["ok": true, "path": try server.broker.journal?.export() ?? ""]
                 case "logs.location": return ["ok": true, "path": server.broker.journal?.root.path ?? ""]
@@ -103,6 +121,7 @@ extension ResidentRuntime {
                     server.broker.refreshAvailability()
                     server.service.invalidateReferences()
                     server.browser.closeAllSessions(reason:"desktop_trust_changed")
+                case "finish_exit": server.broker.journal?.finishRuntime()
                 case "prepare_exit":
                     operatorDependency.cancel("operator_quit")
                     server.revoke(reason:"operator_quit")

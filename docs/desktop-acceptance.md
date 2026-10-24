@@ -64,6 +64,18 @@ owns the comparison, fixture corrections and restoration evidence. The corrected
 package is unreleased; this does not establish notarized updater replacement,
 Intel/physical execution or a complete GUI regression for every release.
 
+**Current, unreleased full-app hardening:** the next locally Developer ID signed
+application passes 53 checks with ten seeded download/upload cycles, Settings
+recreation, native-host loss/reconnection, blocked-provider Stop, a planned app
+termination with access-Off recovery, stale-reference refusal and real Settings
+crash-report preview/export. The earlier hardening candidate passes 47 checks
+with nine cycles. Both restore app/policy/operator state and suspended power;
+raw evidence stays private. [Tactical 136](tactical/136-desktop-crash-hardening.md)
+owns exact limits; a final marker-lock package passes all 32 focused recovery/
+export checks and three cycles. From 0.6.9, publication requires a controller-attested receipt
+bound to the exact signed CI package; these local development trials cannot
+qualify that release receipt.
+
 ## Runtime and presentation candidate acceptance
 
 **Current:** personal, minimal and appliance presentation are implemented on

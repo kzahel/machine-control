@@ -19,7 +19,7 @@ survives app restart and replacement because it lives outside the app bundle:
 Each root contains `audit`, `diagnostics`, and operator-created `exports`.
 Directories and files restrict access to their owning user; Windows uses a
 current-user ACL. Audit retains at most 30 days and 100 MiB; diagnostics retains
-at most 7 days and 50 MiB. Segments rotate at about 1 MiB. Retention prunes the
+at most 30 days and 50 MiB. Segments rotate at about 1 MiB. Retention prunes the
 oldest files. These locations survive package replacement; this slice does not
 add an uninstall purge or a Clear history action. Manual deletion removes
 history and cannot be inferred as a complete gap report.
@@ -53,8 +53,18 @@ The retained history identifies operations around a failure; it is not a
 cross-platform crash-dump collector. A fatal native assertion, signal, Rust
 panic, or webview failure is not guaranteed to produce a diagnostic event or
 stack trace. An unfinished operation intent remains useful, but does not by
-itself prove a crash or whether an action took effect. The app's export does
-not include OS crash reports, raw companion stderr, or debug symbols.
+itself prove a crash or whether an action took effect. Ordinary export excludes
+OS crash reports, raw companion stderr, and debug symbols.
+
+On macOS, reaching the serving state writes a private per-instance marker.
+Clean termination removes only that runtime's marker. The next launch records
+`resident.previous_exit_unclean` if the preceding marker remains, including
+validated executable/framework UUIDs, source revision, and up to ten unfinished
+operation names from the last 500 audit records. Activity shows an unclean-exit
+notice. Forced termination, an OS shutdown, and a crash can all leave a marker;
+this is evidence of an unobserved exit, not a crash classification. Tracking
+failure is visible in logging health. It does not disable Stop or ordinary
+audit. Windows/Linux unclean-exit classification remains separate work.
 
 On macOS, also inspect `~/Library/Logs/DiagnosticReports` for a matching
 `macui-*.ips` or Machine Control report. Correlate its process, timestamp and
@@ -68,12 +78,30 @@ After a failure, preserve the matching OS report and the audit/diagnostic
 segments privately before retention removes context. Record the app version,
 OS/browser versions, approximate time and operation, and whether the app
 exited, restarted or remained running with one failed request. Diagnostics
-retain seven days; audit retains thirty days subject to their byte limits.
-Debug mode adds result metadata, not crash stacks. Review OS reports separately
-before sharing: they can contain private paths and machine/process information
-that the app's payload-minimized export deliberately omits.
+retain thirty days subject to their byte limits. Debug mode adds result
+metadata, not crash stacks.
+
+On macOS, **Preview with crash reports** explicitly reads the current user's
+fixed DiagnosticReports location. It includes at most three matching
+`macui-*.ips` reports from the last thirty days, each no larger than 2 MiB.
+Unrelated bundle identities, links and oversized/invalid reports are skipped.
+The preview explains that raw reports can contain private paths and system
+details. Save writes the exact reviewed snapshot, even if the source report
+changes afterward. The one-use preview expires after five minutes; Cancel
+discards it. Nothing is uploaded. These methods are private operator commands,
+absent from the agent socket. Standard previews/exports never scan OS reports.
+
+Signed CI builds retain separate executable and native-framework dSYM archives
+for ninety days, keyed by source/version and Mach-O UUID. Collection rejects
+empty debug information as well as mismatched UUIDs; final signing is followed
+by another verification. Symbols are CI artifacts, not public installer assets.
 
 The [browser/file-dialog smoke runner](../tests/macos/browser-file-dialogs.py)
 checks real download/upload effects, resident PID/generation continuity and
 new OS crash reports on a dedicated Mac VM. Its bounded coverage does not
-establish crash-free behavior on other machines or platforms.
+establish crash-free behavior on other machines or platforms. The controller
+[packaged acceptance runner](../tests/macos/packaged-acceptance.py) installs the
+actual app on a claimed VM, restores app/policy/operator state and power, and
+supports a bounded seeded soak plus native-host, Stop and forced-exit faults.
+Its operation timeline excludes request fields and response payloads. Keep all
+raw evidence outside the public checkout.

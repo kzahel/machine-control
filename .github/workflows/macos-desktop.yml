@@ -3,9 +3,9 @@ run-name: macOS desktop ${{ inputs.version || github.sha }}
 on:
   push:
     branches: [main]
-    paths: ['desktop/**', 'tests/release/test_desktop_release.py', 'tests/release/test_changelog.py', 'release/changelog.py', 'platforms/macos/resident/**', 'platforms/macos/guests/macos/unlock/**', '.github/workflows/macos-desktop.yml', 'release/with-macos-signing.sh']
+    paths: ['desktop/**', 'tests/release/**', 'tests/macos/packaged-acceptance*.py', 'tests/macos/browser-file-dialogs.py', 'providers/chrome-extension/**', 'release/changelog.py', 'platforms/macos/resident/**', 'platforms/macos/guests/macos/unlock/**', '.github/workflows/macos-desktop.yml', 'release/with-macos-signing.sh']
   pull_request:
-    paths: ['desktop/**', 'tests/release/test_desktop_release.py', 'tests/release/test_changelog.py', 'release/changelog.py', 'platforms/macos/resident/**', 'platforms/macos/guests/macos/unlock/**', '.github/workflows/macos-desktop.yml', 'release/with-macos-signing.sh']
+    paths: ['desktop/**', 'tests/release/**', 'tests/macos/packaged-acceptance*.py', 'tests/macos/browser-file-dialogs.py', 'providers/chrome-extension/**', 'release/changelog.py', 'platforms/macos/resident/**', 'platforms/macos/guests/macos/unlock/**', '.github/workflows/macos-desktop.yml', 'release/with-macos-signing.sh']
   workflow_dispatch:
     inputs:
       version:
@@ -54,6 +54,8 @@ jobs:
       - run: |
           python3 -m unittest discover -s tests/release -p test_desktop_release.py -v
           python3 -m unittest discover -s tests/release -p test_changelog.py -v
+          python3 -m unittest discover -s tests/release -p test_macos_symbols.py -v
+          python3 -m unittest discover -s tests/release -p test_packaged_acceptance.py -v
       - run: swift test --package-path platforms/macos/resident
       - run: platforms/macos/tests/smoke.sh --static
       - run: cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
@@ -94,7 +96,15 @@ jobs:
         run: python3 desktop/scripts/set-version.py "$CANDIDATE_VERSION"
       - name: Build actual Mac application
         working-directory: desktop
-        run: pnpm tauri build --target '${{ matrix.target }}' --bundles app --no-sign
+        env:
+          CARGO_PROFILE_RELEASE_DEBUG: line-tables-only
+        run: RUSTFLAGS="--remap-path-prefix=$GITHUB_WORKSPACE=/source --remap-path-prefix=$HOME/.cargo=/cargo" pnpm tauri build --target '${{ matrix.target }}' --bundles app --no-sign
+      - name: Collect matching executable and native-framework symbols
+        run: python3 desktop/scripts/macos-symbols.py create 'desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos/Machine Control.app' 'artifacts/macos-symbols/${{ matrix.target }}' --revision "$GITHUB_SHA" --native-symbols desktop/src-tauri/native/symbols/MCResident.dSYM
+      - name: Remove debug maps before signing the product
+        run: |
+          xcrun strip -S 'desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos/Machine Control.app/Contents/MacOS/macui'
+          xcrun strip -S 'desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos/Machine Control.app/Contents/Frameworks/MCResident.framework/MCResident'
       - name: Sign, notarize, staple, and authenticate final packages
         env:
           MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
@@ -119,6 +129,14 @@ jobs:
         env:
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
         run: python3 desktop/scripts/verify-package.py 'artifacts/macos-desktop/${{ matrix.target }}' --revision "$GITHUB_SHA" --team-id "$APPLE_TEAM_ID" --test-tampering
+      - name: Verify symbols still match the final signed application
+        run: python3 desktop/scripts/macos-symbols.py verify 'desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos/Machine Control.app' 'artifacts/macos-symbols/${{ matrix.target }}'
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: macos-symbols-${{ matrix.target }}
+          path: artifacts/macos-symbols/${{ matrix.target }}/symbols.tar.gz
+          if-no-files-found: error
+          retention-days: 90
       - name: Execute the relocated installed CLI
         run: python3 tests/desktop/cli-installed.py --client 'desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos/Machine Control.app/Contents/Resources/mc-cli/commands/machine-control'
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a

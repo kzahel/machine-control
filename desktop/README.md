@@ -196,6 +196,13 @@ qualification; Mac acceptance does not cover either OS.
 
 ## Signed releases and candidates
 
+From 0.6.9, publication also requires a minimized receipt from the exact signed
+Mac ARM64 package's claimed VM acceptance. It covers real browser/dialog effects,
+Settings, Stop, native-host and app recovery, and reviewed crash export. See
+[release guidance](../release/desktop.md) for the candidate/harness/promotion
+commands and current CI-controller limitation. Separate matching executable and
+native-framework symbol artifacts are retained for ninety days.
+
 [Mac desktop `0.3.3`](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.3.3)
 is the first public preview for Apple silicon and Intel. Its exact signed source
 passed ARM64 Tart approval, fixture effects, Stop, tray Quit, and a `0.3.2` to

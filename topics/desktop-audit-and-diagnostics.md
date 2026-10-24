@@ -2,7 +2,7 @@
 
 Topic: `desktop-audit-and-diagnostics`
 
-Status: implemented for the desktop product; source-native VM validation.
+Status: implemented; Mac packaged crash/recovery hardening and source-native validation.
 
 ## Current contract
 
@@ -29,12 +29,17 @@ failures are recorded. Structured supervisor/update diagnostics use closed
 codes; companion stderr is drained without retaining its raw contents.
 Diagnostics normally include failures; a local operator can enable additional
 result metadata for 15 minutes. Files are bounded by age and total stream size:
-30 days/100 MiB audit, 7 days/50 MiB diagnostics, 1 MiB segments.
+30 days/100 MiB audit, 30 days/50 MiB diagnostics, 1 MiB segments.
 
 Activity has operation/outcome filters, 50-row pages, expandable details, the
 earliest retained timestamp, and Open log folder. Diagnostic export previews
 up to 500 recent events from each stream, then saves a private local JSON file.
 No upload occurs. These operator methods are absent from public agent routes.
+Mac adds a separate explicit OS-report preview with a one-use, five-minute
+snapshot; Save exports exactly what was reviewed. Ordinary export still omits
+OS reports. A private per-instance marker records unclean prior termination,
+bounded unfinished operation names, and executable/native-framework UUIDs.
+These markers classify an unobserved exit, not a proven crash or effect.
 See [operator guidance](../docs/desktop-audit.md) for locations and privacy.
 
 ## Evidence and limits
@@ -43,7 +48,7 @@ See [operator guidance](../docs/desktop-audit.md) for locations and privacy.
 intent without a result correlates with a macOS native keyboard-layout
 dispatch assertion in the OS crash report. This demonstrates useful operation
 breadcrumbs, not an in-app crash stack collector. OS reports remain outside
-diagnostic export; fatal native/Rust/webview failures have no guaranteed
+ordinary diagnostic export; fatal native/Rust/webview failures have no guaranteed
 structured terminal event. [Crash collection guidance](../docs/desktop-audit.md#after-an-unexpected-exit)
 describes correlation, retention and privacy limits. Raw incident evidence
 stays private. The same assertion is subsequently reproduced twice in the
@@ -65,9 +70,10 @@ an earliest timestamp and detected partial-record gap do not prove completeness.
 
 Signed installer/update/uninstall acceptance, configurable retention, selected
 time-range export, and adoption by standalone headless/protected services are
-follow-up work. Operator-previewed OS crash-report collection, build/symbol
-identity and explicit unexpected-exit detection also remain open; no automatic
-upload or raw payload logging is introduced. Bundle replacement is tested
+follow-up work. Windows/Linux OS-report collection and unexpected-exit tracking
+remain open. Mac collection, build/symbol identity, and explicit unclean-exit
+tracking are implemented in [Tactical 136](../docs/tactical/136-desktop-crash-hardening.md).
+No automatic upload or raw payload logging is introduced. Bundle replacement is tested
 separately from a signed updater.
 This feature adds no provider, privilege, or authentication boundary. Separate
 caller authorization follows the [host control](host-control.md) contract.

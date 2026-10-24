@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import random
 import shutil
 import signal
 import socket
@@ -20,6 +21,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.request import urlopen
 
@@ -36,8 +38,18 @@ def main():
                         help='Guest-only helper; change enabled layouts before each panel choice')
     parser.add_argument('--settings-cycle', action='store_true',
                         help='Recreate and close the packaged Settings window between download/upload cycles')
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--soak-seconds', type=int, default=0,
+                        help='Continue full cycles for this bounded duration (maximum 30 minutes)')
+    parser.add_argument('--faults', action='store_true',
+                        help='Packaged-only native-host loss, blocked-provider Stop and forced-exit checks')
+    parser.add_argument('--trace', type=Path,
+                        help='New private operation timeline; excludes request fields and response payloads')
+    parser.add_argument('--report', type=Path, help='New private machine-readable summary')
     args = parser.parse_args()
-    assert 1 <= args.repeat <= 30
+    assert 1 <= args.repeat <= 300 and 0 <= args.soak_seconds <= 1800
+    assert not args.faults or args.expected_policy == 'approval'
+    rng = random.Random(args.seed)
     assert subprocess.check_output(['sysctl', '-n', 'hw.model']).decode().startswith('VirtualMac')
     app = Path.home() / 'mc-cft/chrome-mac-arm64/Google Chrome for Testing.app'
     info = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
@@ -54,6 +66,11 @@ def main():
     payload = b'Machine Control harmless download fixture\n'
     reports = Path.home() / 'Library/Logs/DiagnosticReports'
     before_reports = set(reports.glob('macui-*.ips'))
+    trace = (os.fdopen(os.open(args.trace, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w')
+             if args.trace else None)
+    blocked = threading.Event()
+    unblock = threading.Event()
+    planned_restarts = 0
 
     def exchange(socket_path, operation, **fields):
         with socket.socket(socket.AF_UNIX) as channel:
@@ -68,7 +85,17 @@ def main():
 
     def raw(operation, **fields):
         nonlocal generation
-        result = exchange(endpoint, operation, **fields)
+        started = time.monotonic()
+        result = None
+        try:
+            result = exchange(endpoint, operation, **fields)
+        finally:
+            if trace:
+                trace.write(json.dumps({'operation': operation, 'monotonic': started,
+                    'durationMs': round((time.monotonic() - started) * 1000),
+                    'accepted': result.get('accepted') if result else None,
+                    'errorCode': result.get('errorCode') if result else 'connection_lost'}) + '\n')
+                trace.flush()
         if generation is None:
             generation = result['generation']
         assert result.get('generation') == generation, 'Resident restarted during smoke'
@@ -110,6 +137,9 @@ def main():
             self.end_headers()
 
         def do_GET(self):
+            if self.path == '/slow':
+                blocked.set()
+                unblock.wait(65)
             if self.path == '/download':
                 body = payload
                 self.send_response(200)
@@ -147,26 +177,29 @@ def main():
     browser = None
     tab = None
     workspace = tempfile.TemporaryDirectory(prefix='mc-browser-dialogs-')
+    def approve():
+        assert args.observer_socket, 'Workstation approval requires an independent observer'
+        assert call('grant.status')['grant'] is None, 'Packaged trial must start with access Off'
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            pending = pool.submit(call, 'grant.request', scopes=['observe', 'control', 'browser'],
+                                  reason='Verify packaged browser file dialogs',
+                                  durationSeconds=min(3600, 900 + args.soak_seconds), timeoutSeconds=120)
+            def allow():
+                result = exchange(args.observer_socket, 'snapshot', target=str(pid), query='Allow',
+                                  projection='compact', maxDepth=30, maxElements=600)
+                assert result.get('accepted'), 'Observer could not inspect native approval'
+                return next((e['reference'] for e in result['data']['elements']
+                             if e.get('label') == 'Allow' and e.get('role') == 'AXButton'), None)
+            reference = poll(allow, 'native approval Allow')
+            result = exchange(args.observer_socket, 'action', reference=reference, action='press')
+            assert result.get('accepted'), 'Observer could not press native approval'
+            pending.result(timeout=30)
+        check('packaged workstation native approval')
+
     try:
         root = Path(workspace.name)
         if args.expected_policy == 'approval':
-            assert args.observer_socket, 'Workstation approval requires an independent observer'
-            assert call('grant.status')['grant'] is None, 'Packaged trial must start with access Off'
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                pending = pool.submit(call, 'grant.request', scopes=['observe', 'control', 'browser'],
-                                      reason='Verify packaged browser file dialogs',
-                                      durationSeconds=900, timeoutSeconds=120)
-                def allow():
-                    result = exchange(args.observer_socket, 'snapshot', target=str(pid), query='Allow',
-                                      projection='compact', maxDepth=30, maxElements=600)
-                    assert result.get('accepted'), 'Observer could not inspect native approval'
-                    return next((e['reference'] for e in result['data']['elements']
-                                 if e.get('label') == 'Allow' and e.get('role') == 'AXButton'), None)
-                reference = poll(allow, 'native approval Allow')
-                result = exchange(args.observer_socket, 'action', reference=reference, action='press')
-                assert result.get('accepted'), 'Observer could not press native approval'
-                pending.result(timeout=30)
-            check('packaged workstation native approval')
+            approve()
         last_blockers = None
         def available():
             nonlocal last_blockers
@@ -275,6 +308,65 @@ def main():
             poll(lambda: call('status')['presentation']['settingsWebViews'] == 0, 'Settings destroyed')
             check('Settings recreated and closed in the same runtime')
 
+        def diagnostics_ui():
+            def tree(query=''):
+                result = exchange(args.observer_socket, 'snapshot', target=str(pid), query=query,
+                                  projection='full', maxDepth=40, maxElements=1500)
+                assert result.get('accepted')
+                return result['data']['elements']
+
+            def operator_button(label):
+                matches = [e['reference'] for e in tree(label)
+                           if e.get('role') == 'AXButton' and e.get('label') == label]
+                return matches[0] if len(matches) == 1 else None
+
+            def operator_press(label):
+                ref = poll(lambda: operator_button(label), 'packaged operator button ' + label)
+                result = exchange(args.observer_socket, 'action', reference=ref, action='press')
+                assert result.get('accepted')
+
+            subprocess.run([str(resident), 'serve', str(endpoint), '--settings'],
+                           check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
+            operator_press('Activity')
+            poll(lambda: tree('previous session ended without'), 'unclean exit Activity banner')
+            check('installed Activity presents unclean-exit context')
+            export = Path.home() / 'Library/Logs/MachineControl/exports/diagnostics.json'
+            previous = (export.read_bytes(), export.stat().st_mode & 0o777) if export.exists() else None
+            fixture = reports / ('macui-9999-fixture-' + uuid.uuid4().hex + '.ips')
+            sentinel = 'MC_PACKAGED_CRASH_PREVIEW_' + uuid.uuid4().hex
+            original = json.dumps({'bundleID': 'org.machine-control.app'}) + '\n' + json.dumps({'fixture': sentinel})
+            try:
+                with os.fdopen(os.open(fixture, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as file:
+                    file.write(original)
+                operator_press('Preview diagnostic export')
+                operator_press('Save diagnostics')
+                def saved_without_reports():
+                    try:
+                        value = json.loads(export.read_text())
+                        return value if 'osCrashReports' not in value else None
+                    except (OSError, ValueError):
+                        return None
+                poll(saved_without_reports, 'ordinary export excludes OS reports')
+                check('installed default export omits raw OS reports', sentinel not in export.read_text())
+                operator_press('Preview with crash reports')
+                poll(lambda: operator_button('Save diagnostics'), 'reviewed crash preview')
+                poll(lambda: tree('private paths and system details'), 'crash-report privacy explanation')
+                fixture.write_text(original.replace(sentinel, 'CHANGED_AFTER_PREVIEW'))
+                operator_press('Save diagnostics')
+                def reviewed_snapshot():
+                    value = json.loads(export.read_text())
+                    return value if any(v.get('text') == original for v in value.get('osCrashReports', [])) else None
+                poll(reviewed_snapshot, 'export matches reviewed OS report snapshot')
+                check('installed explicit export saves reviewed snapshot with private permissions',
+                      export.stat().st_mode & 0o777 == 0o600)
+            finally:
+                fixture.unlink(missing_ok=True)
+                if previous is None:
+                    export.unlink(missing_ok=True)
+                else:
+                    export.write_bytes(previous[0])
+                    export.chmod(previous[1])
+
         click('Increment')
         poll(lambda: effects['clicks'] == 1, 'HTTP click effect')
         call('browser.type', reference=reference('Fixture text'), text='Browser café 世界')
@@ -289,10 +381,13 @@ def main():
 
         upload = root / 'upload fixture.txt'
         upload.write_bytes(payload)
-        for index in range(args.repeat):
+        index = 0
+        soak_deadline = time.monotonic() + args.soak_seconds
+        while index < args.repeat or (time.monotonic() < soak_deadline and index < 300):
             if args.settings_cycle:
                 cycle_settings()
-            destination = root / f'download {index}.txt'
+            variant = rng.choice(['file', 'with spaces', 'café 世界'])
+            destination = root / f'download {index} {variant}.txt'
             click('Download fixture')
             panel()
             data = choose(destination)
@@ -310,6 +405,7 @@ def main():
             # file raises a new change event on the next iteration.
             call('browser.navigate', tabId=tab, url=url)
             reference('Download fixture')
+            index += 1
 
         cancelled = root / 'cancelled.txt'
         click('Download fixture')
@@ -319,7 +415,7 @@ def main():
         press('Cancel')
         check('download cancellation leaves no file', not cancelled.exists())
 
-        existing = root / 'download 0.txt'
+        existing = destination
         click('Download fixture')
         panel()
         data = choose(existing)
@@ -338,16 +434,122 @@ def main():
         check('Save Page As writes fixture HTML')
         refused = raw('dialog.choose', target=str(browser.pid), path=str(upload))
         check('missing panel refuses without crashing', not refused['accepted'] and refused.get('errorCode') == 'dialog_not_found')
+        if args.faults:
+            # Kill only the native host launched by this test browser. Verify
+            # both executable and ancestry before signalling a process.
+            old_ref = reference('Increment')
+            processes = subprocess.check_output(['/bin/ps', '-axo', 'pid=,ppid=,command='], text=True)
+            rows = {int(p): (int(parent), command) for p, parent, command in
+                    (line.strip().split(None, 2) for line in processes.splitlines())}
+            def belongs_to_browser(candidate):
+                seen = set()
+                while candidate in rows and candidate not in seen:
+                    if candidate == browser.pid:
+                        return True
+                    seen.add(candidate)
+                    candidate = rows[candidate][0]
+                return False
+            hosts = [p for p, (_, command) in rows.items()
+                     if command.startswith(str(resident) + ' ') and 'chrome-extension://' in command
+                     and belongs_to_browser(p)]
+            assert len(hosts) == 1, 'Native-host ownership is uncertain; refusing to kill'
+            os.kill(hosts[0], signal.SIGKILL)
+            # A successful new request independently proves reconnection;
+            # retries below are read-only. Never replay an uncertain input.
+            def reconnected():
+                result = raw('browser.tabs')
+                return result.get('accepted')
+            poll(reconnected, 'native messaging reconnection', timeout=30)
+            check('native-host loss preserves resident PID', call('status')['processId'] == pid)
+            refused = raw('browser.click', reference=old_ref)
+            check('native-host reconnect refuses old browser reference',
+                  not refused['accepted'] and refused.get('errorCode') == 'stale_reference')
+            count = effects['clicks']
+            click('Increment')
+            poll(lambda: effects['clicks'] == count + 1, 'one fresh post-reconnection click')
+            check('fresh browser reference has one independently observed effect')
+
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                pending = pool.submit(raw, 'browser.navigate', tabId=tab, url=url + 'slow')
+                assert blocked.wait(15), 'Held provider did not reach the fixture'
+                started = time.monotonic()
+                call('grant.revoke')
+                check('Stop remains responsive during blocked browser provider', time.monotonic() - started < 3)
+                unblock.set()
+                outcome = pending.result(timeout=30)
+                check('revoked blocked request does not report success', not outcome['accepted'])
+            approve()
+            call('browser.navigate', tabId=tab, url=url)
+            refused = raw('browser.click', reference=old_ref)
+            check('new grant refuses old browser reference', not refused['accepted'])
+
+            # A deterministic loading fixture holds browser.wait while the
+            # actual installed resident is killed. Do not replay its request.
+            blocked.clear()
+            unblock.clear()
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                pending = pool.submit(raw, 'browser.navigate', tabId=tab, url=url + 'slow')
+                assert blocked.wait(15)
+                old_generation = generation
+                os.kill(pid, signal.SIGKILL)
+                planned_restarts += 1
+                try:
+                    outcome = pending.result(timeout=30)
+                    assert not outcome['accepted']
+                except (ConnectionError, OSError):
+                    pass
+                unblock.set()
+            # Reset the stability baseline only at this explicit planned
+            # fault, and require the expected generation/PID transition.
+            generation = None
+            def restarted():
+                result = exchange(endpoint, 'status')
+                return result['data'] if result.get('accepted') and result.get('generation') != old_generation else None
+            def reachable_restart():
+                try:
+                    return restarted()
+                except (OSError, ValueError):
+                    return None
+            state = poll(reachable_restart, 'LaunchAgent restarts killed app', timeout=45)
+            assert state['processId'] != pid
+            pid = state['processId']
+            call('status')
+            check('forced app exit recovers with access Off', call('grant.status')['grant'] is None)
+            lifecycle = Path.home() / 'Library/Logs/MachineControl/audit'
+            # Audit API is deliberately minimized. Inspect the private
+            # on-disk breadcrumb rather than adding an agent export route.
+            events = [json.loads(line) for file in lifecycle.glob('*.jsonl')
+                      for line in file.read_text().splitlines()]
+            exits = [event for event in events if event.get('operation') == 'resident.previous_exit_unclean']
+            check('unclean exit records unfinished operation and build identity', any(
+                'browser.navigate' in event.get('unfinishedOperations', [])
+                and event.get('build', {}).get('nativeFrameworkUUID') for event in exits))
+            approve()
+            poll(available, 'restarted native quiet window', timeout=45)
+            poll(reconnected, 'extension reconnect after app restart', timeout=30)
+            call('browser.navigate', tabId=tab, url=url)
+            refused = raw('browser.click', reference=old_ref)
+            check('app restart refuses previous browser reference', not refused['accepted'])
+            count = effects['clicks']
+            click('Increment')
+            poll(lambda: effects['clicks'] == count + 1, 'one fresh post-restart click')
+            diagnostics_ui()
         final = call('status')
-        check('resident PID and generation survive the full suite', final['processId'] == pid)
+        check('resident PID/generation stable outside planned restart', final['processId'] == pid)
         check('no new macui OS crash report', set(reports.glob('macui-*.ips')) == before_reports)
-        print(json.dumps({'passed': True, 'checks': len(checks), 'repeat': args.repeat,
+        summary = {'passed': True, 'checks': len(checks), 'repeat': index, 'seed': args.seed,
+            'plannedRestarts': planned_restarts, 'faults': args.faults,
             'macOS': subprocess.check_output(['sw_vers', '-productVersion']).decode().strip(),
             'browserVersion': info['CFBundleShortVersionString'],
             'residentSha256': hashlib.sha256(resident.read_bytes()).hexdigest(),
             'frameworkSha256': hashlib.sha256((resident.parents[1] / 'Frameworks/MCResident.framework/MCResident').read_bytes()).hexdigest()
-                if args.expected_policy == 'approval' else None}), flush=True)
+                if args.expected_policy == 'approval' else None}
+        if args.report:
+            with os.fdopen(os.open(args.report, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as report:
+                report.write(json.dumps(summary) + '\n')
+        print(json.dumps(summary), flush=True)
     finally:
+        unblock.set()
         if tab is not None:
             try:
                 raw('browser.release', tabId=tab)
@@ -366,6 +568,8 @@ def main():
         server.shutdown()
         server.server_close()
         workspace.cleanup()
+        if trace:
+            trace.close()
         if layout_state is not None:
             restored = json.loads(subprocess.check_output([
                 str(args.keyboard_environment), 'select', layout_state['inputSourceId']]))

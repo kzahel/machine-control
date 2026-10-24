@@ -750,6 +750,10 @@ fn main() {
             if matches!(event, tauri::RunEvent::ExitRequested { .. }) {
                 let _ = native_command(json!({"method":"prepare_exit"}));
             }
+            #[cfg(target_os = "macos")]
+            if matches!(event, tauri::RunEvent::Exit) {
+                let _ = native_command(json!({"method":"finish_exit"}));
+            }
             if matches!(event, tauri::RunEvent::Exit) {
                 diagnostics::record("supervisor.stop");
             }

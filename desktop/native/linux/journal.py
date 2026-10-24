@@ -54,7 +54,7 @@ class Journal:
     def prune(self, directory, stream):
         files = sorted(directory.glob("*.jsonl"))
         total = sum(p.lstat().st_size for p in files)
-        cutoff = time.time() - (30 if stream == "audit" else 7) * 86400
+        cutoff = time.time() - 30 * 86400
         for path in files:
             st = path.lstat()
             if st.st_mtime >= cutoff and total <= self.caps[stream]:
@@ -143,7 +143,7 @@ class Journal:
     def health(self):
         return {"available": self.error is None, "errorCode": self.error,
                 "diagnosticsAvailable": self.diagnostics_available, "historyGap": self.history_gap, "debugRemainingSeconds": max(0, int(self.debug_until - time.monotonic())),
-                "auditDays": 30, "diagnosticDays": 7,
+                "auditDays": 30, "diagnosticDays": 30,
                 "auditBytes": self.caps["audit"], "diagnosticBytes": self.caps["diagnostics"]}
 
     def read(self, stream):
