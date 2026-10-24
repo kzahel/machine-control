@@ -17,7 +17,7 @@ nonempty executable/framework symbols separately from product artifacts.
 
 Status: signed Windows headless workstation preview remains available; YA now
 consumes the installed desktop CLI and has retired its component lifecycle.
-Unified Mac/Windows/Linux desktop `0.6.8` is published; package
+Unified Mac/Windows/Linux desktop `0.6.9` is published; package
 signatures, public downloads, and production metadata are verified for all six
 architectures.
 ARM64 Tart has targeted signed browser-indicator evidence; Windows x64 retains
@@ -62,7 +62,15 @@ its authority or silently installing it on personal machines.
 
 ## Current implementation
 
-**Current:** [Public desktop 0.6.8](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.6.8)
+**Current:** [Public desktop 0.6.9](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.6.9)
+ships the packaged Mac crash fix, crash diagnostics and bundled browser authority
+hardening. Candidate and publication CI pass for all six architectures. Exact
+signed Mac ARM64 installed acceptance, public asset/download verification and
+all six production updater routes pass in [Tactical 137](../docs/tactical/137-desktop-0.6.9-release.md).
+The other platforms' new GUI behavior retains its recorded qualification gaps;
+package authentication does not establish those effects.
+
+**Historical:** [Public desktop 0.6.8](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.6.8)
 includes the unpublished 0.6.5/0.6.6 features and release-gate repairs for
 Linux payload inventories and Windows portable tests. Both source/tag checks
 and the complete six-target signed publication pass. Public downloads,
@@ -72,12 +80,12 @@ after the shared service cache refresh.
 [Tactical 132](../docs/tactical/132-desktop-0.6.8-release.md) owns recovery and
 publication evidence; [121](../docs/tactical/121-desktop-0.6.4-release.md)
 retains the preceding published 0.6.4 qualification. Native feature execution
-keeps its existing platform/fixture limits; publication adds no GUI acceptance.
+keeps its existing platform/fixture limits; that earlier publication adds no GUI acceptance.
 Personal, minimal and appliance presentations ship in one app with bounded runtime work and local
 recovery. [Runtime and presentation](runtime-and-presentation.md) owns their
 native qualification and remaining installed replacement, protected-session
-and architecture/hardware limits. Publication does not extend earlier VM
-effects to these exact production packages.
+and architecture/hardware limits. Earlier VM effects do not automatically
+qualify other production package versions.
 
 **Decision:** Adopt Desktop Release Kit's Stable discovery cadence: a silent
 check after five seconds and daily while running, with a bounded timeout and

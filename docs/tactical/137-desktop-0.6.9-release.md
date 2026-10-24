@@ -3,7 +3,7 @@
 Owning topics: [native distribution](../../topics/native-distribution.md),
 [desktop audit and diagnostics](../../topics/desktop-audit-and-diagnostics.md).
 
-Status: active.
+Status: complete; public 0.6.9 published with green candidate/publication CI.
 
 ## Objective
 
@@ -52,9 +52,41 @@ asset completeness and identity without changing the controller's installed app.
 
 ## Validation and final result
 
-Pending monitored candidate validation and publication. Earlier development
-evidence belongs to [135](135-browser-file-dialog-crash.md) and
-[136](136-desktop-crash-hardening.md); it cannot qualify this release receipt.
+**Current (2026-10-24):** [desktop 0.6.9](https://github.com/kzahel/machine-control/releases/tag/desktop-v0.6.9)
+is public at source `799044d244712ab9b67a3840d47c38df8ec2cc2b`.
+[Candidate 40133355870](https://github.com/kzahel/machine-control/actions/runs/40133355870)
+passes every six-target build, signature/inventory check, installed CLI smoke,
+symbol verification and final asset staging. The normal cross-platform and Mac
+source workflows also pass at that source.
+
+The exact signed/notarized ARM64 Mac archive passes 173 checks with fifty real
+download/upload cycles, seed 3407 and a five-minute soak. Coverage includes
+native panels, Settings recreation, cancellation/overwrite, native-host loss,
+blocked-provider Stop, forced-exit recovery with access Off and unclean-exit
+context, stale-reference refusal and real Settings diagnostic export. The
+receipt binds source, candidate attempt, archive hash and successful cleanup.
+The original app/policy/LaunchAgent/operator state is restored, the target is
+suspended and its exclusive claim released. Raw evidence remains private.
+
+[Publication 40135808548](https://github.com/kzahel/machine-control/actions/runs/40135808548)
+promotes those exact candidate bytes and passes. All 29 public asset names,
+sizes and GitHub SHA-256 digests verify independently against the authenticated
+candidate set. An unauthenticated public Mac archive download matches the
+VM-accepted archive hash. Public update metadata covers all six architectures,
+and all six production updater routes return 0.6.9. The generated manifest's
+publication timestamp legitimately differs between private staging and final
+publication; all other fields match. Matching nonempty Mac symbols are retained
+as separate CI artifacts, and actual ARM64 symbols resolve the repaired
+keyboard-layout function to its source line.
+
+Earlier development evidence belongs to [135](135-browser-file-dialog-crash.md)
+and [136](136-desktop-crash-hardening.md); it did not qualify this release
+receipt. Intel/physical GUI execution, Windows native enrollment lifecycle,
+Linux new-feature GUI qualification and installed Chrome Web Store connection
+retain their separate gates. The browser campaign uses the bundled unpacked
+provider in Chrome for Testing. No controller workstation app is replaced.
+
+### Validation repairs
 
 The first candidate was cancelled before promotion to correct shared Mac CI
 concurrency: a push and a reusable release workflow could replace each other's
@@ -72,3 +104,8 @@ element cap and soak requirement, reject missing controls on truncated reads,
 and preserve private failure context. This is a fixture correction, not an
 observed app crash. Both failed campaigns restored the VM and released claims;
 neither produced a qualifying receipt.
+
+The corrected fixture first passes 170 checks and 49 cycles against the earlier
+signed package in an explicitly nonqualifying development run. The final exact
+candidate then passes the complete 173-check gate described above. No source or
+tag replacement, reduced soak, or substituted receipt is used.

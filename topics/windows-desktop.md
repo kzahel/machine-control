@@ -2,13 +2,13 @@
 
 Topic: `windows-desktop`
 
-Status: public 0.5.7 preview published for x64 and ARM64. Signed ARM64 0.5.4 VM
+Status: public 0.6.9 preview published for x64 and ARM64. Signed ARM64 0.5.4 VM
 indefinite-access, Pause/Resume, Stop and production-update acceptance passes.
 Earlier x64 coverage remains; full ARM64 and physical acceptance remain open.
 
 ## Product and boundaries
 
-**Current, unreleased source:** Native covered-desktop setup enrolls the current
+**Current, shipped in desktop 0.6.9 with incomplete lifecycle acceptance:** Native covered-desktop setup enrolls the current
 local account's password once through Windows CredUI, with service-owned DPAPI
 storage and task-owned `session.unlock`. No JSON picker or per-task password is
 needed in that mode. Setup enables its independent, persistent option and grants

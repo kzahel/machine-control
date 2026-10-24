@@ -14,7 +14,7 @@ fresh login, preboot, Recovery, and physical hardware remain open.
 
 ## Current state
 
-**Current (2026-10-24), unreleased fix with packaged-app validation:** the
+**Current (2026-10-24), shipped in desktop 0.6.9:** the
 installed signed desktop 0.6.8 reproduces the reported crash on the first
 download-location `dialog.choose` in two independent fresh launches under
 normal workstation approval. Both OS reports match the original HIToolbox
@@ -27,8 +27,9 @@ workflow: 62 checks across three successful runs, sixteen download/upload
 cycles, layout changes, Settings recreation and a fresh app launch, with stable
 within-run PID/generation and no new OS crash report.
 [Tactical 135](../docs/tactical/135-browser-file-dialog-crash.md) records the
-evidence and qualification limits. The controller's installed app is unchanged;
-the corrected package has not been published.
+initial evidence and qualification limits. [Tactical 137](../docs/tactical/137-desktop-0.6.9-release.md)
+qualifies the exact published ARM64 package, including browser soak, recovery
+faults and reviewed crash export. Physical/Intel execution remains separate.
 
 **Current (2026-10-16):** native AX `set_value` accepts an empty string,
 including independently checked editor clearing/restoration. The bounded

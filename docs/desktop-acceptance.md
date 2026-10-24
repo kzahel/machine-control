@@ -5,6 +5,11 @@ Reviewed: 2026-10-24.
 This is an index of recorded acceptance for the shared Tauri desktop product,
 with earlier runtime evidence kept separate. Linked tactical records own exact
 versions, source identity, workflow artifacts, procedures, and limitations.
+Public 0.6.9 authenticates all six architecture targets. Its exact signed ARM64 Mac
+package passes fifty download/upload cycles, Settings, recovery faults and
+operator crash export before exact-byte promotion. [137](tactical/137-desktop-0.6.9-release.md)
+owns source/workflow identities, the qualifying receipt and public verification.
+The historical cells below keep their specific execution versions.
 Public 0.6.4 package verification for all six targets is recorded in
 [121](tactical/121-desktop-0.6.4-release.md); historical environment cells and
 execution keep their specific versions. All six installed CLI payloads authenticate and pass hosted offline

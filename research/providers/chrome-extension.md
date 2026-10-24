@@ -33,6 +33,7 @@ tab lifecycle APIs. It is not the approval authority.
 
 | Platform and route | Evidence | Boundary |
 | --- | --- | --- |
+| Public desktop 0.6.9 Mac ARM64, bundled unpacked provider | `conformance-tested` | Exact signed/notarized app in a claimed Tart VM: fifty download/upload cycles, Settings, native-host loss, blocked-provider Stop, forced-exit recovery and stale-reference refusal; same archive publicly published; Chrome Web Store/Intel/physical execution separate |
 | macOS source-native extension/native messaging | `conformance-tested` | Fixture effects, navigation, capture and provider refusal in a Tart guest; predates signed Tauri acceptance |
 | macOS locked-console extension/native messaging | `live-tested` | macOS 26.6.2 Tart appliance, Chrome for Testing 155: tab enumeration, AX, independent click/text/navigation effects, PNG capture and reattachment with the OS still locked; standing authority, no covered unlock; workstation source has a separate opt-in |
 | macOS source-native workstation locked-console extension | `live-tested` | 26 checks with native approval, retained mixed-grant ID/expiry, desktop/new-approval refusals, browser-owner admission, independent effects, capture, Pause/Resume and disable; ad-hoc VM identity, not signed installed Settings acceptance |

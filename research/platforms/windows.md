@@ -381,7 +381,7 @@ evidence shows that Cua/WinApp cannot be layered or upstreamed coherently.
 
 ### Optional workstation unlock
 
-**Current — unreleased native enrollment source:** the desktop's native setup
+**Current — native enrollment shipped in desktop 0.6.9:** the desktop's native setup
 uses Windows CredUI for the current local console account and SYSTEM-user DPAPI
 for its encrypted credential store. The ARM64 native fixture has verified
 enrollment, cancellation, ordinary-user file denial, unowned request refusal

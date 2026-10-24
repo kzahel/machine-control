@@ -12,9 +12,12 @@ Windows password-free unlock has been built or live-tested.
 **Decision (2026-10-18):** Defer password-free Windows authentication extensions
 and use native saved-password enrollment for now. Setup should remain simple:
 administrator approval and a native password prompt once, followed by task-owned
-unlock/relock. This selects the existing unreleased implementation for further
-qualification; it does not establish completed acceptance or release readiness.
+unlock/relock. The native implementation still needs further qualification;
+its publication does not establish completed lifecycle acceptance.
 Browser-only locked access stays independent and needs no desktop unlock.
+The implementation ships in the desktop 0.6.9 preview with its remaining
+signed enrollment/unlock/relock qualification explicitly open; publication is
+not evidence of that lifecycle.
 
 The service retains a recoverable Windows password protected by SYSTEM-user
 DPAPI and SYSTEM/admin-only file access. Administrator/SYSTEM access or a
@@ -68,7 +71,7 @@ separate workflow. Browser-only access remains independent and leaves Windows
 locked, without a helper or cover. Cold login means a new sign-in after boot or
 sign-out; it is outside existing-session desktop unlock.
 
-**Current, unreleased source (2026-10-17):** Desktop setup installs/updates the
+**Current, shipped in desktop 0.6.9:** Desktop setup installs/updates the
 helper and uses native Windows CredUI to enroll the exact current local console
 account's password once. Successful setup enables covered desktop use; that
 preference persists independently of ordinary access consent. Native update and

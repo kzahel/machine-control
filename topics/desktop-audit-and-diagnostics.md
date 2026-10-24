@@ -4,6 +4,9 @@ Topic: `desktop-audit-and-diagnostics`
 
 Status: implemented; Mac packaged crash/recovery hardening and source-native validation.
 
+**Current:** Public desktop 0.6.9 ships this hardening. Exact signed Mac ARM64
+acceptance and public distribution are recorded in [Tactical 137](../docs/tactical/137-desktop-0.6.9-release.md).
+
 ## Current contract
 
 **Current:** The Windows, macOS, and Linux desktop residents write private,

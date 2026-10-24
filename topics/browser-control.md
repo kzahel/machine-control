@@ -22,14 +22,16 @@ and result vocabulary as desktop control. This applies to physical hosts
 
 ## Current
 
-**Current (2026-10-24), unreleased hardening:** ordinary worker requests bind
+**Current (2026-10-24), bundled in desktop 0.6.9:** ordinary worker requests bind
 authority at message arrival and recheck it around awaited CDP work. Opaque
 references carry an authority epoch so reconnect, worker restart and new grants
 cannot revive old references through reused snapshot counters. Contract tests
 prove held clicks and queued text cannot adopt fresh approval; packaged Mac
 fault tests prove reconnect/restart refusal and fresh independent effects.
 [Tactical 136](../docs/tactical/136-desktop-crash-hardening.md) owns execution;
-the provider dossier owns platform and route limits.
+the provider dossier owns platform and route limits. [Tactical 137](../docs/tactical/137-desktop-0.6.9-release.md)
+adds exact published Mac ARM64 acceptance with the bundled unpacked provider;
+Chrome Web Store delivery/connection has no new qualification here.
 
 **Current (2026-10-14):** Extension 0.8.0 adds icons and a read-only side
 panel (connection, access, controlled tabs, live payload-free activity) and was
