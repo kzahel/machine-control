@@ -62,3 +62,13 @@ pending check. Include the caller workflow in the group while retaining serial
 runs within each caller/ref. Complete the notes for the pre-existing Windows
 native enrollment changes, keeping their incomplete signed lifecycle gate
 explicit. No release tag was created for the cancelled candidate.
+
+The next exact Mac package campaign passed seventeen complete download/upload
+cycles, then failed its upload-panel lookup. Private diagnostics reproduced a
+1,000-element truncated AX read while the Open window remained present; a
+shallower read found Cancel. The harness had mistaken omission from a partial
+tree for absence. Bound panel reads to their shallow controls, retain the same
+element cap and soak requirement, reject missing controls on truncated reads,
+and preserve private failure context. This is a fixture correction, not an
+observed app crash. Both failed campaigns restored the VM and released claims;
+neither produced a qualifying receipt.

@@ -61,6 +61,7 @@ def main():
     cdp = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(cdp)
     generation = None
+    last_native = None
     checks = []
     effects = {'upload': None, 'text': None, 'clicks': 0}
     payload = b'Machine Control harmless download fixture\n'
@@ -263,13 +264,20 @@ def main():
         def click(label):
             call('browser.click', reference=reference(label))
 
-        def native_elements():
-            return call('snapshot', target=str(browser.pid), provider='macos-native',
-                        maxDepth=24, maxElements=1000, projection='compact')['elements']
+        def native_elements(query=''):
+            nonlocal last_native
+            # AppKit panel buttons are shallow. Walking deep directory rows
+            # first can exhaust the element budget as the soak creates files,
+            # hiding a present Cancel button behind a correctly partial tree.
+            last_native = call('snapshot', target=str(browser.pid), provider='macos-native',
+                               query=query, maxDepth=6, maxElements=1000, projection='compact')
+            return last_native['elements']
 
         def native_button(label):
-            return next((e['reference'] for e in native_elements()
-                         if e.get('role') == 'AXButton' and e.get('label') == label), None)
+            found = next((e['reference'] for e in native_elements(label)
+                          if e.get('role') == 'AXButton' and e.get('label') == label), None)
+            assert found or not last_native.get('truncated'), 'Panel lookup exceeded its native element budget'
+            return found
 
         def press(label):
             ref = poll(lambda: native_button(label), 'native button ' + label)
@@ -548,6 +556,21 @@ def main():
             with os.fdopen(os.open(args.report, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as report:
                 report.write(json.dumps(summary) + '\n')
         print(json.dumps(summary), flush=True)
+    except BaseException:
+        # Dedicated fixture evidence only, in the caller's private directory.
+        # Keep the ordinary operation timeline free of request/page payloads.
+        if args.trace:
+            evidence = {'lastNative': last_native, 'completedChecks': checks}
+            for label, operation, fields in [
+                ('status', 'status', {}),
+                ('windows', 'windows', {'target': str(browser.pid) if browser else '', 'provider': 'macos-native'}),
+                ('page', 'browser.snapshot', {'tabId': tab})]:
+                try:
+                    evidence[label] = exchange(endpoint, operation, **fields)
+                except BaseException as error:
+                    evidence[label] = {'error': type(error).__name__}
+            (args.trace.parent / 'failure.json').write_text(json.dumps(evidence, indent=2))
+        raise
     finally:
         unblock.set()
         if tab is not None:
