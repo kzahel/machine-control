@@ -1,6 +1,6 @@
 # Desktop product acceptance matrix
 
-Reviewed: 2026-10-17.
+Reviewed: 2026-10-24.
 
 This is an index of recorded acceptance for the shared Tauri desktop product,
 with earlier runtime evidence kept separate. Linked tactical records own exact
@@ -44,6 +44,25 @@ effects, separate from signed installed Settings and public-package acceptance.
 | Windows x64, physical Windows | New candidate package verification does not establish physical execution | New Tauri operator acceptance not recorded; earlier appliance engine evidence below | [physical engine record](evidence/windows-physical-x64.md) |
 | Linux x64, Ubuntu GNOME Wayland VM | Exact signed public 0.6.0 Debian/AppImage bytes, signatures and inventories verified | Public 0.5.0 fresh installed UI/grants/effects/lifecycle and signed replacement with browser tasks pass; earlier same-core lock, reboot/startup and removal evidence remains in 056 | [056](tactical/056-linux-desktop.md), [059](tactical/059-public-linux-desktop.md); [063](tactical/063-six-platform-desktop-release.md), [091](tactical/091-desktop-until-stopped.md); [105](tactical/105-desktop-0.5.7-release.md); [114](tactical/114-desktop-0.6.0-release.md) |
 | Linux ARM64, Ubuntu GNOME Wayland VM | Public 0.6.0 native Ubuntu CI builds, compiled identity, container inventories/signatures and tamper rejection verified | Exact 0.5.4 Debian visible indefinite access/status, null countdown, AT-SPI delivery, independent GTK counter effect and Stop pass; portal/browser/lifecycle execution remains separate | [056](tactical/056-linux-desktop.md), [059](tactical/059-public-linux-desktop.md); [063](tactical/063-six-platform-desktop-release.md), [091](tactical/091-desktop-until-stopped.md); [105](tactical/105-desktop-0.5.7-release.md); [114](tactical/114-desktop-0.6.0-release.md) |
+
+## Packaged Mac browser/file-dialog regression
+
+**Current (2026-10-24), ARM64 Tart:** the installed signed/notarized desktop
+0.6.8 app reproduces a HIToolbox keyboard-layout dispatch assertion at the
+first browser download-location `dialog.choose` in two independent fresh
+launches under normal workstation approval. The standalone appliance baseline
+passes that workflow, so its evidence does not establish packaged-app safety.
+
+A locally Developer ID signed 0.6.8-based package, with the released shell/UI/
+extension and the repaired embedded native framework, passes 62 checks across
+three successful runs with sixteen download/upload cycles, layout changes,
+Settings recreation/closing, a fresh app launch, cancellation, unanswered
+overwrite, Save Page As and missing-panel refusal. Resident PID/generation stay
+unchanged within each run and no new OS crash report appears.
+[Tactical 135](tactical/135-browser-file-dialog-crash.md)
+owns the comparison, fixture corrections and restoration evidence. The corrected
+package is unreleased; this does not establish notarized updater replacement,
+Intel/physical execution or a complete GUI regression for every release.
 
 ## Runtime and presentation candidate acceptance
 

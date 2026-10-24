@@ -76,6 +76,22 @@ installed Settings acceptance, physical-Mac or streamed DevTools evidence.
 
 ## Keyboard layouts and modifier remappings
 
+**Current (2026-10-24), owned native provider `built` and bounded
+`live-tested` in the packaged app:** installed signed desktop 0.6.8 crashes on
+the first download-location `dialog.choose` in two independent fresh launches
+under workstation approval. The OS stacks match the reported HIToolbox
+input-source property dispatch assertion. A standalone appliance baseline
+passes, exposing a gap in that earlier validation. The source fix copies
+layout properties on the main queue, retaining worker-side AX/input and
+per-request verification. A locally Developer ID signed 0.6.8-based package
+with the repaired embedded framework passes 62 checks across three successful
+runs with sixteen download/upload cycles, layout changes, Settings recreation
+and a fresh app launch, without a within-run PID/generation change or new OS
+report. [Tactical 135](../../docs/tactical/135-browser-file-dialog-crash.md)
+owns the execution record. The corrected package is not notarized/published;
+physical and Intel execution remain open. This is owned-provider evidence,
+not new upstream Cua evidence.
+
 **Current (2026-10-15), `built` and bounded `live-tested`, unreleased owned
 native provider:** the real ARM64 Tart resident passes an AppKit/WebKit
 keyboard matrix for U.S., Dvorak and Dvorak–QWERTY Command, with default

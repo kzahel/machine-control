@@ -1,5 +1,40 @@
 # macOS conformance
 
+`browser-file-dialogs.py --source-root STAGED_SOURCE --claim CLAIM --repeat 5`
+runs inside an already claimed, unlocked VirtualMac with standing appliance
+authority. Stage this runner, `providers/chrome-extension` and
+`platforms/chromeos/cdp.py`; it uses the existing Chrome for Testing fixture
+under `~/mc-cft/chrome-mac-arm64`. It refuses a different browser identity and
+uses an isolated disposable profile. Extension clicks/Unicode text/capture,
+real HTTP downloads, native Save and upload Open panels, cancellation,
+unanswered Replace, Save Page As and missing-panel refusal are checked against
+file bytes and HTTP effects. Every response must retain the same resident
+generation; final PID and OS crash-report inventory must also remain unchanged.
+The caller owns deployment, doctor, claim renewal/release and power restoration.
+The runner reaps its browser process group before removing its profile and
+stops its fixture server on failure as well as success. No outer UI is used.
+The default mode qualifies a bounded source-native Mac route, not signed installed
+acceptance, other platforms or sustained crash resistance.
+
+For the installed Tauri app, add `--expected-policy approval --observer-socket
+OBSERVER_SOCKET`. The candidate must occupy the canonical resident socket and
+the observer must be a separate, already authorized standing appliance process.
+This mode presses the actual native approval, uses the candidate's bundled
+extension/native host, and records the embedded framework digest. Add
+`--keyboard-environment GUEST_HELPER` (built from the existing keyboard fixture's
+`environment.swift`) to cycle already-enabled U.S./Dvorak/hybrid sources before
+panel choices; the initial source is restored. Add `--settings-cycle` to
+recreate and close the real Settings WebView between download/upload cycles.
+The runner waits read-only for the normal activity-guard quiet window, logging
+closed blocking reasons; it never disables or resumes that guard. A closed
+resident connection reports unknown outcome and forbids replay.
+The caller must back up and restore the original installed app, trusted root
+policy, LaunchAgent, operator files and preferences before replacing an
+appliance installation with a workstation candidate. Follow the existing
+runtime-presentation setup/restoration boundary below. Never use this procedure
+on a personal workstation. [Tactical 135](../../docs/tactical/135-browser-file-dialog-crash.md)
+records released-app crashes and the locally signed embedded-framework fix.
+
 [`../browser/locked-macos-live.py`](../browser/locked-macos-live.py) is a
 guest-only browser feasibility probe. Stage it, the owned extension directory,
 and `platforms/chromeos/cdp.py` in the guest; supply `--source-root`, the current

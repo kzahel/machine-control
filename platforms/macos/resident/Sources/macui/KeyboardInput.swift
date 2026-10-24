@@ -23,6 +23,13 @@ struct KeyboardLayoutSnapshot {
     }
 
     static func current() throws -> Self {
+        // HIToolbox input-source properties assert main-queue ownership on
+        // recent macOS. Native operations (including PanelChooser's keys)
+        // run on the provider worker. Copy only the layout snapshot on main;
+        // AX calls and panel waits must stay off the UI queue.
+        if !Thread.isMainThread {
+            return try DispatchQueue.main.sync { try current() }
+        }
         let selected = TISCopyCurrentKeyboardInputSource().takeRetainedValue()
         let source = TISCopyCurrentKeyboardLayoutInputSource().takeRetainedValue()
         guard let value = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else {

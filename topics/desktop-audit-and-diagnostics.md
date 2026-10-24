@@ -39,6 +39,19 @@ See [operator guidance](../docs/desktop-audit.md) for locations and privacy.
 
 ## Evidence and limits
 
+**Current (2026-10-24), private incident review:** a retained `dialog.choose`
+intent without a result correlates with a macOS native keyboard-layout
+dispatch assertion in the OS crash report. This demonstrates useful operation
+breadcrumbs, not an in-app crash stack collector. OS reports remain outside
+diagnostic export; fatal native/Rust/webview failures have no guaranteed
+structured terminal event. [Crash collection guidance](../docs/desktop-audit.md#after-an-unexpected-exit)
+describes correlation, retention and privacy limits. Raw incident evidence
+stays private. The same assertion is subsequently reproduced twice in the
+installed signed 0.6.8 app on a dedicated VM; its LaunchAgent brings the
+process back afterward. A successful later request therefore does not prove
+that the preceding operation survived. [Tactical 135](../docs/tactical/135-browser-file-dialog-crash.md)
+records the packaged-app comparison.
+
 **Current:** [Tactical 069](../docs/tactical/069-desktop-audit-and-diagnostics.md)
 records the implementation and Windows x64, macOS ARM64, and Linux x64 VM
 validation. Unit/contract tests cover retention, restart, interrupted intents,
@@ -52,7 +65,10 @@ an earliest timestamp and detected partial-record gap do not prove completeness.
 
 Signed installer/update/uninstall acceptance, configurable retention, selected
 time-range export, and adoption by standalone headless/protected services are
-follow-up work. Bundle replacement is tested separately from a signed updater.
+follow-up work. Operator-previewed OS crash-report collection, build/symbol
+identity and explicit unexpected-exit detection also remain open; no automatic
+upload or raw payload logging is introduced. Bundle replacement is tested
+separately from a signed updater.
 This feature adds no provider, privilege, or authentication boundary. Separate
 caller authorization follows the [host control](host-control.md) contract.
 

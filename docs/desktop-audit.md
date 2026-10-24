@@ -46,3 +46,34 @@ and replaced with a generic failure event, so exports are not full crash dumps.
 
 This is local audit history, editable by an unrestricted same-user process or
 administrator. It does not provide an independent or tamper-resistant record.
+
+## After an unexpected exit
+
+The retained history identifies operations around a failure; it is not a
+cross-platform crash-dump collector. A fatal native assertion, signal, Rust
+panic, or webview failure is not guaranteed to produce a diagnostic event or
+stack trace. An unfinished operation intent remains useful, but does not by
+itself prove a crash or whether an action took effect. The app's export does
+not include OS crash reports, raw companion stderr, or debug symbols.
+
+On macOS, also inspect `~/Library/Logs/DiagnosticReports` for a matching
+`macui-*.ips` or Machine Control report. Correlate its process, timestamp and
+faulting-thread stack with the audit intent/result pair and runtime generation.
+The native resident runs inside the desktop process in the packaged Mac app,
+so a native trap can terminate the whole app. A source-native appliance's
+LaunchAgent may restart its resident; a changed PID/generation still counts as
+a failure during a test, even when the next request succeeds.
+
+After a failure, preserve the matching OS report and the audit/diagnostic
+segments privately before retention removes context. Record the app version,
+OS/browser versions, approximate time and operation, and whether the app
+exited, restarted or remained running with one failed request. Diagnostics
+retain seven days; audit retains thirty days subject to their byte limits.
+Debug mode adds result metadata, not crash stacks. Review OS reports separately
+before sharing: they can contain private paths and machine/process information
+that the app's payload-minimized export deliberately omits.
+
+The [browser/file-dialog smoke runner](../tests/macos/browser-file-dialogs.py)
+checks real download/upload effects, resident PID/generation continuity and
+new OS crash reports on a dedicated Mac VM. Its bounded coverage does not
+establish crash-free behavior on other machines or platforms.

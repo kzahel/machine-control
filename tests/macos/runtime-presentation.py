@@ -129,7 +129,7 @@ def close_settings():
     # test to the actual Settings window's close button using its AX subrole.
     def close_button():
         tree = accepted(base(dict(operation='snapshot', target=str(pid),
-            maxDepth=30, maxElements=600)))['elements']
+            projection='full', maxDepth=6, maxElements=300)))['elements']
         windows = [e for e in tree if e['role'] == 'AXWindow' and e['label'] == 'Machine Control']
         buttons = [e for e in tree if e.get('subrole') == 'AXCloseButton']
         return buttons if len(windows) == 1 and len(buttons) == 1 else None

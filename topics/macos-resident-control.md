@@ -14,6 +14,22 @@ fresh login, preboot, Recovery, and physical hardware remain open.
 
 ## Current state
 
+**Current (2026-10-24), unreleased fix with packaged-app validation:** the
+installed signed desktop 0.6.8 reproduces the reported crash on the first
+download-location `dialog.choose` in two independent fresh launches under
+normal workstation approval. Both OS reports match the original HIToolbox
+input-source property dispatch assertion on the native provider worker.
+The original standalone appliance baseline passes, so it did not qualify the
+packaged process. Keyboard-layout snapshots now copy those properties on the
+main queue while panel waits and input remain on the worker. A locally signed
+0.6.8-based app with the repaired embedded framework passes the same browser
+workflow: 62 checks across three successful runs, sixteen download/upload
+cycles, layout changes, Settings recreation and a fresh app launch, with stable
+within-run PID/generation and no new OS crash report.
+[Tactical 135](../docs/tactical/135-browser-file-dialog-crash.md) records the
+evidence and qualification limits. The controller's installed app is unchanged;
+the corrected package has not been published.
+
 **Current (2026-10-16):** native AX `set_value` accepts an empty string,
 including independently checked editor clearing/restoration. The bounded
 SecurityAgent recognizer also accepts the exact `security` requester and

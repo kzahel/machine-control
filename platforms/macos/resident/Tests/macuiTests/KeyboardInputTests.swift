@@ -3,6 +3,27 @@ import CoreGraphics
 @testable import macui
 
 final class KeyboardInputTests: XCTestCase {
+    func testCurrentLayoutFromProviderWorker() {
+        let completed = expectation(description: "Worker copied the current keyboard layout")
+        DispatchQueue(label: "machine-control.keyboard-regression").async {
+            defer { completed.fulfill() }
+            XCTAssertFalse(Thread.isMainThread)
+            do {
+                // Use real HIToolbox properties: a synthetic translation table
+                // cannot detect its dispatch assertion in dialog.choose.
+                let snapshot = try KeyboardLayoutSnapshot.current()
+                XCTAssertFalse(snapshot.id.isEmpty)
+                XCTAssertFalse(snapshot.inputSourceID.isEmpty)
+                XCTAssertEqual(try resolveKeyboardChord("cmd-shift-g", layout: snapshot).flags,
+                               [.maskCommand, .maskShift])
+                XCTAssertNoThrow(try snapshot.verifyCurrent())
+            } catch {
+                XCTFail("Worker layout lookup failed: \(error)")
+            }
+        }
+        wait(for: [completed], timeout: 10)
+    }
+
     private func layout(_ table: [UInt16: [UInt64: String]]) -> KeyboardLayoutSnapshot {
         KeyboardLayoutSnapshot(id: "fixture", inputSourceID: "fixture", keyboardType: 0) { code, flags in
             table[code]?[flags.rawValue]

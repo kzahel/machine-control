@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [135 — Browser file-dialog crash investigation](135-browser-file-dialog-crash.md):
+  audit/OS-report correlation, main-queue keyboard-layout lookup and real
+  browser download/upload/native-panel smoke coverage.
+
 - [134 — Native Windows unlock enrollment](134-windows-native-unlock-enrollment.md):
   one-time native password setup and enrolled task-owned unlock.
 
