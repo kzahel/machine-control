@@ -220,8 +220,13 @@ Assert(broker.Authorize("browser.tabs") is null, "Browser scope authorizes tabs"
 Assert(broker.Authorize("browser.eval") == "approval_required", "Browser is not raw DevTools");
 Assert(broker.Authorize("snapshot") == "approval_required", "Browser is not desktop observation");
 Assert(BrowserWire.Operations.Contains("browser.upload") && !BrowserWire.Observes("browser.upload"), "Upload is an advertised browser mutation");
+Assert(DesktopGrants.ScopeFor("browser.dialog") == "browser" && broker.Authorize("browser.dialog") is null,
+    "Typed dialog handling uses the browser grant");
+foreach (var operation in BrowserWire.Operations)
+    Assert(DesktopGrants.ScopeFor(operation) is not null, "Every advertised browser operation has a control-session scope: " + operation);
 Assert(broker.Authorize("browser.upload") is null, "Browser scope permits upload without DevTools");
 Assert(broker.Authorize(new Request { Operation = "browser.upload" }) == "control_session_required", "Upload requires live ownership");
+Assert(broker.Authorize(new Request { Operation = "browser.dialog" }) == "control_session_required", "Typed dialogs require live ownership");
 broker.Stop("test");
 broker.Arm(["devtools"], 60);
 Assert(broker.Authorize("browser.eval") is null && broker.Authorize("browser.tabs") is null, "DevTools includes browser");
@@ -231,6 +236,7 @@ Assert(broker.Authorize("browser.tabs") is null, "Prompt permits browser observa
 Assert(broker.Authorize("browser.upload") == "approval_prompt_visible", "Prompt fences uploads");
 broker.Stop("test");
 Assert(broker.Authorize("browser.upload") == "approval_required", "Stop revokes uploads");
+Assert(broker.Authorize("browser.dialog") == "approval_required", "Stop revokes typed dialogs");
 Assert((await browserPending).ErrorCode == "test", "Stop cancels browser prompt");
 Assert(Contract.ParseRequest("{\"operation\":\"browser.upload\",\"files\":[\"C:\\\\fixture.txt\"]}").Files?.Single() == @"C:\fixture.txt", "Upload file list survives request parsing");
 Assert(BrowserUpload.Validate(null).ErrorCode == "invalid_request" && BrowserUpload.Validate([]).ErrorCode == "invalid_request", "Upload needs files");

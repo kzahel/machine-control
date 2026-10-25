@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Authorize typed browser dialog inspection and handling through Windows
+  control sessions under the existing browser scope.
 - Preserve operator arming when Mac covered startup or a provider fails.
   End the finite task, fence desktop work and recover from fresh locked,
   healthy and quiet conditions. Explicit Stop, original expiry and console changes still

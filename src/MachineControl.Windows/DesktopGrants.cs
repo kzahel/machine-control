@@ -106,7 +106,7 @@ internal sealed class DesktopGrants(TimeProvider? time = null, DesktopJournal? j
         "click" or "move" or "drag" or "scroll" or "key" or "key.timeline" or "key.delayed_hold" or "type" or "window.state" or "uac.respond" or "session.unlock.prepare" or "session.unlock" => "control",
         "browser.tabs" or "browser.wait" or "browser.navigate" or "browser.snapshot" or
         "browser.click" or "browser.type" or "browser.key" or "browser.capture" or
-        "browser.upload" or "browser.release" => "browser",
+        "browser.upload" or "browser.release" or "browser.dialog" => "browser",
         "browser.cdp" or "browser.eval" or "browser.endpoint" => "devtools",
         _ => null,
     };

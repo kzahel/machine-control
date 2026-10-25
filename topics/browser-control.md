@@ -32,7 +32,9 @@ Unconfirmed detaches block that route and can be retried by release. Optional
 indicator cleanup has its own bounds. Typed `browser.dialog` requires a current
 dialog ID for handling; `not_observed` is not proof that no dialog exists.
 [Tactical 138](../docs/tactical/138-remote-arming-recovery.md) owns the repair
-and signed Mac VM campaign; the provider dossier owns evidence limits.
+and signed Mac VM campaign plus the focused Windows/Linux source-native
+release smoke; the provider dossier owns evidence limits. Windows typed dialog
+handling now maps to the browser scope at the retained control-session gate.
 The final signed development assembly passes that composed campaign with
 native until-stopped approval, independent effects, faults and Stop. This is
 the bundled unpacked provider in one VM; store and mixed-version rollout remain

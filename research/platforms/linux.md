@@ -12,6 +12,18 @@ and Unicode fixture effects, capture verification, credentials and repeated
 cold boots. This does not extend the full accepted platform matrix; the guest
 needs a kernel boot workaround and factory/workspace adoption is unfinished.
 
+## Browser recovery smoke
+
+**Current — live-tested, unreleased source (2026-10-25):** Ubuntu 24.04
+GNOME 46 Wayland ARM64 and native Chrome for Testing 156 pass ten focused
+relay checks with extension 0.8.1. Independent HTTP/PNG effects, typed dialog
+handling, discovery during stalled page work, bounded uncertain timeout,
+confirmed release recovery and Stop pass. This uses inherited operator arming
+and an empty browser profile with explicit `--no-sandbox`; OS policy is
+unchanged. It does not qualify installed Settings or other compositors.
+[Tactical 138](../../docs/tactical/138-remote-arming-recovery.md#cross-platform-release-smoke)
+owns execution and limits.
+
 ## Browser control with the console locked
 
 **Current — live-tested, unreleased source (2026-10-17):** Ubuntu 24.04

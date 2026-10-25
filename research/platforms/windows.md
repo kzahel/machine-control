@@ -68,6 +68,17 @@ displays before credential submission. This is presentation privacy, not a
 security boundary against local software using other capture routes. Broader
 capture/provider, physical and signed-package qualification remain separate.
 
+**Current — live-tested, unreleased browser recovery (2026-10-25):**
+Windows 11 ARM64 with x64-emulated Chrome for Testing 155 passes ten
+source-native relay checks under retained browser/DevTools ownership. This
+found and repaired missing browser-scope authorization for typed dialog
+handling. Independent HTTP/PNG effects, dialog handling, bounded uncertain
+timeout, confirmed detach/recovery and Stop pass. Control status progresses
+during an action; concurrent browser dispatch remains intentionally serialized
+by the owner channel. Signed installed Settings and protected use are separate.
+[Tactical 138](../../docs/tactical/138-remote-arming-recovery.md#cross-platform-release-smoke)
+owns execution and limits.
+
 **Current — live-tested, unreleased ARM64 locked-browser source:**
 Windows 11 ARM64 with x64-emulated Chrome for Testing 155 passes 18 focused
 checks under real native workstation approval. The OS stays locked throughout

@@ -92,8 +92,8 @@ raw evidence remains private.
 | Consent and native regression tests | 253 Swift tests pass; includes operational retention, multi-window discovery, late guardian startup, root liveness and restoration before the root fault marker |
 | Root policy and protocol | Native quiet/fault recovery, bounded socket inbox, completion/EOF ordering and console-lock identity checks pass |
 | Portable and native checks | Repository portable checks and Mac native static checks pass; optimized ARM64 signed app and Intel build pass |
-| Shared Windows transport | Format verification, contract tests and self-contained ARM64/x64 publishes pass; no new Windows live qualification is claimed |
-| Shared Linux transport | Focused relay deadline/cancellation tests and portable checks pass; no new Linux live qualification is claimed |
+| Shared Windows transport | Format verification, contract tests and self-contained ARM64/x64 publishes pass; follow-up ARM64 source-native browser smoke passes ten checks |
+| Shared Linux transport | Focused relay deadline/cancellation tests and portable checks pass; follow-up ARM64 GNOME Wayland browser smoke passes ten checks |
 | Composed signed Mac campaign | 81 checks pass, three download/upload cycles, two planned app restarts, native Settings/Permissions/Stop, file-panel cancellation/overwrite and independent HTTP/native fixture effects |
 | Locked browser recovery | Observed beforeunload handling preserves its recoverable attachment; release, stale IDs, queued refusal, dispatched uncertainty and unrelated-tab progress pass under unchanged until-stopped consent |
 | Covered faults | Late pre-arm cancellation, repeated guardian death, guardian stall, root stall and armed resident death pass; browser remains independent and desktop dispatch remains refused during protected recovery |
@@ -123,3 +123,33 @@ execution, other OS/browser versions and Chrome Web Store/mixed-version rollout
 remain separate. Startup's bounded main-queue wait remains documented in the
 locked-use guide. This development assembly is not a clean-source release
 acceptance receipt.
+
+## Cross-platform release smoke
+
+**Current (2026-10-25), unreleased:** the requested small Windows/Linux check
+found a Windows integration omission: `browser.dialog` was advertised but had
+no `DesktopGrants.ScopeFor` mapping. The retained control channel refused it
+before dispatch. Map it to the existing browser scope, matching Linux and Mac;
+raw CDP remains DevTools-only. Contracts now require every advertised browser
+operation to have a scope and explicitly permit typed dialogs under a browser
+grant. Format verification and both Windows architecture publishes pass.
+
+The [short native relay fixture](../../tests/browser/README.md) passes ten
+checks on Windows 11 ARM64 with x64-emulated Chrome for Testing 155 and ten on
+Ubuntu 24.04 GNOME 46 Wayland ARM64 with native Chrome for Testing 156. Both
+exercise extension 0.8.1, independent HTTP click and hashed PNG effects,
+observed dialog handling, dispatched timeout uncertainty, confirmed release
+and fresh evaluation, and Stop. Windows proves control-status responsiveness
+during a pending action; its owner channel intentionally serializes actions.
+Linux separately proves browser discovery progresses during stalled work.
+
+These are source-native fixtures using inherited operator arming, not signed
+installed Settings or protected-desktop acceptance. Linux's empty browser
+fixture explicitly disables its namespace sandbox without changing OS policy.
+The independent Opus review accepts the scope repair and fixture contracts.
+Fixture startup failures were corrected rather than counted as native passes.
+Original native registration is restored, owned processes and staging are
+removed, both initially-off VMs are routinely shut down, and claims released.
+The interrupted initial hypervisor operation retains unknown journal coverage;
+its journal closes without inventing that missing result. Raw evidence stays
+private. No release is dispatched by this smoke campaign.
