@@ -209,6 +209,10 @@ package and environment boundaries.
   owns focused x64 acceptance and [the streaming guide](../desktop/WINDOWS-STREAMING-CDP.md)
   owns usage and target-loopback forwarding limits. Signed streaming packages,
   ARM64 live, physical and other-browser qualification remain separate.
+- **Open:** a page JavaScript dialog blocks the extension's serial request
+  queue, so every later browser operation times out until Chrome restarts.
+  Timed-out requests are reported as refused while still queued. See the
+  [gap record](../gaps/2026-10-25-locked-use-self-revocation.md).
 - **Open:** Linux installed store-copy qualification and other Chromium browsers.
 - **Open:** Store review outcome and installed store-copy acceptance,
   a revoke-only Stop from the extension, and installer/policy installation

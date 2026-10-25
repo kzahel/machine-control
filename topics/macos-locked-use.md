@@ -8,6 +8,12 @@ on macOS 26.6.2. Operator-confirmed physical takeover/recovery is live-tested
 with a scripted timing caveat. Multiple displays, additional OS revisions,
 Intel execution and distribution qualification remain open.
 
+**Current (2026-10-25):** a physical Mac with two online displays fails covered
+startup with `unlock_password_panel_unavailable_login_window_ambiguous`. That
+pre-unlock failure revoked the operator's until-stopped approval and paused
+locked use, leaving no remote recovery. See the
+[gap record](../gaps/2026-10-25-locked-use-self-revocation.md).
+
 **Current (2026-10-16):** a reported physical task ended with
 `unlock_password_panel_unavailable`. A bounded one-display VM completion on
 signed 0.6.1 passes covered activation, independent native fixture effects,
