@@ -4,7 +4,8 @@ Topic: `android-family-control`
 
 Status: active Android-handheld and Quest implementations over a shared ADB
 provider; ordinary phone PIN unlock is live-tested on one physical profile.
-Post-boot credential delivery and broader Android profiles remain open.
+Unlock with initially locked user storage and broader Android profiles remain
+open.
 
 ## Scope
 
@@ -124,17 +125,21 @@ private-address and secure-ADB gates, active-lease refusal, exact endpoint
 binding, recorded fallback, identity-drift refusal, and observed disable.
 
 **Current — physical PIN unlock, live-tested 2026-10-25:** the common CLI's
-native adapter escape hatch unlocked a physical API-37 handheld with a host-file
-credential through dedicated stdin. Delivery and keyguard/user-storage effect
-were confirmed with one submission and zero retries; a subsequent read-only
-doctor also reported unlocked interaction. The credential never appeared in
-output or retained evidence, and temporary device files were removed.
+native adapter escape hatch unlocked a physical API-37 handheld using both
+dedicated stdin and its inventory-configured host PIN file. The configured-file
+acceptance followed an owner-reported reboot with a changed boot generation;
+user storage was already available before that attempt. Each accepted attempt
+confirmed delivery and keyguard/user-storage effect with one submission and
+zero retries; subsequent read-only doctors also reported unlocked interaction.
+The credential never appeared in output or retained evidence, and temporary
+device files were removed.
 The [Android research](../research/platforms/android.md#existing-adb-implementation)
 owns the observation, stdin-isolation and helper-initialization findings.
 
-**Open:** First unlock after reboot, broader OEM coverage and full credential
-conformance remain unaccepted. Deliberately entering a wrong PIN remains out
-of scope. An uncertain credential delivery still prohibits automatic retry.
+**Open:** First unlock from initially locked user storage, broader OEM coverage
+and full credential conformance remain unaccepted. Deliberately entering a wrong
+PIN remains out of scope. An uncertain credential delivery still prohibits
+automatic retry.
 
 ## Recommended next work
 

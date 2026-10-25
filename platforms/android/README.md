@@ -125,8 +125,11 @@ file redirected into dedicated stdin. The corrected helper delivered once;
 keyguard and user-storage observations confirmed unlock, and a subsequent
 read-only doctor independently reported interaction unlocked. The PIN was never
 displayed or retained in evidence, and device-side temporary files were removed.
-This validates ordinary screen unlock after user storage is available, not
-first unlock after reboot or broader OEM coverage.
+A subsequent owner-reported reboot produced a changed boot generation, and the
+inventory-configured PIN file also unlocked it with one submission and zero
+retries. User storage was already unlocked before that attempt. This validates
+ordinary and post-reboot screen unlock with user storage available; first
+unlock from locked user storage and broader OEM coverage remain unqualified.
 
 ## Reboot and first unlock
 
@@ -138,9 +141,9 @@ it can attempt first unlock once authorized ADB, native policy observation and
 the known PIN surface are available. Successful effect requires both keyguard
 and user storage to report unlocked afterward.
 
-This route is unit-tested for initially locked user storage, but first unlock
-after a real reboot has not been accepted on hardware. ADB availability and
-protected-surface behavior still need that separate physical test. Boot
+This route is unit-tested for initially locked user storage. Physical
+post-reboot unlock is accepted with user storage already available; first
+unlock from locked user storage still needs a separate physical test. Boot
 completion alone is not evidence that applications or user storage are ready.
 
 ## State and safety
