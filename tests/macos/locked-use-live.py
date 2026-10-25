@@ -197,7 +197,9 @@ def main():
                 assert not final["lockedUse"]["pausedUntilManualUnlock"]
                 assert final["lockedUse"]["lastEndedReason"] == args.case, "Unexpected clean termination reason"
             else:
-                assert final["lockedUse"]["pausedUntilManualUnlock"]
+                assert not final["lockedUse"]["pausedUntilManualUnlock"]
+                assert final["lockedUse"]["recoveryCondition"] in {
+                    "same_console_locked_and_quiet", "same_console_locked_healthy_and_quiet"}
             if args.case == "physical_presence":
                 assert final["lockedUse"]["lastEndedReason"] == "physical_presence"
             if args.local:

@@ -94,6 +94,9 @@ internal sealed record Request
     public string? Method { get; init; }
     public JsonElement? Params { get; init; }
     public string? Expression { get; init; }
+    public string? Action { get; init; }
+    public string? DialogId { get; init; }
+    public string? PromptText { get; init; }
     public string[]? Files { get; init; }
 }
 

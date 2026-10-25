@@ -67,7 +67,9 @@ release.
 Save panel. It navigates through the panel's own Go to Folder sheet (setting
 the field through accessibility and typing it only if the value does not
 take), refuses to confirm unless the panel's location shows the requested
-folder, and reports a follow-up such as Replace without answering it. The
+folder, waits boundedly for a positively enabled confirmation button after
+the path/name settles, and reports a follow-up such as Replace without
+answering it. A delayed enabled state does not trigger input replay. The
 live system-dialogs suite covers folder, file, new save, unanswered Replace
 and no-panel refusal on macOS 26.6 through outside and guest-local callers;
 the same route loaded an unpacked extension in Chrome for Testing, saved

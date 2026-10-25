@@ -178,6 +178,9 @@ struct AuditEntry {
 /// Owns the live grant for this resident. All access happens on the main
 /// queue, like the rest of the resident.
 final class GrantBroker {
+    /// Operational failure ends live authority, not the person's saved choice.
+    /// Only a trusted authority transition may invalidate that choice.
+    enum ConsentDisposition { case retain, invalidate }
     let policy: DeploymentPolicy
     var journal: DesktopJournal?
     var now: () -> Date = Date.init
@@ -194,6 +197,7 @@ final class GrantBroker {
     private let auditLimit = 100
     var consentStore: OperatorConsentStore?
     var consentStorageError: String?
+    var restorationBlockedScopes = Set<GrantScope>()
     /// A retained mixed grant keeps its identity and expiry, but cannot expose
     /// desktop observation/input while only browser access is permitted.
     var browserOnlyWhileLocked = false {
@@ -263,7 +267,7 @@ final class GrantBroker {
     /// The live grant, after retiring an expired one.
     var activeGrant: Grant? {
         if let expiry = grant?.expiresAt, expiry <= now() {
-            end(reason: "expired")
+            end(reason: "expired", consent: grant?.origin == .person ? .invalidate : .retain)
         }
         return grant
     }
@@ -286,6 +290,9 @@ final class GrantBroker {
             }
             return nil
         case let .scoped(scope):
+            if restorationBlockedScopes.contains(scope) {
+                return GrantRefusal("access_temporarily_unavailable", "Saved consent is retained; this route is waiting for readiness", requiredScope:scope)
+            }
             guard scopeAvailable(scope) else {
                 return GrantRefusal("desktop_locked_browser_only",
                     "Only previously approved browser access is available while locked",
@@ -326,6 +333,7 @@ final class GrantBroker {
         if journal?.errorCode != nil { return "audit_storage_unavailable" }
         if !scopes.allSatisfy(scopeAvailable) { return "desktop_locked_browser_only" }
         if policy.grantMode == .standing { return nil }
+        if !scopes.isDisjoint(with:restorationBlockedScopes) { return "access_temporarily_unavailable" }
         guard let grant = activeGrant, scopes.isSubset(of:grant.scopes) else { return "approval_required" }
         return nil
     }
@@ -370,6 +378,7 @@ final class GrantBroker {
     @discardableResult
     func issue(scopes: Set<GrantScope>, durationSeconds: Int, reason: String,
                requester: String, approver: String, origin: GrantOrigin = .request) -> Grant {
+        restorationBlockedScopes.removeAll()
         let clamped = min(max(durationSeconds, GrantRequest.durationRange.lowerBound),
                           GrantRequest.durationRange.upperBound)
         let issued = now()
@@ -393,6 +402,7 @@ final class GrantBroker {
     @discardableResult
     func issueUntilStopped(scopes: Set<GrantScope>, reason: String,
                            requester: String, approver: String) -> Grant {
+        restorationBlockedScopes.removeAll()
         let next = Grant(id: UUID().uuidString.lowercased(), scopes: scopes,
                          issuedAt: now(), expiresAt: nil,
                          reason: reason, requester: requester, approver: approver,
@@ -421,8 +431,8 @@ final class GrantBroker {
         return next
     }
 
-    func revoke(reason: String) {
-        end(reason: reason)
+    func revoke(reason: String, consent: ConsentDisposition = .retain) {
+        end(reason: reason, consent: consent)
     }
 
     /// Local authority ends before protected cleanup or durable writes wait.
@@ -435,22 +445,21 @@ final class GrantBroker {
 
     /// The person's own controls; only these always clear saved consent.
     static let personStopReasons: Set<String> = ["stopped_from_menu", "stopped_by_hotkey", "stopped_by_person"]
-    private static let consentPreservingReasons: Set<String> = ["operator_quit", "operator_disconnected", "resident_stopping", "desktop_locked", "watchdog_interrupted", "helper_stopping", "helper_restarted", "system_sleep", "display_sleep", "display_changed", "owner_disconnected", "input_guard_unavailable"]
 
     /// Saved consent is the person's arming. An agent's revoke or the end of
     /// an agent-request grant must not clear it; the person's Stop always does.
-    static func clearsConsent(reason: String, ending: GrantOrigin?) -> Bool {
+    static func clearsConsent(reason: String, ending: GrantOrigin?, consent: ConsentDisposition = .retain) -> Bool {
         if personStopReasons.contains(reason) { return true }
-        if reason == "revoked_by_caller" || ending == .request { return false }
-        return !consentPreservingReasons.contains(reason)
+        return consent == .invalidate
     }
 
-    private func end(reason: String) {
+    private func end(reason: String, consent: ConsentDisposition = .retain) {
         let ending = grant ?? fenced
         grant = nil
         fenced = nil
+        restorationBlockedScopes.removeAll()
         journal?.event("access." + DesktopJournal.token(reason))
-        if Self.clearsConsent(reason: reason, ending: ending?.origin) {
+        if Self.clearsConsent(reason: reason, ending: ending?.origin, consent: consent) {
             do { try consentStore?.disable() } catch { consentStorageError = String(describing:error) }
         }
         admission.stop(reason)
@@ -482,6 +491,7 @@ final class GrantBroker {
                  "at": ISO8601DateFormatter().string(from: ended.at)]
             } ?? NSNull(),
             "consentStorageError":consentStorageError as Any? ?? NSNull(),
+            "restorationBlockedScopes":restorationBlockedScopes.sorted().map(\.rawValue),
             "browserOnlyWhileLocked": browserOnlyWhileLocked,
             "effectiveScopes": (policy.grantMode == .standing ? Set(GrantScope.allCases) : activeGrant?.scopes ?? [])
                 .filter(allows).sorted().map(\.rawValue),

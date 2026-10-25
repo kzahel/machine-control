@@ -23,10 +23,50 @@ Operations use `chrome.debugger` (CDP) on individual tabs:
 | `browser.key` | Press Enter, Tab, Escape, Backspace, or an arrow key |
 | `browser.capture` | Viewport PNG stored as a resident artifact |
 | `browser.upload` | Attach local files to a file input, or to the chooser an upload button opens, without the OS file dialog |
-| `browser.cdp` | Any DevTools protocol method with its parameters (`devtools` grant) |
+| `browser.cdp` | Raw DevTools protocol with parameters (`devtools` grant); `Page.disable` is reserved to preserve dialog recovery |
 | `browser.eval` | Evaluate JavaScript in a tab and return the value (`devtools` grant) |
 | `browser.endpoint` | Report the local DevTools WebSocket endpoint template (`devtools` grant) |
-| `browser.release` | Detach all debugger sessions |
+| `browser.release` | Detach all debugger sessions; refuses promptly while an observed dialog needs handling |
+| `browser.dialog` | Observe dialog type/message/id; explicitly accept or dismiss the current id |
+
+The guarantees below require the matching new native relay and extension
+0.8.1. Older store workers and mixed-version combinations do not inherit this
+qualification; coordinated app/store rollout remains separate.
+
+**Current source (0.8.1):** ordinary requests serialize per tab with eight
+active slots and 64 retained requests. Discovery, dialog handling, grant
+fencing and release have independent bounded execution. Queued requests expire
+without dispatch; a dispatched timeout reports unknown effects and blocks that
+tab until recovery. Confirmed detachment frees abandoned slots even when an
+old Chrome callback never returns. Unconfirmed detachments remain tracked for
+the next release. Unsettled raw attachments retain a separate eight-slot
+bound and fence reuse until their late result and cleanup settle, even when
+an earlier detach reported absence. Release reports `released: false` with
+`pendingAttachments` or `unconfirmedDetaches` instead of claiming completion.
+If Chrome never settles an attach callback, that tab and its slot stay fenced;
+a browser restart discards that broken provider state. Other established routes
+and operator consent remain independent. Release does not replay work or
+withdraw operator consent.
+
+Dialog handling requires the freshly observed dialog id and an explicit choice;
+it never automatically accepts a beforeunload prompt. A null dialog means no
+opening event was observed, not proof that no modal exists. Status reports
+`open` or `not_observed`, plus `observerState: ready|pending|failed`. Basic
+debugger attachment is separate from event readiness: `Page.enable` can itself
+wait behind a modal that predates reattachment. Ordinary operations and stream
+opening require event readiness; explicit per-request raw
+`Page.handleJavaScriptDialog` can use the independent basic attachment.
+This raw recovery requires DevTools authority and never runs implicitly.
+Release refuses with `dialog_open` while an observed dialog is open, preserving
+its attachment for an explicit decision. Handle it first, then release. Chrome
+may not hand that dialog to a new debugger session. Completed release invalidates
+old dialog IDs; Stop and authority loss always detach even with a dialog open.
+Dialogs on already-uncertain attachments cannot block a detach retry; release
+names them in `abandonedDialogs`. A dialog can still open after release from
+page work that was already dispatched. `observedDialog: null` means unobserved,
+not proof of absence. A refusal
+to handle it is not proof the page has no dialog. Optional favicon work is
+bounded, waits for event readiness, and cannot prevent debugger detachment.
 
 Controlled tabs show an owned blue pointer over their site favicon. Newly
 created agent tabs join a blue **Machine Control** group in their own window;

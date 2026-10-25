@@ -1379,6 +1379,18 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(value["data"]["request"],
                          {"operation": "browser.wait", "tabId": 5, "timeoutMs": 10000})
 
+    def test_browser_dialog_requires_a_current_dialog_id_for_handling(self):
+        self.write_registry("macos")
+        result, value = self.run_cli("--target", "fixture", "browser", "dialog", "--tab", "5")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["data"]["request"], {"operation":"browser.dialog", "tabId":5, "action":"status"})
+        result, _ = self.run_cli("--target", "fixture", "browser", "dialog", "--action", "accept")
+        self.assertNotEqual(result.returncode, 0)
+        result, value = self.run_cli("--target", "fixture", "browser", "dialog", "--tab", "5",
+                                     "--action", "dismiss", "--dialog-id", "current-dialog")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(value["data"]["request"]["dialogId"], "current-dialog")
+
     def test_browser_cdp_and_eval_requests(self):
         self.write_registry("macos")
         result, value = self.run_cli(

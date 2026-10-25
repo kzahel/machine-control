@@ -203,6 +203,7 @@ internal sealed class BrowserRelay(DesktopGrants grants) : IBrowserDevToolsProvi
                 ["type"] = "request",
                 ["id"] = id,
                 ["operation"] = request.Operation,
+                ["timeoutMs"] = Math.Clamp((request.TimeoutMs ?? 45000) - 1000, 100, 30000),
                 ["grantGeneration"] = generation,
                 ["params"] = parameters
             }, cancellation, controlled, request, providerGeneration);
@@ -215,10 +216,10 @@ internal sealed class BrowserRelay(DesktopGrants grants) : IBrowserDevToolsProvi
                 return result with
                 {
                     ErrorCode = response["errorCode"]?.GetValue<string>() ?? "browser_operation_failed",
-                    Delivery = "unknown",
-                    Effect = "unknown",
-                    Uncertainty = "provider_refusal_may_follow_partial_delivery",
-                    RetrySafety = "unsafe_delivery_unknown"
+                    Delivery = response["delivery"]?.GetValue<string>() == "refused" ? "refused" : "unknown",
+                    Effect = response["delivery"]?.GetValue<string>() == "refused" ? "refused" : "unknown",
+                    Uncertainty = response["delivery"]?.GetValue<string>() == "refused" ? "none" : "provider_refusal_may_follow_partial_delivery",
+                    RetrySafety = response["delivery"]?.GetValue<string>() == "refused" ? "safe_not_dispatched" : "unsafe_delivery_unknown"
                 };
             var data = response["data"]?.AsObject() ?? new JsonObject();
             if (request.Operation == "browser.snapshot" && data["elements"] is JsonArray elements)
@@ -252,7 +253,16 @@ internal sealed class BrowserRelay(DesktopGrants grants) : IBrowserDevToolsProvi
         {
             return dispatched ? Uncertain(result, "browser_completion_unavailable") : result with { ErrorCode = "browser_provider_unavailable" };
         }
-        finally { _pending.TryRemove(id, out _); }
+        finally
+        {
+            _pending.TryRemove(id, out _);
+            if (dispatched && !completion.Task.IsCompleted)
+            {
+                using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                try { await SendAsync(new JsonObject { ["type"] = "cancel", ["id"] = id }, cancel.Token, providerGeneration: providerGeneration); }
+                catch (Exception ex) when (ex is IOException or OperationCanceledException) { }
+            }
+        }
     }
 
     async Task IBrowserDevToolsProvider.OpenAsync(string id, int tabId, Request authority, string generation,

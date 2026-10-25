@@ -30,6 +30,80 @@ final class LockedDisplayWakeTests: XCTestCase {
         XCTAssertEqual(h.declareCount,0); XCTAssertTrue(h.released.isEmpty)
     }
 
+    func testStartupDisplayHoldCoversTheBodyWithAKernelTimeout() throws {
+        let h = Harness(); h.displayActive = true
+        var wake = h.wake(session:session); var durations: [TimeInterval] = []
+        wake.hold = { seconds in durations.append(seconds); return 43 }
+        let result = try wake.withPreparedDisplay(session:session, deadline:100) {
+            XCTAssertTrue(h.released.isEmpty)
+            XCTAssertEqual(durations,[12]); XCTAssertEqual(h.declareCount,0)
+            return 7
+        }
+        XCTAssertEqual(result,7); XCTAssertEqual(h.released,[43])
+    }
+
+    func testStartupHoldAcquiredBeforeWakeAndReleasedOnBodyFailure() throws {
+        let h = Harness(); var events: [String] = []
+        var wake = h.wake(session:session)
+        wake.hold = { _ in events.append("hold"); return 43 }
+        wake.declare = { events.append("wake"); h.displayActive = true; return 42 }
+        XCTAssertThrowsError(try wake.withPreparedDisplay(session:session, deadline:100) {
+            events.append("body"); XCTAssertEqual(h.released,[42])
+            throw MacUIError.action("physical_presence")
+        } as Void)
+        XCTAssertEqual(events,["hold","wake","body"]); XCTAssertEqual(h.released,[42,43])
+    }
+
+    func testStartupHoldUsesRemainingTimeAndReportsItsExpiry() throws {
+        let h = Harness(); h.displayActive = true
+        var wake = h.wake(session:session); var expired = false
+        wake.hold = { seconds in XCTAssertEqual(seconds,2); return 43 }
+        wake.holdExpired = { expired = true }
+        try wake.withPreparedDisplay(session:session, deadline:12) { h.time = 12 }
+        XCTAssertTrue(expired); XCTAssertEqual(h.released,[43])
+    }
+
+    func testCancelledOrNearlyExpiredStartupAcquiresNoHold() {
+        for cancelled in [false,true] {
+            let h = Harness(); var wake = h.wake(session:session)
+            wake.hold = { _ in XCTFail("Unusable startup must not acquire a hold"); return 43 }
+            wake.cancelled = { cancelled ? "owner_disconnected" : nil }
+            XCTAssertThrowsError(try wake.withPreparedDisplay(session:session, deadline:11) {
+                XCTFail("Unusable startup body ran")
+            })
+            XCTAssertTrue(h.released.isEmpty)
+        }
+    }
+
+    func testStartupHoldReleasedWhenDisplayNeverBecomesActive() {
+        let h = Harness(); var wake = h.wake(session:session)
+        wake.hold = { _ in 43 }
+        XCTAssertThrowsError(try wake.withPreparedDisplay(session:session, deadline:100) {
+            XCTFail("Body ran without an active display")
+        })
+        XCTAssertEqual(h.released,[42,43])
+    }
+
+    func testStartupHoldReleasedOnCancellationDuringWake() {
+        let h = Harness(); var wake = h.wake(session:session); var cancelled = false
+        wake.hold = { _ in 43 }
+        wake.cancelled = { cancelled ? "owner_disconnected" : nil }
+        h.onPause = { cancelled = true }
+        XCTAssertThrowsError(try wake.withPreparedDisplay(session:session, deadline:100) {
+            XCTFail("Cancelled body ran")
+        })
+        XCTAssertEqual(h.released,[42,43])
+    }
+
+    func testStartupHoldFailureDoesNotWakeOrRunTheBody() {
+        let h = Harness(); var wake = h.wake(session:session)
+        wake.hold = { _ in throw MacUIError.action("locked_use_display_hold_failed") }
+        XCTAssertThrowsError(try wake.withPreparedDisplay(session:session, deadline:100) {
+            XCTFail("Unheld body ran")
+        })
+        XCTAssertEqual(h.declareCount,0); XCTAssertTrue(h.released.isEmpty)
+    }
+
     func testInactiveDisplayWakesOnceAndReleasesOnReadiness() throws {
         let h = Harness(); h.onPause = { h.displayActive = true }
         try h.wake(session:session).prepare(session:session, deadline:100)

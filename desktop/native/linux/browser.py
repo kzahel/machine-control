@@ -100,6 +100,8 @@ class Browser:
                     continue
                 if frame is None:
                     return
+                if identifier and identifier not in self.pending:
+                    continue
                 if identifier and (self.owner.grants.generation != generation or self.owner.grants.paused
                                    or self.owner.grants.pending):
                     self.owner.scheduler.post(lambda identifier=identifier: self.complete(
@@ -140,8 +142,8 @@ class Browser:
         if state != self.published:
             self.published = state
             try:
-                self.send({"type": "grant", "browser": False, "devtools": False})
-                self.send({"type": "grant", "browser": state[1], "devtools": state[2]})
+                self.send({"type": "grant", "browser": False, "devtools": False, "grantGeneration":state[0]})
+                self.send({"type": "grant", "browser": state[1], "devtools": state[2], "grantGeneration":state[0]})
             except RuntimeError:
                 return
             # Discard in-flight authority on a generation transition.
@@ -150,6 +152,11 @@ class Browser:
                     self.complete(identifier, {"ok": False, "errorCode": "stale_generation"})
 
     def execute(self, request, finish):
+        timeout = request.get("timeoutMs", 30000)
+        if type(timeout) is not int or timeout <= 0:
+            finish(self.owner.provider.fail(request, request["operation"], "invalid_request", "Browser timeout must be positive integer milliseconds"))
+            return
+        timeout = min(45000, max(100, timeout))
         self.sync()
         if not self.provider:
             finish(self.owner.provider.fail(request, request["operation"], "browser_provider_unavailable", "Connect the extension"))
@@ -167,10 +174,19 @@ class Browser:
         self.pending[identifier] = {"request": request, "finish": finish, "grant": grant,
                                     "provider": self.generation, "dispatched": False}
         try:
-            self.send({"type": "request", "id": identifier, "operation": request["operation"], "params": params})
+            self.send({"type": "request", "id": identifier, "operation": request["operation"], "params": params, "timeoutMs":min(30000, max(100, timeout - 500))})
         except (RuntimeError, ValueError):
             self.complete(identifier, {"ok": False, "errorCode": "browser_provider_unavailable"})
-        self.owner.scheduler.timer(30000, lambda: self.complete(identifier, {"ok": False, "errorCode": "browser_timeout"}))
+        self.owner.scheduler.timer(timeout, lambda: self.expire(identifier))
+
+    def expire(self, identifier):
+        if identifier in self.pending:
+            try:
+                self.send({"type":"cancel", "id":identifier})
+            except (RuntimeError, ValueError):
+                pass
+            self.complete(identifier, {"ok":False, "errorCode":"browser_timeout"})
+        return False
 
     def message(self, client, frame):
         if client != self.provider:
@@ -189,12 +205,13 @@ class Browser:
         if frame.get("ok") is not True:
             error = error or frame.get("errorCode", "browser_operation_failed")
         if error:
+            dispatched = item["dispatched"] and frame.get("delivery") != "refused"
             result = self.owner.provider.fail(request, request["operation"], error, "Browser operation refused")
             result.update(actualRoute="user/chrome-extension/cdp",
-                          delivery="unknown" if item["dispatched"] else "not_dispatched",
-                          effect="unknown" if item["dispatched"] else "none",
-                          uncertainty="authority_or_provider_changed_after_dispatch" if item["dispatched"] else "none",
-                          retrySafety="unsafe_delivery_unknown" if item["dispatched"] else "safe_before_dispatch")
+                          delivery="unknown" if dispatched else "not_dispatched",
+                          effect="unknown" if dispatched else "none",
+                          uncertainty="authority_or_provider_changed_after_dispatch" if dispatched else "none",
+                          retrySafety="unsafe_delivery_unknown" if dispatched else "safe_before_dispatch")
         else:
             result = self.owner.provider.envelope(request, request["operation"])
             result.update(actualRoute="user/chrome-extension/cdp", fidelity="chromium_tab_cdp",

@@ -3,6 +3,22 @@ import XCTest
 @testable import macui
 
 final class OperatorConsentTests: XCTestCase {
+    func testRestorationWaitsForRootCleanupEvenBeforeFaultPauseIsPublished() {
+        var helper: [String:Any] = ["installation":"healthy", "coveredSession":true, "lockedUsePaused":false]
+        XCTAssertFalse(helperAllowsConsentRestoration(helper, recoveryPending:false))
+        helper["coveredSession"] = false
+        XCTAssertTrue(helperAllowsConsentRestoration(helper, recoveryPending:false))
+        XCTAssertFalse(helperAllowsConsentRestoration(helper, recoveryPending:true))
+        helper.removeValue(forKey:"coveredSession")
+        XCTAssertFalse(helperAllowsConsentRestoration(helper, recoveryPending:false))
+        helper["coveredSession"] = false; helper["lockedUsePaused"] = true
+        helper["lockedUsePauseReason"] = "watchdog_interrupted"
+        XCTAssertFalse(helperAllowsConsentRestoration(helper, recoveryPending:false))
+        helper["lockedUsePauseReason"] = "physical_presence"
+        XCTAssertTrue(helperAllowsConsentRestoration(helper, recoveryPending:false))
+        XCTAssertTrue(helperAllowsConsentRestoration(["installation":"missing"], recoveryPending:false))
+        XCTAssertFalse(helperAllowsConsentRestoration([:], recoveryPending:false))
+    }
     private var directory: URL!
     private var console: [String:Any] { ["desktopState":"unlocked", "uid":getuid(), "uuid":"fixture-console", "boot":123] }
     private var wall = Date(timeIntervalSince1970:1000)
@@ -98,15 +114,67 @@ final class OperatorConsentTests: XCTestCase {
         broker.fence(); broker.revoke(reason:"stopped_from_menu")
         XCTAssertNil(try store().consent(console:console))
     }
-    func testPersonGrantEndingForNonPersonReasonsKeepsExistingRules() {
+    func testOnlyExplicitAuthorityTransitionsClearConsent() {
         XCTAssertTrue(GrantBroker.clearsConsent(reason:"stopped_by_hotkey", ending:.request))
         XCTAssertTrue(GrantBroker.clearsConsent(reason:"stopped_by_person", ending:nil))
-        XCTAssertTrue(GrantBroker.clearsConsent(reason:"console_session_changed", ending:.person))
-        XCTAssertTrue(GrantBroker.clearsConsent(reason:"expired", ending:.person))
+        XCTAssertTrue(GrantBroker.clearsConsent(reason:"console_session_changed", ending:.person, consent:.invalidate))
+        XCTAssertTrue(GrantBroker.clearsConsent(reason:"expired", ending:.person, consent:.invalidate))
+        for reason in ["unlock_password_panel_unavailable_login_window_ambiguous", "future_unknown_fault", "guardian_disconnected"] {
+            XCTAssertFalse(GrantBroker.clearsConsent(reason:reason, ending:.person))
+        }
         XCTAssertFalse(GrantBroker.clearsConsent(reason:"desktop_locked", ending:.person))
         XCTAssertFalse(GrantBroker.clearsConsent(reason:"revoked_by_caller", ending:.person))
         XCTAssertFalse(GrantBroker.clearsConsent(reason:"revoked_by_caller", ending:nil))
         XCTAssertFalse(GrantBroker.clearsConsent(reason:"expired", ending:.request))
+    }
+    func testCoveredStartupFaultPreservesDurableArmingAcrossRestart() throws {
+        try store().enable(scopes:[.observe,.control,.browser,.devtools], duration:nil, console:console)
+        let broker = GrantBroker(policy:.workstation(issue:nil))
+        broker.consentStore = try store()
+        broker.issueUntilStopped(scopes:[.observe,.control,.browser,.devtools], reason:"manual",
+                                 requester:"local operator", approver:"local")
+        broker.revoke(reason:"unlock_password_panel_unavailable_login_window_ambiguous")
+        XCTAssertNotNil(try store().consent(console:console))
+        broker.revoke(reason:"console_session_changed", consent:.invalidate)
+        XCTAssertNil(try store().consent(console:console))
+    }
+    func testIncompleteProbeThenUserSwitchCannotRestoreOldConsent() throws {
+        let saved = try store()
+        try saved.enable(scopes:[.control,.browser], duration:nil, console:console)
+        for incomplete: [String:Any] in [
+            ["desktopState":"unknown"],
+            ["desktopState":"unknown", "uuid":NSNull(), "boot":NSNull(), "uid":NSNull()],
+            ["desktopState":"unknown", "uuid":"", "boot":123, "uid":getuid()],
+            ["desktopState":"unknown", "uuid":"other", "boot":"unknown", "uid":getuid()]
+        ] {
+            try saved.invalidateReplacedConsole(incomplete)
+            XCTAssertNotNil(saved.consent(console:console))
+        }
+        var other = console; other["uuid"] = "other-console"
+        try saved.invalidateReplacedConsole(other)
+        XCTAssertNil(try store().consent(console:console))
+    }
+    func testLockedBrowserRestorationCannotCarryDesktopAuthorityPastFaults() {
+        let original: Set<GrantScope> = [.observe,.control,.browser,.devtools]
+        let browser = restorableConsentScopes(original, state:"locked", browserEnabled:true,
+            lockedUseEnabled:true, helperEligible:false, desktopPermissions:false)
+        XCTAssertEqual(browser, [.browser,.devtools])
+        XCTAssertFalse(browser.contains(.control))
+        XCTAssertEqual(restorableConsentScopes(original, state:"unlocked", browserEnabled:true,
+            lockedUseEnabled:true, helperEligible:false, desktopPermissions:true), [])
+        XCTAssertEqual(restorableConsentScopes(original, state:"unlocked", browserEnabled:true,
+            lockedUseEnabled:true, helperEligible:true, desktopPermissions:true), original)
+    }
+    func testUnavailableRestoredScopesReportReadinessInsteadOfNewApproval() {
+        let broker = GrantBroker(policy:.workstation(issue:nil))
+        _ = broker.restoreConsent(scopes:[.browser], remainingSeconds:nil)
+        broker.restorationBlockedScopes = [.observe,.control]
+        XCTAssertNil(broker.authorize("browser.tabs"))
+        XCTAssertEqual(broker.authorize("input.key")?.code, "access_temporarily_unavailable")
+        XCTAssertEqual(broker.admissionAuthority(scopes:[.control]), "access_temporarily_unavailable")
+        broker.issueUntilStopped(scopes:[.browser], reason:"new choice", requester:"local", approver:"local")
+        XCTAssertTrue(broker.restorationBlockedScopes.isEmpty)
+        XCTAssertEqual(broker.authorize("input.key")?.code, "approval_required")
     }
     func testStopClearsSavedConsentEvenBeforeReadinessAllowsRestoration() throws {
         let saved = try store()

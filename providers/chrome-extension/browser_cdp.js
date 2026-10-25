@@ -75,6 +75,7 @@ export class BrowserCdp {
     const reply = { type: "session.result", id: state.id, cmdId: message.cmdId,
       ...(sessionId ? { sessionId } : {}) };
     try {
+      if (method === "Page.disable") fail("Page events are required for Machine Control dialog recovery");
       const route = sessionId ? state.routes.get(sessionId) : null;
       if (sessionId && !route) fail("Unknown or detached session");
       if (route?.kind === "browser" || (!sessionId && state.tabId === 0)) {

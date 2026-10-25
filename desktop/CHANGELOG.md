@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+- Preserve operator arming when Mac covered startup or a provider fails.
+  End the finite task, fence desktop work and recover from fresh locked,
+  healthy and quiet conditions. Explicit Stop, original expiry and console changes still
+  invalidate consent. Search multiple login windows without choosing an
+  ambiguous password field.
+- Repair approved but unreachable Mac helpers after app replacement, allow
+  bounded cold signature validation and avoid validating the full app twice.
+  Keep a missing admission-status sample from disabling an already admitted
+  task; retain live guardian, root watchdog and OS permission checks. Drain
+  final completion before judging guardian exit, without reviving expired
+  heartbeats or blocking on partial covered frames.
+- Run root-driven Mac relock through a pinned lock-only helper in the original
+  console's GUI session, with independent lock readback. Refuse covered arming
+  when that route is unavailable and end active use on fresh root fault evidence.
+- Keep the display awake through the bounded covered-startup handoff with a
+  kernel-limited display-only assertion; wait for prior root cleanup before
+  admitting the next task.
+- Keep browser discovery, dialog handling, release and unrelated tabs
+  responsive when page work stalls. Cancel expired queued actions, report
+  dispatched uncertainty, and protect new routes from stale callbacks.
+- Wait boundedly for native file-panel confirmation readiness after path/name
+  entry; a disabled or unknown button remains unpressed.
+- Add typed browser dialog inspection/handling and sanitized route recovery
+  diagnostics. A missing dialog event is reported as unobserved.
+- Accept validated bounded COW workspace estimates in scoped tasks while
+  continuing to refuse unknown acquisition outcomes.
+
 ## [0.6.9]
 
 - Fix the installed Mac app crashing while choosing a browser download or

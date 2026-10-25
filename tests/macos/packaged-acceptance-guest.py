@@ -22,7 +22,11 @@ def main():
     p.add_argument('--seed', type=int, required=True)
     p.add_argument('--soak-seconds', type=int, default=0)
     p.add_argument('--faults', action='store_true')
+    p.add_argument('--remote-arming', action='store_true')
+    p.add_argument('--disposable-workspace', action='store_true')
+    p.add_argument('--covered-recovery', action='store_true')
     a = p.parse_args()
+    assert not a.covered_recovery or (a.remote_arming and a.disposable_workspace)
     assert subprocess.check_output(['sysctl', '-n', 'hw.model']).decode().startswith('VirtualMac')
     root = a.stage
     installed = Path.home() / 'Applications/Machine Control.app'
@@ -83,6 +87,16 @@ def main():
             result[str(f.relative_to(app))] = value
         return result
 
+    def crash_reports():
+        user = {p.name for p in (Path.home() / 'Library/Logs/DiagnosticReports').rglob('macui-*.ips') if p.is_file()}
+        if not a.covered_recovery:
+            return {'residentAndGuardian': user}
+        system = subprocess.run(['/usr/bin/sudo', '-n', '/usr/bin/find', '/Library/Logs/DiagnosticReports',
+            '-type', 'f', '(', '-name', 'mc-unlock-*.ips', '-o', '-name', '*console-lock*.ips', ')',
+            '-print0'], capture_output=True, check=True, timeout=10)
+        root = {Path(os.fsdecode(name)).name for name in system.stdout.split(b'\0') if name}
+        return {'residentAndGuardian': user, 'rootHelpers': root}
+
     def interrupted(*_):
         raise KeyboardInterrupt()
 
@@ -129,6 +143,7 @@ def main():
         assert current['deployment']['policy']['grantMode'] == 'approval'
         assert current['nativeSemanticState'] == 'ready', 'Signed candidate needs normal Accessibility consent'
         command('/usr/bin/codesign', '--verify', '--deep', '--strict', installed)
+        crash_before = crash_reports()
         argv = ['/usr/bin/python3', str(root / 'source/tests/macos/browser-file-dialogs.py'),
                 '--source-root', str(root / 'source'), '--claim', a.claim,
                 '--repeat', str(a.repeat), '--seed', str(a.seed), '--soak-seconds', str(a.soak_seconds),
@@ -137,6 +152,12 @@ def main():
                 '--report', str(output / 'summary.json')]
         if a.faults:
             argv += ['--faults']
+        if a.remote_arming:
+            argv += ['--remote-arming']
+        if a.disposable_workspace:
+            argv += ['--disposable-workspace']
+        if a.covered_recovery:
+            argv += ['--covered-recovery']
         with (output / 'suite.log').open('wb') as log:
             proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             try:
@@ -146,10 +167,38 @@ def main():
                     sys.stdout.buffer.write(line)
                     sys.stdout.flush()
                 assert proc.wait(timeout=10) == 0, 'Packaged acceptance failed; inspect private suite.log'
+                # OS reports arrive asynchronously. Sample before restoration
+                # replaces app bytes, and include the separate root processes.
+                time.sleep(8)
+                crash_after = crash_reports()
+                crash_result = {key: {'before': len(crash_before[key]), 'after': len(crash_after[key]),
+                    'new': sorted(crash_after[key] - crash_before[key]),
+                    'removed': sorted(crash_before[key] - crash_after[key])} for key in crash_before}
+                (output / 'crash-postflight.json').write_text(json.dumps(crash_result) + '\n')
+                assert not any(value['new'] for value in crash_result.values()), 'New OS crash report; inspect private crash-postflight.json'
+                print('Settled OS crash postflight passed for ' + ', '.join(crash_result), flush=True)
             finally:
                 if proc.poll() is None:
                     proc.send_signal(signal.SIGINT)
                     proc.wait(timeout=30)
+    except BaseException:
+        # Preserve private evidence before replacing the failed candidate. These
+        # bounded reads cannot repair, restart, approve, or alter the helper.
+        (output / 'candidate-status.json').write_text(json.dumps(status()))
+        diagnostics = [
+            ('candidate-signature', ['/usr/bin/codesign', '--verify', '--deep', '--strict', str(installed)]),
+            ('helper-launchd', ['/usr/bin/sudo', '-n', '/bin/launchctl', 'print', 'system/org.machine-control.unlock']),
+            ('helper-log', ['/usr/bin/log', 'show', '--last', '5m', '--style', 'compact',
+                            '--predicate', 'process == "mc-unlock-broker"'])]
+        for name, argv in diagnostics:
+            try:
+                result = subprocess.run(argv, capture_output=True, timeout=20)
+                (output / (name + '.log')).write_bytes(result.stdout + result.stderr)
+            except (OSError, subprocess.TimeoutExpired) as error:
+                (output / (name + '.log')).write_text(type(error).__name__)
+        (output / 'candidate-manifest-match.json').write_text(json.dumps({
+            'matchesStagedCandidate': manifest(installed) == manifest(root / 'candidate/Machine Control.app')}))
+        raise
     finally:
         errors = []
         if mutated:
@@ -198,7 +247,8 @@ def main():
             except subprocess.TimeoutExpired:
                 observer.terminate()
                 observer.wait(timeout=10)
-        (output / 'cleanup.json').write_text(json.dumps({'restored': not errors, 'errors': errors}) + '\n')
+        (output / 'cleanup.json').write_text(json.dumps({'restored': not errors and not a.remote_arming,
+            'appStateRestored': not errors, 'workspaceDiscardRequired': a.remote_arming, 'errors': errors}) + '\n')
         if errors:
             raise RuntimeError('Restoration incomplete: ' + '; '.join(errors))
 

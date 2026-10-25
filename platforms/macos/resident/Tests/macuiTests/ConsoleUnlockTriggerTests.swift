@@ -38,7 +38,16 @@ final class ConsoleUnlockTriggerTests: XCTestCase {
         XCTAssertEqual(issue(Node()), "windows_unavailable")
         XCTAssertEqual(issue(Node([kAXWindowsAttribute: [Node]()])), "login_window_absent")
         let window = Node([kAXIdentifierAttribute: "login"])
-        XCTAssertEqual(issue(Node([kAXWindowsAttribute: [window, window]])), "login_window_ambiguous")
+        XCTAssertEqual(issue(Node([kAXWindowsAttribute: [window, window]])), "password_field_absent")
+    }
+    func testMultipleDisplayWindowsRequireExactlyOneReadySecureField() {
+        let passive = Node([kAXIdentifierAttribute:"login", kAXChildrenAttribute:[field(focused:false)]])
+        let active = Node([kAXIdentifierAttribute:"login", kAXChildrenAttribute:[field()]])
+        for windows in [[passive, active], [active, passive]] {
+            XCTAssertNil(issue(Node([kAXWindowsAttribute:windows])))
+        }
+        XCTAssertEqual(issue(Node([kAXWindowsAttribute:[active, active]])), "password_field_ambiguous")
+        XCTAssertEqual(issue(Node([kAXWindowsAttribute:Array(repeating:passive, count:9)])), "login_window_limit")
     }
     func testReadFailureCannotAuthorizeAnOtherwiseReadyField() {
         enum Failure: Error { case read }
@@ -54,7 +63,7 @@ final class ConsoleUnlockTriggerTests: XCTestCase {
         var deep = field()
         for _ in 0..<7 { deep = Node([kAXChildrenAttribute: [deep]]) }
         XCTAssertEqual(issue(app([deep])), "depth_limit")
-        XCTAssertEqual(issue(app(Array(repeating: Node(), count: 64) + [field()])), "node_limit")
-        XCTAssertEqual(issue(app([field()] + Array(repeating: Node(), count: 63))), "node_limit")
+        XCTAssertEqual(issue(app(Array(repeating: Node(), count: 256) + [field()])), "node_limit")
+        XCTAssertEqual(issue(app([field()] + Array(repeating: Node(), count: 255))), "node_limit")
     }
 }

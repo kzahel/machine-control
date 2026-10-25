@@ -42,7 +42,15 @@ struct ControlSessionLease {
     }
 }
 
+func completeConsoleIdentity(_ value: [String:Any]) -> Bool {
+    guard let uuid = value["uuid"] as? String, !uuid.isEmpty,
+          let boot = admissionInteger(value["boot"]), boot > 0,
+          let uid = admissionInteger(value["uid"]), uid > 0 else { return false }
+    return true
+}
+
 func sameConsoleSession(_ a: [String: Any], _ b: [String: Any]) -> Bool {
+    completeConsoleIdentity(a) && completeConsoleIdentity(b) &&
     ["uuid", "boot", "uid"].allSatisfy { key in
         guard let left = a[key] as? NSObject, let right = b[key] as? NSObject else { return false }
         return left == right
@@ -50,7 +58,7 @@ func sameConsoleSession(_ a: [String: Any], _ b: [String: Any]) -> Bool {
 }
 
 func consoleSessionReplaced(_ initial: [String:Any], _ current: [String:Any]) -> Bool {
-    ["uuid", "boot", "uid"].allSatisfy { current[$0] is NSObject } &&
+    completeConsoleIdentity(initial) && completeConsoleIdentity(current) &&
         !sameConsoleSession(initial, current)
 }
 
@@ -95,6 +103,59 @@ func retainLockedUseAccess(enabled: Bool, paused: Bool, phase: String,
 /// Expected endings still relock, but need no fault acknowledgement in root.
 func cleanCoveredEnding(_ reason: String) -> Bool {
     ["completed", "duration_expired", "operator_paused", "paused", "cancelled", "client_disconnected", "operator_quit", "resident_stopping"].contains(reason)
+}
+
+/// Status can be temporarily unavailable while the single-threaded root
+/// handles unlock. It may not be unavailable indefinitely: writes to a hung
+/// helper's heartbeat socket alone do not prove an independent watchdog lives.
+struct CoveredHelperLiveness {
+    static let maximumSilence: TimeInterval = 30
+    let generation: String
+    private(set) var lastPositive: TimeInterval
+    mutating func refusal(helper: [String:Any], metadata: [String:Any], now: TimeInterval,
+                          covered: Bool) -> String? {
+        guard now.isFinite, lastPositive.isFinite, now >= lastPositive else { return "helper_unavailable" }
+        // A current positive fault report is stronger than silence. Retain the
+        // silence bound only when the root cannot supply current evidence.
+        if covered, metadata["available"] as? Bool == true,
+           let age = metadata["ageMs"] as? Int, age >= 0, age <= 2000,
+           helper["helperGeneration"] as? String == generation,
+           helper["lockedUsePaused"] as? Bool == true || helper["coveredSession"] as? Bool == false {
+            return "watchdog_interrupted"
+        }
+        if metadata["available"] as? Bool == true,
+           let age = metadata["ageMs"] as? Int, age >= 0,
+           helper["helperGeneration"] as? String == generation,
+           helper["installation"] as? String == "healthy", helper["callerEligibility"] as? String == "allowed",
+           helper["lockedUsePaused"] as? Bool == false,
+           helper["relockAvailable"] as? Bool == true,
+           !covered || helper["coveredSession"] as? Bool == true {
+            lastPositive = max(lastPositive, now - Double(age) / 1000)
+        }
+        return now - lastPositive >= Self.maximumSilence ? "helper_unavailable" : nil
+    }
+}
+
+struct CoveredRecoveryFence {
+    private var console: [String:Any]?
+    var pending: Bool { console != nil }
+    mutating func arm(_ session: [String:Any]) { console = session }
+    func refusal(for operation: String) -> GrantRefusal? {
+        guard pending, case let .scoped(scope) = operationClass(operation),
+              !GrantBroker.browserScopes.contains(scope) else { return nil }
+        return GrantRefusal("locked_use_recovery_pending", "Protected cleanup is pending; inspect locked-use recovery status")
+    }
+    mutating func reconcile(helper: [String:Any], observation: [String:Any]) {
+        guard let console else { return }
+        if consoleSessionReplaced(console, observation) { self.console = nil; return }
+        guard sameConsoleSession(console, observation),
+              ["locked", "unlocked"].contains(observation["desktopState"] as? String ?? ""),
+              helper["installation"] as? String == "missing" || helper["installation"] as? String == "healthy" else { return }
+        if helper["installation"] as? String == "missing" { self.console = nil; return }
+        guard helper["callerEligibility"] as? String == "allowed",
+              helper["coveredSession"] as? Bool == false, helper["lockedUsePaused"] as? Bool == false else { return }
+        self.console = nil
+    }
 }
 
 /// Only the healthy resident's admission callback may make this distinction.
@@ -336,7 +397,10 @@ final class MacLockedUse {
     private var ownerBuffer = Data()
     private var ownerRequest: [String: Any] = [:]
     private var lastHelperHeartbeat: TimeInterval = 0
+    private var helperLiveness: CoveredHelperLiveness?
     private(set) var endReason: String?
+    private(set) var lastStartupFailure: [String:Any]?
+    private(set) var recoveryFence = CoveredRecoveryFence()
     private(set) var phase = "off"
     private var relockFallbackDeadline: TimeInterval = 0
     private var shouldForceRelock: Bool {
@@ -412,6 +476,10 @@ final class MacLockedUse {
         let value = service.displayedUnlockStatus
         return value["profile"] as? String == "locked_use" && value["policy"] as? String == "enabled"
     }
+    // Admission requires fresh helper/approval observations. An admitted finite
+    // lease instead has its own live guardian and root watchdog. A temporarily
+    // unavailable background status must not masquerade as operator disable.
+    var continuationAuthorized: Bool { !locallyDisabled && permission.controlAuthorized }
     var status: [String: Any] {
         let helper = service.displayedUnlockStatus
         let approval = permission.approvalState
@@ -420,21 +488,28 @@ final class MacLockedUse {
         let available: Bool
         if #available(macOS 14.0, *) { available = ConsoleRelock.available } else { available = false }
         return ["supported":available, "enabled":enabled,
-            "phase": lease == nil && !isCovered ? (helper["lockedUsePaused"] as? Bool == true ? "paused" : enabled ? "ready" : "off") : phase,
+            "phase": lease == nil && !isCovered ? (recoveryFence.pending || helper["coveredSession"] as? Bool == true ? "recovering" : helper["lockedUsePaused"] as? Bool == true ? "paused" : enabled ? "ready" : "off") : phase,
             "permissionReady":ready, "helperApproval":approval,
             "setupState":setupState, "setupError":setupError.map { $0 as Any } ?? NSNull(),
             "helperHealthy":helper["installation"] as? String == "healthy" && helper["callerEligibility"] as? String == "allowed",
             "helperNote":HelperSetupMessage.note(issue:(helper["reasons"] as? [String])?.first).map { $0 as Any } ?? NSNull(),
             "unlockRulePeers":helper["unlockRulePeers"] as? [String] ?? [],
             "pauseReason":helper["lockedUsePauseReason"] ?? NSNull(),
-            "pausedUntilManualUnlock":helper["lockedUsePaused"] as? Bool == true &&
+            "pausedUntilManualUnlock":helper["lockedUsePaused"] as? Bool == true && !(helper["lockedUseRecovery"] is String) &&
                 !["physical_presence", "local_use_episode"].contains(helper["lockedUsePauseReason"] as? String ?? ""),
+            "recoveryCondition":helper["lockedUseRecovery"] ?? NSNull(),
+            "recoveryDelaySeconds":helper["lockedUseRecoveryDelaySeconds"] ?? NSNull(),
+            "helperLastPositiveAgeMs":helperLiveness.map { max(0, Int((ProcessInfo.processInfo.systemUptime - $0.lastPositive) * 1000)) as Any } ?? NSNull(),
+            "helperSilenceLimitSeconds":CoveredHelperLiveness.maximumSilence,
+            "onlineDisplays":NSScreen.screens.count,
+            "multiDisplayQualification":NSScreen.screens.count > 1 ? "unqualified" : "not_applicable",
             "controlSessionId":lease.map { $0.id as Any } ?? NSNull(),
             "remainingSeconds":lease.map { max(0, Int($0.deadline - ProcessInfo.processInfo.systemUptime)) as Any } ?? NSNull(),
             "coveredDisplays":coveredWindowIDs.count, "closedLidSupported":false,
             "provider":"macos-native", "activeSessionRequired":true,
             "binding":"approved_target_wide_access_and_live_owner_connection",
-            "lastEndedReason":endReason.map { $0 as Any } ?? NSNull()]
+            "lastEndedReason":endReason.map { $0 as Any } ?? NSNull(),
+            "lastStartupFailure":lastStartupFailure as Any? ?? NSNull()]
     }
 
     func begin(_ request: [String: Any], owner: Int32) throws -> [String: Any] {
@@ -451,6 +526,8 @@ final class MacLockedUse {
         guard helper["installation"] as? String == "healthy", helper["callerEligibility"] as? String == "allowed",
               helper["relockAvailable"] as? Bool == true else { throw MacUIError.action("locked_use_helper_unavailable") }
         guard helper["lockedUsePaused"] as? Bool != true else { throw MacUIError.action("locked_use_paused") }
+        guard helper["coveredSession"] as? Bool == false else { throw MacUIError.action("locked_use_cleanup_pending") }
+        guard !recoveryFence.pending else { throw MacUIError.action("locked_use_recovery_pending") }
         let keys: Set<String> = ["schema", "operation", "requestId", "claimId", "durationSeconds"]
         guard Set(request.keys).isSubset(of: keys), let duration = ControlSessionLease.duration(request["durationSeconds"]) else {
             throw MacUIError.usage("control_session_invalid_request")
@@ -468,8 +545,9 @@ final class MacLockedUse {
         // Until-stopped access is still capped by a finite active-control lease.
         lease = ControlSessionLease(id: UUID().uuidString.lowercased(), grantID: grant.id,
             session: session, deadline: now + min(Double(duration), remaining), heartbeatDeadline: now + 5)
+        helperLiveness = CoveredHelperLiveness(generation:helper["helperGeneration"] as? String ?? "", lastPositive:now)
         prepareSessionSafety()
-        self.owner = owner; ownerRequest = request; endReason = nil; phase = "waiting_for_lock"
+        self.owner = owner; ownerRequest = request; endReason = nil; lastStartupFailure = nil; phase = "waiting_for_lock"
         return service.acceptance(request, data: status)
     }
 
@@ -496,6 +574,7 @@ final class MacLockedUse {
 
     func tick() {
         permission.tick()
+        if lease == nil { recoveryFence.reconcile(helper:service.displayedUnlockStatus, observation:service.observedConsoleSession) }
         guard var current = lease else { return }
         let now = ProcessInfo.processInfo.systemUptime
         if phase == "relocking" {
@@ -518,7 +597,11 @@ final class MacLockedUse {
         if let reason = current.refusal(now: now, grantID: broker.activeGrant?.id, session: observation) {
             end(reason); return
         }
-        if !enabled { end("disabled"); return }
+        if !continuationAuthorized { end("disabled"); return }
+        if current.startedLocked, let reason = helperLiveness?.refusal(helper:service.displayedUnlockStatus,
+                metadata:service.helperObservation.metadata, now:now, covered:isCovered) {
+            end(reason); return
+        }
         let screen = observation["desktopState"] as? String ?? "unknown"
         if phase == "waiting_for_lock" {
             if screen == "locked" {
@@ -556,8 +639,15 @@ final class MacLockedUse {
             let observation = try child.start(duration:remaining, deadline:lease.deadline)
             guard safety.reason == nil, child.healthy else { throw MacUIError.action("safety_guard_unavailable") }
             service.applySessionObservation(try coveredActivationObservation(observation, initial:lease.session))
+            // The fresh guardian/root handshake establishes liveness. Fence
+            // background reads started before this covered session existed.
+            if let generation = helperLiveness?.generation {
+                helperLiveness = CoveredHelperLiveness(generation:generation, lastPositive:ProcessInfo.processInfo.systemUptime)
+            }
+            service.helperObservation.invalidate()
             phase = "active"; lastHelperHeartbeat = 0
         } catch {
+            lastStartupFailure = guardian?.startupFailure
             end(safety.reason ?? String(describing:error))
         }
     }
@@ -571,6 +661,12 @@ final class MacLockedUse {
             return
         }
         endReason = reason
+        if !cleanCoveredEnding(reason) && reason != "physical_presence" && !current.ordinaryLockEnding(reason) {
+            recoveryFence.arm(current.session)
+            // Reject every read started before the fault, including a late
+            // apparently healthy reply. Dispatch stays fenced while refreshing.
+            service.helperObservation.invalidate()
+        }
         if isCovered {
             phase = "relocking"
             relockFallbackDeadline = ProcessInfo.processInfo.systemUptime + 5
@@ -584,10 +680,11 @@ final class MacLockedUse {
         if reason == "physical_presence" {
             try? broker.pause(reason: "physical_activity", seconds: 30)
         }
-        if !cleanCoveredEnding(reason) && reason != "physical_presence" && !current.ordinaryLockEnding(reason) {
-            broker.revoke(reason: reason == "physical_presence" ? "interrupted_by_physical_presence" : reason)
-            service.invalidateReferences()
-        }
+        // The finite session and its references end here. The root watchdog
+        // separately fences protected reactivation until safe recovery. Neither
+        // a provider fault nor an unknown error can withdraw operator consent
+        // or unrelated, already-approved browser access.
+        service.invalidateReferences()
     }
 
     private func finishAfterLock() {
@@ -604,13 +701,14 @@ final class MacLockedUse {
             }
             try? writeSocket(owner, data: encodeJSONLine(response)); Darwin.close(owner)
         }
-        owner = -1; lease = nil; ownerBuffer.removeAll(); phase = "ready"
+        owner = -1; lease = nil; helperLiveness = nil; ownerBuffer.removeAll(); phase = "ready"
         service.invalidateReferences()
     }
 
     var preservesGrantAcrossLock: Bool {
         // A prepared opt-in also covers idle locks and clean task completion.
         // Unlock authority still requires a separate finite connection lease.
+        guard !recoveryFence.pending else { return false }
         let helper = service.displayedUnlockStatus
         return retainLockedUseAccess(enabled:enabled,
             paused:helper["lockedUsePaused"] as? Bool ?? true,
@@ -618,10 +716,11 @@ final class MacLockedUse {
             pauseReason:helper["lockedUsePauseReason"] as? String)
     }
     func refusal(_ request: [String: Any]) -> GrantRefusal? {
+        if let refusal = recoveryFence.refusal(for:request["operation"] as? String ?? "") { return refusal }
         guard lease != nil else { return nil }
         if let reason = safety.reason {
             return GrantRefusal(reason == "physical_presence" ? "interrupted_by_physical_presence" : "locked_use_interrupted",
-                "Covered control has been interrupted; unlock manually before continuing")
+                "Covered control was interrupted; inspect recovery and availability before starting a fresh session")
         }
         if ["unlocking", "relocking"].contains(phase) {
             return GrantRefusal("locked_use_transition", "Wait for covered-session state to settle")

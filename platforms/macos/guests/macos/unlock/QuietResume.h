@@ -19,3 +19,16 @@ static BOOL quietResumeEligible(BOOL same, BOOL locked, double pausedAt, double 
     return same && locked && isfinite(pausedAt) && pausedAt > 0 && isfinite(now) &&
         isfinite(idle) && now >= pausedAt + 30 && idle >= 30;
 }
+
+// A fault cannot grant authority or clear an operator pause. It can finish
+// protected cleanup after root independently observes the original console
+// locked, verifies its installation and waits for physical quiet. Every next
+// covered task still creates fresh covers, input guards and finite authority.
+static BOOL faultRecoveryEligible(BOOL same, BOOL locked, BOOL healthy,
+                                  double pausedAt, double now, double idle, double delay) {
+    return healthy && isfinite(delay) && delay >= 30 && delay <= 300 &&
+        quietResumeEligible(same, locked, pausedAt, now, idle) && now >= pausedAt + delay;
+}
+static double faultRecoveryDelay(NSUInteger failures) {
+    return MIN(300, 30 * pow(2, MIN(failures > 0 ? failures - 1 : 0, 4)));
+}

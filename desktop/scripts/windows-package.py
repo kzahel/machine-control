@@ -97,6 +97,8 @@ def verify(directory, *, revision, version, run=None, target=None, tamper=False,
                          'runtime/browser-extension/service_worker.js'})
     if tuple(map(int, version.split('.'))) >= (0, 4, 10):
         required.add('runtime/browser-extension/indicators.js')
+    if tuple(map(int, version.split('.'))) >= (0, 6, 10):
+        required.add('runtime/browser-extension/requests.js')
     if not required.issubset(payload_names):
         raise ValueError('Installed inventory must be relative to the product root')
     if (tuple(map(int, version.split('.'))) >= (0, 5, 3)

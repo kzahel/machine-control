@@ -43,9 +43,51 @@ locked use grants no access. Approvals remain target-wide for same-user callers.
 The app and helper do not store your login password. A signed update can change
 the pinned code hash. While the console is unlocked and idle, native maintenance
 refreshes an existing approved managed helper automatically, preserving your
-checkbox choice. Ordinary launches of the same build do not restart the helper.
-Permissions still offers Repair for actual failures. Maintenance does not grant
-ordinary Access; restarting the app clears that in-memory approval.
+checkbox choice. Ordinary launches of the same build do not restart the helper. New tasks
+require fresh helper admission readiness. An admitted finite task continues
+under its live guardian/root watchdog and direct OS authorization checks; a
+missing background status sample does not mean the operator disabled it.
+A 30-second liveness bound still ends and relocks a task whose current root
+helper stops providing fresh positive covered-session status. Writes to a
+heartbeat socket alone do not establish that the watchdog is running.
+A fresh current-helper fault pause or lost covered session ends active control
+immediately; the silence bound applies when fresh root evidence is unavailable.
+The root validates installation, samples peer death, then drains bounded,
+nonblocking covered messages before classifying the ending. A final completion
+followed by exit remains clean; blocking validation cannot split those two
+observations.
+Buffered heartbeats never revive an expired watchdog.
+
+The unreleased root relock repair uses a signed, root-owned, non-setuid
+lock-only runner in the original console's GUI bootstrap. Calling the private
+lock primitive directly from the system bootstrap was measured to have no
+effect; historical composed relock cells did not isolate that route. The root
+spawns only fixed launchctl/runner arguments and fixed environment, with closed
+inherited descriptors, null standard streams, one owned process group and one
+child at a time. It kills a stalled runner after five seconds and retries at
+most once per second. The runner clears supplementary groups, drops to the
+original console user, re-execs its fixed protected path, and checks boot,
+console UUID and UID again before locking. Its own readback is bounded by two
+seconds; root IOKit readback alone completes root cleanup. Missing or modified
+runner state reports relock unavailable and refuses new covered tasks. Existing
+guardian/resident cleanup remains independent. Approved unlocked maintenance
+adds the new role during an update; removal refuses an untracked replacement.
+A same-user shell can interfere with the user-mode runner, so this is not
+same-user containment or a zero-frame privacy guarantee. Independent root
+qualification is recorded in [Tactical 138](../../../docs/tactical/138-remote-arming-recovery.md).
+Permissions still offers Repair for actual failures, including an approved
+service that became unreachable after app replacement. Explicit preparation
+waits up to 90 seconds for pre-request availability during cold signature
+validation; it never repeats a setup request whose effect is unknown.
+Maintenance does not grant
+ordinary Access. Saved operator consent can restore after restart only for the
+verified approving console and boot, within its original lifetime. A restored
+finite approval retains its original expiry.
+Restoring desktop scopes with an installed helper also requires an explicit
+`coveredSession: false`; a fast app restart must not inherit the old root task
+before its fault marker appears. Browser scopes can restore independently
+after actual lock. Legacy helpers lacking this field require updating before
+saved desktop consent can restore.
 
 Lock the Mac normally before the agent starts its bounded covered task.
 Every display receives an opaque, nonactivating cover before the existing
@@ -55,8 +97,11 @@ resident's native display capture excludes the cover and operator app; native
 application semantics and input continue.
 If the awake Mac's display is inactive, authorized task startup briefly wakes
 it while the console remains locked, then installs covers before unlocking.
-That temporary native assertion is released after readiness or bounded failure;
-it does not change power settings or prevent system sleep.
+A separate native display-only idle-sleep hold bridges cover installation and
+the unlock handshake, including initially active displays. Its kernel timeout
+is at most 12 seconds and never exceeds the finite task remainder. It is
+released before active use or on any failure; guardian death also releases it.
+This changes no persistent power settings and does not prevent system sleep.
 The physical display says **Machine Control is working** and tells you how
 to take over. Full-display capture currently selects the main display, as in
 ordinary native capture; multi-display coverage is implemented but not accepted.
@@ -91,8 +136,9 @@ In current source, a failed password-panel probe ends with
 `password_field_unfocused`. Older builds return only
 `unlock_password_panel_unavailable`. These reasons describe discovery, not
 proof of Return delivery or the cause of a missing panel. They contain no
-password values or lock-screen text. Record ending state before recovery;
-do not automatically retry after access is revoked. [Tactical
+password values or lock-screen text. Record ending state and `lastStartupFailure` before recovery. A panel-reveal
+Return may have been sent; discovery failure is not proof of zero input. Do not
+replay an uncertain action or treat retained consent as evidence of readiness. [Tactical
 129](../../../docs/tactical/129-macos-unlock-panel-diagnostics.md) records the
 bounded VM result and the still-open physical failure.
 
@@ -107,7 +153,11 @@ bin/machine-control --target host --claim "$claim_id" desktop session control --
 Run this command concurrently with the task and keep its connection alive.
 It sends heartbeats and returns the final termination result. Poll
 `desktop status`: `data.lockedUse` reports phase, exact `controlSessionId`,
-remaining time, covered display count, helper health, and manual-unlock pause.
+remaining time, covered display count, helper health, recovery condition and
+cooldown. A read-only status refused with `control_generation_changed` during
+lock/unlock can be observed again with a fresh request; this is not permission
+to replay an input or an uncertain application effect. Doctor also exposes sanitized browser route health and multiple-display
+qualification risk.
 The command defaults to five minutes and accepts one second through fifteen
 minutes, capped by the ordinary access grant's remaining lifetime. Until-stopped
 access still gets a finite control session. Heartbeats prove liveness; they do
@@ -139,6 +189,13 @@ No worker agent or visible hypervisor window is needed for ordinary control.
 The common CLI instructions advertise this lifecycle; integrations must use it
 to bind their actual task completion to relock.
 
+Covered startup still waits for guardian readiness on the resident's main
+queue, bounded by twelve seconds. Status and native operator UI requests can
+wait behind that handshake; a read crossing unlock can return
+`control_generation_changed` and needs a fresh read. Physical takeover
+detection remains on the input-tap thread. Keeping operator UI responsive
+during that bounded startup is a separate implementation improvement.
+
 ## Failure boundary and removal
 
 A separate signed companion owns covers and the hardware event tap. It monitors
@@ -146,7 +203,16 @@ the resident and retains covers through resident stall/death until OS lock is
 observed. The root broker independently binds the console identity and maximum
 deadline, requires companion heartbeats, and records active coverage before
 arming unlock so a broker restart requests relock. Unexpected termination
-persists the manual-unlock pause in root-owned state. Session replacement
+persists a recovery pause in root-owned state. The resident independently fences
+desktop dispatch and ends the finite owner lease without deleting operator
+consent. Fresh same-console locked observation, a healthy installation and
+physical quiet can clear the root fault pause after at least 30 seconds. Repeated
+faults without a clean covered completion increase the cooldown to at most
+300 seconds; a clean completion resets that history. This clears recovery only:
+new control still needs current consent, preparation and a fresh finite owner.
+Operator Pause is separate and cannot be bypassed by this mechanism. Approved
+locked-browser scopes remain independently available. Unknown helper/session
+state remains unavailable; it never silently grants or transfers authority. Session replacement
 invalidates authority instead of retargeting control or locking another user.
 
 This uses the measured private `SACLockScreenImmediate` OS entry point. It is an
@@ -194,10 +260,19 @@ Use `--manual-lock` to wait for the person to lock normally when testing on a
 physical Mac; an accepted synthetic lock shortcut is not proof of OS lock.
 Local tests may instead supply `--session-lock` with the compiled native
 [lock runner](../../../tests/macos/session-lock.m) to establish lock without a
-person performing each starting lock. Failure pause still requires manual
-recovery; the runner cannot approve access or clear that pause.
+person performing each starting lock. The runner cannot approve access or clear a recovery pause. Observe the typed
+condition and wait for the root to verify it; acquire a fresh finite session
+after readiness returns.
 `--executable` and `--socket` select a guest candidate without replacing the
 standard resident. Completion, expiry, disconnect, resident stall/crash, and
-guardian crash are explicit cells. The caller owns native setup and subsequent
-manual recovery. Hardware takeover requires separately authorized outer input
+guardian crash are explicit cells. The caller owns native setup and recovery observation. Hardware takeover requires separately authorized outer input
 or a real device; captures and credentials must stay out of public evidence.
+
+For the composed signed VM campaign, run `packaged-acceptance.py` inside a common
+CLI isolated workspace with `--remote-arming --covered-recovery` and the
+canonical credential **file locator** via `--admin-secret-file`. Native Permissions
+owns service registration; a single strict Login Items lease uses the existing
+one-shot credential transport. No credential enters JSON, arguments, environment
+or evidence. The helper registration is confined to the clone: its receipt must
+be released and the clone discarded, rather than claiming in-place restoration.
+See [Tactical 138](../../../docs/tactical/138-remote-arming-recovery.md).

@@ -136,6 +136,17 @@ routes; no worker agent was needed.
 
 ### Remaining qualification
 
+**Evidence correction (2026-10-25):** the cells above established composed
+relock with a responsive user-session component. They did not isolate the
+root watchdog's lock effect. A later system-bootstrap probe of the same
+private lock primitive observed no lock within five seconds, while a
+console-user GUI-bootstrap probe observed lock in about 0.10 seconds. The
+historical resident-stall cell cannot establish root independence because the
+guardian remained live. [Tactical 138](138-remote-arming-recovery.md) owns the
+replacement GUI-session lock-only route and qualification with both resident
+and guardian stopped. The deadline and failure detection evidence above
+remains distinct from proof that a root lock request had an effect.
+
 This is bounded VM evidence for one display on macOS 26.6.2, not physical-Mac,
 Intel execution, multiple-display, notarized-distribution, or all-macOS acceptance.
 The earlier SIP-enabled appliance unlock evidence does not qualify this new

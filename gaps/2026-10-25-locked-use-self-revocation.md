@@ -1,10 +1,15 @@
 # Locked-use failure revokes standing access and locks out remote use
 
-Status: **Open.** Observed 2026-10-25 on a physical Mac workstation (macOS,
+Status: **Repaired in source and qualified in a bounded Mac VM; unreleased.**
+Physical multiple-display qualification remains open. Observed 2026-10-25 on a physical Mac workstation (macOS,
 desktop 0.6.x, two online displays) while the operator was away from it.
 
 Owning topics: [`macos-locked-use`](../topics/macos-locked-use.md),
 [`browser-control`](../topics/browser-control.md).
+
+The mechanisms and timeline below describe the incident revision. Current
+implementation and bounded acceptance are tracked in
+[Tactical 138](../docs/tactical/138-remote-arming-recovery.md).
 
 ## Summary
 
@@ -26,7 +31,9 @@ while it was locked. Then:
    but the browser route stayed refused with `approval_required`.
 
 The approval the operator chose to make indefinite was ended by an automated
-failure in which nothing was unlocked, uncovered or typed. That is the
+failure in which no password delivery or successful unlock was observed.
+The trigger can send Return to reveal the password panel before discovery
+fails; this report does not establish zero input. That is the
 central gap: a standing, operator-armed grant should not be self-revoked by a
 benign pre-unlock failure, and there is no remote path to re-arm it.
 
@@ -107,7 +114,8 @@ the queue wedge. A different hang on that page would wedge it identically.
 `ConsoleUnlockTrigger.swift:69-72` filters loginwindow's AX windows to those
 with identifier `login` and requires exactly one. With two online displays the
 lock screen presents one per display, so discovery returns
-`login_window_ambiguous` before touching any password field. The
+`login_window_ambiguous` before credential-field dispatch. A panel-reveal Return
+may already have been sent, so this is not proof that no input occurred. The
 [locked-use guide](../platforms/macos/docs/locked-use.md) already records
 multi-display coverage as implemented but not accepted. This incident is the
 first recorded physical multi-display attempt, and it fails deterministically.
@@ -129,8 +137,9 @@ physical presence, and is not an ordinary task meeting an idle lock. Every
 
 That fail-closed rule is reasonable after a fault in which the console may have
 been exposed or input delivered. Here the failure happened during
-password-panel discovery: nothing was unlocked or uncovered, no input was
-sent, and `lockObserved: true` confirmed the console stayed locked. The
+password-panel discovery: no successful unlock or uncovering was observed,
+and `lockObserved: true` confirmed the console stayed locked. A panel-reveal
+Return may already have been sent; zero input is not established. The
 revocation removed an approval the operator had explicitly made indefinite,
 including browser scopes that do not need an unlock at all.
 
@@ -153,41 +162,39 @@ browser-only access that worked while locked minutes earlier.
   did not warn the operator before trying it. Without that attempt, the Chrome
   restart alone would have restored browser access while locked.
 
-## Proposed repairs
+## Resolution
 
-1. **Extension queue.** Bound each resident request inside the extension
-   below the resident timeout. Let the resident send a cancel for a timed-out
-   request id, and drop rather than replay requests the resident has already
-   abandoned. Handle `browser.release`, grant changes and dialog handling
-   outside the ordinary serial queue.
-2. **Page dialogs.** Subscribe to `Page.javascriptDialogOpening`. Fail the
-   blocked request with a typed `dialog_open` error that includes the dialog
-   type, and expose a typed accept or dismiss operation.
-3. **Indicator cleanup.** Put timeouts on indicator rendering, heartbeat and
-   release so that detach always happens.
-4. **Honest timeout result.** Report `browser_timeout` with
-   `delivery: unknown` and explicit uncertainty, not `refused`.
-5. **Pre-unlock failures keep approval.** Classify password-panel discovery
-   failures that end with an observed lock and no uncover or input as
-   non-revoking. End the session, pause locked use if needed, and keep the
-   operator's grant. At minimum, never revoke scopes the failed session did
-   not need, such as browser-while-locked scopes.
-6. **Multi-display unlock.** Select the login window on the main display or
-   the one containing the focused password field, or refuse the session
-   before arming when more than one display is online. In either case, report
-   the condition in status before an agent tries.
-7. **Doctor visibility.** Report locked-use phase, pause state and known
-   blockers such as multiple displays. Report browser-route health (last
-   success, consecutive timeouts) so a wedged extension is not shown as
-   healthy.
-8. **Agent instructions.** State which locked-use failures revoke access, and
-   tell agents to ask the operator before starting a covered session to repair
-   something else.
+**Decision:** an operational failure ends its finite control session and makes
+unsafe routes temporarily unavailable. It does not withdraw saved operator
+arming. Explicit Stop, original timed expiry and verified console replacement
+retain their authority. This applies to unknown future fault reasons as well
+as known panel failures; it is not a fault-string preservation allowlist.
+The [locked-use topic](../topics/macos-locked-use.md) and
+[admission topic](../topics/access-admission-and-pause.md) own the current policy.
 
-## Open
+**Current, unreleased source:** fresh root lock/health/quiet observations permit
+bounded automatic fault recovery, without resuming a failed action or old lease.
+A separate desktop fence protects cleanup, while independently opted-in browser
+scopes remain usable or restorable. Multiple login windows are searched for a
+unique ready focused field; ambiguous fields still refuse. A late guardian
+checks its owner before arming or input. Doctor exposes recovery and route health.
 
-- **Open:** should any automated failure be able to revoke an until-stopped
-  approval the operator armed explicitly, or should failures only pause it?
-- **Open:** a secure remote re-arm path, for example operator-authenticated
-  approval from another device, so an away operator can recover from
-  revocation without physical access.
+**Current, unreleased extension 0.8.1:** bounded per-tab work, request-local
+authority, cancellation, typed dialog inspection/handling and independent
+recovery replace the global serial chain. Dispatched timeout outcomes remain
+unknown; queued actions refuse. Optional decoration cannot indefinitely hold
+up debugger release. Confirmed detach retires stale work and attachment owners;
+unconfirmed routes remain fenced. The [browser topic](../topics/browser-control.md)
+and [provider dossier](../research/providers/chrome-extension.md) own the contract
+and evidence. Prefer these typed browser recovery operations before considering
+a fresh, already-authorized finite covered task for desktop effects.
+
+## Remaining qualification
+
+- Physical multiple-display execution remains open; bounded discovery tests
+  do not qualify the original workstation's display arrangement.
+- Signed packaged VM fault/recovery qualification is recorded in Tactical 138.
+  Publication, workstation replacement and store-extension delivery are separate.
+- Remote operator-authenticated re-arming remains a separate product question.
+  It is unnecessary for transient-fault recovery and must not bypass an explicit
+  Stop, expiry, console binding or native approval boundary.

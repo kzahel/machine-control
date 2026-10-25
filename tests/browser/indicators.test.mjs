@@ -65,6 +65,20 @@ test("new tabs share a named group; existing tabs retain user grouping", async (
   assert.equal(f.groups.get(group).title, "Machine Control");
 });
 
+test("a hung indicator command cannot hold release or subsequent tracking forever", async () => {
+  const f = fixture();
+  await f.indicators.track(1, true);
+  const original = f.indicators.command;
+  f.indicators.command = () => new Promise(() => {});
+  const started = Date.now();
+  await f.indicators.releaseAll();
+  assert.ok(Date.now() - started < 2000);
+  assert.equal(f.tabs.get(1).groupId, -1);
+  f.indicators.command = original;
+  await f.indicators.track(2);
+  assert.equal(f.indicators.status(2), "active");
+});
+
 test("release preserves renamed groups and a person's added tab", async () => {
   const f = fixture();
   await f.indicators.track(1, true);

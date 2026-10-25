@@ -20,6 +20,14 @@ final class HelperRegistrationTests: XCTestCase {
     }
     private var transition: NSError { NSError(domain:"SMAppServiceErrorDomain", code:1) }
 
+    func testExplicitPreparationRepairsApprovedUnreachableAndDeniedServices() {
+        for eligibility in [nil, "unknown", "denied"] as [String?] {
+            XCTAssertTrue(HelperUpdatePolicy.restartForPreparation(approved:true, callerEligibility:eligibility))
+            XCTAssertFalse(HelperUpdatePolicy.restartForPreparation(approved:false, callerEligibility:eligibility))
+        }
+        XCTAssertFalse(HelperUpdatePolicy.restartForPreparation(approved:true, callerEligibility:"allowed"))
+    }
+
     func testHelperRefusalCodesStayVisibleInOperatorMessages() {
         let conflict = HelperSetupMessage.text(MacUIError.action("unlock_policy_conflict"))
         XCTAssertTrue(conflict.contains("lock screen rule") && conflict.hasSuffix("(unlock_policy_conflict)"))

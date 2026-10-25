@@ -5,6 +5,26 @@ live-tested in a prepared Tart appliance; login and preboot planes remain open.
 
 ## Native foundation
 
+**Current (2026-10-25), bounded `live-tested` placement finding:** direct
+`SACLockScreenImmediate` from a root system-bootstrap probe produced no
+IOKit-observed lock within five seconds. The same primitive from the console
+user's GUI bootstrap produced lock in about 0.10 seconds. This comparison
+changes bootstrap and UID together; it does not prove a UID drop is necessary.
+Earlier composed watchdog cells left a user-session component responsive and
+therefore did not establish independent root relock. The unreleased repair
+uses a pinned root-owned lock-only runner, fixed user-bootstrap placement,
+irreversible credential drop and original-console revalidation. Root observes
+lock independently. [Tactical 138](../../docs/tactical/138-remote-arming-recovery.md)
+owns qualification with both resident and guardian suspended; multiple
+displays, SIP-enabled execution and other OS revisions remain separate.
+The final signed development assembly passes 81 composed checks. With both
+user-session control processes suspended, lock is independently observed
+4.858 seconds after injection and 0.156 seconds after root fault detection;
+root dispatch, child exit and IOKit readback logs corroborate that cell. This
+is one awake display on a SIP-disabled macOS 26.6.2 VM, not physical or
+distribution qualification. Saved consent survives the fault campaign, and
+native Stop still revokes it.
+
 **Current (2026-10-03), `built` and bounded `live-tested`:** the owned resident
 now has a separate experimental covered locked-use workstation profile. Native
 operator setup, short authorization grants, a signed cover/input companion,

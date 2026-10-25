@@ -1,4 +1,6 @@
 import importlib.util
+import contextlib
+import io
 import json
 from pathlib import Path
 import socket
@@ -15,6 +17,23 @@ spec.loader.exec_module(machost)
 
 
 class LockedUseConnectionTests(unittest.TestCase):
+    def test_doctor_exposes_recovery_and_degradation_without_browser_tokens(self):
+        response = {"accepted":True, "data":{
+            "desktopState":"locked", "semanticState":"unavailable", "captureState":"ready", "inputState":"unavailable",
+            "lockedUse":{"enabled":True, "phase":"recovering", "onlineDisplays":2,
+                         "recoveryCondition":"same_console_locked_healthy_and_quiet"},
+            "browser":{"connected":True, "health":"degraded", "consecutiveTimeouts":2,
+                       "devtoolsEndpoint":"PRIVATE_BEARER_SENTINEL"},
+        }}
+        output = io.StringIO()
+        with patch.object(machost, "call", return_value=response), contextlib.redirect_stdout(output):
+            machost.doctor()
+        value = json.loads(output.getvalue())
+        self.assertEqual(value["extensions"]["lockedUse"]["onlineDisplays"], 2)
+        self.assertEqual(value["extensions"]["browser"]["health"], "degraded")
+        self.assertNotIn("PRIVATE_BEARER_SENTINEL", output.getvalue())
+        self.assertTrue(any(check["id"] == "browser" and check["status"] == "warn" for check in value["checks"]))
+
     def test_delegated_proxy_uses_shipped_native_bundle_executable(self):
         with tempfile.TemporaryDirectory(prefix="mc-packaged-proxy-") as directory:
             contents = Path(directory) / "Machine Control.app/Contents"

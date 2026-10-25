@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [138 — Preserve remote arming and recover browser control](138-remote-arming-recovery.md):
+  consent retention, verified covered recovery, bounded browser scheduling and
+  signed Mac VM fault acceptance.
+
 - [137 — Desktop 0.6.9 release](137-desktop-0.6.9-release.md): monitored
   six-target CI, exact signed-package VM acceptance and public promotion.
 

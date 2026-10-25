@@ -69,9 +69,9 @@ struct ConsoleUnlockTrigger {
         let windows = allWindows.filter { value($0, kAXIdentifierAttribute) as? String == "login" }
         if readFailed { return "ax_read_failed" }
         guard !windows.isEmpty else { return "login_window_absent" }
-        guard windows.count == 1 else { return "login_window_ambiguous" }
+        guard windows.count <= 8 else { return "login_window_limit" }
         var fields = 0, ready = 0, disabled = false, unfocused = false, depthLimited = false
-        var remaining = 64
+        var remaining = 256
         func visit(_ element: Element, depth:Int) {
             guard remaining > 0 else { return }
             guard depth <= 6 else { depthLimited = true; return }
@@ -89,7 +89,7 @@ struct ConsoleUnlockTrigger {
                 visit(child, depth:depth + 1)
             }
         }
-        visit(windows[0], depth:0)
+        for window in windows { visit(window, depth:0) }
         if readFailed { return "ax_read_failed" }
         guard remaining > 0 else { return "node_limit" }
         if ready == 1 { return nil }

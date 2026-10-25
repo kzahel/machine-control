@@ -78,6 +78,13 @@ not flatten their platform semantics into one generic implementation.
 [covered locked-use profile](topics/macos-locked-use.md). Its existing native
 executable launches a separate signed cover/input guardian, and its optional
 root authorization broker owns the deadline, restart marker, and failure relock.
+The unreleased recovery repair installs a root-owned, signed, non-setuid
+lock-only copy under PrivilegedHelperTools. The broker enters the original
+console's GUI bootstrap through fixed launchctl arguments; that copy drops to
+the console user, re-execs its fixed path and verifies the console again before
+requesting lock. The broker's own IOKit observation determines completion.
+This is a Machine Control provider placement detail, not a new delegation or
+arbitrary privileged-command surface.
 Permissions owns native SMAppService registration and typed helper preparation;
 System Settings owns service approval and authentication. Settings only changes
 the prepared local preference. The calling agent/integration owns a live bounded

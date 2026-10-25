@@ -43,12 +43,16 @@ def main():
                         help='Continue full cycles for this bounded duration (maximum 30 minutes)')
     parser.add_argument('--faults', action='store_true',
                         help='Packaged-only native-host loss, blocked-provider Stop and forced-exit checks')
+    parser.add_argument('--remote-arming', action='store_true', help='Exercise standing consent and browser recovery faults')
+    parser.add_argument('--disposable-workspace', action='store_true')
+    parser.add_argument('--covered-recovery', action='store_true')
     parser.add_argument('--trace', type=Path,
                         help='New private operation timeline; excludes request fields and response payloads')
     parser.add_argument('--report', type=Path, help='New private machine-readable summary')
     args = parser.parse_args()
     assert 1 <= args.repeat <= 300 and 0 <= args.soak_seconds <= 1800
     assert not args.faults or args.expected_policy == 'approval'
+    assert not args.remote_arming or (args.expected_policy == 'approval' and args.observer_socket)
     rng = random.Random(args.seed)
     assert subprocess.check_output(['sysctl', '-n', 'hw.model']).decode().startswith('VirtualMac')
     app = Path.home() / 'mc-cft/chrome-mac-arm64/Google Chrome for Testing.app'
@@ -66,7 +70,11 @@ def main():
     effects = {'upload': None, 'text': None, 'clicks': 0}
     payload = b'Machine Control harmless download fixture\n'
     reports = Path.home() / 'Library/Logs/DiagnosticReports'
-    before_reports = set(reports.glob('macui-*.ips'))
+    def report_names():
+        # Retirement moves reports under Retired without creating a new crash.
+        # Basenames identify the same OS report across that move.
+        return {p.name for p in reports.rglob('macui-*.ips') if p.is_file()}
+    before_reports = report_names()
     trace = (os.fdopen(os.open(args.trace, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w')
              if args.trace else None)
     blocked = threading.Event()
@@ -182,7 +190,7 @@ def main():
         assert args.observer_socket, 'Workstation approval requires an independent observer'
         assert call('grant.status')['grant'] is None, 'Packaged trial must start with access Off'
         with concurrent.futures.ThreadPoolExecutor() as pool:
-            pending = pool.submit(call, 'grant.request', scopes=['observe', 'control', 'browser'],
+            pending = pool.submit(call, 'grant.request', scopes=['observe', 'control', 'browser', 'devtools'],
                                   reason='Verify packaged browser file dialogs',
                                   durationSeconds=min(3600, 900 + args.soak_seconds), timeoutSeconds=120)
             def allow():
@@ -269,8 +277,17 @@ def main():
             # AppKit panel buttons are shallow. Walking deep directory rows
             # first can exhaust the element budget as the soak creates files,
             # hiding a present Cancel button behind a correctly partial tree.
-            last_native = call('snapshot', target=str(browser.pid), provider='macos-native',
-                               query=query, maxDepth=6, maxElements=1000, projection='compact')
+            for attempt in range(4):
+                result = raw('snapshot', target=str(browser.pid), provider='macos-native',
+                             query=query, maxDepth=6, maxElements=1000, projection='compact')
+                if result.get('accepted'):
+                    assert result.get('hostInterference') == 'none'
+                    last_native = result['data']; break
+                assert result.get('errorCode') == 'control_generation_changed', 'snapshot: ' + str(result.get('errorCode'))
+                # Panel creation can replace observation generations. Retry
+                # only this read, never a dispatched action or chosen path.
+                assert attempt < 3, 'Native observation generation did not settle'
+                time.sleep(.15)
             return last_native['elements']
 
         def native_button(label):
@@ -294,7 +311,11 @@ def main():
                 state = json.loads(subprocess.check_output([str(args.keyboard_environment), 'select', selected]))
                 assert state['inputSourceId'] == selected
                 print('LAYOUT:', selected, flush=True)
-            return call('dialog.choose', target=str(browser.pid), path=str(path), confirm=confirm)
+            result = call('dialog.choose', target=str(browser.pid), path=str(path), confirm=confirm)
+            if 'confirmWaitMs' in result.get('dialog', {}):
+                print('PANEL_CONFIRMATION_WAIT ' + json.dumps({'milliseconds': result['dialog']['confirmWaitMs'],
+                    'panel': result['dialog']['panel']}), flush=True)
+            return result
 
         def cycle_settings():
             assert args.expected_policy == 'approval' and args.observer_socket
@@ -542,11 +563,55 @@ def main():
             click('Increment')
             poll(lambda: effects['clicks'] == count + 1, 'one fresh post-restart click')
             diagnostics_ui()
+        def restart_armed():
+            nonlocal generation, pid, planned_restarts
+            old_generation, old_pid = generation, pid
+            os.kill(pid, signal.SIGKILL)
+            planned_restarts += 1
+            generation = None
+            def restarted():
+                try:
+                    result = exchange(endpoint, 'status')
+                    return result['data'] if result.get('accepted') and result['generation'] != old_generation else None
+                except (OSError, ValueError):
+                    return None
+            current = poll(restarted, 'armed resident restarts through its LaunchAgent', timeout=45)
+            pid = current['processId']
+            assert pid != old_pid
+            call('status')
+            return pid
+
+        if args.remote_arming:
+            spec = importlib.util.spec_from_file_location('remote_arming', args.source_root / 'tests/macos/remote-arming.py')
+            remote_arming = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(remote_arming)
+            remote_arming.run(dict(raw=raw, call=call, check=check, poll=poll, exchange=exchange,
+                observer=args.observer_socket, pid=pid, resident=resident, tab=tab, url=url, effects=effects,
+                root=root, source_root=args.source_root, claim=args.claim,
+                disposable=args.disposable_workspace, covered_recovery=args.covered_recovery, restart=restart_armed,
+                evidence=args.report.parent if args.report else root))
         final = call('status')
         check('resident PID/generation stable outside planned restart', final['processId'] == pid)
-        check('no new macui OS crash report', set(reports.glob('macui-*.ips')) == before_reports)
-        summary = {'passed': True, 'checks': len(checks), 'repeat': index, 'seed': args.seed,
-            'plannedRestarts': planned_restarts, 'faults': args.faults,
+        after_reports = report_names()
+        new_reports = after_reports - before_reports
+        report_baseline = {'before': len(before_reports), 'after': len(after_reports),
+                           'removed': len(before_reports - after_reports), 'new': len(new_reports)}
+        print('OS_REPORT_BASELINE ' + json.dumps(report_baseline), flush=True)
+        if args.report:
+            (args.report.parent / 'os-report-baseline.json').write_text(json.dumps({
+                **report_baseline, 'newFiles': sorted(new_reports),
+                'removedFiles': sorted(before_reports - after_reports)}) + '\n')
+        # macOS may retire an old report while handling a deliberately killed
+        # process. Removal is not a new crash; every newly created report fails.
+        check('no new macui OS crash report', not new_reports)
+        extension_digest = hashlib.sha256()
+        for source in sorted(extension_source.rglob('*')):
+            if source.is_file():
+                extension_digest.update(str(source.relative_to(extension_source)).encode() + b'\0')
+                extension_digest.update(hashlib.sha256(source.read_bytes()).digest())
+        summary = {'extensionVersion': json.loads((extension_source / 'manifest.json').read_text())['version'],
+            'extensionSha256': extension_digest.hexdigest(), 'passed': True, 'checks': len(checks), 'repeat': index, 'seed': args.seed,
+            'plannedRestarts': planned_restarts, 'faults': args.faults, 'remoteArming':args.remote_arming,
             'macOS': subprocess.check_output(['sw_vers', '-productVersion']).decode().strip(),
             'browserVersion': info['CFBundleShortVersionString'],
             'residentSha256': hashlib.sha256(resident.read_bytes()).hexdigest(),

@@ -180,6 +180,19 @@ else
 fi
 
 ready=false
+locked_use_json="$(jq -c '.data.lockedUse // null | if type == "object" then
+    {enabled,phase,permissionReady,helperHealthy,pauseReason,pausedUntilManualUnlock,
+     recoveryCondition,onlineDisplays,multiDisplayQualification} else null end' <<<"${control_status:-null}" 2>/dev/null || printf null)"
+browser_json="$(jq -c '.data.browser // null | if type == "object" then
+    {connected,health,consecutiveTimeouts,blockedTabs,openDialogs,lastSuccessAt,pendingRequests} else null end' <<<"${control_status:-null}" 2>/dev/null || printf null)"
+if jq -e '.enabled == true' <<<"$locked_use_json" >/dev/null 2>&1; then
+    locked_phase="$(jq -r '.phase' <<<"$locked_use_json")"
+    add_check locked_use "$([[ "$locked_phase" == ready || "$locked_phase" == active ]] && printf pass || printf warn)" \
+        "Covered control phase: $locked_phase; inspect extensions.lockedUse for recovery conditions and display qualification"
+fi
+if jq -e '.health == "degraded"' <<<"$browser_json" >/dev/null 2>&1; then
+    add_check browser warn 'Browser route is degraded after request timeouts; native connection alone does not establish readiness'
+fi
 if [[ "$power" == running && "$administration" == ready &&
       "$desktop" == unlocked && "$resident" == ready &&
       "$semantic" == ready && "$capture" == ready && "$input" == ready ]]; then
@@ -199,6 +212,8 @@ jq -cn \
     --argjson resident "$resident_json" \
     --argjson checks "$checks" \
     --argjson unlock "$unlock_json" \
+    --argjson locked_use "$locked_use_json" \
+    --argjson browser "$browser_json" \
     --argjson lock_screen "$lock_screen_json" \
     --arg display_state "$display_state" \
     --argjson lifecycle_operations "$lifecycle_operations" \
@@ -231,6 +246,8 @@ jq -cn \
             desktopSession:"aqua",
             privacyAuthority:"tcc",
             unlock:$unlock,
+            lockedUse:$locked_use,
+            browser:$browser,
             lockScreen:$lock_screen,
             displayState:$display_state,
             hostSession:{

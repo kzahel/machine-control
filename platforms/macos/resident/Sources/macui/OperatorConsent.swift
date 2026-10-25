@@ -1,6 +1,28 @@
 import Darwin
 import Foundation
 
+func helperAllowsConsentRestoration(_ helper: [String:Any], recoveryPending: Bool) -> Bool {
+    guard !recoveryPending else { return false }
+    // An absent helper is normal for ordinary unlocked use. An installed
+    // helper must positively report that the previous root-owned task ended;
+    // a fast resident restart can precede the root's fault-pause marker.
+    if helper["installation"] as? String == "missing" { return true }
+    return helper["installation"] as? String == "healthy" &&
+        helper["coveredSession"] as? Bool == false &&
+        (helper["lockedUsePaused"] as? Bool != true ||
+         ["physical_presence", "local_use_episode"].contains(helper["lockedUsePauseReason"] as? String ?? ""))
+}
+
+/// Restoring an independent browser route cannot smuggle desktop scopes past
+/// helper/OS readiness, or turn them on merely because the person unlocks.
+func restorableConsentScopes(_ scopes: Set<GrantScope>, state: String,
+    browserEnabled: Bool, lockedUseEnabled: Bool, helperEligible: Bool,
+    desktopPermissions: Bool) -> Set<GrantScope> {
+    guard ["locked", "unlocked"].contains(state) else { return [] }
+    if helperEligible && desktopPermissions && (state == "unlocked" || lockedUseEnabled) { return scopes }
+    return state == "locked" && browserEnabled ? scopes.intersection(GrantBroker.browserScopes) : []
+}
+
 /// Durable local choices, never a live grant, bearer, queue position or session.
 /// The native operator alone writes consent; every restore derives fresh
 /// authority after checking the same console and the existing OS permissions.
@@ -53,6 +75,14 @@ final class OperatorConsentStore {
         state.removeValue(forKey:"consent")
         do { try save() }
         catch { unlink(path); throw error } // never retain old consent on a failed Stop
+    }
+    /// Keep the original identity even when an incomplete observation retires
+    /// the live grant. A later user switch must still invalidate saved consent.
+    func invalidateReplacedConsole(_ observation: [String:Any]) throws {
+        guard let consent = state["consent"] as? [String:Any],
+              let binding = consent["console"] as? [String:Any],
+              consoleSessionReplaced(binding, observation) else { return }
+        try disable()
     }
     func pause(seconds: Int?, deferral: Bool = false) throws {
         guard seconds == nil || (1...28800).contains(seconds!) else { throw MacUIError.usage("invalid_pause") }

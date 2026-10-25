@@ -3,6 +3,7 @@
 // browser scope, and tells this worker when that grant ends.
 import { TabIndicators } from "./indicators.js";
 import { BrowserCdp } from "./browser_cdp.js";
+import { RequestQueue, bounded } from "./requests.js";
 
 const HOST = "org.machine_control.browser";
 const PROTOCOL_VERSION = 1;
@@ -43,23 +44,32 @@ let lastDisconnect = "";
 let retryDelayMs = 1000;
 let retryTimer = null;
 const attached = new Set();
+const ordinaryTabs = new Set();
+const unconfirmedDetaches = new Set();
 const generations = new Map();
 let referenceEpoch = crypto.randomUUID();
 let authorityGeneration = 0;
-const REQUEST_AUTHORITY = Symbol("requestAuthority");
-// Ordinary requests execute serially in residentMessages. Keep their arrival
-// authority across every await; a later grant cannot adopt queued old work.
-let activeRequestAuthority = null;
+const dialogs = new Map();
+const blockedTabs = new Map();
+const recoveries = new Map();
+const requests = new RequestQueue({ abandoned:(context, code) => {
+  if (context.tabId != null) blockedTabs.set(context.tabId, code);
+} });
 let grantGeneration = null;
 const attaching = new Map();
+const attachmentOwners = new Map();
+const pageObservers = new Map();
+const pendingAttachments = new Map();
 const indicators = new TabIndicators((tabId, method, params = {}) =>
   chrome.debugger.sendCommand({ tabId }, method, params));
 const streaming = new BrowserCdp({ chrome, ensureAttached,
   releaseTab: async (tabId) => {
-    if (streaming.usesTab(tabId)) return;
-    await indicators.release(tabId);
-    await chrome.debugger.detach({ tabId }).catch(() => {});
-    attached.delete(tabId);
+    if (streaming.usesTab(tabId) || ordinaryTabs.has(tabId) || requests.lanes.has(tabId) || dialogs.has(tabId)) return;
+    const token = attachmentOwners.get(tabId);
+    const decoration = indicators.release(tabId);
+    await bounded(() => decoration, 750).catch(() => {});
+    if (dialogs.has(tabId)) return;
+    await detachAttachment(tabId, token);
   },
   trackNewTab: (tabId) => ensureAttached(tabId, true),
   authority: () => devtools && port ? `${grantGeneration}:${authorityGeneration}` : null,
@@ -67,7 +77,7 @@ const streaming = new BrowserCdp({ chrome, ensureAttached,
 });
 const initialized = indicators.recover();
 let disconnectCleanup = Promise.resolve();
-let residentMessages = Promise.resolve();
+
 
 class ProviderError extends Error {
   constructor(code, message) {
@@ -105,23 +115,26 @@ async function connect() {
     // Any message means the resident accepted this connection.
     retryDelayMs = 1000;
     lastDisconnect = "";
-    // Fence immediately on receipt, even while an earlier navigation is waiting.
-    const changedGrant = message?.type === "grant" && typeof message.grantGeneration === "string"
-      && grantGeneration !== null && message.grantGeneration !== grantGeneration;
-    if (message?.type === "grant" && typeof message.grantGeneration === "string") {
-      grantGeneration = message.grantGeneration;
+    // Authority changes and recovery never queue behind page work.
+    if (message?.type === "grant") {
+      const changed = (grantGeneration !== null && typeof message.grantGeneration === "string"
+        && grantGeneration !== message.grantGeneration)
+        || granted !== (message.browser === true) || devtools !== (message.devtools === true);
+      if (typeof message.grantGeneration === "string") grantGeneration = message.grantGeneration;
+      if (changed) disconnectCleanup = detachAll();
+      granted = message.browser === true;
+      devtools = message.devtools === true;
+      if (!devtools) streaming.closeAll("devtools_grant_ended").catch(() => {});
+      updateBadge();
+      return;
     }
-    let cleanup = Promise.resolve();
-    if (message?.type === "grant" && ((!message.browser && !message.devtools) || changedGrant)) {
-      granted = false;
-      devtools = false;
-      cleanup = detachAll();
+    if (message?.type === "cancel") {
+      requests.cancel(message.id);
+      const recovery = recoveries.get(message.id);
+      if (recovery) recovery.cancelled = true;
+      return;
     }
-    if (message?.type === "request") message = { ...message, [REQUEST_AUTHORITY]: authorityGeneration };
-    residentMessages = residentMessages.then(async () => {
-      await cleanup;
-      if (port === connection) return onResidentMessage(message, connection);
-    }).catch(() => {});
+    onResidentMessage(message, connection).catch(() => {});
   });
   port.onDisconnect.addListener(() => {
     if (port !== connection) return;
@@ -229,19 +242,12 @@ function updateBadge() {
 }
 
 async function onResidentMessage(message, connection) {
-  if (message?.type === "grant") {
-    const revoked = (granted || devtools) && !message.browser && !message.devtools;
-    granted = message.browser === true;
-    devtools = message.devtools === true;
-    if (revoked) authorityGeneration += 1;
-    if (!devtools) await streaming.closeAll("devtools_grant_ended");
-    if (!granted && !devtools) await detachAll();
-    updateBadge();
-    return;
-  }
   if (message?.type === "session.open") {
     const startedAt = Date.now();
+    const authority = authorityGeneration;
     try {
+      await disconnectCleanup;
+      if (port !== connection || authority !== authorityGeneration) throw new ProviderError("approval_required", "Browser access changed before session attachment");
       await streaming.open(message.id, message.tabId);
       port?.postMessage({ type: "session.opened", id: message.id });
       recordActivity("session.open", { tabId: message.tabId }, { ok: true }, startedAt);
@@ -261,30 +267,83 @@ async function onResidentMessage(message, connection) {
   if (message?.type !== "request") return;
   const reply = { type: "response", id: message.id };
   const startedAt = Date.now();
+  const authority = authorityGeneration;
+  const check = () => {
+    if (port !== connection || authority !== authorityGeneration || (!granted && !devtools))
+      throw new ProviderError("approval_required", "Browser access changed; issue a fresh request");
+  };
+  const params = { ...(message.params || {}) };
+  const recovery = ["browser.tabs", "browser.release", "browser.dialog"].includes(message.operation)
+    || (message.operation === "browser.cdp" && params.method === "Page.handleJavaScriptDialog");
   try {
-    activeRequestAuthority = message[REQUEST_AUTHORITY];
-    requireRequestAuthority();
-    reply.data = await perform(message.operation, message.params || {});
-    if (message.operation !== "browser.release") requireRequestAuthority();
+    if (recovery) {
+      if (recoveries.has(message.id) || recoveries.size >= 8) throw new ProviderError("browser_busy", "Browser recovery capacity exceeded");
+      const budget = Number.isFinite(message.timeoutMs) ? Math.min(5000, Math.max(100, message.timeoutMs)) : 5000;
+      const deadline = Date.now() + budget;
+      const context = { dispatched:false, cancelled:false,
+        check() {
+          check();
+          if (this.cancelled || Date.now() >= deadline) throw new ProviderError("browser_timeout", "Browser recovery expired");
+        },
+        dispatch() { this.check(); this.dispatched = true; },
+      };
+      recoveries.set(message.id, context);
+      try {
+        if (message.operation !== "browser.release") await disconnectCleanup;
+        context.check();
+        reply.data = await bounded(() => createOperations(context).perform(message.operation, params), budget);
+        if (message.operation !== "browser.release") check();
+      } catch (error) {
+        context.cancelled = true;
+        error.delivery = context.dispatched ? "unknown" : "refused";
+        throw error;
+      } finally { if (recoveries.get(message.id) === context) recoveries.delete(message.id); }
+    } else {
+      reply.data = await requests.submit(message.id, { check,
+        timeoutMs:Number.isFinite(message.timeoutMs) ? Math.min(30000, Math.max(100, message.timeoutMs)) : 30000,
+        prepare:async (context) => {
+          await disconnectCleanup;
+          context.check();
+          const operations = createOperations(context);
+          const key = await operations.prepare(message.operation, params);
+          context.check();
+          return key;
+        },
+        run:(context) => createOperations(context).perform(message.operation, params),
+      });
+    }
     reply.ok = true;
   } catch (error) {
     reply.ok = false;
     reply.errorCode = error.code || "browser_operation_failed";
     reply.message = String(error.message || error);
-  } finally {
-    activeRequestAuthority = null;
+    reply.delivery = error.delivery || "refused";
+    if (reply.delivery === "unknown") reply.uncertainty = "browser_command_may_have_executed";
   }
+  reply.health = { blockedTabs:new Set([...blockedTabs.keys(), ...unconfirmedDetaches, ...pendingAttachments.keys(),
+    ...[...pageObservers].filter(([, observer]) => !observer.ready).map(([tabId]) => tabId)]).size,
+    openDialogs:dialogs.size };
   if (port === connection) connection.postMessage(reply);
   recordActivity(message.operation, message.params || {}, reply, startedAt);
 }
 
-function requireRequestAuthority() {
-  if (activeRequestAuthority !== authorityGeneration || (!granted && !devtools)) {
-    throw new ProviderError("approval_required", "Browser access changed; issue a new request");
-  }
+// These closures carry one request's authority through every await. Never
+// share mutable current-request authority between concurrent tabs.
+function createOperations(context) {
+function requireRequestAuthority() { context.check(); }
+async function prepare(operation, params) {
+  if (operation === "browser.navigate" && params.newTab === true) return "new_tabs";
+  const tabId = params.reference ? (await resolveReference(params.reference)).tabId : (await resolveTab(params)).id;
+  requireRequestAuthority();
+  params.tabId = tabId; context.tabId = tabId;
+  return tabId;
 }
-
 async function perform(operation, params) {
+  requireRequestAuthority();
+  if (!["browser.dialog", "browser.release", "browser.tabs"].includes(operation) &&
+      !(operation === "browser.cdp" && params.method === "Page.handleJavaScriptDialog") &&
+      context.tabId != null && (dialogs.has(context.tabId) || blockedTabs.has(context.tabId)))
+    throw new ProviderError(dialogs.has(context.tabId) ? "dialog_open" : "browser_tab_blocked", "Inspect the dialog or release this browser route before continuing");
   switch (operation) {
     case "browser.tabs": return listTabs();
     case "browser.wait": return waitReady(params);
@@ -297,7 +356,18 @@ async function perform(operation, params) {
     case "browser.upload": return upload(params);
     case "browser.cdp": return cdp(params);
     case "browser.eval": return evaluate(params);
-    case "browser.release": await detachAll(); return { released: true };
+    case "browser.release": {
+      const recoverable = [...dialogs.keys()].filter(tabId => attached.has(tabId)
+        && attachmentOwners.has(tabId) && !unconfirmedDetaches.has(tabId));
+      if (recoverable.length) throw new ProviderError("dialog_open",
+        `Handle the observed dialog before releasing its debugger; inspect browser.dialog for tab(s) ${recoverable.slice(0,8).join(", ")}`);
+      const abandonedDialogs = [...dialogs.keys()];
+      context.dispatch(); await detachAll();
+      return { released:unconfirmedDetaches.size === 0 && pendingAttachments.size === 0,
+        unconfirmedDetaches:[...unconfirmedDetaches], pendingAttachments:[...pendingAttachments.keys()],
+        ...(abandonedDialogs.length ? { abandonedDialogs } : {}) };
+    }
+    case "browser.dialog": return dialog(params);
     default: throw new ProviderError("unsupported_operation", `Unsupported ${operation}`);
   }
 }
@@ -306,6 +376,7 @@ function tabJSON(tab) {
   return {
     tabId: tab.id, windowId: tab.windowId, active: tab.active,
     groupId: tab.groupId, controlIndicator: indicators.status(tab.id),
+    observedDialog:dialogs.has(tab.id) ? { id:dialogs.get(tab.id).id, type:dialogs.get(tab.id).type } : null,
     title: tab.title || "", url: tab.url || "", status: tab.status || "",
     // A discarded (memory-unloaded) tab reloads when the debugger attaches,
     // so it is not immediately ready to read or drive.
@@ -370,71 +441,49 @@ async function navigate(params) {
   let tab;
   if (params.newTab === true) {
     requireRequestAuthority();
+    context.dispatch();
     tab = await chrome.tabs.create({ url, active: params.active !== false });
+    context.tabId = tab.id;
     requireRequestAuthority();
-    await ensureAttached(tab.id, true);
+    await ensureAttached(tab.id, true, true);
   } else {
     const current = await resolveTab(params);
-    await ensureAttached(current.id);
+    await ensureAttached(current.id, false, true);
     requireRequestAuthority();
+    context.dispatch();
     tab = await chrome.tabs.update(current.id, { url });
   }
+  context.tabId = tab.id;
   const loaded = await waitForLoad(tab.id);
+  requireRequestAuthority();
   return { tab: tabJSON(await chrome.tabs.get(tab.id)), loaded };
 }
 
-async function ensureAttached(tabId, newTab = false) {
-  if (!granted && !devtools) throw new ProviderError("approval_required", "Browser access ended");
-  if (attached.has(tabId)) return;
-  const generation = authorityGeneration;
-  if (!attaching.has(tabId)) {
-    const pending = (async () => {
-      try {
-        await chrome.debugger.attach({ tabId }, "1.3");
-      } catch (error) {
-        throw new ProviderError("debugger_attach_failed", String(error.message || error));
-      }
-      if (generation !== authorityGeneration || (!granted && !devtools)) {
-        await chrome.debugger.detach({ tabId }).catch(() => {});
-        throw new ProviderError("approval_required", "Browser access ended during attachment");
-      }
-      attached.add(tabId);
-      notifyPanels();
-      await indicators.track(tabId, newTab);
-    })();
-    attaching.set(tabId, pending);
-    pending.finally(() => attaching.delete(tabId)).catch(() => {});
-  }
-  await attaching.get(tabId);
-  if (generation !== authorityGeneration || (!granted && !devtools)) {
-    throw new ProviderError("approval_required", "Browser access ended during attachment");
-  }
-}
-
-async function send(tabId, method, params = {}) {
+async function send(tabId, method, params = {}, expectedDialogId) {
   requireRequestAuthority();
-  await ensureAttached(tabId);
+  const handlingDialog = method === "Page.handleJavaScriptDialog";
+  if (method === "Page.disable") throw new ProviderError("operation_not_permitted", "Page events are required for dialog recovery");
+  if (!handlingDialog && (dialogs.has(tabId) || blockedTabs.has(tabId)))
+    throw new ProviderError(dialogs.has(tabId) ? "dialog_open" : "browser_tab_blocked",
+      "Inspect browser dialog state or release browser control before retrying this tab");
+  await ensureAttached(tabId, false, true, !handlingDialog);
   requireRequestAuthority();
+  if (expectedDialogId !== undefined && dialogs.get(tabId)?.id !== expectedDialogId)
+    throw new ProviderError("stale_dialog", "The observed dialog changed before dispatch; inspect again");
   try {
+    context.dispatch();
     const result = await chrome.debugger.sendCommand({ tabId }, method, params);
     requireRequestAuthority();
+    if (handlingDialog) { dialogs.delete(tabId); blockedTabs.delete(tabId); }
     return result;
   } catch (error) {
+    if (handlingDialog && /no (?:javascript )?dialog|not (?:currently )?showing/i.test(String(error.message || error))) {
+      dialogs.delete(tabId); blockedTabs.delete(tabId);
+      throw new ProviderError("stale_dialog", "This debugger session could not handle the dialog; inspect again or use the browser UI");
+    }
     if (error instanceof ProviderError) throw error;
     throw new ProviderError("cdp_command_failed", `${method}: ${error.message || error}`);
   }
-}
-
-async function detachAll() {
-  authorityGeneration += 1;
-  referenceEpoch = crypto.randomUUID();
-  generations.clear();
-  await streaming.closeAll("access_ended");
-  const tabs = [...attached];
-  attached.clear();
-  notifyPanels();
-  await indicators.releaseAll();
-  await Promise.all(tabs.map((tabId) => chrome.debugger.detach({ tabId }).catch(() => {})));
 }
 
 function propertyMap(node) {
@@ -542,7 +591,7 @@ async function key(params) {
 // caller can act on a page that is ready rather than sleeping.
 async function waitReady(params) {
   const timeoutMs = Math.min(Math.max(Number(params.timeoutMs) || 15000, 500), 60000);
-  const deadline = Date.now() + timeoutMs;
+  const deadline = Math.min(Date.now() + timeoutMs, (context.deadline || Infinity) - 50);
   let tab = await resolveTab(params);
   while (Date.now() < deadline) {
     requireRequestAuthority();
@@ -657,13 +706,223 @@ async function capture(params) {
   return { tab: tabJSON(tab), png: data };
 }
 
+async function dialog(params) {
+  const tab = await resolveTab(params);
+  requireRequestAuthority();
+  context.tabId = tab.id;
+  context.dispatch();
+  await ensureAttached(tab.id, false, true, false);
+  await observePage(tab.id, 200, false);
+  requireRequestAuthority();
+  const current = dialogs.get(tab.id);
+  const action = params.action || "status";
+  if (action === "status") {
+    const observer = pageObservers.get(tab.id);
+    return { tabId:tab.id, observed:!!current || observer?.ready === true,
+      observerState:observer?.ready ? "ready" : observer?.error ? "failed" : "pending",
+      state:current ? "open" : "not_observed", dialog:current || null };
+  }
+  if (params.promptText !== undefined && (typeof params.promptText !== "string" || params.promptText.length > 10000))
+    throw new ProviderError("invalid_request", "Prompt text must be a string of at most 10000 characters");
+  if (!["accept", "dismiss"].includes(action) || !current || params.dialogId !== current.id)
+    throw new ProviderError("stale_dialog", "Inspect the current dialog and supply its id and accept or dismiss");
+  await send(tab.id, "Page.handleJavaScriptDialog", { accept:action === "accept",
+    ...(typeof params.promptText === "string" ? { promptText:params.promptText } : {}) }, params.dialogId);
+  return { tabId:tab.id, handled:true, action };
+}
+return { perform, prepare };
+}
+
+async function ensureAttached(tabId, newTab = false, ordinary = false, observe = true) {
+  if (!granted && !devtools) throw new ProviderError("approval_required", "Browser access ended");
+  const unresolved = pendingAttachments.get(tabId);
+  if (unresolved && (unresolved.abandoned || unresolved.authority !== authorityGeneration
+      || attachmentOwners.get(tabId) !== unresolved))
+    throw new ProviderError("browser_recovery_pending", "A previous debugger attachment has not settled; this tab remains fenced");
+  if (unconfirmedDetaches.has(tabId)) throw new ProviderError("browser_recovery_pending", "Debugger detach is unconfirmed; release browser control again before retrying");
+  if (attached.has(tabId)) {
+    if (ordinary) ordinaryTabs.add(tabId);
+    if (observe) await observePage(tabId);
+    return;
+  }
+  const generation = authorityGeneration;
+  if (!attaching.has(tabId)) {
+    if (pendingAttachments.size >= 8) throw new ProviderError("browser_busy", "Debugger attachment capacity exceeded");
+    const token = { newTab, authority:generation, abandoned:false };
+    attachmentOwners.set(tabId, token);
+    const owns = () => attachmentOwners.get(tabId) === token;
+    const valid = () => owns() && !token.abandoned && generation === authorityGeneration && (granted || devtools);
+    const pending = (async () => {
+      // Keep the raw callback accounted for after a bounded reply. A detach
+      // can report absence before a slow attach actually takes effect. Until
+      // that raw result settles, no fresh owner may reuse this tab.
+      pendingAttachments.set(tabId, token);
+      const raw = Promise.resolve().then(() => {
+        if (!valid()) throw new ProviderError("approval_required", "Browser attachment ended");
+        return chrome.debugger.attach({ tabId }, "1.3");
+      });
+      raw.then(async () => {
+        if (!valid()) {
+          token.abandoned = true;
+          // pendingAttachments excludes every fresh attach while cleanup
+          // finishes, so this can only detach the abandoned attachment.
+          if (!attachmentOwners.has(tabId)) attachmentOwners.set(tabId, token);
+          await detachAttachment(tabId, token);
+        }
+      }, () => {
+        if (token.abandoned && owns()) clearTab(tabId);
+      }).finally(() => {
+        if (pendingAttachments.get(tabId) === token) pendingAttachments.delete(tabId);
+      }).catch(() => {});
+      try {
+        await bounded(() => raw);
+      } catch (error) {
+        if (owns() && error.code === "browser_cleanup_timeout") {
+          token.abandoned = true; unconfirmedDetaches.add(tabId);
+          detachAttachment(tabId, token).catch(() => {});
+        } else if (owns()) attachmentOwners.delete(tabId);
+        throw new ProviderError("debugger_attach_failed", String(error.message || error));
+      }
+      // A confirmed detach retires this attachment token. A late callback
+      // must neither claim the tab nor detach a newer attachment.
+      if (!owns()) throw new ProviderError("approval_required", "Browser attachment ended");
+      if (!valid()) {
+        await detachAttachment(tabId, token);
+        throw new ProviderError("approval_required", "Browser access ended during attachment");
+      }
+      attached.add(tabId);
+      notifyPanels();
+
+    })();
+    attaching.set(tabId, pending);
+    pending.finally(() => { if (attaching.get(tabId) === pending) attaching.delete(tabId); }).catch(() => {});
+  }
+  const pending = attaching.get(tabId);
+  await pending;
+  if (generation !== authorityGeneration || (!granted && !devtools) || !attached.has(tabId)) {
+    throw new ProviderError("approval_required", "Browser access ended during attachment");
+  }
+  if (ordinary) ordinaryTabs.add(tabId);
+  if (observe) await observePage(tabId);
+}
+
+// Page.enable itself can wait behind an already-open modal after reattach.
+// Attachment and event readiness are separate: explicit dialog recovery must
+// not depend on the event command that it is needed to unblock.
+async function observePage(tabId, budget = 2000, required = true) {
+  const token = attachmentOwners.get(tabId);
+  const authority = authorityGeneration;
+  const valid = () => token && attachmentOwners.get(tabId) === token && attached.has(tabId)
+    && authority === authorityGeneration && (granted || devtools);
+  if (!valid()) throw new ProviderError("approval_required", "Browser attachment ended");
+  let observer = pageObservers.get(tabId);
+  if (!observer || observer.token !== token) {
+    observer = { token, ready:false, error:null, marked:false };
+    pageObservers.set(tabId, observer);
+    observer.promise = Promise.resolve().then(() => {
+      if (!valid()) throw new ProviderError("approval_required", "Browser attachment ended");
+      return chrome.debugger.sendCommand({ tabId }, "Page.enable");
+    }).then(() => {
+      if (!valid()) throw new ProviderError("approval_required", "Browser attachment ended");
+      observer.ready = true;
+      if (blockedTabs.get(tabId) === "browser_observer_unavailable") blockedTabs.delete(tabId);
+    }).catch((error) => { observer.error = error; throw error; });
+    observer.promise.catch(() => {});
+  }
+  try { await bounded(() => observer.promise, budget); }
+  catch (error) {
+    if (!valid()) throw new ProviderError("approval_required", "Browser attachment ended");
+    if (required) {
+      blockedTabs.set(tabId, "browser_observer_unavailable");
+      throw new ProviderError("browser_observer_unavailable", "Page events are unavailable; inspect dialog state, explicitly handle a modal with DevTools, or release this route");
+    }
+  }
+  if (!valid()) throw new ProviderError("approval_required", "Browser attachment ended");
+  if (required && observer.ready && !observer.marked) {
+    observer.marked = true;
+    await bounded(() => indicators.track(tabId, token.newTab), 750).catch(() => {});
+    if (!valid()) throw new ProviderError("approval_required", "Browser attachment ended");
+  }
+  return observer.ready;
+}
+
+// A detach reply or event belongs to one attachment, not a later owner of
+// the same tab. Definite absence is also confirmation, even if its event was
+// lost; repeated recovery must not get stuck on "not attached" forever.
+async function detachAttachment(tabId, token = attachmentOwners.get(tabId)) {
+  if (attachmentOwners.get(tabId) !== token) return true;
+  if (!token) { unconfirmedDetaches.delete(tabId); return true; }
+  const retire = () => {
+    if (attachmentOwners.get(tabId) !== token) return;
+    attached.delete(tabId);
+    generations.set(tabId, (generations.get(tabId) || 0) + 1);
+    clearTab(tabId);
+  };
+  try {
+    await bounded(() => chrome.debugger.detach({ tabId }));
+    retire(); return true;
+  } catch (error) {
+    if (/Debugger is not attached|No tab with given id|No target with given id/i.test(String(error.message || error))) {
+      retire(); return true;
+    }
+    if (attachmentOwners.get(tabId) !== token) return true;
+    unconfirmedDetaches.add(tabId); return false;
+  }
+}
+
+async function detachAll() {
+  authorityGeneration += 1;
+  referenceEpoch = crypto.randomUUID();
+  generations.clear();
+  requests.cancelAll();
+  const tabs = [...new Set([...attached, ...unconfirmedDetaches, ...attaching.keys(), ...pendingAttachments.keys()])]
+    .map(tabId => ({ tabId, token:attachmentOwners.get(tabId) }));
+  attached.clear();
+  ordinaryTabs.clear();
+  blockedTabs.clear(); dialogs.clear(); pageObservers.clear();
+  notifyPanels();
+  // The fence above is immediate; asynchronous cleanup is strictly ordered.
+  // A previous grant/release can never erase a newer tab's dialog or marker.
+  const cleanup = disconnectCleanup.catch(() => {}).then(async () => {
+    const streams = streaming.closeAll("access_ended");
+    const decoration = indicators.releaseAll();
+    await bounded(() => decoration, 750).catch(() => {});
+    await Promise.all(tabs.map(({ tabId, token }) => detachAttachment(tabId, token)));
+    await bounded(() => Promise.all([streams, decoration])).catch(() => {});
+  });
+  disconnectCleanup = cleanup;
+  return cleanup;
+}
+
+function clearTab(tabId) {
+  // A raw attach callback can still arrive after a detach event. Only its
+  // own completion may remove pendingAttachments and permit a fresh owner.
+  attachmentOwners.delete(tabId); attaching.delete(tabId); pageObservers.delete(tabId);
+  unconfirmedDetaches.delete(tabId);
+  dialogs.delete(tabId); blockedTabs.delete(tabId); ordinaryTabs.delete(tabId);
+  requests.detached(tabId);
+}
+
+chrome.debugger.onEvent.addListener(({ tabId }, method, params) => {
+  if (!attached.has(tabId) || (!granted && !devtools)) return;
+  if (method === "Page.javascriptDialogOpening") {
+    dialogs.set(tabId, { id:crypto.randomUUID(), type:params.type, message:String(params.message || "").slice(0,2000),
+      defaultPrompt:String(params.defaultPrompt || "").slice(0,1000), url:String(params.url || "").slice(0,4096) });
+    requests.cancelTab(tabId, "dialog_open");
+  } else if (method === "Page.javascriptDialogClosed") {
+    dialogs.delete(tabId);
+    if (blockedTabs.get(tabId) === "dialog_open") blockedTabs.delete(tabId);
+  }
+});
 chrome.debugger.onDetach.addListener(({ tabId }) => {
+  clearTab(tabId);
   attached.delete(tabId);
   generations.set(tabId, (generations.get(tabId) || 0) + 1);
   notifyPanels();
   indicators.release(tabId).catch(() => {});
 });
 chrome.tabs.onRemoved.addListener((tabId) => {
+  clearTab(tabId);
   attached.delete(tabId);
   notifyPanels();
   generations.delete(tabId);
@@ -672,7 +931,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 chrome.tabs.onUpdated.addListener((tabId, change) => {
   // A navigation invalidates element references for that tab.
   if (change.status === "loading") generations.set(tabId, (generations.get(tabId) || 0) + 1);
-  if (change.status === "complete" && attached.has(tabId) && (granted || devtools)) {
+  if (change.status === "complete" && attached.has(tabId) && pageObservers.get(tabId)?.ready && (granted || devtools)) {
     indicators.track(tabId).catch(() => {});
   }
 });

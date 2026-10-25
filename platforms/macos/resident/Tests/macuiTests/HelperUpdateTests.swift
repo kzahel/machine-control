@@ -21,6 +21,14 @@ final class HelperUpdateTests: XCTestCase {
         var helper = self.helper; helper["callerEligibility"] = "allowed"
         XCTAssertFalse(eligible(helper:helper))
     }
+    func testApprovedUpgradeMayInstallMissingRelockRoleOnly() {
+        var helper = self.helper
+        helper["installation"] = "inconsistent"; helper["errorCode"] = "unlock_relock_helper_missing"
+        XCTAssertTrue(eligible(helper:helper))
+        XCTAssertFalse(eligible(approved:false, helper:helper))
+        helper["errorCode"] = "unlock_relock_artifact_mismatch"
+        XCTAssertFalse(eligible(helper:helper))
+    }
 
     func testInitialSetupAndMissingOSApprovalCannotBeAutomatic() {
         XCTAssertFalse(eligible(approved:false))

@@ -53,6 +53,8 @@ with tempfile.TemporaryDirectory(prefix='mc-verify-') as tmp:
         if not (app/relative).is_file():raise SystemExit('Required installed resource missing: '+relative)
     if tuple(map(int, manifest['version'].split('.'))) >= (0, 4, 10):
         if not (app/'Contents/Resources/chrome-extension/indicators.js').is_file():raise SystemExit('Required tab indicator module missing')
+    if tuple(map(int, manifest['version'].split('.'))) >= (0, 6, 10):
+        if not (app/'Contents/Resources/chrome-extension/requests.js').is_file():raise SystemExit('Required browser request scheduler missing')
     if tuple(map(int, manifest['version'].split('.'))) >= (0, 5, 3):
         if info.get('MCClientProtocol') != 1 or info.get('MCNativeSudoVersion') != 1:
             raise SystemExit('Required installed CLI or native sudo identity missing')

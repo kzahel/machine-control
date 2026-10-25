@@ -2871,7 +2871,7 @@ def grant_request(arguments: list[str]) -> dict[str, Any]:
 
 BROWSER_COMMANDS = {
     "tabs", "navigate", "snapshot", "click", "type", "key", "capture", "upload",
-    "cdp", "eval", "endpoint", "wait", "release",
+    "cdp", "eval", "endpoint", "wait", "release", "dialog",
 }
 
 BROWSER_USAGE = {
@@ -2893,6 +2893,7 @@ BROWSER_USAGE = {
     "eval": "browser eval --expression JS [--tab ID] — evaluate JavaScript (devtools grant)",
     "endpoint": "browser endpoint — browser and per-tab CDP WebSocket URLs for a live session (devtools grant)",
     "release": "browser release — detach all debugger sessions",
+    "dialog": "browser dialog [--tab ID] [--action status|accept|dismiss --dialog-id ID] — inspect or handle a page dialog",
 }
 
 
@@ -2920,6 +2921,9 @@ def browser_request(arguments: list[str], target_platform: str | None = None) ->
     parser.add_argument("--params")
     parser.add_argument("--expression")
     parser.add_argument("--timeout")
+    parser.add_argument("--action", choices=["status", "accept", "dismiss"])
+    parser.add_argument("--dialog-id")
+    parser.add_argument("--prompt-text")
     try:
         options = parser.parse_args(rest)
     except (argparse.ArgumentError, SystemExit) as error:
@@ -2966,6 +2970,14 @@ def browser_request(arguments: list[str], target_platform: str | None = None) ->
         if not options.expression:
             raise ClientError("usage", "browser eval requires --expression JS")
         request["expression"] = options.expression
+    if command == "dialog":
+        request["action"] = options.action or "status"
+        if request["action"] != "status" and not options.dialog_id:
+            raise ClientError("usage", "Handling a dialog requires --dialog-id from browser dialog")
+        if options.dialog_id:
+            request["dialogId"] = options.dialog_id
+        if options.prompt_text is not None:
+            request["promptText"] = options.prompt_text
     if options.file:
         request["files"] = options.file
     if options.background and not options.new_tab:
@@ -2976,7 +2988,7 @@ def browser_request(arguments: list[str], target_platform: str | None = None) ->
             request["active"] = False
     if options.interactive:
         request["interactiveOnly"] = True
-    if command == "wait" and options.timeout is not None:
+    if options.timeout is not None:
         request["timeoutMs"] = parse_duration_seconds(options.timeout) * 1000
     return request
 

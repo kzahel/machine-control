@@ -1,12 +1,67 @@
 import Foundation
+import Darwin
 import XCTest
 @testable import macui
 
 final class LockedUseTests: XCTestCase {
     private let session: [String:Any] = ["uuid":"console-a", "boot":123, "uid":501]
 
+    func testCoveredHelperSilenceIsToleratedOnlyWithinItsBound() {
+        var liveness = CoveredHelperLiveness(generation:"helper-a", lastPositive:100)
+        let healthy: [String:Any] = ["helperGeneration":"helper-a", "installation":"healthy",
+            "callerEligibility":"allowed", "lockedUsePaused":false, "relockAvailable":true, "coveredSession":true]
+        XCTAssertNil(liveness.refusal(helper:[:], metadata:[:], now:129.9, covered:true))
+        XCTAssertEqual(liveness.refusal(helper:[:], metadata:[:], now:130, covered:true), "helper_unavailable")
+        XCTAssertNil(liveness.refusal(helper:healthy, metadata:["available":true,"ageMs":1000], now:130, covered:true))
+        XCTAssertEqual(liveness.lastPositive,129)
+        // Re-reading the same cached sample cannot extend the watchdog bound.
+        XCTAssertEqual(liveness.refusal(helper:healthy, metadata:["available":true,"ageMs":31000], now:160, covered:true), "helper_unavailable")
+        for key in ["helperGeneration", "installation", "callerEligibility", "lockedUsePaused", "relockAvailable", "coveredSession"] {
+            var invalid = healthy; invalid.removeValue(forKey:key)
+            XCTAssertEqual(liveness.refusal(helper:invalid, metadata:["available":true,"ageMs":0], now:160, covered:true), "helper_unavailable")
+        }
+        let conflicts: [(String,Any)] = [("helperGeneration","helper-b"), ("installation","missing"),
+            ("callerEligibility","denied"), ("relockAvailable",false)]
+        for (key,value) in conflicts {
+            var invalid = healthy; invalid[key] = value
+            XCTAssertEqual(liveness.refusal(helper:invalid, metadata:["available":true,"ageMs":0], now:160, covered:true), "helper_unavailable")
+        }
+        XCTAssertEqual(liveness.refusal(helper:healthy, metadata:["available":false,"ageMs":0], now:160, covered:true), "helper_unavailable")
+        XCTAssertEqual(liveness.refusal(helper:healthy, metadata:[:], now:128, covered:true), "helper_unavailable")
+    }
+
+    func testFreshRootFaultEndsImmediatelyButStaleOrOtherEpochDoesNot() {
+        for fault in [["lockedUsePaused":true], ["coveredSession":false]] {
+            var helper: [String:Any] = fault; helper["helperGeneration"] = "helper-a"
+            var liveness = CoveredHelperLiveness(generation:"helper-a", lastPositive:100)
+            XCTAssertEqual(liveness.refusal(helper:helper, metadata:["available":true,"ageMs":100], now:101, covered:true), "watchdog_interrupted")
+            XCTAssertNil(liveness.refusal(helper:helper, metadata:["available":true,"ageMs":2001], now:101, covered:true))
+            XCTAssertNil(liveness.refusal(helper:helper, metadata:["available":false,"ageMs":0], now:101, covered:true))
+            helper["helperGeneration"] = "helper-b"
+            XCTAssertNil(liveness.refusal(helper:helper, metadata:["available":true,"ageMs":0], now:101, covered:true))
+        }
+    }
+
+    func testDelayedGuardianObservesParentCancelAndEOFWithoutConsumingTraffic() throws {
+        var descriptors: [Int32] = [-1, -1]
+        XCTAssertEqual(socketpair(AF_UNIX, SOCK_STREAM, 0, &descriptors), 0)
+        defer { Darwin.close(descriptors[0]); Darwin.close(descriptors[1]) }
+        XCTAssertNil(guardianStartupCancellation(descriptors[1]))
+        let cancellation = Array("{\"operation\":\"cancel\"}\n".utf8)
+        XCTAssertEqual(cancellation.withUnsafeBytes { Darwin.write(descriptors[0], $0.baseAddress, $0.count) }, cancellation.count)
+        XCTAssertEqual(guardianStartupCancellation(descriptors[1]), "owner_disconnected")
+        var bytes = [UInt8](repeating:0, count:cancellation.count)
+        XCTAssertEqual(Darwin.read(descriptors[1], &bytes, bytes.count), cancellation.count)
+        XCTAssertEqual(bytes, cancellation, "Startup fencing must not consume active-loop protocol traffic")
+        XCTAssertNil(guardianStartupCancellation(descriptors[1]))
+        _ = Darwin.shutdown(descriptors[0], SHUT_WR)
+        XCTAssertEqual(guardianStartupCancellation(descriptors[1]), "owner_disconnected")
+    }
+
     private final class Permission: LockedUsePermissionManaging {
         var ready = false
+        var ongoingAuthorization: Bool?
+        var controlAuthorized: Bool { ongoingAuthorization ?? ready }
         var approvalState = "not_registered"
         var setupState = "idle"
         var setupError: String?
@@ -14,6 +69,41 @@ final class LockedUseTests: XCTestCase {
         func request() throws { requests += 1; ready = false; setupState = "installing" }
         func remove() throws {}
         func tick() {}
+    }
+
+    func testReadyWaitsForThePreviousRootSessionToFinishCleanup() throws {
+        let name = "locked-use-test-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName:name)!
+        defer { defaults.removePersistentDomain(forName:name) }
+        let permission = Permission(); permission.ready = true
+        let service = ResidentService()
+        let use = MacLockedUse(broker:GrantBroker(policy:.workstation(issue:nil)), service:service,
+            preferences:defaults, permission:permission, setupObservation:{ ["desktopState":"unlocked"] })
+        try use.configure(enabled:true)
+        var helper: [String:Any] = ["profile":"locked_use", "policy":"enabled", "installation":"healthy",
+            "callerEligibility":"allowed", "lockedUsePaused":false, "coveredSession":true]
+        service.helperObservation.replace(with:helper)
+        XCTAssertEqual(use.status["phase"] as? String,"recovering")
+        helper["coveredSession"] = false; service.helperObservation.replace(with:helper)
+        XCTAssertEqual(use.status["phase"] as? String,"ready")
+    }
+
+    func testUnavailableAdmissionObservationDoesNotDisableAnAdmittedLease() throws {
+        let name = "locked-use-test-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName:name)!
+        defer { defaults.removePersistentDomain(forName:name) }
+        let permission = Permission(); permission.ready = true
+        let use = MacLockedUse(broker:GrantBroker(policy:.workstation(issue:nil)), service:ResidentService(),
+            preferences:defaults, permission:permission, setupObservation:{ ["desktopState":"unlocked"] })
+        try use.configure(enabled:true)
+        permission.ready = false; permission.ongoingAuthorization = true
+        XCTAssertFalse(use.enabled, "A fresh task must still await healthy admission observations")
+        XCTAssertTrue(use.continuationAuthorized, "Live guardian/root enforcement owns the admitted task")
+        permission.ongoingAuthorization = false
+        XCTAssertFalse(use.continuationAuthorized, "Real OS permission loss still ends control")
+        permission.ongoingAuthorization = true
+        try use.configure(enabled:false)
+        XCTAssertFalse(use.continuationAuthorized, "Explicit disable must win immediately")
     }
 
     func testCheckboxOnlyChangesPreferenceAfterPermissionsAreReady() throws {
@@ -203,6 +293,32 @@ final class LockedUseTests: XCTestCase {
         XCTAssertNil(GrantConsoleBinding(grantID:"grant-a", observation:[:]))
         var otherUser = observation; otherUser["uid"] = getuid() + 1
         XCTAssertNil(GrantConsoleBinding(grantID:"grant-a", observation:otherUser))
+    }
+
+    func testFaultFenceRequiresExplicitFreshHelperCleanupEvidence() {
+        var fence = CoveredRecoveryFence()
+        fence.arm(session)
+        for helper: [String:Any] in [[:], ["installation":"healthy", "callerEligibility":"allowed"],
+            ["installation":"healthy", "callerEligibility":"allowed", "coveredSession":true, "lockedUsePaused":false],
+            ["installation":"healthy", "callerEligibility":"allowed", "coveredSession":false, "lockedUsePaused":true]] {
+            fence.reconcile(helper:helper, observation:session)
+            XCTAssertTrue(fence.pending)
+        }
+        let ready: [String:Any] = ["installation":"healthy", "callerEligibility":"allowed", "coveredSession":false, "lockedUsePaused":false]
+        fence.reconcile(helper:ready, observation:[:]); XCTAssertTrue(fence.pending)
+        var locked = session; locked["desktopState"] = "locked"
+        fence.reconcile(helper:ready, observation:locked); XCTAssertFalse(fence.pending)
+    }
+
+    func testFaultFenceRefusesDesktopAndFreshProtectedTasksButLeavesBrowserIndependent() {
+        var fence = CoveredRecoveryFence()
+        fence.arm(session)
+        for operation in ["snapshot", "input.key", "session.control"] {
+            XCTAssertEqual(fence.refusal(for:operation)?.code, "locked_use_recovery_pending")
+        }
+        for operation in ["browser.tabs", "browser.dialog", "browser.eval"] {
+            XCTAssertNil(fence.refusal(for:operation))
+        }
     }
 
     func testUnknownStateIsNotProofOfConsoleReplacement() {

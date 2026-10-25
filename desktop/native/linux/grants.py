@@ -12,7 +12,7 @@ CONTROL = {"action", "focus", "set_value", "application.launch", "application.ac
            "application.terminate", "input.move", "input.click", "input.key", "input.text",
            "input.scroll", "input.drag"}
 BROWSER = {"browser.tabs", "browser.wait", "browser.navigate", "browser.snapshot",
-           "browser.click", "browser.type", "browser.key", "browser.capture", "browser.release"}
+           "browser.click", "browser.type", "browser.key", "browser.capture", "browser.release", "browser.dialog"}
 BROWSER_READ = {"browser.tabs", "browser.wait", "browser.snapshot", "browser.capture"}
 
 

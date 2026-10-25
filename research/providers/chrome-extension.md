@@ -33,6 +33,7 @@ tab lifecycle APIs. It is not the approval authority.
 
 | Platform and route | Evidence | Boundary |
 | --- | --- | --- |
+| Unreleased extension 0.8.1 in signed Mac ARM64 development assembly | `conformance-tested` | Claimed disposable macOS 26.6.2 VM, CfT 155: 81 composed browser/locked-use checks, native until-stopped approval, modal and deadline recovery, independent HTTP/native effects, restart and Stop; SIP disabled, one display; physical/store/mixed-version execution separate |
 | Public desktop 0.6.9 Mac ARM64, bundled unpacked provider | `conformance-tested` | Exact signed/notarized app in a claimed Tart VM: fifty download/upload cycles, Settings, native-host loss, blocked-provider Stop, forced-exit recovery and stale-reference refusal; same archive publicly published; Chrome Web Store/Intel/physical execution separate |
 | macOS source-native extension/native messaging | `conformance-tested` | Fixture effects, navigation, capture and provider refusal in a Tart guest; predates signed Tauri acceptance |
 | macOS locked-console extension/native messaging | `live-tested` | macOS 26.6.2 Tart appliance, Chrome for Testing 155: tab enumeration, AX, independent click/text/navigation effects, PNG capture and reattachment with the OS still locked; standing authority, no covered unlock; workstation source has a separate opt-in |
@@ -59,6 +60,30 @@ The [desktop matrix](../../docs/desktop-acceptance.md) separates source-native
 and exact installed product evidence.
 
 ## Fidelity, consequences, and gaps
+
+**Current (2026-10-25), unreleased 0.8.1, `source-reviewed` and
+`contract-tested`:** ordinary per-tab scheduling bounds retained work and
+physical slots, preserves request-local authority through awaits, and fences
+canceled/expired continuations. Recovery has independent bounded execution.
+Dispatched failure remains uncertain; queued input refuses. Attachment tokens,
+raw-callback accounting and a separate Page-event readiness state prevent stale
+callbacks from claiming a fresh route. A perpetually unsettled raw attach keeps
+its tab and one of eight attachment slots fenced; a browser restart is the
+recovery boundary. This is not an automatic restart or consent revocation.
+
+**Current, bounded signed ARM64 VM `live-tested`:** with Chrome for Testing
+155 on macOS 26.6.2, a beforeunload dialog survives debugger detach but a new
+session's `Page.enable` stays pending and raw `Page.handleJavaScriptDialog`
+returns no dialog to handle. This qualifies that specific route, not every
+Chromium implementation. Explicit release therefore refuses promptly while an
+observed, recoverable dialog is open. Typed handling retains the original
+attachment; subsequent release invalidates old IDs. Tabs lists observed dialog
+IDs/types, while `not_observed` and pending/failed observer states never assert
+absence. Streams retain observed dialogs on closure; authority loss always
+ends control. A dialog that appears after release can still require native UI.
+[Tactical 138](../../docs/tactical/138-remote-arming-recovery.md) owns composed
+signed development-assembly qualification; store and mixed-version rollout
+remain separate.
 
 **Current (2026-10-17):** bounded [macOS locked-console evidence](../platforms/macos.md#browser-control-with-the-console-locked)
 shows browser operations need not unlock the OS console under standing

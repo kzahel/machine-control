@@ -1,4 +1,5 @@
 // Owned tab indicators. The resident remains the authorization authority.
+import { bounded } from "./requests.js";
 // Use the already authorized per-tab debugger to enter an isolated world;
 // no broad scripting or host permissions are needed just to show a marker.
 const STORAGE_KEY = "controlledTabs";
@@ -193,11 +194,16 @@ export class TabIndicators {
   }
 
   async render(tabId, icon) {
-    const { frameTree } = await this.command(tabId, "Page.getFrameTree");
-    const { executionContextId } = await this.command(tabId, "Page.createIsolatedWorld", {
+    const epoch = this.epoch;
+    const command = (method, params) => bounded(() => {
+      if (epoch !== this.epoch) throw new Error("Indicator generation ended");
+      return this.command(tabId, method, params);
+    }, 500);
+    const { frameTree } = await command("Page.getFrameTree");
+    const { executionContextId } = await command("Page.createIsolatedWorld", {
       frameId: frameTree.frame.id, worldName: "machine-control-indicator",
     });
-    const response = await this.command(tabId, "Runtime.callFunctionOn", {
+    const response = await command("Runtime.callFunctionOn", {
       executionContextId, functionDeclaration: pageIndicator.toString(),
       arguments: [{ value: icon }], returnByValue: true,
     });

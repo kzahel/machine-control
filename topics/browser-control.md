@@ -22,6 +22,22 @@ and result vocabulary as desktop control. This applies to physical hosts
 
 ## Current
 
+**Current (2026-10-25), unreleased extension 0.8.1:** ordinary requests use
+bounded per-tab scheduling and request-local authority. Discovery, dialog
+handling, release and grant changes progress independently of stalled page
+work. Deadlines and cancellation fence continuations; queued work refuses,
+while dispatched timeouts report unknown delivery/effect. Confirmed debugger
+detach frees abandoned command capacity even if Chrome never settles a callback.
+Unconfirmed detaches block that route and can be retried by release. Optional
+indicator cleanup has its own bounds. Typed `browser.dialog` requires a current
+dialog ID for handling; `not_observed` is not proof that no dialog exists.
+[Tactical 138](../docs/tactical/138-remote-arming-recovery.md) owns the repair
+and signed Mac VM campaign; the provider dossier owns evidence limits.
+The final signed development assembly passes that composed campaign with
+native until-stopped approval, independent effects, faults and Stop. This is
+the bundled unpacked provider in one VM; store and mixed-version rollout remain
+separate.
+
 **Current (2026-10-24), bundled in desktop 0.6.9:** ordinary worker requests bind
 authority at message arrival and recheck it around awaited CDP work. Opaque
 references carry an authority epoch so reconnect, worker restart and new grants
@@ -209,10 +225,11 @@ package and environment boundaries.
   owns focused x64 acceptance and [the streaming guide](../desktop/WINDOWS-STREAMING-CDP.md)
   owns usage and target-loopback forwarding limits. Signed streaming packages,
   ARM64 live, physical and other-browser qualification remain separate.
-- **Open:** a page JavaScript dialog blocks the extension's serial request
-  queue, so every later browser operation times out until Chrome restarts.
-  Timed-out requests are reported as refused while still queued. See the
-  [gap record](../gaps/2026-10-25-locked-use-self-revocation.md).
+- **Current, repaired in unreleased source:** the shipped serial-queue defect
+  can block all requests behind one page dialog and misreport queued timeouts.
+  The bounded replacement above separates recovery and cancels expired work.
+  [Tactical 138](../docs/tactical/138-remote-arming-recovery.md) owns qualification;
+  [the gap record](../gaps/2026-10-25-locked-use-self-revocation.md) explains the incident.
 - **Open:** Linux installed store-copy qualification and other Chromium browsers.
 - **Open:** Store review outcome and installed store-copy acceptance,
   a revoke-only Stop from the extension, and installer/policy installation

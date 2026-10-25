@@ -540,6 +540,7 @@ final class ResidentService {
     private var observedSession: [String: Any] = [:]
     private var usedUnlockRequests = Set<String>()
     var coveredWindowIDs: () -> Set<Int> = { [] }
+    private(set) var coveredStartupFailure: [String:Any]?
     var inputCancellation: () -> String? = { nil }
     var referencesInvalidated: (() -> Void)?
 
@@ -723,8 +724,8 @@ final class ResidentService {
             try writeSocket(fd, data: encodeJSONLine(["operation": "status"]))
             let reply = try brokerReply(fd)
             for key in ["installation", "policy", "callerEligibility", "helperGeneration", "helperDesktopGeneration",
-                        "profile", "lockedUsePaused", "lockedUsePauseReason", "relockAvailable", "coveredSession",
-                        "unlockRulePeers"] {
+                        "profile", "lockedUsePaused", "lockedUsePauseReason", "lockedUseRecovery", "lockedUseRecoveryDelaySeconds", "relockAvailable", "coveredSession",
+                        "relockRoute", "relockRunnerHealthy", "unlockRulePeers"] {
                 if let value = reply[key] { status[key] = value }
             }
             issue = reply["errorCode"] as? String ?? "unlock_helper_invalid_response"
@@ -747,7 +748,9 @@ final class ResidentService {
         if status["profile"] as? String == "locked_use" {
             status["authorizationScope"] = "approved_covered_control_session"
             status["desktopExposedAfterUnlock"] = false
-            status["automaticRelock"] = true
+            status["automaticRelock"] = status["relockAvailable"] as? Bool == true &&
+                status["relockRunnerHealthy"] as? Bool == true &&
+                status["relockRoute"] as? String == "user_bootstrap_runner"
             status["entrypoint"] = "session.control"
         }
         if screen == "unlocked" {
@@ -779,10 +782,17 @@ final class ResidentService {
         let status = unlockStatus()
         guard status["profile"] as? String == "locked_use", status["readiness"] as? String == "ready",
               !coveredWindowIDs().isEmpty, inputCancellation() == nil else {
+            let observation = nativeSessionObservation()
+            coveredStartupFailure = ["stage":"helper_readiness", "helperArmed":false,
+                "inputMayHaveBeenSent":false, "lockObservedAtFailure":observation["desktopState"] as? String == "locked",
+                "sameConsoleAtFailure":sameConsoleSession(initial, observation), "unlockOutcome":"not_established"]
             throw MacUIError.action((status["reasons"] as? [String])?.first ?? "covered_unlock_unavailable")
         }
         let trigger = try ConsoleUnlockTrigger.resolve()
         let fd = try connectUnlockBroker()
+        var stage = "helper_arming"
+        var helperArmed = false
+        var inputMayHaveBeenSent = false
         do {
             try writeSocket(fd, data: encodeJSONLine([
                 "operation":"covered_unlock", "requestId":UUID().uuidString.lowercased(),
@@ -795,10 +805,14 @@ final class ResidentService {
             guard acceptance["armed"] as? Bool == true else {
                 throw MacUIError.action(acceptance["errorCode"] as? String ?? "covered_unlock_refused")
             }
+            helperArmed = true
             guard NSDictionary(dictionary:nativeSessionObservation()).isEqual(to:initial), inputCancellation() == nil else {
                 throw MacUIError.action("covered_unlock_interrupted")
             }
+            stage = "unlock_trigger"
+            inputMayHaveBeenSent = true // Includes the optional panel-reveal Return.
             try trigger.submit(initial:initial, cancelled:inputCancellation)
+            stage = "unlock_observation"
             let outcome = try brokerReply(fd)
             refreshSession()
             guard outcome["unlockedObserved"] as? Bool == true,
@@ -806,8 +820,15 @@ final class ResidentService {
                   inputCancellation() == nil else {
                 throw MacUIError.action("covered_unlock_not_observed")
             }
+            coveredStartupFailure = nil
             return fd
         } catch {
+            let observation = nativeSessionObservation()
+            coveredStartupFailure = ["stage":stage, "helperArmed":helperArmed,
+                "inputMayHaveBeenSent":inputMayHaveBeenSent,
+                "lockObservedAtFailure":observation["desktopState"] as? String == "locked",
+                "sameConsoleAtFailure":sameConsoleSession(initial, observation),
+                "unlockOutcome":"not_established"]
             try? writeSocket(fd, data: encodeJSONLine(["operation":"cancel"]))
             Darwin.close(fd)
             ConsoleRelock.request(for:initial)

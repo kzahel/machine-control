@@ -125,6 +125,27 @@ final class BrowserRelayTests: XCTestCase {
         XCTAssertNotEqual(second?["grantGeneration"] as? String, first?["grantGeneration"] as? String)
     }
 
+    func testDeadlineCancelsProviderAndReportsUnknownWithoutRevokingConsent() throws {
+        server.browser.identityCheck = { _ in true }
+        server.browser.requestTimeout = 0.05
+        let grant = broker.issueUntilStopped(scopes:[.browser], reason:"manual", requester:"local", approver:"local")
+        let provider = try XCTUnwrap(connectProvider())
+        _ = onBackground { provider.next() } // grant state
+        let result = call(["operation":"browser.type", "tabId":1, "text":"fixture"])
+        XCTAssertEqual(result["errorCode"] as? String, "browser_timeout")
+        XCTAssertEqual(result["delivery"] as? String, "unknown")
+        XCTAssertEqual(result["effect"] as? String, "unknown")
+        let request = try XCTUnwrap(onBackground { provider.next() })
+        let cancel = try XCTUnwrap(onBackground { provider.next() })
+        XCTAssertEqual(cancel["type"] as? String, "cancel")
+        XCTAssertEqual(cancel["id"] as? String, request["id"] as? String)
+        XCTAssertEqual(broker.activeGrant?.id, grant.id)
+        XCTAssertEqual(server.browser.statusJSON["health"] as? String, "degraded")
+        // A provider reply after expiry cannot turn the completed call into success.
+        provider.send(["type":"response", "id":request["id"]!, "ok":true, "data":[:]])
+        XCTAssertEqual(server.browser.statusJSON["pendingRequests"] as? Int, 0)
+    }
+
     func testBrowserOperationsNeedGrantAndProvider() {
         XCTAssertEqual(call(["operation": "browser.tabs"])["errorCode"] as? String, "approval_required")
         broker.issue(scopes: [.browser], durationSeconds: 600, reason: "r", requester: "x", approver: "test")

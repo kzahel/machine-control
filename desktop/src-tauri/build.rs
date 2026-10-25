@@ -171,6 +171,8 @@ fn main() {
             "Plugin.m",
             "Session.h",
             "QuietResume.h",
+            "CoveredInbox.h",
+            "ConsoleLock.h",
             "Relock.h",
             "ScreenUnlockRule.h",
             "Installer.swift",

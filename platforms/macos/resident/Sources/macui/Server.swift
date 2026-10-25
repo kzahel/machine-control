@@ -291,6 +291,7 @@ final class ResidentServer {
     private var pendingTimeout: DispatchWorkItem?
     private var grantConsoleBinding: GrantConsoleBinding?
     private var restoringConsoleConsent = false
+    private var restoredScopeRestriction = false
     private var observedGrantID: String?
 
     let browser: BrowserRelay
@@ -386,20 +387,24 @@ final class ResidentServer {
     deinit { stop() }
 
     func restoreOperatorConsent() {
-        guard broker.policy.grantMode == .approval, broker.grant == nil, broker.pending == nil,
+        guard broker.policy.grantMode == .approval, broker.grant == nil || restoredScopeRestriction, broker.pending == nil,
               let store = broker.consentStore, broker.consentStorageError == nil, broker.journal?.errorCode == nil else { return }
         let observation = grantConsoleObservation()
         guard let (scopes, duration) = store.consent(console:observation) else { return }
         let helper = service.displayedUnlockStatus
-        guard ["healthy", "missing"].contains(helper["installation"] as? String ?? "") else { return }
-        if helper["lockedUsePaused"] as? Bool == true &&
-            !["physical_presence", "local_use_episode"].contains(helper["lockedUsePauseReason"] as? String ?? "") { return }
-        if observation["desktopState"] as? String == "locked" && !lockedUse.enabled { return }
-        guard ["unlocked", "locked"].contains(observation["desktopState"] as? String ?? ""),
-              AXIsProcessTrusted(), CGPreflightScreenCaptureAccess(), CGPreflightPostEventAccess() else { return }
+        // Browser-while-locked is independent of covered-unlock preparation and
+        // its fault pause. A broken helper must not prevent this restoration.
+        let helperEligible = helperAllowsConsentRestoration(helper, recoveryPending:lockedUse.recoveryFence.pending)
+        let available = restorableConsentScopes(scopes, state:observation["desktopState"] as? String ?? "unknown",
+            browserEnabled:browserWhileLockedEnabled, lockedUseEnabled:lockedUse.enabled,
+            helperEligible:helperEligible, desktopPermissions:AXIsProcessTrusted() && CGPreflightScreenCaptureAccess() && CGPreflightPostEventAccess())
+        guard !available.isEmpty, broker.grant?.scopes != available else { return }
         restoringConsoleConsent = true
         defer { restoringConsoleConsent = false }
-        guard let fresh = broker.restoreConsent(scopes:scopes, remainingSeconds:duration) else { return }
+        if broker.grant != nil { broker.revoke(reason:"scope_upgrade") }
+        guard let fresh = broker.restoreConsent(scopes:available, remainingSeconds:duration) else { return }
+        broker.restorationBlockedScopes = scopes.subtracting(available)
+        restoredScopeRestriction = available != scopes
         grantConsoleBinding = GrantConsoleBinding(grantID:fresh.id, observation:observation, restoring:true)
     }
 
@@ -407,6 +412,7 @@ final class ResidentServer {
         let id = broker.grant?.id
         guard observedGrantID != id else { return }
         observedGrantID = id; grantConsoleBinding = nil
+        if !restoringConsoleConsent { restoredScopeRestriction = false }
         guard broker.policy.grantMode == .approval, let id else { return }
         service.refreshSession()
         grantConsoleBinding = GrantConsoleBinding(grantID:id, observation:grantConsoleObservation(), restoring:restoringConsoleConsent)
@@ -446,6 +452,8 @@ final class ResidentServer {
     }
 
     private func reconcileObservedSession() {
+        do { try broker.consentStore?.invalidateReplacedConsole(grantConsoleObservation()) }
+        catch { broker.consentStorageError = String(describing:error) }
         restoreOperatorConsent()
         let observation = grantConsoleObservation()
         let state = observation["desktopState"] as? String ?? "unknown"
@@ -466,7 +474,8 @@ final class ResidentServer {
                 reason = "desktop_\(state)"
             } else { reason = nil }
             if let reason {
-                broker.revoke(reason:reason); grantConsoleBinding = nil
+                let replaced = grantConsoleBinding.map { consoleSessionReplaced($0.session, observation) } ?? false
+                broker.revoke(reason:reason, consent:replaced ? .invalidate : .retain); grantConsoleBinding = nil
                 service.invalidateReferences()
             }
         } else {

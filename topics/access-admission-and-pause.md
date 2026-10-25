@@ -29,6 +29,16 @@ policy.
 
 ## Current foundation
 
+**Current, unreleased Mac source:** operational grant retirement retains saved
+operator consent by default; Stop and verified console replacement invalidate
+it explicitly. A partial same-console probe never proves replacement. Locked
+browser scopes can restore independently while protected desktop readiness is
+unavailable; missing saved scopes report temporary unavailability. An upgrade
+retires the restricted grant and issues fresh generations, never reviving queued
+work. A fault fences desktop dispatch until fresh helper cleanup/recovery;
+operator Pause remains independent of automatic root recovery.
+[Tactical 138](../docs/tactical/138-remote-arming-recovery.md) owns the slice.
+
 **Current, unreleased Windows source and focused x64 VM evidence:**
 [Tactical 103](../docs/tactical/103-windows-activity-pause.md) adds a Default
 desktop activity monitor and composed 30-second quiet policy. Input injection

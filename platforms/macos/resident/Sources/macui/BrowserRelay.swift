@@ -81,6 +81,7 @@ final class BrowserRelay {
     let service: ResidentService
     let broker: GrantBroker
     var identityCheck: (Int32) -> Bool = peerHasOwnCodeIdentity
+    var requestTimeout: TimeInterval = TimeInterval(BrowserRelay.timeoutSeconds)
     var respond: ((Int32, [String: Any], [String: Any], CallerIdentity, String?) -> Void)?
 
     private var provider: Int32 = -1
@@ -89,6 +90,10 @@ final class BrowserRelay {
     private var pending: [String: Pending] = [:]
     private var sessions: [String: DevToolsSession] = [:]
     private(set) var hello: [String: Any]?
+    private var lastSuccess: Date?
+    private var consecutiveTimeouts = 0
+    private var providerBlockedTabs = 0
+    private var providerOpenDialogs = 0
     private let bufferLimit = 48 * 1_048_576
 
     init(service: ResidentService, broker: GrantBroker) {
@@ -102,7 +107,12 @@ final class BrowserRelay {
     var statusJSON: [String: Any] {
         ["connected": connected,
          "route": BrowserRelay.route,
-         "extensionVersion": hello?["extensionVersion"] ?? NSNull()]
+         "extensionVersion": hello?["extensionVersion"] ?? NSNull(),
+         "health":!connected ? "unavailable" : consecutiveTimeouts > 0 || providerBlockedTabs > 0 ? "degraded" : lastSuccess == nil ? "connected_unverified" : "ready",
+         "consecutiveTimeouts":consecutiveTimeouts,
+         "blockedTabs":providerBlockedTabs, "openDialogs":providerOpenDialogs,
+         "pendingRequests":pending.count,
+         "lastSuccessAt":lastSuccess.map { ISO8601DateFormatter().string(from:$0) } as Any? ?? NSNull()]
     }
 
     /// Adopts a native-messaging host connection. Returns a refusal to send
@@ -117,6 +127,7 @@ final class BrowserRelay {
         setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &noTimeout,
                    socklen_t(MemoryLayout.size(ofValue: noTimeout)))
         provider = client
+        lastSuccess = nil; consecutiveTimeouts = 0; providerBlockedTabs = 0; providerOpenDialogs = 0
         buffer.removeAll()
         let source = DispatchSource.makeReadSource(fileDescriptor: client, queue: .main)
         source.setEventHandler { [weak self] in self?.readable() }
@@ -135,6 +146,11 @@ final class BrowserRelay {
             return routed(service.refusal(request, code: "browser_provider_unavailable",
                 message: "The Machine Control Chrome extension is not connected"))
         }
+        let supplied = request["timeoutMs"] as? Int
+        if request["operation"] as? String != "browser.wait", let supplied, !(100...45000).contains(supplied) {
+            return routed(service.refusal(request, code:"invalid_request", message:"Browser timeout must be 100-45000 ms"))
+        }
+        let budget = min(requestTimeout, supplied.map { Double($0) / 1000 } ?? requestTimeout)
         var params = request
         if request["operation"] as? String == "browser.upload" {
             switch validatedUploadFiles(request["files"]) {
@@ -146,14 +162,16 @@ final class BrowserRelay {
         let id = UUID().uuidString.lowercased()
         for key in ["operation", "requestId", "claimId", "schema"] { params.removeValue(forKey: key) }
         let timeout = DispatchWorkItem { [weak self] in
+            self?.write(["type":"cancel", "id":id])
             self?.complete(id, ["ok": false, "errorCode": "browser_timeout",
-                                "message": "The browser did not answer in time"])
+                                "delivery":"unknown", "message": "The browser did not answer in time; dispatched effects are unknown"])
         }
         pending[id] = Pending(client: client, request: request, caller: caller,
                               claimID: claimID, timeout: timeout, completion:completion)
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(BrowserRelay.timeoutSeconds),
+        DispatchQueue.main.asyncAfter(deadline: .now() + budget,
                                       execute: timeout)
         write(["type": "request", "id": id,
+               "timeoutMs":max(100, min(30000, Int(budget * 1000) - 100)),
                "operation": request["operation"] as? String ?? "", "params": params])
         return nil
     }
@@ -255,6 +273,7 @@ final class BrowserRelay {
         closeAllSessions(reason: "browser_provider_disconnected")
         for id in Array(pending.keys) {
             complete(id, ["ok": false, "errorCode": reason,
+                          "delivery":"unknown",
                           "message": "The browser provider disconnected"])
         }
     }
@@ -262,11 +281,21 @@ final class BrowserRelay {
     private func complete(_ id: String, _ message: [String: Any]) {
         guard let entry = pending.removeValue(forKey: id) else { return }
         entry.timeout.cancel()
-        let response = message["ok"] as? Bool == true ?
+        if let health = message["health"] as? [String:Any] {
+            providerBlockedTabs = max(0, min(256, health["blockedTabs"] as? Int ?? 0))
+            providerOpenDialogs = max(0, min(256, health["openDialogs"] as? Int ?? 0))
+        }
+        if message["errorCode"] as? String == "browser_timeout" { consecutiveTimeouts += 1 }
+        if message["ok"] as? Bool == true { lastSuccess = Date(); consecutiveTimeouts = 0 }
+        var response = message["ok"] as? Bool == true ?
             accepted(entry.request, data: message["data"] as? [String: Any] ?? [:]) :
             routed(service.refusal(entry.request,
                 code: message["errorCode"] as? String ?? "browser_operation_failed",
                 message: message["message"] as? String ?? "Browser operation failed"))
+        if message["ok"] as? Bool != true && message["delivery"] as? String == "unknown" {
+            response["delivery"] = "unknown"; response["effect"] = "unknown"
+            response["uncertainty"] = "browser_command_may_have_executed"
+        }
         if let completion = entry.completion { completion(response) }
         else { respond?(entry.client, entry.request, response, entry.caller, entry.claimID); Darwin.close(entry.client) }
     }

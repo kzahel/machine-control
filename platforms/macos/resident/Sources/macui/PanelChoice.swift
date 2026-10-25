@@ -50,11 +50,29 @@ struct PanelChooser {
         }
         guard confirm else { return data }
 
-        guard let button = descendant(of: panel, identifier: "OKButton", depth: 3),
-              boolAttribute(button, kAXEnabledAttribute as CFString) != false else {
+        let confirmationStarted = ProcessInfo.processInfo.systemUptime
+        var confirmButton: AXUIElement?
+        guard waitUntil({
+            guard let candidate = descendant(of: panel, identifier: "OKButton", depth: 3),
+                  boolAttribute(candidate, kAXEnabledAttribute as CFString) == true else { return false }
+            confirmButton = candidate; return true
+        }), let button = confirmButton else {
+            data["confirmWaitMs"] = Int((ProcessInfo.processInfo.systemUptime - confirmationStarted) * 1000)
             throw PanelChoiceRefusal(code: "dialog_confirm_unavailable",
                 message: "The panel's confirm button is disabled for this location; it was left open",
                 data: data)
+        }
+        data["confirmWaitMs"] = Int((ProcessInfo.processInfo.systemUptime - confirmationStarted) * 1000)
+        guard stringAttribute(location, kAXValueAttribute as CFString) == expected else {
+            throw PanelChoiceRefusal(code:"dialog_location_unverified",
+                message:"The panel's folder changed while confirmation became ready; nothing was confirmed", data:data)
+        }
+        if kind == "save", let name = target.name {
+            guard let field = descendant(of:panel, identifier:"saveAsNameTextField", depth:3),
+                  stringAttribute(field, kAXValueAttribute as CFString) == name else {
+                throw PanelChoiceRefusal(code:"dialog_name_entry_failed",
+                    message:"The panel's file name changed while confirmation became ready; nothing was confirmed", data:data)
+            }
         }
         // A press that opens a modal follow-up can report an error even
         // though it was delivered; judge by what the panel does next.

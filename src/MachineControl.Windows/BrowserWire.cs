@@ -20,7 +20,7 @@ internal static class BrowserWire
     [
         "browser.tabs", "browser.wait", "browser.navigate", "browser.snapshot",
         "browser.click", "browser.type", "browser.key", "browser.capture",
-        "browser.upload", "browser.cdp", "browser.eval", "browser.release", "browser.endpoint",
+        "browser.upload", "browser.cdp", "browser.eval", "browser.release", "browser.endpoint", "browser.dialog",
     ];
     internal static bool Observes(string operation) => operation is
         "browser.tabs" or "browser.wait" or "browser.snapshot" or "browser.capture";

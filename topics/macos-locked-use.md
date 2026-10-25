@@ -8,11 +8,35 @@ on macOS 26.6.2. Operator-confirmed physical takeover/recovery is live-tested
 with a scripted timing caveat. Multiple displays, additional OS revisions,
 Intel execution and distribution qualification remain open.
 
-**Current (2026-10-25):** a physical Mac with two online displays fails covered
-startup with `unlock_password_panel_unavailable_login_window_ambiguous`. That
-pre-unlock failure revoked the operator's until-stopped approval and paused
-locked use, leaving no remote recovery. See the
-[gap record](../gaps/2026-10-25-locked-use-self-revocation.md).
+**Current (2026-10-25), unreleased repair:** the
+[remote lockout incident](../gaps/2026-10-25-locked-use-self-revocation.md)
+exposed consent deletion after an ambiguous two-display startup. Operational
+failure now ends the finite session and fences desktop dispatch while retaining
+saved operator consent and independently permitted locked-browser access.
+Root recovery requires fresh same-console lock, healthy installation and quiet
+evidence, with a 30-second fault cooldown increasing to a 300-second cap after
+repeated failures. Clean covered completion resets fault history. A fresh task
+is required; no failed action is replayed. Admission readiness is separate
+from ongoing direct OS authorization and live guardian enforcement. Locked-origin
+tasks still require fresh positive current-helper liveness within 30 seconds;
+a missing cached sample alone does not masquerade as operator disable.
+A fresh current-root fault ends active control immediately. The root's own
+relock uses a pinned lock-only runner in the original user's GUI bootstrap;
+direct system-bootstrap locking was measured to have no effect. Historical
+composed relock evidence did not isolate root independence. The platform
+report records that finding, and Tactical 138 requires a timed root-only cell
+with resident and guardian both stopped.
+Desktop-scope restoration after a resident restart also requires positive
+root cleanup completion, even before its fault pause has been published;
+locked-browser scopes remain independent.
+Login-window discovery searches all
+bounded candidate windows and refuses ambiguous fields. Physical multiple-display
+qualification remains open. [Tactical 138](../docs/tactical/138-remote-arming-recovery.md)
+owns implementation and signed VM qualification.
+The final signed development assembly passes composed locked-browser and
+covered-fault acceptance, including root-only relock with both user-session
+control processes stopped. This qualifies the bounded VM route and leaves
+physical multiple-display and SIP-enabled fault execution separate.
 
 **Current (2026-10-16):** a reported physical task ended with
 `unlock_password_panel_unavailable`. A bounded one-display VM completion on
@@ -80,8 +104,8 @@ owns the cross-platform correction and Windows cover slice.
 **Current source:** physical keyboard/pointer activity cancels control and
 requests immediate relock while preserving otherwise valid ordinary access.
 Manual Pause gates observations/actions and ends covered control without
-revoking that access. Root automatic-unlock inhibition still needs the new
-quiet/resume integration; physical acceptance of this source is pending.
+revoking that access. Root automatic-unlock inhibition uses fresh lock/health/quiet recovery;
+physical acceptance of this revision remains pending.
 Display changes, sleep, session changes, expired access, Stop, disconnect,
 process failure, and disabling the setting end temporary unlock. Covers remain
 until lock is independently observed. A root watchdog owns failure relock;
@@ -90,9 +114,9 @@ ordinary provider calls remain grant checked and generation bound.
 **Current policy:** prepared locked use retains existing ordinary approval
 across idle locks
 and clean task completion, within the approving console and approval lifetime.
-Every subsequent task still acquires a finite owner connection. Changing console
-identity, unknown state, safety failure, missing preparation or expiry ends
-access. Ordinary manual/physical pauses retain valid access.
+Every subsequent task still acquires a finite owner connection. Verified console replacement, explicit operator Stop and timed approval
+expiry invalidate consent. Unknown state, safety failure and missing preparation
+make affected scopes unavailable without deleting saved consent. Ordinary manual/physical pauses retain valid access.
 
 **Decision — next direction:** ordinary physical takeover should pause access
 and preserve otherwise valid standing authorization. Fresh covered control may

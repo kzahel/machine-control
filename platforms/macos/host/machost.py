@@ -119,6 +119,20 @@ def doctor() -> int:
         extensions["deployment"] = deployment
         if isinstance(data.get("lockScreen"), dict):
             extensions["lockScreen"] = data["lockScreen"]
+        for name, fields in {
+            "lockedUse": ("supported", "enabled", "phase", "permissionReady", "helperHealthy", "pauseReason",
+                          "pausedUntilManualUnlock", "recoveryCondition", "recoveryDelaySeconds", "onlineDisplays", "multiDisplayQualification"),
+            "browser": ("connected", "route", "extensionVersion", "health", "consecutiveTimeouts", "blockedTabs", "openDialogs", "pendingRequests", "lastSuccessAt"),
+            "browserWhileLocked": ("supported", "enabled", "active", "requiresUnlockedApproval", "route"),
+        }.items():
+            if isinstance(data.get(name), dict):
+                extensions[name] = {key:data[name][key] for key in fields if key in data[name]}
+        locked_use = extensions.get("lockedUse", {})
+        if locked_use.get("enabled") or locked_use.get("phase") in {"paused", "recovering"}:
+            checks.append({"id":"locked_use", "status":"pass" if locked_use.get("phase") == "ready" else "warn",
+                           "summary":"Covered control phase: " + str(locked_use.get("phase", "unknown"))})
+        if extensions.get("browser", {}).get("health") == "degraded":
+            checks.append({"id":"browser", "status":"warn", "summary":"Browser requests have timed out; connection alone does not establish route health"})
         checks.append({"id": "resident", "status": "pass",
                        "summary": "Machine Control resident is reachable"})
         policy = deployment.get("policy", {}) if isinstance(deployment, dict) else {}

@@ -2,6 +2,8 @@
 #import "Session.h"
 #import "Relock.h"
 #import "QuietResume.h"
+#import "CoveredInbox.h"
+#import "ConsoleLock.h"
 #import "ScreenUnlockRule.h"
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -10,6 +12,8 @@
 #include <signal.h>
 #include <math.h>
 #include <libproc.h>
+#include <spawn.h>
+#include <sys/wait.h>
 
 #define SOCKET_PATH "/var/run/machine-control-unlock/control.sock"
 #define RECEIPT_PATH STATE_DIR "/receipt.plist"
@@ -22,6 +26,7 @@ static int coveredFD = -1;
 static pid_t coveredPID;
 static NSDictionary *coveredState;
 static double coveredDeadline, heartbeatDeadline;
+static CoveredInbox coveredInbox;
 static BOOL relocking;
 static NSString *endReason;
 static BOOL paused;
@@ -31,8 +36,16 @@ static BOOL serviceManaged;
 static NSString *managedApp;
 static NSData *managedAppHash, *managedResidentHash;
 static NSDictionary<NSString *, NSData *> *managedPayloadHashes;
+static pid_t consoleLockPID = -1;
+static double consoleLockStarted, consoleLockNext;
+static double relockStarted;
+static BOOL consoleLockTerminating;
+static NSData *consoleLockHash;
+static dev_t consoleLockDevice;
+static ino_t consoleLockInode;
 #define WATCH_PATH STATE_DIR "/covered-session.plist"
 #define PAUSE_PATH STATE_DIR "/locked-use-paused.plist"
+#define FAULT_PATH STATE_DIR "/locked-use-faults.plist"
 
 static void stopSignal(int value) { (void)value; stopping = 1; }
 static BOOL sameSession(NSDictionary *a, NSDictionary *b) {
@@ -140,6 +153,76 @@ static NSData *codeHash(NSString *path) {
     NSDictionary *signing = CFBridgingRelease(info);
     return result ? nil : signing[(__bridge NSString *)kSecCodeInfoUnique];
 }
+
+static void resetConsoleLockPin(void) { consoleLockHash = nil; }
+static BOOL consoleLockRunnerValid(NSDictionary *receipt, BOOL signature) {
+    NSData *expected = receipt[@"relockCDHash"]; struct stat info, parent;
+    if (![expected isKindOfClass:NSData.class] ||
+        lstat("/Library/PrivilegedHelperTools", &parent) || !S_ISDIR(parent.st_mode) || parent.st_uid || (parent.st_mode & 0022) ||
+        lstat(CONSOLE_LOCK_PATH, &info) || !S_ISREG(info.st_mode) || info.st_uid || info.st_nlink != 1 ||
+        (info.st_mode & 07777) != 0755 || ![receipt[@"relockPath"] isEqual:@CONSOLE_LOCK_PATH] ||
+        ![receipt[@"relockOwner"] isEqual:@0] || ![receipt[@"relockMode"] isEqual:@0755]) return NO;
+    if (!signature && consoleLockHash && [consoleLockHash isEqual:expected] &&
+        (consoleLockDevice != info.st_dev || consoleLockInode != info.st_ino)) return NO;
+    if (signature || ![consoleLockHash isEqual:expected]) {
+        if (!artifactMatches(@CONSOLE_LOCK_PATH, expected)) return NO;
+        consoleLockHash = expected; consoleLockDevice = info.st_dev; consoleLockInode = info.st_ino;
+    }
+    return YES;
+}
+static void stopConsoleLockChild(void) {
+    if (consoleLockPID > 1) {
+        kill(-consoleLockPID, SIGKILL);
+        consoleLockTerminating = YES;
+    }
+}
+static void reapConsoleLockChild(void) {
+    if (consoleLockPID > 1) {
+        int status = 0;
+        pid_t ended = waitpid(consoleLockPID, &status, WNOHANG);
+        if (ended == consoleLockPID || (ended < 0 && errno == ECHILD)) {
+            NSLog(@"Console lock runner ended (status=%d latencyMs=%.1f); OS readback remains authoritative", status,
+                (monotonicNow() - consoleLockStarted) * 1000);
+            consoleLockPID = -1; consoleLockTerminating = NO;
+        } else if (!consoleLockTerminating && monotonicNow() - consoleLockStarted >= 5) {
+            NSLog(@"Console lock runner timed out"); stopConsoleLockChild();
+        }
+    }
+}
+static void driveConsoleLock(NSDictionary *session) {
+    reapConsoleLockChild();
+    if (consoleLockPID > 1) return;
+    double now = monotonicNow();
+    if (now < consoleLockNext || !sameSession(sessionState(), session)) return;
+    consoleLockNext = now + 1;
+    NSDictionary *receipt = readPlist(@RECEIPT_PATH);
+    if (!consoleLockRunnerValid(receipt, NO)) {
+        NSLog(@"Console relock route unavailable: pinned runner invalid"); return;
+    }
+    NSString *uid = [session[@"uid"] stringValue], *boot = [session[@"boot"] stringValue];
+    NSString *uuid = session[@"uuid"];
+    if (!uid || !boot || ![uuid isKindOfClass:NSString.class]) return;
+    char *args[] = {"/bin/launchctl", "asuser", (char *)uid.UTF8String, CONSOLE_LOCK_PATH,
+        "--lock-console", (char *)uuid.UTF8String, (char *)boot.UTF8String, (char *)uid.UTF8String, NULL};
+    char *environment[] = {"PATH=/usr/bin:/bin:/usr/sbin:/sbin", "LANG=C", NULL};
+    posix_spawnattr_t attributes; posix_spawn_file_actions_t actions;
+    int result = posix_spawnattr_init(&attributes);
+    if (result) return;
+    result = posix_spawn_file_actions_init(&actions);
+    if (result) { posix_spawnattr_destroy(&attributes); return; }
+    result = posix_spawnattr_setflags(&attributes, POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_CLOEXEC_DEFAULT);
+    if (!result) result = posix_spawnattr_setpgroup(&attributes, 0);
+    if (!result) result = posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0);
+    if (!result) result = posix_spawn_file_actions_addopen(&actions, STDOUT_FILENO, "/dev/null", O_WRONLY, 0);
+    if (!result) result = posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0);
+    pid_t child = -1;
+    if (!result) result = posix_spawn(&child, "/bin/launchctl", &actions, &attributes, args, environment);
+    posix_spawn_file_actions_destroy(&actions); posix_spawnattr_destroy(&attributes);
+    if (!result) {
+        consoleLockPID = child; consoleLockStarted = now;
+        NSLog(@"Console relock dispatched through user_bootstrap_runner");
+    } else { NSLog(@"Console lock runner could not start (error=%d)", result); }
+}
 static NSString *managedApplication(void) {
     char executable[PROC_PIDPATHINFO_MAXSIZE];
     if (proc_pidpath(getpid(), executable, sizeof(executable)) <= 0) return nil;
@@ -147,7 +230,9 @@ static NSString *managedApplication(void) {
     NSString *suffix = @"/Contents/Resources/unlock/mc-unlock-broker";
     if (![path hasSuffix:suffix]) return nil;
     NSString *app = [path substringToIndex:path.length - suffix.length];
-    return [app hasSuffix:@".app"] && codeHash(app) ? app : nil;
+    // Resolve placement here; main validates the complete sealed app once
+    // before publishing a socket or accepting any request.
+    return [app hasSuffix:@".app"] ? app : nil;
 }
 // Closed setup/removal API for the signed operator in the OS-approved bundle.
 // UID and every executable/argument are derived here, never supplied by JSON.
@@ -211,9 +296,10 @@ static BOOL managePermission(int fd, NSDictionary *request, NSDictionary *receip
         if (task.running) kill(task.processIdentifier, SIGKILL);
     }
     [task waitUntilExit];
+    resetConsoleLockPin();
     [files removeItemAtPath:stage error:NULL];
     if (timedOut) { sendJSON(fd, @{@"errorCode":@"helper_setup_timeout"}); return YES; }
-    if (task.terminationStatus == 0) { sendJSON(fd, @{@"completed":@YES}); return YES; }
+    if (task.terminationStatus == 0) { resetConsoleLockPin(); sendJSON(fd, @{@"completed":@YES}); return YES; }
     // The verified installer prints one short JSON line; relay only a bounded
     // lowercase code from it so Permissions can explain the actual refusal.
     [output.fileHandleForWriting closeAndReturnError:NULL];
@@ -230,6 +316,9 @@ static NSString *installationIssue(NSDictionary *receipt) {
     if (![receipt[@"enabled"] boolValue]) return @"unlock_disabled";
     if (!artifactMatches(@"/Library/Security/SecurityAgentPlugins/MCUnlock.bundle", receipt[@"pluginCDHash"]) ||
         !artifactMatches(@STATE_DIR "/broker", receipt[@"brokerCDHash"])) return @"unlock_artifact_mismatch";
+    if ([receipt[@"profile"] isEqual:@"locked_use"] && !consoleLockRunnerValid(receipt, YES)) {
+        return !receipt[@"relockCDHash"] || access(CONSOLE_LOCK_PATH, F_OK) ? @"unlock_relock_helper_missing" : @"unlock_relock_artifact_mismatch";
+    }
     if (![right(rightName) isEqual:receipt[@"dedicatedPolicy"]]) return @"unlock_policy_conflict";
     // Other plug-ins may share the screensaver rule; only our entry matters.
     NSDictionary *screensaver = right("system.login.screensaver");
@@ -238,25 +327,41 @@ static NSString *installationIssue(NSDictionary *receipt) {
     }
     return nil;
 }
-static void requestRelock(NSString *reason) {
-    unlink(GRANT_PATH);
-    relocking = YES;
-    endReason = reason;
-    // Faults require recovery. Physical takeover instead permits locked quiet
-    // resumption; the marker survives resident restarts and cannot be cleared
-    // through the ordinary agent control socket.
-    if (![reason isEqual:@"completed"] && ![reason isEqual:@"duration_expired"]) {
+static void recordFaultPause(NSString *reason) {
         paused = YES; pausedSawLock = NO;
         NSMutableDictionary *marker = [coveredState mutableCopy];
         marker[@"pauseReason"] = reason; marker[@"pausedUptime"] = @(monotonicNow());
+        if (!resumablePause(reason)) {
+            NSDictionary *history = readPlist(@FAULT_PATH);
+            NSUInteger failures = sameSession(history, coveredState) ? MIN(10, [history[@"failures"] unsignedIntegerValue]) + 1 : 1;
+            NSMutableDictionary *updated = [coveredState mutableCopy]; updated[@"failures"] = @(failures);
+            persistState(@FAULT_PATH, updated);
+            marker[@"recoveryDelaySeconds"] = @(faultRecoveryDelay(failures));
+        }
         persistState(@PAUSE_PATH, marker);
+}
+static void requestRelock(NSString *reason) {
+    unlink(GRANT_PATH);
+    BOOL fault = ![reason isEqual:@"completed"] && ![reason isEqual:@"duration_expired"];
+    if (relocking) {
+        // Preserve the first cause, but a later fault cannot downgrade safety
+        // merely because clean completion had already started.
+        if (fault && !paused) recordFaultPause(reason);
+        if (sameSession(sessionState(), coveredState)) driveConsoleLock(coveredState);
+        return;
     }
-    if (sameSession(sessionState(), coveredState)) lockConsole();
+    relocking = YES; relockStarted = monotonicNow(); endReason = reason;
+    if (fault) recordFaultPause(reason);
+    else unlink(FAULT_PATH);
+    if (sameSession(sessionState(), coveredState)) driveConsoleLock(coveredState);
 }
 static void clearPause(void) {
     paused = NO; pausedSawLock = NO; unlink(PAUSE_PATH); unlink(WATCH_PATH);
 }
 static void finishCovered(BOOL locked) {
+    if (!locked) stopConsoleLockChild();
+    NSLog(@"Console relock readback (locked=%d elapsedMs=%.1f route=user_bootstrap_runner)",
+        locked, (monotonicNow() - relockStarted) * 1000);
     if (paused && locked) pausedSawLock = YES;
     if (coveredFD >= 0) {
         sendJSON(coveredFD, @{@"ended":@YES, @"reason":endReason ?: @"session_changed", @"lockObserved":@(locked)});
@@ -268,28 +373,32 @@ static void finishCovered(BOOL locked) {
     if (!paused || readPlist(@PAUSE_PATH)) unlink(WATCH_PATH);
 }
 static void tickCovered(void) {
+    reapConsoleLockChild();
     NSDictionary *current = sessionState();
     if (coveredState) {
         if (current && !sameSession(current, coveredState)) { finishCovered(NO); return; }
         if (relocking) {
             if ([current[@"locked"] boolValue]) { finishCovered(YES); return; }
-            if (sameSession(current, coveredState)) lockConsole(); return;
+            if (sameSession(current, coveredState)) driveConsoleLock(coveredState); return;
         }
-        if (stopping || kill(coveredPID, 0) || monotonicNow() >= coveredDeadline ||
-            monotonicNow() >= heartbeatDeadline || installationIssue(readPlist(@RECEIPT_PATH))) {
-            requestRelock(stopping ? @"helper_stopping" : monotonicNow() >= coveredDeadline ? @"duration_expired" : @"watchdog_interrupted"); return;
+        // Validation may block while the guardian completes and exits. Sample
+        // death before draining, so any completion preceding that exit is
+        // already queued when read. Never put a blocking check between them.
+        double validationStarted = monotonicNow();
+        BOOL installationBad = installationIssue(readPlist(@RECEIPT_PATH)) != nil;
+        double validationMs = (monotonicNow() - validationStarted) * 1000;
+        BOOL guardianGone = kill(coveredPID, 0) != 0;
+        CoveredInput input = readCoveredInbox(coveredFD, &coveredInbox);
+        double watchdogNow = monotonicNow();
+        BOOL heartbeatExpired = watchdogNow >= heartbeatDeadline;
+        NSString *reason = coveredInboxEnding(input, stopping, guardianGone,
+            watchdogNow >= coveredDeadline, heartbeatExpired, installationBad);
+        if (reason) {
+            NSLog(@"Covered ending %@ (input=%d guardianGone=%d heartbeatExpired=%d installationBad=%d validationMs=%.1f)",
+                reason, (int)input, guardianGone, heartbeatExpired, installationBad, validationMs);
+            requestRelock(reason); return;
         }
-        struct pollfd p = {coveredFD, POLLIN | POLLHUP, 0};
-        if (poll(&p, 1, 0) > 0) {
-            NSDictionary *message = receiveJSON(coveredFD);
-            if ([message[@"operation"] isEqual:@"heartbeat"] && message.count == 1) {
-                heartbeatDeadline = monotonicNow() + 5;
-            } else {
-                requestRelock([message[@"operation"] isEqual:@"complete"] ? @"completed" :
-                    [message[@"reason"] isEqual:@"physical_presence"] ? @"physical_presence" : @"owner_disconnected");
-                return;
-            }
-        }
+        if (input == CoveredInputHeartbeat) heartbeatDeadline = watchdogNow + 5;
         if ([current[@"locked"] boolValue]) { requestRelock(@"desktop_locked"); return; }
     }
     if (paused && !coveredState) {
@@ -307,11 +416,17 @@ static void tickCovered(void) {
                 quietResumeEligible(YES, [current[@"locked"] boolValue],
                     [initial[@"pausedUptime"] isKindOfClass:NSNumber.class] ? [initial[@"pausedUptime"] doubleValue] : NAN,
                     monotonicNow(), physicalIdleSeconds())) clearPause();
-        } else if ((pausedSawLock && sameSession(initial, current) &&
+        } else if (faultRecoveryEligible(sameSession(initial, current),
+                   [current[@"locked"] boolValue],
+                   lockConsoleAvailable() && !installationIssue(readPlist(@RECEIPT_PATH)),
+                   [initial[@"pausedUptime"] isKindOfClass:NSNumber.class] ? [initial[@"pausedUptime"] doubleValue] : NAN,
+                   monotonicNow(), physicalIdleSeconds(),
+                   [initial[@"recoveryDelaySeconds"] isKindOfClass:NSNumber.class] ? [initial[@"recoveryDelaySeconds"] doubleValue] : 30) ||
+                   (pausedSawLock && sameSession(initial, current) &&
                     [current[@"desktopState"] isEqual:@"unlocked"]) ||
                    (initial && current && !sameSession(initial, current))) {
-            // Fault recovery retains its previous independently observed unlock
-            // requirement. A changed console must obtain fresh ordinary access.
+            // Root lock/health/quiet evidence can recover without a person at
+            // the console. Changed consoles still need fresh ordinary consent.
             clearPause();
         }
     }
@@ -333,10 +448,15 @@ static BOOL handle(int fd) {
             @"policy": [receipt[@"enabled"] boolValue] ? @"enabled" : @"disabled",
             @"callerEligibility": allowed ? @"allowed" : @"denied",
             @"helperGeneration": epoch, @"helperDesktopGeneration": desktopEpoch,
-            @"profile":profile, @"lockedUsePaused":@(paused), @"relockAvailable":@(lockConsoleAvailable()),
+            @"profile":profile, @"lockedUsePaused":@(paused),
+            @"relockAvailable":@(lockConsoleAvailable() && consoleLockRunnerValid(receipt, NO)),
+            @"relockRoute":@"user_bootstrap_runner", @"relockRunnerHealthy":@(consoleLockRunnerValid(receipt, NO)),
             @"coveredSession":@(coveredState != nil),
             @"unlockRulePeers":screenUnlockPeers(right("system.login.screensaver"), @(rightName)),
             @"lockedUsePauseReason":paused ? (readPlist(@PAUSE_PATH)[@"pauseReason"] ?: @"safety_fault") : @"",
+            @"lockedUseRecovery":paused ? (resumablePause(readPlist(@PAUSE_PATH)[@"pauseReason"]) ?
+                @"same_console_locked_and_quiet" : @"same_console_locked_healthy_and_quiet") : NSNull.null,
+            @"lockedUseRecoveryDelaySeconds":paused ? (readPlist(@PAUSE_PATH)[@"recoveryDelaySeconds"] ?: @30) : @0,
             @"errorCode": issue ?: (allowed ? @"" : @"unlock_caller_denied")});
         return NO;
     }
@@ -373,7 +493,7 @@ static BOOL handle(int fd) {
     id controlDeadline = request[@"controlDeadlineUptime"];
     double remaining = [controlDeadline isKindOfClass:NSNumber.class] ?
         [controlDeadline doubleValue] - NSProcessInfo.processInfo.systemUptime : -1;
-    if (covered && (paused || !lockConsoleAvailable() ||
+    if (covered && (paused || !lockConsoleAvailable() || !consoleLockRunnerValid(receipt, NO) ||
         ![duration isKindOfClass:NSNumber.class] || [duration doubleValue] < 1 || [duration doubleValue] > 900 ||
         CFGetTypeID((__bridge CFTypeRef)duration) == CFBooleanGetTypeID() || [duration doubleValue] != [duration integerValue] ||
         !isfinite(remaining) || remaining <= 0 || remaining > 900 || remaining > [duration doubleValue] + 1 ||
@@ -407,7 +527,7 @@ static BOOL handle(int fd) {
     if (covered) {
         // Durable before authorization is acknowledged; daemon restart must
         // relock even if the previous process died during the unlock window.
-        coveredState = state; coveredPID = pid;
+        coveredState = state; coveredPID = pid; coveredInbox = (CoveredInbox){0};
         if (!persistState(@WATCH_PATH, state)) {
             unlink(GRANT_PATH); coveredState = nil;
             sendJSON(fd, @{ @"errorCode": @"covered_watchdog_state_unavailable" }); return NO;
@@ -446,6 +566,7 @@ static BOOL handle(int fd) {
 }
 int main(int argc, char **argv) {
     @autoreleasepool {
+        if (argc > 1 && !strcmp(argv[1], "--lock-console")) return runConsoleLock(argc, argv);
         serviceManaged = argc == 2 && !strcmp(argv[1], "--service-managed");
         if ((argc != 1 && !serviceManaged) || geteuid()) return 2;
         if (serviceManaged) {
@@ -486,7 +607,7 @@ int main(int argc, char **argv) {
         if (bind(server, (struct sockaddr *)&address, sizeof(address)) || chmod(SOCKET_PATH, 0666) || listen(server, 8)) return 6;
         while (YES) { @autoreleasepool {
             tickCovered();
-            if (stopping && !coveredState) break;
+            if (stopping && !coveredState) { stopConsoleLockChild(); break; }
             observe();
             struct pollfd p = {server, POLLIN, 0};
             if (poll(&p, 1, 100) <= 0) continue;

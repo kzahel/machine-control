@@ -9,6 +9,7 @@ let bundle = "/Library/Security/SecurityAgentPlugins/MCUnlock.bundle"
 let label = "org.machine-control.unlock"
 let daemon = "/Library/LaunchDaemons/\(label).plist"
 let publicStatus = "/Library/Preferences/org.machine-control.unlock.plist"
+let relockRunner = "/Library/PrivilegedHelperTools/org.machine-control.console-lock"
 let rightName = "org.machine-control.screen-unlock"
 let screensaver = "system.login.screensaver"
 let fm = FileManager.default
@@ -81,6 +82,28 @@ func cdhash(_ path: String) throws -> Data {
           let values = info as? [String: Any], let hash = values[kSecCodeInfoUnique as String] as? Data else { throw Failure(code: "signature_missing") }
     return hash
 }
+func relockOwned(_ receipt: [String:Any]) -> Bool {
+    var info = stat()
+    let hash = try? cdhash(relockRunner)
+    let tracked = hash != nil && (hash == receipt["relockCDHash"] as? Data ||
+        (receipt["enabled"] as? Bool == false && hash == receipt["relockPreviousCDHash"] as? Data))
+    return receipt["relockPath"] as? String == relockRunner &&
+        receipt["relockOwner"] as? Int == 0 && receipt["relockMode"] as? Int == 0o755 &&
+        lstat(relockRunner, &info) == 0 && info.st_mode & S_IFMT == S_IFREG &&
+        info.st_uid == 0 && info.st_nlink == 1 && info.st_mode & 0o7777 == 0o755 &&
+        tracked
+}
+func prepareRelockDirectory() throws {
+    let parent = URL(fileURLWithPath:relockRunner).deletingLastPathComponent().path
+    var info = stat()
+    if lstat(parent, &info) != 0 {
+        guard errno == ENOENT, mkdir(parent, 0o755) == 0, chmod(parent, 0o755) == 0 else {
+            throw Failure(code:"unlock_relock_directory_unsafe")
+        }
+    }
+    guard lstat(parent, &info) == 0, info.st_mode & S_IFMT == S_IFDIR,
+          info.st_uid == 0, info.st_mode & 0o022 == 0 else { throw Failure(code:"unlock_relock_directory_unsafe") }
+}
 func stop() throws {
     unlink(state + "/grant.plist")
     if serviceManaged { return }
@@ -106,6 +129,7 @@ do {
         let healthy = (enabled ? screenUnlockRuleContains(rule, rightName) : !listed)
             && (try? cdhash(bundle)) == receipt["pluginCDHash"] as? Data
             && (try? cdhash(state + "/broker")) == receipt["brokerCDHash"] as? Data
+            && (receipt["profile"] as? String != "locked_use" || relockOwned(receipt))
         print("{\"installation\":\"\(healthy ? "healthy" : "inconsistent")\",\"policy\":\"\(enabled ? "enabled" : "disabled")\"}")
         exit(healthy ? 0 : 1)
     }
@@ -120,13 +144,18 @@ do {
         receipt["enabled"] = false; try save(receipt, receiptPath)
         try stop(); try removeEntry()
         if operation == "uninstall" {
+            var runnerInfo = stat()
+            if lstat(relockRunner, &runnerInfo) == 0 {
+                guard relockOwned(receipt) else { throw Failure(code:"unlock_untracked_relock_helper") }
+                try fm.removeItem(atPath:relockRunner)
+            } else if errno != ENOENT { throw Failure(code:"unlock_relock_helper_unreadable") }
             let dedicated = receipt["dedicatedPolicy"] as? [String: Any] ?? [:]
             if let current = try? policy(rightName) {
                 guard equal(current, dedicated) else { throw Failure(code: "unlock_policy_conflict") }
                 _ = try run("/usr/bin/security", ["authorizationdb", "remove", rightName])
             }
             let paths = serviceManaged
-                ? [bundle, publicStatus, receiptPath, state + "/broker", state + "/decisions.log", state + "/locked-use-paused.plist", state + "/covered-session.plist"]
+                ? [bundle, publicStatus, receiptPath, state + "/broker", state + "/decisions.log", state + "/locked-use-paused.plist", state + "/locked-use-faults.plist", state + "/covered-session.plist"]
                 : [bundle, daemon, publicStatus, state, "/var/run/machine-control-unlock"]
             for path in paths where fm.fileExists(atPath:path) { try fm.removeItem(atPath:path) }
         }
@@ -145,7 +174,13 @@ do {
     let pluginHash = try cdhash(sourceBundle); let brokerHash = try cdhash(sourceBroker)
     try secureDirectory(state)
     let previous = present ? try load(receiptPath) : nil
+    if let previous, previous["profile"] as? String != profile { throw Failure(code:"unlock_profile_mismatch") }
     if serviceManaged, previous != nil, previous?["management"] as? String != "service_managed" { throw Failure(code:"unlock_management_conflict") }
+    try prepareRelockDirectory()
+    var runnerInfo = stat()
+    if lstat(relockRunner, &runnerInfo) == 0 {
+        guard let previous, relockOwned(previous) else { throw Failure(code:"unlock_untracked_relock_helper") }
+    } else if errno != ENOENT { throw Failure(code:"unlock_relock_helper_unreadable") }
     // Other plug-ins may share the screensaver rule. Refuse only a shape our
     // entry cannot join; the receipt's original policy is diagnostic only.
     let current = try policy(screensaver)
@@ -161,6 +196,11 @@ do {
     var receipt: [String: Any] = ["version":2, "profile":profile, "management":serviceManaged ? "service_managed" : "legacy", "enabled":false, "allowedUID":uid, "residentCDHash":hash,
         "originalPolicy":original, "dedicatedPolicy":dedicated,
         "pluginCDHash":pluginHash, "brokerCDHash":brokerHash]
+    if profile == "locked_use" {
+        receipt["relockPath"] = relockRunner; receipt["relockOwner"] = 0
+        receipt["relockMode"] = 0o755; receipt["relockCDHash"] = brokerHash
+        if lstat(relockRunner, &runnerInfo) == 0 { receipt["relockPreviousCDHash"] = try cdhash(relockRunner) }
+    }
     // The receipt precedes all policy writes, so interrupted setup can be removed.
     try save(receipt, receiptPath)
     do {
@@ -178,6 +218,11 @@ do {
         try brokerData.write(to: URL(fileURLWithPath: state + "/broker"), options: .atomic)
         guard chmod(state + "/broker", 0o700) == 0 else { throw Failure(code: "ownership_failed") }
         _ = try cdhash(state + "/broker")
+        if profile == "locked_use" {
+            try brokerData.write(to:URL(fileURLWithPath:relockRunner), options:.atomic)
+            guard chown(relockRunner, 0, 0) == 0, chmod(relockRunner, 0o755) == 0,
+                  relockOwned(receipt) else { throw Failure(code:"unlock_relock_install_failed") }
+        }
         if !serviceManaged {
             try save(["Label":label, "ProgramArguments":[state + "/broker"], "RunAtLoad":true, "KeepAlive":true,
                       "ProcessType":"Background", "ThrottleInterval":2], daemon, mode: 0o644)
@@ -185,6 +230,7 @@ do {
         try writePolicy(rightName, dedicated)
         try start()
         try addEntry()
+        receipt.removeValue(forKey:"relockPreviousCDHash")
         receipt["enabled"] = true; try save(receipt, receiptPath)
     } catch {
         receipt["enabled"] = false; try? save(receipt, receiptPath)

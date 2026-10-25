@@ -6,6 +6,7 @@ import ServiceManagement
 
 protocol LockedUsePermissionManaging: AnyObject {
     var ready: Bool { get }
+    var controlAuthorized: Bool { get }
     var approvalState: String { get }
     var setupState: String { get }
     var setupError: String? { get }
@@ -16,6 +17,7 @@ protocol LockedUsePermissionManaging: AnyObject {
 }
 
 extension LockedUsePermissionManaging {
+    var controlAuthorized: Bool { ready }
     func ready(helper: [String:Any], approval: String) -> Bool { ready }
 }
 
@@ -74,13 +76,22 @@ final class HelperRegistration {
 }
 
 enum HelperUpdatePolicy {
+    // Explicit local preparation must also refresh an approved service whose
+    // old process is unreachable after app replacement. Normal launch still
+    // uses the narrower automatic-maintenance eligibility below.
+    static func restartForPreparation(approved: Bool, callerEligibility: String?) -> Bool {
+        approved && callerEligibility != "allowed"
+    }
     static func eligible(approved: Bool, capturePrepared: Bool,
                          installation: [String:Any]?, helper: [String:Any], console: [String:Any]) -> Bool {
+        let healthy = helper["installation"] as? String == "healthy"
+        let missingRelockMigration = helper["installation"] as? String == "inconsistent" &&
+            helper["errorCode"] as? String == "unlock_relock_helper_missing"
         guard approved, capturePrepared, let installation,
               installation["version"] as? Int == 2,
               installation["management"] as? String == "service_managed",
               installation["profile"] as? String == "locked_use", installation["enabled"] as? Bool == true,
-              helper["installation"] as? String == "healthy", helper["profile"] as? String == "locked_use",
+              healthy || missingRelockMigration, helper["profile"] as? String == "locked_use",
               helper["policy"] as? String == "enabled", helper["callerEligibility"] as? String == "denied",
               helper["coveredSession"] as? Bool == false, helper["lockedUsePaused"] as? Bool == false,
               console["desktopState"] as? String == "unlocked",
@@ -158,12 +169,20 @@ final class MacLockedUsePermission: LockedUsePermissionManaging {
     var ready: Bool {
         ready(helper:service.displayedUnlockStatus, approval:approvalState)
     }
+    var controlAuthorized: Bool {
+        if #available(macOS 14.0, *) {
+            return preferences.bool(forKey:"lockedUseCapturePrepared") &&
+                CGPreflightScreenCaptureAccess() && AXIsProcessTrusted() && CGPreflightPostEventAccess()
+        }
+        return false
+    }
     func ready(helper: [String:Any], approval: String) -> Bool {
         guard #available(macOS 14.0, *), setupState == "idle", approval == "granted",
-              preferences.bool(forKey:"lockedUseCapturePrepared"),
-              CGPreflightScreenCaptureAccess(), AXIsProcessTrusted(), CGPreflightPostEventAccess() else { return false }
+              controlAuthorized else { return false }
         return helper["profile"] as? String == "locked_use" && helper["policy"] as? String == "enabled" &&
-            helper["installation"] as? String == "healthy" && helper["callerEligibility"] as? String == "allowed"
+            helper["installation"] as? String == "healthy" && helper["callerEligibility"] as? String == "allowed" &&
+            helper["relockAvailable"] as? Bool == true && helper["relockRunnerHealthy"] as? Bool == true &&
+            helper["relockRoute"] as? String == "user_bootstrap_runner"
     }
     func request() throws {
         if preparing {
@@ -181,8 +200,8 @@ final class MacLockedUsePermission: LockedUsePermissionManaging {
         // Keep the existing choice. ready is false throughout preparation, so
         // preserving an opt-in cannot unlock while the helper is being repaired.
         // Initial setup leaves the default-off preference untouched.
-        let restart = daemon.status == .enabled &&
-            service.unlockStatus()["callerEligibility"] as? String == "denied"
+        let restart = HelperUpdatePolicy.restartForPreparation(approved:daemon.status == .enabled,
+            callerEligibility:service.unlockStatus()["callerEligibility"] as? String)
         setupState = "registering"
         let generation = attempt
         registration.start(restart:restart) { [weak self] result in
@@ -269,10 +288,12 @@ final class MacLockedUsePermission: LockedUsePermissionManaging {
                 do {
                     // Service approval can precede daemon bootstrap. Retry only
                     // unavailable transport, before any setup request is sent.
-                    for index in 0..<20 {
+                    // A cold signed bundle can take longer than five seconds
+                    // to validate all sealed payloads before binding its socket.
+                    for index in 0..<360 {
                         do { try self.service.prepareUnlockPermission(); return nil }
-                        catch MacUIError.permission("unlock_not_installed") where index < 19 { Thread.sleep(forTimeInterval:0.25) }
-                        catch MacUIError.action("unlock_helper_unreachable") where index < 19 { Thread.sleep(forTimeInterval:0.25) }
+                        catch MacUIError.permission("unlock_not_installed") where index < 359 { Thread.sleep(forTimeInterval:0.25) }
+                        catch MacUIError.action("unlock_helper_unreachable") where index < 359 { Thread.sleep(forTimeInterval:0.25) }
                     }
                     return "The Machine Control helper did not start. Try again in Permissions."
                 }

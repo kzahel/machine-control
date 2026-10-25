@@ -15,7 +15,8 @@ func macLidClosed() -> Bool {
 
 /// Wake an idle display only inside an authorized guardian startup. This does
 /// not unlock, prevent system sleep, alter power policy, or synthesize input.
-/// The assertion is released after readiness or any bounded failure.
+/// The wake assertion ends at readiness. A separate kernel-bounded display-only
+/// hold can bridge cover installation and the protected-unlock handshake.
 struct LockedDisplayWake {
     var observation: () -> [String:Any] = { nativeSessionObservation() }
     var lidClosed: () -> Bool = { macLidClosed() }
@@ -34,25 +35,52 @@ struct LockedDisplayWake {
         return identifier
     }
     var release: (IOPMAssertionID) -> Void = { _ = IOPMAssertionRelease($0) }
+    var hold: (TimeInterval) throws -> IOPMAssertionID = { seconds in
+        var identifier: IOPMAssertionID = 0
+        let result = IOPMAssertionCreateWithDescription(kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
+            "Machine Control covered startup" as CFString, nil, nil, nil, seconds,
+            kIOPMAssertionTimeoutActionTurnOff as CFString, &identifier)
+        guard result == kIOReturnSuccess else { throw MacUIError.action("locked_use_display_hold_failed") }
+        return identifier
+    }
+    var holdExpired: () -> Void = { }
+
+    private func validate(session: [String:Any], deadline: TimeInterval) throws {
+        if let reason = cancelled() { throw MacUIError.action(reason) }
+        let current = observation()
+        guard current["desktopState"] as? String == "locked",
+              (current["uid"] as? NSNumber)?.uint32Value == getuid(),
+              sameConsoleSession(session, current), !lidClosed() else {
+            throw MacUIError.action("locked_use_display_wake_session_changed")
+        }
+        guard now() < deadline else { throw MacUIError.action("duration_expired") }
+    }
+
+    func withPreparedDisplay<T>(session: [String:Any], deadline: TimeInterval,
+                                body: () throws -> T) throws -> T {
+        try validate(session:session, deadline:deadline)
+        let remaining = deadline - now()
+        guard remaining.isFinite, remaining > 1 else { throw MacUIError.action("duration_expired") }
+        let seconds = min(12, remaining)
+        let expires = now() + seconds
+        let assertion = try hold(seconds)
+        defer {
+            if now() >= expires { holdExpired() }
+            release(assertion)
+        }
+        try prepare(session:session, deadline:deadline)
+        try validate(session:session, deadline:deadline)
+        return try body()
+    }
 
     func prepare(session: [String:Any], deadline: TimeInterval) throws {
-        func validate() throws {
-            if let reason = cancelled() { throw MacUIError.action(reason) }
-            let current = observation()
-            guard current["desktopState"] as? String == "locked",
-                  (current["uid"] as? NSNumber)?.uint32Value == getuid(),
-                  sameConsoleSession(session, current), !lidClosed() else {
-                throw MacUIError.action("locked_use_display_wake_session_changed")
-            }
-            guard now() < deadline else { throw MacUIError.action("duration_expired") }
-        }
-        try validate()
+        try validate(session:session, deadline:deadline)
         if active() { return }
         let assertion = try declare()
         defer { release(assertion) }
         let limit = min(deadline, now() + 3)
         while true {
-            try validate()
+            try validate(session:session, deadline:deadline)
             if active() { return }
             guard now() < limit else { throw MacUIError.action("locked_use_display_wake_timeout") }
             pause(0.05)
@@ -104,6 +132,18 @@ private func guardianLine(_ fd: Int32) throws -> [String:Any] {
     throw MacUIError.usage("guardian_message_too_large")
 }
 
+/// Before activation the parent sends only cancellation, never heartbeats.
+/// Check without consuming bytes so a delayed child cannot arm after its
+/// parent's startup timeout or disconnection. Normal active traffic is handled
+/// separately by tick(). Any unread startup traffic conservatively cancels.
+func guardianStartupCancellation(_ descriptor: Int32) -> String? {
+    var value = pollfd(fd:descriptor, events:Int16(POLLIN | POLLHUP | POLLERR), revents:0)
+    let result = poll(&value, 1, 0)
+    if result > 0 { return "owner_disconnected" }
+    if result < 0 && errno != EINTR { return "guardian_parent_unavailable" }
+    return nil
+}
+
 /// Small separate signed process: resident death closes the parent connection
 /// but does not destroy these windows before the independently observed relock.
 private final class CoveredGuardian {
@@ -118,29 +158,57 @@ private final class CoveredGuardian {
     var helperHeartbeat: TimeInterval = 0
     var initial: [String:Any] = [:]
     var ending: String?
+    var startupFailure: [String:Any]?
+    var displayHoldExpired = false
     var ticker: DispatchSourceTimer?
+
+    private func startupCancellation() -> String? {
+        safety.reason ?? guardianStartupCancellation(STDIN_FILENO)
+    }
+
+    private func requireStartupOwner() throws {
+        if let reason = startupCancellation() { throw MacUIError.action(reason) }
+    }
 
     func start(duration: Int, deadline: TimeInterval) throws {
         self.deadline = deadline
+        try requireStartupOwner()
         initial = nativeSessionObservation()
         guard initial["desktopState"] as? String == "locked", !macLidClosed() else {
             throw MacUIError.action("guardian_requires_open_lid_locked_session")
         }
         service.coveredWindowIDs = { [weak self] in self?.covers.windowIDs ?? [] }
-        service.inputCancellation = { [weak self] in self?.safety.reason }
+        service.inputCancellation = { [weak self] in
+            guard let self else { return "owner_disconnected" }
+            return self.startupCancellation()
+        }
         inputGuard.session = initial
         try inputGuard.start()
         safety.arm()
         var displayWake = LockedDisplayWake()
-        displayWake.cancelled = { [weak self] in self?.safety.reason }
-        try displayWake.prepare(session:initial, deadline:deadline)
-        guard inputGuard.healthy, safety.reason == nil else { throw MacUIError.action("guardian_safety_unavailable") }
-        try covers.install()
-        // Publish cover IDs before arming so parent input cancellation and
-        // its capture filter know about the companion during transitions.
-        try writeSocket(STDOUT_FILENO, data:encodeJSONLine([
-            "phase":"covered", "windowIds":Array(covers.windowIDs), "pid":getpid()]))
-        helper = try service.beginCoveredUnlock(duration:duration, deadline:deadline)
+        displayWake.cancelled = { [weak self] in
+            guard let self else { return "owner_disconnected" }
+            return self.startupCancellation()
+        }
+        displayWake.holdExpired = { [weak self] in self?.displayHoldExpired = true }
+        helper = try displayWake.withPreparedDisplay(session:initial, deadline:deadline) {
+            guard inputGuard.healthy, safety.reason == nil else { throw MacUIError.action("guardian_safety_unavailable") }
+            try covers.install()
+            try requireStartupOwner()
+            // Publish cover IDs before arming so parent input cancellation and
+            // its capture filter know about the companion during transitions.
+            try writeSocket(STDOUT_FILENO, data:encodeJSONLine([
+                "phase":"covered", "windowIds":Array(covers.windowIDs), "pid":getpid()]))
+            try requireStartupOwner()
+            return try service.beginCoveredUnlock(duration:duration, deadline:deadline)
+        }
+        startupFailure = ["stage":"post_unlock_activation", "helperArmed":true,
+            "inputMayHaveBeenSent":true, "unlockOutcome":"observed_unlocked"]
+        if let reason = startupCancellation() {
+            startupFailure = ["stage":"post_unlock_owner_check", "helperArmed":true,
+                "inputMayHaveBeenSent":true, "unlockOutcome":"observed_unlocked"]
+            throw MacUIError.action(reason)
+        }
         guard covers.healthy, inputGuard.healthy, safety.reason == nil else {
             throw MacUIError.action("guardian_safety_unavailable")
         }
@@ -150,6 +218,11 @@ private final class CoveredGuardian {
         try writeSocket(STDOUT_FILENO, data:encodeJSONLine([
             "phase":"active", "windowIds":Array(covers.windowIDs), "pid":getpid(),
             "sessionObservation":service.observedConsoleSession]))
+        startupFailure = nil
+        service.inputCancellation = { [weak self] in
+            guard let self else { return "owner_disconnected" }
+            return self.safety.reason
+        }
         let timer = DispatchSource.makeTimerSource(queue:.main)
         timer.schedule(deadline:.now(), repeating:.milliseconds(250))
         timer.setEventHandler { [weak self] in autoreleasepool { self?.tick() } }
@@ -238,7 +311,10 @@ func runLockedUseGuardian() throws -> Never {
     let guardian = CoveredGuardian()
     do { try guardian.start(duration:duration, deadline:deadline) }
     catch {
-        try? writeSocket(STDOUT_FILENO, data:encodeJSONLine(["phase":"error", "reason":String(describing:error)]))
+        var details = guardian.startupFailure ?? guardian.service.coveredStartupFailure ?? ["stage":"guardian_setup", "unlockOutcome":"not_established"]
+        details["displayHoldExpired"] = guardian.displayHoldExpired
+        try? writeSocket(STDOUT_FILENO, data:encodeJSONLine(["phase":"error", "reason":String(describing:error),
+            "startupFailure":details]))
         if guardian.covers.windows.isEmpty { guardian.inputGuard.stop(); exit(1) }
         // If setup created any windows, retain them until OS lock readback.
         guardian.end(String(describing:error))
@@ -261,6 +337,7 @@ final class CoveredGuardianClient {
     private var active = false
     private var ended = false
     private var failure: String?
+    private var startupDetails: [String:Any]?
     private var activationObservation: [String:Any]?
     private var descriptor: Int32 = -1
     private var child: Process?
@@ -268,6 +345,7 @@ final class CoveredGuardianClient {
     init(safety:LockedUseSafety) { self.safety = safety }
     var windowIDs: Set<Int> { lock.lock(); defer { lock.unlock() }; return ids }
     var healthy: Bool { lock.lock(); defer { lock.unlock() }; return active && !ended && failure == nil }
+    var startupFailure: [String:Any]? { lock.lock(); defer { lock.unlock() }; return startupDetails }
 
     func start(duration:Int, deadline:TimeInterval) throws -> [String:Any] {
         guard let executable = Bundle.main.executableURL else { throw MacUIError.action("guardian_executable_missing") }
@@ -292,6 +370,7 @@ final class CoveredGuardianClient {
                     let message = try guardianLine(fd)
                     let phase = message["phase"] as? String ?? "error"
                     lock.lock()
+                    if let details = message["startupFailure"] as? [String:Any] { startupDetails = details }
                     if let values = message["windowIds"] as? [Int] { ids = Set(values) }
                     if phase == "active" {
                         activationObservation = message["sessionObservation"] as? [String:Any]
