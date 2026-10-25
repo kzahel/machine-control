@@ -43,7 +43,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Required release changelog is missing or empty' }
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: '8.0.x'
+          # Match the SDK validated by the cross-platform checks.
+          dotnet-version: '8.0.426'
       - name: Check portable contracts and native build
         run: |
           python bin/check --portable

@@ -37,5 +37,6 @@ jobs:
       - uses: actions/setup-dotnet@v6
         if: runner.os == 'Windows'
         with:
-          dotnet-version: '8.0.x'
+          # Keep SDK acquisition independent of moving channel download links.
+          dotnet-version: '8.0.426'
       - run: python bin/check --native

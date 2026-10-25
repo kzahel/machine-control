@@ -37,7 +37,8 @@ jobs:
           package_json_file: desktop/package.json
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
         with:
-          dotnet-version: '8.0.x'
+          # Match the SDK validated by the cross-platform checks.
+          dotnet-version: '8.0.426'
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -101,7 +102,8 @@ jobs:
           package_json_file: desktop/package.json
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
         with:
-          dotnet-version: '8.0.x'
+          # Match the SDK validated by the cross-platform checks.
+          dotnet-version: '8.0.426'
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
