@@ -187,7 +187,11 @@ class Run:
             # Adapter codes/messages are not an output-sanitization boundary.
             raise mc.ClientError(f"run_{kind}_{operation}_refused",
                                  "Scoped adapter request was refused", 1)
-        if result["uncertainty"] != "none":
+        # A validated workspace acquisition may report bounded provider/storage
+        # estimates (for example an APFS COW clone) with a known receipt and
+        # exact live claim. That is distinct from an unknown mutation outcome.
+        accepted_uncertainty = {"none", "bounded"} if kind == "workspace" and operation == "acquire" else {"none"}
+        if result["uncertainty"] not in accepted_uncertainty:
             raise mc.ClientError("run_effect_uncertain", "Scoped result is uncertain", 1)
         return result["data"]
 

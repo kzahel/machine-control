@@ -176,6 +176,21 @@ class ScopedRunTests(unittest.TestCase):
         self.assert_released(audit)
         self.assertEqual(self.events()[-1]["operation"], "workspace-release")
 
+    def test_bounded_workspace_estimate_keeps_exact_claim_and_cleanup(self):
+        result, audit = self.execute("print('child ran')", "--intent", "isolated", mode="workspace_bounded")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('child ran', result.stdout)
+        self.assertEqual(audit["cleanup"]["workspace"], "released")
+        self.assert_released(audit)
+
+    def test_unknown_workspace_effect_never_starts_child_and_releases_known_receipt(self):
+        result, audit = self.execute("print('must not run')", "--intent", "isolated", mode="workspace_unknown")
+        self.assertEqual(result.returncode, 1)
+        self.assertNotIn('must not run', result.stdout)
+        self.assertEqual(audit["errorCode"], "run_effect_uncertain")
+        self.assertEqual(audit["cleanup"]["workspace"], "released")
+        self.assert_released(audit)
+
     def test_workspace_renewal_carries_both_selectors(self):
         result, audit = self.execute("import time; time.sleep(2.5)",
                                      "--intent", "isolated", ttl="6")

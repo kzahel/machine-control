@@ -83,6 +83,8 @@ if operation in {"claim-acquire", "workspace-acquire", "claim-renew"}:
                  remainingSeconds=seconds)
     if operation == "workspace-acquire":
         value["data"]["handle"] = handle
+        if mode in {"workspace_bounded", "workspace_unknown"}:
+            value["uncertainty"] = "bounded" if mode == "workspace_bounded" else "unknown"
     if operation == "claim-renew":
         claim["useClass"] = held["use_class"]
     workspace = operation == "workspace-acquire" or (

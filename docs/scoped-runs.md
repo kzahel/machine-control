@@ -41,6 +41,8 @@ bin/machine-control --target macos run --intent isolated \
 plain claim. The runner retains both the returned handle and claim, passes
 both to task operations and renewal, and releases that exact workspace under
 its claim. Workspace release implements the provider's retain/discard policy.
+A validated acquisition may include bounded COW/storage estimates with a known
+receipt and exact claim. That is accepted; an unknown mutation outcome is not.
 The runner never substitutes plain claim release after failed workspace
 cleanup. Workspace scopes currently support ordinary use only; combining
 `--intent` with `--disruptive` fails before acquisition.
