@@ -123,8 +123,11 @@ class Setup:
             proven = json.loads(audit.stdout).get('bootReady') is True
         except (ValueError, TypeError):
             proven = False
-        if not proven and self.platform('post-update', '--verify-reboot', '--boot-only', '-y').returncode:
-            return 1
+        if not proven:
+            print('Local activation is complete. Rebooting once to verify automatic SSH startup.', flush=True)
+            print('Do not run activate.sh from VT2 after this verification reboot; SSH should return automatically.', flush=True)
+            if self.platform('post-update', '--verify-reboot', '--boot-only', '-y').returncode:
+                return 1
         if not self.wait(lambda: self.read("mount | grep -q ' /home/chronos/user ' && echo active") == 'active',
                          'Sign in normally on the Chromebook if needed. Setup will continue when the profile is unlocked.'):
             return 2

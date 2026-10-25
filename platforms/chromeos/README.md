@@ -91,6 +91,12 @@ The read-only root-image transition does **not** yet resume automatically at
 boot. A pending OS update can require an additional preparation reboot.
 Ordinary reboots after completed setup require neither command.
 
+Running the saved `activate.sh` again first checks the installed configuration
+and live services. A healthy device prints `Everything looks good! No activation
+needed.` and exits without prompting, restarting services, or rebooting. If
+only profile sign-in or controller verification remains, it prints that one
+next step. An update or missing configuration still enters the repair workflow.
+
 ### 3. Finish from the controller
 
 Use the Chromebook IP shown in the result block to add a distinct SSH alias
@@ -127,6 +133,10 @@ at each physical recovery/sign-in step; use `--wait-timeout SECONDS` to change
 that. On timeout it exits with status 2 and a resume instruction. Rerun the
 same `chromeos activate` command after completing the requested physical step.
 Passwords and PINs are never collected by setup.
+
+The controller's automatic-SSH verification reboot needs **no VT2 command**.
+Wait for SSH to return, then sign in normally if requested. Only the earlier
+root-image preparation reboot requires rerunning `activate.sh` from VT2.
 
 `SETUP COMPLETE` means the final checks passed. Status is saved in
 `/mnt/stateful_partition/etc/ssh/setup-state`; the local approval receipt is

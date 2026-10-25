@@ -316,6 +316,13 @@ full appliance readiness. A required root-image reboot saves approval and
 progress, but currently needs the same activation command rerun from VT2;
 automatic continuation across a replaced root image remains open.
 
+**Current:** Repeating device-local ChromeOS activation checks current system
+health before requesting setup approval. Healthy devices return a concise
+success message without reinstalling or restarting services; pending sign-in
+or controller verification gets a specific next step. Update or configuration
+drift still enters recovery. The controller labels its automatic-SSH proof
+reboot explicitly: that boot does not require another VT2 activation command.
+
 **Current:** ChromeOS activation separates a prepared system from an unlocked
 profile. A signed-out profile can withhold the configured DevTools listener;
 local installation records this as pending desktop verification. The native

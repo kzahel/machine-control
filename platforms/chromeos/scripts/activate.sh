@@ -129,6 +129,54 @@ prepare_boot_transition() {
     # Diagnostics print recovery instructions before the EXIT handler reboots.
     BOOTSTRAP_REBOOT=yes
 }
+
+existing_setup_ready() {
+    # A saved completion phase alone is not evidence: an update can replace
+    # the root image, and individual services or policy files can drift.
+    local phase release boot_id
+    [ "$SSH_ONLY" = no ] && [ "$REPAIR_ONLY" = no ] || return 1
+    [ -z "$CONTROLLER_PUBKEY" ] || return 1
+    phase=$(cat "$SSH_DIR/setup-state" 2>/dev/null) || return 1
+    case "$phase" in complete|controller-required) ;; *) return 1 ;; esac
+    release=$(awk -F= '$1 == "CHROMEOS_RELEASE_VERSION" {print $2; exit}' /etc/lsb-release)
+    [ -n "$release" ] && [ "$(cat "$SSH_DIR/prepared-release" 2>/dev/null)" = "$release" ] || return 1
+    [ "$(update_engine_client --status 2>/dev/null | awk -F= '$1 == "CURRENT_OP" {print $2; exit}')" = UPDATE_STATUS_IDLE ] || return 1
+    touch /etc/.chromeos-testbed-probe 2>/dev/null || return 1
+    rm -f /etc/.chromeos-testbed-probe
+    [ -s "$AUTH_DIR/authorized_keys" ] && [ -r "$SSH_DIR/start_sshd.sh" ] || return 1
+    grep -qx 'author "chromeos-testbed"' "$AUTOSTART_JOB" || return 1
+    grep -qx 'start on shill-connected' "$AUTOSTART_JOB" || return 1
+    grep -q '/mnt/stateful_partition/etc/ssh/sshd_config' "$AUTOSTART_JOB" || return 1
+    ! grep -qx manual /etc/init/openssh-server.override 2>/dev/null || return 1
+    status openssh-server 2>/dev/null | grep -q start/running || return 1
+    /usr/sbin/sshd -t -f "$SSHD_CONFIG" || return 1
+    ssh-keyscan -T 3 -p "$PORT" 127.0.0.1 2>/dev/null | grep -q ' ssh-\| ecdsa-' || return 1
+    [ "$(iptables -S INPUT | awk '/^-A / {print; exit}')" = '-A INPUT -p tcp -m tcp --dport 2223 -j ACCEPT' ] || return 1
+    [ -r "$POWER_POLICY" ] || return 1
+    grep -qx 'author "chromeos-testbed"' "$POWER_POLICY_JOB" || return 1
+    grep -qx 'start on started powerd' "$POWER_POLICY_JOB" || return 1
+    grep -q '/mnt/stateful_partition/etc/ssh/apply_power_policy.sh' "$POWER_POLICY_JOB" || return 1
+    ! grep -qx manual "$POWER_POLICY_OVERRIDE" 2>/dev/null || return 1
+    [ "$(cat /var/lib/power_manager/disable_idle_suspend 2>/dev/null)" = 1 ] || return 1
+    [ "$(cat /var/lib/power_manager/use_lid 2>/dev/null)" = 0 ] || return 1
+    boot_id=$(cat /proc/sys/kernel/random/boot_id) || return 1
+    [ -n "$boot_id" ] || return 1
+    grep -q "boot_id=$boot_id .*status=ready" "$SSH_DIR/power-policy.log" || return 1
+    grep -qx -- '--remote-debugging-port=9222' /etc/chrome_dev.conf || return 1
+    LD_LIBRARY_PATH=/usr/local/lib64 python3 -c 'import ssl, ctypes, fcntl, json' || return 1
+    if mount | grep -q ' /home/chronos/user '; then
+        awk '$2 ~ /:2406$/ && $4 == "0A" {found=1} END {exit !found}' /proc/net/tcp || return 1
+    fi
+
+    if [ "$phase" != complete ] ||
+       ! grep -q "boot_id=$boot_id .*events=shill-connected" "$SSH_DIR/startup.log"; then
+        echo 'Local setup is ready. Finish verification on the controller: chromeos activate'
+    elif ! mount | grep -q ' /home/chronos/user '; then
+        echo 'System setup is ready. Sign in normally to use desktop control.'
+    else
+        echo 'Everything looks good! No activation needed.'
+    fi
+}
 # END setup workflow
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -153,6 +201,12 @@ exec 9>/run/machine-control-activate.lock
 if ! flock -w 60 9; then
     echo 'Another activation is still running. Wait for it, then rerun this command.' >&2
     exit 1
+fi
+# Keep successful repeat runs quiet, before asking for setup approval or
+# rewriting files, restarting services, and creating another diagnostic report.
+# Probe failures are expected on images that still need activation.
+if existing_setup_ready 2>/dev/null; then
+    exit 0
 fi
 mkdir -p "$SSH_DIR" "$AUTH_DIR"
 chmod 700 "$AUTH_DIR"

@@ -93,6 +93,18 @@ boot persistence, and unlocked-profile desktop readiness are distinct results.
 The controller performs the final deployment and verification. See the
 [activation guide](../../platforms/chromeos/README.md#after-a-chromeos-update).
 
+**Current — fixture-tested:** Repeat device-local activation checks the active
+release, SSH service and local handshake, firewall ordering, power policy and
+current-boot evidence, Python, and configured DevTools before asking for setup
+approval. Healthy repeats return one short success line; pending sign-in or
+controller verification gets its own next step. Saved completion alone cannot
+hide a replaced image or broken configuration. The controller explicitly
+distinguishes its automatic-SSH verification reboot from a VT2-resume reboot.
+A healthy repeat was also **live-tested** on the physical appliance: the saved
+script returned the short success message with closed stdin, unchanged boot
+identity, and the same SSH listener process. ChromeOS itself still emits its
+stateful-mount `noexec` warning before Bash starts the script.
+
 ## Closed-lid backlight behavior
 
 **Current — live-tested:** Always-awake policy forces the reported lid open;

@@ -129,7 +129,10 @@ controller finishes deployment and verifies reboot persistence and desktop
 readiness. A configured DevTools listener can remain unavailable until profile
 sign-in. Local activation reports this as pending desktop verification; the
 controller proves startup with `post-update --verify-reboot --boot-only`, then
-waits for sign-in. Native audit `bootReady` can pass while full-runtime `ok`
+waits for sign-in. That verification reboot needs no VT2 command. A repeat
+device-local activation first checks current health: it exits with a short
+success or remaining-step message when configuration is ready, without asking
+for approval again or reinstalling. Native audit `bootReady` can pass while full-runtime `ok`
 remains false. Do not repeatedly restart Chrome or reboot a boot-proven device
 just because its profile is signed out. The focused audit is read-only; repair and proof reboots are explicit.
 

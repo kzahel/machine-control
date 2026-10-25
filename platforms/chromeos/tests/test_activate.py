@@ -28,9 +28,13 @@ case "$name" in
     if [[ "$*" == *testbed-probe* && "$FIXTURE_WRITABLE" != yes ]]; then exit 1; fi
     exec /usr/bin/touch "$@" ;;
   ip) echo '2: wlan0 inet 192.0.2.2/24' ;;
-  ssh-keyscan) echo '[localhost]:2223 ssh-ed25519 fixture' ;;
-  status) echo "$1 start/running" ;;
-  iptables|ip6tables) [[ " $* " != *' -D '* ]] ;;
+  ssh-keyscan) [ "${FIXTURE_HANDSHAKE:-yes}" = yes ] && echo '[localhost]:2223 ssh-ed25519 fixture' ;;
+  status) echo "$1 ${FIXTURE_SERVICE_STATUS:-start/running}" ;;
+  iptables|ip6tables)
+    if [ "$*" = '-S INPUT' ]; then
+      echo "${FIXTURE_FIREWALL:--A INPUT -p tcp -m tcp --dport 2223 -j ACCEPT}"
+    fi
+    [[ " $* " != *' -D '* ]] ;;
   python3|dev_install) exit "${FIXTURE_PYTHON_STATUS:-0}" ;;
   restart)
     if [ "$1" = ui ]; then
@@ -139,6 +143,96 @@ class ActivationTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertNotIn("restart ui", self.calls())
         self.assertNotIn("reboot ", self.calls())
+
+    def prepare_ready_setup(self, phase="complete"):
+        result = self.run_activation("--yes", writable="yes")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        (self.ssh / "setup-state").write_text(phase + "\n")
+        boot = self.root / "proc/sys/kernel/random/boot_id"
+        boot.parent.mkdir(parents=True)
+        boot.write_text("fixture-boot\n")
+        (self.ssh / "startup.log").write_text("boot_id=fixture-boot events=shill-connected power_policy=ready\n")
+        (self.ssh / "power-policy.log").write_text("boot_id=fixture-boot source=upstart status=ready\n")
+        (self.root / "calls").write_text("")
+
+    def test_healthy_repeat_needs_no_approval_and_changes_no_configuration(self):
+        self.prepare_ready_setup()
+        before = {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file() and p.name != "calls"}
+        result = self.run_activation(writable="yes")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "Everything looks good! No activation needed.\n")
+        self.assertEqual(result.stderr, "")
+        after = {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file() and p.name != "calls"}
+        self.assertEqual(before, after)
+        for forbidden in ["restart ", "reboot ", "make_dev_fixture", "ectool", "dev_install"]:
+            self.assertNotIn(forbidden, self.calls())
+
+    def test_locked_repeat_only_requests_profile_signin(self):
+        self.prepare_ready_setup()
+        (self.root / "proc/net/tcp").write_text("")
+        result = self.run_activation(writable="yes", FIXTURE_PROFILE="locked")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "System setup is ready. Sign in normally to use desktop control.\n")
+        self.assertNotIn("restart ui", self.calls())
+
+    def test_local_completion_does_not_claim_controller_verification(self):
+        self.prepare_ready_setup(phase="controller-required")
+        result = self.run_activation(writable="yes")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "Local setup is ready. Finish verification on the controller: chromeos activate\n")
+
+    def test_missing_boot_proof_requests_controller_without_reinstalling(self):
+        self.prepare_ready_setup()
+        (self.ssh / "startup.log").write_text("boot_id=previous-boot events=shill-connected\n")
+        result = self.run_activation(writable="yes")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Finish verification on the controller", result.stdout)
+        self.assertNotIn("restart ", self.calls())
+
+    def test_saved_completion_cannot_hide_missing_or_stale_configuration(self):
+        changes = {
+            "new image": ("etc/lsb-release", "CHROMEOS_RELEASE_NAME=Chrome OS\nCHROMEOS_RELEASE_VERSION=new-release\n"),
+            "missing SSH job": ("etc/init/openssh-server.conf", ""),
+            "disabled SSH job": ("etc/init/openssh-server.override", "manual\n"),
+            "missing guard": ("etc/init/chromeos-testbed-power-policy.conf", ""),
+            "disabled guard": ("etc/init/chromeos-testbed-power-policy.override", "manual\n"),
+            "idle suspend": ("var/lib/power_manager/disable_idle_suspend", "0\n"),
+            "lid suspend": ("var/lib/power_manager/use_lid", "1\n"),
+            "stale power evidence": ("mnt/stateful_partition/etc/ssh/power-policy.log", "boot_id=previous-boot status=ready\n"),
+            "missing DevTools flags": ("etc/chrome_dev.conf", ""),
+            "missing DevTools listener": ("proc/net/tcp", ""),
+            "missing authorized key": ("mnt/stateful_partition/etc/ssh/root_ssh/authorized_keys", ""),
+        }
+        self.prepare_ready_setup()
+        for name, (path, content) in changes.items():
+            with self.subTest(name=name):
+                file = self.root / path
+                previous = file.read_text() if file.exists() else None
+                file.write_text(content)
+                result = self.run_activation(writable="yes")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Activate the full ChromeOS test appliance?", result.stdout)
+                self.assertNotIn("Everything looks good", result.stdout)
+                if previous is None:
+                    file.unlink()
+                else:
+                    file.write_text(previous)
+
+    def test_live_probe_failures_and_pending_updates_still_require_approval(self):
+        self.prepare_ready_setup()
+        for overrides in [
+            {"writable": "no"},
+            {"FIXTURE_SERVICE_STATUS": "stop/waiting"},
+            {"FIXTURE_HANDSHAKE": "no"},
+            {"FIXTURE_FIREWALL": "-A INPUT -j DROP"},
+            {"FIXTURE_PYTHON_STATUS": "1"},
+            {"FIXTURE_UPDATE": "UPDATE_STATUS_UPDATED_NEED_REBOOT"},
+        ]:
+            with self.subTest(overrides=overrides):
+                result = self.run_activation(**{"writable": "yes", **overrides})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Activate the full ChromeOS test appliance?", result.stdout)
+                self.assertNotIn("Everything looks good", result.stdout)
 
     def test_failed_preparation_never_reboots(self):
         for overrides in [{"FIXTURE_SIGNING_STATUS": "1"}, {"FIXTURE_DEVICE": "/dev/dm-0"},
