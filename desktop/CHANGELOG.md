@@ -2,12 +2,14 @@
 
 ## [Unreleased]
 
+## [0.6.10]
+
 - Authorize typed browser dialog inspection and handling through Windows
   control sessions under the existing browser scope.
 - Preserve operator arming when Mac covered startup or a provider fails.
   End the finite task, fence desktop work and recover from fresh locked,
-  healthy and quiet conditions. Explicit Stop, original expiry and console changes still
-  invalidate consent. Search multiple login windows without choosing an
+  healthy and quiet conditions. Explicit Stop, original expiry and console
+  changes still invalidate consent. Search multiple login windows without choosing an
   ambiguous password field.
 - Repair approved but unreachable Mac helpers after app replacement, allow
   bounded cold signature validation and avoid validating the full app twice.

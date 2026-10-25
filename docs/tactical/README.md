@@ -1,5 +1,8 @@
 # Implementation Tacticals
 
+- [139 — Desktop 0.6.10 release](139-desktop-0.6.10-release.md): unified
+  candidate, exact signed Mac package acceptance and queued publication.
+
 - [138 — Preserve remote arming and recover browser control](138-remote-arming-recovery.md):
   consent retention, verified covered recovery, bounded browser scheduling and
   signed Mac VM fault acceptance.
