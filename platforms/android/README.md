@@ -53,7 +53,7 @@ serial                         Print the locally selected ADB serial
 reboot [--timeout SECONDS]     Full reboot, wait, and prove a new boot generation
 wake                           Send Android's idempotent wake key
 dismiss-keyguard               Request ordinary keyguard dismissal
-unlock [--json]                Read and submit one PIN through dedicated stdin
+unlock [--stdin] [--json]      Submit one PIN from its configured file or stdin
 install PATH.apk               Install or replace one explicit APK
 launch PACKAGE                 Resolve and launch one explicit package
 stop PACKAGE                   Force-stop one explicit package
@@ -67,20 +67,45 @@ screen still requires its credential. `unlock` is the protected operation.
 
 ## PIN unlock boundary
 
-Run `unlock` directly from a supervised terminal or pipe it from an authorized
-secret source. Never put the PIN on the command line:
+Private inventory can declare a `pin` credential locator and expose its path
+as `ANDROID_TESTBED_PIN_FILE`. The value belongs in an untracked controller-local
+file, mode `0600`, inside a caller-owned mode-`0700` directory on POSIX. The
+adapter requires an explicit device selector, rejects symlinks and unsafe or
+nonregular files, and opens the secret only after unlock preflight. It accepts
+one 4–16 digit PIN with an optional newline. Only the path enters the environment;
+neither the path nor the credential appears in the unlock result.
+
+With that locator configured, an agent can request unlock by target name:
 
 ```bash
-platforms/android/bin/android-device unlock --json
+bin/machine-control --target phone testbed -- unlock --json
 ```
 
-Before reading anything from standard input, the adapter requires:
+Without a locator, `unlock` uses a hidden terminal prompt or dedicated stdin.
+Use `--stdin` to explicitly override a configured file. Never put the PIN on the
+command line:
+
+```bash
+platforms/android/bin/android-device unlock --stdin --json
+```
+
+Before opening a configured secret file or reading standard input, the adapter
+requires:
 
 - one exact authorized physical handheld and a stable boot generation;
 - completed boot and a secure PIN credential type;
 - a visible PIN field discovered through UIAutomator;
 - an observed zero failed-password wipe threshold; and
 - a successfully built and staged one-shot helper.
+
+When the legacy policy dump omits the threshold, a temporary read-only
+shell-UID probe queries `DevicePolicyManager` for the exact foreground user.
+Unknown, denied, changed-user, and nonzero results still refuse before the PIN
+is read. UIAutomator discovery uses a mode-0600 temporary hierarchy, removed
+in `finally`, and requires one known SystemUI password field with no text.
+Non-secret ADB and build subprocesses receive no stdin; only explicit helper
+delivery receives the credential bytes. Explicitly redirecting a private PIN file
+into `unlock --stdin` therefore preserves it through preflight too.
 
 The helper runs once as the already-authorized Android shell identity, reads 4
 to 16 ASCII digits from standard input, injects digit and Enter key events in
@@ -93,6 +118,30 @@ automatically.
 This route does not clear or replace the credential, modify device policy,
 weaken lockout/biometrics, bypass ADB authorization, or support password and
 pattern credentials.
+
+**Current — live-tested, 2026-10-25:** on a physical API-37 handheld, the common
+CLI adapter escape hatch unlocked a secure PIN keyguard using a private host
+file redirected into dedicated stdin. The corrected helper delivered once;
+keyguard and user-storage observations confirmed unlock, and a subsequent
+read-only doctor independently reported interaction unlocked. The PIN was never
+displayed or retained in evidence, and device-side temporary files were removed.
+This validates ordinary screen unlock after user storage is available, not
+first unlock after reboot or broader OEM coverage.
+
+## Reboot and first unlock
+
+`reboot` waits for ADB reconnection, completed OS boot and a new boot generation.
+It does not automatically unlock the screen. A configured controller-held PIN
+remains available while the phone's credential-encrypted user storage is locked.
+The unlock operation does not require that storage to be unlocked beforehand;
+it can attempt first unlock once authorized ADB, native policy observation and
+the known PIN surface are available. Successful effect requires both keyguard
+and user storage to report unlocked afterward.
+
+This route is unit-tested for initially locked user storage, but first unlock
+after a real reboot has not been accepted on hardware. ADB availability and
+protected-surface behavior still need that separate physical test. Boot
+completion alone is not evidence that applications or user storage are ready.
 
 ## State and safety
 

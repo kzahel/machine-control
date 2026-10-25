@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import subprocess
+import json
+from pathlib import Path
+import sys
 import unittest
 from unittest import mock
 
@@ -48,6 +51,27 @@ class ParsingTests(unittest.TestCase):
         self.assertTrue(battery["powered"])
         self.assertEqual(parse_wake_state("mWakefulness=Awake"), "awake")
         self.assertEqual(parse_wake_state("Wakefulness: Asleep"), "asleep")
+
+
+class InputIsolationTests(unittest.TestCase):
+    def test_preflight_cannot_consume_parent_secret_stdin(self) -> None:
+        program = """
+import json, sys
+from providers.adb import AdbClient
+client = object.__new__(AdbClient)
+client.adb = sys.executable
+child = ['-c', 'import sys; print(len(sys.stdin.buffer.read()))']
+preflight = client.run(child)
+secret = sys.stdin.buffer.read()
+delivery = client.run(child, text=False, input_data=secret)
+print(json.dumps([int(preflight.stdout), len(secret), int(delivery.stdout)]))
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", program],
+            cwd=Path(__file__).resolve().parents[3],
+            input=b"1234\n", capture_output=True, check=True,
+        )
+        self.assertEqual(json.loads(result.stdout), [0, 5, 5])
 
 
 if __name__ == "__main__":

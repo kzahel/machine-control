@@ -3,7 +3,8 @@
 Topic: `android-family-control`
 
 Status: active Android-handheld and Quest implementations over a shared ADB
-provider; phone credential effect and broader Android profiles remain open.
+provider; ordinary phone PIN unlock is live-tested on one physical profile.
+Post-boot credential delivery and broader Android profiles remain open.
 
 ## Scope
 
@@ -69,13 +70,20 @@ Secure `unlock` supports a PIN only and must:
 
 - establish exact device, boot generation, current user, secure PIN field, and
   zero failed-password wipe threshold before reading a secret;
-- receive the PIN only from dedicated non-echoing standard input;
+- read the PIN only after preflight, from a private inventory file locator or
+  dedicated non-echoing standard input;
 - inject within one staged shell-UID helper process so the credential never
   becomes a host ADB or device-process argument;
 - submit at most once, clear mutable buffers and staged helper best effort, and
   independently observe keyguard and user-storage effect; and
 - refuse passwords, patterns, unknown surfaces, changed generations, unsafe or
   unknown wipe policy, and automatic retry.
+
+**Current:** `ANDROID_TESTBED_PIN_FILE` carries only the controller-local
+locator from private inventory. `unlock` uses it automatically; `--stdin`
+explicitly overrides it. The source remains unopened until preflight succeeds.
+Configured files require an explicit device selector and are checked for type,
+ownership and permissions. See the [Android setup](../platforms/android/README.md#pin-unlock-boundary).
 
 ## Evidence
 
@@ -115,10 +123,18 @@ unlock observation, zero retry, absence of the test PIN from results, wireless
 private-address and secure-ADB gates, active-lease refusal, exact endpoint
 binding, recorded fallback, identity-drift refusal, and observed disable.
 
-**Open:** No real credential was entered during this slice. The helper's PIN
-delivery and successful keyguard effect are therefore built and unit-tested,
-not yet live- or conformance-tested. Deliberately entering a wrong PIN remains
-out of scope.
+**Current — physical PIN unlock, live-tested 2026-10-25:** the common CLI's
+native adapter escape hatch unlocked a physical API-37 handheld with a host-file
+credential through dedicated stdin. Delivery and keyguard/user-storage effect
+were confirmed with one submission and zero retries; a subsequent read-only
+doctor also reported unlocked interaction. The credential never appeared in
+output or retained evidence, and temporary device files were removed.
+The [Android research](../research/platforms/android.md#existing-adb-implementation)
+owns the observation, stdin-isolation and helper-initialization findings.
+
+**Open:** First unlock after reboot, broader OEM coverage and full credential
+conformance remain unaccepted. Deliberately entering a wrong PIN remains out
+of scope. An uncertain credential delivery still prohibits automatic retry.
 
 ## Recommended next work
 
@@ -287,8 +303,8 @@ service remains a separate experiment.
 
 ### Existing device implementation follow-ups
 
-- Run one supervised correct-PIN acceptance through the hidden prompt and
-  retain only redacted delivery/effect evidence.
+- Qualify first unlock after reboot and broader OEM PIN surfaces separately
+  from the accepted ordinary host-file screen-unlock route.
 - Add a compact UIAutomator semantic adapter and deterministic Android fixture,
   then compare its snapshot/action behavior with the current iOS XCTest route.
 - Add physical versus emulator identity and a separate emulator lifecycle

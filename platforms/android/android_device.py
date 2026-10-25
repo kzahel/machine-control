@@ -13,12 +13,14 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import time
 from typing import Any, Callable, Sequence
 import uuid
+import xml.etree.ElementTree as ET
 import zipfile
 
 
@@ -46,10 +48,6 @@ EXCLUDED_FEATURES = (
     "android.hardware.type.watch",
     "android.hardware.type.automotive",
 )
-PIN_SURFACE_PATTERNS = (
-    r"resource-id=\"[^\"]*(?:pinEntry|pin_entry|keyguard_pin_view)[^\"]*\"",
-    r"class=\"android\.widget\.EditText\"[^>]*password=\"true\"",
-)
 
 
 class TestbedError(RuntimeError):
@@ -62,6 +60,7 @@ class Config:
     adb_path: str
     state_dir: Path
     sdk_root: Path | None
+    pin_file: Path | None = None
 
 
 def state_root(values: dict[str, str]) -> Path:
@@ -78,6 +77,13 @@ def state_root(values: dict[str, str]) -> Path:
 def load_config(values: dict[str, str] | None = None) -> Config:
     env = dict(os.environ if values is None else values)
     sdk_value = env.get("ANDROID_SDK_ROOT") or env.get("ANDROID_HOME")
+    serial = (env.get("ANDROID_TESTBED_SERIAL") or env.get("ANDROID_SERIAL") or "").strip()
+    pin_value = env.get("ANDROID_TESTBED_PIN_FILE", "").strip()
+    pin_file = Path(pin_value).expanduser() if pin_value else None
+    if pin_file and (not pin_file.is_absolute() or not serial):
+        raise TestbedError(
+            "A configured PIN file requires an absolute locator and explicit device selector"
+        )
     try:
         probe = SharedAdbClient(
             env.get("ANDROID_TESTBED_ADB") or None,
@@ -87,10 +93,11 @@ def load_config(values: dict[str, str] | None = None) -> Config:
     except AdbError as error:
         raise TestbedError(str(error)) from error
     return Config(
-        serial=(env.get("ANDROID_TESTBED_SERIAL") or env.get("ANDROID_SERIAL") or "").strip(),
+        serial=serial,
         adb_path=probe.adb,
         state_dir=state_root(env),
         sdk_root=Path(sdk_value).expanduser() if sdk_value else None,
+        pin_file=pin_file,
     )
 
 
@@ -315,6 +322,7 @@ def device_status(client: AndroidClient, serial: str) -> dict[str, Any]:
         serial, ["cat", "/proc/sys/kernel/random/boot_id"], check=False
     )
     status = {
+        "currentUserId": current_user,
         "bootCompleted": boot_completed,
         "bootGeneration": generation(serial, boot_id, current_user),
         "wakeState": parse_wake_state(
@@ -477,13 +485,37 @@ def status_payload(config: Config) -> dict[str, Any]:
 
 
 def pin_surface_visible(client: AndroidClient, serial: str) -> bool:
-    result = client.shell(
-        serial, ["uiautomator", "dump", "/dev/tty"], check=False, timeout=15
-    )
-    xml = result.stdout
-    return result.returncode == 0 and any(
-        re.search(pattern, xml, re.IGNORECASE) for pattern in PIN_SURFACE_PATTERNS
-    )
+    # A non-PTY adb shell can report a successful /dev/tty dump without
+    # returning the hierarchy. Never print or retain this protected UI data.
+    path = f"/data/local/tmp/machine-control-keyguard-{uuid.uuid4().hex}.xml"
+    try:
+        client.shell(serial, ["touch", path])
+        client.shell(serial, ["chmod", "600", path])
+        result = client.shell(
+            serial, ["uiautomator", "dump", path], check=False, timeout=15
+        )
+        if result.returncode != 0:
+            return False
+        result = client.shell(serial, ["cat", path], check=False)
+        if result.returncode != 0:
+            return False
+        root = ET.fromstring(result.stdout)
+        fields = [
+            node for node in root.iter("node")
+            if node.get("package") == "com.android.systemui"
+            and node.get("resource-id") in {
+                "com.android.systemui:id/pinEntry",
+                "com.android.systemui:id/pin_entry",
+                "com.android.systemui:id/keyguard_pin_view",
+            }
+            and node.get("password") == "true"
+            and node.get("enabled") == "true"
+        ]
+        return len(fields) == 1 and not fields[0].get("text")
+    except (ET.ParseError, OSError, subprocess.SubprocessError):
+        return False
+    finally:
+        client.shell(serial, ["rm", "-f", path], check=False)
 
 
 def find_sdk_root(config: Config) -> Path:
@@ -518,6 +550,10 @@ def helper_toolchain(config: Config) -> tuple[Path, Path, Path]:
 
 
 def build_secret_helper(config: Config) -> Path:
+    return build_helper(config, "SecretInput", "secret-input.jar")
+
+
+def build_helper(config: Config, class_name: str, filename: str) -> Path:
     source = (
         PLATFORM_ROOT
         / "helper"
@@ -525,11 +561,11 @@ def build_secret_helper(config: Config) -> Path:
         / "dev"
         / "machinecontrol"
         / "android"
-        / "SecretInput.java"
+        / f"{class_name}.java"
     )
     source_bytes = source.read_bytes()
     digest = hashlib.sha256(source_bytes).hexdigest()[:16]
-    destination = config.state_dir / "helper" / digest / "secret-input.jar"
+    destination = config.state_dir / "helper" / digest / filename
     if destination.is_file():
         return destination
     javac, android_jar, d8 = helper_toolchain(config)
@@ -556,8 +592,9 @@ def build_secret_helper(config: Config) -> Path:
             check=True,
             capture_output=True,
             text=True,
+            stdin=subprocess.DEVNULL,
         )
-        class_file = classes / "dev" / "machinecontrol" / "android" / "SecretInput.class"
+        class_file = classes / "dev" / "machinecontrol" / "android" / f"{class_name}.class"
         subprocess.run(
             [
                 str(d8),
@@ -572,14 +609,43 @@ def build_secret_helper(config: Config) -> Path:
             check=True,
             capture_output=True,
             text=True,
+            stdin=subprocess.DEVNULL,
         )
-        temporary_jar = root / "secret-input.jar"
+        temporary_jar = root / filename
         with zipfile.ZipFile(temporary_jar, "w", zipfile.ZIP_DEFLATED) as archive:
             archive.write(dex / "classes.dex", "classes.dex")
         os.replace(temporary_jar, destination)
         if os.name != "nt":
             destination.chmod(0o600)
     return destination
+
+
+def observe_wipe_policy(
+    config: Config, client: AndroidClient, serial: str, expected_user: int
+) -> int | None:
+    """Read the effective native policy when dumpsys omits its legacy field."""
+    remote = f"/data/local/tmp/machine-control-policy-{uuid.uuid4().hex}.jar"
+    try:
+        helper = build_helper(config, "PolicyProbe", "policy-probe.jar")
+        client.run(["push", str(helper), remote], serial=serial)
+        client.shell(serial, ["chmod", "600", remote])
+        result = client.shell(
+            serial,
+            [f"CLASSPATH={remote}", "app_process", "/system/bin",
+             "dev.machinecontrol.android.PolicyProbe"],
+            check=False, timeout=20,
+        )
+        match = re.fullmatch(
+            r"userId=(\d+) maximumFailedPasswordsForWipe=(\d+)\s*",
+            result.stdout,
+        )
+        if result.returncode == 0 and match and int(match[1]) == expected_user:
+            return int(match[2])
+    except (TestbedError, OSError, subprocess.SubprocessError):
+        pass
+    finally:
+        client.shell(serial, ["rm", "-f", remote], check=False)
+    return None
 
 
 def stage_secret_helper(client: AndroidClient, serial: str, helper: Path) -> None:
@@ -599,6 +665,42 @@ def read_pin() -> bytearray:
         pin[:] = b"\0" * len(pin)
         raise TestbedError("PIN must contain 4 to 16 ASCII digits")
     return pin
+
+
+def read_pin_file(path: Path) -> bytearray:
+    """Open a configured secret only after unlock preflight; never echo it."""
+    descriptor = None
+    try:
+        parent = path.parent.lstat()
+        if not stat.S_ISDIR(parent.st_mode) or path.is_symlink():
+            raise TestbedError("The configured Android PIN file is unsafe")
+        if os.name != "nt" and (
+            parent.st_uid != os.getuid() or stat.S_IMODE(parent.st_mode) != 0o700
+        ):
+            raise TestbedError("The Android PIN directory must be caller-owned and mode 0700")
+        descriptor = os.open(
+            path,
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0),
+        )
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode):
+            raise TestbedError("The configured Android PIN file must be a regular file")
+        if os.name != "nt" and (
+            info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o600
+        ):
+            raise TestbedError("The Android PIN file must be caller-owned and mode 0600")
+        with os.fdopen(descriptor, "rb") as stream:
+            descriptor = None
+            value = stream.read(MAX_PIN_BYTES + 3)
+        if not re.fullmatch(rb"[0-9]{4,16}(?:\r?\n)?", value):
+            raise TestbedError("The Android PIN file must contain one 4 to 16 digit PIN")
+        return bytearray(value.rstrip(b"\r\n"))
+    except OSError:
+        raise TestbedError("The configured Android PIN file is unavailable or unsafe") from None
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
 
 
 def deliver_pin(
@@ -659,10 +761,16 @@ def result_document(
 def unlock_pin(
     config: Config,
     *,
-    secret_reader: Callable[[], bytearray] = read_pin,
+    secret_reader: Callable[[], bytearray] | None = None,
     helper_builder: Callable[[Config], Path] = build_secret_helper,
     deliverer: Callable[[AndroidClient, str, bytearray], subprocess.CompletedProcess[Any]] = deliver_pin,
 ) -> dict[str, Any]:
+    if secret_reader is None:
+        # Selecting a source must not open it. _unlock_pin_impl invokes this
+        # only after exact target, surface, policy and generation checks.
+        secret_reader = (
+            (lambda: read_pin_file(config.pin_file)) if config.pin_file else read_pin
+        )
     with mutation_lease(config):
         return _unlock_pin_impl(
             config,
@@ -715,6 +823,10 @@ def _unlock_pin_impl(
             message="The active Android keyguard is not a secure PIN surface",
         )
     wipe_limit = before["maximumFailedPasswordsForWipe"]
+    if wipe_limit is None:
+        wipe_limit = observe_wipe_policy(
+            config, client, serial, before["currentUserId"]
+        )
     if wipe_limit is None or wipe_limit != 0:
         return result_document(
             accepted=False,
@@ -763,7 +875,7 @@ def _unlock_pin_impl(
                 effect="refused",
                 generation_value=generation_value,
                 error_code="invalid_credential_input",
-                message="The dedicated PIN input was invalid",
+                message="The selected PIN source was unavailable, unsafe, or invalid",
             )
             result["elapsedMs"] = int((time.monotonic() - started) * 1000)
             return result
@@ -883,6 +995,10 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("dismiss-keyguard")
     unlock = subparsers.add_parser("unlock")
     unlock.add_argument("--json", action="store_true")
+    unlock.add_argument(
+        "--stdin", action="store_true",
+        help="Use dedicated stdin instead of the configured PIN file",
+    )
     reboot = subparsers.add_parser("reboot")
     reboot.add_argument("--timeout", type=int, default=180)
     install = subparsers.add_parser("install")
@@ -916,7 +1032,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "doctor":
             return print_doctor(config, args.json)
         if args.command == "unlock":
-            result = unlock_pin(config)
+            result = unlock_pin(config, secret_reader=read_pin if args.stdin else None)
             if args.json:
                 print(json.dumps(result, indent=2))
             else:

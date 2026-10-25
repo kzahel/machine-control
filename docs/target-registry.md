@@ -370,6 +370,14 @@ When an adapter needs a controller-held credential:
    value without adding it to ordinary arguments, JSON, logs, captures, or
    evidence.
 
+The Android-handheld adapter accepts a `pin` locator through
+`ANDROID_TESTBED_PIN_FILE`. A configured locator also requires an explicit
+device selector. Target-selected `testbed -- unlock --json` opens that file only
+after protected-operation preflight; `unlock --stdin` explicitly selects its
+dedicated stdin channel instead. See the
+[Android PIN boundary](../platforms/android/README.md#pin-unlock-boundary) for
+file checks and the one-attempt contract.
+
 For Linux factory/promotion handoff, configure `LINUXVM_LOGIN_SECRET_FILE` from
 this canonical locator and retain the setup SSH key and independently pinned
 known-hosts locators in private configuration. The

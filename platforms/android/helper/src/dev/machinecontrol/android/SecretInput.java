@@ -1,6 +1,7 @@
 package dev.machinecontrol.android;
 
 import android.app.Instrumentation;
+import android.os.Looper;
 import android.view.KeyEvent;
 import java.io.IOException;
 import java.util.Arrays;
@@ -15,6 +16,10 @@ public final class SecretInput {
     public static void main(String[] arguments) {
         byte[] pin = null;
         try {
+            // app_process has neither a current nor a main looper. Without
+            // this, Instrumentation mistakes null == null for the app thread
+            // and rejects sendKeySync before the first event is injected.
+            Looper.prepare();
             pin = readPin();
             Instrumentation instrumentation = new Instrumentation();
             for (byte value : pin) {

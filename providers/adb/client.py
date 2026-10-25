@@ -93,6 +93,7 @@ class AdbClient:
             check=check,
             capture_output=capture,
             text=text,
+            stdin=subprocess.DEVNULL if input_data is None else None,
             input=input_data,
             timeout=timeout,
         )

@@ -5,6 +5,10 @@ executable discovery, device enumeration, exact serial transport, shell
 execution, and common battery/wake-state parsing. It is reused by the Android
 handheld and Quest platform adapters.
 
+Commands detach standard input by default. A caller must explicitly supply
+`input_data` to send bytes; ordinary discovery and shell preflight cannot
+consume a parent's dedicated credential channel.
+
 It deliberately does not select a device class, decide lifecycle policy,
 inspect a phone keyguard, manage Quest proximity, inject credentials, or expose
 a generic Android semantic interface. Those responsibilities remain in the

@@ -1,7 +1,8 @@
 # Android Control Research
 
-Status: adopted shared ADB provider and physical-handheld adapter; credential
-effect and broader semantic/device-profile conformance remain open.
+Status: adopted shared ADB provider and physical-handheld adapter; ordinary PIN
+unlock is live-tested on one physical profile. Post-boot delivery and broader
+semantic/device-profile conformance remain open.
 
 ## Native foundation
 
@@ -211,11 +212,48 @@ Android's normal on-device QR-pairing UI.
 unless the exact generation, secure PIN field, and zero failed-password wipe
 threshold are established. It carries the PIN only through standard input to a
 one-shot shell-UID helper, delivers once, clears buffers best effort, observes
-keyguard/user-storage effect, and prohibits retry. No real PIN effect was
-live-tested in this slice.
+keyguard/user-storage effect, and prohibits retry.
+
+**Current — physical investigation, 2026-10-25:** API-37 preflight exposed
+missing legacy `dumpsys device_policy` wipe fields and a successful non-PTY
+`uiautomator dump /dev/tty` returning no hierarchy. The adapter now queries
+[`getMaximumFailedPasswordsForWipe(null)`](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#getMaximumFailedPasswordsForWipe(android.content.ComponentName))
+through a read-only shell-UID helper when needed, requiring its foreground user
+to match the observed user. The API aggregates participating-profile policy;
+absent dump fields are never interpreted as zero. Native observation returned
+zero on the physical target. Private temporary-file UIAutomator capture found
+the known secure PIN field and refuses nonempty, duplicate or foreign fields.
+
+Non-secret ADB subprocesses had inherited and consumed redirected credential
+stdin before the PIN reader. They and helper-build children now detach stdin;
+a real-subprocess test verifies that preflight preserves the parent's stream
+and only explicit delivery receives input. A native probe injected no keys and
+reproduced Instrumentation's thread guard failure when both current and main
+loopers are null, then passed after `Looper.prepare()`. The corrected helper
+builds and rejects empty input on hardware without output.
+
+**Current — ordinary PIN unlock, live-tested 2026-10-25:** after a fresh explicit
+authorization following an earlier uncertain delivery, the corrected helper
+unlocked the physical API-37 handheld through the common CLI adapter escape
+hatch. A private host file was redirected into dedicated stdin; the PIN never
+appeared in output or retained evidence. One submission returned confirmed
+delivery and effect, zero retries, keyguard unlocked and user storage unlocked.
+A separate subsequent doctor observed interaction unlocked. Device-side
+temporary artifacts were removed and the host file remained mode `0600`.
+This is ordinary screen-unlock evidence after user storage was available;
+post-boot delivery and broader OEM coverage remain unaccepted.
+
+**Current — configured host credential source, built/unit-tested 2026-10-25:**
+the adapter consumes the private inventory's `ANDROID_TESTBED_PIN_FILE` locator
+after protected-operation preflight, with explicit device selection, bounded
+PIN parsing and POSIX owner/mode checks. It rejects symlinks and nonregular
+files. Synthetic tests verify unopened sources on refusal or already-unlocked
+state, one delivery and buffer clearing. The selected physical target's
+credential migration and private inventory readiness were verified without a
+second credential submission; the earlier live unlock used explicit stdin.
 
 **Open:** Select and conformance-test the default UIAutomator/accessibility
 adapter, define emulator versus physical identity, and expose ARCVM through the
 ChromeOS-local ADB proxy without pretending Chrome accessibility covers Android
-application internals. Run one supervised correct-PIN acceptance before
-promoting credential delivery above `built`/unit-tested evidence.
+application internals. First-unlock-after-reboot acceptance and full credential
+conformance remain separate from the ordinary physical unlock accepted above.

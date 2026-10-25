@@ -11,10 +11,13 @@ emulators, TVs, watches, automotive devices, and other Android derivatives keep
 their own target profiles and must not silently inherit handheld policy.
 
 Never put a PIN, password, pattern, device serial, account name, private APK,
-or controller-local path in Git, JSON requests, command arguments, environment
-variables, logs, captures, or evidence. `unlock` reads one PIN from its
+or controller-local path in public Git, JSON requests, logs, captures, or
+evidence. Credential values must never enter command arguments or environment
+variables. Private inventory may supply an `ANDROID_TESTBED_PIN_FILE` locator.
+`unlock` reads one PIN from that protected controller-local file or its
 dedicated non-echoing standard-input channel only after exact target and PIN
-surface discovery. It submits once and never retries. Do not add credential
+surface discovery. `--stdin` explicitly overrides a configured file. It submits
+once and never retries. Do not add credential
 clear/reset, device-policy weakening, root, factory reset, or broad package
 mutation.
 
