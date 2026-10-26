@@ -3,7 +3,13 @@
 Store releases are tagged `extension-v<version>`; see
 [Web Store release](README.md#web-store-release).
 
-## [0.8.2] - 2026-10-26
+## [0.8.3] - 2026-10-26
+
+- Build the store upload outside the checkout so generated ZIPs do not fail
+  clean-source verification. Replaces the 0.8.2 release attempt, which failed
+  before store upload; includes all of its browser-control changes below.
+
+## [0.8.2] - 2026-10-26 (CI failed before store submission)
 
 - Open agent tabs in the background by default, including browser-level CDP.
 - Deliver browser input using virtual page focus without selecting tabs or

@@ -53,12 +53,12 @@ jobs:
         run: node --test tests/browser/*.test.mjs
       - name: Package the store upload
         run: |
-          python3 providers/chrome-extension/package.py dist/extension
-          test "$(node -p "require('./dist/extension/build.json').sourceDirty")" = false
+          python3 providers/chrome-extension/package.py "$RUNNER_TEMP/extension"
+          test "$(node -p "require(process.env.RUNNER_TEMP + '/extension/build.json').sourceDirty")" = false
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: machine-control-chrome-${{ steps.version.outputs.version }}
-          path: dist/extension/*
+          path: ${{ runner.temp }}/extension/*
           if-no-files-found: error
           retention-days: 30
 

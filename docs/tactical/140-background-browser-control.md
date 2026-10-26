@@ -84,3 +84,13 @@ packaging and automatic store submission; Google owns review and delivery.
 Owned test browser/sentinel processes were verified absent, private evidence
 was retained, task staging was removed and the VM's initial suspended state
 was restored before releasing its exclusive claim.
+
+### CI packaging follow-up
+
+The user requested monitoring through green CI. The 0.8.2 release
+[run 40302039402](https://github.com/kzahel/machine-control/actions/runs/40302039402)
+passed all extension tests but failed clean-source verification before upload:
+the workflow created `dist/extension` inside the checkout, so its own generated
+ZIP made `sourceDirty` true. The workflow now packages under `RUNNER_TEMP`,
+preserving the clean-source guard. Extension 0.8.3 replaces the failed release;
+the 0.8.2 tag and failed run remain intact. Browser runtime code is unchanged.

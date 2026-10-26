@@ -144,7 +144,8 @@ following the same pattern as the author's other extensions:
    already-prepared untagged version), commits, and atomically pushes `main`
    and `extension-v<version>`.
 3. CI runs the browser tests, then `package.py DIR`, which writes a
-   reproducible ZIP without the development `key` plus `build.json` (version,
+   reproducible ZIP in the runner's temporary directory, outside the checkout,
+   without the development `key` plus `build.json` (version,
    store ID, source revision, clean-tree flag and SHA-256), refusing a dirty
    source. Only then does it authenticate with Google and run
    [`store/publish-store.mjs`](store/publish-store.mjs). The publisher checks
