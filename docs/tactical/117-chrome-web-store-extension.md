@@ -3,6 +3,10 @@
 Status: active. Step 1 is published unlisted (0.8.0); step 2 desktop
 packaging is published in 0.6.4; tag-driven store submission is set up.
 Installed store-copy acceptance and later steps remain.
+
+[Tactical 140](140-background-browser-control.md) owns the 0.8.2 background
+control update and tag-driven submission. Its source/unpacked acceptance does
+not complete this tactical's installed store-copy gate.
 Owning topic: [browser control](../../topics/browser-control.md).
 Provider dossier: [Chrome extension](../../research/providers/chrome-extension.md).
 

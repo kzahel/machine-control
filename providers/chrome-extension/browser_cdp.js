@@ -1,6 +1,8 @@
 // Owned browser-level CDP facade over extension APIs. Default-profile pages
 // are real debugger targets; browser/tab targets and their sessions are facade
 // identities. No isolated context, download policy or browser shutdown is faked.
+import { presentationParams } from "./presentation.js";
+import { bounded } from "./requests.js";
 const DEFAULT_CONTEXT = "mc-default";
 const BROWSER = "mc-browser";
 const MAX_TARGETS = 256;
@@ -14,10 +16,15 @@ const allowedTab = (tab) => !tab.incognito && /^(https?:|file:|about:blank(?:$|[
   && !/^https:\/\/(chromewebstore\.google\.com|chrome\.google\.com\/webstore)(\/|$)/.test(tab.url || "");
 
 export class BrowserCdp {
-  constructor({ chrome, ensureAttached, releaseTab, trackNewTab, authority, post }) {
-    Object.assign(this, { chrome, ensureAttached, releaseTab, trackNewTab, authority, post });
+  constructor({ chrome, ensureAttached, releaseTab, trackNewTab, authority, post, managementTimeoutMs = 5000,
+    sendCommand = (target, method, params) => chrome.debugger.sendCommand(target, method, params) }) {
+    Object.assign(this, { chrome, ensureAttached, releaseTab, trackNewTab, authority, post, sendCommand });
     this.sessions = new Map();
     this.serial = Promise.resolve();
+    this.managementTimeoutMs = managementTimeoutMs;
+    this.managementPending = 0;
+    this.managementInFlight = 0;
+    this.recoveryInFlight = 0;
     this.nextSession = 0;
     chrome.tabs.onCreated.addListener(() => this.refresh());
     chrome.tabs.onUpdated.addListener(() => this.refresh());
@@ -27,9 +34,29 @@ export class BrowserCdp {
     chrome.debugger.onEvent.addListener((source, method, params) => this.event(source, method, params));
   }
 
-  enqueue(work) {
-    const result = this.serial.then(work);
-    this.serial = result.catch(() => {});
+  enqueue(work, state, independent = false, recovery = false) {
+    if (this.managementPending >= 64) return Promise.reject(new Error("Browser management capacity exceeded"));
+    const previous = independent ? Promise.resolve() : this.serial;
+    const counter = recovery ? "recoveryInFlight" : "managementInFlight";
+    this.managementPending++;
+    const result = bounded(() => previous.then(() => {
+      if (state) this.check(state);
+      if (this[counter] >= 8) fail("Browser management dispatch capacity exceeded");
+      this[counter]++;
+      // A reply deadline does not cancel Chrome's API call. Retain its physical
+      // slot until it settles, with separate capacity for discovery/recovery.
+      return Promise.resolve().then(work).finally(() => { this[counter]--; });
+    }), this.managementTimeoutMs).catch(error => {
+      if (error.code === "browser_cleanup_timeout") {
+        // Fence the whole owning connection before letting another queued
+        // management command run. A timed-out Chrome call may finish later;
+        // its continuations must never adopt the replacement connection.
+        if (state && this.current(state)) this.close(state.id, "browser_management_timeout_effect_unknown").catch(() => {});
+        throw new Error("Browser management timed out; effects may be unknown; do not replay the action");
+      }
+      throw error;
+    }).finally(() => { this.managementPending--; });
+    if (!independent) this.serial = result.catch(() => {});
     return result;
   }
 
@@ -45,7 +72,7 @@ export class BrowserCdp {
     if (tabId === 0 ? this.sessions.size : [...this.sessions.values()].some((state) => state.tabId === 0))
       fail("Browser and per-tab connections require exclusive attachment");
     const authority = this.authority();
-    const state = { id, tabId, authority, routes: new Map(), targets: new Map(), ownedTabs: new Set(), auto: null, discover: null };
+    const state = { id, tabId, authority, allowForeground: false, routes: new Map(), targets: new Map(), ownedTabs: new Set(), auto: null, discover: null };
     this.sessions.set(id, state);
     try {
       if (tabId !== 0) await this.ensureAttached(tabId);
@@ -71,34 +98,53 @@ export class BrowserCdp {
         ...(message.sessionId ? { sessionId: message.sessionId } : {}), error: { code: -32000, message: "session closed" } });
       return;
     }
-    const { method, params = {}, sessionId } = message;
+    const { method, sessionId } = message;
+    let params = message.params ?? {};
     const reply = { type: "session.result", id: state.id, cmdId: message.cmdId,
       ...(sessionId ? { sessionId } : {}) };
     try {
       if (method === "Page.disable") fail("Page events are required for Machine Control dialog recovery");
       const route = sessionId ? state.routes.get(sessionId) : null;
       if (sessionId && !route) fail("Unknown or detached session");
-      if (route?.kind === "browser" || (!sessionId && state.tabId === 0)) {
-        reply.result = await this.enqueue(() => {
-          this.check(state);
-          if (sessionId && state.routes.get(sessionId) !== route) fail("Detached browser session");
-          return this.rootCommand(state, method, params);
-        });
-      } else if (route?.kind === "tab") {
-        reply.result = await this.enqueue(() => {
-          this.check(state);
-          if (state.routes.get(sessionId) !== route) fail("Detached tab session");
-          return this.tabCommand(state, route, method, params);
-        });
+      if (method === "MachineControl.setForegroundAllowed") {
+        if (typeof params.allowed !== "boolean" || Object.keys(params).some(key => key !== "allowed"))
+          fail("Supply {allowed: true|false}", -32602);
+        state.allowForeground = params.allowed;
+        reply.result = { allowed: state.allowForeground };
       } else {
-        const native = route?.native ?? { tabId: state.tabId };
-        // Never accept an arbitrary native sessionId from a caller. Each child
-        // route is learned from this connection's own attachment events.
-        if (method === "Target.detachFromTarget") {
-          const child = state.routes.get(params.sessionId);
-          if (!child || child.parent !== sessionId) fail("Unknown child session");
-          await this.detach(state, params.sessionId); reply.result = {};
-        } else reply.result = await this.chrome.debugger.sendCommand(native, method, params);
+        params = presentationParams(method, params, state.allowForeground);
+        if (route?.kind === "browser" || (!sessionId && state.tabId === 0)) {
+          reply.result = await this.enqueue(() => {
+            this.check(state);
+            if (sessionId && state.routes.get(sessionId) !== route) fail("Detached browser session");
+            return this.rootCommand(state, method, presentationParams(method, params, state.allowForeground));
+          }, state, ["Browser.getVersion", "Target.getBrowserContexts", "Target.getTargets", "Target.getTargetInfo", "Target.closeTarget"].includes(method),
+          ["Browser.getVersion", "Target.getBrowserContexts", "Target.getTargets", "Target.getTargetInfo"].includes(method));
+        } else if (route?.kind === "tab") {
+          reply.result = await this.enqueue(() => {
+            this.check(state);
+            if (state.routes.get(sessionId) !== route) fail("Detached tab session");
+            return this.tabCommand(state, route, method, presentationParams(method, params, state.allowForeground));
+          }, state);
+        } else {
+          const native = route?.native ?? { tabId: state.tabId };
+          // Never accept an arbitrary native sessionId from a caller. Each child
+          // route is learned from this connection's own attachment events.
+          if (method === "Target.detachFromTarget") {
+            const child = state.routes.get(params.sessionId);
+            if (!child || child.parent !== sessionId) fail("Unknown child session");
+            await this.detach(state, params.sessionId); reply.result = {};
+          } else {
+            if (method.startsWith("Input.")) {
+              try {
+                await this.sendCommand({tabId:native.tabId}, "Emulation.setFocusEmulationEnabled", {enabled:true});
+              } catch { fail("Background input is unavailable; foreground control was not attempted"); }
+              this.check(state);
+              if (sessionId && state.routes.get(sessionId) !== route) fail("Detached input session");
+            }
+            reply.result = await this.sendCommand(native, method, params);
+          }
+        }
       }
     } catch (error) {
       reply.error = { code: error.cdpCode ?? -32000, message: String(error.message || error) };
@@ -158,12 +204,11 @@ export class BrowserCdp {
     if (![...this.sessions.values()].some((state) => state.tabId === 0)) return;
     if (this.refreshQueued) { this.refreshAgain = true; return; }
     this.refreshQueued = true;
-    this.enqueue(async () => {
-      for (const state of [...this.sessions.values()]) if (state.tabId === 0 && this.current(state)) {
+    Promise.all([...this.sessions.values()].filter(state => state.tabId === 0 && this.current(state)).map(state =>
+      this.enqueue(async () => {
         try { await this.sync(state); }
-        catch { await this.close(state.id, "target_discovery_failed"); }
-      }
-    }).catch(() => {}).finally(() => {
+        catch { if (this.current(state)) await this.close(state.id, "target_discovery_failed"); }
+      }, state))).catch(() => {}).finally(() => {
       this.refreshQueued = false;
       if (this.refreshAgain) { this.refreshAgain = false; this.refresh(); }
     });
@@ -237,7 +282,7 @@ export class BrowserCdp {
         if (typeof params.url !== "string" || (params.background !== undefined && typeof params.background !== "boolean"))
           fail("Invalid new tab parameters", -32602);
         if (!allowedTab({ url: params.url })) fail("Restricted or unsupported tab URL");
-        const tab = await this.chrome.tabs.create({ url: params.url, active: params.background !== true });
+        const tab = await this.chrome.tabs.create({ url: params.url, active: params.background === false });
         if (!this.current(state)) fail("Session ended during tab creation; do not replay creation");
         state.ownedTabs.add(tab.id);
         await this.trackNewTab(tab.id);
@@ -252,7 +297,13 @@ export class BrowserCdp {
         const target = (await this.targets()).find((item) => item.targetId === params.targetId);
         if (!target?.tabId) fail("Unknown or unsupported target");
         this.check(state);
-        if (method === "Target.closeTarget") { await this.chrome.tabs.remove(target.tabId); await this.sync(state); return { success: true }; }
+        if (method === "Target.closeTarget") {
+          await this.chrome.tabs.remove(target.tabId);
+          this.check(state);
+          this.refresh();
+          return { success: true };
+        }
+        presentationParams(method, params, state.allowForeground);
         await this.chrome.tabs.update(target.tabId, { active: true }); return {};
       }
       default: fail("Unsupported browser-level operation: " + method, -32601);

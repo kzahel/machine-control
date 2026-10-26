@@ -1,5 +1,9 @@
 # Implementation Tacticals
 
+- [140 — Background browser control and extension release](140-background-browser-control.md):
+  inactive-tab input, explicit foreground opt-in, bounded browser-root management
+  and tag-driven Chrome Web Store submission.
+
 - [139 — Desktop 0.6.10 release](139-desktop-0.6.10-release.md): unified
   candidate, exact signed Mac package acceptance and queued publication.
 

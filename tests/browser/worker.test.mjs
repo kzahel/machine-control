@@ -13,6 +13,7 @@ test("real worker cleans markers on resident revocation, release and disconnect"
   const groups = new Map();
   const attached = new Set();
   const markers = new Map();
+  const commands = [];
   const storage = {};
   let next = 1;
   let releaseHeld;
@@ -30,6 +31,8 @@ test("real worker cleans markers on resident revocation, release and disconnect"
   let holdPageEnable = false;
   let releasePageEnable;
   let declineDialog = false;
+  let failFocusEmulation = false;
+  let failFocusReset = false;
   let handledDialogs = 0;
   let dialogDuringDetach = null;
   let reportAbsent = false;
@@ -54,7 +57,7 @@ test("real worker cleans markers on resident revocation, release and disconnect"
       onCreated: event(), onUpdated: event(), onRemoved: event(),
       async query() { return [...tabs.values()]; },
       async get(id) { if (holdLookup) return new Promise(resolve => { releaseLookup = () => resolve(tabs.get(id)); }); return tabs.get(id); },
-      async create({ url }) { const tab = { id: next++, url, windowId: 1, groupId: -1, status: "complete" };
+      async create({ url, active = true }) { const tab = { id: next++, url, active, windowId: 1, groupId: -1, status: "complete" };
         tabs.set(tab.id, tab); return tab; },
       async update(id, changes) { Object.assign(tabs.get(id), changes); return tabs.get(id); },
       async group({ groupId, tabIds }) {
@@ -92,7 +95,10 @@ test("real worker cleans markers on resident revocation, release and disconnect"
         attached.delete(tabId); chrome.debugger.onDetach.emit({ tabId });
       },
       async sendCommand({ tabId }, method, params) {
+        commands.push({tabId, method, params});
         assert.ok(attached.has(tabId));
+        if (method === "Emulation.setFocusEmulationEnabled" && failFocusEmulation) throw new Error("Fixture focus emulation refusal");
+        if (method === "Emulation.setFocusEmulationEnabled" && params.enabled === false && failFocusReset) throw new Error("Fixture focus reset refusal");
         if (method === "Page.enable" && failPageEnable) throw new Error("Fixture Page refusal");
         if (method === "Page.enable" && holdPageEnable) return new Promise(resolve => { releasePageEnable = resolve; });
         if (method === "Page.handleJavaScriptDialog") {
@@ -142,6 +148,7 @@ test("real worker cleans markers on resident revocation, release and disconnect"
     const created = await request("browser.navigate", { newTab: true, url: "about:blank" });
     assert.equal(created.ok, true);
     const tab = created.data.tab.tabId;
+    assert.equal(tabs.get(tab).active, false, "ordinary new tabs must not replace the user's selected tab");
     assert.equal(markers.get(tab), true);
     // The side panel receives read-only state from its own extension only.
     const panelPort = (id) => {
@@ -176,6 +183,17 @@ test("real worker cleans markers on resident revocation, release and disconnect"
     assert.equal((await request("browser.click", { reference: oldReference })).errorCode, "stale_reference");
     assert.equal((await request("browser.click", { reference: freshReference })).ok, true);
     assert.equal(presses, 1);
+    assert.ok(commands.some(command => command.method === "Emulation.setFocusEmulationEnabled" && command.params.enabled === true));
+    failFocusEmulation = true;
+    assert.equal((await request("browser.click", {reference:freshReference})).errorCode, "background_input_unavailable");
+    assert.equal(presses, 1, "unavailable background input must refuse instead of activating Chrome");
+    failFocusEmulation = false;
+    const beforeForeground = commands.filter(command => command.method === "Page.bringToFront").length;
+    assert.equal((await request("browser.cdp", {tabId:tab, method:"Page.bringToFront"})).errorCode, "foreground_required");
+    assert.equal(commands.filter(command => command.method === "Page.bringToFront").length, beforeForeground);
+    assert.equal((await request("browser.cdp", {tabId:tab, method:"Page.bringToFront", allowForeground:true})).ok, true);
+    assert.equal((await request("browser.cdp", {tabId:tab, method:"Page.bringToFront"})).errorCode, "foreground_required",
+      "one-shot foreground opt-in must not leak to the next request");
     // Revoke while geometry is pending. Neither the in-flight click nor a
     // request queued under its old grant may resume with fresh authority.
     holdQuads = true;
@@ -186,6 +204,8 @@ test("real worker cleans markers on resident revocation, release and disconnect"
     releaseQuads();
     assert.equal((await pendingClick).errorCode, "approval_required");
     assert.equal((await queuedType).errorCode, "approval_required");
+    assert.ok(commands.some(command => command.method === "Emulation.setFocusEmulationEnabled" && command.params.enabled === false),
+      "grant cleanup explicitly resets virtual focus before detaching");
     assert.equal(presses, 1, "revoked click must not press after its geometry reply");
     assert.equal(inserted.includes("old grant"), false, "queued old-grant text must not be inserted");
     holdQuads = false;
@@ -384,6 +404,16 @@ test("real worker cleans markers on resident revocation, release and disconnect"
     await new Promise(resolve => setTimeout(resolve, 40));
     assert.equal(delayedTabs.every(item => !attached.has(item.id)), true, "late attachment effects must be detached before permitting new work");
     assert.equal((await request("browser.capture", {tabId:capacityTab.id})).ok, true);
+    assert.equal((await request("browser.type", {tabId:capacityTab.id, text:"virtual focus cleanup"})).ok, true);
+    failFocusReset = true;
+    const uncertainReset = await request("browser.release");
+    assert.equal(uncertainReset.data.released, true, "failed optional focus reset cannot block debugger release");
+    assert.ok(uncertainReset.data.virtualFocusResetUnconfirmed.includes(capacityTab.id));
+    assert.equal((await request("browser.tabs")).data.tabs.find(item => item.tabId === capacityTab.id).virtualFocus, "reset_unconfirmed");
+    failFocusReset = false;
+    assert.equal((await request("browser.capture", {tabId:capacityTab.id})).ok, true);
+    assert.equal((await request("browser.release")).data.virtualFocusResetUnconfirmed, undefined,
+      "a successful explicit reset on the next attachment clears uncertainty");
     assert.equal((await request("browser.capture", {tabId:attachingTab.id})).ok, true);
     chrome.debugger.onEvent.emit({ tabId:attachingTab.id }, "Page.javascriptDialogOpening", { type:"beforeunload" });
     native.onMessage.emit({ type:"grant", browser:false, devtools:false, grantGeneration:"stopped" });

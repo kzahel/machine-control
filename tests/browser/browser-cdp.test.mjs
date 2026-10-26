@@ -71,12 +71,22 @@ test("browser facade routes targets, child sessions, lifecycles and authority", 
   await call("Target.detachFromTarget", { sessionId: child }, page);
   assert.deepEqual(commands.at(-1).params, { sessionId: "native-child" });
   assert.equal((await call("Runtime.enable", {}, child)).error.code, -32000);
-  const created = (await call("Target.createTarget", { url: "about:blank", background: true })).result.targetId;
+  const created = (await call("Target.createTarget", { url: "about:blank" })).result.targetId;
   await flush();
   assert.equal(tabs.get(5).active, false);
   assert.ok(frames.some((frame) => frame.method === "Target.targetCreated" && frame.params.targetInfo.targetId === created));
+  assert.match((await call("Target.activateTarget", { targetId: created })).error.message, /explicit opt-in/);
+  assert.match((await call("Page.bringToFront", {}, page)).error.message, /explicit opt-in/);
+  assert.match((await call("Target.createTarget", { url: "about:blank", background: false })).error.message, /explicit opt-in/);
+  assert.equal(tabs.get(5).active, false);
+  assert.equal((await call("MachineControl.setForegroundAllowed", { allowed:"yes" })).error.code, -32602);
+  assert.deepEqual((await call("MachineControl.setForegroundAllowed", { allowed:true })).result, {allowed:true});
   await call("Target.activateTarget", { targetId: created });
   assert.equal(tabs.get(5).active, true);
+  await call("Page.bringToFront", {}, page);
+  assert.equal(commands.at(-1).method, "Page.bringToFront");
+  await call("MachineControl.setForegroundAllowed", { allowed:false });
+  assert.match((await call("Page.bringToFront", {}, page)).error.message, /explicit opt-in/);
   await call("Target.closeTarget", { targetId: created }); await flush();
   assert.ok(frames.some((frame) => frame.method === "Target.targetDestroyed" && frame.params.targetId === created));
   const pendingId = ++id;
@@ -86,8 +96,13 @@ test("browser facade routes targets, child sessions, lifecycles and authority", 
   chrome.debugger.onEvent.emit({ tabId: 1 }, "Runtime.consoleAPICalled", { secret: "stale" });
   pending({ secret: "stale" }); await pendingCall;
   assert.equal(frames.some((frame) => frame.params?.secret || frame.result?.secret), false);
+  // A foreground opt-in belongs to this connection, never its replacement.
+  authority = "first";
+  await call("MachineControl.setForegroundAllowed", { allowed:true });
+  authority = "second";
   await cdp.closeAll("revoked"); assert.equal(held.size, 0);
   await cdp.open("root", 0);
+  assert.equal(cdp.sessions.get("root").allowForeground, false);
   // Current Puppeteer attaches synthetic tab wrappers, then their real page.
   await call("Target.setAutoAttach", { autoAttach: true, flatten: true, waitForDebuggerOnStart: true,
     filter: [{ type: "page", exclude: true }, {}] });
@@ -105,5 +120,66 @@ test("browser facade routes targets, child sessions, lifecycles and authority", 
   chrome.tabs.onUpdated.emit(1, { title: "Indicator cleanup" }); await flush();
   assert.equal(held.size, 0);
   assert.ok(frames.some((frame) => frame.type === "session.closed" && frame.reason === "native_debugger_detached"));
+  await cdp.closeAll("finished");
+});
+
+test("an unsettled close cannot block discovery or poison the replacement connection", async () => {
+  const event = {addListener() {}};
+  const frames = [];
+  let releaseClose, closes = 0;
+  const chrome = {
+    tabs: {onCreated:event, onUpdated:event, onRemoved:event,
+      async query() { return [{id:1, url:"https://fixture.invalid/"}]; },
+      async remove() { closes++; await new Promise(resolve=>{releaseClose=resolve;}); }},
+    debugger: {onEvent:event, onDetach:event,
+      async getTargets() { return [{id:"page", tabId:1, type:"page"}]; }},
+  };
+  const cdp = new BrowserCdp({chrome, ensureAttached:async()=>{}, releaseTab:async()=>{},
+    trackNewTab:async()=>{}, authority:()=>"fixture", post:frame=>frames.push(frame), managementTimeoutMs:40});
+  await cdp.open("old",0);
+  const pending = cdp.command({id:"old", cmdId:1, method:"Target.closeTarget", params:{targetId:"page"}});
+  await new Promise(resolve=>setImmediate(resolve));
+  await cdp.command({id:"old", cmdId:2, method:"Target.getTargets"});
+  assert.ok(frames.find(frame=>frame.cmdId===2)?.result);
+  await pending;
+  assert.equal(cdp.sessions.has("old"),false);
+  assert.equal(cdp.managementInFlight,1, "unsettled physical work retains its slot after a reply deadline");
+  await cdp.open("new",0);
+  await cdp.command({id:"new", cmdId:3, method:"Target.getTargets"});
+  assert.ok(frames.find(frame=>frame.cmdId===3)?.result);
+  releaseClose();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(cdp.managementInFlight,0);
+  assert.equal(closes,1, "reconnection must never replay the close");
+  assert.equal(frames.some(frame=>frame.cmdId===1 && frame.result),false);
+  await cdp.closeAll("finished");
+});
+
+test("management timeouts retain bounded physical slots and independent discovery", async () => {
+  const event = {addListener() {}};
+  const finishes = [], frames = [];
+  const chrome = {
+    tabs: {onCreated:event, onUpdated:event, onRemoved:event,
+      async query() { return [{id:1, url:"https://fixture.invalid/"}]; },
+      remove() { return new Promise(resolve=>finishes.push(resolve)); }},
+    debugger: {onEvent:event, onDetach:event,
+      async getTargets() { return [{id:"page", tabId:1, type:"page"}]; }},
+  };
+  const cdp = new BrowserCdp({chrome, ensureAttached:async()=>{}, releaseTab:async()=>{},
+    trackNewTab:async()=>{}, authority:()=>"fixture", post:frame=>frames.push(frame), managementTimeoutMs:15});
+  for (let n=0; n<8; n++) {
+    await cdp.open("root",0);
+    await cdp.command({id:"root", cmdId:n, method:"Target.closeTarget", params:{targetId:"page"}});
+    assert.equal(cdp.sessions.size,0);
+  }
+  await cdp.open("root",0);
+  await cdp.command({id:"root", cmdId:9, method:"Target.closeTarget", params:{targetId:"page"}});
+  assert.match(frames.find(frame=>frame.cmdId===9).error.message, /capacity/);
+  assert.equal(finishes.length,8);
+  await cdp.command({id:"root", cmdId:10, method:"Target.getTargets"});
+  assert.ok(frames.find(frame=>frame.cmdId===10).result);
+  for (const finish of finishes) finish();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(cdp.managementInFlight,0);
   await cdp.closeAll("finished");
 });

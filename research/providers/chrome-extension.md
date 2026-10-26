@@ -33,6 +33,7 @@ tab lifecycle APIs. It is not the approval authority.
 
 | Platform and route | Evidence | Boundary |
 | --- | --- | --- |
+| Extension 0.8.2 source/unpacked Mac ARM64 background route | `conformance-tested` | 17 claimed VM checks: independent HTTP click/text effects on an inactive tab, PNG, native foreground/key-window/cursor and selected-tab preservation, hidden visibility restoration and explicit foreground/reconnect; 20 ms sentinel sampling, standing appliance authority; other platforms and installed store-copy execution separate |
 | Unreleased extension 0.8.1 in signed Mac ARM64 development assembly | `conformance-tested` | Claimed disposable macOS 26.6.2 VM, CfT 155: 81 composed browser/locked-use checks, native until-stopped approval, modal and deadline recovery, independent HTTP/native effects, restart and Stop; SIP disabled, one display; physical/store/mixed-version execution separate |
 | Public desktop 0.6.9 Mac ARM64, bundled unpacked provider | `conformance-tested` | Exact signed/notarized app in a claimed Tart VM: fifty download/upload cycles, Settings, native-host loss, blocked-provider Stop, forced-exit recovery and stale-reference refusal; same archive publicly published; Chrome Web Store/Intel/physical execution separate |
 | macOS source-native extension/native messaging | `conformance-tested` | Fixture effects, navigation, capture and provider refusal in a Tart guest; predates signed Tauri acceptance |
@@ -60,6 +61,33 @@ The [desktop matrix](../../docs/desktop-acceptance.md) separates source-native
 and exact installed product evidence.
 
 ## Fidelity, consequences, and gaps
+
+**Current (2026-10-26), extension 0.8.2, source-reviewed and contract-tested:**
+browser-root management has five-second deadlines, 64 retained requests,
+eight unsettled mutation dispatches and eight independent discovery dispatches.
+Discovery and tab close bypass the mutation chain. A management timeout fences
+and closes its owning connection with an unknown-effect reason; physical slots
+remain occupied until Chrome's calls settle. Tests hold `chrome.tabs.remove`
+unresolved and prove discovery, replacement-connection progress and no replay.
+This repairs a reproduced scheduling defect, not a proven historical modal cause.
+
+**Current:** new tabs default to background creation in both ordinary and
+browser-root operations. Known CDP activation requires explicit one-shot or
+connection-local opt-in, rechecked for queued activation and reset on reconnect.
+Input uses `Emulation.setFocusEmulationEnabled` before dispatch. This changes
+page focus/visibility semantics without selecting the tab or raising its window.
+Release explicitly clears the override before detach; uncertain reset appears in
+release and tab metadata. Normal hidden visibility returns in the Mac fixture;
+`document.hasFocus()` can remain true from injected input even after the override
+ends. DOM focus is not a reliable oracle for OS focus or override cleanup.
+The [extension guide](../../providers/chrome-extension/README.md#background-operation)
+owns the command syntax. Arbitrary scripts, site popups and separately authorized
+native control remain outside this cooperative foreground policy.
+
+**Open:** Chrome UI confirmations such as saved-group deletion are not the
+`Page.javascriptDialogOpening` dialogs tracked by `browser.dialog`. Their exact
+extension close/ungroup trigger and recovery still need live qualification.
+The bounded management repair does not automatically accept or dismiss them.
 
 **Current (2026-10-25), unreleased 0.8.1, `source-reviewed` and
 `contract-tested`:** ordinary per-tab scheduling bounds retained work and
@@ -92,8 +120,9 @@ preference and scope enforcement; the existing covered desktop setting is a
 different mechanism. New approval while locked remains unavailable.
 
 **Current:** Snapshots expose tab accessibility nodes. References bind grant,
-provider, and extension snapshot generations. Clicking and typing may activate
-the browser tab; the OS cursor is expected to remain unchanged. Captures are
+provider, and extension snapshot generations. Source 0.8.2 click/text input
+uses virtual page focus; earlier revisions could require tab activation. The
+OS cursor is expected to remain unchanged. Captures are
 tab PNGs, not whole-desktop captures. CDP acknowledgement establishes delivery,
 not independent application effect; the fixture's own marker supplies that
 oracle.
@@ -180,7 +209,12 @@ The incoming installer
 pauses only the owning native-host manifest during replacement, preventing
 Chrome retries from locking its executable.
 
-**Open:** In the headed fixture, a trusted CDP mouse dispatch to an inactive tab
-acknowledged delivery without changing the page oracle. Selecting that tab
-before dispatch produced the effect. Browser pointer activation/effect remains
-a separate gap; marker visibility does not establish input effect.
+**Current, bounded Mac VM evidence:** the inactive-tab click without virtual
+focus acknowledged delivery without a page effect; explicit focus emulation
+produced the independent click and text effects while a separate native
+sentinel retained foreground/key-window state, text and cursor position.
+The source route integrates this preparation without an activation fallback.
+[Tactical 140](../../docs/tactical/140-background-browser-control.md) records
+final acceptance, cleanup and store rollout limits. Other platforms, website
+behaviors, transient focus changes below the 20 ms sentinel sampling interval,
+and installed store-copy execution need separate qualification.

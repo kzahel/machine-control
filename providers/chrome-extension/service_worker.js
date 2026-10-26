@@ -4,6 +4,7 @@
 import { TabIndicators } from "./indicators.js";
 import { BrowserCdp } from "./browser_cdp.js";
 import { RequestQueue, bounded } from "./requests.js";
+import { presentationParams } from "./presentation.js";
 
 const HOST = "org.machine_control.browser";
 const PROTOCOL_VERSION = 1;
@@ -60,9 +61,25 @@ const attaching = new Map();
 const attachmentOwners = new Map();
 const pageObservers = new Map();
 const pendingAttachments = new Map();
+const virtualFocus = new Map();
+const unconfirmedFocusReset = new Set();
+function providerCommand(target, method, params = {}) {
+  const owner = attachmentOwners.get(target.tabId);
+  if (method === "Emulation.setFocusEmulationEnabled" && params.enabled === true)
+    virtualFocus.set(target.tabId, owner);
+  return chrome.debugger.sendCommand(target, method, params).then(result => {
+    if (method === "Emulation.setFocusEmulationEnabled" && params.enabled === false
+        && attachmentOwners.get(target.tabId) === owner) {
+      virtualFocus.delete(target.tabId);
+      unconfirmedFocusReset.delete(target.tabId);
+    }
+    return result;
+  });
+}
 const indicators = new TabIndicators((tabId, method, params = {}) =>
   chrome.debugger.sendCommand({ tabId }, method, params));
 const streaming = new BrowserCdp({ chrome, ensureAttached,
+  sendCommand:providerCommand,
   releaseTab: async (tabId) => {
     if (streaming.usesTab(tabId) || ordinaryTabs.has(tabId) || requests.lanes.has(tabId) || dialogs.has(tabId)) return;
     const token = attachmentOwners.get(tabId);
@@ -365,6 +382,7 @@ async function perform(operation, params) {
       context.dispatch(); await detachAll();
       return { released:unconfirmedDetaches.size === 0 && pendingAttachments.size === 0,
         unconfirmedDetaches:[...unconfirmedDetaches], pendingAttachments:[...pendingAttachments.keys()],
+        ...(unconfirmedFocusReset.size ? { virtualFocusResetUnconfirmed:[...unconfirmedFocusReset] } : {}),
         ...(abandonedDialogs.length ? { abandonedDialogs } : {}) };
     }
     case "browser.dialog": return dialog(params);
@@ -376,6 +394,7 @@ function tabJSON(tab) {
   return {
     tabId: tab.id, windowId: tab.windowId, active: tab.active,
     groupId: tab.groupId, controlIndicator: indicators.status(tab.id),
+    virtualFocus:virtualFocus.has(tab.id) ? "enabled" : unconfirmedFocusReset.has(tab.id) ? "reset_unconfirmed" : "none",
     observedDialog:dialogs.has(tab.id) ? { id:dialogs.get(tab.id).id, type:dialogs.get(tab.id).type } : null,
     title: tab.title || "", url: tab.url || "", status: tab.status || "",
     // A discarded (memory-unloaded) tab reloads when the debugger attaches,
@@ -442,7 +461,7 @@ async function navigate(params) {
   if (params.newTab === true) {
     requireRequestAuthority();
     context.dispatch();
-    tab = await chrome.tabs.create({ url, active: params.active !== false });
+    tab = await chrome.tabs.create({ url, active: params.active === true });
     context.tabId = tab.id;
     requireRequestAuthority();
     await ensureAttached(tab.id, true, true);
@@ -470,9 +489,21 @@ async function send(tabId, method, params = {}, expectedDialogId) {
   requireRequestAuthority();
   if (expectedDialogId !== undefined && dialogs.get(tabId)?.id !== expectedDialogId)
     throw new ProviderError("stale_dialog", "The observed dialog changed before dispatch; inspect again");
+  // Chrome can acknowledge input on an inactive tab without delivering its
+  // page effect. Emulate page focus instead of selecting a tab or raising its
+  // window. Release explicitly resets this override. Refuse if unavailable; never
+  // silently fall back to foreground or desktop input.
+  if (method.startsWith("Input.")) {
+    try { await send(tabId, "Emulation.setFocusEmulationEnabled", { enabled:true }); }
+    catch (error) {
+      if (error.code !== "cdp_command_failed") throw error;
+      throw new ProviderError("background_input_unavailable", "Chrome could not prepare background input; foreground control was not attempted");
+    }
+    requireRequestAuthority();
+  }
   try {
     context.dispatch();
-    const result = await chrome.debugger.sendCommand({ tabId }, method, params);
+    const result = await providerCommand({ tabId }, method, params);
     requireRequestAuthority();
     if (handlingDialog) { dialogs.delete(tabId); blockedTabs.delete(tabId); }
     return result;
@@ -677,8 +708,9 @@ async function cdp(params) {
   if (typeof params.method !== "string" || !/^[A-Z][A-Za-z]*\.[a-zA-Z]+$/.test(params.method)) {
     throw new ProviderError("invalid_request", "method must look like Domain.method");
   }
+  const commandParams = presentationParams(params.method, params.params || {}, params.allowForeground === true);
   const tab = await resolveTab(params);
-  const result = await send(tab.id, params.method, params.params || {});
+  const result = await send(tab.id, params.method, commandParams);
   return { tabId: tab.id, method: params.method, result: result ?? {} };
 }
 
@@ -859,6 +891,11 @@ async function detachAttachment(tabId, token = attachmentOwners.get(tabId)) {
     clearTab(tabId);
   };
   try {
+    if (virtualFocus.get(tabId) === token || unconfirmedFocusReset.has(tabId)) {
+      try { await bounded(() => providerCommand({tabId}, "Emulation.setFocusEmulationEnabled", {enabled:false}), 500); }
+      catch { unconfirmedFocusReset.add(tabId); }
+      if (attachmentOwners.get(tabId) !== token) return true;
+    }
     await bounded(() => chrome.debugger.detach({ tabId }));
     retire(); return true;
   } catch (error) {
@@ -895,6 +932,8 @@ async function detachAll() {
 }
 
 function clearTab(tabId) {
+  if (virtualFocus.has(tabId)) unconfirmedFocusReset.add(tabId);
+  virtualFocus.delete(tabId);
   // A raw attach callback can still arrive after a detach event. Only its
   // own completion may remove pendingAttachments and permit a fresh owner.
   attachmentOwners.delete(tabId); attaching.delete(tabId); pageObservers.delete(tabId);
@@ -923,6 +962,7 @@ chrome.debugger.onDetach.addListener(({ tabId }) => {
 });
 chrome.tabs.onRemoved.addListener((tabId) => {
   clearTab(tabId);
+  unconfirmedFocusReset.delete(tabId);
   attached.delete(tabId);
   notifyPanels();
   generations.delete(tabId);

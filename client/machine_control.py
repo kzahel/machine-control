@@ -2877,8 +2877,8 @@ BROWSER_COMMANDS = {
 BROWSER_USAGE = {
     "tabs": "browser tabs — list open tabs (tabId, url, title, status, discarded)",
     "wait": "browser wait [--tab ID] [--timeout D] — wait until the tab finishes loading",
-    "navigate": "browser navigate --url URL [--tab ID] [--new-tab [--background]] — open "
-                "http/https/about:blank; --background keeps the new tab from taking focus",
+    "navigate": "browser navigate --url URL [--tab ID] [--new-tab [--background|--foreground]] — open "
+                "http/https/about:blank; new tabs stay in the background unless --foreground is explicit",
     "snapshot": "browser snapshot [--tab ID] [--max N] [--interactive] — compact accessibility tree",
     "click": "browser click --reference R [--tab ID] — click an element from a snapshot",
     "type": "browser type --text T [--reference R] [--tab ID] — insert text (focus R first)",
@@ -2888,8 +2888,8 @@ BROWSER_USAGE = {
     "capture": "browser capture [--tab ID] — viewport PNG artifact",
     "upload": "browser upload --reference R --file PATH [--file PATH]... — attach files "
               "to a file input or upload button, without the OS dialog",
-    "cdp": "browser cdp --method Domain.method [--params JSON] [--tab ID] — one raw "
-           "DevTools call (devtools grant)",
+    "cdp": "browser cdp --method Domain.method [--params JSON] [--tab ID] [--foreground] — one raw "
+           "DevTools call (devtools grant); foreground commands require explicit --foreground",
     "eval": "browser eval --expression JS [--tab ID] — evaluate JavaScript (devtools grant)",
     "endpoint": "browser endpoint — browser and per-tab CDP WebSocket URLs for a live session (devtools grant)",
     "release": "browser release — detach all debugger sessions",
@@ -2910,7 +2910,9 @@ def browser_request(arguments: list[str], target_platform: str | None = None) ->
     parser.add_argument("--tab", type=int)
     parser.add_argument("--url")
     parser.add_argument("--new-tab", action="store_true")
-    parser.add_argument("--background", action="store_true")
+    presentation = parser.add_mutually_exclusive_group()
+    presentation.add_argument("--background", action="store_true")
+    presentation.add_argument("--foreground", action="store_true")
     parser.add_argument("--reference")
     parser.add_argument("--text")
     parser.add_argument("--key")
@@ -2982,10 +2984,13 @@ def browser_request(arguments: list[str], target_platform: str | None = None) ->
         request["files"] = options.file
     if options.background and not options.new_tab:
         raise ClientError("usage", "browser navigate --background requires --new-tab")
+    if options.foreground and not (command == "cdp" or (command == "navigate" and options.new_tab)):
+        raise ClientError("usage", "--foreground requires browser cdp or browser navigate --new-tab")
+    if command == "cdp" and options.foreground:
+        request["allowForeground"] = True
     if options.new_tab:
         request["newTab"] = True
-        if options.background:
-            request["active"] = False
+        request["active"] = options.foreground
     if options.interactive:
         request["interactiveOnly"] = True
     if options.timeout is not None:
@@ -3986,7 +3991,7 @@ Commands:
   update check|status             Queue desktop update discovery or read status
   browser tabs|wait|navigate|snapshot|click|type|key|capture|upload|cdp|eval
         |endpoint|release   (browser --help or browser CMD --help)
-        [--tab ID] [--url URL] [--new-tab] [--background] [--reference R] [--text T]
+        [--tab ID] [--url URL] [--new-tab] [--background|--foreground] [--reference R] [--text T]
         [--file PATH]... [--method M --params JSON] [--expression JS]
                                     Operate Chrome through the extension
   control status | call JSON --reason TEXT [--wait 5m] [--duration 5m]

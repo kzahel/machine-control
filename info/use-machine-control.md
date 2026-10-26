@@ -46,6 +46,17 @@ menus may need `--projection full`. Parse complete captured CLI stdout rather
 than a truncated tool display. Preserve route, effect, uncertainty and
 truncation metadata when filtering results.
 
+Keep browser work in the background unless the user asks to see it. Use exact
+observed tab IDs rather than relying on the user's currently selected tab.
+For new tabs, `browser navigate --new-tab --background --url URL` also works
+with older clients; new clients default to background. Do not compensate for
+an ineffective action by bringing Chrome forward. Observe the page effect and
+report an unavailable background route. Explicit foreground work uses
+`--foreground` on new-tab navigation or one-shot CDP; retained CDP connections
+use the [extension's presentation policy](../providers/chrome-extension/README.md#background-operation).
+Never automatically restore focus after an action; the user may have changed
+it in the meantime.
+
 ## Cleanup
 
 Release owned claims even when the task fails:

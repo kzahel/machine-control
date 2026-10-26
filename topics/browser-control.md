@@ -22,6 +22,17 @@ and result vocabulary as desktop control. This applies to physical hosts
 
 ## Current
 
+**Current (2026-10-26), extension 0.8.2 source:** new tabs default to background
+creation. Known CDP presentation commands require an explicit one-shot opt-in
+or connection-local foreground mode, which resets on reconnect. Browser input
+uses virtual page focus rather than selecting tabs or raising OS windows;
+release explicitly clears that override and reports an uncertain reset.
+Browser-root management is bounded, discovery bypasses stalled mutations,
+and timeouts fence the owning connection without replay. The
+[provider dossier](../research/providers/chrome-extension.md) owns fidelity and
+qualification limits; [Tactical 140](../docs/tactical/140-background-browser-control.md)
+owns validation and store submission.
+
 **Current (2026-10-25), unreleased extension 0.8.1:** ordinary requests use
 bounded per-tab scheduling and request-local authority. Discovery, dialog
 handling, release and grant changes progress independently of stalled page
@@ -112,6 +123,13 @@ provided interaction inspiration; implementation and artwork are owned.
 
 ## Decisions
 
+**Decision:** ordinary browser work should preserve the user's selected tab,
+foreground application and keyboard destination. Present a page only for an
+explicit user-facing or foreground task. Do not silently escalate or restore
+focus afterward; restoration can race with the user's own activity. Virtual
+page focus is a disclosed browser route, not native desktop activation.
+
+
 **Decision:** The route is a Machine Control Chrome extension, loaded unpacked
 during development and in Chrome for Testing, and distributed to people
 through the Chrome Web Store. Native hosts accept both IDs.
@@ -187,6 +205,13 @@ task. The [desktop matrix](../docs/desktop-acceptance.md) separates those
 package and environment boundaries.
 
 ## Open
+
+- **Open:** Chrome native saved-group confirmations need their own live
+  qualification and recovery route. They are distinct from the webpage dialogs
+  observed by `browser.dialog`. Neither automatic acceptance nor synced-group
+  deletion is authorized by optional indicator cleanup. Arbitrary scripts,
+  website popups and separately authorized native desktop operations can still
+  have foreground effects; the presentation policy is cooperative task behavior.
 
 - **Current, shipped in desktop 0.6.8 (2026-10-17):** Settings includes a
   default-off **Allow approved browser access while locked** preference,

@@ -30,10 +30,10 @@ Operations use `chrome.debugger` (CDP) on individual tabs:
 | `browser.dialog` | Observe dialog type/message/id; explicitly accept or dismiss the current id |
 
 The guarantees below require the matching new native relay and extension
-0.8.1. Older store workers and mixed-version combinations do not inherit this
+0.8.1 or later. Older store workers and mixed-version combinations do not inherit this
 qualification; coordinated app/store rollout remains separate.
 
-**Current source (0.8.1):** ordinary requests serialize per tab with eight
+**Current source:** ordinary requests serialize per tab with eight
 active slots and 64 retained requests. Discovery, dialog handling, grant
 fencing and release have independent bounded execution. Queued requests expire
 without dispatch; a dispatched timeout reports unknown effects and blocks that
@@ -67,6 +67,51 @@ page work that was already dispatched. `observedDialog: null` means unobserved,
 not proof of absence. A refusal
 to handle it is not proof the page has no dialog. Optional favicon work is
 bounded, waits for event readiness, and cannot prevent debugger detachment.
+
+## Background operation
+
+Extension 0.8.2 creates ordinary and browser-root CDP tabs in the background
+by default. The source CLI sends `active: false` explicitly so it also avoids
+selecting tabs with older extensions. `--background` remains accepted;
+`browser navigate --new-tab --foreground --url URL` explicitly selects a new
+tab. Tab selection and bringing the OS window forward are separate effects.
+
+Browser input uses `Emulation.setFocusEmulationEnabled` before dispatch,
+without selecting the tab or focusing its window. This emulates a focused,
+visible page for website scripts; it changes page focus/visibility semantics
+while attached. Release explicitly clears the override with a bounded command
+before detach rather than depending on debugger teardown.
+This does not undo the DOM element focus produced by typing: in the Mac
+fixture `document.hasFocus()` could remain true after normal hidden visibility
+returned, while the user's foreground application remained unchanged.
+An uncertain reset is reported as `virtualFocusResetUnconfirmed` on release
+and `virtualFocus: reset_unconfirmed` in tab enumeration. Unsupported preparation
+refuses; the extension never substitutes foreground or desktop input.
+
+Known CDP presentation commands (`Page.bringToFront`, `Target.activateTarget`,
+and explicitly foreground target creation) require opt-in. For a one-shot
+`browser.cdp`, send `allowForeground: true` (source CLI: `--foreground`).
+For a retained CDP connection, send
+`MachineControl.setForegroundAllowed` with `{"allowed":true}` before explicit
+foreground commands, and `{"allowed":false}` to end that mode. Each new
+connection starts with foreground disabled; queued activation rechecks the
+mode at dispatch. This opt-in is cooperative task policy, not a new grant or
+containment of arbitrary scripts, page popups, desktop access or a same-user
+shell. It does not implement an operator-only foreground permission.
+
+Older installed CLIs can still express the one-shot opt-in through their
+typed raw request transport, for example `desktop raw` with
+`{"operation":"browser.cdp","tabId":7,"method":"Page.bringToFront","allowForeground":true}`.
+Use an actually observed tab ID; the example ID is non-authoritative.
+
+Browser-root management has a five-second deadline and at most 64 retained
+requests, eight unsettled management dispatches and eight independent discovery
+dispatches. Discovery and tab close do not wait on the mutation queue.
+A management timeout ends its owning connection with an unknown-effect reason;
+late continuations are fenced and no action is replayed on reconnect. Unsettled
+Chrome calls retain their physical slots until they finish. Chrome's native
+saved-group confirmation remains distinct from `browser.dialog`; automatic
+confirmation or synced-group deletion is not introduced.
 
 Controlled tabs show an owned blue pointer over their site favicon. Newly
 created agent tabs join a blue **Machine Control** group in their own window;

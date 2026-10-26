@@ -1,5 +1,19 @@
 # Focused native relay smoke
 
+`background-macos-live.py` runs only in a claimed dedicated Mac VM. Supply
+`--source-root`, a separately identified `--chrome` executable, the installed
+`--host-executable`, resident `--socket`, `--claim` and a new private `--output`
+directory. It compiles `focus-sentinel.swift`, launches an empty Chrome for
+Testing profile with the real extension/native host, and checks independent
+HTTP click/text effects, tab selection, native foreground/key-window state,
+cursor position, virtual-focus cleanup and explicit CDP foreground/reconnect.
+The 20 ms sentinel sample does not exclude shorter transient focus changes.
+The runner reaps its owned browser and sentinel. The caller owns staging,
+evidence retention, claim release and restoring the VM's initial power state.
+
+The optional `--focus-emulation` switch is a diagnostic control for comparing
+the pre-repair inactive-tab route. Ordinary acceptance does not need it.
+
 `relay-smoke.py` runs ten bounded checks in an exclusively claimed dedicated
 Windows or GNOME Wayland Linux VM. It covers Off, extension connection,
 independent HTTP click and PNG effects, typed dialogs, stalled evaluation,

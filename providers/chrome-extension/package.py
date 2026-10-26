@@ -16,7 +16,7 @@ import zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parent
 STORE = json.loads((ROOT / "store/identity.json").read_text())
-FILES = ["service_worker.js", "browser_cdp.js", "indicators.js", "requests.js",
+FILES = ["service_worker.js", "browser_cdp.js", "indicators.js", "requests.js", "presentation.js",
          "panel.html", "panel.css", "panel.js",
          "icons/16.png", "icons/32.png", "icons/48.png", "icons/128.png"]
 

@@ -1310,7 +1310,7 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(value["data"]["request"], {
             "operation": "browser.navigate", "url": "https://example.com/",
-            "newTab": True,
+            "newTab": True, "active": False,
         })
         result, value = self.run_cli(
             "--target", "fixture", "browser", "navigate", "--url",
@@ -1327,6 +1327,24 @@ class ClientTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2)
         self.assertEqual(value["errorCode"], "usage")
+        result, value = self.run_cli(
+            "--target", "fixture", "browser", "navigate", "--url",
+            "https://example.com/", "--new-tab", "--foreground",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(value["data"]["request"]["active"])
+        result, value = self.run_cli(
+            "--target", "fixture", "browser", "cdp", "--tab", "4",
+            "--method", "Page.bringToFront", "--foreground",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(value["data"]["request"]["allowForeground"])
+        for arguments in (["navigate", "--url", "https://example.com/", "--foreground"],
+                          ["capture", "--foreground"],
+                          ["navigate", "--url", "https://example.com/", "--new-tab", "--background", "--foreground"]):
+            result, value = self.run_cli("--target", "fixture", "browser", *arguments)
+            self.assertEqual(result.returncode, 2)
+            self.assertEqual(value["errorCode"], "usage")
         result, value = self.run_cli(
             "--target", "fixture", "browser", "snapshot", "--tab", "4",
             "--max", "50", "--interactive",

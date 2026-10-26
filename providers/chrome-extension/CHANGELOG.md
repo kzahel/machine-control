@@ -3,7 +3,18 @@
 Store releases are tagged `extension-v<version>`; see
 [Web Store release](README.md#web-store-release).
 
-## [0.8.1] - Unreleased
+## [0.8.2] - 2026-10-26
+
+- Open agent tabs in the background by default, including browser-level CDP.
+- Deliver browser input using virtual page focus without selecting tabs or
+  bringing browser windows forward; refuse when that preparation is unavailable.
+- Require explicit opt-in for known CDP foreground commands, reset it on
+  reconnect and fence queued activation after withdrawal.
+- Bound browser-level management, keep discovery independent of stalled tab
+  close, and fence timed-out connections without replaying uncertain actions.
+- Include the 0.8.1 request, dialog and cleanup hardening in the store update.
+
+## [0.8.1] - Bundled development update
 
 - Bound ordinary requests per tab, preserve request authority across waits,
   cancel abandoned queued work and report uncertain dispatched effects.
