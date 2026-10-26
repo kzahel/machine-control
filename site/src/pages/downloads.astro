@@ -25,6 +25,7 @@ if (unavailable) {
         <a class="button button-secondary" href="#mac-download">Mac</a>
         <a class="button button-secondary" href="#windows-download">Windows</a>
         <a class="button button-secondary" href="#linux-download">Linux</a>
+        <a class="button button-secondary" href="#chrome-extension">Chrome extension</a>
       </nav>
       <section class="download-panel" aria-labelledby="mac-download">
         <div class="download-heading">
@@ -85,6 +86,24 @@ if (unavailable) {
           <p class="download-note"><a href={release.url}>Release notes</a></p>
           <p class="download-note">AppImage supports signed in-app updates. See the <a href="https://github.com/kzahel/machine-control/blob/main/desktop/LINUX.md">installation guide</a> for dependencies. Other desktops and physical hardware require separate validation.</p>
         </> : <p class="download-state">{unavailable ? "Downloads temporarily unavailable. Try again shortly." : "No public Linux release yet."}</p>}
+      </section>
+      <section class="download-panel" aria-labelledby="chrome-extension">
+        <div class="download-heading">
+          <h2 id="chrome-extension">Chrome extension</h2>
+          <span>Optional browser integration</span>
+        </div>
+        <p>Let agents work with your existing Chrome tabs, including signed-in sites.
+          Requires the Machine Control desktop app for Mac, Windows, or Linux.</p>
+        <div class="actions">
+          <a class="button button-primary" href="https://chromewebstore.google.com/detail/machine-control/epejchbeajneooefnklikkfhbaeadkpc">Install from the Chrome Web Store</a>
+        </div>
+        <ol class="download-steps">
+          <li>Install and open the Machine Control desktop app.</li>
+          <li>Install the extension, then complete browser setup in the app's Permissions.</li>
+          <li>Choose browser access and a duration, or approve an agent request.</li>
+        </ol>
+        <p class="download-note">Browser scripts and DevTools require separate access.
+          <a href="https://github.com/kzahel/machine-control/blob/main/topics/browser-control.md">Browser setup and capabilities</a></p>
       </section>
       <p class="download-note">For CLI automation and remote targets, see the <a href="https://github.com/kzahel/machine-control/blob/main/docs/cli-guide.md">CLI guide</a>. Physical <a href="https://github.com/kzahel/machine-control/tree/main/platforms/ios">iOS devices</a>, <a href="https://github.com/kzahel/machine-control/tree/main/platforms/chromeos">Chromebooks</a>, and <a href="https://github.com/kzahel/machine-control/tree/main/platforms/android">Android devices</a> use their native setup guides.</p>
     </div>
