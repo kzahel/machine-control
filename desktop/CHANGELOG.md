@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Make the Chrome Web Store the primary browser extension setup path on Mac,
+  Windows, and Linux. Keep bundled Developer mode installation under secondary
+  instructions, with folder copying only when explicitly requested.
+
 ## [0.6.10]
 
 - Authorize typed browser dialog inspection and handling through Windows

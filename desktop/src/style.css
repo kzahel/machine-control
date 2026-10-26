@@ -196,6 +196,10 @@ select {
 .setting-row + .setting-row {
   border-top: 1px solid #e8ebe9;
 }
+.browser-bundled {
+  padding: 0 12px 12px;
+  font-size: 12px;
+}
 .row-label {
   flex: 1;
   min-width: 0;

@@ -100,6 +100,12 @@ native host and opens the store listing, keeping "use the bundled copy
 few releases. Status names the connected copy (store or bundled, version) and
 warns when both are installed.
 
+**Current (2026-10-26), unreleased:** the shared desktop Permissions UI now
+implements the store-first setup action on Mac, Windows and Linux, with the
+bundled path under secondary instructions and an explicit folder-copy button.
+This source change does not qualify installed store-copy connection or add
+connected-copy/version reporting; those portions remain open.
+
 Forced installation belongs to the VM recipe: a dedicated test appliance
 force-installs the store ID with `ExtensionInstallForcelist` (Windows policy
 registry, Linux managed policy JSON; macOS needs a configuration profile),

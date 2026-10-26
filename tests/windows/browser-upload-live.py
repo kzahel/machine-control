@@ -180,7 +180,7 @@ def main():
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         poll(lambda: direct({'operation': 'status'}).get('data', {}).get('ready'))
         check(direct({'operation': 'browser.upload', 'files': []}).get('errorCode') == 'approval_required', 'Off-state upload refusal')
-        ui('Permissions'); ui('Set up browser extension'); ui('Access')
+        ui('Permissions'); ui('Use bundled extension (Developer mode)'); ui('Copy folder path'); ui('Access')
         for name in ['View desktop', 'Control apps and input', 'Browser scripts and DevTools']:
             ui(name, False)
         ui('Browser tabs', True); ui('Enable access')

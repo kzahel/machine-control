@@ -119,7 +119,7 @@ try:
          operator("state")["state"]["permissions"]["accessibility"])
     poll(lambda: call("status")["data"]["ready"])
     check("browser denied while Off", call("browser.tabs")["errorCode"] == "approval_required")
-    extension = operator("browser.setup")["extensionPath"]
+    extension = operator("browser.setup", bundled=True)["extensionPath"]
     # Linux resolves user native hosts beneath Chrome's selected user-data
     # directory. This is a separately identified test browser and profile.
     hosts = profile / "NativeMessagingHosts"

@@ -183,6 +183,7 @@ function App() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [actionBusy, setBusy] = useState(false);
+  const [bundledBrowserSetup, setBundledBrowserSetup] = useState(false);
   const busy = actionBusy || state?.uac?.setupState === "pending";
   const [scopes, setScopes] = useState<Scope[]>(["observe", "control"]);
   const [yaChoice, setYaChoice] = useState(false);
@@ -1172,39 +1173,90 @@ function App() {
                   </>
                 )}
               {state?.browser.available !== false && (
-                <div className="setting-row">
-                  <span
-                    className={
-                      "permission-icon " +
-                      (state?.browser.connected ? "done" : "")
-                    }
-                  >
-                    <Command size={15} />
-                  </span>
-                  <span className="row-label">
-                    Browser extension{" "}
-                    <span className="optional">(optional)</span>
-                  </span>
-                  <span className="row-status">
-                    {state?.browser.connected ? "Connected" : "Not connected"}
-                  </span>
-                  <button
-                    aria-label="Set up browser extension"
-                    disabled={busy}
-                    onClick={async () => {
-                      try {
-                        await native({ method: "browser.setup" });
-                        setNotice(
-                          "Path copied. In Chrome extensions, enable Developer mode, then Load unpacked.",
-                        );
-                      } catch (e) {
-                        setError(String(e));
+                <>
+                  <div className="setting-row">
+                    <span
+                      className={
+                        "permission-icon " +
+                        (state?.browser.connected ? "done" : "")
                       }
-                    }}
-                  >
-                    Set up
-                  </button>
-                </div>
+                    >
+                      <Command size={15} />
+                    </span>
+                    <span className="row-label">
+                      Browser extension{" "}
+                      <span className="optional">(optional)</span>
+                    </span>
+                    <span className="row-status">
+                      {state?.browser.connected ? "Connected" : "Not connected"}
+                    </span>
+                    <button
+                      aria-label="Install Chrome extension from the Web Store"
+                      disabled={busy}
+                      onClick={async () => {
+                        setBusy(true);
+                        setError("");
+                        setNotice("");
+                        try {
+                          await native({ method: "browser.setup" });
+                          setNotice(
+                            "Chrome Web Store opened. Install the Machine Control extension to connect your browser.",
+                          );
+                        } catch (e) {
+                          setError(String(e));
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
+                    >
+                      Install Chrome extension
+                    </button>
+                  </div>
+                  <div className="browser-bundled">
+                    <button
+                      className="text-button"
+                      aria-expanded={bundledBrowserSetup}
+                      aria-controls="bundled-browser-instructions"
+                      onClick={() =>
+                        setBundledBrowserSetup(!bundledBrowserSetup)
+                      }
+                    >
+                      Use bundled extension (Developer mode)
+                    </button>
+                    {bundledBrowserSetup && (
+                      <div id="bundled-browser-instructions">
+                        <p className="note">
+                          In Chrome, open chrome://extensions, enable Developer
+                          mode, then choose Load unpacked and paste the copied
+                          folder path. Use one copy of the extension at a time.
+                        </p>
+                        <button
+                          disabled={busy}
+                          onClick={async () => {
+                            setBusy(true);
+                            setError("");
+                            setNotice("");
+                            try {
+                              await native({
+                                method: "browser.setup",
+                                bundled: true,
+                              });
+                              setNotice(
+                                "Extension folder path copied. Paste it in Chrome's Load unpacked dialog.",
+                              );
+                            } catch (e) {
+                              setError(String(e));
+                            } finally {
+                              setBusy(false);
+                            }
+                          }}
+                        >
+                          Copy folder path
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </section>
             {mac && (

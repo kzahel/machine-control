@@ -245,7 +245,7 @@ def main():
         poll(lambda: direct({'operation': 'status'}).get('data', {}).get('ready'))
         report['endpointOffReply'] = direct({'operation': 'browser.endpoint'})
         check(report['endpointOffReply'].get('errorCode') == 'approval_required', 'Endpoint off by default')
-        ui('Permissions'); ui('Set up browser extension'); ui('Access')
+        ui('Permissions'); ui('Use bundled extension (Developer mode)'); ui('Copy folder path'); ui('Access')
         arm_browser(False)
         check(direct({'operation': 'browser.endpoint'}).get('errorCode') == 'approval_required', 'Browser grant cannot mint DevTools endpoint')
         capabilities = direct({'operation': 'capabilities'})['data']

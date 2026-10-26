@@ -22,6 +22,13 @@ and result vocabulary as desktop control. This applies to physical hosts
 
 ## Current
 
+**Current (2026-10-26), unreleased desktop setup:** the shared Permissions UI
+registers the native host and opens the Chrome Web Store from its primary
+extension button on Mac, Windows and Linux. Bundled Developer mode setup is
+secondary and copies its folder path only on explicit request. Installed
+store-copy qualification and connected-copy/version reporting remain separate
+work in [Tactical 117](../docs/tactical/117-chrome-web-store-extension.md).
+
 **Current (2026-10-26), extension 0.8.2 source:** new tabs default to background
 creation. Known CDP presentation commands require an explicit one-shot opt-in
 or connection-local foreground mode, which resets on reconnect. Browser input

@@ -312,7 +312,13 @@ class Desktop:
         elif method == "startup":
             self.startup.set(command.get("enabled"))
         elif method == "browser.setup":
-            return {"ok": True, "extensionPath": self.browser.setup()}
+            bundled = command.get("bundled") is True
+            extension = self.browser.setup(copy_path=bundled)
+            if not bundled:
+                if not Gio.AppInfo.launch_default_for_uri(
+                        "https://chromewebstore.google.com/detail/machine-control/epejchbeajneooefnklikkfhbaeadkpc", None):
+                    raise ValueError("Browser registered; could not open the Chrome Web Store")
+            return {"ok": True, "extensionPath": extension}
         elif method == "permission":
             if not self.unlocked or self.grants.grant or self.grants.pending or self.grants.updating:
                 raise ValueError("Stop access before changing sharing")

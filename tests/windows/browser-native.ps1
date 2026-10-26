@@ -41,7 +41,7 @@ try {
  $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
  $pipe=[IO.Pipes.NamedPipeClientStream]::new('.','machine-control-user-'+$sid+'-'+[Diagnostics.Process]::GetCurrentProcess().SessionId+'-desktop-browser',[IO.Pipes.PipeDirection]::InOut)
  try {$pipe.Connect(3000);$buffer=[byte[]]::new(4);$read=$pipe.ReadAsync($buffer,0,4);Assert ($read.Wait(6000) -and $read.Result -eq 0) 'Untrusted provider rejected before frame read'}finally{$pipe.Dispose()}
- Assert (Operator @{method='browser.setup'}).ok 'Native messaging registration'
+ Assert (Operator @{method='browser.setup';bundled=$true}).ok 'Native messaging registration'
  $p=Start-Process $Executable -ArgumentList 'chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/' -Wait -PassThru -WindowStyle Hidden
  Assert ($p.ExitCode -ne 0) 'Wrong extension origin refused'
  $server=Start-Process (Get-Command python.exe).Source -ArgumentList @(('"'+$Fixture+'"'),'--marker',('"'+(Join-Path $root 'effect.json')+'"'),'--port-file',('"'+(Join-Path $root 'port.txt')+'"')) -PassThru -WindowStyle Hidden

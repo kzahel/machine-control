@@ -119,7 +119,7 @@ def main():
                 ui("Settings")
                 ui("Allow approved browser access while locked", fields["enabled"])
             elif method == "browser.setup":
-                ui("Permissions"); ui("Set up browser extension")
+                ui("Permissions"); ui("Use bundled extension (Developer mode)"); ui("Copy folder path")
             elif method in ("pause", "resume", "stop"):
                 ui("Access")
                 ui({"pause": "Pause access", "resume": "Resume access", "stop": "Stop access"}[method])
@@ -212,7 +212,7 @@ def main():
         check("no initial grant", direct("grant.status")["data"].get("grant") is None)
         operator("browser_while_locked", enabled=True)
         check("preference grants no authority", direct("browser.tabs").get("errorCode") == "approval_required")
-        operator("browser.setup")
+        operator("browser.setup", bundled=True)
         chrome = subprocess.Popen([str(args.chrome), "--user-data-dir=" + str(profile), "--no-first-run",
             "--no-default-browser-check", "--disable-gpu", "--enable-logging=stderr", "--use-mock-keychain", "--remote-debugging-port=0",
             "--disable-extensions-except=" + str(args.runtime / "browser-extension"),

@@ -144,10 +144,14 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
             button: "Open Screen Recording Settings", action: #selector(openScreenRecording)))
         stack.addArrangedSubview(row(
             id: "browser", title: "Optional: Chrome extension",
-            detail: "Lets agents operate Chrome tabs when you allow browser access. In "
-                + "chrome://extensions, turn on Developer mode, choose Load unpacked, and "
-                + "select the extension folder.",
-            button: "Copy Extension Folder Path", action: #selector(copyExtensionPath)))
+            detail: "Lets agents operate Chrome tabs when you allow browser access. "
+                + "Install the Machine Control extension from the Chrome Web Store.",
+            button: "Install Chrome extension", action: #selector(installBrowserExtension)))
+        let bundled = NSButton(title: "Use bundled extension (Developer mode)…",
+                               target: self, action: #selector(showBundledExtensionInstructions))
+        bundled.bezelStyle = .inline
+        bundled.font = .systemFont(ofSize: 12)
+        stack.addArrangedSubview(bundled)
 
         let done = NSButton(title: "Done", target: self, action: #selector(close))
         done.bezelStyle = .rounded
@@ -221,11 +225,24 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
         open("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
     }
 
-    @objc private func copyExtensionPath() {
-        let path = extensionPath()
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(path, forType: .string)
-        rows["browser"]?.button.title = "Copied — paste it in Chrome's Load unpacked dialog"
+    @objc private func installBrowserExtension() {
+        do { _ = try setupBrowserExtension() }
+        catch { NSAlert(error: error).runModal() }
+    }
+
+    @objc private func showBundledExtensionInstructions() {
+        let alert = NSAlert()
+        alert.messageText = "Use the bundled Chrome extension"
+        alert.informativeText = "In Chrome, open chrome://extensions, enable Developer mode, "
+            + "then choose Load unpacked and paste the copied folder path. "
+            + "Use one copy of the extension at a time."
+        alert.addButton(withTitle: "Copy folder path")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        do {
+            _ = try setupBrowserExtension(bundled: true, bundledExtension: URL(fileURLWithPath: extensionPath()))
+            rows["browser"]?.status.stringValue = "Folder path copied"
+        } catch { NSAlert(error: error).runModal() }
     }
 
     @objc private func close() {

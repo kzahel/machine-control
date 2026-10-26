@@ -6,14 +6,14 @@ namespace MachineControl.Windows;
 
 internal static class BrowserRegistration
 {
-    internal static void Install()
+    internal static void Install(bool bundled = false)
     {
         var executable = Environment.ProcessPath
             ?? throw new InvalidOperationException("Browser executable unavailable");
         if (Path.GetFileName(executable) != "machine-control-windows.exe")
             throw new InvalidOperationException("Install the packaged companion first");
         var extension = Path.Combine(Path.GetDirectoryName(executable)!, "browser-extension");
-        if (!File.Exists(Path.Combine(extension, "manifest.json")))
+        if (bundled && !File.Exists(Path.Combine(extension, "manifest.json")))
             throw new InvalidOperationException("Packaged browser extension is missing");
         var manifest = Path.Combine(RuntimeProfile.ManagementRoot, "browser-host.json");
         Directory.CreateDirectory(RuntimeProfile.ManagementRoot);
@@ -33,6 +33,22 @@ internal static class BrowserRegistration
         File.Move(manifest + ".new", manifest, overwrite: true);
         using var key = root.CreateSubKey(keyPath);
         key.SetValue("", manifest, RegistryValueKind.String);
+        if (!bundled)
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "https://chromewebstore.google.com/detail/machine-control/epejchbeajneooefnklikkfhbaeadkpc",
+                    UseShellExecute = true,
+                });
+            }
+            catch (System.ComponentModel.Win32Exception ex)
+            {
+                throw new InvalidOperationException("Browser registered; could not open the Chrome Web Store", ex);
+            }
+            return;
+        }
         Exception? failure = null;
         var clipboard = new Thread(() =>
         {

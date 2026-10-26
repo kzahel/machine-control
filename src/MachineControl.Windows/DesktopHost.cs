@@ -113,7 +113,7 @@ internal static class DesktopHost
                             journal.Diagnostic("desktop.supervisor", command["code"]?.GetValue<string>() ?? "unknown");
                             reply = new { ok = true }; break;
                         case "browser.setup":
-                            BrowserRegistration.Install();
+                            BrowserRegistration.Install(command["bundled"]?.GetValue<bool>() == true);
                             reply = new { ok = true }; break;
                         case "uac.enable":
                             DesktopUacClient.Enable(command["enabled"]?.GetValue<bool>() == true, broker);

@@ -71,7 +71,7 @@ try {
     'resume' {Press 'Access';Press 'Resume access'}
     'stop' {Press 'Access';Press 'Stop access'}
     'browser' {
-     Press 'Permissions';$setup=$true;Press 'Set up browser extension'
+     Press 'Permissions';$setup=$true;Press 'Use bundled extension (Developer mode)';Press 'Copy folder path'
      $extension=Join-Path $Install 'runtime\browser-extension'
      $server=Start-Process (Get-Command python.exe).Source -ArgumentList @(('"'+$BrowserFixture+'"'),'--marker',('"'+(Join-Path $Mailbox 'browser-effect.json')+'"'),'--port-file',('"'+(Join-Path $Mailbox 'browser-port.txt')+'"')) -PassThru -WindowStyle Hidden
      $ready=[DateTime]::UtcNow.AddSeconds(15)

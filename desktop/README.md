@@ -128,8 +128,11 @@ for setup, agent lifecycle, removal, and the precise VM/physical acceptance scop
 Preview grants remain target-wide for same-user callers. This app is not a
 sandbox for an agent with unrestricted same-user shell access. Closing the
 operator window keeps the tray and resident running; Quit ends the process.
-Permission changes may require Restart. Browser integration is optional and
-currently uses the bundled unpacked extension, with explicit user setup.
+Permission changes may require Restart. Browser integration is optional.
+In Permissions, **Install Chrome extension** registers the native host and opens
+the Chrome Web Store listing. **Use bundled extension (Developer mode)** is a
+secondary path with an explicit **Copy folder path** action and Load unpacked
+instructions. Both copies use the same native host; use one copy at a time.
 The 0.5.7 [Windows browser upload](WINDOWS-BROWSER-UPLOAD.md) operation
 attaches validated target-local files through that extension without the OS
 picker, under browser grants and live ownership.

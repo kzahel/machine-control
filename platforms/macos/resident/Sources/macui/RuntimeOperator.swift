@@ -2,6 +2,29 @@ import AppKit
 import ApplicationServices
 import Foundation
 
+/// Operator-only browser registration and explicitly selected installation path.
+func setupBrowserExtension(bundled: Bool = false, bundledExtension: URL? = nil) throws -> String {
+    // Unpacked development copy and Chrome Web Store release.
+    let origins = ["chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/",
+                   "chrome-extension://epejchbeajneooefnklikkfhbaeadkpc/"]
+    let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Google/Chrome/NativeMessagingHosts")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let host: [String: Any] = ["name": "org.machine_control.browser", "description": "Machine Control browser provider",
+        "path": Bundle.main.executableURL!.path, "type": "stdio", "allowed_origins": origins]
+    try JSONSerialization.data(withJSONObject: host, options: [.prettyPrinted, .sortedKeys])
+        .write(to: directory.appendingPathComponent("org.machine_control.browser.json"), options: .atomic)
+    let extensionURL = bundledExtension ?? Bundle.main.resourceURL!.appendingPathComponent("chrome-extension")
+    if bundled {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(extensionURL.path, forType: .string)
+    } else {
+        guard NSWorkspace.shared.open(URL(string: "https://chromewebstore.google.com/detail/machine-control/epejchbeajneooefnklikkfhbaeadkpc")!) else {
+            throw MacUIError.action("Browser registered; could not open the Chrome Web Store")
+        }
+    }
+    return extensionURL.path
+}
+
 extension ResidentRuntime {
     /// Resume's helper wait is asynchronous; its local authority transition
     /// returns to the coordinator only while the initiating intent is live.
@@ -214,19 +237,7 @@ extension ResidentRuntime {
                     }
                     try server.lockedUse.removePermission()
                 case "browser.setup":
-                    // Unpacked development copy and Chrome Web Store release.
-                    let origins = ["chrome-extension://ncbfifkjllmnkkjmomjohinigfgdocjc/",
-                                   "chrome-extension://epejchbeajneooefnklikkfhbaeadkpc/"]
-                    let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Google/Chrome/NativeMessagingHosts")
-                    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-                    let host: [String: Any] = ["name": "org.machine_control.browser", "description": "Machine Control browser provider",
-                        "path": Bundle.main.executableURL!.path, "type": "stdio", "allowed_origins": origins]
-                    try JSONSerialization.data(withJSONObject: host, options: [.prettyPrinted, .sortedKeys])
-                        .write(to: directory.appendingPathComponent("org.machine_control.browser.json"), options: .atomic)
-                    let extensionURL = Bundle.main.resourceURL!.appendingPathComponent("chrome-extension")
-                    NSPasteboard.general.clearContents(); NSPasteboard.general.setString(extensionURL.path, forType: .string)
-                    NSWorkspace.shared.activateFileViewerSelecting([extensionURL])
-                    return ["ok": true, "extensionPath": extensionURL.path]
+                    return ["ok": true, "extensionPath": try setupBrowserExtension(bundled: command["bundled"] as? Bool == true)]
                 default: throw MacUIError.usage("Unknown operator command")
                 }
                 return ["ok": true]
