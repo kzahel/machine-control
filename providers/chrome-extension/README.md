@@ -29,6 +29,12 @@ Operations use `chrome.debugger` (CDP) on individual tabs:
 | `browser.release` | Detach all debugger sessions; refuses promptly while an observed dialog needs handling |
 | `browser.dialog` | Observe dialog type/message/id; explicitly accept or dismiss the current id |
 
+For file uploads, open Machine Control's details in `chrome://extensions` and
+enable **Allow access to file URLs**. Extension 0.8.4 declares `file:///*`
+host access so Chrome exposes this switch; earlier store manifests omitted it.
+The declaration does not enable file access automatically. Machine Control's
+browser grant is still required for upload requests.
+
 The guarantees below require the matching new native relay and extension
 0.8.1 or later. Older store workers and mixed-version combinations do not inherit this
 qualification; coordinated app/store rollout remains separate.

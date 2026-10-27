@@ -22,6 +22,9 @@
     "alarms",
     "sidePanel"
   ],
+  "host_permissions": [
+    "file:///*"
+  ],
   "background": {
     "service_worker": "service_worker.js",
     "type": "module"

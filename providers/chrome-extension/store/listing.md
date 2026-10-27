@@ -39,6 +39,7 @@ Let AI agents that the user runs operate Chrome tabs through the Machine Control
 ## Permission justifications
 
 - **debugger**: Chrome DevTools protocol on the tabs an agent controls is how the extension reads page structure, clicks, types, captures screenshots and attaches files. It attaches only while the user's browser grant is active and detaches when the grant ends.
+- **`file:///*`**: declares local file access so Chrome exposes the "Allow access to file URLs" switch needed to attach local files to upload fields. The user must enable that switch separately; upload requests also require the desktop app's browser grant.
 - **nativeMessaging**: the only connection the extension makes is to the Machine Control desktop app on the same computer, which checks the user's grant before forwarding any request.
 - **tabs**: lists, opens, navigates and focuses tabs for agent requests, and shows controlled tabs in the side panel.
 - **tabGroups**: puts new agent-created tabs in a visible "Machine Control" group and removes that grouping when control ends.

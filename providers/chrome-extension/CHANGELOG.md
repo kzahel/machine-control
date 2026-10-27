@@ -3,6 +3,12 @@
 Store releases are tagged `extension-v<version>`; see
 [Web Store release](README.md#web-store-release).
 
+## [0.8.4] - 2026-10-27
+
+- Declare local file URL access so Chrome exposes the "Allow access to file
+  URLs" switch required for file uploads. Users still enable it explicitly
+  on the extension's details page.
+
 ## [0.8.3] - 2026-10-26
 
 - Build the store upload outside the checkout so generated ZIPs do not fail

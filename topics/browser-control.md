@@ -22,6 +22,12 @@ and result vocabulary as desktop control. This applies to physical hosts
 
 ## Current
 
+**Current (2026-10-27), extension 0.8.4 source:** local file host access is
+declared so users can enable Chrome's file-access switch for uploads. The
+extension guide owns [setup instructions](../providers/chrome-extension/README.md);
+the provider dossier separates this manifest repair from installed store-copy
+qualification. Browser authority still comes from the resident grant.
+
 **Current (2026-10-26), unreleased desktop setup:** the shared Permissions UI
 registers the native host and opens the Chrome Web Store from its primary
 extension button on Mac, Windows and Linux. Bundled Developer mode setup is

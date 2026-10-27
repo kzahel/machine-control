@@ -62,6 +62,13 @@ and exact installed product evidence.
 
 ## Fidelity, consequences, and gaps
 
+**Current (2026-10-27), extension 0.8.4 source:** the manifest declares
+`file:///*` host access so Chrome can expose its separate user-controlled
+file-access switch. Earlier store manifests omitted that declaration even
+though upload errors directed users to the switch. Chrome documents the
+[manual file-access grant](https://developer.chrome.com/docs/extensions/develop/concepts/match-patterns#special-cases);
+installed store-copy upload qualification remains separate.
+
 **Current (2026-10-26), extension 0.8.2, source-reviewed and contract-tested:**
 browser-root management has five-second deadlines, 64 retained requests,
 eight unsettled mutation dispatches and eight independent discovery dispatches.
