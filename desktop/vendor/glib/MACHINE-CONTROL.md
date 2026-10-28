@@ -32,3 +32,22 @@ This requires the platform GLib/GObject/GIO development libraries. The test
 also runs in Linux desktop CI. Remove the patch and this directory when the
 Tauri/GTK dependency chain accepts a fixed upstream release. Future GLib
 advisories still require review; this backport fixes only the named issue.
+
+## Static-analysis triage
+
+The initial CodeQL Rust scan conflates the generic `from_glib_none`,
+`from_glib_full`, and `from_glib` implementations: its reported paths connect
+the console charset's `char*` to `GObject`, boxed-test, and `GValue` converters,
+or a null-checked `GError*` to `GObject`/`GValue`. Those trait instantiations are
+incompatible in Rust. It similarly connects the UUID-validation boolean to a
+log-level conversion and labels that boolean a logged secret. These are
+reviewed false positives, not changes to the upstream pointer code.
+
+The `PtrSlice::truncate` report conflates dropping the pointer wrapper stored
+in an array slot with deallocating the slot itself. The container retains its
+allocation while the element's destructor releases its pointee; writing the
+null terminator into that slot remains valid. The four upstream optimized
+`collections::ptr_slice` tests exercise pointer ownership. The added
+`pointer_slice_retains_storage_after_dropping_elements` integration test
+exercises truncation followed by reuse of the retained storage.
+Security queries remain enabled; future reports need individual review.
