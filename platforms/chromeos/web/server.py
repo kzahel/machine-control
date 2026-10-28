@@ -23,6 +23,22 @@ REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHROMEOS_BIN = os.path.join(REPO_DIR, 'bin', 'chromeos')
 WEB_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_PORT = 8765
+MODIFIERS = {name: name for name in ('ctrl', 'control', 'alt', 'shift', 'search', 'meta')}
+SHORTCUT_KEYS = {name: name for name in (
+    *'abcdefghijklmnopqrstuvwxyz0123456789 -=[]\\;\'`,./', '\n', '\t',
+    *(f'f{i}' for i in range(1, 13)),
+    'enter', 'return', 'tab', 'escape', 'esc', 'backspace', 'space',
+    'insert', 'delete', 'home', 'end', 'pageup', 'page-up', 'pagedown',
+    'page-down', 'up', 'down', 'left', 'right', 'search', 'meta',
+)}
+BUTTONS = {name: name for name in ('left', 'middle', 'right')}
+
+
+def named_input(choices, value):
+    """Return an owned literal, never an arbitrary HTTP command argument."""
+    if not isinstance(value, str) or value.lower() not in choices:
+        raise ValueError('unsupported input name')
+    return choices[value.lower()]
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -44,6 +60,8 @@ class Handler(BaseHTTPRequestHandler):
                 event = json.loads(body)
                 result = self._handle_event(event)
                 self._json_response(result)
+            except (ValueError, TypeError, KeyError):
+                self._json_response({'error': 'invalid event'}, 400)
             except Exception as e:
                 self._json_response({'error': str(e)}, 500)
         else:
@@ -108,7 +126,7 @@ class Handler(BaseHTTPRequestHandler):
             text = event.get('text', '')
             if not text:
                 return {'ok': True}
-            print(f'type {text!r}', flush=True)
+            print('type text', flush=True)
             r = subprocess.run(
                 [CHROMEOS_BIN, 'type', text],
                 capture_output=True, text=True, timeout=10,
@@ -123,6 +141,10 @@ class Handler(BaseHTTPRequestHandler):
             key = event.get('key', '')
             if not key:
                 return {'error': 'missing key'}
+            if not isinstance(mods, list) or len(mods) > 6:
+                raise ValueError('invalid modifiers')
+            mods = [named_input(MODIFIERS, mod) for mod in mods]
+            key = named_input(SHORTCUT_KEYS, key)
             args = [CHROMEOS_BIN, 'shortcut'] + mods + [key]
             print(f'shortcut {" ".join(mods + [key])}', flush=True)
             r = subprocess.run(args, capture_output=True, text=True, timeout=10)
@@ -144,7 +166,7 @@ class Handler(BaseHTTPRequestHandler):
             return {'ok': ok}
 
         elif etype == 'mouse_click':
-            button = event.get('button', 'left')
+            button = named_input(BUTTONS, event.get('button', 'left'))
             x = event.get('x')
             y = event.get('y')
             args = [CHROMEOS_BIN, 'mouse-click', button]

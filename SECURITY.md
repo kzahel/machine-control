@@ -95,6 +95,16 @@ warnings remain visible rather than being suppressed or treated as fixed.
 The vendored upstream test graph also uses unmaintained `basic-toml`; that
 dependency is not part of the shipped desktop application.
 
+CodeQL triage keeps the queries enabled. Doctor output includes credential-kind
+labels, wipe-policy counts, and passcode-required booleans. Experiment receipts
+include a private credential-file locator and equality/permission verification
+booleans; credential bytes are written only to the separate mode-0600 secret
+store. Those metadata flows are reviewed false positives for clear-text secret
+logging/storage. The browser indicator restores a favicon `link` element's
+original `href` in the page DOM; this image-resource context does not execute
+an HTML document or a JavaScript URL. That restoration is a reviewed false
+positive for DOM XSS. New findings still require individual review.
+
 ## Reporting
 
 This prototype has no published security-response address yet. Until one
