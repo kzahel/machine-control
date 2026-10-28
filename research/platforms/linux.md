@@ -118,8 +118,10 @@ The [portal dossier](../providers/xdg-desktop-portal.md) owns route facts and
 The owned [compatibility backport](../../desktop/vendor/glib/MACHINE-CONTROL.md)
 applies upstream PR 1343 without changing its GLib type version. An optimized
 regression crashes against the published crate and passes against the backport
-on macOS. Linux CI is configured to run it; that is not yet Linux execution or
-new packaged acceptance. [Linux desktop](../../topics/linux-desktop.md) owns
+on macOS. The patched optimized regression also passes in
+[Linux CI](https://github.com/kzahel/machine-control/actions/runs/40653259369).
+This is library evidence, not new packaged acceptance.
+[Linux desktop](../../topics/linux-desktop.md) owns
 the removal condition for this compatibility patch.
 
 **Current — credential handoff tooling:** The owned Linux lifecycle route now

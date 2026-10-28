@@ -26,7 +26,8 @@ by the desktop app.
 0.18. The [local compatibility backport](../desktop/vendor/glib/MACHINE-CONTROL.md)
 applies the upstream `VariantStrIter` pointer-mutability fix while retaining
 compatible types. The optimized iterator regression fails against upstream
-0.18.5 and passes with the patch on macOS; Linux CI runs the same regression.
+0.18.5 on macOS and passes with the patch on macOS and
+[Linux CI](https://github.com/kzahel/machine-control/actions/runs/40653259369).
 This is library evidence, not new installed Linux desktop acceptance. Remove
 the patch when the GTK/Tauri chain accepts a fixed upstream GLib release.
 
