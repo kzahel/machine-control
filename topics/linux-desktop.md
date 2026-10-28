@@ -22,6 +22,14 @@ RemoteDesktop and ScreenCast consent for input and pixels. The dedicated
 appliance's root virtual-HID broker is a separate profile and is never selected
 by the desktop app.
 
+**Current, unreleased:** GTK3 still fixes the Tauri dependency graph to GLib
+0.18. The [local compatibility backport](../desktop/vendor/glib/MACHINE-CONTROL.md)
+applies the upstream `VariantStrIter` pointer-mutability fix while retaining
+compatible types. The optimized iterator regression fails against upstream
+0.18.5 and passes with the patch on macOS; Linux CI runs the same regression.
+This is library evidence, not new installed Linux desktop acceptance. Remove
+the patch when the GTK/Tauri chain accepts a fixed upstream GLib release.
+
 **Decision:** Start with Ubuntu 24.04 GNOME 46 Wayland. Report session, semantic,
 capture, input, shortcut, and browser availability independently. KDE, wlroots,
 X11, protected login/unlock, other users, and physical hardware require their

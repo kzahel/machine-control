@@ -1,0 +1,54 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directories:
+      - /site
+      - /desktop
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      npm-maintenance:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /platforms/ios
+    # The accepted native runner stays pinned; refresh its dependency graph.
+    versioning-strategy: lockfile-only
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    groups:
+      ios-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      ios-maintenance:
+        patterns: ["*"]
+
+  - package-ecosystem: cargo
+    directories:
+      - /desktop/src-tauri
+      - /desktop/vendor/glib
+      - /platforms/macos/sudo
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      rust-security:
+        applies-to: security-updates
+        patterns: ["*"]
+      rust-maintenance:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

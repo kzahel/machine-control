@@ -1,0 +1,54 @@
+name: Security checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm:
+    name: Dependencies (${{ matrix.directory }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        directory: [site, desktop, platforms/ios]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: ${{ matrix.directory }}/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.directory }}/pnpm-lock.yaml
+      - name: Audit the exact frozen graph
+        working-directory: ${{ matrix.directory }}
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm audit --audit-level low
+
+  glib-backport:
+    name: Rust audit and optimized GLib regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: sudo apt-get update && sudo apt-get install -y libglib2.0-dev
+      - run: cargo install cargo-audit --locked --version 0.22.2
+      - run: cargo audit --file desktop/src-tauri/Cargo.lock --deny unsound
+      - run: cargo audit --file platforms/macos/sudo/Cargo.lock --deny unsound
+      - run: cargo audit --file desktop/vendor/glib/Cargo.lock --deny unsound
+      - run: cargo test --manifest-path desktop/vendor/glib/Cargo.toml --locked --release --test variant_str_iter_backport

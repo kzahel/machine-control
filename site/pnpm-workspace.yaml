@@ -1,6 +1,10 @@
 packages:
   - "."
 
+# Miniflare pins an older 7.x client; retain its major while applying fixes.
+overrides:
+  "undici@7": "^7.30.1"
+
 allowBuilds:
   esbuild: true
   sharp: true

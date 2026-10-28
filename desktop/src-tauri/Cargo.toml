@@ -4,6 +4,11 @@ version = "0.3.0"
 edition = "2021"
 default-run = "macui"
 
+[patch.crates-io]
+# GTK3 still requires glib 0.18; backport GHSA-wrw7-89jp-8q8g without
+# mixing incompatible GLib types. See ../vendor/glib/MACHINE-CONTROL.md.
+glib = { path = "../vendor/glib" }
+
 [[bin]]
 name = "macui"
 path = "src/main.rs"

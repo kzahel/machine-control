@@ -65,6 +65,36 @@ tokens, certificates, private endpoints, credential values, or private target
 inventory. Login requires an explicitly authorized human or future secret
 provider outside the ordinary agent-visible request path.
 
+## Dependency maintenance
+
+Dependabot proposes grouped security updates and weekly maintenance updates
+for the active npm, Cargo, and GitHub Actions manifests. The iOS native runner
+stays pinned; its HTTP client is updated through a scoped pnpm override.
+The retired ChromeOS MCP project has been removed. Current ChromeOS bootstrap
+and control use the separate dependency-free Python helpers.
+
+`Security checks` audits frozen npm graphs, the desktop and Mac helper Cargo
+locks, and the optimized GLib backport regression. Tauri's GTK3 dependency
+still requires GLib 0.18; the local
+[compatibility backport](desktop/vendor/glib/MACHINE-CONTROL.md) applies the
+upstream fix for GHSA-wrw7-89jp-8q8g. Its original version is retained rather
+than relabeled as a fixed upstream release. A path dependency is not covered
+by registry version matching, so the dedicated regression is required.
+
+CodeQL scans Actions, JavaScript/TypeScript, Python, C#, C/C++, and Rust without
+a product build. This is static coverage, not packaged or live-target
+acceptance; generated code, Swift, and Objective-C are not covered by this
+workflow. Rust audit reports unmaintained dependencies for review and fails
+on known vulnerabilities and unsoundness.
+
+The remaining maintenance warnings are `proc-macro-error` through GTK3 and
+the `zvariant`, `zvariant_derive`, and `zbus_names` packages through the Linux
+single-instance plugin. The latter require an upstream migration to zbus 6;
+they cannot be replaced by a compatible lockfile update. These informational
+warnings remain visible rather than being suppressed or treated as fixed.
+The vendored upstream test graph also uses unmaintained `basic-toml`; that
+dependency is not part of the shipped desktop application.
+
 ## Reporting
 
 This prototype has no published security-response address yet. Until one

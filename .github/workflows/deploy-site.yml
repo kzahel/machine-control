@@ -39,7 +39,9 @@ jobs:
 
       - name: Install dependencies
         working-directory: site
-        run: pnpm install --frozen-lockfile
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm audit --audit-level low
 
       - name: Build website
         working-directory: site
@@ -56,11 +58,9 @@ jobs:
         run: node scripts/prepare-ci-deploy.mjs
 
       - name: Deploy Worker
-        uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: site
-          packageManager: pnpm
-          wranglerVersion: 4.125.0
-          command: deploy
+        working-directory: site
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        # Use the audited CLI from the frozen site lockfile.
+        run: pnpm exec wrangler deploy

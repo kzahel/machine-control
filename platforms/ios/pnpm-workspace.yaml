@@ -1,2 +1,9 @@
+packages:
+  - "."
+
 minimumReleaseAgeExclude:
   - agent-device@0.20.5
+
+# Keep the accepted Agent Device runner pinned while fixing its HTTP client.
+overrides:
+  "undici@7": "^7.30.1"
