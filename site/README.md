@@ -7,8 +7,9 @@ Cloudflare Turnstile.
 
 ## Local development
 
-Use Node 22.12+ and the project-pinned pnpm 11. Build-script permissions live in
-the workspace's `allowBuilds` map.
+Use Node 26 (the CI version) and the project-pinned pnpm 11. Astro requires
+Node 22.23.4 or newer. Build-script permissions live in the workspace's
+`allowBuilds` map.
 
 Install dependencies and create the local database once:
 
