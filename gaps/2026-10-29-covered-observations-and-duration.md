@@ -13,7 +13,7 @@ Two separate owner commands requesting 900 seconds ended with
 `guardian_safety_unavailable` and `lockObserved: true`. Their reported
 `transportElapsedMs` values were approximately 862,412 and 59,704. These are
 owner-request transport durations including admission/cleanup, not isolated
-measurements of active control. A fixed fifteen-minute cap does not explain
+measurements of active control. A fifteen-minute deadline alone does not explain
 both. Subsequent inspection reported recovering or paused desktop control;
 previously approved browser access remained available.
 
@@ -42,6 +42,40 @@ A stale mutation must never be replayed to resolve an observation race.
 Some attempts also contained caller mistakes: a helper retained an old claim,
 and native global display points were mixed with another provider's window
 screenshot pixels. These were corrected and must not be blamed on the broker.
+
+## Source inspection: duration and failure attribution
+
+Current source explicitly bounds each control owner to 900 seconds; this is
+not an inferred timer. `client/machine_control.py` rejects `desktop session
+control` durations outside 1–900 seconds, and `client/control_session.py`
+validates the same admission range. The macOS resident's
+`resident/Sources/macui/AccessAdmission.swift` and root
+`guests/macos/unlock/Broker.m` also enforce that bound. Paths under the native platform are relative to
+`platforms/macos/`. A target-use claim has a separate lifetime; renewing it
+does not extend the admitted control owner. `client/agent_session_transport.py`
+explicitly ends its retained owner after 900 seconds and requires a new session.
+
+In `resident/Sources/macui/LockedUseGuardian.swift`, `tick()` distinguishes
+`duration_expired` from `guardian_safety_unavailable`. The latter currently
+combines console mismatch, unexpected lock, unhealthy covers, unhealthy input
+guard and closed lid into one reason. That check precedes the deadline check,
+so the coarse reason alone cannot exclude a simultaneous expiry. The much
+shorter failed request nevertheless requires additional explanation.
+`resident/Sources/macui/LockedUse.swift` classifies `duration_expired` as a
+clean ending; guardian failure is a fault instead. These are source findings,
+not proof of the exact installed binary or a live expiry test.
+Existing client qualification also passes: 33 tests across
+`test_control_session.py`, `test_agent_session_transport.py` and
+`test_locked_use_client.py`. Coverage includes rejecting a 901-second owner,
+ending an expired retained admission and releasing its claim without another
+agent call. These fixture tests do not exercise a real fifteen-minute covered
+session or the reported guardian fault.
+
+A useful diagnostic improvement is a bounded, private structured subreason
+for each guardian condition, with monotonic deadline/remaining-time fields at
+termination. Preserve the existing external reason and failure behavior; do
+not log console identities or UI contents. This would distinguish intended
+expiry from health failure without relaxing the fifteen-minute bound.
 
 ## Bounded workaround
 

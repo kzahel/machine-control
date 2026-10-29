@@ -133,7 +133,9 @@ revision rather than inheriting these new semantics.
 appeared absent from native reads and became visible after clean completion
 and re-admission; replaying an apparently ineffective edit produced duplicate
 text. Separate 900-second owner requests ended with guardian failure at very
-different elapsed times, so a fixed fifteen-minute cap is unproven. Read-only
+different elapsed times. Source enforces a 900-second owner bound, separate
+from target claims, but normal expiry and guardian faults have different end
+reasons; deadline expiry alone does not explain the observations. Read-only
 status also raced normal lifecycle transitions. The sanitized
 [gap record](../gaps/2026-10-29-covered-observations-and-duration.md) separates
 observations, caller mistakes and proposed diagnostics. No runtime fix or
