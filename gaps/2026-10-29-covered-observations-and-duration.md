@@ -52,6 +52,16 @@ Later edits used checkpoints and refused to save on locale/content mismatch.
 This is costly task recovery, not proof of a repaired provider or a permanent
 contract. Normal grant checks, covers and relock remained in place.
 
+The task ultimately completed nineteen field comparisons after a full browser
+reload. Its recovery path used 125 intentionally short 600-second owner
+sessions; every recorded owner ended `completed` with observed lock. The
+maximum measured owner wall time was 168,668 ms and maximum observed helper
+sample age was 1,342 ms. During normal lifecycle transitions, read-only
+inspection encountered 26 generation races and 13 interruption races before
+fresh readiness settled. Private evidence retains per-owner timestamps and
+693 minimized state observations. This successful workaround does not test
+the full requested lease duration or establish that the earlier fault is fixed.
+
 ## Next diagnostics
 
 - Compare an owned native text fixture and separate Chrome for Testing fixture
