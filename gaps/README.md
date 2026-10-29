@@ -6,3 +6,4 @@ stays here as the record; its fix belongs to a tactical, and continuing truth
 belongs to the owning topic.
 
 - [2026-10-25 — locked-use failure revokes standing access](2026-10-25-locked-use-self-revocation.md)
+- [2026-10-29 — covered observations and duration](2026-10-29-covered-observations-and-duration.md)

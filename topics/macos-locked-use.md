@@ -129,6 +129,16 @@ partly implemented in source; unattended resumption and physical acceptance
 remain open. Earlier physical evidence retains the behavior of its tested
 revision rather than inheriting these new semantics.
 
+**Open (2026-10-29), interactive evidence:** covered browser edits sometimes
+appeared absent from native reads and became visible after clean completion
+and re-admission; replaying an apparently ineffective edit produced duplicate
+text. Separate 900-second owner requests ended with guardian failure at very
+different elapsed times, so a fixed fifteen-minute cap is unproven. Read-only
+status also raced normal lifecycle transitions. The sanitized
+[gap record](../gaps/2026-10-29-covered-observations-and-duration.md) separates
+observations, caller mistakes and proposed diagnostics. No runtime fix or
+broader acceptance is claimed.
+
 ## Boundaries
 
 **Current, unreleased source:** [Browser-only locked access](browser-control.md#open)
