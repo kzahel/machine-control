@@ -13,8 +13,14 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import "./style.css";
+import {
+  type Scope,
+  defaultAccessChoices,
+  readAccessChoices,
+  validAccessChoices,
+  writeAccessChoices,
+} from "./access-choices";
 
-type Scope = "observe" | "control" | "browser" | "devtools";
 type UpdateState = {
   phase: string;
   checking: boolean;
@@ -25,6 +31,7 @@ type UpdateState = {
   error: string | null;
 };
 type State = {
+  accessChoices?: { scopes: Scope[]; duration: number };
   nativeApproval?: boolean;
   presentation?: {
     profile: "personal" | "minimal" | "appliance";
@@ -69,6 +76,7 @@ type State = {
       lifetime?: "timed" | "until_stopped";
       scopes: Scope[];
       requester: string;
+      origin?: "person" | "request";
       reason: string;
     };
     pendingRequest: unknown;
@@ -185,10 +193,26 @@ function App() {
   const [actionBusy, setBusy] = useState(false);
   const [bundledBrowserSetup, setBundledBrowserSetup] = useState(false);
   const busy = actionBusy || state?.uac?.setupState === "pending";
-  const [scopes, setScopes] = useState<Scope[]>(["observe", "control"]);
+  const [initialChoices] = useState(readAccessChoices);
+  const choicesInitialized = useRef(initialChoices !== undefined);
+  const [scopes, setScopes] = useState<Scope[]>(
+    initialChoices?.scopes ?? defaultAccessChoices.scopes,
+  );
   const [yaChoice, setYaChoice] = useState(false);
   const [pauseMenu, setPauseMenu] = useState(false);
-  const [duration, setDuration] = useState(900);
+  const [duration, setDuration] = useState(
+    initialChoices?.duration ?? defaultAccessChoices.duration,
+  );
+  const rememberChoices = (nextScopes: Scope[], nextDuration: number) => {
+    choicesInitialized.current = true;
+    setScopes(nextScopes);
+    setDuration(nextDuration);
+    if (!writeAccessChoices({ scopes: nextScopes, duration: nextDuration })) {
+      setError(
+        "Could not save access choices. They may reset when Settings reopens.",
+      );
+    }
+  };
   const [pendingScopes, setPendingScopes] = useState<Scope[]>([]);
   const [pendingDuration, setPendingDuration] = useState(900);
   const [history, setHistory] = useState<History>();
@@ -261,6 +285,24 @@ function App() {
         return;
       }
       setState(r.state);
+      // Seed existing Mac installations from the original saved operator
+      // consent, never from a temporarily restricted or agent-request grant.
+      // Subsequent polling must not overwrite an unarmed form edit.
+      if (
+        r.state &&
+        (!choicesInitialized.current ||
+          r.state.deployment.grant?.origin === "person")
+      ) {
+        choicesInitialized.current = true;
+        const saved = r.state.accessChoices;
+        if (validAccessChoices(saved)) {
+          setScopes(saved.scopes);
+          setDuration(saved.duration);
+          if (JSON.stringify(readAccessChoices()) !== JSON.stringify(saved)) {
+            writeAccessChoices(saved);
+          }
+        }
+      }
       setNotice((previous) =>
         previous === "Finish helper setup in the Windows dialogs."
           ? ""
@@ -662,7 +704,7 @@ function App() {
               <fieldset
                 className="group access-config"
                 aria-label="Access scopes"
-                disabled={on || !state}
+                disabled={on || !state || busy}
               >
                 <div className="scope-list">
                   {availableScopes.map((s) => {
@@ -683,7 +725,14 @@ function App() {
                           type="checkbox"
                           checked={!unavailable && shownScopes.includes(s)}
                           disabled={unavailable}
-                          onChange={() => selected(scopes, setScopes, s)}
+                          onChange={() =>
+                            rememberChoices(
+                              scopes.includes(s)
+                                ? scopes.filter((value) => value !== s)
+                                : [...scopes, s],
+                              duration,
+                            )
+                          }
                         />
                         {labels[s]}
                       </label>
@@ -897,13 +946,23 @@ function App() {
                         <select
                           aria-label="Access duration"
                           value={duration}
-                          onChange={(e) => setDuration(Number(e.target.value))}
+                          onChange={(e) =>
+                            rememberChoices(scopes, Number(e.target.value))
+                          }
                         >
                           <option value={60}>1 minute</option>
                           <option value={300}>5 minutes</option>
                           <option value={900}>15 minutes</option>
                           <option value={1800}>30 minutes</option>
                           <option value={3600}>1 hour</option>
+                          {duration !== 0 &&
+                            ![60, 300, 900, 1800, 3600].includes(duration) && (
+                              <option value={duration}>
+                                {duration % 3600 === 0
+                                  ? `${duration / 3600} hours`
+                                  : `${duration} seconds`}
+                              </option>
+                            )}
                           {state?.manualUntilStoppedSupported && (
                             <option value={0}>Until I turn it off</option>
                           )}

@@ -62,6 +62,18 @@ final class OperatorConsentStore {
         defer { if directory >= 0 { Darwin.close(directory) } }
         guard directory >= 0, fsync(directory) == 0 else { throw MacUIError.action("consent_storage_unavailable") }
     }
+    /// Original operator choices, independent of current console eligibility
+    /// and temporarily restricted restored grants. These confer no authority.
+    var accessChoices: [String:Any]? {
+        guard let value = (state["accessChoices"] ?? state["consent"]) as? [String:Any],
+              let names = value["scopes"] as? [String], !names.isEmpty,
+              Set(names).count == names.count,
+              names.allSatisfy({ GrantScope(rawValue:$0) != nil }) else { return nil }
+        if value["duration"] is NSNull { return ["scopes":names, "duration":0] }
+        guard let duration = admissionInteger(value["duration"]),
+              GrantRequest.durationRange.contains(duration) else { return nil }
+        return ["scopes":names, "duration":duration]
+    }
     func enable(scopes: Set<GrantScope>, duration: Int?, console: [String:Any]) throws {
         guard console["desktopState"] as? String == "unlocked", sameConsoleSession(console, console),
               (console["uid"] as? NSNumber)?.uint32Value == getuid(), !scopes.isEmpty,
@@ -69,6 +81,8 @@ final class OperatorConsentStore {
         state["consent"] = ["console":["uid":console["uid"]!, "uuid":console["uuid"]!, "boot":console["boot"]!],
             "scopes":scopes.sorted().map(\.rawValue), "duration":duration as Any? ?? NSNull(),
             "issuedWall":now().timeIntervalSince1970, "issuedUptime":uptime()]
+        state["accessChoices"] = ["scopes":scopes.sorted().map(\.rawValue),
+                                  "duration":duration as Any? ?? NSNull()]
         try save()
     }
     func disable() throws {

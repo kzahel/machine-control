@@ -83,6 +83,7 @@ extension ResidentRuntime {
                 case "state":
                     let setup = currentSetupState(browserConnected: server.browser.connected, probeScreen: false)
                     var state: [String: Any] = ["deployment": server.broker.statusJSON,
+                        "accessChoices":server.broker.consentStore?.accessChoices as Any? ?? NSNull(),
                         "permissions": ["accessibility": setup.accessibility, "screenRecording": setup.screen == .allowed],
                         "browser": server.browser.statusJSON, "activity": server.broker.audit.reversed().prefix(30).map(\.json),
                         "logging": server.broker.journal?.health ?? [:],

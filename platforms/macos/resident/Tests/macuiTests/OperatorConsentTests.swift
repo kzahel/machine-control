@@ -59,6 +59,24 @@ final class OperatorConsentTests: XCTestCase {
             XCTAssertNil(value.consent(console:other))
         }
     }
+    func testRememberedChoicesSurviveStopAndConsoleChangeWithoutRestoringAuthority() throws {
+        let value = try store()
+        try value.enable(scopes:[.observe,.control,.browser,.devtools], duration:nil, console:console)
+        let expected = Set(["observe", "control", "browser", "devtools"])
+        XCTAssertEqual(Set(try store().accessChoices?["scopes"] as? [String] ?? []), expected)
+        XCTAssertEqual(try store().accessChoices?["duration"] as? Int, 0)
+        try value.disable()
+        let stopped = try store()
+        XCTAssertNil(stopped.consent(console:console))
+        XCTAssertEqual(Set(stopped.accessChoices?["scopes"] as? [String] ?? []), expected)
+        try stopped.enable(scopes:[.browser], duration:300, console:console)
+        var replacement = console; replacement["boot"] = 999
+        try stopped.invalidateReplacedConsole(replacement)
+        let restarted = try store()
+        XCTAssertNil(restarted.consent(console:replacement))
+        XCTAssertEqual(restarted.accessChoices?["scopes"] as? [String], ["browser"])
+        XCTAssertEqual(restarted.accessChoices?["duration"] as? Int, 300)
+    }
     func testTimedConsentAndPauseDoNotRenewOnRestartAndUncertainTimingBlocks() throws {
         let value = try store(); try value.enable(scopes:[.observe], duration:60, console:console)
         try value.pause(seconds:30)
