@@ -12,7 +12,7 @@ struct ControlSessionLease {
     let id: String
     let grantID: String
     let session: [String: Any]
-    let deadline: TimeInterval
+    var deadline: TimeInterval
     var heartbeatDeadline: TimeInterval
 
     // This native observation belongs to the original task, not a later idle
@@ -71,6 +71,13 @@ func coveredActivationObservation(_ observation: [String:Any], initial: [String:
         throw MacUIError.action("covered_unlock_not_observed")
     }
     return observation
+}
+
+/// A freshly locked task may start with its display asleep. Its bounded
+/// preparation explicitly wakes that display; only an independently observed
+/// still-locked pre-arm state can distinguish this from active display loss.
+func displaySleepEndsControl(startedLocked: Bool, phase: String, observedState: String) -> Bool {
+    !(startedLocked && ["waiting_for_lock","unlocking"].contains(phase) && observedState == "locked")
 }
 
 /// Retained access belongs to the same console in which the person approved it.
@@ -291,7 +298,8 @@ final class DisplayCovers {
         NSScreen.screens.map { "\($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] ?? "unknown"):\($0.frame):\($0.backingScaleFactor)" }.sorted()
     }
     var healthy: Bool {
-        !windows.isEmpty && screens == Self.currentLayout && windows.allSatisfy { $0.isVisible && $0.isOpaque }
+        !windows.isEmpty && windows.count == screens.count && screens == Self.currentLayout &&
+            windows.allSatisfy { ($0.contentView as? LockedCoverContent)?.conceals($0) == true }
     }
     func install() throws {
         guard windows.isEmpty, !NSScreen.screens.isEmpty else {
@@ -304,8 +312,11 @@ final class DisplayCovers {
             panel.title = "Machine Control locked use"
             panel.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-            panel.hidesOnDeactivate = false; panel.isOpaque = true; panel.hasShadow = false
-            panel.backgroundColor = NSColor(calibratedWhite: 0.08, alpha: 1)
+            // Keep every pixel opaque while avoiding an opaque-window
+            // optimization that can suspend covered browser presentation/AX.
+            panel.hidesOnDeactivate = false; panel.isOpaque = false; panel.hasShadow = false
+            panel.backgroundColor = LockedCoverContent.fillColor
+            panel.contentView = LockedCoverContent(frame:NSRect(origin:.zero,size:screen.frame.size))
             panel.ignoresMouseEvents = true; panel.isReleasedWhenClosed = false
             let stack = NSStackView()
             stack.orientation = .vertical; stack.spacing = 14
@@ -322,6 +333,7 @@ final class DisplayCovers {
             ])
             windows.append(panel)
             panel.orderFrontRegardless(); panel.display()
+            panel.contentView!.display()
         }
         guard healthy else { throw MacUIError.action("locked_use_cover_unavailable") }
     }
@@ -400,6 +412,7 @@ final class MacLockedUse {
     private var helperLiveness: CoveredHelperLiveness?
     private(set) var endReason: String?
     private(set) var lastStartupFailure: [String:Any]?
+    private(set) var lastGuardianDiagnostic: GuardianDiagnostics?
     private(set) var recoveryFence = CoveredRecoveryFence()
     private(set) var phase = "off"
     private var relockFallbackDeadline: TimeInterval = 0
@@ -462,7 +475,14 @@ final class MacLockedUse {
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.willSleepNotification,
             object: nil, queue: .main) { [weak self] _ in self?.end("system_sleep") }
         NSWorkspace.shared.notificationCenter.addObserver(forName:NSWorkspace.screensDidSleepNotification,
-            object:nil, queue:.main) { [weak self] _ in self?.end("display_sleep") }
+            object:nil, queue:.main) { [weak self] _ in
+                guard let self else { return }
+                if let lease = self.lease, lease.startedLocked,
+                   ["waiting_for_lock","unlocking"].contains(self.phase),
+                   !displaySleepEndsControl(startedLocked:true, phase:self.phase,
+                    observedState:nativeSessionObservation()["desktopState"] as? String ?? "unknown") { return }
+                self.end("display_sleep")
+            }
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main) { [weak self] _ in
                 guard let self, self.isCovered,
@@ -471,6 +491,23 @@ final class MacLockedUse {
             }
     }
     var isCovered: Bool { guardian != nil }
+    func renew(id: String, deadline: TimeInterval) throws {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard var current = lease, current.id == id, phase == "active", isCovered,
+              deadline.isFinite, deadline > current.deadline, deadline <= now + 900,
+              current.refusal(now:now, grantID:broker.activeGrant?.id, session:service.observedConsoleSession) == nil,
+              safety.reason == nil, guardian?.healthy == true else { throw MacUIError.action("stale_control_session") }
+        do {
+            try guardian?.renew(deadline:deadline)
+            guard current.refusal(now:ProcessInfo.processInfo.systemUptime, grantID:broker.activeGrant?.id,
+                                  session:service.observedConsoleSession) == nil, safety.reason == nil else {
+                throw MacUIError.action("control_renewal_failed")
+            }
+            current.deadline = deadline
+            current.heartbeatDeadline = ProcessInfo.processInfo.systemUptime + 5
+            lease = current
+        } catch { end("control_renewal_failed"); throw error }
+    }
     var enabled: Bool {
         guard !locallyDisabled, permission.ready else { return false }
         let value = service.displayedUnlockStatus
@@ -509,6 +546,7 @@ final class MacLockedUse {
             "provider":"macos-native", "activeSessionRequired":true,
             "binding":"approved_target_wide_access_and_live_owner_connection",
             "lastEndedReason":endReason.map { $0 as Any } ?? NSNull(),
+            "lastGuardianDiagnostic":lastGuardianDiagnostic?.json as Any? ?? NSNull(),
             "lastStartupFailure":lastStartupFailure as Any? ?? NSNull()]
     }
 
@@ -547,7 +585,8 @@ final class MacLockedUse {
             session: session, deadline: now + min(Double(duration), remaining), heartbeatDeadline: now + 5)
         helperLiveness = CoveredHelperLiveness(generation:helper["helperGeneration"] as? String ?? "", lastPositive:now)
         prepareSessionSafety()
-        self.owner = owner; ownerRequest = request; endReason = nil; lastStartupFailure = nil; phase = "waiting_for_lock"
+        self.owner = owner; ownerRequest = request; endReason = nil; lastStartupFailure = nil
+        lastGuardianDiagnostic = nil; phase = "waiting_for_lock"
         return service.acceptance(request, data: status)
     }
 
@@ -599,7 +638,7 @@ final class MacLockedUse {
         }
         if !continuationAuthorized { end("disabled"); return }
         if current.startedLocked, let reason = helperLiveness?.refusal(helper:service.displayedUnlockStatus,
-                metadata:service.helperObservation.metadata, now:now, covered:isCovered) {
+                metadata:service.helperObservation.metadata, now:now, covered:phase == "active") {
             end(reason); return
         }
         let screen = observation["desktopState"] as? String ?? "unknown"
@@ -636,16 +675,35 @@ final class MacLockedUse {
             guardian = child
             let remaining = Int(lease.deadline - ProcessInfo.processInfo.systemUptime)
             guard remaining >= 1 else { throw MacUIError.action("duration_expired") }
-            let observation = try child.start(duration:remaining, deadline:lease.deadline)
-            guard safety.reason == nil, child.healthy else { throw MacUIError.action("safety_guard_unavailable") }
-            service.applySessionObservation(try coveredActivationObservation(observation, initial:lease.session))
-            // The fresh guardian/root handshake establishes liveness. Fence
-            // background reads started before this covered session existed.
-            if let generation = helperLiveness?.generation {
-                helperLiveness = CoveredHelperLiveness(generation:generation, lastPositive:ProcessInfo.processInfo.systemUptime)
+            try child.start(duration:remaining, deadline:lease.deadline) { [weak self] result in
+                guard let self else { child.stop(reason:"owner_disconnected"); return }
+                // Drain owner EOF/heartbeats and recheck authority before
+                // adopting a possibly delayed activation. Never revive Stop.
+                self.tick()
+                guard self.guardian === child, let current = self.lease,
+                      current.id == lease.id, self.phase == "unlocking" else {
+                    child.stop(reason:"owner_disconnected"); return
+                }
+                do {
+                    let observation = try result.get()
+                    guard self.safety.reason == nil, child.healthy,
+                          current.refusal(now:ProcessInfo.processInfo.systemUptime,
+                            grantID:self.broker.activeGrant?.id, session:self.service.observedConsoleSession) == nil else {
+                        throw MacUIError.action("safety_guard_unavailable")
+                    }
+                    self.service.applySessionObservation(try coveredActivationObservation(observation, initial:current.session))
+                    // Fence observations begun before the handshake.
+                    if let generation = self.helperLiveness?.generation {
+                        self.helperLiveness = CoveredHelperLiveness(generation:generation,
+                            lastPositive:ProcessInfo.processInfo.systemUptime)
+                    }
+                    self.service.helperObservation.invalidate()
+                    self.phase = "active"; self.lastHelperHeartbeat = 0
+                } catch {
+                    self.lastStartupFailure = child.startupFailure
+                    self.end(self.safety.reason ?? String(describing:error))
+                }
             }
-            service.helperObservation.invalidate()
-            phase = "active"; lastHelperHeartbeat = 0
         } catch {
             lastStartupFailure = guardian?.startupFailure
             end(safety.reason ?? String(describing:error))
@@ -688,12 +746,20 @@ final class MacLockedUse {
     }
 
     private func finishAfterLock() {
+        // An asynchronous child failure may end the lease before its startup
+        // callback is adopted. Preserve its bounded diagnostic before closing.
+        lastStartupFailure = guardian?.startupFailure ?? lastStartupFailure
+        if let diagnostic = guardian?.endDiagnostic {
+            lastGuardianDiagnostic = diagnostic
+            broker.journal?.guardianEnded(diagnostic, reason:endReason ?? "completed")
+        }
         guardian?.closeAfterLock(); guardian = nil; safety.disarm()
         hiddenOperatorWindows.forEach { $0.orderFront(nil) }
         hiddenOperatorWindows.removeAll()
         coveredScreenLayout.removeAll()
         if owner >= 0 {
             var response = service.acceptance(ownerRequest, data: ["ended":true, "reason":endReason ?? "completed",
+                "guardianDiagnostic":lastGuardianDiagnostic?.json as Any? ?? NSNull(),
                 "lockObserved":nativeSessionObservation()["desktopState"] as? String == "locked"])
             if endReason == "physical_presence" {
                 response = service.refusal(ownerRequest, code:"interrupted_by_physical_presence",

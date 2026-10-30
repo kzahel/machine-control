@@ -2,6 +2,32 @@ import XCTest
 @testable import macui
 
 final class GrantBrokerTests: XCTestCase {
+    func testRenewalPreservesNativeReferencesWhilePauseStillFencesThem() throws {
+        let broker = broker()
+        broker.issueUntilStopped(scopes:[.observe,.control], reason:"manual", requester:"operator", approver:"test")
+        var uptime = 0.0; broker.admission.now = { uptime }
+        let admission = broker.admission
+        let offer = try admission.submit(owner:"a", requestID:"renew", resources:["desktop"],
+            wait:120, duration:60, reason:"Fixture", authority:{ nil })
+        let id = offer["intentId"] as! String
+        let active = try admission.accept(owner:"a", id:id, generation:offer["offerGeneration"] as! Int)
+        var invalidations = 0
+        let epoch = ProviderEpoch(), token = UUID()
+        let snapshot = epoch.current
+        broker.availabilityChanged = { invalidations += 1; epoch.invalidate() }
+        let revision = admission.revision
+        uptime = 3
+        _ = try admission.renew(owner:"a", id:id, session:active["sessionId"] as! String,
+            generations:active["resourceGenerations"] as! [String:Int], seconds:120)
+        broker.refreshAvailability()
+        XCTAssertGreaterThan(admission.revision, revision, "Renewal remains observable")
+        XCTAssertEqual(invalidations,0,"A deadline extension must preserve native snapshots and pending actions")
+        XCTAssertNil(epoch.refusal(snapshot))
+        XCTAssertNotNil(epoch.refusal(token))
+        try broker.pause()
+        XCTAssertGreaterThan(invalidations,0,"Pause must still fence native work")
+        XCTAssertNotNil(epoch.refusal(snapshot))
+    }
     func testPausePreservesApprovalAndGatesEveryScope() throws {
         let broker = broker()
         let grant = broker.issueUntilStopped(scopes: Set(GrantScope.allCases), reason: "manual",

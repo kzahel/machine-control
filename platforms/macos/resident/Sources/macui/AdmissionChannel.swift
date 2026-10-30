@@ -46,10 +46,14 @@ final class AdmissionChannel {
     private var dispatching = false
     private weak var server: ResidentServer?
     var coveredOwner: Int32 = -1
+    var coveredSessionID: String?
     var outer: OuterRecovery?
     private(set) var delegation: DesktopDelegation?
     private var trustRevision = ""
     private(set) var preparedConsole = false
+    private var authorityPinned = false
+    private var authorizationGrantID: String?
+    private var authorizationDeadline: TimeInterval?
     private static let verificationSlots = DispatchSemaphore(value:4)
     private var verificationTimeout: DispatchWorkItem?
 
@@ -137,7 +141,14 @@ final class AdmissionChannel {
                     if self.preparedConsole {
                         if let refusal = server.preparedConsoleAuthority(scopes:scopes) { return refusal }
                     } else if !server.approvalDesktopUnlocked() { return "desktop_delegation_requires_unlocked_console" }
-                } else if let refusal = broker.admissionAuthority(scopes:scopes) { return refusal }
+                } else {
+                    if self.authorityPinned {
+                        if self.authorizationGrantID != broker.activeGrant?.id { return "access_ended" }
+                        if let deadline = self.authorizationDeadline,
+                           broker.admission.now() >= deadline { return "access_ended" }
+                    }
+                    if let refusal = broker.admissionAuthority(scopes:scopes) { return refusal }
+                }
                 do { try self.outer?.binding.validate(); return nil }
                 catch { return String(describing:error) }
             },
@@ -181,7 +192,7 @@ final class AdmissionChannel {
             // Clock/authority expiry is checked by inspect/cancel themselves.
             // Polls must not multiply OS/helper probes by the waiter count.
             // Revalidate native availability immediately before effects.
-            if operation == "control.accept" || operation == "control.dispatch" {
+            if ["control.accept", "control.dispatch", "control.renew"].contains(operation) {
                 server.refreshAdmission()
                 if delegation != nil, let refusal = server.callerTrust.refusal(descriptor:descriptor, revision:trustRevision, scopes:scopes) {
                     try? server.broker.admission.cancel(owner:owner, id:intentID)
@@ -190,7 +201,8 @@ final class AdmissionChannel {
             }
             let common: Set<String> = ["operation", "requestId", "requestSequence"]
             let allowed = common.union(operation == "control.accept" ? ["offerGeneration"] :
-                operation == "control.dispatch" ? ["sessionId", "resourceGenerations", "request"] : [])
+                operation == "control.dispatch" ? ["sessionId", "resourceGenerations", "request"] :
+                operation == "control.renew" ? ["sessionId", "resourceGenerations", "durationSeconds"] : [])
             guard Set(request.keys).isSubset(of:allowed) else { throw MacUIError.usage("invalid_admission_request") }
             let admission = server.broker.admission
             switch operation {
@@ -201,6 +213,13 @@ final class AdmissionChannel {
                 let physicalBaseline = server.activity.physicalAt
                 let accept = { try admission.accept(owner:self.owner, id:self.intentID, generation:generation) }
                 let view = try outer.map { try $0.binding.transaction(accept) } ?? accept()
+                if delegation == nil && outer == nil {
+                    authorityPinned = true
+                    authorizationGrantID = server.broker.activeGrant?.id
+                    authorizationDeadline = server.broker.activeGrant?.expiresAt.map {
+                        server.broker.admission.now() + max(0, $0.timeIntervalSince(server.broker.now()))
+                    }
+                }
                 server.activity.arm(baseline:physicalBaseline)
                 do {
                     if outer == nil && (delegation == nil || preparedConsole) {
@@ -214,6 +233,41 @@ final class AdmissionChannel {
             case "control.cancel":
                 try admission.cancel(owner:owner, id:intentID)
                 reply(id, data:try admission.inspect(owner:owner, id:intentID))
+            case "control.renew":
+                // Extending this same live lease must remain possible while
+                // its one provider action is pending. It dispatches no new
+                // action and changes neither session nor resource generation.
+                guard delegation == nil, outer == nil,
+                      let session = request["sessionId"] as? String,
+                      let generations = request["resourceGenerations"] as? [String:Int],
+                      let duration = ControlSessionLease.duration(request["durationSeconds"]) else {
+                    throw MacUIError.action("control_renewal_unavailable")
+                }
+                // The grant continues to own the total lifetime. Neither a
+                // heartbeat nor renewal can restart its approval countdown.
+                var seconds = Double(duration)
+                if let deadline = authorizationDeadline {
+                    seconds = min(seconds, deadline - admission.now())
+                }
+                if let expiry = server.broker.activeGrant?.expiresAt {
+                    seconds = min(seconds, expiry.timeIntervalSince(server.broker.now()))
+                }
+                guard server.broker.journal?.event("control.renew.intent") != false else { throw MacUIError.action("audit_storage_unavailable") }
+                let renewed = try admission.renew(owner:owner, id:intentID, session:session,
+                    generations:generations, seconds:seconds) { deadline in
+                        if let coveredSessionID = self.coveredSessionID {
+                            guard self.coveredOwner >= 0,
+                                  server.service.displayedUnlockStatus["coveredRenewal"] as? String == "owner_connection/v1" else {
+                                throw MacUIError.action("control_renewal_unavailable")
+                            }
+                            try server.lockedUse.renew(id:coveredSessionID, deadline:deadline)
+                        }
+                    }
+                guard server.broker.journal?.event("control.renewed") != false else {
+                    try? admission.cancel(owner:owner, id:intentID)
+                    throw MacUIError.action("audit_storage_unavailable")
+                }
+                reply(id, data:renewed)
             case "control.dispatch":
                 guard !dispatching else { throw MacUIError.action("control_action_in_progress") }
                 guard let session = request["sessionId"] as? String,
@@ -247,6 +301,10 @@ final class AdmissionChannel {
             if data?["schema"] as? String == AccessAdmission.schema {
                 data?["requestSequencing"] = "strict"
                 if outer != nil { data?["outerRecovery"] = "borrowed_exact_claim/v1" }
+                if delegation == nil && outer == nil,
+                   coveredSessionID == nil || server?.service.displayedUnlockStatus["coveredRenewal"] as? String == "owner_connection/v1" {
+                    data?["renewal"] = "owner_connection/v1"
+                }
                 if let delegation {
                     data?["ownerAssurance"] = "verified_desktop_integration"
                     data?["desktopSession"] = ["sessionId":delegation.session, "sessionGeneration":delegation.generation]

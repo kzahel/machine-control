@@ -218,8 +218,8 @@ final class GrantBroker {
 
     func refreshAvailability() {
         admission.refresh()
-        guard availabilityRevision != admission.revision else { return }
-        availabilityRevision = admission.revision
+        guard availabilityRevision != admission.availabilityRevision else { return }
+        availabilityRevision = admission.availabilityRevision
         availabilityChanged?()
         notify()
     }

@@ -15,6 +15,28 @@ static void inboxTests(void) {
     assert([coveredInboxEnding(input, NO, YES, NO, YES, YES) isEqual:@"watchdog_interrupted"]);
     close(pair[0]); close(pair[1]);
     assert(!socketpair(AF_UNIX, SOCK_STREAM, 0, pair)); inbox = (CoveredInbox){0};
+    frames = "{\"operation\":\"renew\",\"controlDeadlineUptime\":123.5}\n";
+    assert(write(pair[0], frames, strlen(frames)) == (ssize_t)strlen(frames));
+    assert(readCoveredInbox(pair[1], &inbox) == CoveredInputRenewal);
+    assert(inbox.renewalUptime == 123.5);
+    assert([coveredInboxEnding(CoveredInputRenewal, NO, NO, YES, NO, NO) isEqual:@"duration_expired"]);
+    assert([coveredInboxEnding(CoveredInputRenewal, NO, NO, NO, YES, NO) isEqual:@"watchdog_interrupted"]);
+    frames = "{\"operation\":\"renew\",\"controlDeadlineUptime\":true}\n";
+    assert(write(pair[0], frames, strlen(frames)) == (ssize_t)strlen(frames));
+    assert(readCoveredInbox(pair[1], &inbox) == CoveredInputDisconnected);
+    close(pair[0]); close(pair[1]);
+    assert(!socketpair(AF_UNIX, SOCK_STREAM, 0, pair)); inbox = (CoveredInbox){0};
+    frames = "{\"operation\":\"renew\",\"controlDeadlineUptime\":123.5}\n{\"operation\":\"heartbeat\"}\n";
+    assert(write(pair[0], frames, strlen(frames)) == (ssize_t)strlen(frames));
+    assert(readCoveredInbox(pair[1], &inbox) == CoveredInputRenewal);
+    assert(readCoveredInbox(pair[1], &inbox) == CoveredInputHeartbeat);
+    frames = "{\"operation\":\"renew\",\"controlDeadlineUptime\":124.5}\n{\"operation\":\"complete\"}\n";
+    assert(write(pair[0], frames, strlen(frames)) == (ssize_t)strlen(frames));
+    shutdown(pair[0], SHUT_WR);
+    assert(readCoveredInbox(pair[1], &inbox) == CoveredInputRenewal);
+    assert(readCoveredInbox(pair[1], &inbox) == CoveredInputCompleted);
+    close(pair[0]); close(pair[1]);
+    assert(!socketpair(AF_UNIX, SOCK_STREAM, 0, pair)); inbox = (CoveredInbox){0};
     assert(write(pair[0], "{\"oper", 6) == 6);
     assert(readCoveredInbox(pair[1], &inbox) == CoveredInputNone); // Never wait for the rest.
     frames = "ation\":\"heartbeat\"}\n";

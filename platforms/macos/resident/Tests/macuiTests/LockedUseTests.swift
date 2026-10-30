@@ -6,6 +6,47 @@ import XCTest
 final class LockedUseTests: XCTestCase {
     private let session: [String:Any] = ["uuid":"console-a", "boot":123, "uid":501]
 
+    func testOnlyIndependentlyLockedStartupCanPrepareAnAsleepDisplay() {
+        for phase in ["waiting_for_lock","unlocking"] {
+            XCTAssertFalse(displaySleepEndsControl(startedLocked:true,phase:phase,observedState:"locked"))
+            for state in ["unlocked","unknown",""] {
+                XCTAssertTrue(displaySleepEndsControl(startedLocked:true,phase:phase,observedState:state))
+            }
+            XCTAssertTrue(displaySleepEndsControl(startedLocked:false,phase:phase,observedState:"locked"))
+        }
+        for phase in ["active","relocking","off"] {
+            for state in ["locked","unlocked","unknown"] {
+                XCTAssertTrue(displaySleepEndsControl(startedLocked:true,phase:phase,observedState:state))
+            }
+        }
+    }
+
+    func testGuardianStartupWaitLeavesTheMainQueueResponsive() {
+        let ready = DispatchSemaphore(value:0)
+        let responsive = expectation(description:"main queue services startup heartbeat")
+        let completed = expectation(description:"activation delivered on main")
+        awaitGuardianStartup(ready, timeout:1, result:{ ["desktopState":"unlocked"] }) { result in
+            XCTAssertTrue(Thread.isMainThread)
+            XCTAssertEqual(try? result.get()["desktopState"] as? String,"unlocked")
+            completed.fulfill()
+        }
+        DispatchQueue.main.async { responsive.fulfill(); ready.signal() }
+        wait(for:[responsive,completed],timeout:0.5)
+    }
+
+    func testGuardianStartupTimeoutNeverReadsAnActivationResult() {
+        let completed = expectation(description:"bounded startup failure")
+        awaitGuardianStartup(DispatchSemaphore(value:0), timeout:0.02, result:{
+            XCTFail("A timed-out handshake must not adopt activation")
+            return [:]
+        }) { result in
+            XCTAssertTrue(Thread.isMainThread)
+            if case .success = result { XCTFail("Missing acknowledgement must fail") }
+            completed.fulfill()
+        }
+        wait(for:[completed],timeout:1)
+    }
+
     func testCoveredHelperSilenceIsToleratedOnlyWithinItsBound() {
         var liveness = CoveredHelperLiveness(generation:"helper-a", lastPositive:100)
         let healthy: [String:Any] = ["helperGeneration":"helper-a", "installation":"healthy",

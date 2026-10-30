@@ -6,6 +6,7 @@ import sqlite3
 import tempfile
 import threading
 import time
+import math
 from typing import Callable, Protocol, cast
 
 import audit_history
@@ -25,6 +26,7 @@ class ClaimOwner(Protocol):
 class ControlOwner(Protocol):
     def wait(self) -> JSON: ...
     def call(self, request: JSON) -> JSON: ...
+    def renew(self, duration: int = 900) -> JSON: ...
     def close(self) -> None: ...
 
 
@@ -36,9 +38,9 @@ class Audit(Protocol):
 class RetainedTransport:
     """One exact target, one live claim and one admitted owner; never replay.
 
-    The owner has a bounded 15-minute admission. Claim renewal preserves only
-    the target lease, not operator approval. An expired/revoked owner requires
-    an explicitly new session, rather than silently requesting fresh access.
+    Owners use finite leases. An advertised typed renewal may extend the same
+    live admission under remaining approval. Claim renewal alone extends no
+    admission; an expired/revoked owner always requires an explicit new session.
     """
     def __init__(self, alias: str, target: JSON, *, reason: str,
                  claimant_authority: str, claimant_id: str,
@@ -56,6 +58,7 @@ class RetainedTransport:
         self.lock = threading.RLock()
         self.renewal: threading.Thread | None = None
         self.owner_deadline = time.monotonic() + 900
+        self.owner_renewable = False
         try:
             def inspect() -> JSON:
                 value, _ = mc.doctor(alias, target)
@@ -78,8 +81,9 @@ class RetainedTransport:
                 self.owner = control_factory(self.target, reason=reason, scopes=("observe", "control"),
                                              duration=900, wait=300)
                 return self.owner.wait()
-            self._audit(["control", "open"], admit)
-            self.owner_deadline = time.monotonic() + 900
+            admitted = self._audit(["control", "open"], admit)
+            self.owner_renewable = admitted.get("renewal") == "owner_connection/v1"
+            self._owner_deadline(admitted)
             self.renewal = threading.Thread(target=self._renew, name="mc-agent-claim-renewal", daemon=True)
             self.renewal.start()
         except BaseException:
@@ -120,11 +124,28 @@ class RetainedTransport:
                         return
                     duration = max(60, min(900, int(self.owner_deadline - time.monotonic())))
                     self._audit(["claim", "renew"], lambda: self.claim.renew(duration) if self.claim else {})
+                    if self.owner_renewable and self.owner_deadline - time.monotonic() <= 300:
+                        try:
+                            view = self._audit(["control", "renew"], lambda: self.owner.renew(900) if self.owner else {})
+                            self._owner_deadline(view)
+                        except Exception as error:
+                            self.failure = Stopped("control_renewal_failed", "Owner renewal failed; start a new session",
+                                                   result={"reason":type(error).__name__})
+                            self.close()
+                            return
                     next_renewal = time.monotonic() + 60
             except Exception as error:
                 self.failure = ClaimLost("claim_renewal_failed", "Claim renewal failed; start a new session", result={"reason": type(error).__name__})
                 self.close()
                 return
+
+    def _owner_deadline(self, view: JSON) -> None:
+        # Legacy fixture/providers omit this optional projection. New renewals
+        # must report their actual finite interval, including grant clamping.
+        remaining = view.get("activeRemainingSeconds") if self.owner_renewable else view.get("activeRemainingSeconds", 900)
+        if isinstance(remaining, bool) or not isinstance(remaining, (int, float)) or not math.isfinite(remaining) or not 0 < remaining <= 900:
+            raise SessionError("invalid_admission_duration", "Owner returned an invalid deadline")
+        self.owner_deadline = time.monotonic() + remaining
 
     def call(self, request: JSON) -> JSON:
         with self.lock:

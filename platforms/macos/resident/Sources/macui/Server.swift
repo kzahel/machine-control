@@ -185,9 +185,11 @@ final class ResidentServer {
         guard socketpair(AF_UNIX, SOCK_STREAM, 0, &pair) == 0 else { throw MacUIError.action("control_transport_unavailable") }
         do {
             try closeOnExec(pair[0]); try closeOnExec(pair[1])
-            _ = try lockedUse.begin(["operation":"session.control", "requestId":UUID().uuidString,
+            let covered = try lockedUse.begin(["operation":"session.control", "requestId":UUID().uuidString,
                 "durationSeconds":max(1, Int(view["activeRemainingSeconds"] as? Double ?? 1))], owner:pair[0])
             channel.coveredOwner = pair[1]
+            channel.coveredSessionID = (covered["data"] as? [String:Any])?["controlSessionId"] as? String
+            guard channel.coveredSessionID != nil else { throw MacUIError.action("covered_owner_missing") }
         } catch { Darwin.close(pair[0]); Darwin.close(pair[1]); throw error }
     }
     func dispatchControlled(_ channel: AdmissionChannel, action original: [String:Any], session: String,

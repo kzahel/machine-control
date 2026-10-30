@@ -26,6 +26,7 @@ static int coveredFD = -1;
 static pid_t coveredPID;
 static NSDictionary *coveredState;
 static double coveredDeadline, heartbeatDeadline;
+static NSUInteger coveredRenewals;
 static CoveredInbox coveredInbox;
 static BOOL relocking;
 static NSString *endReason;
@@ -398,6 +399,19 @@ static void tickCovered(void) {
                 reason, (int)input, guardianGone, heartbeatExpired, installationBad, validationMs);
             requestRelock(reason); return;
         }
+        if (input == CoveredInputRenewal) {
+            // The old hard deadline, watchdog, installation and live guardian
+            // were checked above. Never revive an expired protected session.
+            double remaining = coveredInbox.renewalUptime - NSProcessInfo.processInfo.systemUptime;
+            double renewedDeadline = watchdogNow + remaining;
+            if (!isfinite(remaining) || remaining <= 0 || remaining > 900 || renewedDeadline <= coveredDeadline) {
+                requestRelock(@"invalid_renewal"); return;
+            }
+            coveredDeadline = renewedDeadline;
+            coveredRenewals++;
+            heartbeatDeadline = watchdogNow + 5;
+            sendJSON(coveredFD, @{@"renewed":@YES, @"controlDeadlineUptime":@(coveredInbox.renewalUptime)});
+        }
         if (input == CoveredInputHeartbeat) heartbeatDeadline = watchdogNow + 5;
         if ([current[@"locked"] boolValue]) { requestRelock(@"desktop_locked"); return; }
     }
@@ -452,6 +466,9 @@ static BOOL handle(int fd) {
             @"relockAvailable":@(lockConsoleAvailable() && consoleLockRunnerValid(receipt, NO)),
             @"relockRoute":@"user_bootstrap_runner", @"relockRunnerHealthy":@(consoleLockRunnerValid(receipt, NO)),
             @"coveredSession":@(coveredState != nil),
+            @"coveredRenewal":@"owner_connection/v1",
+            @"coveredRenewals":@(coveredRenewals),
+            @"coveredRemainingSeconds":@(coveredState ? MAX(0, coveredDeadline - monotonicNow()) : 0),
             @"unlockRulePeers":screenUnlockPeers(right("system.login.screensaver"), @(rightName)),
             @"lockedUsePauseReason":paused ? (readPlist(@PAUSE_PATH)[@"pauseReason"] ?: @"safety_fault") : @"",
             @"lockedUseRecovery":paused ? (resumablePause(readPlist(@PAUSE_PATH)[@"pauseReason"]) ?
@@ -552,6 +569,7 @@ static BOOL handle(int fd) {
         if (covered) {
             coveredFD = fd;
             coveredDeadline = monotonicNow() + MAX(0, [controlDeadline doubleValue] - NSProcessInfo.processInfo.systemUptime);
+            coveredRenewals = 0;
             heartbeatDeadline = monotonicNow() + 5;
             if (!unlocked) requestRelock(@"unlock_not_observed");
             if (!sendJSON(fd, @{@"unlockedObserved": @(unlocked)})) requestRelock(@"owner_disconnected");

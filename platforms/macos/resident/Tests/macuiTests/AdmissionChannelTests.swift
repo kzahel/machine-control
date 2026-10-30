@@ -257,6 +257,72 @@ final class AdmissionChannelTests: XCTestCase {
         var request = extra; request["operation"] = operation; request["requestId"] = UUID().uuidString
         return exchange(fd, request)
     }
+    func testRenewalIsConnectionBoundAndStopDoesNotReviveTheOwner() throws {
+        let client = try connect(), stranger = try connect()
+        let offer = open(client,"renew"), _ = open(stranger,"other")
+        let active = command(client,"control.accept",["offerGeneration":offer["offerGeneration"]!])["data"] as! [String:Any]
+        XCTAssertEqual(active["renewal"] as? String,"owner_connection/v1")
+        let renewal: [String:Any] = ["sessionId":active["sessionId"]!, "resourceGenerations":active["resourceGenerations"]!, "durationSeconds":120]
+        XCTAssertEqual(command(stranger,"control.renew",renewal)["accepted"] as? Bool,false)
+        clock += 3
+        let extended = command(client,"control.renew",renewal)["data"] as! [String:Any]
+        XCTAssertEqual(extended["sessionId"] as? String,active["sessionId"] as? String)
+        XCTAssertEqual(extended["activeRemainingSeconds"] as? Double,120)
+        broker.revoke(reason:"stopped_by_person")
+        XCTAssertEqual(command(client,"control.renew",renewal)["accepted"] as? Bool,false)
+        XCTAssertEqual((command(client,"control.status")["data"] as? [String:Any])?["state"] as? String,"ended")
+        XCTAssertEqual(effects,0)
+    }
+    func testTimedApprovalCapsRenewalAndWallClockRollbackCannotExtendIt() throws {
+        var wall = Date(timeIntervalSince1970:1000)
+        broker.now = { wall }
+        broker.issue(scopes:[.observe,.control], durationSeconds:120, reason:"fixture", requester:"fixture", approver:"fixture")
+        let client = try connect(), offer = open(client,"timed-renew")
+        let active = command(client,"control.accept",["offerGeneration":offer["offerGeneration"]!])["data"] as! [String:Any]
+        clock = 103; wall = wall.addingTimeInterval(-500)
+        let renewed = command(client,"control.renew",["sessionId":active["sessionId"]!,
+            "resourceGenerations":active["resourceGenerations"]!, "durationSeconds":900])["data"] as! [String:Any]
+        XCTAssertEqual(renewed["activeRemainingSeconds"] as? Double,117)
+        while clock < 220 {
+            clock = min(220,clock+4)
+            _ = command(client,"control.heartbeat")
+        }
+        XCTAssertNotNil(broker.activeGrant) // Wall time alone still appears valid.
+        let final = command(client,"control.status")["data"] as! [String:Any]
+        XCTAssertEqual(final["state"] as? String,"ended")
+        XCTAssertEqual(final["terminalReason"] as? String,"access_ended")
+    }
+    func testLeaseRenewalCanAcknowledgeWhileTheSameOwnersActionIsPending() throws {
+        let client = try connect(), offer = open(client,"pending-renewal")
+        let active = command(client,"control.accept",["offerGeneration":offer["offerGeneration"]!])["data"] as! [String:Any]
+        let started = expectation(description:"provider action pending")
+        let release = DispatchSemaphore(value:0)
+        defer { release.signal() }
+        server.controlledProvider = { [fixture] _ in
+            started.fulfill(); _ = release.wait(timeout:.now()+5)
+            fixture.effects += 1
+            return ["accepted":true,"delivery":"confirmed","effect":"observed","data":[:]]
+        }
+        try writeSocket(client,data:encodeJSONLine(["operation":"control.dispatch","requestId":"pending-action",
+            "sessionId":active["sessionId"]!,"resourceGenerations":active["resourceGenerations"]!,
+            "request":["operation":"snapshot"]]))
+        wait(for:[started],timeout:2)
+        clock += 3
+        let renewal = command(client,"control.renew",["sessionId":active["sessionId"]!,
+            "resourceGenerations":active["resourceGenerations"]!,"durationSeconds":120])
+        XCTAssertEqual(renewal["accepted"] as? Bool,true)
+        XCTAssertEqual((renewal["data"] as? [String:Any])?["sessionId"] as? String,active["sessionId"] as? String)
+        release.signal()
+        let completed = expectation(description:"original action completes once")
+        DispatchQueue.global().async {
+            let reply = (try? readSocket(client)).flatMap { try? JSONSerialization.jsonObject(with:$0) } as? [String:Any]
+            XCTAssertEqual(reply?["requestId"] as? String,"pending-action")
+            XCTAssertEqual(reply?["accepted"] as? Bool,true)
+            completed.fulfill()
+        }
+        wait(for:[completed],timeout:2)
+        XCTAssertEqual(effects,1)
+    }
     func testLiveOwnersQueuePauseFenceAndCannotBorrowAnotherSession() throws {
         let a = try connect(), b = try connect()
         let first = open(a, "first"), second = open(b, "second")

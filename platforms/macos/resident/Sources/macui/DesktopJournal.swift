@@ -168,6 +168,10 @@ final class DesktopJournal {
     @discardableResult func diagnostic(_ operation: String, code: String) -> Bool {
         append("diagnostics", ["phase": "event", "operation": Self.token(operation), "errorCode": Self.token(code)])
     }
+    @discardableResult func guardianEnded(_ diagnostic: GuardianDiagnostics, reason: String) -> Bool {
+        append("diagnostics", ["phase":"event", "operation":"session.control.end",
+            "errorCode":Self.token(reason), "guardian":diagnostic.json])
+    }
     func begin(_ request: [String: Any], caller: CallerIdentity? = nil) -> Bool {
         let operation = request["operation"] as? String ?? ""
         return !Self.tracked(operation) || append("audit", ["phase": "intent", "operation": Self.known.contains(operation) ? operation : "unknown",

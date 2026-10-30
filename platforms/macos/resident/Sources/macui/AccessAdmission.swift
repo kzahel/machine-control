@@ -14,6 +14,9 @@ final class AccessAdmission {
     private var intents: [Intent] = []
     private var events: [[String: Any]] = []
     private(set) var revision = 0
+    // Acknowledged renewal is observable timing, not a change of authority or
+    // resource ownership. Keep its revision out of native-reference fencing.
+    private(set) var availabilityRevision = 0
     private var refreshing = false
 
     private final class Resource {
@@ -127,6 +130,27 @@ final class AccessAdmission {
         guard let intent = intents.first(where: { $0.id == id && $0.owner == owner }),
               intent.terminal == nil, intent.session == session, intent.state == "active" else { return "stale_control_session" }
         return generations == intent.generations ? nil : "stale_generation"
+    }
+    /// Extend only the same live owner. Acknowledged provider renewal precedes
+    /// the admission commit; a failed or late handshake terminates ownership.
+    func renew(owner: String, id: String, session: String, generations: [String:Int],
+               seconds: Double, prepare: (Double) throws -> Void = { _ in }) throws -> [String:Any] {
+        guard seconds.isFinite, seconds > 0, seconds <= 900 else { throw MacUIError.usage("invalid_renewal_duration") }
+        if let reason = authorize(owner:owner, id:id, session:session, generations:generations) { throw MacUIError.action(reason) }
+        let intent = try owned(owner, id)
+        let deadline = now() + seconds
+        guard deadline > intent.activeDeadline else { throw MacUIError.usage("renewal_does_not_extend_owner") }
+        do {
+            try prepare(deadline)
+            if let reason = authorize(owner:owner, id:id, session:session, generations:generations) { throw MacUIError.action(reason) }
+        } catch {
+            if intent.terminal == nil { finish(intent, "control_renewal_failed") }
+            changed?(); throw error
+        }
+        intent.activeDeadline = deadline
+        intent.heartbeat = now() + activeHeartbeatSeconds
+        change("session.renewed", intent); changed?()
+        return view(intent)
     }
     func cancel(owner: String, id: String) throws {
         refresh(); let intent = try owned(owner, id)
@@ -252,7 +276,9 @@ final class AccessAdmission {
         release(intent, reason); intent.terminal = reason; intent.state = "ended"; change("intent." + reason, intent)
     }
     @discardableResult private func change(_ kind: String, _ intent: Intent? = nil) -> Int {
-        revision += 1; events.append(["revision": revision, "kind": kind, "intentId": intent?.id as Any? ?? NSNull()])
+        revision += 1
+        if kind != "session.renewed" { availabilityRevision += 1 }
+        events.append(["revision": revision, "kind": kind, "intentId": intent?.id as Any? ?? NSNull()])
         if events.count > 128 { events.removeFirst(events.count - 128) }
         return revision
     }

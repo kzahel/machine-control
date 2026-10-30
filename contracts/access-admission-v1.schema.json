@@ -16,6 +16,7 @@
       "properties": {
         "schema": { "$ref": "#/$defs/schema" },
         "requestSequencing": { "const": "strict" },
+        "renewal": { "const": "owner_connection/v1" },
         "outerRecovery": { "const": "borrowed_exact_claim/v1" },
         "ownerAssurance": { "const": "verified_desktop_integration" },
         "authorizationProfile": { "const": "ordinary_local_desktop" },

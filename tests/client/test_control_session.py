@@ -16,6 +16,22 @@ from control_session import ControlSession, validate_view, complete_session_hand
 
 
 class ControlSessionTests(unittest.TestCase):
+    def test_typed_renewal_keeps_live_owner_and_refusal_closes_without_replay(self):
+        with self.session("renewable") as owner:
+            original = owner.wait()
+            renewed = owner.renew(120)
+            self.assertEqual(renewed['sessionId'], original['sessionId'])
+            self.assertEqual(renewed['resourceGenerations'], original['resourceGenerations'])
+            self.assertEqual(renewed['activeRemainingSeconds'], 120)
+            with self.assertRaises(mc.ClientError): owner.renew(901)
+        with self.session("renewable-refused") as owner:
+            owner.wait()
+            with self.assertRaises(mc.ClientError) as error: owner.renew(120)
+            self.assertEqual(error.exception.code, 'access_ended')
+            self.assertTrue(owner.stopped.is_set())
+        self.assertEqual(self.record.read_text().splitlines().count('control.renew'), 2)
+        self.assertNotIn('effect', self.record.read_text())
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.record = Path(self.temporary.name) / "events"

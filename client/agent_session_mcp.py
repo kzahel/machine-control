@@ -52,8 +52,9 @@ When the task is finished, call mc.close() to release its claim and admission.
 You may put that call at the end of the final code snippet; open apps remain.
 Reset clears variables and numbers but keeps the live claim and open apps.
 Session owns a target claim, normal resident admission and per-operation audit.
-An admission is bounded to 15 minutes; an expired/stopped owner is not replayed
-or silently replaced. A timeout stops the worker and its live ownership; use
+Admissions use finite leases; supporting providers can renew a live owner under
+remaining approval. An expired/stopped owner is never silently replaced or
+replayed. A timeout stops the worker and its live ownership; use
 reset explicitly before starting fresh. No fixed agent sleeps are needed.
 """
 MAX_REQUEST = 65536

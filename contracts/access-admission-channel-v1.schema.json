@@ -211,6 +211,51 @@
               "maximum": 9223372036854775807
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "requestId",
+            "sessionId",
+            "resourceGenerations",
+            "durationSeconds"
+          ],
+          "properties": {
+            "operation": {
+              "const": "control.renew"
+            },
+            "requestId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "sessionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "resourceGenerations": {
+              "type": "object",
+              "minProperties": 1,
+              "maxProperties": 8,
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "requestSequence": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9223372036854775807
+            },
+            "durationSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 900
+            }
+          }
         }
       ]
     },

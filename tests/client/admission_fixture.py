@@ -7,6 +7,7 @@ import sys
 schema = "machine-control-admission/v1"
 state = "offered"
 sequence = 0
+remaining = 60
 mode = os.environ.get("MC_ADMISSION_FIXTURE", "ready")
 record = Path(os.environ["MC_ADMISSION_RECORD"])
 
@@ -41,6 +42,16 @@ for line in sys.stdin.buffer:
     elif operation == "control.cancel":
         state = "ended"
     data = view()
+    if mode.startswith("renewable"):
+        data.update(renewal="owner_connection/v1", activeRemainingSeconds=remaining)
+    if operation == "control.renew":
+        assert request['sessionId'] == 'fixture-session' and request['resourceGenerations'] == {'desktop':1}
+        if mode == "renewable-refused":
+            print(json.dumps(dict(schema="machine-control-admission-channel/v1", requestId=request["requestId"],
+                                  accepted=False, errorCode="access_ended")), flush=True)
+            continue
+        remaining = request['durationSeconds']
+        data['activeRemainingSeconds'] = remaining
     if mode == "sequenced" or mode.startswith("outer"): data["requestSequencing"] = "strict"
     if mode.startswith("outer"): data["outerRecovery"] = "borrowed_exact_claim/v1"
     if operation == "control.dispatch":

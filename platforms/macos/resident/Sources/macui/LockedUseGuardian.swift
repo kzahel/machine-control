@@ -154,6 +154,8 @@ private final class CoveredGuardian {
     var helper: Int32 = -1
     var parentBuffer = Data()
     var deadline: TimeInterval = 0
+    var startedUptime: TimeInterval = 0
+    var diagnostic: GuardianDiagnostics?
     var parentHeartbeat: TimeInterval = 0
     var helperHeartbeat: TimeInterval = 0
     var initial: [String:Any] = [:]
@@ -172,6 +174,7 @@ private final class CoveredGuardian {
 
     func start(duration: Int, deadline: TimeInterval) throws {
         self.deadline = deadline
+        startedUptime = ProcessInfo.processInfo.systemUptime
         try requireStartupOwner()
         initial = nativeSessionObservation()
         guard initial["desktopState"] as? String == "locked", !macLidClosed() else {
@@ -241,7 +244,9 @@ private final class CoveredGuardian {
     func end(_ reason: String) {
         if ending == nil {
             ending = reason; _ = safety.interrupt(reason)
-            try? writeSocket(STDOUT_FILENO, data:encodeJSONLine(["phase":"interrupted", "reason":reason]))
+            var message: [String:Any] = ["phase":"interrupted", "reason":reason]
+            if let diagnostic { message["diagnostic"] = diagnostic.json }
+            try? writeSocket(STDOUT_FILENO, data:encodeJSONLine(message))
             if helper >= 0 {
                 try? writeSocket(helper, data:encodeJSONLine([
                     "operation":cleanCoveredEnding(reason) ? "complete" : "cancel", "reason":reason]))
@@ -249,6 +254,28 @@ private final class CoveredGuardian {
             }
         }
         ConsoleRelock.request(for:initial)
+    }
+
+    private func renew(_ message: [String:Any]) throws {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard message.count == 3, let id = message["requestId"] as? String, id.count <= 80,
+              let renewed = message["deadlineUptime"] as? Double, renewed.isFinite,
+              ending == nil, now < deadline, now < parentHeartbeat, safety.reason == nil,
+              renewed > deadline, renewed <= now + 900 else { throw MacUIError.action("invalid_renewal") }
+        try writeSocket(helper, data:encodeJSONLine(["operation":"renew", "controlDeadlineUptime":renewed]))
+        var pending = pollfd(fd:helper, events:Int16(POLLIN | POLLHUP), revents:0)
+        guard poll(&pending, 1, 2000) > 0 else { throw MacUIError.action("renewal_unacknowledged") }
+        let reply = try guardianLine(helper)
+        guard reply.count == 2, reply["renewed"] as? Bool == true,
+              reply["controlDeadlineUptime"] as? Double == renewed,
+              ProcessInfo.processInfo.systemUptime < deadline, safety.reason == nil else {
+            throw MacUIError.action("renewal_unacknowledged")
+        }
+        deadline = renewed
+        parentHeartbeat = ProcessInfo.processInfo.systemUptime + 5
+        helperHeartbeat = ProcessInfo.processInfo.systemUptime
+        try writeSocket(STDOUT_FILENO, data:encodeJSONLine([
+            "phase":"renewed", "requestId":id, "deadlineUptime":renewed]))
     }
 
     func tick() {
@@ -262,11 +289,16 @@ private final class CoveredGuardian {
             ConsoleRelock.request(for:initial); return
         }
         let now = ProcessInfo.processInfo.systemUptime
+        let snapshot = GuardianDiagnostics(sameConsole:sameConsoleSession(initial, current),
+            desktopState:GuardianDiagnostics.DesktopState(rawValue:current["desktopState"] as? String ?? "") ?? .unknown,
+            coversHealthy:covers.healthy, inputGuardHealthy:inputGuard.healthy,
+            lidClosed:macLidClosed(), parentAlive:getppid() != 1,
+            startedUptime:startedUptime, observedUptime:now, deadlineUptime:deadline,
+            parentHeartbeatDeadline:parentHeartbeat, helperHeartbeatUptime:helperHeartbeat,
+            sessionProbeFailure:(current["probeFailure"] as? String).flatMap(GuardianDiagnostics.ProbeFailure.init(rawValue:)))
+        diagnostic = snapshot
         if let reason = safety.reason { end(reason); return }
-        guard sameConsoleSession(initial, current), current["desktopState"] as? String == "unlocked",
-              covers.healthy, inputGuard.healthy, !macLidClosed() else { end("guardian_safety_unavailable"); return }
-        if now >= deadline { end("duration_expired"); return }
-        if now >= parentHeartbeat || getppid() == 1 { end("owner_disconnected"); return }
+        if let reason = snapshot.refusal { end(reason); return }
         var p = pollfd(fd:STDIN_FILENO, events:Int16(POLLIN | POLLHUP), revents:0)
         if poll(&p, 1, 0) > 0 {
             var bytes = [UInt8](repeating:0, count:512)
@@ -277,7 +309,11 @@ private final class CoveredGuardian {
             while let newline = parentBuffer.firstIndex(of:0x0a) {
                 let line = Data(parentBuffer[..<newline]); parentBuffer.removeSubrange(...newline)
                 let message = (try? JSONSerialization.jsonObject(with:line)) as? [String:Any]
-                if message?.count == 1 && message?["operation"] as? String == "heartbeat" { parentHeartbeat = now + 5 }
+                if let message, message["operation"] as? String == "renew" {
+                    do { try renew(message) }
+                    catch { end("control_renewal_failed"); return }
+                }
+                else if message?.count == 1 && message?["operation"] as? String == "heartbeat" { parentHeartbeat = ProcessInfo.processInfo.systemUptime + 5 }
                 else { end(message?["operation"] as? String == "complete" ? "completed" : message?["reason"] as? String ?? "owner_disconnected"); return }
             }
         }
@@ -331,6 +367,22 @@ func runLockedUseGuardian() throws -> Never {
 
 /// Parent endpoint. Only typed start/heartbeat/stop messages cross the private
 /// socket; no agent-facing endpoint can invoke guardian setup or grant access.
+/// Wait off the resident event loop; heartbeat, cancellation and status must
+/// remain serviceable throughout the bounded guardian handshake.
+func awaitGuardianStartup(_ ready: DispatchSemaphore, timeout: TimeInterval = 12,
+                          result: @escaping () throws -> [String:Any],
+                          completion: @escaping (Result<[String:Any],Error>) -> Void) {
+    DispatchQueue.global(qos:.userInitiated).async {
+        let value = Result<[String:Any],Error> {
+            guard ready.wait(timeout:.now() + timeout) == .success else {
+                throw MacUIError.action("guardian_start_failed")
+            }
+            return try result()
+        }
+        DispatchQueue.main.async { completion(value) }
+    }
+}
+
 final class CoveredGuardianClient {
     private let lock = NSLock()
     private var ids = Set<Int>()
@@ -338,6 +390,9 @@ final class CoveredGuardianClient {
     private var ended = false
     private var failure: String?
     private var startupDetails: [String:Any]?
+    private var endDetails: GuardianDiagnostics?
+    private var pendingRenewal: (String, Double, DispatchSemaphore)?
+    private var acknowledgedRenewal: String?
     private var activationObservation: [String:Any]?
     private var descriptor: Int32 = -1
     private var child: Process?
@@ -346,8 +401,10 @@ final class CoveredGuardianClient {
     var windowIDs: Set<Int> { lock.lock(); defer { lock.unlock() }; return ids }
     var healthy: Bool { lock.lock(); defer { lock.unlock() }; return active && !ended && failure == nil }
     var startupFailure: [String:Any]? { lock.lock(); defer { lock.unlock() }; return startupDetails }
+    var endDiagnostic: GuardianDiagnostics? { lock.lock(); defer { lock.unlock() }; return endDetails }
 
-    func start(duration:Int, deadline:TimeInterval) throws -> [String:Any] {
+    func start(duration:Int, deadline:TimeInterval,
+               completion: @escaping (Result<[String:Any],Error>) -> Void) throws {
         guard let executable = Bundle.main.executableURL else { throw MacUIError.action("guardian_executable_missing") }
         var sockets: [Int32] = [-1,-1]
         guard socketpair(AF_UNIX, SOCK_STREAM, 0, &sockets) == 0 else { throw MacUIError.action("guardian_socket_failed") }
@@ -371,6 +428,13 @@ final class CoveredGuardianClient {
                     let phase = message["phase"] as? String ?? "error"
                     lock.lock()
                     if let details = message["startupFailure"] as? [String:Any] { startupDetails = details }
+                    if let details = GuardianDiagnostics.decode(message["diagnostic"]) { endDetails = details }
+                    if phase == "renewed", let pending = pendingRenewal,
+                       message["requestId"] as? String == pending.0,
+                       message["deadlineUptime"] as? Double == pending.1 {
+                        acknowledgedRenewal = pending.0
+                        pending.2.signal()
+                    }
                     if let values = message["windowIds"] as? [Int] { ids = Set(values) }
                     if phase == "active" {
                         activationObservation = message["sessionObservation"] as? [String:Any]
@@ -393,18 +457,35 @@ final class CoveredGuardianClient {
             }
         }
         try writeSocket(descriptor, data:encodeJSONLine(["operation":"begin", "durationSeconds":duration, "deadlineUptime":deadline]))
-        guard ready.wait(timeout:.now() + 12) == .success, healthy else {
-            stop(reason:"guardian_start_failed")
-            lock.lock(); let reason = failure; lock.unlock()
-            throw MacUIError.action(reason ?? "guardian_start_failed")
-        }
-        lock.lock(); let observation = activationObservation; lock.unlock()
-        guard let observation else { throw MacUIError.action("guardian_activation_observation_missing") }
-        return observation
+        awaitGuardianStartup(ready, result:{ [self] in
+            lock.lock(); defer { lock.unlock() }
+            guard active, !ended, failure == nil else {
+                throw MacUIError.action(failure ?? "guardian_start_failed")
+            }
+            guard let observation = activationObservation else {
+                throw MacUIError.action("guardian_activation_observation_missing")
+            }
+            return observation
+        }, completion:{ [self] result in
+            if case .failure = result { stop(reason:"guardian_start_failed") }
+            completion(result)
+        })
     }
     func heartbeat() throws {
         guard descriptor >= 0, healthy else { throw MacUIError.action("guardian_disconnected") }
         try writeSocket(descriptor, data:encodeJSONLine(["operation":"heartbeat"]))
+    }
+    func renew(deadline: TimeInterval) throws {
+        guard descriptor >= 0, healthy else { throw MacUIError.action("guardian_disconnected") }
+        let id = UUID().uuidString
+        let ready = DispatchSemaphore(value:0)
+        lock.lock(); pendingRenewal = (id, deadline, ready); acknowledgedRenewal = nil; lock.unlock()
+        defer { lock.lock(); pendingRenewal = nil; acknowledgedRenewal = nil; lock.unlock() }
+        try writeSocket(descriptor, data:encodeJSONLine([
+            "operation":"renew", "requestId":id, "deadlineUptime":deadline]))
+        guard ready.wait(timeout:.now() + 3) == .success, healthy else { throw MacUIError.action("renewal_unacknowledged") }
+        lock.lock(); let matched = acknowledgedRenewal == id; lock.unlock()
+        guard matched else { throw MacUIError.action("renewal_unacknowledged") }
     }
     func stop(reason:String) {
         guard descriptor >= 0 else { return }

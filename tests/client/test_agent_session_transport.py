@@ -24,6 +24,7 @@ class TransportTest(unittest.TestCase):
         class Owner:
             def __init__(self,*a,**kw):outer.events.append('owner.open')
             def wait(self):return {}
+            def renew(self,duration):outer.events.append('owner.renew');return dict(renewal='owner_connection/v1',activeRemainingSeconds=duration)
             def call(self,request):
                 outer.requests.append(request)
                 outer.events.append('owner.check')
@@ -99,6 +100,26 @@ class TransportTest(unittest.TestCase):
         self.assertFalse(t.renewal.is_alive())
         self.assertEqual(self.events[-2:],['owner.close','claim.close'])
         with self.assertRaises(SessionError):t.call({'operation':'snapshot'})
+
+    def test_advertised_renewal_extends_same_owner_and_claim_only_renewal_does_not(self):
+        t=self.transport();self.events.clear()
+        t.owner_renewable=True
+        # Advance only the renewal scheduler, keeping the owner unexpired.
+        real=time.monotonic
+        base=real()
+        t.owner_deadline=base+200
+        with patch('agent_session_transport.time.monotonic',side_effect=lambda:real()+65):
+            deadline=real()+3
+            while 'owner.renew' not in self.events and real()<deadline: time.sleep(.02)
+        self.assertIn('claim.renew',self.events)
+        self.assertEqual(self.events.count('owner.renew'),1)
+        self.assertGreater(t.owner_deadline,base+900)
+        self.assertEqual(self.events.count('owner.open'),0)
+
+    def test_invalid_renewal_deadline_is_refused(self):
+        t=self.transport()
+        for value in [True,0,-1,901,float('inf'),float('nan')]:
+            with self.assertRaises(SessionError):t._owner_deadline({'activeRemainingSeconds':value})
 
     def test_image_audit_failure_closes_ownership_before_fetch(self):
         t=self.transport();self.events.clear();self.refuse_audit=True

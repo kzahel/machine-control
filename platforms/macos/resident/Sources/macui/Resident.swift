@@ -724,7 +724,7 @@ final class ResidentService {
             try writeSocket(fd, data: encodeJSONLine(["operation": "status"]))
             let reply = try brokerReply(fd)
             for key in ["installation", "policy", "callerEligibility", "helperGeneration", "helperDesktopGeneration",
-                        "profile", "lockedUsePaused", "lockedUsePauseReason", "lockedUseRecovery", "lockedUseRecoveryDelaySeconds", "relockAvailable", "coveredSession",
+                        "profile", "lockedUsePaused", "lockedUsePauseReason", "lockedUseRecovery", "lockedUseRecoveryDelaySeconds", "relockAvailable", "coveredSession", "coveredRenewal", "coveredRenewals", "coveredRemainingSeconds",
                         "relockRoute", "relockRunnerHealthy", "unlockRulePeers"] {
                 if let value = reply[key] { status[key] = value }
             }

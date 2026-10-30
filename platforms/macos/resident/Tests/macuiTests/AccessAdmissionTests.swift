@@ -2,6 +2,45 @@ import XCTest
 @testable import macui
 
 final class AccessAdmissionTests: XCTestCase {
+    func testRenewalKeepsOwnerAndGenerationAndCannotReviveExpiredAuthority() throws {
+        var clock = 0.0
+        var denied: String?
+        let arbiter = AccessAdmission(); arbiter.now = { clock }; arbiter.register("desktop")
+        let submitted = try arbiter.submit(owner:"a", requestID:"renew", resources:["desktop"],
+            wait:300, duration:60, reason:"Fixture", authority:{ denied })
+        let id = submitted["intentId"] as! String
+        let active = try arbiter.accept(owner:"a", id:id, generation:submitted["offerGeneration"] as! Int)
+        let session = active["sessionId"] as! String, generations = active["resourceGenerations"] as! [String:Int]
+        clock = 4
+        var acknowledged: Double?
+        let renewed = try arbiter.renew(owner:"a", id:id, session:session, generations:generations, seconds:120) { acknowledged = $0 }
+        XCTAssertEqual(acknowledged, 124)
+        XCTAssertEqual(renewed["sessionId"] as? String, session)
+        XCTAssertEqual(renewed["resourceGenerations"] as? [String:Int], generations)
+        XCTAssertEqual(renewed["activeRemainingSeconds"] as? Double, 120)
+        XCTAssertThrowsError(try arbiter.renew(owner:"b", id:id, session:session, generations:generations, seconds:120))
+        XCTAssertThrowsError(try arbiter.renew(owner:"a", id:id, session:session, generations:["desktop":999], seconds:120))
+        denied = "access_ended"
+        XCTAssertThrowsError(try arbiter.renew(owner:"a", id:id, session:session, generations:generations, seconds:120))
+        denied = nil
+        XCTAssertThrowsError(try arbiter.renew(owner:"a", id:id, session:session, generations:generations, seconds:120))
+        XCTAssertEqual(try arbiter.inspect(owner:"a", id:id)["state"] as? String, "ended")
+    }
+    func testFailedRenewalAcknowledgementAndLateHandshakeEndTheOwner() throws {
+        for late in [false, true] {
+            var clock = 0.0
+            let arbiter = AccessAdmission(); arbiter.now = { clock }; arbiter.register("desktop")
+            let submitted = try arbiter.submit(owner:"a", requestID:"renew", resources:["desktop"],
+                wait:300, duration:60, reason:"Fixture", authority:{ nil })
+            let id = submitted["intentId"] as! String
+            let active = try arbiter.accept(owner:"a", id:id, generation:submitted["offerGeneration"] as! Int)
+            XCTAssertThrowsError(try arbiter.renew(owner:"a", id:id, session:active["sessionId"] as! String,
+                generations:active["resourceGenerations"] as! [String:Int], seconds:120) { _ in
+                    if late { clock = 61 } else { throw MacUIError.action("renewal_unacknowledged") }
+                })
+            XCTAssertEqual(try arbiter.inspect(owner:"a", id:id)["state"] as? String, "ended")
+        }
+    }
     func testComposedPauseAndFreshSession() throws {
         var clock = 0.0
         let admission = AccessAdmission(); admission.now = { clock }; admission.register("desktop")
@@ -15,10 +54,16 @@ final class AccessAdmissionTests: XCTestCase {
         admission.resume("desktop", reason: "manual")
         XCTAssertEqual(admission.blocks("desktop"), ["activity"])
         XCTAssertEqual(admission.authorize(owner: "a", id: id, session: session, generations: generations), "stale_control_session")
+        var renewalAcknowledged = false
+        XCTAssertThrowsError(try admission.renew(owner:"a", id:id, session:session,
+            generations:generations, seconds:120) { _ in renewalAcknowledged = true })
+        XCTAssertFalse(renewalAcknowledged, "A paused owner must not extend protected deadlines")
         clock = 30
         let offer = try admission.inspect(owner: "a", id: id, heartbeat: true)
         let resumed = try admission.accept(owner: "a", id: id, generation: offer["offerGeneration"] as! Int)
         XCTAssertNotEqual(resumed["sessionId"] as? String, session)
+        XCTAssertThrowsError(try admission.renew(owner:"a", id:id, session:session,
+            generations:generations, seconds:120))
         XCTAssertThrowsError(try admission.cancel(owner: "b", id: id))
         clock = 35
         XCTAssertEqual(try admission.inspect(owner: "a", id: id, heartbeat: true)["terminalReason"] as? String, "owner_disconnected")
