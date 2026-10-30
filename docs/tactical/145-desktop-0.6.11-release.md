@@ -48,3 +48,13 @@ had not been updated. Require that module from 0.6.11 in all three platform
 verifiers and exercise presence/omission for both Linux architectures and
 containers. Rebuild the unified candidate at the repaired source; the failed
 candidate cannot qualify publication.
+
+The next successful unified candidate exposed a fixture ordering error during
+exact packaged execution: after clean restart the browser was connected and
+consent restored, but the ordinary activity guard still reported its expected
+quiet pause. The passive model check spent its 30-second reconnect deadline
+waiting on that pause. Observe the existing bounded 45-second quiet wait before
+the model check, without bypassing availability or changing runtime policy.
+The failed run restored app/policy state and released its claim and workspace;
+it emitted no acceptance receipt. Repeat the complete candidate and acceptance
+at the corrected clean source.

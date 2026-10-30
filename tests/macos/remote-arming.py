@@ -83,6 +83,11 @@ def _run(context):
             context.pop('browser_tab',None)
         covered.launch_fixture(context)
         covered.native_fixture(context, 'ordinary')
+    def quiet_after_restart():
+        reasons = call('grant.status')['availability']['blockingReasons']
+        assert not any(reason not in {'physical_activity','activity_unknown'} for reason in reasons), reasons
+        return not reasons
+
     for clean in [True, False]:
         fixture_before = json.loads(context['fixture_state'].read_text()) if covered else None
         context['pid'] = context['restart'](clean=clean)
@@ -92,6 +97,11 @@ def _run(context):
         grant = poll(restored, 'same-console arming restoration after ' + ('clean quit' if clean else 'crash'), timeout=45)
         check(('clean quit' if clean else 'crash') + ' restores original scopes and indefinite consent')
         if covered:
+            # A fresh monitor conservatively seeds its 30-second quiet window
+            # from HID idle, including earlier synthetic fixture input. Wait
+            # for availability separately from native-host reconnection; never
+            # disable the guard or spend its entire window on a relay timeout.
+            poll(quiet_after_restart, 'ordinary post-restart physical quiet', timeout=45)
             covered.verify_saved_model(context,'clean quit' if clean else 'crash')
             fixture_after = json.loads(context['fixture_state'].read_text())
             check('native fixture receives no replay on resident restart',
@@ -100,10 +110,6 @@ def _run(context):
     subprocess.run([str(resident), 'serve', str(endpoint), '--settings'],
                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
     poll(lambda: call('status')['presentation']['settingsWebViews'] == 1, 'Settings after restart')
-    def quiet_after_restart():
-        reasons = call('grant.status')['availability']['blockingReasons']
-        assert not any(reason not in {'physical_activity','activity_unknown'} for reason in reasons), reasons
-        return not reasons
     poll(quiet_after_restart, 'ordinary post-restart physical quiet', timeout=45)
     original_id = grant['grantId']
     consent = Path.home() / 'Library/Application Support/MachineControl/operator-consent.json'
