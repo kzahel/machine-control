@@ -3,6 +3,21 @@ import CoreGraphics
 @testable import macui
 
 final class InputAndUploadTests: XCTestCase {
+    func testLiteralLineEndingsDeliverOneUnmodifiedReturn() throws {
+        for character in Array("\n\r\r\n") {
+            let events = try literalTextEvents(character)
+            for event in [events.0, events.1] {
+                XCTAssertEqual(event.getIntegerValueField(.keyboardEventKeycode), 36)
+                XCTAssertEqual(event.flags.rawValue, 0)
+                var units = [UniChar](repeating: 0, count: 4)
+                var count = 0
+                event.keyboardGetUnicodeString(maxStringLength: units.count,
+                    actualStringLength: &count, unicodeString: &units)
+                XCTAssertEqual(Array(units.prefix(count)), [13])
+            }
+        }
+    }
+
     func testLiteralTextClearsInheritedShortcutsAndPreservesUnicode() throws {
         for character in Array("aAé👩‍💻") {
             let events = try literalTextEvents(character) { down in

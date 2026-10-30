@@ -9,7 +9,15 @@ func literalTextEvents(_ character: Character,
         throw MacUIError.action("Unable to create text event")
     }
     down.flags = []; up.flags = []
-    let units = Array(String(character).utf16)
+    // Unicode LF on an A-key event is ignored by native text clients (including
+    // Chrome). Deliver a line break as Return, whose macOS character is CR.
+    // Swift treats CRLF as one Character, so it must produce only one Return.
+    let lineBreak = character == "\n" || character == "\r" || character == "\r\n"
+    if lineBreak {
+        down.setIntegerValueField(.keyboardEventKeycode, value: 36)
+        up.setIntegerValueField(.keyboardEventKeycode, value: 36)
+    }
+    let units = Array((lineBreak ? "\r" : String(character)).utf16)
     units.withUnsafeBufferPointer { buffer in
         down.keyboardSetUnicodeString(stringLength:units.count, unicodeString:buffer.baseAddress!)
         up.keyboardSetUnicodeString(stringLength:units.count, unicodeString:buffer.baseAddress!)
