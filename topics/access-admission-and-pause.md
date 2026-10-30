@@ -258,6 +258,16 @@ checks. Never silently escalate an ordinary request to outer control.
 
 ## Cancellation and clocks
 
+**Decision (2026-10-29):** finite owner leases may renew under the original
+authorization; timed approval never restarts, and Until I turn it off permits
+continued authorized work until Stop or task/authority/safety termination.
+Claim renewal and watchdog heartbeats alone extend no control deadline.
+**Current, unreleased Mac source:** typed same-connection renewal pins the grant
+and its monotonic ceiling and requires protected acknowledgements. Existing
+owners are never reopened. [Tactical 144](../docs/tactical/144-renewable-control-owners.md)
+owns source/contract validation and bounded packaged sustained VM acceptance;
+older providers and legacy finite control keep their existing bounds.
+
 **Proposal:** use separate clocks with separately observable expiry reasons.
 The examples below are starting values for evaluation, not accepted defaults.
 

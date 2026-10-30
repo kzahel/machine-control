@@ -133,13 +133,47 @@ revision rather than inheriting these new semantics.
 appeared absent from native reads and became visible after clean completion
 and re-admission; replaying an apparently ineffective edit produced duplicate
 text. Separate 900-second owner requests ended with guardian failure at very
-different elapsed times. Source enforces a 900-second owner bound, separate
-from target claims, but normal expiry and guardian faults have different end
+different elapsed times. Their source enforced a 900-second owner bound,
+separate from target claims, but normal expiry and guardian faults have different end
 reasons; deadline expiry alone does not explain the observations. Read-only
 status also raced normal lifecycle transitions. The sanitized
 [gap record](../gaps/2026-10-29-covered-observations-and-duration.md) separates
-observations, caller mistakes and proposed diagnostics. No runtime fix or
-broader acceptance is claimed.
+observations, caller mistakes and diagnostics. The original intermittent
+guardian failures and delayed real-site edits remain unexplained.
+
+**Current, unreleased implementation:** [Tactical 141](../docs/tactical/141-desktop-control-reliability-plan.md)
+separates guardian diagnosis, input/observation consistency, automated Tart
+acceptance and duration policy. [143](../docs/tactical/143-covered-control-diagnostics-and-acceptance.md)
+adds closed guardian health/timing predicates and independent model/save/reload,
+hover and presentation oracles. Its ordinary multiline Chrome regression
+identified dropped LF characters and now passes with native Return delivery.
+This is a specific input repair, not an explanation of every reported edit.
+
+**Decision, bounded live VM regression passed:** cover windows use alpha
+compositing with full opaque alpha-1 content paint so the compositor's opaque
+window optimization does not suspend covered browser semantics. Full-frame
+paint is explicitly flushed before unlock; geometry, paint, visibility and
+alpha remain fail-closed health checks. Native browser model/Save/reload and
+independent unfiltered concealment pass together in the documented Tart
+profile. The sustained VM campaign passes; physical qualification remains open
+in Tactical 143.
+
+**Decision, unreleased startup handoff:** wait for guardian activation off the
+resident main loop while continuing owner heartbeat/cancellation. Adopt a late
+result only for the exact live lease and phase after fresh authority/EOF checks.
+An originally locked task may prepare an asleep display only while a fresh
+independent observation still reports locked during waiting/unlocking. All
+active-control display-sleep endings remain. Tactical 143 owns qualification.
+
+**Decision, source implemented:** [144](../docs/tactical/144-renewable-control-owners.md)
+permits negotiated finite renewal of the same live owner under its original
+approval. Every protected extension requires resident/guardian/root agreement;
+the original timed grant ceiling, Stop, Pause, takeover, connection loss and
+watchdogs still win. Claim renewal confers no desktop authority, and legacy
+finite owner commands remain bounded. Sustained exact-package qualification
+passes in the documented VM profile in the tactical, including 960 seconds
+under one owner and independent completion/disconnect relock. This does not
+qualify physical hardware or change unsupported providers' finite contracts.
 
 ## Boundaries
 

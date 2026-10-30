@@ -14,6 +14,15 @@ fresh login, preboot, Recovery, and physical hardware remain open.
 
 ## Current state
 
+**Current, unreleased native text repair:** the ordinary packaged Chrome form
+fixture reproduced loss of every LF while preserving other Unicode in AX,
+DOM/model and HTTP. Literal text now delivers LF, CR and CRLF as one unmodified
+native Return. Multiline input, model events, Save and full reload pass the
+bounded ordinary and covered regressions; profile and sustained evidence is in
+[Tactical 143](../docs/tactical/143-covered-control-diagnostics-and-acceptance.md).
+An AppKit Command-A failure was instead corrected in the bare fixture's Edit
+menu. Neither finding explains all earlier delayed/duplicated real-site edits.
+
 **Current (2026-10-24), shipped in desktop 0.6.9:** the
 installed signed desktop 0.6.8 reproduces the reported crash on the first
 download-location `dialog.choose` in two independent fresh launches under

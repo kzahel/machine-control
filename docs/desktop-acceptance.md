@@ -1,6 +1,6 @@
 # Desktop product acceptance matrix
 
-Reviewed: 2026-10-24.
+Reviewed: 2026-10-29.
 
 This is an index of recorded acceptance for the shared Tauri desktop product,
 with earlier runtime evidence kept separate. Linked tactical records own exact
@@ -82,6 +82,23 @@ bound to the exact signed CI package; these local development trials cannot
 qualify that release receipt.
 
 ## Runtime and presentation candidate acceptance
+
+**Current, unreleased desktop reliability work:**
+[Tactical 141](tactical/141-desktop-control-reliability-plan.md) coordinates
+saved choices, guardian diagnostics, input/observation consistency, unattended
+covered acceptance and renewable ownership. Bounded locally signed ARM64 Tart
+trials pass ordinary/covered native multiline input, browser model/Save/reload,
+synthetic hover and independent unfiltered cover concealment. Visible scope/
+duration choices survive Stop, relaunch and an actual cold boot; the previous
+boot's authorization stays off. These trials use one virtual display with SIP
+disabled and do not qualify physical takeover, lid/hotplug behavior, Intel GUI
+execution or production packages. The same exact development app passes 200
+checks, 19 browser cycles, five planned restarts, real-duration expiry, same-owner
+renewal and faults, followed by actual reboot/settings checks and verified
+disposal. The reboot journal recording repair is requalified separately; the
+original incomplete attempt remains failed. From 0.6.11, the release gate requires its exact-CI-
+candidate result and both disposable-workspace cleanup receipts, as described
+in the [release guide](../release/desktop.md).
 
 **Current:** personal, minimal and appliance presentation are implemented on
 all three desktop platforms and ship in public 0.6.0. The prepublication

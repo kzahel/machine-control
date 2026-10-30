@@ -162,6 +162,15 @@ The command defaults to five minutes and accepts one second through fifteen
 minutes, capped by the ordinary access grant's remaining lifetime. Until-stopped
 access still gets a finite control session. Heartbeats prove liveness; they do
 not extend the maximum deadline. A new lease requires current valid approval.
+**Current, unreleased source:** for longer tasks, the owner-bound admission SDK
+supports explicit `renew(seconds)` and opt-in `renew=True`; the CLI equivalent
+is `control stream --renew`. Every interval remains finite and the original
+approval controls total lifetime. The resident, guardian and supporting root
+helper must acknowledge extension of the same live owner. Legacy `desktop
+session control` remains a finite compatibility path. Never reopen an ended
+owner automatically. See [the admission guide](../../../docs/access-admission.md)
+and [Tactical 144](../../../docs/tactical/144-renewable-control-owners.md) for the
+contract and qualification limits.
 Prepared, enabled and unpaused locked use retains that approval across idle
 locks and clean completion in the same console, so a subsequent task can start
 without a manual unlock or another approval. Grant expiry and revocation still

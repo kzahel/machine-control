@@ -2,9 +2,28 @@
 
 ## [Unreleased]
 
+## [0.6.11]
+
+- Remember selected access scopes and duration across Settings and app restarts,
+  including browser permissions and Until I turn it off. Stop keeps access off.
+- Deliver native multiline text correctly on Mac, and retain closed guardian
+  health/timing diagnostics when covered control ends unexpectedly.
+- Keep covered Mac browser accessibility available with fully opaque painted
+  covers, verified independently of the agent's filtered capture.
+- Support negotiated renewal of the same live Mac control owner under existing
+  approval, with finite protected deadlines and unchanged Stop/watchdogs.
+- Keep heartbeats, Stop and status responsive during Mac covered startup,
+  preserve native references through renewal and handle locked display handoff.
+- Require covered reliability, real-duration expiry, same-owner renewal and
+  disposable-workspace cleanup in candidate acceptance from 0.6.11.
 - Make the Chrome Web Store the primary browser extension setup path on Mac,
   Windows, and Linux. Keep bundled Developer mode installation under secondary
   instructions, with folder copying only when explicitly requested.
+
+Targets all six desktop architectures. Mac ARM64 candidate acceptance covers
+the documented one-display VM profile; physical takeover, lid/wake, multiple
+displays and SIP-enabled qualification remain separate. The historical
+intermittent guardian fault remains under investigation.
 
 ## [0.6.10]
 

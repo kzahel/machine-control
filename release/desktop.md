@@ -48,6 +48,8 @@ pointer and the existing product update endpoint.
 ## Accept a candidate before publication
 
 This is required from 0.6.9 for the Mac ARM64 packaged browser/crash slice.
+From 0.6.11 the release receipt also requires the covered reliability campaign
+below. Historical 0.6.9–0.6.10 receipts retain their earlier contract.
 Other platform GUI acceptance remains distinct from package verification.
 
 Build the entire release matrix without creating a tag or public release:
@@ -82,6 +84,51 @@ stale-reference refusal and actual operator crash-report preview/export. A
 passing complete run emits minimized `acceptance.json`; `--app --development`
 supports local builds but cannot emit a qualifying release receipt. Failed or
 uncertain restoration retains guest backups and fails acceptance.
+
+For 0.6.11 and later, use the controller wrapper instead of the browser-only
+command. Resolve the canonical credential locator with
+`bin/machine-control inventory credentials macvm`, and begin the private
+provisioning journal before this fresh workspace. The wrapper acquires its own
+exclusive discard-on-release workspace; invoke it outside an existing scope:
+
+```bash
+python3 tests/macos/reliability-acceptance.py \
+  --target macos --claimant-authority release-maintainer \
+  --claimant-id packaged-reliability --provision-run PROVISION_RUN \
+  --package-directory /private/path/candidate --team-id EXPECTED_TEAM \
+  --admin-secret-file /private/path/canonical-login.secret \
+  --output /private/path/new-reliability-evidence --seed 141
+```
+
+The complete campaign includes the browser/crash slice, clean/crash consent,
+saved choices after Stop/relaunch, independent native/browser model/save/reload
+and hover effects, unfiltered cover presentation, protected fault recovery,
+actual 900-second expiry, and at least 960 seconds under one renewed owner.
+It also verifies relay loss after acknowledged renewals. A second sequential
+workspace checks visible Stop/relaunch choices and actual cold boot: choices
+remain, and pre-boot authorization does not. The wrapper creates and closes
+that workspace's own private provisioning journal.
+Allow roughly an hour. It uses target-native control without a focused VM
+window or controller input. A closed security/display profile is retained in
+the receipt: SIP-disabled results do not establish SIP-enabled behavior.
+Kernel-posted pointer diagnostics are reported separately; neither they nor
+this receipt certify physical mouse/keyboard, lid/wake or multiple displays.
+
+The inner campaign writes only `acceptance-pending-cleanup.json`. The wrapper
+emits release-eligible `acceptance.json` after verifying the same common run
+completed successfully and released both its claim and workspace, and the
+separate visible-controls/cold-boot phase and its disposal passed. Development
+apps remain ineligible. A failure, timeout, interrupted run or uncertain disposal
+cannot produce the final receipt. Finish the private journal with that outcome.
+
+For development only, `--resume-campaign /private/path/completed-campaign
+--development` may repeat the cold-boot phase using the previous controller
+output's archived app. It first verifies the completed/disposed scope and full
+sustained results. This supports repair of a later fixture/recording failure;
+it cannot enter release mode or emit a release receipt. The reboot itself is
+submitted once through guest launchd, with changed kernel boot time as the
+independent effect proof, so losing the guest does not require killing an
+unrecorded command transport.
 
 No CI runner currently reaches the prepared VM. This is maintainer/controller
 attestation of execution, not a claim that hosted CI ran the GUI or independently

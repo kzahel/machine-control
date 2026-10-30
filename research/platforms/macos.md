@@ -208,6 +208,43 @@ recertification and broader responsiveness soak remain separate.
 
 ## Covered startup observation ordering
 
+**Current (2026-10-29), bounded `live-tested` evidence on a locally
+Developer ID signed development package, ARM64 Tart/macOS 26.6.2, SIP disabled,
+one display:** the owned ordinary Chrome long Unicode/multiline form passes
+native input, independent HTTP model, Save and full reload after the LF/Return
+repair. Ordinary AppKit replacement/hover and clean/crash all-scope indefinite
+consent restoration pass. A controlled new-tab trial passed uncovered but
+lacked native AX WebArea under the earlier opaque-window cover despite correct
+tab selection/focus. With alpha-composited cover windows and full opaque
+alpha-1 content paint, covered native Chrome AX/input/model/Save/reload pass.
+Independent unfiltered capture shows the cover title and 570/576 dark
+background samples; visual inspection also confirms concealment. AppKit text,
+two-point hover, button/key effects and filtered capture pass, and completion
+has no delayed/duplicate model write. The subsequent 200-check campaign passes
+actual 900-second expiry, 960 seconds under one renewed owner, protected fault
+recovery, Stop and restart. Its independent kernel-posted takeover probe refuses
+the actual post, so hardware takeover remains unqualified.
+[Tactical 143](../../docs/tactical/143-covered-control-diagnostics-and-acceptance.md)
+owns the campaign, fixture corrections and evidence limits. No physical, SIP-enabled or
+notarized-release qualification follows from these development trials.
+
+**Current, `source-reviewed` activation mechanism; negative live experiment:**
+Chromium's [accessibility design](https://www.chromium.org/developers/design-documents/accessibility/)
+describes lazy platform accessibility activation. Its
+[Mac application implementation](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/chrome/browser/chrome_browser_application_mac.mm)
+handles `AXEnhancedUserInterface` from assistive clients, with delayed activation
+and a request counter. A native adapter experiment requested it only for
+recognized Chromium frameworks, once per exact process launch, and observed
+enabled readback. Covered AX still lacked the WebArea, so the change was
+rejected and removed; it is not the repair for this fixture.
+An upstream [screenpipe report](https://github.com/screenpipe/screenpipe/issues/3884)
+describes duplicate input on assistive-client disconnect; it is a reported
+related risk, not proof of this project's original symptom. The owned fixture
+checks unchanged saved models and native event/text state across teardown
+and resident restart. The adopted cover repair above retains full opaque pixel
+fill, alpha 1, full-frame paint/geometry health checks and independent
+unfiltered capture; no compositor workaround that reduces pixel opacity is used.
+
 **Current (2026-10-13), bounded `live-tested` failure on installed ARM64
 desktop 0.6.0 / macOS 26.6.2:** two covered-control attempts ended during
 startup. The retry began with all four ordinary scopes approved, locked-use

@@ -9,6 +9,15 @@ acceptance and public distribution are recorded in [Tactical 137](../docs/tactic
 
 ## Current contract
 
+**Current, unreleased Mac source:** guardian endings retain a closed diagnostic
+snapshot of console-match, lock observation, cover/input-guard/lid health,
+parent liveness and monotonic start/sample/deadline/heartbeat times. All failed
+predicates survive simultaneous expiry; the external reason and fail-closed
+cleanup order remain unchanged. Typed decoding rejects arbitrary diagnostic
+content. Status, owner receipt and the private rotated journal expose the same
+bounded snapshot. [Tactical 143](../docs/tactical/143-covered-control-diagnostics-and-acceptance.md)
+owns execution and the still-unexplained original intermittent failures.
+
 **Current:** The Windows, macOS, and Linux desktop residents write private,
 rotated JSON Lines history outside installation directories. Activity reads
 retained events rather than the recent memory buffer. The shared format is

@@ -45,7 +45,8 @@ screenshot pixels. These were corrected and must not be blamed on the broker.
 
 ## Source inspection: duration and failure attribution
 
-Current source explicitly bounds each control owner to 900 seconds; this is
+The source inspected for the original report explicitly bounded each control
+owner to 900 seconds; this was
 not an inferred timer. `client/machine_control.py` rejects `desktop session
 control` durations outside 1–900 seconds, and `client/control_session.py`
 validates the same admission range. The macOS resident's
@@ -53,7 +54,17 @@ validates the same admission range. The macOS resident's
 `guests/macos/unlock/Broker.m` also enforce that bound. Paths under the native platform are relative to
 `platforms/macos/`. A target-use claim has a separate lifetime; renewing it
 does not extend the admitted control owner. `client/agent_session_transport.py`
-explicitly ends its retained owner after 900 seconds and requires a new session.
+then explicitly ended its retained owner after 900 seconds and required a new session.
+
+**Current source update:** [Tactical 144](../docs/tactical/144-renewable-control-owners.md)
+adds typed same-owner renewal through admission, resident, guardian and root.
+The finite interval remains at most 900 seconds; the original selected grant
+owns total lifetime. Supporting retained clients can continue authorized work
+without replacing owners. Older providers and legacy finite commands retain
+their limits. The bounded VM campaign now passes actual fifteen-minute expiry
+and sixteen minutes under one renewed owner; Tactical 144 records its measured
+effects and independent relock. This does not retroactively explain the
+physical-Mac failures or qualify hardware takeover.
 
 In `resident/Sources/macui/LockedUseGuardian.swift`, `tick()` distinguishes
 `duration_expired` from `guardian_safety_unavailable`. The latter currently
@@ -64,6 +75,19 @@ shorter failed request nevertheless requires additional explanation.
 `resident/Sources/macui/LockedUse.swift` classifies `duration_expired` as a
 clean ending; guardian failure is a fault instead. These are source findings,
 not proof of the exact installed binary or a live expiry test.
+
+The diagnostic revision now retains all failed closed predicates and monotonic
+timing while preserving external reason precedence. A long ordinary Chrome
+fixture separately reproduced loss of every LF, with all other Unicode
+characters present in AX, DOM/model and HTTP; native Return delivery repairs
+that bounded case. A separate covered fixture lost Chromium's WebArea while
+the target page was actually active and focused. Full-alpha painted covers
+without the opaque-window optimization hint repair that regression; native
+browser model/Save/reload and independent unfiltered concealment pass together.
+[Tactical 143](../docs/tactical/143-covered-control-diagnostics-and-acceptance.md)
+owns the bounded comparisons and rejected alternatives. The original site's
+delayed/duplicated edits and original guardian failures are still open until
+supported by equivalent evidence.
 Existing client qualification also passes: 33 tests across
 `test_control_session.py`, `test_agent_session_transport.py` and
 `test_locked_use_client.py`. Coverage includes rejecting a 901-second owner,
@@ -71,11 +95,11 @@ ending an expired retained admission and releasing its claim without another
 agent call. These fixture tests do not exercise a real fifteen-minute covered
 session or the reported guardian fault.
 
-A useful diagnostic improvement is a bounded, private structured subreason
-for each guardian condition, with monotonic deadline/remaining-time fields at
-termination. Preserve the existing external reason and failure behavior; do
-not log console identities or UI contents. This would distinguish intended
-expiry from health failure without relaxing the fifteen-minute bound.
+The implemented bounded, private diagnostic now records structured predicates
+for each guardian condition and monotonic deadline/remaining-time fields at
+termination. It preserves the external reason and failure behavior without
+logging console identities or UI contents. It makes future failures
+attributable; it does not establish the cause of the historical failures.
 
 ## Bounded workaround
 
@@ -117,4 +141,10 @@ the full requested lease duration or establish that the earlier fault is fixed.
   from UI mutation admission.
 
 No runtime code, watchdog behavior, security settings or helper installation
-were changed during this investigation.
+were changed during the original investigation. The subsequent source and
+acceptance work is recorded separately below.
+
+The authorized [coordinating plan](../docs/tactical/141-desktop-control-reliability-plan.md)
+separates saved access choices, guardian failures, input/observations, automated
+acceptance and duration policy. Its child tacticals own current implementation
+and qualification; this historical report alone closes no gap.

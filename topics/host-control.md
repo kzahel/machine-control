@@ -305,6 +305,16 @@ this first implementation.
 
 ## Next direction
 
+**Current, unreleased source (2026-10-29):** shared form choices persist
+independently of authorization and seed existing Mac installations from original
+operator choices. Stop retains selections while removing consent. Focused UI
+and native invariants pass; bounded signed development-package Mac VM trials
+restore all four scopes and indefinite consent after clean quit and crash.
+[Tactical 142](../docs/tactical/142-saved-access-choices.md) records visible
+Stop/relaunch and actual reboot choices, including locked-browser preference,
+with pre-boot access off. This does not establish a new logout/reboot
+authorization policy or explain every reported loss of effective access.
+
 **High priority:** investigate [caller authorization](caller-authorization.md)
 before treating target-wide arming as suitable for isolating agent sessions.
 This promotes the previously deferred connection-bound grant concern; the

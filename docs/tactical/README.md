@@ -1,5 +1,22 @@
 # Implementation Tacticals
 
+- [145 — Desktop 0.6.11 release](145-desktop-0.6.11-release.md) (active):
+  unified candidate, exact signed Mac reliability acceptance and publication.
+
+- [144 — Renewable control owners](144-renewable-control-owners.md) (complete):
+  original approval lifetime, exact-owner renewal and acknowledged finite
+  protected deadlines; bounded 960-second same-owner VM qualification.
+- [143 — Covered diagnostics and acceptance](143-covered-control-diagnostics-and-acceptance.md)
+  (complete for the bounded VM profile): guardian predicates, ordinary/covered
+  effects, independent concealment, expiry, renewal and protected fault recovery.
+- [142 — Saved access choices](142-saved-access-choices.md) (complete):
+  persistent form choices, independent consent restoration and restart checks.
+
+- [141 — Desktop control reliability and saved access choices](141-desktop-control-reliability-plan.md)
+  (complete for the documented scope): saved choices, diagnostics, native
+  covered effects, sustained VM acceptance and renewable control ownership;
+  remaining physical/real-use gaps explicit.
+
 - [140 — Background browser control and extension release](140-background-browser-control.md):
   inactive-tab input, explicit foreground opt-in, bounded browser-root management
   and tag-driven Chrome Web Store submission.

@@ -109,11 +109,15 @@ coordinate actions. These checks do not prove unchanged application content or
 remove the final observation-to-input race. Pointer routes move the cursor and
 may change focus. Independent effect checks remain necessary.
 
-The claim renews under the existing policy; admission is bounded to fifteen
-minutes and is never silently renewed. A local watchdog closes ownership and
-releases the claim when that bound ends, including while the agent is idle.
-Existing grants and operator decisions
-remain authoritative. This first slice requires a ready doctor, so arrange
+The claim renews under the existing policy. **Current, unreleased Mac source:**
+an explicitly advertised owner-connection renewal extends the same finite
+admission under the original approval; timed authorization never restarts.
+Unsupported providers retain the fifteen-minute owner bound, and a local
+watchdog releases ownership and the claim when that bound ends, including
+while the agent is idle. Expired, stopped or disconnected owners are never
+silently replaced, and uncertain actions are never replayed. Existing grants
+and operator decisions remain authoritative. [Tactical 144](tactical/144-renewable-control-owners.md)
+tracks packaged qualification. This slice requires a ready doctor, so arrange
 normal grant approval through the established CLI workflow first. It does not
 arm protected operations or change resident privileges. Revocation, claim loss,
 audit failure and channel loss do not trigger automatic action retries.

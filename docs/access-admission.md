@@ -44,11 +44,21 @@ unknown delivery, or unknown/partial effect ends the stream; later input is not
 dispatched. Confirmed delivery with an explicitly unverifiable effect keeps
 ownership so the caller can observe the application next. The result retains
 that uncertainty; acceptance never becomes proof of an effect or permission
-for automatic replay. The duration
-is bounded, not automatically renewed, and interruption does not silently
-reacquire ownership. The caller must close stdin when finished. While stdin is
+for automatic replay. The duration is finite by default. Interruption never
+silently reacquires ownership. The caller must close stdin when finished. While stdin is
 idle, heartbeat failure releases the transport but the CLI may remain waiting
 for input until the caller closes or writes again.
+
+**Current, unreleased Mac source:** add `--renew` to a stream to renew its same
+live owner under the original approval. The interval must be at least fifteen
+seconds and at most fifteen minutes. A timed grant retains its original total
+deadline; Until I turn it off permits continuing work until Stop, completion,
+or loss of authority/safety. Renewal requires the provider's explicit
+`owner_connection/v1` support, including the actual helper for covered control.
+An older provider refuses this option rather than silently requesting new
+approval. The persistent agent facade renews an advertised live owner; legacy
+providers keep their finite expiry. Exact-package qualification is tracked in
+[Tactical 144](tactical/144-renewable-control-owners.md).
 
 **Current, source and fixture evidence:** the Windows desktop product requires
 owner context for native observation, application/input and browser operations
@@ -77,7 +87,10 @@ The Python SDK's `ControlSession(target, reason=..., scopes=..., wait=...,
 duration=...)` is a context manager over an already resolved common-client
 target. `wait()` accepts a current offer, `status()` observes without renewing,
 `call(request)` dispatches once, and `cancel()` ends only this connection's
-intent. A background keepalive owns liveness and checks the existing selected
+intent. On supporting providers, `renew(seconds)` explicitly extends that owner;
+`renew=True` in the constructor opts into renewal while its context remains
+live. Status and heartbeat alone do not extend the hard control deadline.
+A background keepalive owns liveness and checks the existing selected
 claim. Adapters also check the exact claim before every incoming frame and
 periodically without client polling; expiry/release/replacement closes the
 transport without acquiring or renewing a claim. After interruption, inspect status and wait for a **new** session before
@@ -126,18 +139,28 @@ Subsequent frames have unique bounded requestId and one of:
 | Operation | Additional fields | Effect |
 | --- | --- | --- |
 | `control.status` | none | Observe; never renew |
-| `control.heartbeat` | none | Renew a still-live waiting/active lease |
+| `control.heartbeat` | none | Refresh waiting/active liveness without extending the hard control deadline |
 | `control.accept` | offerGeneration | Accept a current unexpired offer |
 | `control.cancel` | none | Cancel this connection's intent, idempotently |
+| `control.renew` | sessionId, resourceGenerations, durationSeconds | Extend only this live owner after rechecking original authority and acknowledging protected deadlines; requires advertised support |
 | `control.dispatch` | sessionId, resourceGenerations, request | Recheck current ownership, scopes, pause and provider generation before dispatch |
 
 Replies use `machine-control-admission-channel/v1`, requestId, accepted,
 errorCode and data. State projections use the admission v1 schema. Dispatch
 data retains the native resident operation envelope: request acceptance,
 delivery, independently observed effect and uncertainty remain separate.
-Only one effect request may be in flight per channel; heartbeat and cancellation
-remain available while an asynchronous browser effect is pending. Interrupted
+Only one effect request may be in flight per channel; heartbeat, cancellation
+and supported same-owner renewal remain available while an asynchronous effect
+is pending. Renewal changes no session/resource generation and dispatches no
+additional action. Interrupted
 in-flight delivery is reported as uncertain, with unsafe replay.
+
+Renewal neither changes the session/resource generations nor extends approval.
+The Mac channel pins the grant and a monotonic authorization ceiling at
+acceptance. Revocation, replacement, expiry, pause or a late/failed protected
+acknowledgement cannot revive ownership. The root helper checks its old
+deadline and watchdog before accepting an extension. Renewal intent/results
+are journaled; unavailable result storage cancels the owner.
 
 Waiting lease: 60 seconds; activation offer: 15 seconds; active heartbeat:
 5 seconds. Status polling does not supply liveness. The client runtime sends
