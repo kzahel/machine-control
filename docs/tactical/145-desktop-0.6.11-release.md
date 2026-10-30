@@ -41,3 +41,10 @@ The exact CI-candidate gate remains to be executed for this release. Runtime
 qualification uses the target-resident path and does not require a focused VM
 window or controller input. Private receipts and workflow records retain the
 subsequent candidate/acceptance identities.
+
+The first candidate built and signed Linux packages, then correctly refused
+their new browser presentation module because the final-container allowlist
+had not been updated. Require that module from 0.6.11 in all three platform
+verifiers and exercise presence/omission for both Linux architectures and
+containers. Rebuild the unified candidate at the repaired source; the failed
+candidate cannot qualify publication.

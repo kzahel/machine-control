@@ -204,6 +204,8 @@ def verify(directory, target, version, revision, run, tamper=False, published=Fa
         required.add("linux-runtime/extension/browser_cdp.js")
     if tuple(map(int, version.split("."))) >= (0, 6, 10):
         required.add("linux-runtime/extension/requests.js")
+    if tuple(map(int, version.split("."))) >= (0, 6, 11):
+        required.add("linux-runtime/extension/presentation.js")
     if tuple(map(int, version.split("."))) >= (0, 6, 0):
         required.update("linux-runtime/" + name for name in (
             "coordinator.py", "notice.py", "one_shot.py", "presentation.py", "work.py"))

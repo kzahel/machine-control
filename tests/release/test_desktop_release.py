@@ -421,6 +421,16 @@ class LinuxUnifiedReleaseTests(unittest.TestCase):
             'icons/48.png', 'icons/128.png')]
         self.assert_linux_inventory_requires_every_module('0.6.7', modules, [*runtime, *extension])
 
+    def test_linux_browser_presentation_is_required_in_both_containers(self):
+        runtime = ['linux-runtime/' + name for name in (
+            'coordinator.py', 'notice.py', 'one_shot.py', 'presentation.py', 'work.py',
+            'browser_preference.py', 'session.py')]
+        extension = ['linux-runtime/extension/' + name for name in (
+            'panel.html', 'panel.css', 'panel.js', 'icons/16.png', 'icons/32.png',
+            'icons/48.png', 'icons/128.png', 'requests.js')]
+        self.assert_linux_inventory_requires_every_module('0.6.11',
+            ['linux-runtime/extension/presentation.js'], [*runtime, *extension])
+
     def assert_linux_inventory_requires_every_module(self, version, modules, extra_modules=()):
         for target in release.linux_package.TARGETS:
             folder = self.candidates / ('linux-desktop-' + target)
