@@ -26,10 +26,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.12'
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - uses: pnpm/action-setup@v6
@@ -91,10 +91,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.12'
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - uses: pnpm/action-setup@v6
@@ -227,7 +227,7 @@ jobs:
           ./desktop/scripts/verify-windows-installed.ps1 -Installer $installer -Directory artifacts/desktop -Target '${{ matrix.target }}' -Version $env:CANDIDATE_VERSION -Revision $env:GITHUB_SHA -ExpectedPublisher $env:WINDOWS_SIGNER_NAME
           python desktop/scripts/windows-package.py evidence artifacts/desktop --version $env:CANDIDATE_VERSION --revision $env:GITHUB_SHA --run "$env:GITHUB_RUN_ID.$env:GITHUB_RUN_ATTEMPT" --target '${{ matrix.target }}'
           if ($LASTEXITCODE -ne 0) { throw 'Final evidence failed' }
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: windows-desktop-${{ matrix.target }}
           path: artifacts/desktop/*
@@ -242,7 +242,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           pattern: windows-desktop-*
           path: candidates
@@ -255,7 +255,7 @@ jobs:
           for target in x86_64-pc-windows-msvc aarch64-pc-windows-msvc; do
             python3 desktop/scripts/windows-package.py verify "candidates/windows-desktop-$target" --version "$CANDIDATE_VERSION" --revision "$GITHUB_SHA" --run "$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT" --target "$target" --test-tampering
           done
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: verified-windows-desktop
           path: candidates/windows-desktop-*/*
